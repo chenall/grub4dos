@@ -181,7 +181,7 @@ VARIABLE(pxe_gip)
 
 VARIABLE(filesize)
 	.long	0, 0
-VARIABLE(saved_mem_upper)
+VARIABLE(saved_mem_upper)	/* maximum contiguous memory in KB starting at 1M and below 4G */
 	.long	0
 VARIABLE(saved_partition)
 	.long	0
@@ -203,7 +203,64 @@ VARIABLE(part_length)
 VARIABLE(fb_status)
 	.long	0
 
+VARIABLE(is64bit)
+	.long	0
+
 	. = EXT_C(main) + 0xC0
+
+VARIABLE(saved_mem_higher)	/* maximum contiguous memory in KB starting at 4G */
+	.long	0, 0
+
+VARIABLE(cdrom_drive)
+	.long	0xFFFFFFFF	/* default is the invalid drive number */
+
+VARIABLE(ram_drive)
+	.long	0x7F	/* default is a floppy */
+
+	. = EXT_C(main) + 0xD0
+
+VARIABLE(rd_base)
+	.long	0, 0
+
+VARIABLE(rd_size)
+	.long	0, 1	/* default is 4G */
+
+	. = EXT_C(main) + 0xE0
+
+	/* mem alloc array structure
+
+		long	// mem block starting address(16 byte align)
+			// bit0=0 for free mem, 1 for used mem
+			// bit 2:1 =0 for program code
+			//         =1 for environment
+			//         =2 for extra data
+			//         =3 reserved
+			// bit 3=reserved
+		long	// process id.
+			// 0 for kernel, others for user program
+	 */
+VARIABLE(mem_alloc_array_start)
+	.long	0x800000	/* at 8M */
+
+VARIABLE(mem_alloc_array_end)
+	.long	0xA00000	/* at 10M */
+
+VARIABLE(page_map_start)
+	.long	0xA00000	/* at 10M */
+
+VARIABLE(page_map_end)
+	.long	0xE00000	/* at 14M */
+
+
+	. = EXT_C(main) + 0xF0
+
+VARIABLE(free_mem_start)	/* unused mem starting address. */
+	.long	0x1000000	/* initially at 16M, but may increase later. */
+
+VARIABLE(free_mem_end)		/* unused mem ending address */
+	.long	0		/* 0 for 4G(i.e., unlimited) */
+
+	. = EXT_C(main) + 0x100
 
 real_codestart:
 	cli		/* we're not safe here! */
@@ -1858,20 +1915,6 @@ int13_new_ss:		.word	0
 	popw	%cs:(int13_old_flags - int13_handler)
 
 #;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-		/* original stack layout for reference */
-		/* BP+10: old Flags */
-		/* BP+ 8: return CS */
-		/* BP+ 6: return IP */
-		/* BP+ 2: old EAX */
-		/* BP+ 0: old BP */
-		/* BP- 2: old SI */
-		/* BP- 6: FROM, TO, Hmax, Smax */
-		/* BP-10: TO_C, TO_H, TO_S */
-		/* BP-14: StartLBA_Lo */
-		/* BP-18: StartLBA_Hi */
-		/* BP-22: S_count_Lo */
-		/* BP-26: S_count_Hi */
-#;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	cld
 	movl	%eax, %cs:(int13_old_eax - int13_handler)
 	movl	%ebx, %cs:(int13_old_ebx - int13_handler)
@@ -1907,7 +1950,15 @@ int13_new_ss:		.word	0
 	testl	%eax, %eax
 	jnz	3f			/* not end, continue */
 
+	movl	%cs:12(%bp), %eax	/* StartLBA_Hi */
+	testl	%eax, %eax
+	jnz	3f			/* not end, continue */
+
 	movl	%cs:8(%bp), %eax	/* StartLBA_Lo */
+	testl	%eax, %eax
+	jnz	3f			/* not end, continue */
+
+	movl	%cs:20(%bp), %eax	/* S_count_Hi */
 	testl	%eax, %eax
 	jnz	3f			/* not end, continue */
 
@@ -1931,28 +1982,33 @@ int13_new_ss:		.word	0
 
 	/* non-zero StartLBA signals emulation */
 
+	cmpl	$0, %cs:12(%bp)		/* StartLBA_Hi */
+	jnz	drive_emulation
 	cmpl	$0, %cs:8(%bp)		/* StartLBA_Lo */
 	jnz	drive_emulation
 
-	/* StartLBA_Lo == 0 */
+	/* StartLBA == 0 */
 
 	/* if FROM and TO are both cdrom, this is a whole drive map. */
-	testw	$0x4000, %cs:4(%bp)	/* TO_C bit 14=TO has 2048-byte cdrom sector */
+	testw	$0x4000, %cs:4(%bp)	/* TO_C bit 14=(TO is cdrom) */
 	jz	3f			/* not cdrom */
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jz	3f			/* not cdrom */
 	movb	%cs:1(%bp), %dl		/* DL changed(!!) to TO_drive */
 	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
-	jz	2f		/* no cdrom by our driver, so it is a bios drive map. */
+	jz	2f	/* no cdrom, so it is a bios drive map. */
 	cmpb	%cs:(EXT_C(min_cdrom_id) - int13_handler), %dl	/* TO_drive */
-	jb	2f		/* not cdrom drive by our driver, so it is a bios drive map. */
+	jb	2f	/* not cdrom, so it is a bios drive map. */
 	cmpb	%cs:(max_cdrom_id - int13_handler), %dl	/* TO_drive */
-	ja	2f		/* not cdrom drive by our driver, so it is a bios drive map. */
+	ja	2f	/* not cdrom, so it is a bios drive map. */
 	jmp	edd30_for_cdrom
 3:
 
 	/* S_count being not 1 signals emulation */
 
+	movl	%cs:20(%bp), %eax	/* S_count_Hi */
+	testl	%eax, %eax
+	jnz	drive_emulation
 	movl	%cs:16(%bp), %eax	/* S_count_Lo */
 	shrl	$1, %eax
 	jnz	drive_emulation
@@ -2048,9 +2104,9 @@ int13_new_ss:		.word	0
 				/* old AX changed!! */
 
 	/* check int13/AH=4Bh for cdrom */
-	testw	$0x4000, %cs:4(%bp)	/* TO_C bit 14=TO has 2048-byte cdrom sector */
+	testw	$0x4000, %cs:4(%bp)	/* TO_C bit 14=(TO is cdrom) */
 	jz	1f			/* not cdrom */
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jz	1f			/* not cdrom */
 	cmpb	$0x4B, %ah
 	jne	1f
@@ -2314,7 +2370,7 @@ drive_emulation:
 1:
 	cmpb	$0x09, %ah /* INITIALIZE CONTROLLER WITH DRIVE PARAMETERS */
 	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 	xorb	%ah, %ah
 	jmp	int13_return
@@ -2322,7 +2378,7 @@ drive_emulation:
 1:
 	cmpb	$0x0c, %ah	/* SEEK TO CYLINDER */
 	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 	xorb	%ah, %ah
 	jmp	int13_return
@@ -2330,7 +2386,7 @@ drive_emulation:
 1:
 	cmpb	$0x0d, %ah	/* reset hard disks */
 	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 	xorb	%ah, %ah
 	jmp	int13_return
@@ -2338,7 +2394,7 @@ drive_emulation:
 1:
 	cmpb	$0x10, %ah	/* check if drive ready */
 	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 	xorb	%ah, %ah
 	jmp	int13_return
@@ -2346,7 +2402,7 @@ drive_emulation:
 1:
 	cmpb	$0x11, %ah	/* recalibrate drive */
 	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 	xorb	%ah, %ah
 	jmp	int13_return
@@ -2354,7 +2410,7 @@ drive_emulation:
 1:
 	cmpb	$0x14, %ah	/* CONTROLLER INTERNAL DIAGNOSTIC */
 	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 	xorb	%ah, %ah
 	jmp	int13_return
@@ -2362,7 +2418,7 @@ drive_emulation:
 1:
 	cmpb	$0x05, %ah	/* format track */
 	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 
 	/* CH=cylinder number (bits 8,9 in high bits of CL)
@@ -2377,7 +2433,7 @@ drive_emulation:
 1:
 	cmpb	$0x08, %ah	/* get drive parameters */
 	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 	pushw	%ds
 	xorw	%ax, %ax
@@ -2438,7 +2494,7 @@ drive_emulation:
 1:
 	cmpb	$0x15, %ah	/* get disk type */
 	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 	testb	%dl, %dl	/* hard drive? */
 	js	2f		/* yes, jump */
@@ -2457,7 +2513,7 @@ drive_emulation:
 1:
 	cmpb	$0x16, %ah
 	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 	xorb	%ah, %ah	/* AH=0 means disk not changed */
 	jmp	int13_return
@@ -2465,7 +2521,7 @@ drive_emulation:
 1:
 	cmpb	$0x17, %ah	/* set floppy type for format */
 	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 	movb	$0x03, %al	/* 1.44M drive, 1.44M floppy */
 	xorb	%ah, %ah
@@ -2474,7 +2530,7 @@ drive_emulation:
 1:
 	cmpb	$0x18, %ah	/* set media type for format */
 	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 	testb	%dl, %dl	/* hard drive? */
 	js	error_01_invalid
@@ -2498,7 +2554,7 @@ drive_emulation:
 
 	/* so AH is either 2(for read) or 3(for write) */
 
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	error_01_invalid	/* CDROM */
 
 	cmpw	$0x0301, %ax	/* is it write 1 sector? */
@@ -2534,8 +2590,8 @@ drive_emulation:
 	cmpb	%ah, %dh	/* DH should not > max head number */
 	ja	error_01_invalid
 
-	pushw	%cs
-	popw	%ds		/* DS=CS */
+	movw	%cs, %si	/* use SI as temp var, instead of AX */
+	movw	%si, %ds	/* DS=CS */
 
 	movw	$(EBIOS_disk_address_packet - int13_handler), %si
 	movw	$0x0010, (%si)	/* Disk Address Packet length */
@@ -2593,19 +2649,32 @@ disk_address_packet_ready:
 	 *		EAX changed
 	 *
 	 */
+	cmpl	$0, %cs:20(%bp)		/* S_count_Hi */
+	ja	2f
 	cmpl	$1, %cs:16(%bp)		/* S_count_Lo */
 	ja	2f
+	cmpl	$0, %cs:12(%bp)		/* StartLBA_Hi */
+	jne	2f
 	cmpl	$0, %cs:8(%bp)		/* StartLBA_Lo */
 	je	4f			/* map whole drive, no restrictions */
 2:
-	cmpl	$0, 12(%si)	/* hi 32-bit of the requested StartLBA */
-	jnz	3f		/* non-zero is considered `too big' */
+	movl	%cs:20(%bp), %eax	/* S_count_Hi */
+	cmpl	%eax, 12(%si)		/* requested StartLBA_Hi */
+	ja	3f
+	jb	2f
 	movl	%cs:16(%bp), %eax	/* S_count_Lo */
-	cmpl	%eax, 8(%si)	/* lo 32-bit of the requested StartLBA */
+	cmpl	%eax, 8(%si)		/* requested StartLBA_Lo */
 	jnb	3f
-	subl	8(%si), %eax
+2:
 	pushl	%ebx
-	movzwl	2(%si), %ebx	/* requested sectors */
+	subl	8(%si), %eax
+	movl	%cs:20(%bp), %ebx	/* S_count_Hi */
+	sbbl	12(%si), %ebx		/* EBX:EAX available sectors */
+	testl	%ebx, %ebx		/* CF=0 */
+	popl	%ebx
+	jnz	4f
+	pushl	%ebx
+	movzwl	2(%si), %ebx		/* requested sectors */
 	cmpl	%ebx, %eax
 	popl	%ebx
 //	jnb	4f
@@ -2619,7 +2688,8 @@ disk_address_packet_ready:
 	/* adjust start-sector-number(LBA) to access TO_DRIVE */
 	movl	%cs:8(%bp), %eax	/* StartLBA_Lo */
 	addl	%eax, 8(%si)
-	adcl	$0, 12(%si)
+	movl	%cs:12(%bp), %eax	/* StartLBA_Hi */
+	adcl	%eax, 12(%si)
 
 	/* set drive number(TO_DRIVE) and function number(EBIOS) */
 	movb	%cs:1(%bp), %dl		/* DL=TO_DRIVE */
@@ -2638,15 +2708,16 @@ disk_address_packet_ready:
 
 	jc	3f			/* failure */
 
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	4f			/* CDROM */
 	movw	$(EBIOS_disk_address_packet - int13_handler), %si
-	pushw	%cs
-	popw	%ds
+	movw	%cs, %ax
+	movw	%ax, %ds
 	/* restore original start-sector-number(in the DAP) */
 	movl	%cs:8(%bp), %eax	/* StartLBA_Lo */
 	subl	%eax, 8(%si)
-	sbbl	$0, 12(%si)
+	movl	%cs:12(%bp), %eax	/* StartLBA_Hi */
+	sbbl	%eax, 12(%si)
 	call	modify_boot_sectors
 4:
 	movb	%cs:(int13_old_eax - int13_handler), %al
@@ -2692,7 +2763,7 @@ disk_address_packet_ready:
 	cmpb	$0x43, %ah	/* EBIOS write sectors */
 	jnz	1f
 
-//	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+//	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 //	jz	2f
 //
 //	/* CDROM */
@@ -2737,7 +2808,7 @@ disk_address_packet_ready:
 	movw	%ax, %ds	/* DS=CS */
 	movw	$(EBIOS_disk_address_packet - int13_handler), %si
 
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jz	2f
 	shlb	$2, 2(%si)
 	movl	8(%si), %eax
@@ -2768,7 +2839,7 @@ disk_address_packet_ready:
 	cmpb	$0x48, %ah	/* EBIOS GET DRIVE PARAMETERS */
 	jnz	1f
 
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jz	2f			/* normal disks */
 
 	/* CDROM */
@@ -2804,7 +2875,7 @@ disk_address_packet_ready:
 	movl	%eax, 8(%si)	/* total heads */
 	movl	%eax, 12(%si)	/* sectors per track */
 	movl	%eax, 16(%si)	/* total sectors */
-	movl	%eax, 20(%si)	/* hi 32 bits of total sectors */
+	movl	%eax, 20(%si)	/* total sectors hi */
 	pushl	%ebx
 	xorl	%ebx, %ebx
 	movw	%cs:2(%bp), %ax	/* AL=Hmax, AH=Smax */
@@ -2817,10 +2888,11 @@ disk_address_packet_ready:
 	pushl	%edx
 	mulw	%bx		/* DX:AX=product, DX=0 */
 	movw	%ax, %bx	/* BX=sectors per cylinder */
+	movl	%cs:20(%bp), %edx	/* S_count_Hi */
+	movl	%edx, 20(%si)	/* total sectors hi */
 	movl	%cs:16(%bp), %eax	/* S_count_Lo */
-	#;andb	$0xfe, %al
-	movl	%eax, 16(%si)	/* total sectors */
-	xorl	%edx, %edx	/* EDX:EAX=64bit total sectors */
+	movl	%eax, 16(%si)	/* total sectors lo */
+	/*xorl	%edx, %edx*/	/* EDX:EAX=64bit total sectors */
 	testw	%bx, %bx
 	jz	2f
 	divl	%ebx		/* EAX=quotient, EDX=residue */
@@ -2842,7 +2914,7 @@ disk_address_packet_ready:
 	cmpw	$0x4B01, %ax	/* CDROM GET DISK EMULATION STATUS */
 	jnz	1f
 
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jz	error_01_invalid	/* normal disks have no 0x4B01 function */
 
 	/* CDROM */
@@ -2913,7 +2985,7 @@ real_int13_service:
 	cmpb	$0xff, %dl	/* mem drive */
 	jne	normal_disk_drive
 
-	testw	$0x4000, %cs:4(%bp)	/* TO_C bit 14=TO has 2048-byte cdrom sector */
+	testw	$0x4000, %cs:4(%bp)	/* TO_C bit 14=(TO is cdrom) */
 	jnz	normal_disk_drive
 
 	/* handle memdrive */
@@ -2932,164 +3004,494 @@ real_int13_service:
 	/* 	8(%si), qword, lba		*/
 3:
 	/* AH = 0x42 or 0x43 */
-	sahf	/* Store AH into flags SF ZF xx AF xx PF xx CF */
-	pushf
 	movzwl	4(%si), %ebx	#;  BX=offset, EBX_high_word=0
-	movzwl	6(%si), %eax	#;  AX=segment
-	movl	8(%si), %ecx	#; ECX=LBA of MEMDRIVE SECTOR
-	shll	$9, %ecx	#; ECX=linear address of SECTOR(above 1M)
-	shll	$4, %eax	#; EAX=linear base address of segment
-	addl	%ebx, %eax	#; EAX=linear address of BUFFER(below 1M)
-	popf
-	jc	4f	/* write */
-	xchgl	%eax, %ecx
-4:
-	/* Data transfer: (%eax) -> (%ecx), number of sectors 2(%si) */
-	movl	%eax, %cs:(int13_data_addr_from - int13_handler)
-	movl	%ecx, %cs:(int13_data_addr_to - int13_handler)
+	movzwl	6(%si), %edi	#;  DI=segment
+	shll	$4, %edi	#; EDI=linear base address of segment
+	addl	%ebx, %edi	#; EDI=linear address of BUFFER(below 1M)
 
+	movl	12(%si), %ebx	#; EBX=LBA of MEMDRIVE SECTOR hi
+	movl	8(%si), %ecx	#; ECX=LBA of MEMDRIVE SECTOR lo
+	shldl	$9, %ecx, %ebx
+	shll	$9, %ecx	#; EBX:ECX=linear address of SECTOR(above 1M)
+	//xorl	%edx, %edx
+	//movl	%edi, %cs:(data_addr_below_1M - int13_handler)
+	//movl	%edx, %cs:(data_addr_below_1M - int13_handler + 4)
+	movl	%ecx, %cs:(data_addr_above_1M - int13_handler)
+	movl	%ebx, %cs:(data_addr_above_1M - int13_handler + 4)
+	testl	%ebx, %ebx
+	setnz	%dl
+	movzbl	2(%si), %ebx	# sectors to read/write
+	shll	$9, %ebx	# bytes to read/write
+	decl	%ebx
+	addl	%ecx, %ebx
+	setc	%dh
+	orb	%dh, %dl
+	movb	%dl, %cs:(need_64_bit - int13_handler)
+
+	/* if RAM disk is at above 4G, the int15/ah=87h call will fail. */
+
+	# int15/ah=87h is buggy on many BIOSes. You should use the default RAW.
 	cmpl	$0, %cs:(EXT_C(memdisk_raw) - int13_handler)
-	je	4f		/* do not use raw mode */
+	je	int15_87	/* do not use raw mode, but use BIOS. */
 
-	/* raw mode as in memdisk, contributed by Bean */
-
-//	pushw	%ax
+	# win9x vm86-mode int15/ah=87h will also fail in accessing more than 4G
+	# memory. Hope someone would develop a driver for win9x in the future.
 	smsw	%bx
 	testb	$1, %bl
-//	popw	%ax
-	jnz	4f		/* protected mode */
+	jnz	int15_87	/* vm86/protected mode also need int15_87 */
+
+	/* raw mode as in memdisk, contributed by Bean */
 
 	/* switch to protected mode myself */
 	/* ebx destroy */
 
-	//pushw	%ds
-	//pushw	%es
-	//pushl	%eax
-	//pushl	%ecx
-
-	//cli
-
-	#;xorl	%ebx, %ebx
-	movw	%cs, %bx	#; EBX_high_word=0
-	shll	$4, %ebx
-	addl	$(MyGDT - int13_handler), %ebx
-	movl	%ebx, %cs:MyGDT - int13_handler + 2
-
-	movzbl	2(%si), %ebx
-	shll	$9, %ebx
-	movl	%ebx, %edx
-	addl	%eax, %ebx
-	decl	%ebx
-	orl	%eax, %ebx
-	addl	%ecx, %edx
-	decl	%edx
-	orl	%ecx, %edx
-	orl	%ebx, %edx
-	testl	$0x100000, %edx	# zero means data inside an even mega
+	/* EDI=linear address of BUFFER(below 1M) */
+	/* ECX=linear address of SECTOR(above 1M), lower 32 bits */
+	movzbl	2(%si), %ebx	# sectors to read/write
+	shll	$9, %ebx	# bytes to read/write
+	movl	%ebx, %edx	# bytes to read/write
+	addl	%edi, %ebx	# point to the byte after the buffer
+	decl	%ebx		# point to the last byte of the source
+	orl	%edi, %ebx	# to see if the buffer is inside an even mega
+	addl	%ecx, %edx	# point to the byte after the sectors
+	decl	%edx		# point to the last byte of the sectors
+	orl	%ecx, %edx	# to see if the sectors is inside an even mega
+	orl	%ebx, %edx	# to see if both are in even megas
+	andl	$0x100000, %edx	# zero means both are in even megas, DX=0
 	setz	%dl		# we think of it as if A20 were on
-	jz	3f		# no need to enable A20
+	jz	3f		# no need to enable A20. DX=1.
 
-	pushw	%dx
-	movw	$0x00ff, %cx		# try so many times on failure
-	movw	$0x0001, %dx		# DL=enable A20, DH=debug off
+	/* DX=0 */
+	movw	$0x00ff, %cx	# try so many times on failure
+	incw	%dx		# DL=1(enable A20), DH=0(debug off)
 
 	cli	/* yes, keep interrupt off when controlling A20 */
-	call	enable_disable_a20
+	call	enable_disable_a20	# EAX, CX modified
 	sti
 
-	popw	%dx
-	jz	1f		/* success */
+	setc	%dl		# CF=1 means A20 was originally enabled.
+	jz	3f		/* enabled A20 with success */
 
-	/* A20 control failed. */
-
-	# notify the user
+	/* A20 control failed. Notify the user. */
 	movzbw	%cs:(%bp), %ax		/* FROM_DRIVE */
 	pushw	%ax
 	pushw	$a20_failure - int13_handler	# the format string
 	call	realmode_printf
 	addw	$4, %sp			# adjust the stack pointer
-
-	//popl	%ecx
-	//popl	%eax
-	//popw	%es
-	//popw	%ds
-
-	//jmp	4f		/* try once more with int15/ah=87h */
-
 	stc
 	jmp	*%cs:(int13_ret_IP - int13_handler)	//ret
 
 a20_failure:
 	.ascii	"\r\ngrub4dos: A20 failure on memdrive=0x%X.\r\n\0"
 
-1:
-	/* CF=1 means A20 was originally enabled. */
-	setc	%dl
-	movb	$0, %dh
-
 3:
+	/* EDI=linear address of BUFFER(below 1M) */
+	xorl	%ebx, %ebx
 	movw	$(EBIOS_disk_address_packet - int13_handler), %si
-	pushw	%cs
-	popw	%ds
-	//popl	%ecx
-	//popl	%eax
-	movzbl	2(%si), %ecx	#; ECX=number of sectors to transfer
-	movl	%cs:(int13_data_addr_to - int13_handler), %edi
-	movl	%cs:(int13_data_addr_from - int13_handler), %esi
-				#; ESI changed!!
+	movw	%cs, %bx
+	movw	%bx, %ds
 
+	shll	$4, %ebx
+	addl	$(MyGDT - int13_handler), %ebx
+	movl	%ebx, %cs:MyGDT - int13_handler + 4
+
+	movzbl	2(%si), %ecx	#; ECX=number of sectors to transfer
 	shll	$7, %ecx	/* 128 dwords per sector */
 
-	cli
-	sgdtl	%cs:OldGDT - int13_handler
-	lgdt	%cs:MyGDT - int13_handler
+	sgdtl	%cs:OldGDT - int13_handler + 2
+	lgdt	%cs:MyGDT - int13_handler + 2
+	testb	$1, %cs:(need_64_bit - int13_handler)	# need 64 bit?
+	jnz	move_block_using_64_bit			# yes
+	//jmp	move_block_using_64_bit		/* only test 64-bit code */
+
+	/*********************************/
+	/* normal 32-bit(4GB) block move */
+	/*********************************/
+
+	/* EDI=linear address of BUFFER(below 1M) */
+
+	//movl	%cs:(data_addr_below_1M - int13_handler), %edi
+	movl	%cs:(data_addr_above_1M - int13_handler), %esi
+	testb	$1, %cs:(int13_reg_AX - int13_handler + 1)	# AH
+	jz	3f						# read
+	xchgl	%esi, %edi
+3:
+				#; ESI changed!!
 	movl	%cr0, %eax
 	andl	$0x0000FFFF, %eax
 	orb	$1, %al
+
+	cli
 	movl	%eax, %cr0	/* Switch to protected mode */
-
-//	jmp	1f
-//1:
-//	jmp	1f
-//1:
-
 
 	movw	$16, %bx	/* Switch to 4G data segment */
 	movw	%bx, %ds
 	movw	%bx, %es
 
-//	jmp	1f
-//1:
-//	jmp	1f
-//1:
-
-
 	cld
-
 	addr32	rep movsl	/* ESI, EDI changed! */
 
 	andb	$0xFE, %al
 	movl	%eax, %cr0	/* Back to real mode */
-	lgdtl	%cs:OldGDT - int13_handler
 
-//	jmp	1f
-//1:
-//	jmp	1f
-//1:
+	jmp	move_block_finished
+
+move_block_using_64_bit:
+
+#if 1	/* Yes, you may comment out the 64-bit code on a 32-bit platform. */
+
+	/* EDI=linear address of BUFFER(below 1M) */
+
+	/* DS=CS */
+
+	movw	%cs, /*%cs:*/(CS_seg - int13_handler)
+	movw	%es, /*%cs:*/(ES_seg - int13_handler)
+	movw	%fs, /*%cs:*/(FS_seg - int13_handler)
+	movw	%gs, /*%cs:*/(GS_seg - int13_handler)
+	movw	%ss, /*%cs:*/(SS_seg - int13_handler)
+	movw	%sp, /*%cs:*/(SP_off - int13_handler)
+	movw	%di, /*%cs:*/(DI_reg - int13_handler)
+
+	//sidtl	%cs:OldIDT - int13_handler
+	movw	%dx, /*%cs:*/(DX_reg - int13_handler)	/* save DX */
+	movl	%cr3, %eax
+	movl	%eax, /*%cs:*/(old_cr3 - int13_handler)	/* save CR3 */
+	movl	%cr4, %eax
+	movl	%eax, /*%cs:*/(old_cr4 - int13_handler)	/* save CR4 */
+
+	/* EDI=linear address of BUFFER(below 1M) */
+
+	/* if BUF_ADDR >= 16K, we build page tables at 4K, 8K and 12K; */
+	/* otherwise, we build page tables at 84K, 88K and 92K. */
+	/* in either case, the page tables will not overlap the buffer, */
+	/* because the buffer length is <= 64K as for each int13 call. */
+	xorl	%ebx, %ebx
+	movb	$0x01, %bh	/* BX=0x0100 */
+	cmpl	$0x4000, %edi
+	jnb	3f
+	movb	$0x15, %bh	/* BX=0x1500 */
+3:
+	movw	%bx, /*%cs:*/(DS_seg - int13_handler)	/* for page tables */
+	movw	%bx, %ds	/* DS:0000 = PML4 base */
+
+	/* DS changed!! DS != CS */
+
+	shll	$4, %ebx	/* EBX=0x1000 or 0x15000 */
+
+	movl	%ebx, %cr3	/* load new PML4 base */
+
+	addw	$0x1007, %bx		/* EBX=EBX+0x1007, CF=0 */
+
+	/* EDI=linear address of BUFFER(below 1M) */
+	/* SI no longer be used. It can be changed. */
+
+	movw	%cs, %ax
+	movw	%ax, %es
+
+	/* ES changed!! ES=CS */
+
+	movw	$(PML4T_entry - int13_handler), %di
+
+	/* DI changed!! */
+
+	xorw	%si, %si
+
+	cld
+
+	cli
+
+	/* backup PML4 table and build it */
+	/* lo of entry 0 */
+	//lodsl		//movl	0, %eax
+	//stosl		//movl	%eax, %cs:(PML4T_entry - int13_handler)
+	movsl
+	movl	%ebx, -4(%si)	//movl	%ebx, 0
+
+	/* hi of entry 0 */
+	//lodsl		//movl	4, %eax
+	//stosl		//movl	%eax, %cs:(PML4T_entry - int13_handler + 4)
+	movsl
+	movl	$0, -4(%si)	//movl	$0, 4
+
+	/* backup PDP table and build it */
+	/* lo of entry 0 */
+	movw	$0x1000, %si
+	addw	%si, %bx	//CF=0, so the same as addl	$0x1000, %ebx
+	//lodsl		//movl	0x1000, %eax
+	//stosl		//movl	%eax, %cs:(PDPT_entry - int13_handler)
+	movsl
+	movl	%ebx, -4(%si)	//movl	%ebx, 0x1000
+
+	/* hi of entry 0 */
+	//lodsl		//movl	0x1004, %eax
+	//stosl		//movl	%eax, %cs:(PDPT_entry - int13_handler + 4)
+	movsl
+	movl	$0, -4(%si)	//movl	$0, 0x1004
+
+	/* backup PD table and build it */
+	/* entry 0 is identity mapping, 2M page size */
+	/* lo of entry 0 */
+	movw	$0x2000, %si
+	//lodsl		//movl	0x2000, %eax
+	//stosl		//movl	%eax, %cs:(PDT_entry - int13_handler)
+	movsl
+	movl	$0x00000087, -4(%si)	//movl	$0x00000087, 0x2000
+
+	/* hi of entry 0 */
+	//lodsl		//movl	0x2004, %eax
+	//stosl		//movl	%eax, %cs:(PDT_entry - int13_handler + 4)
+	movsl
+	movl	$0, -4(%si)	//movl	$0, 0x2004
+
+	/* load linear address of the disk block into EBX:EDX */
+	movl	%cs:(data_addr_above_1M - int13_handler), %edx
+	movl	%cs:(data_addr_above_1M - int13_handler + 4), %ebx
+
+	andl	$0xFFE00000, %edx		# align to 2M boundary
+	orl	$0x00000087, %edx
+
+	/* entry 1 is mapping to the first half 2M page of the disk block. */
+	/* lo of entry 1 */
+	//lodsl		//movl	0x2008, %eax
+	//stosl		//movl	%eax, %cs:(PDT_entry - int13_handler + 8)
+	movsl
+	movl	%edx, -4(%si)	//movl	%edx, 0x2008
+
+	/* hi of entry 1 */
+	//lodsl		//movl	0x200C, %eax
+	//stosl		//movl	%eax, %cs:(PDT_entry - int13_handler + 12)
+	movsl
+	movl	%ebx, -4(%si)	//movl	%ebx, 0x200C
+
+	addl	$0x00200000, %edx
+	adcl	$0, %ebx
+
+	/* entry 2 is mapping to the last half 2M page of the disk block. */
+	/* lo of entry 2 */
+	//lodsl		//movl	0x2010, %eax
+	//stosl		//movl	%eax, %cs:(PDT_entry - int13_handler + 16)
+	movsl
+	movl	%edx, -4(%si)	//movl	%edx, 0x2010
+
+	/* hi of entry 2 */
+	//lodsl		//movl	0x2014, %eax
+	//stosl		//movl	%eax, %cs:(PDT_entry - int13_handler + 20)
+	movsl
+	movl	%ebx, -4(%si)	//movl	%ebx, 0x2014
+
+	/* enter 64-bit mode */
+
+	xorl	%eax, %eax
+	movw	%cs, %ax
+	shll	$4, %eax
+	movl	%eax, %ebx		# linear base addess of CS
+	addl	$(start_64_bit - int13_handler), %eax
+	movl	%eax, %cs:(to_64_bit - int13_handler)
+	movl	%ebx, %eax		# linear base addess of CS
+	//addl	$(start_16_bit - int13_handler), %eax
+	movw	%ax, %cs:(MyGDT - int13_handler + 24 + 2)	# lo 16 bit
+	shrl	$16, %eax
+	movb	%al, %cs:(MyGDT - int13_handler + 24 + 4)	# hi 8 bit
+
+	movl	%cr4, %eax
+	orb	$0x20, %al		# 0x80=PGE, 0x20=PAE, 0x10=PSE
+	movl	%eax, %cr4
+
+	//movl	%cs:(PML4_base_CR3 - int13_handler), %eax
+	//movl	%eax, %cr3
+
+	movl	%ecx, %esi		# save ECX into ESI
+
+	/* rdmsr will change EDX:EAX */
+	movl	$0xC0000080, %ecx	# specify EFER MSR
+	rdmsr				# enable long mode(EFER.LME=1)
+	orb	$0x1, %ah
+	wrmsr
+
+	movl	%esi, %ecx		# restore ECX from ESI
+
+	/* virtual linear address of disk block */
+	movl	%cs:(data_addr_above_1M - int13_handler), %esi
+	andl	$0x001FFFFF, %esi
+	addl	$0x00200000, %esi
+
+	//movl	%cs:(data_addr_below_1M - int13_handler), %edi
+	movw	%cs:(DI_reg - int13_handler), %di	/* restore DI */
+
+	testb	$1, %cs:(int13_reg_AX - int13_handler + 1)	# AH
+	jz	3f						# read
+	xchgl	%esi, %edi
+3:
+				#; ESI changed!!
+
+	movl	%cr0, %eax		# Activate long mode by enabling
+	orl	$0x80000001, %eax	# paging and protection simultaneously
+	movl	%eax, %cr0		# skipping protected mode entirely
+
+	.byte	0x66, 0xEA		# 32-bit long jmp
+to_64_bit:
+	.long	0			# linear address of start_64_bit
+	.word	32			# 64-bit code 4GB limit
+
+	.code64
+
+start_64_bit:
+
+	/* only use 32-bit virtual adresses ESI, EDI */
+	cld
+	addr32	rep movsl	/* ESI, EDI changed! */
+
+	/* back to real mode */
+
+	ljmp	*(to_16_bit - int13_handler)(%ebx)	# EBX=linear base of CS
+
+to_16_bit:
+	.long	(start_16_bit - int13_handler)
+	.word	24			# 16-bit code 64K limit
+
+	.code16
+
+start_16_bit:
+
+	/* now in 16-bit compatability mode */
+
+	movl	%cr0, %eax
+	andl	$0x7FFFFFFF, %eax	# disable paging, leaving long mode
+	movl	%eax, %cr0
+
+	//xorl	%eax, %eax
+	movl	%cs:(old_cr3 - int13_handler), %eax
+	movl	%eax, %cr3		# flush the TLB
+
+	/* now in 16-bit protected mode */
+
+	/* rdmsr will change EDX:EAX */
+	movl	$0xC0000080, %ecx	# specify EFER MSR
+	rdmsr				# disable long mode(EFER.LME=0)
+	andb	$0xFE, %ah
+	wrmsr
+
+	movl	%cs:(old_cr4 - int13_handler), %eax
+	movl	%eax, %cr4
+
+	movw	$8, %ax			# 16-bit data 64K limit
+	movw	%ax, %ss
+	movw	$16, %ax		# 32-bit data 4GB limit
+	movw	%ax, %ds
+	movw	%ax, %es
+	movw	%ax, %fs
+	movw	%ax, %gs
+
+	movl	%cr0, %eax
+	andb	$0xFE, %al
+	movl	%eax, %cr0		# back to real mode
+
+	.byte	0xEA			# ljmp
+	.word	(start_real_mode - int13_handler)
+CS_seg:	.word	0
+DS_seg:	.word	0
+ES_seg:	.word	0
+FS_seg:	.word	0
+GS_seg:	.word	0
+SP_off:	.word	0
+SS_seg:	.word	0
+DX_reg:	.word	0
+DI_reg:	.word	0
+old_cr3:	.long	0
+old_cr4:	.long	0
+
+	.align	4
+
+//PML4_base_CR3:
+//	.long	0x00001000	/* will change to 0x00015000 if necessary. */
+
+	.align	8
+
+PML4T_entry:
+	.long	0, 0
+PDPT_entry:
+	.long	0, 0
+PDT_entry:
+	.long	0, 0
+	.long	0, 0
+	.long	0, 0
+
+start_real_mode:
+
+	/* restore DS and DX */
+	movw	%cs, %ax
+	movw	%ax, %ds
+	movw	/*%cs:*/(DX_reg - int13_handler), %dx
+
+	lss	/*%cs:*/(SP_off - int13_handler), %sp
+	movw	/*%cs:*/(DS_seg - int13_handler), %es	/* for page tables */
+	movw	/*%cs:*/(FS_seg - int13_handler), %fs
+	movw	/*%cs:*/(GS_seg - int13_handler), %gs
+
+	//lidtl	%cs:OldIDT - int13_handler
+
+	//movl	%cs:(old_cr4 - int13_handler), %eax
+	//movl	%eax, %cr4
+
+	/* restore page tables */
+	movw	$(PML4T_entry - int13_handler), %si
+	xorw	%di, %di
+
+	cld
+	//lodsl		//movl	%cs:(PML4T_entry - int13_handler), %eax
+	//stosl		//movl	%eax, %es:0
+	movsl
+	//lodsl		//movl	%cs:(PML4T_entry - int13_handler + 4), %eax
+	//stosl		//movl	%eax, %es:4
+	movsl
+
+	movw	$0x1000, %di
+	//lodsl		//movl	%cs:(PDPT_entry - int13_handler), %eax
+	//stosl		//movl	%eax, %es:0x1000
+	movsl
+	//lodsl		//movl	%cs:(PDPT_entry - int13_handler + 4), %eax
+	//stosl		//movl	%eax, 0x1004
+	movsl
+	movw	$0x2000, %di
+	//lodsl		//movl	%cs:(PDT_entry - int13_handler), %eax
+	//stosl		//movl	%eax, 0x2000
+	movsl
+	//lodsl		//movl	%cs:(PDT_entry - int13_handler + 4), %eax
+	//stosl		//movl	%eax, 0x2004
+	movsl
+	//lodsl		//movl	%cs:(PDT_entry - int13_handler + 8), %eax
+	//stosl		//movl	%eax, 0x2008
+	movsl
+	//lodsl		//movl	%cs:(PDT_entry - int13_handler + 12), %eax
+	//stosl		//movl	%eax, 0x200C
+	movsl
+	//lodsl		//movl	%cs:(PDT_entry - int13_handler + 16), %eax
+	//stosl		//movl	%eax, 0x2010
+	movsl
+	//lodsl		//movl	%cs:(PDT_entry - int13_handler + 20), %eax
+	//stosl		//movl	%eax, 0x2014
+	movsl
+
+	// no need to restore ES
+	//movw	/*%cs:*/(ES_seg - int13_handler), %es
+
+#endif	/* end of 64-bit code */
+
+move_block_finished:
+
+	lgdtl	%cs:OldGDT - int13_handler + 2
+
 	sti
-
-	//popw	%es
-	//popw	%ds
 
 	cmpl	$0, %cs:(EXT_C(a20_keep_on) - int13_handler)
 	jne	1f	/* Keep A20 on. This should hurt nothing. */
 
 	/* Disable A20 if necessary ! */
-	andw	%dx, %dx	/* 0=orig A20 off, 1=orig A20 on */
-	jnz	1f
+	testw	%dx, %dx	/* 0=orig A20 off, 1=orig A20 on */
+	jnz	1f		/* should not turn off A20 */
 
-	movw	$0x0004, %cx		# try so many times on failure
-	//movw	$0x0000, %dx		# DL=disable A20, DH=debug off
+	movw	$0x0004, %cx	# try so many times on failure
+	//xorw	%dx, %dx	# DL=0(disable A20), DH=0(debug off)
 	cli	/* yes, keep interrupt off when controlling A20 */
 	call	enable_disable_a20
 	sti
@@ -3097,7 +3499,23 @@ a20_failure:
 1:
 	clc
 	jmp	*%cs:(int13_ret_IP - int13_handler)	//ret
-4:
+
+need_64_bit:
+	.byte	0
+
+int15_87:
+	/* EDI=linear address of BUFFER(below 1M) */
+	/* ECX=linear address of SECTOR(above 1M) */
+
+	negb	%dl		/* need_64_bit? */
+	jc	6f		/* Yes. Cannot handle. Failure. */
+	xchgl	%eax, %edi	/* movl %edi, %eax */
+	testb	$1, %cs:(int13_reg_AX - int13_handler + 1)	# AH
+	jnz	3f						# write
+	xchgl	%eax, %ecx					# read
+3:
+	/* Data transfer: (%eax) -> (%ecx), number of sectors 2(%si) */
+
 	movb	2(%si), %bl	/* number of sectors to be moved */
 	pushw	%cs
 	popw	%es
@@ -3176,7 +3594,13 @@ normal_disk_drive:
 	shrl	$16, %eax
 	testb	$62, %ah
 	jnz	2b			/* no, check the next slot */
+	movl	%cs:8(%si), %eax	/* StartLBA_Hi */
+	testl	%eax, %eax
+	jnz	2b			/* no, check the next slot */
 	movl	%cs:4(%si), %eax	/* StartLBA_Lo */
+	testl	%eax, %eax
+	jnz	2b			/* no, check the next slot */
+	movl	%cs:16(%si), %eax	/* S_count_Hi */
 	testl	%eax, %eax
 	jnz	2b			/* no, check the next slot */
 	movl	%cs:12(%si), %eax	/* S_count_Lo */
@@ -3209,7 +3633,7 @@ normal_disk_drive:
 	/* 	6(%si), word, segment 		*/
 	/* 	8(%si), qword, lba		*/
 
-	testw	$0x4000, %cs:4(%bp)	/* TO_C bit 14=TO has 2048-byte cdrom sector */
+	testw	$0x4000, %cs:4(%bp)	/* TO_C bit 14=(TO is cdrom) */
 	jz	1f
 
 	/* LBA supported, CHS not applicable for CDROM */
@@ -3371,10 +3795,12 @@ last_read_sector: /* set it to 0xFFFFFFFFFFFFFFFF to invalidate the cache */
 	.long	0xFFFFFFFF	#; lo dword. for a valid cache, lowest 2 bits=0
 	.long	0xFFFFFFFF	#; hi dword
 
-int13_data_addr_from:
+data_addr_above_1M:
 	.long	0
-int13_data_addr_to:
 	.long	0
+//data_addr_below_1M:
+//	.long	0
+//	.long	0
 int13_cdrom_edi:
 	.long	0
 int13_cdrom_ebx:
@@ -3405,7 +3831,7 @@ int13_cdrom_es:
 
 	/* now 0x80 sectors requested. */
 
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=FROM has 2048-byte cdrom sector */
+	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jz	3f			/* not CDROM, fail out. */
 	/* virtual cdrom function call could request 64K data each time */
 	/* transfer 0x80 sectors = twice 0x40 sectors */
@@ -4638,9 +5064,9 @@ int15_e820_handler:
 	cmpl	$0x534D4150, %eax	/* "SMAP" */
 	jne	2f
 	pushal
-	movl	%es:4(%di), %eax	/* BaseAddrHigh */
-	testl	%eax, %eax
-	jnz	4f
+	//movl	%es:4(%di), %eax	/* BaseAddrHigh */
+	//testl	%eax, %eax
+	//jnz	4f
 	movl	%es:16(%di), %eax	/* Type */
 	decl	%eax /* 1=usable memory, available to the operating system */
 	jnz	4f
@@ -4648,31 +5074,41 @@ int15_e820_handler:
 	movw	$(EXT_C(hooked_drive_map) - int13_handler), %si
 	movw	$(DRIVE_MAP_SIZE), %cx
 6:
+	/* the code should not change SI, DI and CX! */
 	cmpb	$0xff, %cs:1(%si)
-	jne	5f
-	testb	$0x40, %cs:5(%si)	/* TO_C bit 14=TO has 2048-byte cdrom sector */
-	jnz	5f
-	movl	%cs:8(%si), %ebx	/* start_sector */
-	shll	$9, %ebx
-	movl	%es:4(%di), %eax	/* BaseAddrHigh */
-	testl	%eax, %eax
-	jnz	5f
-	cmpl	%es:(%di), %ebx		/* BaseAddrLow */
-	jb	5f
-	movl	%es:12(%di), %eax	/* LengthHigh */
-	testl	%eax, %eax
-	jnz	7f
-	movl	%es:8(%di), %eax	/* LengthLow */
-	addl	%es:(%di), %eax
-	jc	7f
-	cmpl	%eax, %ebx
-	jnb	5f
-7:
-	subl	%es:(%di), %ebx		/* new length */
-	movl	%ebx, %es:8(%di)	/* LengthLow */
-	xorl	%ebx, %ebx
-	movl	%ebx, %es:12(%di)	/* LengthHigh */
-	//jmp	4f
+	jne	5f			/* not memdrive */
+	testb	$0x40, %cs:5(%si)	/* TO_C bit 14=(TO is cdrom) */
+	jnz	5f			/* not memdrive */
+	movl	%cs:12(%si), %edx	/* start_sector hi */
+	movl	%cs:8(%si), %eax	/* start_sector lo */
+	shldl	$9, %eax, %edx
+	shll	$9, %eax		/* EDX:EAX=start_address */
+	//movl	%es:4(%di), %eax	/* BaseAddrHigh */
+	//testl	%eax, %eax
+	//jnz	5f
+	//cmpl	%es:(%di), %ebx		/* BaseAddrLow */
+	//jb	5f
+	subl	%es:(%di), %eax
+	sbbl	%es:4(%di), %edx	/* EDX:EAX=new length */
+	jb	5f			/* start_address is below the base */
+	subl	%es:8(%di), %eax
+	sbbl	%es:12(%di), %edx	/* EDX:EAX=difference */
+	jnb	5f			/* new length is too big */
+	addl	%eax, %es:8(%di)
+	adcl	%edx, %es:12(%di)	/* apply new length */
+	//movl	%es:12(%di), %eax	/* LengthHigh */
+	//testl	%eax, %eax
+	//jnz	7f
+	//movl	%es:8(%di), %eax	/* LengthLow */
+	//addl	%es:(%di), %eax
+	//jc	7f
+	//cmpl	%eax, %ebx
+	//jnb	5f
+//7:
+	//subl	%es:(%di), %ebx		/* new length */
+	//movl	%ebx, %es:8(%di)	/* LengthLow */
+	//xorl	%ebx, %ebx
+	//movl	%ebx, %es:12(%di)	/* LengthHigh */
 
 5:
 	/* try next slot */
@@ -4720,7 +5156,7 @@ int15_e820_handler:
 6:
 	cmpb	$0xff, %cs:1(%si)
 	jne	5f
-	testb	$0x40, %cs:5(%si)	/* TO_C bit 14=TO has 2048-byte cdrom sector */
+	testb	$0x40, %cs:5(%si)	/* TO_C bit 14=(TO is cdrom) */
 	jnz	5f
 	movl	%cs:8(%si), %ebx	/* StartLBA_Lo */
 	shll	$9, %ebx
@@ -6632,22 +7068,41 @@ GDT_data:		/* used by int15/ah=87h */
 /*28*/	.long	0, 0	/* stack segment descriptor, must be 0 */
 /*30*/
 
+#endif /* ! STAGE1_5 */
+
 	.align	16
 
-MyGDT:	.word	MyGDTEnd - MyGDT - 1
-	.long	0		/* Pointer to self */
-	.word	0
+MyGDT:
+//gdt:
+/* 0*/	.word	0	/* NULL entry. Can be used at will. */
+gdtdesc:		/* 6 bytes used for gdt descriptor. */
+	.word	MyGDTEnd - MyGDT - 1	/* GDT limit */
 
-MyRMDS:	.long	0x0000ffff	/* 64K data segment */
-	.long	0x00009200
+	/* The gdt linear base address will be adjusted by int13_handler,
+	 * but not touched outside int13_handler. */
 
-MyPMDS:	.long	0x0000ffff	/* 4GB data segment */
-	.long	0x00cf9200
+	.long	ABS(MyGDT)		/* GDT linear address */
+
+/* 8*/	.long	0x0000FFFF, 0x00009300	/* 16-bit data 64K limit */
+/*16*/	.long	0x0000FFFF, 0x00CF9300	/* 32-bit data 4GB limit */
+
+	/* The 16-bit code segment base will be adjusted by int13_handler,
+	 * but not touched outside int13_handler. */
+/*24*/	.long	0x0000FFFF, 0x00009B00	/* 16-bit code 64K limit */
+/*32*/	.long	0x0000FFFF, 0x00AF9B00	/* 64-bit code 4GB limit */
+
+OldGDT:
+	/* This gdt entry is no use for int13_handler, but used outside. The
+	 * int13_handler only uses it as a temp space for the OldGDT variable.
+	 * Only the last 6 bytes are used by OldGDT, and the starting 2 bytes
+	 * are not used by OldGDT. */
+/*40*/	.long	0x0000FFFF, 0x00CF9B00	/* 32-bit code 4GB limit */
 
 MyGDTEnd:
 
-OldGDT:
-	.long	0, 0
+#ifndef STAGE1_5
+//OldIDT:
+//	.long	0, 0
 
 	#;*******************************************************************
 	#;			ATA Registers Layout
@@ -6706,6 +7161,8 @@ EBIOS_disk_address_packet:
 //	.space	0x1000	/* 4KB stack */
 
 int13_handler_end:
+
+	//. = . - (int13_handler_end - int13_handler)/0x2FE1
 
 #;============================================================================
 
@@ -7233,7 +7690,7 @@ ENTRY(chain_stage1)
 	DATA32	ADDR32	ljmp	*(offset)
 #endif
 	.code32
-#endif /* STAGE1_5 */
+#endif /* ! STAGE1_5 */
 
 
 #ifdef STAGE1_5
@@ -7413,6 +7870,232 @@ realcseg:
 	.code32
 
 
+#ifndef STAGE1_5
+/*
+ *   int mem64 (int func, __u64 dest, __u64 src, __u64 len)
+ *
+ *   input:
+ *		func = 1 for memmove, 2 for memcmp, 3 for memset
+ *
+ */
+
+ENTRY(mem64)
+
+	.code32
+
+	pushl	%ebp
+	movl	%esp, %ebp
+
+	#; +28	len
+	#; +20	src
+	#; +12	dest
+	#;  +8	func
+	#;  +4	EIP
+	#; ebp	EBP
+	#;  -4	ESI
+	#;  -8	EDI
+	#; -12	EBX
+
+	pushl	%esi
+	pushl	%edi
+	pushl	%ebx
+
+	/* backup cr3, cr4 */
+	movl	%cr3, %eax
+	movl	%eax, ABS(old_cr3)		# save cr3
+	movl	%cr4, %eax
+	movl	%eax, ABS(old_cr4)		# save cr4
+
+	/*********** begin initialising page maps ***********/
+	/* PML4 base, with only one entry(=512G) */
+	cld
+	movl	ABS(EXT_C(page_map_start)), %ebx
+	movl	%ebx, %edi
+	movl	%ebx, %eax
+	addl	$0x1007, %eax
+	stosl					# first PML4 table entry, lo
+	xorl	%eax, %eax
+	stosl					# first PML4 table entry, hi
+
+	/* PDP table, with 512 entries(=512G) */
+	/* entry 0x000 starts at EBX+0x002000 */
+	/* entry 0x001 starts at EBX+0x003000 */
+	/* .................................. */
+	/* entry 0x1FF starts at EBX+0x201000 */
+
+	movl	%ebx, %edi
+	addl	$0x1000, %edi		# PDP table starting at EBX+0x1000
+	movl	$512, %ecx
+1:
+	movl	$(512+2), %eax
+	subl	%ecx, %eax		# EAX=(entry number + 2)
+	shll	$12, %eax
+	addl	%ebx, %eax
+	orb	$0x07, %al
+	stosl					# PDP table entry, lo
+	xorl	%eax, %eax
+	stosl					# PDP table entry, hi
+	loop	1b
+
+	/* PD table, identity mapping, 2M page size, 512*512entries=512G */
+	movl	%ebx, %edi
+	addl	$0x2000, %edi		# PD table starting at EBX+0x2000
+	movl	$(512*512), %ecx
+1:
+	xorl	%edx, %edx
+	movl	$(512*512), %eax
+	subl	%ecx, %eax
+	shldl	$21, %eax, %edx
+	shll	$21, %eax
+	orb	$0x87, %al
+	stosl					# PD table entry, lo
+	movl	%edx, %eax
+	stosl					# PD table entry, hi
+	loop	1b
+
+	/***********  end  initialising page maps ***********/
+
+	movl	ABS(EXT_C(page_map_start)), %eax
+	movl	%eax, %cr3			# load new PML4 base
+
+	movl	%cr4, %eax
+	orb	$0x20, %al			# 0x80=PGE, 0x20=PAE, 0x10=PSE
+	movl	%eax, %cr4			# load new cr4
+
+	/* rdmsr will change EDX:EAX */
+	movl	$0xC0000080, %ecx		# specify EFER MSR
+	rdmsr					# enable long mode(EFER.LME=1)
+	orb	$0x1, %ah
+	wrmsr
+
+	movl	%cr0, %eax
+	orl	$0x80000000, %eax	# Activate long mode by enabling paging
+	movl	%eax, %cr0
+
+	ljmp	$32, $ABS(1f)		# ljmp to enter 64-bit mode
+
+	.code64
+1:
+
+	/* 28(%ebp) = len */
+	/* 20(%ebp) = src */
+	/* 12(%ebp) = dest */
+	/*  8(%ebp) = func */
+
+	movl	%esp, %ebp		# clear upper 32-bit of %rbp
+	movl	8(%rbp), %eax
+	testl	%eax, %eax
+	jz	1f
+	cmpl	$3, %eax
+	ja	1f
+	cld
+	movq	12(%rbp), %rdi
+	movq	20(%rbp), %rsi
+	movq	28(%rbp), %rcx
+	/* AL=1, 2, 3 */
+	cmpb	$1, %al
+	jne	2f
+	/* AL=1, memmove */
+	movb	%cl, %al
+	shrq	$3, %rcx
+	repz movsq			/* RCX=0 */
+	andb	$7, %al
+	jz	1f
+	movb	%al, %cl
+	repz movsb
+	jmp	1f
+2:
+	cmpb	$2, %al
+	jne	2f
+	/* AL=2, memcmp */
+	movb	%cl, %al
+	shrq	$3, %rcx
+	repz cmpsq
+	jnz	1f
+	andb	$7, %al			/* RCX=0 */
+	jz	1f
+	movb	%al, %cl
+	repz cmpsb
+	jmp	1f
+2:
+	/* AL=3, memset */
+	movl	%esi, %eax	/* get AL for the char to write */
+	movzbq	%al, %rax
+	testb	%al, %al
+	jz	2f
+	movb	%al, %ah
+	movw	%ax, %si
+	shll	$16, %eax
+	movw	%si, %ax
+	movl	%eax, %esi
+	shlq	$32, %rax
+	movl	%esi, %eax
+2:
+	movb	%cl, %dl
+	shrq	$3, %rcx
+	repz stosq			/* RCX=0 */
+	andb	$7, %dl
+	jz	1f
+	movb	%dl, %cl
+	repz stosb
+1:
+	setnz	%al
+	movzbl	%al, %ebx		# EBX=return value
+
+	/* back to protected mode */
+	ljmp	*ABS(1f)
+1:
+	.long	ABS(1f)
+	.word	40			# 32-bit code 4GB limit
+
+	.code32
+1:
+
+	/* now in 32-bit compatability mode */
+
+	movl	%cr0, %eax
+	andl	$0x7FFFFFFF, %eax	# disable paging, leaving long mode
+	movl	%eax, %cr0
+
+	movl	%cs:ABS(old_cr3), %eax
+	movl	%eax, %cr3		# restore cr3, flush the TLB
+
+	/* now in 32-bit protected mode */
+
+	/* rdmsr will change EDX:EAX */
+	movl	$0xC0000080, %ecx	# specify EFER MSR
+	rdmsr				# disable long mode(EFER.LME=0)
+	andb	$0xFE, %ah
+	wrmsr
+
+	movl	%cs:ABS(old_cr4), %eax
+	movl	%eax, %cr4		# restore cr4
+
+	/* reload segment registers */
+
+	movw	$16, %ax		# 32-bit data 4GB limit
+	movw	%ax, %ds
+	movw	%ax, %es
+	movw	%ax, %fs
+	movw	%ax, %gs
+	movw	%ax, %ss
+
+	/* ESP not touched, so it need not restore. */
+	//movl	%ebp, %esp
+
+	/* XXX: Is this actually needed? */
+	ljmp	$40, $ABS(1f)		# ljmp to enter 32-bit protected mode
+1:
+	xchgl	%eax, %ebx		# EAX=return value
+	popl	%ebx
+	popl	%edi
+	popl	%esi
+	popl	%ebp
+
+	ret
+
+#endif /* ! STAGE1_5 */
+
 /*
  *   int biosdisk_int13_extensions (int ax, int drive, void *dap)
  *
@@ -7422,6 +8105,9 @@ realcseg:
  */
 
 ENTRY(biosdisk_int13_extensions)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -7544,6 +8230,9 @@ ENTRY(biosdisk_int13_extensions)
  */
 
 ENTRY(biosdisk_standard)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -7670,6 +8359,9 @@ ENTRY(biosdisk_standard)
  */
 
 ENTRY(check_int13_extensions)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -7737,8 +8429,6 @@ ENTRY(check_int13_extensions)
 
 	ret
 
-	.code32
-
 /*
  *   int get_diskinfo_standard (int drive, unsigned long *cylinders,
  *                              unsigned long *heads, unsigned long *sectors)
@@ -7750,6 +8440,9 @@ ENTRY(check_int13_extensions)
  */
 
 ENTRY(get_diskinfo_standard)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -9757,6 +10450,9 @@ VARIABLE(linux_data_tmp_addr)
 VARIABLE(linux_data_real_addr)
 	.long	0
 
+VARIABLE(linux_bzimage_tmp_addr)
+	.long	0x1000000		/* at 16M */
+
 ENTRY(linux_boot)
 	/* don't worry about saving anything, we're committed at this point */
 	cld	/* forward copying */
@@ -9765,18 +10461,33 @@ ENTRY(linux_boot)
 	movl	EXT_C(linux_text_len), %ecx
 	addl	$3, %ecx
 	shrl	$2, %ecx
-	movl	$LINUX_BZIMAGE_ADDR, %esi	# 0x100000
-	movl	$LINUX_ZIMAGE_ADDR, %edi	# 0x10000
+	movl	EXT_C(linux_bzimage_tmp_addr), %esi	# 0x1000000
+	movl	$LINUX_ZIMAGE_ADDR, %edi		# 0x10000
 
 	rep movsl
 
+	jmp	linux_real_mode_startup
+
 ENTRY(big_linux_boot)
+	cld
+
+	/* copy kernel */
+	movl	EXT_C(linux_text_len), %ecx
+	addl	$3, %ecx
+	shrl	$2, %ecx
+	movl	EXT_C(linux_bzimage_tmp_addr), %esi	# 0x1000000
+	movl	$LINUX_BZIMAGE_ADDR, %edi		# 0x100000
+
+	rep movsl
+
+linux_real_mode_startup:
+
 	movl	EXT_C(linux_data_real_addr), %ebx
 
 	/* copy the real mode part */
 	movl	EXT_C(linux_data_tmp_addr), %esi
 	movl	%ebx, %edi
-	movl	$LINUX_SETUP_MOVE_SIZE, %ecx	# 0x9100
+	movl	$LINUX_SETUP_MOVE_SIZE, %ecx	# 0x9400
 	cld
 	rep movsb
 
@@ -10644,7 +11355,7 @@ ENTRY(currticks)
 	ret
 #endif
 
-#endif /* STAGE1_5 */
+#endif /* ! STAGE1_5 */
 
 /*
  *  This is the area for all of the special variables.
@@ -10697,6 +11408,7 @@ VARIABLE(apm_bios_info)
  *  description.
  */
 
+#if 0
 	.align	16
 gdt:
 	.word	0, 0
@@ -10723,7 +11435,7 @@ gdt:
 gdtdesc:
 	.word	0x27			/* limit */
 	.long	gdt			/* addr */
-
+#endif
 
 
 	.code32
@@ -10747,32 +11459,26 @@ ENTRY(HMA_start)
 
 	/* 6-byte GDT descriptor */
 gdtdescHMA:
-	.word	0x27		/* limit */
+	.word	0x1F		/* limit */
 	.long	HMA_ADDR	/* linear base address */
 
-	. = EXT_C(HMA_start) + 8	/* GDT entry: unused */
+	. = EXT_C(HMA_start) + 8	/* 16-bit data 64K limit */
 
-	/* code segment, although it is no use here for now */
-	.word	0xFFFF, 0
-	.byte	0, 0x9A, 0xCF, 0
+	/* real mode data segment base=0x200 */
+	.word	0xFFFF, 0x0200
+	.byte	0x00, 0x92, 0, 0
 
-	. = EXT_C(HMA_start) + 0x10	/* GDT entry: unused */
+	. = EXT_C(HMA_start) + 0x10	/* 32-bit data 4GB limit */
 
 	/* data segment, although it is no use here for now */
 	.word	0xFFFF, 0
 	.byte	0, 0x92, 0xCF, 0
 
-	. = EXT_C(HMA_start) + 0x18	/* GDT entry: 16-bit code */
+	. = EXT_C(HMA_start) + 0x18	/* 16-bit code 64K limit */
 
 	/* 16-bit code segment base=0x2B0000 */
 	.word	0xFFFF, 0x0000
 	.byte	0x2B, 0x9E, 0, 0
-
-	. = EXT_C(HMA_start) + 0x20	/* GDT entry: 16-bit data */
-
-	/* real mode data segment base=0x200 */
-	.word	0xFFFF, 0x0200
-	.byte	0x00, 0x92, 0, 0
 
 1:
 	/* set up to pass boot drive */

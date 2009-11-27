@@ -254,7 +254,7 @@ unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n)
  * sector number SECTOR and with BYTE_LEN bytes long.
  */
 int
-rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, unsigned long byte_len, char *buf, unsigned long write)
+rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, unsigned long byte_len, unsigned long long buf, unsigned long write)
 {
   unsigned long slen, sectors_per_vtrack;
   unsigned long sector_size_bits = log2_tmp (buf_geom.sector_size);
@@ -344,10 +344,10 @@ rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, u
 
       if (write == 0x900ddeed)
       {
-	  if (grub_memcmp (buf, bufaddr, size) == 0)
+	  if (grub_memcmp64 (buf, (unsigned long long)(unsigned int)bufaddr, size) == 0)
 		goto next;		/* no need to write */
 	  buf_track = -1;		/* invalidate the buffer */
-	  grub_memmove (bufaddr, buf, size);	/* update data at bufaddr */
+	  grub_memmove64 ((unsigned long long)(unsigned int)bufaddr, buf, size);	/* update data at bufaddr */
 	  /* write it! */
 	  bufseg = BUFFERSEG + (soff << (sector_size_bits - 4));
 	  if (biosdisk (BIOSDISK_WRITE, drive, &buf_geom, sector, num_sect, bufseg))
@@ -374,13 +374,13 @@ rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, u
 	  }
       }
 
-      grub_memmove (buf, bufaddr, size);
+      grub_memmove64 (buf, (unsigned long long)(unsigned int)bufaddr, size);
       if (errnum == ERR_WONT_FIT)
       {
 	  if (! rawread_ignore_memmove_overflow && buf)
 		return 0;
 	  errnum = 0;
-	  buf = NULL; /* so that further memcheck() always fail */
+	  buf = 0/*NULL*/; /* so that further memcheck() always fail */
       }
       else
 next:
@@ -395,7 +395,7 @@ next:
 
 
 int
-devread (unsigned long sector, unsigned long byte_offset, unsigned long byte_len, char *buf, unsigned long write)
+devread (unsigned long sector, unsigned long byte_offset, unsigned long byte_len, unsigned long long buf, unsigned long write)
 {
   unsigned long sector_size_bits = log2_tmp(buf_geom.sector_size);
 
@@ -418,7 +418,7 @@ devread (unsigned long sector, unsigned long byte_offset, unsigned long byte_len
 
 #if !defined(STAGE1_5)
   if (disk_read_hook && (((unsigned long)debug) >= 0x7FFFFFFF))
-    printf ("<%d, %d, %d>", sector, byte_offset, byte_len);
+    printf ("<%ld, %ld, %ld>", (unsigned long long)sector, (unsigned long long)byte_offset, (unsigned long long)byte_len);
 #endif /* !STAGE1_5 */
 
   /*  Call RAWREAD, which is very similar, but:
@@ -504,6 +504,7 @@ devwrite (unsigned long sector, unsigned long sector_count, char *buf)
 
 
 #ifndef STAGE1_5
+#if 0
 int
 set_bootdev (int hdbias)
 {
@@ -556,6 +557,7 @@ set_bootdev (int hdbias)
 
   return MAKEBOOTDEV (j, (i >> 4), (i & 0xF), ((saved_drive - hdbias) & 0x7F), ((saved_partition >> 8) & 0xFF));
 }
+#endif
 #endif /* STAGE1_5 */
 
 
@@ -579,7 +581,7 @@ print_fsys_type (void)
       if (current_partition == 0xFFFFFF)
 	printf ("using whole disk\n");
       else
-	printf ("partition type 0x%02X\n", current_slice & 0xFF);
+	printf ("partition type 0x%02X\n", (unsigned long)(unsigned char)current_slice);
     }
 }
 #endif /* ! STAGE1_5 */
@@ -592,9 +594,6 @@ next_bsd_partition (/*unsigned long drive, unsigned long *partition, int *type, 
       int i;
       bsd_part_no = (*next_partition_partition & 0xFF00) >> 8;
 
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_bsd_partition: 001\n");
-#endif
       /* If this is the first time...  */
       if (bsd_part_no == 0xFF)
 	{
@@ -605,17 +604,11 @@ next_bsd_partition (/*unsigned long drive, unsigned long *partition, int *type, 
 	      return 0;
 	    }
 
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_bsd_partition: 002\n");
-#endif
 	  /* Read the BSD label.  */
 	  if (! rawread (next_partition_drive, *next_partition_start + BSD_LABEL_SECTOR,
-			 0, SECTOR_SIZE, next_partition_buf, 0xedde0d90))
+			 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
 	    return 0;
 
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_bsd_partition: 003\n");
-#endif
 	  /* Check if it is valid.  */
 	  if (! BSD_LABEL_CHECK_MAG (next_partition_buf))
 	    {
@@ -626,9 +619,6 @@ next_bsd_partition (/*unsigned long drive, unsigned long *partition, int *type, 
 	  bsd_part_no = -1;
 	}
 
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_bsd_partition: 004\n");
-#endif
       /* Search next valid BSD partition.  */
       if (BSD_LABEL_NPARTS (next_partition_buf) <= BSD_LABEL_NPARTS_MAX)
       for (i = bsd_part_no + 1; i < BSD_LABEL_NPARTS (next_partition_buf); i++)
@@ -652,9 +642,6 @@ next_bsd_partition (/*unsigned long drive, unsigned long *partition, int *type, 
 	    }
 	}
 
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_bsd_partition: 005\n");
-#endif
       errnum = ERR_NO_PART;
       return 0;
 }
@@ -665,9 +652,6 @@ static int
 next_pc_slice (void)
 {
 redo:
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_pc_slice: 001\n");
-#endif
       pc_slice_no = (*next_partition_partition & 0xFF0000) >> 16;
 
       /* If this is the first time...  */
@@ -679,11 +663,8 @@ redo:
 	  pc_slice_no = -1;
 	}
 
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_pc_slice: 002\n");
-#endif
       /* Read the MBR or the boot sector of the extended partition.  */
-      if (! rawread (next_partition_drive, *next_partition_offset, 0, SECTOR_SIZE, next_partition_buf, 0xedde0d90))
+      if (! rawread (next_partition_drive, *next_partition_offset, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
 	return 0;
 
       /* Check if it is valid.  */
@@ -694,9 +675,6 @@ redo:
 	}
 
 next_entry:
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_pc_slice: 003\n");
-#endif
       /* Increase the entry number.  */
       (*next_partition_entry)++;
 
@@ -716,9 +694,6 @@ next_entry:
 		  if (! *next_partition_ext_offset)
 		    *next_partition_ext_offset = *next_partition_offset;
 		  *next_partition_entry = -1;
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_pc_slice: recursive call\n");
-#endif
 
 #if 0
 		  return next_pc_slice ();	/* FIXME: Recursive!!!! */
@@ -728,9 +703,6 @@ next_entry:
 		}
 	    }
 
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_pc_slice: return error\n");
-#endif
 	  errnum = ERR_NO_PART;
 	  return 0;
 	}
@@ -759,9 +731,6 @@ next_entry:
 	  || ! IS_PC_SLICE_TYPE_EXTENDED (*next_partition_type))
 	pc_slice_no++;
 
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_pc_slice: return success\n");
-#endif
       *next_partition_partition = (pc_slice_no << 16) | 0xFFFF;
       return 1;
 }
@@ -797,9 +766,6 @@ next_partition (/*unsigned long drive, unsigned long dest,
   if ((*next_partition_partition != 0xFFFFFF && IS_PC_SLICE_TYPE_BSD (*next_partition_type & 0xff))
       || ! (next_partition_drive & 0x80))
     {
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_partition: bsd check begin\n");
-#endif
       if (*next_partition_type == PC_SLICE_TYPE_NONE)
 	*next_partition_type = PC_SLICE_TYPE_FREEBSD;
 
@@ -818,9 +784,6 @@ next_partition (/*unsigned long drive, unsigned long dest,
       errnum = ERR_NONE;
     }
 
-#ifndef STAGE1_5
-//if (debug == -2) grub_printf ("next_partition: next_pc_slice begin\n");
-#endif
   return next_pc_slice ();
 }
 
@@ -980,7 +943,7 @@ real_open_partition (int flags)
 		    {
 			int active = (PC_SLICE_FLAG (mbr, entry) == PC_SLICE_FLAG_BOOTABLE);
 			grub_printf ("   Partition num: %d%s, ",
-				 (current_partition >> 16), (active ? ", active": ""));
+				 (unsigned long)(unsigned char)(current_partition >> 16), (active ? ", active": ""));
 		    }
 
 		  if (! IS_PC_SLICE_TYPE_BSD (current_slice))
@@ -1002,7 +965,7 @@ real_open_partition (int flags)
 			    }
 
 			  grub_printf ("     BSD Partition num: \'%c\', ",
-				       bsd_part_no + 'a');
+				       (bsd_part_no + 'a'));
 			  check_and_print_mount ();
 			}
 
@@ -1027,10 +990,10 @@ real_open_partition (int flags)
 
 		      if (! (current_drive & 0x80)
 			  || (dest_partition >> 16) == pc_slice_no)
-			grub_sprintf (str, "%c)", bsd_part_no + 'a');
+			grub_sprintf (str, "%c)", (bsd_part_no + 'a'));
 		      else
 			grub_sprintf (str, "%d,%c)",
-				      pc_slice_no, bsd_part_no + 'a');
+				      pc_slice_no, (bsd_part_no + 'a'));
 		      print_a_completion (str);
 		    }
 		  else if (! IS_PC_SLICE_TYPE_BSD (current_slice))
@@ -1224,13 +1187,33 @@ set_device (char *device)
 		current_drive = 0xffff;
 	      else if (ch == 'r')
 		current_drive = ram_drive;
+#ifndef GRUB_UTIL
+	      else if (ch == 'h' && (*device == ',' || *device == ')'))
+		{
+			/* it is (hd) for the next new drive that can be added. */
+			current_drive = (unsigned char)(0x80 + (*(unsigned char *)0x475));
+		}
+#endif
 	      else
 		{
-		  safe_parse_maxint (&device, (int *)(void *) &current_drive);
+		  unsigned long long ull;
 
+		  safe_parse_maxint (&device, &ull);
+		  current_drive = ull;
 		  disk_choice = 0;
 		  if (ch == 'h')
-		    current_drive |= 0x80;
+		  {
+#ifndef GRUB_UTIL
+			if ((long long)ull < 0)
+			{
+				if ((-ull) <= (unsigned long long)(*(unsigned char *)0x475))
+					current_drive = (unsigned char)(0x80 + (*(unsigned char *)0x475) + current_drive);
+				else
+					return !(errnum = ERR_DEV_FORMAT);
+			} else
+#endif
+				current_drive |= 0x80;
+		  }
 #ifndef GRUB_UTIL
 		  //else if (ch == 'c' && cdrom_drive != GRUB_INVALID_DRIVE && current_drive < 8)
 		  //{
@@ -1263,18 +1246,19 @@ set_device (char *device)
 
 	  if (*device >= '0' && *device <= '9')
 	    {
+	      unsigned long long ull;
 	      part_choice ++;
 	      current_partition = 0;
 
 	      if (/*!(current_drive & 0x80)
-		  ||*/ !safe_parse_maxint (&device, (int *)(void *) &current_partition)
+		  ||*/ !safe_parse_maxint (&device, &ull)
 		  || current_partition > 254)
 		{
 		  errnum = ERR_DEV_FORMAT;
 		  return 0;
 		}
 
-	      current_partition = (current_partition << 16) + 0xFFFF;
+	      current_partition = (ull << 16) + 0xFFFF;
 
 	      if (*device == ',')
 		device++;
@@ -1583,14 +1567,14 @@ print_completions (int is_filename, int is_completion)
 			    {
 			      char dev_name[8];
 
-			      grub_sprintf (dev_name, "%cd%d", k ? 'h':'f', j);
+			      grub_sprintf (dev_name, "%cd%d", (k ? 'h':'f'), (unsigned long)j);
 			      print_a_completion (dev_name);
 			    }
 			}
 		    }
 		}
 
-	      if (rd_base != 0xffffffff
+	      if (rd_base != -1ULL
 		  && (disk_choice || ram_drive == current_drive)
 		  && (!ptr
 		      || *(ptr-1) == '('
@@ -1612,7 +1596,7 @@ print_completions (int is_filename, int is_completion)
 		    {
 			char dev_name[8];
 
-			grub_sprintf (dev_name, "cd%d", j);
+			grub_sprintf (dev_name, "cd%d", (unsigned long)j);
 			print_a_completion (dev_name);
 		    }
 	      }
@@ -1794,13 +1778,14 @@ grub_open (char *filename)
       return !(errnum = ERR_BAD_FILENAME);
 #else
       char *ptr = filename;
-      unsigned long tmp, list_addr = FSYS_BUF + 12;  /* BLK_BLKLIST_START */
+      unsigned long list_addr = FSYS_BUF + 12;  /* BLK_BLKLIST_START */
       filemax = 0;
 
       while (list_addr < FSYS_BUF + 0x77F9)	/* BLK_MAX_ADDR */
 	{
+	  unsigned long long tmp;
 	  tmp = 0;
-	  safe_parse_maxint (&ptr, (int *)(void *)&tmp);
+	  safe_parse_maxint (&ptr, &tmp);
 	  errnum = 0;
 
 	  if (*ptr != '+')
@@ -1826,7 +1811,7 @@ grub_open (char *filename)
 	  *((unsigned long*)list_addr) = tmp;	/* BLK_BLKSTART */
 	  ptr++;		/* skip the plus sign */
 
-	  safe_parse_maxint (&ptr, (int *)(void *)&tmp);
+	  safe_parse_maxint (&ptr, &tmp);
 
 	  if (errnum)
 		return 0;
@@ -1837,7 +1822,7 @@ grub_open (char *filename)
 	  *((unsigned long*)(list_addr+4)) = tmp;	/* BLK_BLKLENGTH */
 
 	  //tmp *= buf_geom.sector_size;
-	  filemax += ((unsigned long long)tmp) * ((unsigned long long)buf_geom.sector_size);
+	  filemax += tmp * buf_geom.sector_size;
 	  list_addr += 8;			/* BLK_BLKLIST_INC_VAL */
 
 	  if (*ptr != ',')
@@ -1911,13 +1896,15 @@ block_file:
 
 
 unsigned long
-grub_read (char *buf, unsigned long len, unsigned long write)
+grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
 //  if (write != 0x900ddeed && write != 0xedde0d90)
 //	return !(errnum = ERR_FUNC_CALL);
 
-  if (filepos > filemax)
-      filepos = filemax;
+//  if (filepos > filemax)
+//      filepos = filemax;
+  if (filepos >= filemax)
+      return 0;//!(errnum = ERR_FILELENGTH);
 
   if (len > filemax - filepos)
       len = filemax - filepos;

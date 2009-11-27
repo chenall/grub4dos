@@ -340,43 +340,43 @@ read_image (char *s)
     }
 
     /* read header */
-    if (! grub_read((char*)&buf, 10, 0xedde0d90) || grub_memcmp(buf, "/* XPM */\n", 10)) {
+    if (! grub_read((unsigned long long)(unsigned int)(char*)&buf, 10, 0xedde0d90) || grub_memcmp(buf, "/* XPM */\n", 10)) {
         grub_close();
         return 0;
     }
     
     /* parse info */
-    while (grub_read((char *)&c, 1, 0xedde0d90)) {
+    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
         if (c == '"')
             break;
     }
 
-    while (grub_read((char *)&c, 1, 0xedde0d90) && (c == ' ' || c == '\t'))
+    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && (c == ' ' || c == '\t'))
         ;
 
     i = 0;
     width = c - '0';
-    while (grub_read((char *)&c, 1, 0xedde0d90)) {
+    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
         if (c >= '0' && c <= '9')
             width = width * 10 + c - '0';
         else
             break;
     }
-    while (grub_read((char *)&c, 1, 0xedde0d90) && (c == ' ' || c == '\t'))
+    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && (c == ' ' || c == '\t'))
         ;
 
     height = c - '0';
-    while (grub_read((char *)&c, 1, 0xedde0d90)) {
+    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
         if (c >= '0' && c <= '9')
             height = height * 10 + c - '0';
         else
             break;
     }
-    while (grub_read((char *)&c, 1, 0xedde0d90) && (c == ' ' || c == '\t'))
+    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && (c == ' ' || c == '\t'))
         ;
 
     colors = c - '0';
-    while (grub_read((char *)&c, 1, 0xedde0d90)) {
+    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
         if (c >= '0' && c <= '9')
             colors = colors * 10 + c - '0';
         else
@@ -384,20 +384,20 @@ read_image (char *s)
     }
 
     base = 0;
-    while (grub_read((char *)&c, 1, 0xedde0d90) && c != '"')
+    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && c != '"')
         ;
 
     /* palette */
     for (i = 0, idx = 1; i < colors; i++) {
         len = 0;
 
-        while (grub_read((char *)&c, 1, 0xedde0d90) && c != '"')
+        while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && c != '"')
             ;
-        grub_read((char *)&c, 1, 0xedde0d90);       /* char */
+        grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90);       /* char */
         base = c;
-        grub_read(buf, 4, 0xedde0d90);      /* \t c # */
+        grub_read((unsigned long long)(unsigned int)buf, 4, 0xedde0d90);      /* \t c # */
 
-        while (grub_read((char *)&c, 1, 0xedde0d90) && c != '"') {
+        while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && c != '"') {
             if (len < sizeof(buf))
                 buf[len++] = c;
         }
@@ -421,7 +421,7 @@ read_image (char *s)
     /* parse xpm data */
     while (y < height) {
         while (1) {
-            if (!grub_read((char *)&c, 1, 0xedde0d90)) {
+            if (!grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
                 grub_close();
                 return 0;
             }
@@ -429,7 +429,7 @@ read_image (char *s)
                 break;
         }
 
-        while (grub_read((char *)&c, 1, 0xedde0d90) && c != '"') {
+        while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && c != '"') {
             for (i = 1; i < 15; i++)
                 if (pal[i] == c) {
                     c = i;

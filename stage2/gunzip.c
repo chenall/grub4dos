@@ -216,7 +216,7 @@ bad_field (unsigned long len)
       }	else
 	  len--;
       
-      not_retval = grub_read (&ch, 1, 0xedde0d90);
+      not_retval = grub_read ((unsigned long long)(unsigned int)&ch, 1, 0xedde0d90);
     }
   while (not_retval);
 
@@ -279,7 +279,7 @@ gunzip_test_header (void)
    *  is a compressed file, and simply mark it as such.
    */
   if (no_decompression
-      || grub_read ((char *)buf, 10, 0xedde0d90) != 10
+      || grub_read ((unsigned long long)(unsigned int)(char *)buf, 10, 0xedde0d90) != 10
       || ((*((unsigned short *) buf) != GZIP_HDR_LE)
 	  && (*((unsigned short *) buf) != OLD_GZIP_HDR_LE)))
     {
@@ -295,7 +295,7 @@ gunzip_test_header (void)
   if (buf[2] != DEFLATED
       || (buf[3] & UNSUPP_FLAGS)
       || ((buf[3] & EXTRA_FIELD)
-	  && (grub_read ((char *)buf, 2, 0xedde0d90) != 2
+	  && (grub_read ((unsigned long long)(unsigned int)(char *)buf, 2, 0xedde0d90) != 2
 	      || bad_field (*((unsigned short *) buf))))
       || ((buf[3] & ORIG_NAME) && bad_field (-1))
       || ((buf[3] & COMMENT) && bad_field (-1)))
@@ -310,7 +310,7 @@ gunzip_test_header (void)
   
   filepos = filemax - 8;
   
-  if (grub_read ((char *)buf, 8, 0xedde0d90) != 8)
+  if (grub_read ((unsigned long long)(unsigned int)(char *)buf, 8, 0xedde0d90) != 8)
     {
       if (! errnum)
 	errnum = ERR_BAD_GZIP_HEADER;
@@ -496,7 +496,7 @@ get_byte (void)
   if (filepos == gzip_data_offset || bufloc == INBUFSIZ)
     {
       bufloc = 0;
-      grub_read ((char *)inbuf, INBUFSIZ, 0xedde0d90);
+      grub_read ((unsigned long long)(unsigned int)(char *)inbuf, INBUFSIZ, 0xedde0d90);
     }
 
   return inbuf[bufloc++];
@@ -1190,7 +1190,7 @@ initialize_tables (void)
 
 
 unsigned long
-gunzip_read (char *buf, unsigned long len)
+gunzip_read (unsigned long long buf, unsigned long len)
 {
   unsigned long ret = 0;
 
@@ -1225,7 +1225,7 @@ gunzip_read (char *buf, unsigned long len)
 
       if (buf)
       {
-	memmove (buf, srcaddr, size);
+	grub_memmove64 (buf, (unsigned long long)(unsigned int)srcaddr, size);
 	buf += size;
       }
       len -= size;

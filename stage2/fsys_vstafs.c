@@ -49,7 +49,7 @@ vstafs_mount (void)
   
   if( /*(((current_drive & 0x80) || (current_slice != 0))
        && current_slice != PC_SLICE_TYPE_VSTAFS)
-      ||*/  ! devread (0, 0, BLOCK_SIZE, (char *) FSYS_BUF, 0xedde0d90)
+      ||*/  ! devread (0, 0, BLOCK_SIZE, (unsigned long long)(unsigned int)(char *) FSYS_BUF, 0xedde0d90)
       ||  FIRST_SECTOR->fs_magic != 0xDEADFACE)
     retval = 0;
   
@@ -59,7 +59,7 @@ vstafs_mount (void)
 static void 
 get_file_info (int sector)
 {
-  devread (sector, 0, BLOCK_SIZE, (char *) FILE_INFO, 0xedde0d90);
+  devread (sector, 0, BLOCK_SIZE, (unsigned long long)(unsigned int)(char *) FILE_INFO, 0xedde0d90);
 }
 
 static int curr_ext, current_direntry, current_blockpos;
@@ -80,7 +80,7 @@ vstafs_readdir (long sector)
   
   blocks = FILE_INFO->blocks;
   curr_ext = 0;
-  devread (blocks[curr_ext].a_start, 0, 512, (char *) DIRECTORY_BUF, 0xedde0d90);
+  devread (blocks[curr_ext].a_start, 0, 512, (unsigned long long)(unsigned int)(char *) DIRECTORY_BUF, 0xedde0d90);
   current_direntry = 11;
   current_blockpos = 0;
   
@@ -102,7 +102,7 @@ vstafs_nextdir (void)
       if (curr_ext < FILE_INFO->extents)
 	{
 	  devread (blocks[curr_ext].a_start + current_blockpos, 0,
-		   512, (char *) DIRECTORY_BUF, 0xedde0d90);
+		   512, (unsigned long long)(unsigned int)(char *) DIRECTORY_BUF, 0xedde0d90);
 	}
       else
 	{
@@ -180,7 +180,6 @@ vstafs_dir (char *dirname)
 	      if (print_possibilities > 0)
 		print_possibilities = -print_possibilities;
 	      
-	      //printf ("  %s", d->name);
 	      print_a_completion (tmp_name);
 	    }
 #endif
@@ -214,7 +213,7 @@ vstafs_dir (char *dirname)
 }
 
 unsigned long 
-vstafs_read (char *buf, unsigned long len, unsigned long write)
+vstafs_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   //struct alloc *blocks;
   unsigned long size, ret = 0, offset, curr_len = 0;

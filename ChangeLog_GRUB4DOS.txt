@@ -1,3 +1,8 @@
+2009-11-13 added --replace option for cat. This will write to file. Caution!
+2009-11-11 let PXE_BUF use BUFFERADDR. cancelled (hd+) support. added (hd) and (hd-N) support.
+2009-11-09 moved FSYS_BUF and some other buffers up at 0x3E0000. (temporarily)added (hd+) support for map.
+2009-11-08 map memdrive images at memory address above 4GB(only for 64-bit CPU). deleted SETUP, INSTALL and EMBED commands.
+2009-10-16 Turned off int13/AX=4B01/DL=7F cdrom query which may hang on some machines. Commented out DMA code related to running via KEXEC. Implemented 64-bit int13 memdrive block moving code.
 2009-06-20(r68) add (ud) device to access space created with fbinst.
 2009-06-11 fixed a bug of missing assignment of ES and BX registers in
 int13_handler(asm.S).

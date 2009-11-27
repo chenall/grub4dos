@@ -86,7 +86,7 @@ ffs_mount (void)
   if (/*(((current_drive & 0x80) || (current_slice != 0))
        && ! IS_PC_SLICE_TYPE_BSD_WITH_FS (current_slice, FS_BSDFFS))
       ||*/ (unsigned long)part_length < (SBLOCK + (SBSIZE / DEV_BSIZE))
-      || ! devread (SBLOCK, 0, SBSIZE, (char *) SUPERBLOCK, 0xedde0d90)
+      || ! devread (SBLOCK, 0, SBSIZE, (unsigned long long)(unsigned int)(char *) SUPERBLOCK, 0xedde0d90)
       || SUPERBLOCK->fs_magic != FS_MAGIC)
     retval = 0;
 
@@ -123,7 +123,7 @@ block_map (int file_block)
 	  offset = 0;
 	}
       
-      if (! devread (bnum, offset * sizeof (int), bsize, (char *) MAPBUF, 0xedde0d90))
+      if (! devread (bnum, offset * sizeof (int), bsize, (unsigned long long)(unsigned int)(char *) MAPBUF, 0xedde0d90))
 	{
 	  mapblock = -1;
 	  mapblock_bsize = -1;
@@ -143,7 +143,7 @@ block_map (int file_block)
 
 
 unsigned long
-ffs_read (char *buf, unsigned long len, unsigned long write)
+ffs_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long logno, off, size, map, ret = 0;
   
@@ -202,7 +202,7 @@ loop:
 
   if (! devread (fsbtodb (SUPERBLOCK, itod (SUPERBLOCK, ino)),
 	ino % (SUPERBLOCK->fs_inopb) * sizeof (struct dinode),
-	sizeof (struct dinode), (char *) INODE, 0xedde0d90))
+	sizeof (struct dinode), (unsigned long long)(unsigned int)(char *) INODE, 0xedde0d90))
     return 0;			/* XXX what return value? */
 
   /* if we have a real file (and we're not just printing possibilities),
@@ -273,7 +273,7 @@ loop:
 	  if ((map = block_map (block)) < 0
 	      || ! devread (fsbtodb (SUPERBLOCK, map), 0,
 			   blksize (SUPERBLOCK, INODE, block),
-			   (char *) FSYS_BUF, 0xedde0d90))
+			   (unsigned long long)(unsigned int)(char *) FSYS_BUF, 0xedde0d90))
 	    {
 	      errnum = ERR_FSYS_CORRUPT;
 	      *rest = ch;

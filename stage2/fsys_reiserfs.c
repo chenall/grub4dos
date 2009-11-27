@@ -392,7 +392,7 @@ static int
 journal_read (int block, int len, char *buffer) 
 {
   return devread ((INFO->journal_block + block) << INFO->blocksize_shift, 
-		  0, len, buffer, 0xedde0d90);
+		  0, len, (unsigned long long)(unsigned int)buffer, 0xedde0d90);
 }
 
 /* Read a block from ReiserFS file system, taking the journal into
@@ -400,7 +400,7 @@ journal_read (int block, int len, char *buffer)
  * journal taken.  
  */
 static int
-block_read (int blockNr, int start, int len, char *buffer, unsigned long write)
+block_read (int blockNr, int start, int len, unsigned long long buffer, unsigned long write)
 {
   int transactions = INFO->journal_transactions;
   int desc_block = INFO->journal_first_desc;
@@ -461,7 +461,7 @@ block_read (int blockNr, int start, int len, char *buffer, unsigned long write)
       translatedNr = INFO->journal_block + ((desc_block + i) & journal_mask);
 #ifdef REISERDEBUG
       printf ("block_read: block %d is mapped to journal block %d.\n", 
-	      blockNr, translatedNr - INFO->journal_block);
+	      blockNr, (translatedNr - INFO->journal_block));
 #endif
       /* We must continue the search, as this block may be overwritten
        * in later transactions.
@@ -591,7 +591,7 @@ reiserfs_mount (void)
 
   if ((unsigned long)part_length < superblock + (sizeof (struct reiserfs_super_block) >> SECTOR_BITS)
       || ! devread (superblock, 0, sizeof (struct reiserfs_super_block), 
-		(char *) super, 0xedde0d90)
+		(unsigned long long)(unsigned int)(char *) super, 0xedde0d90)
       || (substring (REISER3FS_SUPER_MAGIC_STRING, super->s_magic, 0) > 0
 	  && substring (REISER2FS_SUPER_MAGIC_STRING, super->s_magic, 0) > 0
 	  && substring (REISERFS_SUPER_MAGIC_STRING, super->s_magic, 0) > 0)
@@ -603,7 +603,7 @@ reiserfs_mount (void)
       superblock = REISERFS_OLD_DISK_OFFSET_IN_BYTES >> SECTOR_BITS;
       if ((unsigned long)part_length < superblock + (sizeof (struct reiserfs_super_block) >> SECTOR_BITS)
 	  || ! devread (superblock, 0, sizeof (struct reiserfs_super_block), 
-			(char *) super, 0xedde0d90))
+			(unsigned long long)(unsigned int)(char *) super, 0xedde0d90))
 	return 0;
 
       if (substring (REISER3FS_SUPER_MAGIC_STRING, super->s_magic, 0) > 0
@@ -634,7 +634,7 @@ reiserfs_mount (void)
 
 #ifdef REISERDEBUG
   printf ("reiserfs_mount: version=%d, blocksize=%d\n", 
-	  INFO->version, INFO->blocksize);
+	  (INFO->version), (INFO->blocksize));
 #endif /* REISERDEBUG */
 
   /* Clear node cache. */
@@ -658,17 +658,17 @@ reiserfs_mount (void)
 
       /* Read in super block again, maybe it is in the journal */
       block_read (superblock >> INFO->blocksize_shift, 
-		  0, sizeof (struct reiserfs_super_block), (char *) super, 0xedde0d90);
+		  0, sizeof (struct reiserfs_super_block), (unsigned long long)(unsigned int)(char *) super, 0xedde0d90);
     }
 
-  if (! block_read (super->s_root_block, 0, INFO->blocksize, (char*) ROOT, 0xedde0d90))
+  if (! block_read (super->s_root_block, 0, INFO->blocksize, (unsigned long long)(unsigned int)(char*) ROOT, 0xedde0d90))
     return 0;
   
   INFO->tree_depth = BLOCKHEAD (ROOT)->blk_level;
   
 #ifdef REISERDEBUG
   printf ("root read_in: block=%d, depth=%d\n", 
-	  super->s_root_block, INFO->tree_depth);
+	  super->s_root_block, (INFO->tree_depth));
 #endif /* REISERDEBUG */
 
   if (INFO->tree_depth >= MAX_HEIGHT)
@@ -726,7 +726,7 @@ read_tree_node (unsigned int blockNr, int depth)
   printf ("  next read_in: block=%d (depth=%d)\n",
 	  blockNr, depth);
 #endif /* REISERDEBUG */
-  if (! block_read (blockNr, 0, INFO->blocksize, cache, 0xedde0d90))
+  if (! block_read (blockNr, 0, INFO->blocksize, (unsigned long long)(unsigned int)cache, 0xedde0d90))
     return 0;
   /* Make sure it has the right node level */
   if (BLOCKHEAD (cache)->blk_level != depth)
@@ -751,11 +751,11 @@ next_key (void)
   
 #ifdef REISERDEBUG
   printf ("next_key:\n  old ih: key %d:%d:%d:%d version:%d\n", 
-	  INFO->current_ih->ih_key.k_dir_id, 
-	  INFO->current_ih->ih_key.k_objectid, 
-	  INFO->current_ih->ih_key.u.v1.k_offset,
-	  INFO->current_ih->ih_key.u.v1.k_uniqueness,
-	  INFO->current_ih->ih_version);
+	  (INFO->current_ih->ih_key.k_dir_id), 
+	  (INFO->current_ih->ih_key.k_objectid),
+	  (INFO->current_ih->ih_key.u.v1.k_offset),
+	  (INFO->current_ih->ih_key.u.v1.k_uniqueness),
+	  (INFO->current_ih->ih_version));
 #endif /* REISERDEBUG */
   
   if (ih == &ITEMHEAD[BLOCKHEAD (LEAF)->blk_nr_item])
@@ -775,7 +775,7 @@ next_key (void)
 	    }
 	  depth++;
 #ifdef REISERDEBUG
-	  printf ("  depth=%d, i=%d\n", depth, INFO->next_key_nr[depth]);
+	  printf ("  depth=%d, i=%d\n", depth, (INFO->next_key_nr[depth]));
 #endif /* REISERDEBUG */
 	}
       while (INFO->next_key_nr[depth] == 0);
@@ -815,11 +815,11 @@ next_key (void)
   INFO->current_item = &LEAF[ih->ih_item_location];
 #ifdef REISERDEBUG
   printf ("  new ih: key %d:%d:%d:%d version:%d\n", 
-	  INFO->current_ih->ih_key.k_dir_id, 
-	  INFO->current_ih->ih_key.k_objectid, 
-	  INFO->current_ih->ih_key.u.v1.k_offset,
-	  INFO->current_ih->ih_key.u.v1.k_uniqueness,
-	  INFO->current_ih->ih_version);
+	  (INFO->current_ih->ih_key.k_dir_id), 
+	  (INFO->current_ih->ih_key.k_objectid), 
+	  (INFO->current_ih->ih_key.u.v1.k_offset),
+	  (INFO->current_ih->ih_key.u.v1.k_uniqueness),
+	  (INFO->current_ih->ih_version));
 #endif /* REISERDEBUG */
   return 1;
 }
@@ -901,7 +901,7 @@ search_stat (__u32 dir_id, __u32 objectid)
 }
 
 unsigned long
-reiserfs_read (char *buf, unsigned long len, unsigned long write)
+reiserfs_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long blocksize;
   unsigned long offset;
@@ -909,8 +909,8 @@ reiserfs_read (char *buf, unsigned long len, unsigned long write)
   unsigned long prev_filepos = filepos;
   
 #ifdef REISERDEBUG
-  printf ("reiserfs_read: filepos=%d len=%d, offset=%x:%x\n",
-	  (unsigned long)filepos, len, (__u64) IH_KEY_OFFSET (INFO->current_ih) - 1);
+  printf ("reiserfs_read: filepos=%ld len=%ld, offset=%lx\n",
+	  (unsigned long long)filepos, (unsigned long long)len, (__u64) IH_KEY_OFFSET (INFO->current_ih) - 1);
 #endif /* REISERDEBUG */
   
   if (INFO->current_ih->ih_key.k_objectid != INFO->fileinfo.k_objectid
@@ -929,16 +929,16 @@ reiserfs_read (char *buf, unsigned long len, unsigned long write)
       blocksize = INFO->current_ih->ih_item_len;
       
 #ifdef REISERDEBUG
-      printf ("  loop: filepos=%d len=%d, offset=%d blocksize=%d\n",
-	      (unsigned long)filepos, len, offset, blocksize);
+      printf ("  loop: filepos=%ld len=%ld, offset=%ld blocksize=%ld\n",
+	      (unsigned long long)filepos, (unsigned long long)len, (unsigned long long)offset, (unsigned long long)blocksize);
 #endif /* REISERDEBUG */
       
       if (IH_KEY_ISTYPE(INFO->current_ih, TYPE_DIRECT)
 	  && offset < blocksize)
 	{
 #ifdef REISERDEBUG
-	  printf ("direct_read: offset=%d, blocksize=%d\n",
-		  offset, blocksize);
+	  printf ("direct_read: offset=%ld, blocksize=%ld\n",
+		  (unsigned long long)offset, (unsigned long long)blocksize);
 #endif /* REISERDEBUG */
 	  to_read = blocksize - offset;
 	  if (to_read > len)
@@ -954,15 +954,15 @@ reiserfs_read (char *buf, unsigned long len, unsigned long write)
 	      disk_read_func = NULL;
 	    }
 	  else if (buf)
-	    memcpy (buf, INFO->current_item + offset, to_read);
+	    grub_memmove64 (buf, (unsigned long long)(unsigned int)(INFO->current_item + offset), to_read);
 	  goto update_buf_len;
 	}
       else if (IH_KEY_ISTYPE(INFO->current_ih, TYPE_INDIRECT))
 	{
 	  blocksize = (blocksize >> 2) << INFO->fullblocksize_shift;
 #ifdef REISERDEBUG
-	  printf ("indirect_read: offset=%d, blocksize=%d\n",
-		  offset, blocksize);
+	  printf ("indirect_read: offset=%ld, blocksize=%ld\n",
+		  (unsigned long long)offset, (unsigned long long)blocksize);
 #endif /* REISERDEBUG */
 	  
 	  while (offset < blocksize)
@@ -1088,7 +1088,7 @@ reiserfs_dir (char *dirname)
 	  INFO->fileinfo.k_objectid = objectid;
   	  filepos = 0;
 	  if (! next_key ()
-	      || reiserfs_read (linkbuf, filemax, 0xedde0d90) != filemax)
+	      || reiserfs_read ((unsigned long long)(unsigned int)linkbuf, filemax, 0xedde0d90) != filemax)
 	    {
 	      if (! errnum)
 		errnum = ERR_FSYS_CORRUPT;
@@ -1179,11 +1179,11 @@ reiserfs_dir (char *dirname)
 	    return 0;
 #ifdef REISERDEBUG
 	  printf ("ih: key %d:%d:%d:%d version:%d\n", 
-		  INFO->current_ih->ih_key.k_dir_id, 
-		  INFO->current_ih->ih_key.k_objectid, 
-		  INFO->current_ih->ih_key.u.v1.k_offset,
-		  INFO->current_ih->ih_key.u.v1.k_uniqueness,
-		  INFO->current_ih->ih_version);
+		  (INFO->current_ih->ih_key.k_dir_id), 
+		  (INFO->current_ih->ih_key.k_objectid),
+		  (INFO->current_ih->ih_key.u.v1.k_offset),
+		  (INFO->current_ih->ih_key.u.v1.k_uniqueness),
+		  (INFO->current_ih->ih_version));
 #endif /* REISERDEBUG */
 	  
 	  if (INFO->current_ih->ih_key.k_objectid != objectid)
@@ -1284,7 +1284,7 @@ reiserfs_embed (unsigned long *start_sector, unsigned long needed_sectors)
   unsigned long num_sectors;
   
   if (! devread (REISERFS_DISK_OFFSET_IN_BYTES >> SECTOR_BITS, 0, 
-		 sizeof (struct reiserfs_super_block), (char *) super, 0xedde0d90))
+		 sizeof (struct reiserfs_super_block), (unsigned long long)(unsigned int)(char *) super, 0xedde0d90))
     return 0;
   
   *start_sector = 1; /* reserve first sector for stage1 */

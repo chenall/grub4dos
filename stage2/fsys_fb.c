@@ -93,7 +93,7 @@ static void fb_init (void)
   fb_drive = (fb_status >> 8) & 0xff;
 
   grub_printf ("%d\n", fb_drive);
-  if (! rawread (fb_drive, 0, 0, 512, (char *) m, 0xedde0d90))
+  if (! rawread (fb_drive, 0, 0, 512, (unsigned long long)(unsigned int)(char *) m, 0xedde0d90))
     goto fail;
 
   if ((m->fb_magic != FB_MAGIC_LONG) || (m->end_magic != 0xaa55))
@@ -103,9 +103,9 @@ static void fb_init (void)
   boot_size = m->boot_size;
   fb_ofs = m->lba;
 
-  fb_list = (char *) m;
+  fb_list = (uchar *) m;
   if (! rawread (fb_drive, boot_base + 1 - fb_ofs, 0, boot_size << 9,
-		 fb_list, 0xedde0d90))
+		 (unsigned long long)(unsigned int)(char *)fb_list, 0xedde0d90))
     goto fail;
 
   data = ((struct fb_data *) fb_list);
@@ -159,7 +159,7 @@ int fb_mount (void)
   return (current_drive == FB_DRIVE);
 }
 
-unsigned long fb_read (char *buf, unsigned long len, unsigned long write)
+unsigned long fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   int ret;
   unsigned long sector, ofs, saved_len;

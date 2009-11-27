@@ -118,6 +118,9 @@ cp stage2/grldr stage2/grub.exe stage2/badgrub.exe grub4dos-${VER}/chinese || ex
 #############################################
 
 rm -f ../${RELEASE}.zip ../${RELEASE}.tar.gz || exit $?
+if ! rar a -r -s -m5 ../${RELEASE}.rar grub4dos-${VER} ; then
+	echo rar failed. Continue with zip or tar...
+fi
 if ! zip -r -q ../${RELEASE}.zip grub4dos-${VER} ; then
 	tar -czf ../${RELEASE}.tar.gz grub4dos-${VER}
 fi

@@ -246,7 +246,7 @@ main (int argc, char **argv)
   /* Wait until the HOLD variable is cleared by an attached debugger. */
   if (hold && verbose)
     printf ("Run \"gdb %s %d\", and set HOLD to zero.\n",
-	    program_name, (int) getpid ());
+	    program_name, getpid ());
   while (hold)
     {
       if (hold > 0)

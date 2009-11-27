@@ -121,38 +121,81 @@ print_error (void)
 {
   if (errnum > ERR_NONE && errnum < MAX_ERR_NUM)
 #ifndef STAGE1_5
-    /* printf("\7\n %s\n", err_list[errnum]); */
-    printf ("\nError %u: %s\n", errnum, err_list[errnum]);
+{
+    grub_printf ("\nError %u: %s\n", errnum, err_list[errnum]);
+}
 #else /* STAGE1_5 */
-    printf ("Error %u\n", errnum);
+    grub_printf ("Error %u\n", errnum);
 #endif /* STAGE1_5 */
 }
 
 char *
 convert_to_ascii (char *buf, int c,...)
 {
-  unsigned long num = *((&c) + 1), mult = 10;
+  union {
+    unsigned long long ll;
+    struct {
+	unsigned long lo;
+	unsigned long hi;
+    };
+    struct {
+	unsigned char l1;
+	unsigned char l2;
+	unsigned char l3;
+	unsigned char l4;
+	unsigned char h1;
+	unsigned char h2;
+	unsigned char h3;
+	unsigned char h4;
+    };
+  } num;
   char *ptr = buf;
 
-#ifndef STAGE1_5
-  if (c == 'x' || c == 'X')
-    mult = 16;
+  num.hi = *(unsigned long *)((&c) + 2);
+  num.lo = *(unsigned long *)((&c) + 1);
 
-  if ((num & 0x80000000uL) && c == 'd')
+  if (c == 'x' || c == 'X')	/* hex */
+  {
+    do {
+	int dig = num.l1 & 0xF;
+	*(ptr++) = ((dig > 9) ? dig + c - 33 : '0' + dig);
+    } while (num.ll >>= 4);
+  }
+  else				/* decimal */
+  {
+    if ((num.h4 & 0x80) && c == 'd')
     {
-      num = (~num) + 1;
-      *(ptr++) = '-';
-      buf++;
+	//num.ll = (~num.ll) + 1;
+	num.ll = - num.ll;
+	*(ptr++) = '-';
+	buf++;
     }
-#endif
 
-  do
-    {
-      int dig = num % mult;
-      *(ptr++) = ((dig > 9) ? dig + c - 33 : '0' + dig);
-    }
-  while (num /= mult);
+    do {
+	unsigned long H0, H1, L0, L1;
 
+	/* 0x100000000 == 4294967296 */
+	/* num.ll == (H1 * 10 + H0) * 0x100000000 + L1 * 10 + L0 */
+	H0 = num.hi % 10;
+	H1 = num.hi / 10;
+	L0 = num.lo % 10;
+	L1 = num.lo / 10;
+	/* num.ll == H1 * 10 * 0x100000000 + H0 * 0x100000000 + L1 * 10 + L0 */
+	/* num.ll == H1 * 10 * 0x100000000 + H0 * 4294967290 + H0 * 6 + L1 * 10 + L0 */
+	L0 += H0 * 6;
+	L1 += L0 / 10;
+	L0 %= 10;
+	/* num.ll == H1 * 10 * 0x100000000 + H0 * 4294967290 + L1 * 10 + L0 */
+	/* num.ll == (H1 * 0x100000000 + H0 * 429496729 + L1) * 10 + L0 */
+	/* quo = (H1 * 0x100000000 + H0 * 429496729 + L1) */
+	/* rem = L0 */
+	num.hi = H1;
+	num.lo = H0;
+	num.lo *= 429496729UL;
+	num.ll += L1;
+	*(ptr++) = '0' + L0;
+    } while (num.ll);
+  }
   /* reorder to correct direction!! */
   {
     char *ptr1 = ptr - 1;
@@ -178,109 +221,6 @@ grub_putstr (const char *str)
 }
 
 #if 0
-void
-grub_printf (const char *format,...)
-{
-  int *dataptr = (int *)(void *) &format;
-  char c, str[16];
-  char pad;
-  int width;
-  
-  dataptr++;
-
-  while ((c = *(format++)) != 0)
-    {
-      if (c != '%')
-	grub_putchar (c);
-      else
-      {
-	pad = ' ';
-	width = 0;
-	c = *(format++);
-
-#ifndef STAGE1_5
-find_specifier:
-#endif
-	switch (c)
-	  {
-#ifndef STAGE1_5
-	  case 'd':
-	  case 'x':
-	  case 'X':
-#endif
-	  case 'u':
-	    *convert_to_ascii (str, c, *((unsigned long *) dataptr++)) = 0;
-	    width -= grub_strlen (str);
-	    if (width > 0)
-		while(width--)
-		    grub_putchar (pad);
-	    grub_putstr (str);
-	    break;
-
-#ifndef STAGE1_5
-	  case 'c':
-	    if (width > 0)
-		while(--width)
-		    grub_putchar (pad);
-	    grub_putchar ((*(dataptr++)) & 0xff);
-	    break;
-
-	  case 's':
-	    width -= grub_strlen ((char *) *(dataptr));
-	    if (width > 0)
-		while(width--)
-		    grub_putchar (pad);
-	    grub_putstr ((char *) *(dataptr++));
-	    break;
-	  case '0':
-	    pad = '0';
-	  case '1' ... '9':
-	    width = c - '0';
-	    while ((c = *(format++)) >= '0' && c <= '9')
-	    {
-		width = width * 10 + c - '0';
-	    }
-
-	    /* format is now pointing to the non-numerical char */
-#if 1
-	    goto find_specifier;
-#else
-	    switch (c)
-	    {
-		case 'd':
-		case 'x':
-		case 'X':
-		case 'u':
-		    *convert_to_ascii (str, c, *((unsigned long *) dataptr++)) = 0;
-		    width -= grub_strlen (str);
-		    if (width > 0)
-			while(--width)
-			    grub_putchar (pad);
-		    grub_putstr (str);
-		    break;
-		case 'c':
-		    if (width > 0)
-			while(--width)
-			    grub_putchar (pad);
-		    grub_putchar ((*(dataptr++)) & 0xff);
-		    break;
-
-		case 's':
-		    width -= grub_strlen ((char *) *(dataptr++));
-		    if (width > 0)
-			while(--width)
-			    grub_putchar (pad);
-		    grub_putstr ((char *) *(dataptr++));
-		    break;
-
-	    }
-#endif
-#endif
-	  }
-      }
-    }
-}
-#else
 /* (Patch from Jamey Sharp, 26 Jan 2009)
  * Replace grub_printf calls with grub_sprintf by #define, not asm magic.
  * define in shared.h:
@@ -331,13 +271,16 @@ grub_sprintf (char *buffer, const char *format, ...)
 
   /* XXX hohmuth
      ugly hack -- should unify with printf() */
-  int *dataptr = (int *)(void *) &format;
-  char c, *ptr, str[16];
+  unsigned long *dataptr = (unsigned long *)(((int *)(void *) &format) + 1);
+  //unsigned long *dataptr = (unsigned long *)(((unsigned int *)(void *) &buffer));
+  char c, *ptr, str[32];
   char *bp = buffer;
   char pad;
   int width;
+  int length;
 
-  dataptr++;
+  //dataptr++;
+  //dataptr++;
 
   while ((c = *(format++)) != 0)
     {
@@ -355,13 +298,23 @@ grub_sprintf (char *buffer, const char *format, ...)
       {
 	pad = ' ';
 	width = 0;
+	length = 0;
+
+get_next_c:
 	c = *(format++);
 
 find_specifier:
 	switch (c)
 	  {
 	  case 'd': case 'x':	case 'X':  case 'u':
-	    *convert_to_ascii (str, c, *((unsigned long *) dataptr++)) = 0;
+	    {
+		unsigned int lo, hi;
+
+		lo = *(dataptr++);
+		hi = (length ? (*(dataptr++)) : 0);
+		*convert_to_ascii (str, c, lo, hi) = 0;
+	    }
+	    //dataptr++;
 	    width -= grub_strlen (str);
 	    if (width > 0)
 	      {
@@ -389,6 +342,8 @@ find_specifier:
 	    break;
 
 	  case 'c':
+	    if (length)
+		break;		/* invalid */
 	    if (width > 0)
 	      {
 		while(--width)
@@ -402,15 +357,18 @@ find_specifier:
 	      }
 	    if (buffer)
 	    {
-		*bp++ = (*(dataptr++)) & 0xff;
+		*bp++ = (*(char *)(dataptr++)) /*& 0xff*/;
 	    } else {
-		grub_putchar ((*(dataptr++)) & 0xff);
+		grub_putchar ((*(char *)(dataptr++)) /*& 0xff*/);
 		bp++;
 	    }
+	    //dataptr++;
 	    break;
 
 	  case 's':
-	    width -= grub_strlen ((char *) *(dataptr));
+	    if (length)
+		break;		/* invalid */
+	    width -= grub_strlen ((char *) (unsigned int) *(dataptr));
 	    if (width > 0)
 	      {
 		while(width--)
@@ -422,7 +380,8 @@ find_specifier:
 			bp++;
 		    }
 	      }
-	    ptr = (char *) (*(dataptr++));
+	    ptr = (char *)(unsigned int) (*(dataptr++));
+	    //dataptr++;
 	    if (buffer)
 	    {
 		while ((c = *(ptr++)) != 0)
@@ -435,16 +394,26 @@ find_specifier:
 		}
 	    }
 	    break;
+	  case 'l':
+	    if (length)
+		break;		/* invalid */
+	    length++;
+	    //c = *(format++);	/* should be one of d, x, X, u */
+	    goto get_next_c;
 	  case '0':
+	    if (length)
+		break;		/* invalid */
 	    pad = '0';
 	  case '1' ... '9':
+	    if (length)
+		break;		/* invalid */
 	    width = c - '0';
 	    while ((c = *(format++)) >= '0' && c <= '9')
 		width = width * 10 + c - '0';
 	    goto find_specifier;
-	  }
-       }
-    }
+	  } /* switch */
+       } /* if */
+    } /* while */
 
   if (buffer)
 	*bp = 0;
@@ -469,8 +438,12 @@ init_page (void)
   if (current_term->setcolorstate)
       current_term->setcolorstate (COLOR_STATE_HEADING);
 
-  grub_sprintf (tmp_buf, " GRUB4DOS " GRUB4DOS_VERSION ", Memory: %dK / %dM, MenuEnd: 0x%X",
-		saved_mem_lower, saved_mem_upper / 1024, ((char *) init_free_mem_start) + 256 * sizeof (char *) + config_len);
+  grub_sprintf (tmp_buf,
+		" GRUB4DOS " GRUB4DOS_VERSION ", Mem: %dK/%dM/%ldM, End: %X",
+		(unsigned long)saved_mem_lower,
+		(unsigned long)(saved_mem_upper >> 10),
+		(unsigned long long)(saved_mem_higher >> 10),
+		(unsigned int)(((char *) init_free_mem_start) + 256 * sizeof (char *) + config_len));
   for (i = 0; i < 79; i++)
   {
 	if (ch)
@@ -1124,11 +1097,12 @@ get_cmdline (char *cmdline)
 }
 
 int
-safe_parse_maxint (char **str_ptr, int *myint_ptr)
+safe_parse_maxint (char **str_ptr, unsigned long long *myint_ptr)
 {
   char *ptr = *str_ptr;
-  int myint = 0;
-  int mult = 10, found = 0;
+  unsigned long long myint = 0;
+  unsigned long long mult = 10;
+  int found = 0;
   int negative = 0;
 
   /*
@@ -1171,12 +1145,16 @@ safe_parse_maxint (char **str_ptr, int *myint_ptr)
       found = 1;
       /* we do not check for hex or negative */
       if (mult == 10 && ! negative)
-	if ((unsigned)myint > (((unsigned)(MAXINT - digit)) / (unsigned)mult))
+	/* 0xFFFFFFFFFFFFFFFF == 18446744073709551615ULL */
+//	if ((unsigned)myint > (((unsigned)(MAXINT - digit)) / (unsigned)mult))
+	if (myint > 1844674407370955161ULL ||
+	   (myint == 1844674407370955161ULL && digit > 5))
 	  {
 	    errnum = ERR_NUMBER_OVERFLOW;
 	    return 0;
 	  }
-      myint = ((unsigned)myint * (unsigned)mult) + digit;
+      myint *= mult;
+      myint += digit;
       ptr++;
     }
 
@@ -1193,7 +1171,6 @@ safe_parse_maxint (char **str_ptr, int *myint_ptr)
 }
 #endif /* STAGE1_5 */
 
-//#if !defined(STAGE1_5) || defined(FSYS_FAT) || defined(FSYS_NTFS)
 int
 grub_tolower (int c)
 {
@@ -1202,7 +1179,6 @@ grub_tolower (int c)
 
   return c;
 }
-//#endif /* ! STAGE1_5 || FSYS_FAT || FSYS_NTFS */
 
 int
 grub_isspace (int c)
@@ -1221,7 +1197,19 @@ grub_isspace (int c)
   return 0;
 }
 
-//#if !defined(STAGE1_5) || defined(FSYS_ISO9660)
+int
+grub_memcmp64 (const unsigned long long s1, const unsigned long long s2, unsigned long long n)
+{
+#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
+	if (((unsigned long *)&s1)[1] || ((unsigned long *)&s2)[1] || ((unsigned long *)&n)[1] || (s1 + n) > 0x100000000ULL || (s2 + n) > 0x100000000ULL)
+	{
+		return mem64 (2, s1, s2, n);	/* 2 for CMP */
+	}
+#endif /* ! STAGE1_5 && ! GRUB_UTIL */
+
+	return grub_memcmp ((char *)(unsigned int)s1, (char *)(unsigned int)s2, n);
+}
+
 int
 grub_memcmp (const char *s1, const char *s2, int n)
 {
@@ -1238,7 +1226,6 @@ grub_memcmp (const char *s1, const char *s2, int n)
 
   return 0;
 }
-//#endif /* ! STAGE1_5 || FSYS_ISO9660 */
 
 #ifndef STAGE1_5
 int
@@ -1504,7 +1491,6 @@ grub_strstr (const char *s1, const char *s2)
 }
 #endif /* ! STAGE1_5 */
 
-//#if !defined(STAGE1_5) || defined(FSYS_NTFS)
 int
 grub_strlen (const char *str)
 {
@@ -1515,62 +1501,18 @@ grub_strlen (const char *str)
 
   return len;
 }
-//#endif /* ! STAGE1_5 || FSYS_NTFS */
 
 int
-memcheck (unsigned long addr, unsigned long len)
+memcheck (unsigned long long addr, unsigned long long len)
 {
+  errnum = 0;
 #ifdef GRUB_UTIL
-#if 0
-  auto unsigned long start_addr (void);
-  auto unsigned long end_addr (void);
-  
-  auto unsigned long start_addr (void)
-    {
-      unsigned long ret;
-# if defined(HAVE_START_SYMBOL)
-      asm volatile ("movl	$start, %0" : "=a" (ret));
-# elif defined(HAVE_USCORE_START_SYMBOL)
-      asm volatile ("movl	$_start, %0" : "=a" (ret));
-# endif
-      return ret;
-    }
-
-  auto unsigned long end_addr (void)
-    {
-      unsigned long ret;
-# if defined(HAVE_END_SYMBOL)
-      asm volatile ("movl	$end, %0" : "=a" (ret));
-# elif defined(HAVE_USCORE_END_SYMBOL)
-      asm volatile ("movl	$_end, %0" : "=a" (ret));
-# endif
-      return ret;
-    }
-
-  errnum = 0;
-//  if (/*! addr ||*/ (start_addr () <= addr && end_addr () > addr + len))
-//  if (! addr || (start_addr () <= addr && addr < end_addr ()) || (start_addr () < addr + len && addr + len <= end_addr ()))
-//    errnum = ERR_WONT_FIT;
-
-//  return ! errnum;
   if (! addr)
-  {
-	errnum = ERR_WONT_FIT;
-	return ! errnum;
-  }
-  if ((start_addr () <= addr && addr < end_addr ()) || (start_addr () < addr + len && addr + len <= end_addr ()))
-	return ! errnum;
-
-#endif
-#endif /* GRUB_UTIL */
-
-  errnum = 0;
-  if (! addr /* (addr < (unsigned long)(RAW_ADDR (0x1000))) */
-      /* || (addr < (unsigned long)(RAW_ADDR (0x100000))
-	  && (unsigned long)(RAW_ADDR (saved_mem_lower * 1024)) < (addr + len)) */
-      /*|| (addr >= (unsigned long)(RAW_ADDR (0x100000))
-	  && (unsigned long)(RAW_ADDR (saved_mem_upper * 1024)) < ((addr - 0x100000) + len))*/)
     errnum = ERR_WONT_FIT;
+#else
+  if (! addr || (! is64bit && (addr >= 0x100000000ULL || addr + len > 0x100000000ULL)))
+    errnum = ERR_WONT_FIT;
+#endif /* GRUB_UTIL */
 
   return ! errnum;
 }
@@ -1624,6 +1566,20 @@ void * grub_memcpy(void * to, const void * from, unsigned int n)
 }
 #endif
 
+void
+grub_memmove64 (unsigned long long to, const unsigned long long from, unsigned long long len)
+{
+#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
+	if (((unsigned long *)&to)[1] || ((unsigned long *)&from)[1] || ((unsigned long *)&len)[1] || (to + len) > 0x100000000ULL || (from + len) > 0x100000000ULL)
+	{
+		mem64 (1, to, from, len);	/* 1 for MOVE */
+		return;
+	}
+#endif /* ! STAGE1_5 && ! GRUB_UTIL */
+
+	grub_memmove ((void *)(unsigned int)to, (void *)(unsigned int)from, len);
+}
+
 void *
 grub_memmove (void *to, const void *from, int len)
 {
@@ -1660,12 +1616,26 @@ grub_memmove (void *to, const void *from, int len)
    return errnum ? NULL : to;
 }
 
+void
+grub_memset64 (unsigned long long start, unsigned long long c, unsigned long long len)
+{
+#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
+	if (((unsigned long *)&start)[1] || ((unsigned long *)&len)[1] || (start + len) > 0x100000000ULL)
+	{
+		mem64 (3, start, c, len);	/* 3 for SET */
+		return;
+	}
+#endif /* ! STAGE1_5 && ! GRUB_UTIL */
+
+	grub_memset ((void *)(unsigned int)start, c, len);
+}
+
 void *
 grub_memset (void *start, int c, int len)
 {
   char *p = start;
 
-  if (memcheck ((int) start, len))
+  if (memcheck ((unsigned int)start, len))
     {
       while (len -- > 0)
 	*p ++ = c;

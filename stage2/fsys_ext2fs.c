@@ -432,7 +432,7 @@ ext2fs_mount (void)
   if ((unsigned long)part_length < (SBLOCK + (sizeof(struct ext2_super_block) / DEV_BSIZE)))
       return 0;
 
-  if (!devread(SBLOCK, 0, sizeof(struct ext2_super_block), (char *)SUPERBLOCK, 0xedde0d90))
+  if (!devread(SBLOCK, 0, sizeof(struct ext2_super_block), (unsigned long long)(unsigned int) (char *)SUPERBLOCK, 0xedde0d90))
       return 0;
 
   if (SUPERBLOCK->s_magic != EXT2_SUPER_MAGIC)
@@ -484,7 +484,7 @@ ext2_rdfsb (int fsblock, int buffer)
   printf ("fsblock %d buffer %d\n", fsblock, buffer);
 #endif /* E2DEBUG */
   return devread (fsblock * (EXT2_BLOCK_SIZE (SUPERBLOCK) / DEV_BSIZE), 0,
-		  EXT2_BLOCK_SIZE (SUPERBLOCK), (char *) buffer, 0xedde0d90);
+		  EXT2_BLOCK_SIZE (SUPERBLOCK), (unsigned long long)(unsigned int)(char *) buffer, 0xedde0d90);
 }
 
 /* from
@@ -716,7 +716,7 @@ ext4fs_block_map (int logical_block)
 
 /* preconditions: all preconds of ext2fs_block_map */
 unsigned long
-ext2fs_read (char *buf, unsigned long len, unsigned long write)
+ext2fs_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long logical_block;
   unsigned long offset;
@@ -774,7 +774,7 @@ ext2fs_read (char *buf, unsigned long len, unsigned long write)
       if (map == 0)
       {
 	  if (buf)
-		memset ((char *) buf, 0, size);
+		grub_memset64 ((unsigned long long) buf, 0, size);
       } else {
           disk_read_func = disk_read_hook;
 
@@ -921,7 +921,7 @@ ext2fs_dir (char *dirname)
       printf ("ipb=%d, sizeof(inode)=%d\n",
 	     EXT2_INODES_PER_BLOCK (SUPERBLOCK), EXT2_INODE_SIZE (SUPERBLOCK));
       printf ("inode=%x, raw_inode=%x\n", INODE, raw_inode);
-      printf ("offset into inode table block=%d\n", (int) raw_inode - (int) INODE);
+      printf ("offset into inode table block=%d\n", ((int) raw_inode - (int) INODE));
       for (i = (unsigned char *) INODE; i <= (unsigned char *) raw_inode;
 	   i++)
 	{
@@ -993,7 +993,7 @@ ext2fs_dir (char *dirname)
 	  if (! ext2_is_fast_symlink ())
 	    {
 	      /* Read the necessary blocks, and reset the file pointer. */
-	      len = grub_read (linkbuf, filemax, 0xedde0d90);
+	      len = grub_read ((unsigned long long)(unsigned int)linkbuf, filemax, 0xedde0d90);
 	      filepos = 0;
 	      if (!len)
 		return 0;

@@ -129,7 +129,7 @@ static void
 print_default_help_message (char *config_entries)
 {
       grub_printf ("\n Use the %c and %c keys to highlight an entry.",
-		   DISP_UP, DISP_DOWN);
+		   (unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
       
       if (! auth && password)
 	{
@@ -671,6 +671,7 @@ restart:
 	print_entries (first_entry, entryno, menu_entries, config_entries);
     }
 
+
   /* XX using RT clock now, need to initialize value */
   while ((time1 = getrtsecs()) == 0xFF);
 
@@ -975,7 +976,7 @@ done_key_handling:
 	      current_term->setcolorstate (COLOR_STATE_HEADING);
 
 	  gotoxy (MENU_BOX_E - 4, MENU_BOX_Y - 2);
-	  grub_printf ("%3d ", first_entry + entryno);
+	  grub_printf ("%3d ", (first_entry + entryno));
 	  gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
 
 	  if (current_term->setcolorstate)
@@ -1572,7 +1573,7 @@ run_graphics_menu (char *menu_entries, char *config_entries, int num_entries,
       return;
     }
 
-  gfx_file_size = grub_read ((char *)buf_ext, buf_ext_size, 0xedde0d90);
+  gfx_file_size = grub_read ((unsigned long long)(unsigned int)(char *)buf_ext, buf_ext_size, 0xedde0d90);
 
   grub_close();
 
@@ -1599,7 +1600,7 @@ run_graphics_menu (char *menu_entries, char *config_entries, int num_entries,
 #ifdef GFX_DEBUG
   if (verbose)
     {
-      printf("%s: %d bytes (%d bytes left)\n", graphics_file, gfx_file_size, buf_ext_size - gfx_file_size);
+      printf("%s: %d bytes (%d bytes left)\n", graphics_file, gfx_file_size, (buf_ext_size - gfx_file_size));
     }
 #endif
 
@@ -1626,7 +1627,7 @@ run_graphics_menu (char *menu_entries, char *config_entries, int num_entries,
       if (gfx_file_size + MIN_GFX_FREE + 0xf >= (int) buf_size)
 	{
 	  if (verbose)
-	    printf("not enough free memory: %d extra bytes need\n", gfx_file_size + MIN_GFX_FREE - buf_size);
+	    printf("not enough free memory: %d extra bytes need\n", (gfx_file_size + MIN_GFX_FREE - buf_size));
 
 	  return;
 	}
@@ -1676,7 +1677,7 @@ run_graphics_menu (char *menu_entries, char *config_entries, int num_entries,
       if (file_len - code_start + MIN_GFX_FREE > buf_size)
 	{
 	  if (verbose)
-	    printf("not enough free memory: %d extra bytes need\n", file_len - code_start + MIN_GFX_FREE - buf_size);
+	    printf("not enough free memory: %d extra bytes need\n", (file_len - code_start + MIN_GFX_FREE - buf_size));
 
 	  return;
 	}
@@ -1709,8 +1710,8 @@ run_graphics_menu (char *menu_entries, char *config_entries, int num_entries,
       if (verbose)
 	{
 	  printf("init 0x%x, archive 0x%x - 0x%x, low mem 0x%x - 0x%x\ncode seg 0x%x\n",
-		 (unsigned) buf_ext + file_start,
-		 (unsigned) buf_ext, (unsigned) buf_ext + gfx_file_size,
+		 ((unsigned) buf_ext + file_start),
+		 (unsigned) buf_ext, ((unsigned) buf_ext + gfx_file_size),
 		 mem0_start, mem0_end, gfx2->code_seg
 	  );
 	}
@@ -1732,8 +1733,8 @@ run_graphics_menu (char *menu_entries, char *config_entries, int num_entries,
 	  for(i = 0; i < gfx2->menu_entries; i++) 
 	    {
 	      printf("\"%s\"  --  \"%s\"\n",
-		     gfx2->menu_list + i * gfx2->menu_entry_len,
-		     gfx2->args_list + i * gfx2->args_entry_len
+		     (gfx2->menu_list + i * gfx2->menu_entry_len),
+		     (gfx2->args_list + i * gfx2->args_entry_len)
 	      );
 	    }
 
@@ -1835,7 +1836,7 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 	}
 	else
 	{
-	    if (! grub_read (&c, 1, 0xedde0d90))
+	    if (! grub_read ((unsigned long long)(unsigned int)&c, 1, 0xedde0d90))
 		break;
 	}
 
@@ -2000,20 +2001,22 @@ restart:
 	    int len;
 	  
 	    if (debug > 1)
-		grub_printf("Read file: ", default_file);
-	    len = grub_read (buf, sizeof (buf), 0xedde0d90);
+		grub_printf("Read file ... ");
+	    len = grub_read ((unsigned long long)(unsigned int)buf, sizeof (buf), 0xedde0d90);
 	    if (debug > 1)
-		grub_printf("len=%d\n", len);
+		grub_printf("len=%d\n", (unsigned long)len);
 	    if (len > 0)
 	    {
+		unsigned long long ull;
 		buf[sizeof (buf) - 1] = 0;
-		safe_parse_maxint (&p, &saved_entryno);
+		safe_parse_maxint (&p, &ull);
+		saved_entryno = ull;
 	    }
 
 	    grub_close ();
 	}
 	else if (debug > 1)
-	    grub_printf("failure.\n", default_file);
+	    grub_printf("failure.\n");
 	DEBUG_SLEEP
     }
     errnum = ERR_NONE;
@@ -2387,7 +2390,7 @@ original_config:
 	    if (debug_boot)
 	    {
 		debug = old_debug;
-		grub_printf ("\n\nEnd of menu init commands. Press any key to enter command-line or run menu...", old_entry);
+		grub_printf ("\n\nEnd of menu init commands. Press any key to enter command-line or run menu...");
 	    }
 #endif /* ! GRUB_UTIL */
 	    DEBUG_SLEEP

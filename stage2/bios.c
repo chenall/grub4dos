@@ -74,10 +74,10 @@ biosdisk (int read, int drive, struct geometry *geometry,
        */
       dap = (struct disk_address_packet *)0x580;
 
-      if (drive == 0xffff || (drive == ram_drive && rd_base != 0xffffffff))
+      if (drive == 0xffff || (drive == ram_drive && rd_base != -1ULL))
       {
-	char *disk_sector;
-	char *buf_address;
+	unsigned long long disk_sector;
+	unsigned long long buf_address;
 	unsigned long long tmp;
 	
 	if (nsec <=0 || nsec >= 0x80)
@@ -89,16 +89,16 @@ biosdisk (int read, int drive, struct geometry *geometry,
 	
 	tmp = (((unsigned long long)sector+(unsigned long long)nsec) << 9);
 	if (drive == ram_drive)
-	    tmp += (unsigned long long)rd_base;
-	if (tmp > 0x100000000ULL)
+	    tmp += rd_base;
+	if (tmp > 0x100000000ULL && ! is64bit)
 		return 1;	/* failure */
-	disk_sector = (char *)((sector<<9) + ((drive==0xffff) ? 0 : rd_base));
-	buf_address = (char *)(segment<<4);
+	disk_sector = ((sector<<9) + ((drive==0xffff) ? 0 : rd_base));
+	buf_address = (segment<<4);
 
 	if (read)	/* read == 1 really means write to DISK */
-		grub_memmove (disk_sector, buf_address, nsec << 9);
+		grub_memmove64 (disk_sector, buf_address, nsec << 9);
 	else		/* read == 0 really means read from DISK */
-		grub_memmove (buf_address, disk_sector, nsec << 9);
+		grub_memmove64 (buf_address, disk_sector, nsec << 9);
 		
 	return 0;	/* success */
       }
@@ -287,11 +287,11 @@ get_diskinfo (int drive, struct geometry *geometry)
       
     } else if (drive == ram_drive)	/* ram disk device */
     {
-      if (rd_base != 0xffffffff)
+      if (rd_base != -1ULL)
       {
 	geometry->flags = BIOSDISK_FLAG_LBA_EXTENSION;
 	geometry->sector_size = SECTOR_SIZE;
-	geometry->total_sectors = (rd_size ? ((rd_size + SECTOR_SIZE - 1)>> SECTOR_BITS) : 0x800000);
+	geometry->total_sectors = (rd_size + SECTOR_SIZE - 1) >> SECTOR_BITS;
 	geometry->heads = 255;
 	geometry->sectors = 63;
 	geometry->cylinders = (geometry->total_sectors + 255 * 63 -1) / (255 * 63);
@@ -588,19 +588,19 @@ get_diskinfo (int drive, struct geometry *geometry)
 	if (drive & 0x80)
 	if (probed_cylinders != geometry->cylinders)
 	    if (debug > 1)
-		grub_printf ("\nWarning: %s cylinders(%d) is not equal to the BIOS one(%d).\n", (char *)err, probed_cylinders, geometry->cylinders);
+		grub_printf ("\nWarning: %s cylinders(%d) is not equal to the BIOS one(%d).\n", err, probed_cylinders, geometry->cylinders);
 
 	geometry->cylinders = probed_cylinders;
 
 	if (probed_heads != geometry->heads)
 	    if (debug > 1)
-		grub_printf ("\nWarning: %s heads(%d) is not equal to the BIOS one(%d).\n", (char *)err, probed_heads, geometry->heads);
+		grub_printf ("\nWarning: %s heads(%d) is not equal to the BIOS one(%d).\n", err, probed_heads, geometry->heads);
 
 	geometry->heads	= probed_heads;
 
 	if (probed_sectors_per_track != geometry->sectors)
 	    if (debug > 1)
-		grub_printf ("\nWarning: %s sectors per track(%d) is not equal to the BIOS one(%d).\n", (char *)err, probed_sectors_per_track, geometry->sectors);
+		grub_printf ("\nWarning: %s sectors per track(%d) is not equal to the BIOS one(%d).\n", err, probed_sectors_per_track, geometry->sectors);
 
 	geometry->sectors = probed_sectors_per_track;
 
@@ -608,14 +608,14 @@ get_diskinfo (int drive, struct geometry *geometry)
 	{
 	    if (drive & 0x80)
 	    if (debug > 1)
-		grub_printf ("\nWarning: %s total sectors(%d) is greater than the BIOS one(%d).\nSome buggy BIOSes could hang when you access sectors exceeding the BIOS limit.\n", (char *)err, probed_total_sectors, total_sectors);
+		grub_printf ("\nWarning: %s total sectors(%d) is greater than the BIOS one(%d).\nSome buggy BIOSes could hang when you access sectors exceeding the BIOS limit.\n", err, probed_total_sectors, total_sectors);
 	    geometry->total_sectors	= probed_total_sectors;
 	}
 
 	if (drive & 0x80)
 	if (probed_total_sectors < total_sectors)
 	    if (debug > 1)
-		grub_printf ("\nWarning: %s total sectors(%d) is less than the BIOS one(%d).\n", (char *)err, probed_total_sectors, total_sectors);
+		grub_printf ("\nWarning: %s total sectors(%d) is less than the BIOS one(%d).\n", err, probed_total_sectors, total_sectors);
 
 failure_probe_boot_sector:
 	

@@ -76,7 +76,7 @@ fat_mount (void)
 //    return 0;
   
   /* Read bpb */
-  if (! devread (0, 0, sizeof (bpb), (char *) &bpb, 0xedde0d90))
+  if (! devread (0, 0, sizeof (bpb), (unsigned long long)(unsigned int)(char *) &bpb, 0xedde0d90))
     return 0;
 
   /* Check if the number of sectors per cluster is zero here, to avoid
@@ -104,7 +104,7 @@ fat_mount (void)
   if (FAT_SUPER->clustsize_bits > 15)
   {
     if (debug > 0)
-	grub_printf ("Warning! FAT cluster size(=%d) larger than 32K!\n", 1 << (FAT_SUPER->clustsize_bits));
+	grub_printf ("Warning! FAT cluster size(=%d) larger than 32K!\n", (1 << (FAT_SUPER->clustsize_bits)));
     //return 0;
   }
 #endif /* STAGE1_5 */
@@ -201,7 +201,7 @@ fat_mount (void)
   /* kbs: Media check on first FAT entry [ported from PUPA] */
 
   if (!devread(FAT_SUPER->fat_offset, 0,
-               sizeof(first_fat), (char *)&first_fat, 0xedde0d90))
+               sizeof(first_fat), (unsigned long long)(unsigned int)(char *)&first_fat, 0xedde0d90))
     return 0;
 
   if (FAT_SUPER->fat_size == 8)
@@ -240,7 +240,7 @@ fat_mount (void)
 }
 
 unsigned long
-fat_read (char *buf, unsigned long len, unsigned long write)
+fat_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long logical_clust;
   unsigned long offset;
@@ -285,7 +285,7 @@ fat_read (char *buf, unsigned long len, unsigned long write)
 	      cached_pos = (fat_entry - FAT_SUPER->cached_fat);
 	      sector = FAT_SUPER->fat_offset
 		+ FAT_SUPER->cached_fat / (2*SECTOR_SIZE);
-	      if (!devread (sector, 0, FAT_CACHE_SIZE, (char*) FAT_BUF, 0xedde0d90))
+	      if (!devread (sector, 0, FAT_CACHE_SIZE, (unsigned long long)(unsigned int)(char*) FAT_BUF, 0xedde0d90))
 		return 0;
 	    }
 	  next_cluster = * (unsigned long *) (FAT_BUF + (cached_pos >> 1));
@@ -411,7 +411,7 @@ fat_dir (char *dirname)
   while (1)
     {
       /* read the dir entry */
-      if (fat_read (dir_buf, FAT_DIRENTRY_LENGTH, 0xedde0d90) != FAT_DIRENTRY_LENGTH
+      if (fat_read ((unsigned long long)(unsigned int)dir_buf, FAT_DIRENTRY_LENGTH, 0xedde0d90) != FAT_DIRENTRY_LENGTH
 		/* read failure */
 	  || dir_buf[0] == 0 /* end of dir entry */)
 	{

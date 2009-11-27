@@ -45,8 +45,12 @@ void pxe_close (void) {}
 
 #define DOT_SIZE	1048576
 
-#define PXE_BUF		FSYS_BUF
-#define PXE_BUFLEN	FSYS_BUFLEN
+/* PXE_BUF must be in low memory */
+//#define PXE_BUF		FSYS_BUF
+//#define PXE_BUFLEN	FSYS_BUFLEN
+/* use disk buffer for PXE_BUF */
+#define PXE_BUF		BUFFERADDR
+#define PXE_BUFLEN	BUFFERLEN
 
 //#define PXE_DEBUG	1
 
@@ -98,7 +102,7 @@ static int try_blksize (int tmp)
 	{
 	    if (filemax <= pxe_blksize)
 	    {
-		grub_printf ("\nFailure: Size %d too small.\n", (unsigned long)filemax);
+		grub_printf ("\nFailure: Size %ld too small.\n", filemax);
 	        pxe_close ();
 		return 1;
 	    }
@@ -388,6 +392,10 @@ static unsigned long pxe_read_blk (unsigned long buf, int num)
   tftp_read.Buffer = SEGOFS(buf);
   ofs = tftp_read.Buffer & 0xFFFF;
   pxe_fast_read (&tftp_read, num);
+
+  /* disk cache destroyed, so invalidate it. */
+  buf_drive = -1;
+  buf_track = -1;
   return (tftp_read.Status) ? PXE_ERR_LEN : ((tftp_read.Buffer & 0xFFFF) - ofs);
 }
 
@@ -397,6 +405,10 @@ static unsigned long pxe_read_blk (unsigned long buf, int num)
 {
   PXENV_TFTP_READ_t tftp_read;
   unsigned long ofs;
+
+  /* disk cache will be destroyed, so invalidate it. */
+  buf_drive = -1;
+  buf_track = -1;
 
   tftp_read.Buffer = SEGOFS(buf);
   ofs = tftp_read.Buffer & 0xFFFF;
@@ -418,7 +430,7 @@ static unsigned long pxe_read_blk (unsigned long buf, int num)
 #else
 #endif
 
-static unsigned long pxe_read_len (char* buf, unsigned long len)
+static unsigned long pxe_read_len (unsigned long long buf, unsigned long long len)
 {
   unsigned long old_ofs, sz;
 
@@ -436,7 +448,7 @@ static unsigned long pxe_read_len (char* buf, unsigned long len)
       sz = (pxe_read_ofs - old_ofs);
       if ((buf) && (sz))
         {
-          grub_memmove (buf, (char*)(PXE_BUF + old_ofs), sz);
+          grub_memmove64 (buf, (unsigned long long)(unsigned int)(char*)(PXE_BUF + old_ofs), sz);
           buf += sz;
         }
       pxe_cur_ofs -= pxe_read_ofs;	/* bytes to read */
@@ -465,7 +477,7 @@ static unsigned long pxe_read_len (char* buf, unsigned long len)
           sz += nr;
           if (buf)
             {
-              grub_memmove (buf, (char*)(PXE_BUF + pxe_read_ofs), nr);
+              grub_memmove64 (buf, (unsigned long long)(unsigned int)(char*)(PXE_BUF + pxe_read_ofs), nr);
               buf += nr;
             }
           if (nr < nn * pxe_blksize)
@@ -500,16 +512,11 @@ static unsigned long pxe_read_len (char* buf, unsigned long len)
           nr = pxe_read_blk (PXE_BUF + pxe_read_ofs, 1);
           if (nr == PXE_ERR_LEN)
             return nr;
-	  //if (filepos == 0 && old_ofs == 0 && len < PXE_MIN_BLKSIZE && pxe_blksize != nr && filemax > nr && filemax > pxe_blksize && nr <= PXE_MAX_BLKSIZE && nr >= PXE_MIN_BLKSIZE)
-	  //{
-	  //  grub_printf ("\npxe_blksize tuned from %d to %d\n", pxe_blksize, nr);
-	  //  pxe_blksize = nr;
-	  //}
           if (pxe_cur_ofs > nr)
             pxe_cur_ofs = nr;
           sz += pxe_cur_ofs;
           if (buf)
-            grub_memmove (buf, (char*)(PXE_BUF + pxe_read_ofs), pxe_cur_ofs);
+            grub_memmove64 (buf, (unsigned long long)(unsigned int)(char*)(PXE_BUF + pxe_read_ofs), pxe_cur_ofs);
           pxe_cur_ofs += pxe_read_ofs;
           pxe_read_ofs += nr;
         }
@@ -520,7 +527,7 @@ static unsigned long pxe_read_len (char* buf, unsigned long len)
     {
       sz += len;
       if (buf)
-        grub_memmove (buf, (char *)PXE_BUF + old_ofs, len);
+        grub_memmove64 (buf, (unsigned long long)(unsigned int)(char *)PXE_BUF + old_ofs, len);
     }
   return sz;
 }
@@ -536,7 +543,7 @@ int pxe_mount (void)
 }
 
 /* Read up to SIZE bytes, returned in ADDR.  */
-unsigned long pxe_read (char *buf, unsigned long len, unsigned long write)
+unsigned long pxe_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long nr;
 
@@ -554,12 +561,11 @@ unsigned long pxe_read (char *buf, unsigned long len, unsigned long write)
         {
           if (pxe_saved_pos > filepos)
             {
-              //grub_printf("reopen\n");
               if (! pxe_reopen ())
                 return PXE_ERR_LEN;
             }
 
-          nr = pxe_read_len (NULL, filepos - pxe_saved_pos);
+          nr = pxe_read_len (0ULL, filepos - pxe_saved_pos);
           if ((nr == PXE_ERR_LEN) || (pxe_saved_pos + nr != filepos))
             return PXE_ERR_LEN;
         }
@@ -644,10 +650,10 @@ static void print_ip (IP4 ip)
 
   for (i = 0; i < 3; i++)
     {
-      grub_printf ("%d.", ip & 0xFF);
+      grub_printf ("%d.", (unsigned long)(unsigned char)ip);
       ip >>= 8;
     }
-  grub_printf ("%d", ip);
+  grub_printf ("%d", (unsigned long)(unsigned char)ip);
 }
 
 int pxe_func (char *arg, int flags)
@@ -679,12 +685,12 @@ int pxe_func (char *arg, int flags)
           pc = buf;
           pc = pxe_outhex (pc, pxe_mac[i]);
           *pc = 0;
-          grub_printf ("%s%c", buf, (i == pxe_mac_len - 1) ? '\n' : '-');
+          grub_printf ("%s%c", buf, ((i == pxe_mac_len - 1) ? '\n' : '-'));
         }
     }
   else if (grub_memcmp(arg, "blksize", sizeof("blksize") - 1) == 0)
     {
-      int val;
+      unsigned long long val;
 
       arg = skip_to (0, arg);
       if (! safe_parse_maxint (&arg, &val))
@@ -734,7 +740,7 @@ int pxe_func (char *arg, int flags)
     {
       PXENV_GET_CACHED_INFO_t get_cached_info;
       BOOTPLAYER *bp;
-      int val;
+      unsigned long long val;
 
       arg = skip_to (0, arg);
       if (! safe_parse_maxint (&arg, &val))
@@ -757,7 +763,7 @@ int pxe_func (char *arg, int flags)
 #endif
   else if (grub_memcmp (arg, "detect", sizeof("detect") - 1) == 0)
     {
-	int blksize = 0;
+	unsigned long long blksize = 0;
 	/* pxe_detect should be done before any other command. */
 	arg = skip_to (0, arg);
 	if (*arg != '/')
@@ -776,7 +782,7 @@ int pxe_func (char *arg, int flags)
 		//else
 		//	goto bad_argument;
 	}
-	return pxe_detect (blksize, arg);
+	return pxe_detect ((int)blksize, arg);
     }
   else
     {

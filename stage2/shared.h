@@ -56,8 +56,13 @@ extern char *grub_scratch_mem;
 #define NEW_HEAPSIZE 1500
 
 /* 512-byte scratch area */
+#ifdef GRUB_UTIL
 #define SCRATCHADDR  RAW_ADDR (0x77e00)
 #define SCRATCHSEG   RAW_SEG (0x77e0)
+#else
+#define SCRATCHADDR  RAW_ADDR (0x6fe00)
+#define SCRATCHSEG   RAW_SEG (0x6fe0)
+#endif
 
 /*
  *  This is the location of the raw device buffer.  It is 31.5K
@@ -65,8 +70,13 @@ extern char *grub_scratch_mem;
  */
 
 #define BUFFERLEN   0x7e00
+#ifdef GRUB_UTIL
 #define BUFFERADDR  RAW_ADDR (0x70000)
 #define BUFFERSEG   RAW_SEG (0x7000)
+#else
+#define BUFFERADDR  RAW_ADDR (0x68000)
+#define BUFFERSEG   RAW_SEG (0x6800)
+#endif
 
 #define BOOT_PART_TABLE	RAW_ADDR (0x07be)
 
@@ -85,8 +95,13 @@ extern char *grub_scratch_mem;
  *  It is 32K in size, do not overrun!
  */
 
+#ifdef GRUB_UTIL
 #define FSYS_BUFLEN  0x8000
 #define FSYS_BUF RAW_ADDR (0x68000)
+#else
+#define FSYS_BUFLEN  0x8000
+#define FSYS_BUF RAW_ADDR (0x3E0000)
+#endif
 
 /* Command-line buffer for Multiboot kernels and modules. This area
    includes the area into which Stage 1.5 and Stage 1 are loaded, but
@@ -100,7 +115,11 @@ extern char *grub_scratch_mem;
 #endif
 
 /* The buffer for the password.  */
+#ifdef GRUB_UTIL
 #define PASSWORD_BUF		RAW_ADDR (0x78000)
+#else
+#define PASSWORD_BUF		RAW_ADDR (0x3E8000)
+#endif
 #define PASSWORD_BUFLEN		0x200
 
 /* THe buffer for the filename of "/boot/grub/default".  */
@@ -267,10 +286,10 @@ extern char *grub_scratch_mem;
 
 #define CR0_PE_ON	0x1
 #define CR0_PE_OFF	0xfffffffe
-#define PROT_MODE_CSEG	0x8
+#define PROT_MODE_CSEG	40 /*0x8*/
 #define PROT_MODE_DSEG  0x10
 #define PSEUDO_RM_CSEG	0x18
-#define PSEUDO_RM_DSEG	0x20
+#define PSEUDO_RM_DSEG	8 /*0x20*/
 #define STACKOFF	MB_CMDLINE_BUF	/* (0x2000 - 0x10) */
 #define PROTSTACKINIT   (FSYS_BUF - 0x10)
 
@@ -657,6 +676,7 @@ extern char config_file[];
 extern unsigned long linux_text_len;
 extern char *linux_data_tmp_addr;
 extern char *linux_data_real_addr;
+extern char *linux_bzimage_tmp_addr;
 extern int quit_print;
 extern struct linux_kernel_header *linux_header;
 
@@ -688,7 +708,7 @@ extern void assign_device_name (int drive, const char *device);
 /* print debug message on startup if the DEBUG_KEY is pressed. */
 extern int debug_boot;
 extern int console_getkey (void);
-extern unsigned long initrd_start_sector;
+extern unsigned long long initrd_start_sector;
 extern int disable_map_info;
 extern int map_func (char *arg, int flags);
 //#define SLEEP {unsigned long i;for (i=0;i<0xFFFFFFFF;i++);}
@@ -873,8 +893,9 @@ extern unsigned long cdrom_drive;
 //#endif
 extern unsigned long force_cdrom_as_boot_device;
 extern unsigned long ram_drive;
-extern unsigned long rd_base;
-extern unsigned long rd_size;
+extern unsigned long long rd_base;
+extern unsigned long long rd_size;
+extern unsigned long long saved_mem_higher;
 extern unsigned long saved_mem_upper;
 extern unsigned long saved_mem_lower;
 extern unsigned long saved_mmap_addr;
@@ -943,10 +964,10 @@ struct drive_map_slot
 					/* bit 7: in-situ */
 					/* bit 6: fake-write or safe-boot */
 
-	unsigned long start_sector;
-	unsigned long start_sector_hi;	/* hi dword of the 64-bit value */
-	unsigned long sector_count;
-	unsigned long sector_count_hi;	/* hi dword of the 64-bit value */
+	unsigned long long start_sector;
+	//unsigned long start_sector_hi;	/* hi dword of the 64-bit value */
+	unsigned long long sector_count;
+	//unsigned long sector_count_hi;	/* hi dword of the 64-bit value */
 };
 
 extern struct drive_map_slot   bios_drive_map[DRIVE_MAP_SIZE + 1];
@@ -1144,6 +1165,11 @@ int grub_strcmp (const char *s1, const char *s2);
 int grub_strlen (const char *str);
 char *grub_strcpy (char *dest, const char *src);
 
+void grub_memset64 (unsigned long long start, unsigned long long c, unsigned long long len);
+int grub_memcmp64 (const unsigned long long s1, const unsigned long long s2, unsigned long long n);
+void grub_memmove64 (unsigned long long to, const unsigned long long from, unsigned long long len);
+int mem64 (int func, unsigned long long dest, unsigned long long src, unsigned long long len);
+
 #ifndef GRUB_UTIL
 typedef unsigned long grub_jmp_buf[6];
 #else
@@ -1178,19 +1204,19 @@ int get_cmdline (char *cmdline);
 int substring (const char *s1, const char *s2, int case_insensitive);
 int nul_terminate (char *str);
 int get_based_digit (int c, int base);
-int safe_parse_maxint (char **str_ptr, int *myint_ptr);
+int safe_parse_maxint (char **str_ptr, unsigned long long *myint_ptr);
 int parse_string (char *arg);
-int memcheck (unsigned long start, unsigned long len);
+int memcheck (unsigned long long addr, unsigned long long len);
 void grub_putstr (const char *str);
 
 #ifndef NO_DECOMPRESSION
 /* Compression support. */
 int gunzip_test_header (void);
-unsigned long gunzip_read (char *buf, unsigned long len);
+unsigned long gunzip_read (unsigned long long buf, unsigned long len);
 #endif /* NO_DECOMPRESSION */
 
-int rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, unsigned long byte_len, char *buf, unsigned long write);
-int devread (unsigned long sector, unsigned long byte_offset, unsigned long byte_len, char *buf, unsigned long write);
+int rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, unsigned long byte_len, unsigned long long buf, unsigned long write);
+int devread (unsigned long sector, unsigned long byte_offset, unsigned long byte_len, unsigned long long buf, unsigned long write);
 int rawwrite (unsigned long drive, unsigned long sector, char *buf);
 int devwrite (unsigned long sector, unsigned long sector_len, char *buf);
 
@@ -1219,7 +1245,7 @@ int grub_open (char *filename);
 
 /* Read LEN bytes into BUF from the file that was opened with
    GRUB_OPEN.  If LEN is -1, read all the remaining data in the file.  */
-unsigned long grub_read (char *buf, unsigned long len, unsigned long write);
+unsigned long grub_read (unsigned long long buf, unsigned long long len, unsigned long write);
 
 /* Reposition a file offset.  */
 unsigned long grub_seek (unsigned long offset);
@@ -1231,7 +1257,7 @@ void grub_close (void);
    printing all completions. */
 //int dir (char *dirname);
 
-int set_bootdev (int hdbias);
+//int set_bootdev (int hdbias);
 
 /* Display statistics on the current active device. */
 void print_fsys_type (void);

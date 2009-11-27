@@ -94,7 +94,7 @@ ufs2_mount (void)
       for (i = 0; sblock_try[i] != -1; ++i)
 	{
 	  if (! ((unsigned long)part_length < (sblock_try[i] + (SBLOCKSIZE / DEV_BSIZE))
-		 || ! devread (0, sblock_try[i], SBLOCKSIZE, (char *) SUPERBLOCK, 0xedde0d90)))
+		 || ! devread (0, sblock_try[i], SBLOCKSIZE, (unsigned long long)(unsigned int)(char *) SUPERBLOCK, 0xedde0d90)))
 	    {
 	      if (SUPERBLOCK->fs_magic == FS_UFS2_MAGIC /* &&
 							   (SUPERBLOCK->fs_sblockloc == sblockloc ||
@@ -148,7 +148,7 @@ block_map (int file_block)
 	  offset = 0;
 	}
       
-      if (! devread (bnum, offset * sizeof (int), bsize, (char *) MAPBUF, 0xedde0d90))
+      if (! devread (bnum, offset * sizeof (int), bsize, (unsigned long long)(unsigned int)(char *) MAPBUF, 0xedde0d90))
 	{
 	  mapblock = -1;
 	  mapblock_bsize = -1;
@@ -167,7 +167,7 @@ block_map (int file_block)
 }
 
 unsigned long
-ufs2_read (char *buf, unsigned long len, unsigned long write)
+ufs2_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long logno, off, size, ret = 0;
   grub_int64_t map;
@@ -227,7 +227,7 @@ loop:
 
     if (!devread (fsbtodb (SUPERBLOCK, ino_to_fsba (SUPERBLOCK, ino)),
 	    ino % (SUPERBLOCK->fs_inopb) * sizeof (struct ufs2_dinode),
-	    sizeof (struct ufs2_dinode), (char *) INODE_UFS2, 0xedde0d90))
+	    sizeof (struct ufs2_dinode), (unsigned long long)(unsigned int)(char *) INODE_UFS2, 0xedde0d90))
 		    return 0;			/* XXX what return value? */
 
   /* if we have a real file (and we're not just printing possibilities),
@@ -294,7 +294,7 @@ loop:
 	  if ((map = block_map (block)) < 0
 	      || !devread (fsbtodb (SUPERBLOCK, map), 0,
 			   blksize (SUPERBLOCK, INODE_UFS2, block),
-			   (char *) FSYS_BUF, 0xedde0d90))
+			   (unsigned long long)(unsigned int)(char *) FSYS_BUF, 0xedde0d90))
 	    {
 	      errnum = ERR_FSYS_CORRUPT;
 	      *rest = ch;

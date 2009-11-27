@@ -2518,8 +2518,9 @@ to_realmode:
 	movl	%cr0, %eax
 	andl	$0x00000011, %eax	/* turn off paging */
 //	orl	$0x60000000, %eax	/* cache disabled! */
+	xorl	%ebx, %ebx
+	movl	%ebx, %cr3	/* reload page dir to asure paging off */
 	movl	%eax, %cr0
-	movl	%eax, %cr3	/* reload page dir to asure paging off */
 //	movl	%cr0, %ebx
 //	andl	$0x60000000, %ebx	/* test if wbinvd is supported */
 //	jz	1f
@@ -2598,7 +2599,7 @@ to_realmode:
 
 init_pic:
 
-#if 1		/* enabled 2008-05-23 */
+#if 0		/* enabled 2008-05-23, comment out 2009-10-06 */
 	/* this is needed for booting via win98 */
 
 	xorw	%ax, %ax
@@ -9903,6 +9904,7 @@ int1_handler:
 	/* It could hang when we call int 08 on some machines, so we end it. */
 	/* It could hang when we call int 76 on some machines, so we end it. */
 	/* It could hang when we call int 05 on some machines, so we end it. */
+	/* It might cause OS boot failure when we call int 0F on some machines, so we end it. */
 
 	/* %cs:ABS_START(tmp_vector) stores DI which points to the current vector */ 
 
@@ -9919,8 +9921,10 @@ int1_handler:
 	je	fault_recovery_handler	/* it is int 76, stop now */
 	cmpl	$ABS_START(bios_interrupt_vector_table) + 0x14, %eax
 	je	fault_recovery_handler	/* it is int 05, stop now */
+	cmpl	$ABS_START(bios_interrupt_vector_table) + 0x3C, %eax
+	je	fault_recovery_handler	/* it is int 0F, stop now */
 
-	/* not int 02, 08, 76, 05 continue */
+	/* not int 02, 08, 76, 05, 0F, continue */
 
 4:
 

@@ -378,7 +378,11 @@ disk_serial_number_structure_end:
 	movw	$2, %cx		/* skip the first sector already loaded */
 
 	call	read_disk_with_reset_and_dec_di
+//#if (defined(GRLDR_MBR)) || (defined(GRLDR_INSTALL))
+//111:	jmp	111b
+//#else
 	jnc	3f
+//#endif
 
 	jnz	2b
 3:
@@ -3710,7 +3714,7 @@ boot_error_ext2:
 #define LOADSEG_NT	0x2000
 
 #define MMFT_BASE	0x2000
-#define MMFT_EMFT	(MMFT_BASE +1024)
+#define MMFT_EMFT	(MMFT_BASE + 1024)
 #define MMFT_EBUF	(MMFT_BASE + 2048)
 
 #define CMFT_BASE	(MMFT_BASE + 6144)
@@ -4758,6 +4762,7 @@ ntfs_read_data:
 //     SI points to the next unhandled byte
 
 ntfs_runlist_read_data:
+#if 0
 	pushw	%cx
 	orb	%cl, %cl
 	jnz	1f
@@ -4775,6 +4780,24 @@ ntfs_runlist_read_data:
 	add	$4, %cl
 	shlb	$3, %cl
 	ret
+#else
+	xorl	%eax, %eax
+	testb	%cl, %cl
+	jz	2f
+	pushw	%cx
+1:
+	lodsb	(%si), %al
+	rorl	$8, %eax
+	decb	%cl
+	jnz	1b
+
+	popw	%cx
+	negb	%cl
+	add	$4, %cl
+	shlb	$3, %cl
+2:
+	ret
+#endif
 
 NTFS_Run_Overflow_Error:
 	movb	$NTFS_Run_Overflow_Error_Code, %al
@@ -4962,6 +4985,7 @@ ntfs_decomp_block:
 	pushw	%ds
 	pushw	%si
 
+	cld		# added 2009-10-06 by tinybit
 	pushl	%eax
 	call	lin_to_seg
 	popw	%si
@@ -4994,10 +5018,10 @@ ntfs_decomp_block:
 	subl	%ecx, %edx
 	jnz	1b
 
-	popw	%di
-	popw	%es
-	popw	%si
-	popw	%ds
+	popw	%di	# Why these POPs should be in reverse order?
+	popw	%es	# Seems a comment needed.  -- tinybit
+	popw	%si	#
+	popw	%ds	#
 
 1:
 	xorl	%edx, %edx			// edx - copied bytes

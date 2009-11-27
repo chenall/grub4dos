@@ -37,14 +37,15 @@ unsigned long saved_drive;
 unsigned long saved_partition;
 #endif
 char saved_dir[256];
+unsigned long force_cdrom_as_boot_device = 1;
+#ifdef GRUB_UTIL
 //unsigned long cdrom_drives[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 unsigned long cdrom_drive = GRUB_INVALID_DRIVE;
-unsigned long force_cdrom_as_boot_device = 1;
-unsigned long ram_drive;
-unsigned long rd_base = 0;	/* Note the rd_base value of -1 invalidates the ram drive. */
-unsigned long rd_size = 0;	/* The rd_size 0 stands for 4GB, not for length of 0. */
-#ifdef GRUB_UTIL
-unsigned long saved_mem_upper;
+unsigned long ram_drive = 0x7F;	/* default is a floppy. */
+unsigned long long rd_base = 0;	/* Note the rd_base value of -1 invalidates the ram drive. */
+unsigned long long rd_size = 0x100000000ULL;	/* default is 4G */
+unsigned long long saved_mem_higher = 0;
+unsigned long saved_mem_upper = 0;
 #endif
 unsigned long saved_mem_lower;
 unsigned long saved_mmap_addr;
@@ -55,7 +56,9 @@ unsigned long saved_mmap_length;
 unsigned long extended_memory;
 unsigned long init_free_mem_start;
 #endif
+#ifdef GRUB_UTIL
 int is64bit = 0;
+#endif
 int errorcheck = 1;
 
 /*
@@ -124,9 +127,9 @@ char *err_list[] =
   [ERR_INVALID_FLOPPIES] = "Invalid floppies. Should be between 0 and 2",
   [ERR_INVALID_HARDDRIVES] = "Invalid harddrives. Should be between 0 and 127",
   [ERR_INVALID_LOAD_SEGMENT] = "Invalid load segment. Should be between 0 and 0x9FFF",
-  [ERR_INVALID_LOAD_OFFSET] = "Invalid load offset. Should be between 0 and 0xFFFF",
+  [ERR_INVALID_LOAD_OFFSET] = "Invalid load offset. Should be between 0 and 0xF800",
   [ERR_INVALID_LOAD_LENGTH] = "Invalid load length. Should be between 512 and 0xA0000",
-  [ERR_INVALID_SKIP_LENGTH] = "Invalid skip length. Should be non-negative and less than the file size",
+  [ERR_INVALID_SKIP_LENGTH] = "Invalid skip length. Should be less than the file size",
   [ERR_INVALID_BOOT_CS] = "Invalid boot CS. Should be between 0 and 0xFFFF",
   [ERR_INVALID_BOOT_IP] = "Invalid boot IP. Should be between 0 and 0xFFFF",
   [ERR_INVALID_RAM_DRIVE] = "Invalid ram_drive. Should be between 0 and 254",
@@ -158,8 +161,8 @@ static struct AddrRangeDesc fakemap[3] =
 /* A big problem is that the memory areas aren't guaranteed to be:
    (1) contiguous, (2) sorted in ascending order, or (3) non-overlapping.
    Thus this kludge.  */
-static unsigned long
-mmap_avail_at (unsigned long bottom)
+static unsigned long long
+mmap_avail_at (unsigned long long bottom)
 {
   unsigned long long top;
   unsigned long addr;
@@ -186,10 +189,10 @@ mmap_avail_at (unsigned long bottom)
   while (cont);
 
   /* For now, GRUB assumes 32bits addresses, so...  */
-  if (top > 0xFFFFFFFF)
-    top = 0xFFFFFFFF;
+  if (top > 0x100000000ULL && bottom < 0x100000000ULL)
+      top = 0x100000000ULL;
   
-  return (unsigned long) top - bottom;
+  return top - bottom;
 }
 #endif /* ! STAGE1_5 */
 
@@ -210,7 +213,6 @@ init_bios_info (void)
   /*
    *  Get information from BIOS on installed RAM.
    */
-
 #ifndef STAGE1_5
   DEBUG_SLEEP
   printf("\rGet lower memory... ");
@@ -317,6 +319,7 @@ init_bios_info (void)
        */
       saved_mem_lower = mmap_avail_at (0) >> 10;
       saved_mem_upper = mmap_avail_at (0x100000) >> 10;
+      saved_mem_higher = mmap_avail_at (0x100000000ULL) >> 10;
 
       /* Find the maximum available address. Ignore any memory holes.  */
       for (max_addr = 0, addr = saved_mmap_addr;
@@ -412,10 +415,10 @@ init_bios_info (void)
 	continue;//break;
 
       if (debug > 1)
-	grub_printf (" %sC/H/S=%d/%d/%d, Sector Count/Size=%d/%d\n",
-		(tmp_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION) ? "LBA, " : "",
+	grub_printf (" %sC/H/S=%d/%d/%d, Sector Count/Size=%ld/%d\n",
+		((tmp_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION) ? "LBA, " : ""),
 		tmp_geom.cylinders, tmp_geom.heads, tmp_geom.sectors,
-		tmp_geom.total_sectors, tmp_geom.sector_size);
+		(unsigned long long)tmp_geom.total_sectors, tmp_geom.sector_size);
       
       /* Set the information.  */
       info->drive_number = drive;
@@ -578,7 +581,7 @@ pxe_init_done:
     }
 
     if (debug > 1)
-	printf("%s\n", cdrom_drive == GRUB_INVALID_DRIVE ? "Not CD":"Is CD");
+	printf("%s\n", (cdrom_drive == GRUB_INVALID_DRIVE ? "Not CD":"Is CD"));
   DEBUG_SLEEP
 #endif
   
@@ -596,7 +599,9 @@ pxe_init_done:
 #else
 #define FIND_DRIVES (*((char *)0x475))
 #endif
-    for (drive = 0xFF; drive >= 0x7F; drive--)
+	/* Drive 7F causes hang on motherboard "jetway 694AS/TAS", as reported
+	 * by renfeide112@126.com, 2009-09-30. So no more play with 7F. */
+    for (drive = 0xFF; drive > 0x7F; drive--)
     {
       if (drive >= 0x80 && drive < 0x80 + FIND_DRIVES)
 	continue;
@@ -714,7 +719,6 @@ set_root:
 
   /* check the header signature "HdrS" (0x53726448) */
 
-  ram_drive = 0x7f;	/* the default ram_drive is a floppy. */
   if (*(unsigned long*)(int*)(0xA00 + 0x202) == 0x53726448)
   {
 	unsigned long initrd_addr;

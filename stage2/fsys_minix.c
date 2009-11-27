@@ -177,7 +177,7 @@ minix_mount (void)
     return 0;			/* The partition is too short */
   
   if (!devread (SBLOCK, 0, sizeof (struct minix_super_block),
-		(char *) SUPERBLOCK, 0xedde0d90))
+		(unsigned long long)(unsigned int)(char *) SUPERBLOCK, 0xedde0d90))
     return 0;			/* Cannot read superblock */
   
   switch (SUPERBLOCK->s_magic)
@@ -200,7 +200,7 @@ static int
 minix_rdfsb (int fsblock, int buffer)
 {
   return devread (fsblock * (BLOCK_SIZE / DEV_BSIZE), 0,
-		  BLOCK_SIZE, (char *) buffer, 0xedde0d90);
+		  BLOCK_SIZE, (unsigned long long)(unsigned int)(char *) buffer, 0xedde0d90);
 }
 
 /* Maps LOGICAL_BLOCK (the file offset divided by the blocksize) into
@@ -250,7 +250,7 @@ minix_block_map (int logical_block)
 
 /* read from INODE into BUF */
 unsigned long
-minix_read (char *buf, unsigned long len, unsigned long write)
+minix_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long logical_block;
   unsigned long offset;
@@ -401,7 +401,7 @@ minix_dir (char *dirname)
 	  linkbuf[filemax + len] = '\0';
 
 	  /* Read the necessary blocks, and reset the file pointer. */
-	  len = grub_read (linkbuf, filemax, 0xedde0d90);
+	  len = grub_read ((unsigned long long)(unsigned int)linkbuf, filemax, 0xedde0d90);
 	  filepos = 0;
 	  if (!len)
 	    return 0;
