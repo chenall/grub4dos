@@ -1239,6 +1239,13 @@ cat_func (char *arg, int flags)
     else if (grub_memcmp (arg, "--replace=", 10) == 0)
       {
 	p = replace = arg + 10;
+	if (*replace == '*')
+	{
+        replace=replace+1;
+        if (! safe_parse_maxint (&replace, &len_r))
+            return 0;
+        replace = p;
+	} 
 	if (*p == '\"')
 	{
 	  while (*(++p) != '\"');
@@ -1257,23 +1264,50 @@ cat_func (char *arg, int flags)
 	break;
     arg = skip_to (0, arg);
   }
-  
+  if (! length)
+  {
+	if (grub_memcmp (arg,"()-1\0",5) == 0 )
+	{
+        if (! grub_open ("()+1"))
+            return 0;
+        filesize = filemax*(unsigned long long)part_start;
+	} 
+	else if (grub_memcmp (arg,"()\0",3) == 0 )
+     {
+        if (! grub_open ("()+1"))
+            return 0;
+        filesize = filemax*(unsigned long long)part_length;
+     }
+    else 
+    {
+       if (! grub_open (arg))
+            return 0;
+       filesize = filemax;
+     }
+	grub_close();
+	if (debug > 0)
+		grub_printf ("Filesize is 0x%lX\n", (unsigned long long)filesize);
+	ret = filemax;
+	return ret;
+  }
   if (! grub_open (arg))
     return 0; 
-
   if (length > filemax)
       length = filemax;
   filepos = skip;
   if (replace)
   {
-    if (*replace == '\"')
-    {
-      for (i = 0; i < 128 && (r[i] = *(++replace)) != '\"'; i++);
-    }else{
-      for (i = 0; i < 128 && (r[i] = *(replace++)) != ' ' && r[i] != '\t'; i++);
+	if ( *replace != '*' )
+	{
+        if (*replace == '\"')
+        {
+        for (i = 0; i < 128 && (r[i] = *(++replace)) != '\"'; i++);
+        }else{
+        for (i = 0; i < 128 && (r[i] = *(replace++)) != ' ' && r[i] != '\t'; i++);
+        }
+        r[i] = 0;
+        len_r = parse_string ((char *)r);
     }
-    r[i] = 0;
-    len_r = parse_string ((char *)r);
   }
   if (locate)
   {
@@ -1316,7 +1350,10 @@ cat_func (char *arg, int flags)
 				filepos_bak = filepos;
 				filepos = k;
 				/* write len_r bytes at string r to file!! */
-				grub_read ((unsigned long long)(unsigned int)(char *)&r, len_r, 0x900ddeed);
+				if (*replace == '*')
+                    grub_read (len_r, 8, 0x900ddeed);
+				else
+                    grub_read ((unsigned long long)(unsigned int)(char *)&r, len_r, 0x900ddeed);
 				filepos = filepos_bak;
 				//if (debug > 0)
 				//	grub_putchar('!');
@@ -1357,13 +1394,6 @@ cat_func (char *arg, int flags)
     }
   
   grub_close ();
-  if (! length)
-  {
-	filesize = filemax;
-	if (debug > 0)
-		grub_printf ("Filesize is 0x%lX\n", (unsigned long long)filesize);
-	ret = filemax;
-  }
   return ret;
 }
 
@@ -7504,7 +7534,11 @@ map_func (char *arg, int flags)
 	p = arg + 8;
 	for (drive = 0xFF; drive >= 0; drive--)
 	{
-		if (drive != INITRD_DRIVE && in_range (p, drive))
+		if (drive != INITRD_DRIVE && in_range (p, drive)
+		#ifdef FSYS_FB
+		&& drive != FB_DRIVE
+		#endif
+		)
 		{
 			/* unmap drive */
 			sprintf (map_tmp, "(0x%X) (0x%X)", drive, drive);
