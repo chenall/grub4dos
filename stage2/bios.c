@@ -92,7 +92,7 @@ biosdisk (int read, int drive, struct geometry *geometry,
 	    tmp += rd_base;
 	if (tmp > 0x100000000ULL && ! is64bit)
 		return 1;	/* failure */
-	disk_sector = ((sector<<9) + ((drive==0xffff) ? 0 : rd_base));
+	disk_sector = (((unsigned long long)sector<<9) + ((drive==0xffff) ? 0 : rd_base));
 	buf_address = (segment<<4);
 
 	if (read)	/* read == 1 really means write to DISK */

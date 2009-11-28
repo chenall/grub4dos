@@ -2531,9 +2531,15 @@ cmp_func (char *arg, int flags)
   char *addr1, *addr2;
   int i;
   /* The size of the file.  */
-  int size;
-
+  int size,Hex;
+    quit_print=0;
+    Hex = 0;
   /* Get the filenames from ARG.  */
+  if (grub_memcmp (arg, "--hex", 5) == 0)
+    {
+        Hex = 1;
+        arg=skip_to (0, arg);
+    }
   file1 = arg;
   file2 = skip_to (0, arg);
   if (! *file1 || ! *file2)
@@ -2583,14 +2589,29 @@ cmp_func (char *arg, int flags)
   grub_close ();
 
   /* Now compare ADDR1 with ADDR2.  */
+  if (Hex)
+   {  
+     grub_printf("Compare FILE1:%s --> FILE2:%s\t\n",file1,file2);
+     for (i = 0; i < size; i+=16)
+        {
+          if (quit_print)
+            break;
+          grub_printf("0x%X/0x%X\n",i,size);
+          hexdump(i,addr1,(i+16>size)?(size-i):0x10);
+          addr1+=16;
+          hexdump(i,addr2,(i+16>size)?(size-i):0x10);
+          addr2+=16;
+        }
+     return 1;
+   }
   for (i = 0; i < size; i++)
     {
-      if (addr1[i] != addr2[i])
+    if (addr1[i] != addr2[i])
       {
-	grub_printf ("Differ at the offset %d: 0x%x [%s], 0x%x [%s]\n",
+        grub_printf ("Differ at the offset 0x%X: 0x%x [%s], 0x%x [%s]\n",
 		     (unsigned long)i, (unsigned long) addr1[i], file1,
 		     (unsigned long) addr2[i], file2);
-	return 0;
+        return 0;
       }
     }
   
@@ -2602,7 +2623,7 @@ static struct builtin builtin_cmp =
   "cmp",
   cmp_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "cmp FILE1 FILE2",
+  "cmp [--hex] FILE1 FILE2",
   "Compare the file FILE1 with the FILE2 and inform the different values"
   " if any."
 };

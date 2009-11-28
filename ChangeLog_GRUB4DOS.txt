@@ -1,3 +1,22 @@
+2009-11-28 g@chenall.cn
+    1.修正了当内存>2G时访问可能会出错的问题.
+      fixed a bug when access memory>2G problems.
+      eg.
+      cat --hex (md)0x40002F+1
+      map --mem (md)0x600000+0x19020
+2009-11-26 g@chenall.cn
+	1.修改cmp_func代码，使用之使用十六进制显示差异偏移（为了方便对比使用）。
+	  change cmp_func to show Differ at the offset with HEX
+	2.为cmp添加了一个参数--hex（直接显示十六进制）
+	  add --hex option for cmp	
+2009-11-24 g@chenall.cn
+	1.添加(bd)设备，即启动设备，注：使用configfile命令会改变启动设备。
+	added (bd) support.(bd):the boot drive. note:use configfile to change boot drive
+	eg. boot from (hd0,0)
+	   now boot drive is (hd0,0)
+	   configfile (hd0,1)/menu.lst
+	   now boot drive is (hd0,1)
+
 2009-11-13 added --replace option for cat. This will write to file. Caution!
 2009-11-11 let PXE_BUF use BUFFERADDR. cancelled (hd+) support. added (hd) and (hd-N) support.
 2009-11-09 moved FSYS_BUF and some other buffers up at 0x3E0000. (temporarily)added (hd+) support for map.
