@@ -1118,7 +1118,7 @@ set_device (char *device)
       if (*device != ',' /* && *device != ')' */ )
 	{
 	  char ch = *device;
-	  if (*device == 'f' || *device == 'h' || *device == 'm' || *device == 'r'
+	  if (*device == 'f' || *device == 'h' || *device == 'm' || *device == 'r' || *device == 'b' 
 #ifdef SUPPORT_NETBOOT
 	      || (*device == 'n' && network_ready)
 #endif /* SUPPORT_NETBOOT */
@@ -1148,6 +1148,7 @@ set_device (char *device)
 	      || *device == 'h'
 	      || *device == 'm'
 	      || *device == 'r'
+	      || *device == 'b'
 #ifdef SUPPORT_NETBOOT
 	      || (*device == 'n' && network_ready)
 #endif
@@ -1187,6 +1188,12 @@ set_device (char *device)
 		current_drive = 0xffff;
 	      else if (ch == 'r')
 		current_drive = ram_drive;
+          else if (ch == 'b')
+          {
+         current_partition = install_partition;
+         current_drive = boot_drive;
+         return device + 1;
+         }
 #ifndef GRUB_UTIL
 	      else if (ch == 'h' && (*device == ',' || *device == ')'))
 		{
