@@ -82,10 +82,10 @@ biosdisk (int read, int drive, struct geometry *geometry,
 	
 	if (nsec <=0 || nsec >= 0x80)
 		return 1;	/* failure */
-	if (sector + nsec > geometry->total_sectors)
+	if ((unsigned long)sector + (unsigned long)nsec > geometry->total_sectors)
 		return 1;	/* failure */
-	if ((unsigned long)sector + (unsigned long)nsec >= 0x800000)
-		return 1;	/* failure */
+	//if ((unsigned long)sector + (unsigned long)nsec >= 0x800000)
+	//	return 1;	/* failure */
 	
 	tmp = (((unsigned long long)sector+(unsigned long long)nsec) << 9);
 	if (drive == ram_drive)
@@ -248,9 +248,9 @@ get_diskinfo (int drive, struct geometry *geometry)
 
   if (drive == 0xffff)	/* memory disk */
     {
-      unsigned long long total_mem_bytes;
+      unsigned long long total_mem_sectors;
 
-      total_mem_bytes = 0;
+      total_mem_sectors = 0;
 
       if (mbi.flags & MB_INFO_MEM_MAP)
         {
@@ -264,21 +264,27 @@ get_diskinfo (int drive, struct geometry *geometry)
 	      if (map->Type != MB_ARD_MEMORY)
 		  continue;
 	      top_end =  map->BaseAddr + map->Length;
-	      if (top_end > 0x100000000ULL)
-		  top_end = 0x100000000ULL;
-	      if (total_mem_bytes < top_end)
-		  total_mem_bytes = top_end;
+	      /* check overflow... */
+	      if (top_end < map->BaseAddr && top_end < map->Length)
+		  total_mem_sectors = 0x80000000000000ULL;
+	      else
+		{
+		  if (top_end > 0x100000000ULL && ! is64bit)
+		      top_end = 0x100000000ULL;
+		  if (total_mem_sectors < (top_end >> SECTOR_BITS))
+		      total_mem_sectors = (top_end >> SECTOR_BITS);
+		}
 
 	    }
         }
       else
 	  grub_printf ("Address Map BIOS Interface is not activated.\n");
 
-      if (total_mem_bytes)
+      if (total_mem_sectors)
       {
 	geometry->flags = BIOSDISK_FLAG_LBA_EXTENSION;
 	geometry->sector_size = SECTOR_SIZE;
-	geometry->total_sectors = (total_mem_bytes /*+ SECTOR_SIZE - 1*/) >> SECTOR_BITS;
+	geometry->total_sectors = total_mem_sectors;
 	geometry->heads = 255;
 	geometry->sectors = 63;
 	geometry->cylinders = (geometry->total_sectors + 255 * 63 -1) / (255 * 63);
@@ -291,7 +297,7 @@ get_diskinfo (int drive, struct geometry *geometry)
       {
 	geometry->flags = BIOSDISK_FLAG_LBA_EXTENSION;
 	geometry->sector_size = SECTOR_SIZE;
-	geometry->total_sectors = (rd_size + SECTOR_SIZE - 1) >> SECTOR_BITS;
+	geometry->total_sectors = (rd_size >> SECTOR_BITS) + !!(rd_size & (SECTOR_SIZE - 1));
 	geometry->heads = 255;
 	geometry->sectors = 63;
 	geometry->cylinders = (geometry->total_sectors + 255 * 63 -1) / (255 * 63);

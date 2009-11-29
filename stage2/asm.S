@@ -7874,6 +7874,8 @@ realcseg:
 /*
  *   int mem64 (int func, __u64 dest, __u64 src, __u64 len)
  *
+ *	SRC and DEST should better align 8 for efficiency.
+ *
  *   input:
  *		func = 1 for memmove, 2 for memcmp, 3 for memset
  *
@@ -7905,6 +7907,8 @@ ENTRY(mem64)
 	movl	%eax, ABS(old_cr3)		# save cr3
 	movl	%cr4, %eax
 	movl	%eax, ABS(old_cr4)		# save cr4
+
+	/* XXX: page maps can initialise only once for efficiency. */
 
 	/*********** begin initialising page maps ***********/
 	/* PML4 base, with only one entry(=512G) */
@@ -7996,6 +8000,8 @@ ENTRY(mem64)
 	cmpb	$1, %al
 	jne	2f
 	/* AL=1, memmove */
+	cmpq	%rdi, %rsi
+	jb	3f
 	movb	%cl, %al
 	shrq	$3, %rcx
 	repz movsq			/* RCX=0 */
@@ -8003,6 +8009,24 @@ ENTRY(mem64)
 	jz	1f
 	movb	%al, %cl
 	repz movsb
+	jmp	1f
+3:
+	std
+	addq	%rcx, %rsi
+	addq	%rcx, %rdi
+	decq	%rsi
+	decq	%rdi
+	movq	%rcx, %rax		/* save RCX to RAX */
+	xorq	%rcx, %rcx
+	movb	%al, %cl
+	andb	$7, %cl			/* if RCX=0, rep will do nothing */
+	repz movsb			/* RCX=0 */
+	movq	%rax, %rcx		/* restore RCX from RAX */
+	shrq	$3, %rcx
+	subq	$7, %rsi		/* align 8 */
+	subq	$7, %rdi		/* align 8 */
+	repz movsq			/* RCX=0 */
+	cld
 	jmp	1f
 2:
 	cmpb	$2, %al
