@@ -1,0 +1,38 @@
+2009-12-01 g@chenall.cn
+	1.同步源码到2009-12-01版（修正了NTFS上DD或WRITE的问题）
+	2.修改调整了cat --replace，当使用--replace=*addr时允许使用--hex来指定读取长度。具体
+	http://bbs.znpc.net/viewthread.php?tid=5784&page=10&fromuid=29#pid42939
+
+2009-11-29 g@chenall.cn
+	1.调整了chainloader功能，如果chainloader (rd)+1，并且没有指定edx设备，那将把当前设备设为EDX。
+	  Changed chainloader_func,if use chainloader (rd)+1 then will set current_root to EDX
+	从光盘上的BOOTMGR启动硬盘上的VISTA/WIN7系统。
+ 	Boot VISTA/WIN7 from cdrom or any other device
+		chainloader (cd)/BOOTMGR
+		rootnoverify (hd0,0)
+		dd if=(hd0,0)+1 of=(md)0x3E+1
+	现在可以直接使用以下方法来启动;	You can now use the following commands..
+		map --mem=0xF000 /BOOTMGR
+		find --set-root --ignore-cd --ignore-floppies /BOOT/BCD
+		chainloader (rd)+1
+	http://bbs.znpc.net/viewthread.php?tid=5784&page=7&fromuid=29#pid42684
+	Tips:about EDX,please read README_GRUB4DOS.txt
+	2.源码同步到官方2009-11-29版。
+2009-11-28 g@chenall.cn
+    1.修正了当内存>2G时访问可能会出错的问题.
+      fixed a bug when access memory>2G problems.
+      eg.
+      cat --hex (md)0x40002F+1
+      map --mem (md)0x600000+0x19020
+2009-11-26 g@chenall.cn
+	1.修改cmp_func代码，使用之使用十六进制显示差异偏移（为了方便对比使用）。
+	  change cmp_func to show Differ at the offset with HEX
+	2.为cmp添加了一个参数--hex（直接显示十六进制）
+	  add --hex option for cmp	
+2009-11-24 g@chenall.cn
+	1.添加(bd)设备，即启动设备，注：使用configfile命令会改变启动设备。
+	added (bd) support.(bd):the boot drive. note:use configfile to change boot drive
+	eg. boot from (hd0,0)
+	   now boot drive is (hd0,0)
+	   configfile (hd0,1)/menu.lst
+	   now boot drive is (hd0,1)

@@ -1211,7 +1211,13 @@ cat_func (char *arg, int flags)
 
   for (;;)
   {
-    if (grub_memcmp (arg, "--hex", 5) == 0)
+	if (grub_memcmp (arg, "--hex=", 6) == 0)
+	{
+		p = arg + 6;
+		if (! safe_parse_maxint (&p, &Hex))
+			return 0;
+	}
+    else if (grub_memcmp (arg, "--hex", 5) == 0)
       {
 	Hex = 1;
       }
@@ -1241,10 +1247,9 @@ cat_func (char *arg, int flags)
 	p = replace = arg + 10;
 	if (*replace == '*')
 	{
-        replace=replace+1;
+        replace++;
         if (! safe_parse_maxint (&replace, &len_r))
-            return 0;
-        replace = p;
+			replace = p;
 	} 
 	if (*p == '\"')
 	{
@@ -1297,8 +1302,9 @@ cat_func (char *arg, int flags)
   filepos = skip;
   if (replace)
   {
-	if ( *replace != '*' )
+	if (! len_r)
 	{
+		Hex = 0;
         if (*replace == '\"')
         {
         for (i = 0; i < 128 && (r[i] = *(++replace)) != '\"'; i++);
@@ -1308,6 +1314,11 @@ cat_func (char *arg, int flags)
         r[i] = 0;
         len_r = parse_string ((char *)r);
     }
+    else
+      {
+		if (! Hex)
+			Hex = -1;
+      }
   }
   if (locate)
   {
@@ -1349,11 +1360,18 @@ cat_func (char *arg, int flags)
 
 				filepos_bak = filepos;
 				filepos = k;
-				/* write len_r bytes at string r to file!! */
-				if (*replace == '*')
-                    grub_read (len_r, 8, 0x900ddeed);
+				if (Hex)
+				  {
+                    grub_read (len_r,(Hex == -1)?8:Hex, 0x900ddeed);
+					i = ((Hex == -1)?8:Hex)+i;
+                  }
 				else
+				 {
+	 				/* write len_r bytes at string r to file!! */
                     grub_read ((unsigned long long)(unsigned int)(char *)&r, len_r, 0x900ddeed);
+                    i = i+len_r;
+                  }
+				i--;
 				filepos = filepos_bak;
 				//if (debug > 0)
 				//	grub_putchar('!');
