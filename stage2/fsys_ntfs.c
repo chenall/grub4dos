@@ -113,6 +113,7 @@ typedef struct {
   char *mft,*cur_run;
 } read_ctx;
 
+/* sbuf must be at 4K boundary!! read_block() require this.*/
 #define NAME_BUF	((char *)(FSYS_BUF))	/* 4096 bytes */
 #define TEMP_BUF	NAME_BUF		/* 4096 bytes */
 #define mmft		((char *)((FSYS_BUF)+4096))
@@ -261,7 +262,7 @@ back:
       pa=ofs2ptr(attr_end);
       if (pa[8])
         {
-          int n;
+          unsigned long long n;
 
           n = (valueat(pa,0x30,unsigned long) + 511) & (~511);
           if (n>4096)
@@ -309,7 +310,7 @@ back:
               pa=ofs2ptr(new_pos);
               if ((unsigned char)*pa!=attr)
                 break;
-              if (! read_attr(cur_mft,(unsigned long long)(unsigned int)(pa+0x10),valueat(pa,0x10,unsigned long)*(mft_size << BLK_SHR),mft_size << BLK_SHR,0, 0xedde0d90))
+              if (! read_attr(cur_mft,(unsigned long long)(unsigned int)(pa+0x10),valueat(pa,0x10,unsigned long)*(mft_size << BLK_SHR),((unsigned long long)(mft_size)) << BLK_SHR,0, 0xedde0d90))
                 return NULL;
               new_pos+=valueat(pa,4,unsigned short);
             }
@@ -642,7 +643,7 @@ static int read_block(read_ctx* ctx, unsigned long long buf, int num, unsigned l
                   ctx->target_vcn+=tt;
                   if (buf)
                     {
-                      if (! devread((comp_table[comp_head][1]-(comp_table[comp_head][0] - ctx->target_vcn))*spc,0,tt*(spc << BLK_SHR),(unsigned long long)(unsigned int)buf, 0xedde0d90))
+                      if (! devread((comp_table[comp_head][1]-(comp_table[comp_head][0] - ctx->target_vcn))*spc,0,tt*(spc << BLK_SHR),buf, 0xedde0d90))
                         {
                           dbg_printf("Read Error\n");
                           return 0;
@@ -657,7 +658,7 @@ static int read_block(read_ctx* ctx, unsigned long long buf, int num, unsigned l
                 {
                   if (buf)
                     {
-                      if (! devread((ctx->target_vcn - ctx->curr_vcn + ctx->curr_lcn)*spc,0,nn*(spc << BLK_SHR),(unsigned long long)(unsigned int)buf, 0xedde0d90))
+                      if (! devread((ctx->target_vcn - ctx->curr_vcn + ctx->curr_lcn)*spc,0,nn*(spc << BLK_SHR),buf, 0xedde0d90))
                         {
                           dbg_printf("Read Error\n");
                           return 0;
@@ -697,18 +698,23 @@ static int read_block(read_ctx* ctx, unsigned long long buf, int num, unsigned l
 			unsigned long s = (ctx->target_vcn - ctx->curr_vcn + ctx->curr_lcn) * spc + ctx->vcn_offset;
 			unsigned long o = 0;
 
-			if (write != 0x900ddeed)
+			if (write != 0x900ddeed)	/* read */
 				len = (nn << BLK_SHR);
- 			else if (len == -1)
+ 			else if (len == -1ULL)	/* long long of -1 for normal whole-block writing */
 				len = (nn << BLK_SHR);
-			else if (len < 0)
+			else if ((long long)len < 0)	/* long long of -2, -3, ... for writing a piece of block */
 			{
 				len = -len;
+				len--;
 				if (len >= 512)
 					return 0;
-				o = 512 - len;
+				//o = 512 - (unsigned long)len;
+
+				/* sbuf must be 4K align!! buf is now offset to sbuf. */
+				//o = ((unsigned long)buf) % 4096;
+				o = ((unsigned long)buf) & 4095;
 			}
-			if (! devread(s, o, len, (unsigned long long)(unsigned int)buf, write))
+			if (! devread(s, o, len, buf, write))
 			{
 				dbg_printf("Read/Write Error\n");
 				return 0;
@@ -778,7 +784,7 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
     {
 	if ((ofs & (~(blk_size - 1))) == save_pos)
 	{
-		int n;
+		unsigned long long n;
 
 		//if (write == 0x900ddeed)	/* write */
 		//{
@@ -864,9 +870,10 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
 	goto fail;
     }
 
+    /* read the beginning piece of data(if any) upto a block boundary. */
     if (ofs % blk_size)
     {
-	unsigned long t, n, o;
+	unsigned long long t, n, o;
 
 	if (! cached)
 	{
@@ -884,7 +891,9 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
 
 	t = ctx->target_vcn * (spc << BLK_SHR);
 	//if (! read_block (ctx, sbuf, 1, -1, 0xedde0d90))	/* read */
-	if (! read_block (ctx, (unsigned long long)(unsigned int)(write == 0x900ddeed ? &sbuf[o] : sbuf), 1, -n, write))	/* read/write */
+	/* (-n-1) is long long value ranging from -2, -3, ..., -blk_size */
+	/* sbuf must be 4K align !! */
+	if (! read_block (ctx, (unsigned long long)(unsigned int)(write == 0x900ddeed ? &sbuf[o] : sbuf), 1, (-n-1), write))	/* read/write */
 		goto fail;
 
 	if (write != 0x900ddeed)	/* read */
@@ -912,7 +921,7 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
 	len -= n;
     }
 
-    if (! read_block (ctx, dest, ((unsigned int)len) / blk_size, -1, write)) /* read/write */	/* XXX: 64-bit ? */
+    if (! read_block (ctx, dest, ((unsigned int)len) / blk_size, -1ULL, write)) /* read/write */	/* XXX: 64-bit ? */
 	goto fail;
 
     if (dest)
@@ -1000,7 +1009,7 @@ static int read_attr(char* cur_mft,unsigned long long dest,unsigned long ofs,uns
 
 static int read_mft(char* buf,unsigned long mftno)
 {
-  if (! read_attr(mmft,(unsigned long long)(unsigned int)buf,mftno*(mft_size << BLK_SHR),mft_size << BLK_SHR,0, 0xedde0d90))
+  if (! read_attr(mmft,(unsigned long long)(unsigned int)buf,mftno*(mft_size << BLK_SHR),((unsigned long long)(mft_size)) << BLK_SHR,0, 0xedde0d90))
     {
       dbg_printf("Read MFT 0x%X fails\n",mftno);
       return 0;
@@ -1211,7 +1220,7 @@ static int scan_dir(char* cur_mft,char *fn)
         {
           if (*bitmap & v)
             {
-              if ((! read_attr(cur_mft,(unsigned long long)(unsigned int)sbuf,i*(idx_size<<BLK_SHR),(idx_size<<BLK_SHR),0, 0xedde0d90)) ||
+              if ((! read_attr(cur_mft,(unsigned long long)(unsigned int)sbuf,i*(idx_size<<BLK_SHR),(((unsigned long long)(idx_size))<<BLK_SHR),0, 0xedde0d90)) ||
                   (! fixup(sbuf,idx_size,"INDX")))
                 goto error;
               ret=list_file(cur_mft,fn,&sbuf[0x18+valueat(sbuf,0x18,unsigned short)]);
