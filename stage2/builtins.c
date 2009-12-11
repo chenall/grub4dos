@@ -1175,7 +1175,7 @@ void hexdump(unsigned long ofs,char* buf,int len)
       printf("; ");
 
       for (k=0;k<cnt;k++)
-        printf("%c",(unsigned long)(((buf[k]>=32) && (buf[k]<127))?buf[k]:'.'));
+        printf("%c",(unsigned long)((((unsigned char)buf[k]>=32) && ((unsigned char)buf[k]!=127))?buf[k]:'.'));
 
       printf("\n");
 
@@ -1195,7 +1195,7 @@ cat_func (char *arg, int flags)
   unsigned char c;
   unsigned char s[128];
   unsigned char r[128];
-  int Hex = 0;
+  unsigned long long Hex = 0;
   unsigned long long len, i, j;
   char *p;
   unsigned long long skip = 0;
@@ -1211,7 +1211,13 @@ cat_func (char *arg, int flags)
 
   for (;;)
   {
-    if (grub_memcmp (arg, "--hex", 5) == 0)
+	if (grub_memcmp (arg, "--hex=", 6) == 0)
+	{
+		p = arg + 6;
+		if (! safe_parse_maxint (&p, &Hex))
+			return 0;
+	}
+    else if (grub_memcmp (arg, "--hex", 5) == 0)
       {
 	Hex = 1;
       }
@@ -1239,6 +1245,12 @@ cat_func (char *arg, int flags)
     else if (grub_memcmp (arg, "--replace=", 10) == 0)
       {
 	p = replace = arg + 10;
+	if (*replace == '*')
+	{
+        replace++;
+        if (! safe_parse_maxint (&replace, &len_r))
+			replace = p;
+	} 
 	if (*p == '\"')
 	{
 	  while (*(++p) != '\"');
@@ -1257,23 +1269,56 @@ cat_func (char *arg, int flags)
 	break;
     arg = skip_to (0, arg);
   }
-  
+  if (! length)
+  {
+	if (grub_memcmp (arg,"()-1\0",5) == 0 )
+	{
+        if (! grub_open ("()+1"))
+            return 0;
+        filesize = filemax*(unsigned long long)part_start;
+	} 
+	else if (grub_memcmp (arg,"()\0",3) == 0 )
+     {
+        if (! grub_open ("()+1"))
+            return 0;
+        filesize = filemax*(unsigned long long)part_length;
+     }
+    else 
+    {
+       if (! grub_open (arg))
+            return 0;
+       filesize = filemax;
+     }
+	grub_close();
+	if (debug > 0)
+		grub_printf ("Filesize is 0x%lX\n", (unsigned long long)filesize);
+	ret = filemax;
+	return ret;
+  }
   if (! grub_open (arg))
     return 0; 
-
   if (length > filemax)
       length = filemax;
   filepos = skip;
   if (replace)
   {
-    if (*replace == '\"')
-    {
-      for (i = 0; i < 128 && (r[i] = *(++replace)) != '\"'; i++);
-    }else{
-      for (i = 0; i < 128 && (r[i] = *(replace++)) != ' ' && r[i] != '\t'; i++);
+	if (! len_r)
+	{
+		Hex = 0;
+        if (*replace == '\"')
+        {
+        for (i = 0; i < 128 && (r[i] = *(++replace)) != '\"'; i++);
+        }else{
+        for (i = 0; i < 128 && (r[i] = *(replace++)) != ' ' && r[i] != '\t'; i++);
+        }
+        r[i] = 0;
+        len_r = parse_string ((char *)r);
     }
-    r[i] = 0;
-    len_r = parse_string ((char *)r);
+    else
+      {
+		if (! Hex)
+			Hex = -1ULL;
+      }
   }
   if (locate)
   {
@@ -1315,8 +1360,18 @@ cat_func (char *arg, int flags)
 
 				filepos_bak = filepos;
 				filepos = k;
-				/* write len_r bytes at string r to file!! */
-				grub_read ((unsigned long long)(unsigned int)(char *)&r, len_r, 0x900ddeed);
+				if (Hex)
+				  {
+                    grub_read (len_r,(Hex == -1ULL)?8:Hex, 0x900ddeed);
+					i = ((Hex == -1ULL)?8:Hex)+i;
+                  }
+				else
+				 {
+	 				/* write len_r bytes at string r to file!! */
+                    grub_read ((unsigned long long)(unsigned int)(char *)&r, len_r, 0x900ddeed);
+                    i = i+len_r;
+                  }
+				i--;
 				filepos = filepos_bak;
 				//if (debug > 0)
 				//	grub_putchar('!');
@@ -1357,13 +1412,6 @@ cat_func (char *arg, int flags)
     }
   
   grub_close ();
-  if (! length)
-  {
-	filesize = filemax;
-	if (debug > 0)
-		grub_printf ("Filesize is 0x%lX\n", (unsigned long long)filesize);
-	ret = filemax;
-  }
   return ret;
 }
 
@@ -1679,7 +1727,14 @@ chainloader_func (char *arg, int flags)
   
   if (filename == 0)
 	filename = arg;
-
+  if (current_drive == 0xFFFF || current_drive == ram_drive)
+  {
+	if (! chainloader_edx_set)
+	  {
+		chainloader_edx = saved_drive | ((saved_partition >> 8) & 0xFF00);
+		chainloader_edx_set=1;
+	  }
+  }
 #ifndef GRUB_UTIL
   /* check bootable cdrom */
   if (*filename == 0 || *filename == ' ' || *filename == '\t')
@@ -2501,9 +2556,15 @@ cmp_func (char *arg, int flags)
   char *addr1, *addr2;
   int i;
   /* The size of the file.  */
-  int size;
-
+  int size,Hex;
+    quit_print=0;
+    Hex = 0;
   /* Get the filenames from ARG.  */
+  if (grub_memcmp (arg, "--hex", 5) == 0)
+    {
+        Hex = 1;
+        arg=skip_to (0, arg);
+    }
   file1 = arg;
   file2 = skip_to (0, arg);
   if (! *file1 || ! *file2)
@@ -2536,14 +2597,6 @@ cmp_func (char *arg, int flags)
   if (! grub_open (file2))
     return 0;
 
-  /* Check if the size of FILE2 is equal to the one of FILE2.  */
-  if (size != filemax)
-    {
-      grub_printf ("Differ in size: 0x%x [%s], 0x%x [%s]\n", size, file1, (unsigned long)filemax, file2);
-      grub_close ();
-      return 0;
-    }
-  
   if (! grub_read ((unsigned long long)(unsigned long)addr2, -1, 0xedde0d90))
     {
       grub_close ();
@@ -2551,6 +2604,93 @@ cmp_func (char *arg, int flags)
     }
   
   grub_close ();
+
+  if (Hex)
+	{
+	if (current_term->setcolorstate)
+		current_term->setcolorstate (COLOR_STATE_HEADING);
+	grub_printf("Compare FILE1:%s <--> FILE2:%s\t\n",file1,file2);
+	if (current_term->setcolorstate)
+		current_term->setcolorstate (COLOR_STATE_STANDARD);
+	for (i = 0; i < (filemax>=size?size:filemax); i+=16)
+	{
+		int k,cnt;
+		unsigned char c;
+		if (quit_print)
+			break;
+		if (current_term->setcolorstate)
+			current_term->setcolorstate (COLOR_STATE_NORMAL);
+		grub_printf("0x%X\t0x%X/0x%X\n",i,size,filemax);
+		if (current_term->setcolorstate)
+			current_term->setcolorstate (COLOR_STATE_STANDARD);
+		grub_printf ("%08X: ", i);
+		cnt = 16;
+		if (cnt+i > (filemax >= size?size:filemax))
+			cnt=(filemax >= size?size:filemax)-i;
+		for (k=0;k<cnt;k++)
+		{
+			c = (unsigned char)(addr1[i+k]);
+			if ((addr1[i+k] != addr2[i+k]) && (current_term->setcolorstate))
+				current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+			printf("%02X", c);
+			if ((addr1[i+k] != addr2[i+k]) && (current_term->setcolorstate))
+				current_term->setcolorstate (COLOR_STATE_STANDARD);
+			if ((k != 15) && ((k & 3)==3))
+				printf(" ");
+			printf(" ");
+		}
+		for (;k<16;k++)
+		{
+			printf("   ");
+			if ((k!=15) && ((k & 3)==3))
+				printf(" ");
+		}
+		printf("; ");
+
+		for (k=0;k<cnt;k++)
+		{
+			c=(unsigned char)(addr1[i+k]);
+			printf("%c",((c>=32) && (c != 127))?c:'.');
+		}
+		printf("\n");
+		grub_printf ("%08X: ", i);
+		for (k=0;k<cnt;k++)
+		{
+			c = (unsigned char)(addr2[i+k]);
+			if ((addr1[i+k] != addr2[i+k]) && (current_term->setcolorstate))
+				current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+			printf("%02X", c);
+			if ((addr1[i+k] != addr2[i+k]) && (current_term->setcolorstate))
+				current_term->setcolorstate (COLOR_STATE_STANDARD);
+			if ((k!=15) && ((k & 3)==3))
+				printf(" ");
+			printf(" ");
+		}
+
+		for (;k<16;k++)
+		{
+			printf("   ");
+			if ((k!=15) && ((k & 3)==3))
+				printf(" ");
+		}
+		printf("; ");
+
+		for (k=0;k<cnt;k++)
+		{
+			c = (unsigned char)(addr2[i+k]);
+			printf("%c",((c>=32) && (c != 127))?c:'.');
+		}
+		printf("\n");
+	}
+	return 1;
+	}
+  /* Check if the size of FILE2 is equal to the one of FILE2.  */
+  if (size != filemax)
+    {
+      grub_printf ("Differ in size: 0x%x [%s], 0x%x [%s]\n", size, file1, (unsigned long)filemax, file2);
+      grub_close ();
+      return 0;
+    }
 
   /* Now compare ADDR1 with ADDR2.  */
   for (i = 0; i < size; i++)
@@ -2572,7 +2712,7 @@ static struct builtin builtin_cmp =
   "cmp",
   cmp_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "cmp FILE1 FILE2",
+  "cmp [--hex] FILE1 FILE2",
   "Compare the file FILE1 with the FILE2 and inform the different values"
   " if any."
 };
@@ -7504,7 +7644,11 @@ map_func (char *arg, int flags)
 	p = arg + 8;
 	for (drive = 0xFF; drive >= 0; drive--)
 	{
-		if (drive != INITRD_DRIVE && in_range (p, drive))
+		if (drive != INITRD_DRIVE && in_range (p, drive)
+		#ifdef FSYS_FB
+		&& drive != FB_DRIVE
+		#endif
+		)
 		{
 			/* unmap drive */
 			sprintf (map_tmp, "(0x%X) (0x%X)", drive, drive);

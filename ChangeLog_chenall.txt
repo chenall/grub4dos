@@ -1,3 +1,8 @@
+2009-12-03 g@chenall.cn
+	1.修改了cat --hex代码，现在cat --hex会显示ascii>127的字符。
+	2.修改了cmp --hex代码，现在cmp --hex后面显示的字符同样可以显示中文。
+	  并且添加了颜色控制，不同的地方使用了菜单的高亮色显示。
+
 2009-12-01 g@chenall.cn
 	1.同步源码到2009-12-01版（修正了NTFS上DD或WRITE的问题）
 	2.修改调整了cat --replace，当使用--replace=*addr时允许使用--hex来指定读取长度。具体
