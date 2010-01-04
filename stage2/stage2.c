@@ -398,6 +398,7 @@ print_border (int y, int size)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
 }
 
+extern int command_func (char *arg1, int flags);
 extern int commandline_func (char *arg1, int flags);
 extern int errnum_func (char *arg1, int flags);
 extern int checkrange_func (char *arg1, int flags);
@@ -462,7 +463,7 @@ run_script (char *script, char *heap)
 //	grub_printf ("%s\n", old_entry);
 
       /* If BUILTIN cannot be run in the command-line, skip it.  */
-      if (! (builtin->flags & BUILTIN_CMDLINE))
+      if ((int)builtin != -1 && ! (builtin->flags & BUILTIN_CMDLINE))
 	{
 	  errnum = ERR_UNRECOGNIZED;
 	  continue;
@@ -472,6 +473,7 @@ run_script (char *script, char *heap)
 	 disks.  */
       buf_drive = -1;
 
+      if ((int)builtin != -1)
       if ((builtin->func) == errnum_func || (builtin->func) == checkrange_func)
 	errnum = errnum_old;
 
@@ -488,6 +490,7 @@ run_script (char *script, char *heap)
 		/* handle the AND operator */
 		arg = skip_to (0, arg);
 		builtin1 = find_command (arg);
+		if ((int)builtin1 != -1)
 		if (! builtin1 || ! (builtin1->flags & BUILTIN_CMDLINE))
 		{
 			errnum = ERR_UNRECOGNIZED;
@@ -495,14 +498,19 @@ run_script (char *script, char *heap)
 		}
 
 		*arg1 = 0;
-		ret = (builtin->func) (skip_to (1, heap), BUILTIN_SCRIPT);
+		if ((int)builtin != -1)
+			ret = (builtin->func) (skip_to (1, heap), BUILTIN_SCRIPT);
+		else
+			ret = command_func (heap, BUILTIN_SCRIPT);
 		*arg1 = '&';
 		if (ret)
 		{
-			arg = skip_to (1, arg);
-			if ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func)
+			if ((int)builtin1 == -1 || ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func))
 				errnum = 0;
-			(builtin1->func) (arg, BUILTIN_SCRIPT);
+			if ((int)builtin1 != -1)
+				(builtin1->func) (skip_to (1, arg), BUILTIN_SCRIPT);
+			else
+				command_func (arg, BUILTIN_SCRIPT);
 		} else
 			errnum = 0;
 		goto next;
@@ -511,6 +519,7 @@ run_script (char *script, char *heap)
 		/* handle the OR operator */
 		arg = skip_to (0, arg);
 		builtin1 = find_command (arg);
+		if ((int)builtin1 != -1)
 		if (! builtin1 || ! (builtin1->flags & BUILTIN_CMDLINE))
 		{
 			errnum = ERR_UNRECOGNIZED;
@@ -518,14 +527,19 @@ run_script (char *script, char *heap)
 		}
 
 		*arg1 = 0;
-		ret = (builtin->func) (skip_to (1, heap), BUILTIN_SCRIPT);
+		if ((int)builtin != -1)
+			ret = (builtin->func) (skip_to (1, heap), BUILTIN_SCRIPT);
+		else
+			ret = command_func (heap, BUILTIN_SCRIPT);
 		*arg1 = '|';
 		if (! ret)
 		{
-			arg = skip_to (1, arg);
-			if ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func)
+			if ((int)builtin1 == -1 || ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func))
 				errnum = 0;
-			(builtin1->func) (arg, BUILTIN_SCRIPT);
+			if ((int)builtin1 != -1)
+				(builtin1->func) (skip_to (1, arg), BUILTIN_SCRIPT);
+			else
+				command_func (arg, BUILTIN_SCRIPT);
 		} else
 			errnum = 0;
 		goto next;
@@ -533,8 +547,13 @@ run_script (char *script, char *heap)
       }
 
 	/* Run BUILTIN->FUNC.  */
-	arg = (builtin->func) == commandline_func ? heap : skip_to (1, heap);
-	(builtin->func) (arg, BUILTIN_SCRIPT);
+	if ((int)builtin != -1)
+	{
+		arg = ((builtin->func) == commandline_func) ? heap : skip_to (1, heap);
+		(builtin->func) (arg, BUILTIN_SCRIPT);
+	}
+	else
+		command_func (heap, BUILTIN_SCRIPT);
 next:
       if (! *old_entry)	/* HEAP holds the implicit BOOT command */
 	break;
@@ -1471,7 +1490,7 @@ run_graphics_menu (char *menu_entries, char *config_entries, int num_entries,
 
   kernel_type = KERNEL_TYPE_NONE;
 
-  gfx1 = (gfx_data_v1_t *) heap;
+  gfx1 = (gfx_data_v1_t *) (heap = (char *)0x50000);
   heap = (char *) (((unsigned) heap + sizeof (*gfx1) + 0xF) & ~0xF);
   gfx2 = (gfx_data_v2_t *) heap;
   heap += sizeof *gfx2;
@@ -1588,14 +1607,14 @@ run_graphics_menu (char *menu_entries, char *config_entries, int num_entries,
       return;
     }
 
-  /* leave graphics mode now before the extended memory is overwritten. */
-#ifdef SUPPORT_GRAPHICS
-  if (graphics_inited)
-  {
-    graphics_end ();
-    current_term = term_table; /* assumption: console is first */
-  }
-#endif
+//  /* leave graphics mode now before the extended memory is overwritten. */
+//#ifdef SUPPORT_GRAPHICS
+//  if (graphics_inited)
+//  {
+//    graphics_end ();
+//    current_term = term_table; /* assumption: console is first */
+//  }
+//#endif
 
 #ifdef GFX_DEBUG
   if (verbose)
@@ -1947,6 +1966,7 @@ reset (void)
   grub_timeout = -1;
 }
   
+extern struct builtin builtin_title;
 static unsigned long attr = 0;
 
 /* This is the starting function in C.  */
@@ -2092,7 +2112,7 @@ restart_config:
 		/* Unknown command. Just skip now.  */
 		continue;
 	  
-	    if (builtin->flags & BUILTIN_TITLE)	/* title command */
+	    if (builtin == &builtin_title)	/* title command */
 	    {
 	        /* Finish the menu init commands or previous menu items.  */
 
@@ -2138,7 +2158,7 @@ restart_config:
 	    }
 	    else if (! state)			/* menu init command */
 	    {
-		if (builtin->flags & BUILTIN_MENU)
+		if ((int)builtin == -1 || builtin->flags & BUILTIN_MENU)
 		{
 		    char *ptr = cmdline;
 		    /* Copy menu-specific commands to config area.  */
@@ -2159,7 +2179,8 @@ restart_config:
 		    while ((config_entries[config_len++] = *ptr++) != 0);
 		    prev_config_len = config_len;
 		}
-		config_entries[attr] |= !!(builtin->flags & BUILTIN_BOOTING);
+		if ((int)builtin != -1)
+			config_entries[attr] |= !!(builtin->flags & BUILTIN_BOOTING);
 	    }
 	} /* while (get_line_from_config()) */
 
@@ -2283,12 +2304,13 @@ restart_config:
 #endif
 
 		/* If BUILTIN cannot be run in the menu, skip it.  */
-		if (! (builtin->flags & BUILTIN_MENU))
+		if ((int)builtin != -1 && ! (builtin->flags & BUILTIN_MENU))
 		{
 		    continue;
 		}
 
-		if ((builtin->func) == errnum_func && (builtin->func) == checkrange_func)
+		if ((int)builtin != -1)
+		if ((builtin->func) == errnum_func || (builtin->func) == checkrange_func)
 		    errnum = errnum_old;
 
 		/* find && and || */
@@ -2304,6 +2326,7 @@ restart_config:
 			/* handle the AND operator */
 			arg = skip_to (0, arg);
 			builtin1 = find_command (arg);
+			if ((int)builtin1 != -1)
 			if (! builtin1 || ! (builtin1->flags & BUILTIN_MENU))
 			{
 				errnum = ERR_UNRECOGNIZED;
@@ -2311,14 +2334,19 @@ restart_config:
 			}
 
 			*arg1 = 0;
-			ret = (builtin->func) (skip_to (1, heap), BUILTIN_MENU);
+			if ((int)builtin != -1)
+				ret = (builtin->func) (skip_to (1, heap), BUILTIN_MENU);
+			else
+				ret = command_func (heap, BUILTIN_MENU);
 			*arg1 = '&';
 			if (ret)
 			{
-				arg = skip_to (1, arg);
-				if ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func)
+				if ((int)builtin1 == -1 || ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func))
 					errnum = 0;
-				(builtin1->func) (arg, BUILTIN_MENU);
+				if ((int)builtin1 != -1)
+					(builtin1->func) (skip_to (1, arg), BUILTIN_MENU);
+				else
+					command_func (arg, BUILTIN_MENU);
 			} else
 				errnum = 0;
 			goto next;
@@ -2327,6 +2355,7 @@ restart_config:
 			/* handle the OR operator */
 			arg = skip_to (0, arg);
 			builtin1 = find_command (arg);
+			if ((int)builtin1 != -1)
 			if (! builtin1 || ! (builtin1->flags & BUILTIN_MENU))
 			{
 				errnum = ERR_UNRECOGNIZED;
@@ -2334,14 +2363,19 @@ restart_config:
 			}
 
 			*arg1 = 0;
-			ret = (builtin->func) (skip_to (1, heap), BUILTIN_MENU);
+			if ((int)builtin != -1)
+				ret = (builtin->func) (skip_to (1, heap), BUILTIN_MENU);
+			else
+				ret = command_func (heap, BUILTIN_MENU);
 			*arg1 = '|';
 			if (! ret)
 			{
-				arg = skip_to (1, arg);
-				if ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func)
+				if ((int)builtin1 == -1 || ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func))
 					errnum = 0;
-				(builtin1->func) (arg, BUILTIN_MENU);
+				if ((int)builtin1 != -1)
+					(builtin1->func) (skip_to (1, arg), BUILTIN_MENU);
+				else
+					command_func (arg, BUILTIN_MENU);
 			} else
 				errnum = 0;
 			goto next;
@@ -2349,8 +2383,13 @@ restart_config:
 		}
       
 		/* Run BUILTIN->FUNC.  */
-		arg = (builtin->func) == commandline_func ? heap : skip_to (1, heap);
-		(builtin->func) (arg, BUILTIN_MENU);
+		if ((int)builtin != -1)
+		{
+			arg = ((builtin->func) == commandline_func) ? heap : skip_to (1, heap);
+			(builtin->func) (arg, BUILTIN_MENU);
+		}
+		else
+			command_func (heap, BUILTIN_MENU);
 
 		/* if the INSERT key was pressed at startup, debug is not allowed to be turned off. */
 #ifndef GRUB_UTIL

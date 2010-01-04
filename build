@@ -15,7 +15,7 @@ COPY_FILES="COPYING README_GRUB4DOS.txt ChangeLog_*.txt \
 	stage2/grldr stage2/grub.exe stage2/badgrub.exe stage2/grldr.mbr stage2/bootlace.com \
 	stage2/hmload.com"
 
-rm -rf *.zip *~ grub4dos-temp || exit $?
+rm -rf *.zip *.rar *~ grub4dos-temp || exit $?
 
 if [ -d .svn ]; then
 	svn export . grub4dos-temp || exit $?

@@ -5518,17 +5518,21 @@ helper_start:
 	//cmpl	$0xfffffe00, %eax	/* check the starting CHS */
 	//jb	1f			/* use normal CHS mode */
 
-	cmpw	$0xFFFF, 0x08		/* geometry determined? */
-	jne	3f			/* yes, skip */
+	pushaw		/* <------ at least DL,SI need to be saved */
+	cmpw	$0xFFFF, 0x08	/* geometry determined? */
+	jne	3f		/* yes, skip */
 
 	/* get CHS total number of sectors */
-	//pushw	%es
-	//pushw	%ds
 	movb	$8, %ah		/* read drive parameters changes DX,ES,DI,BX */
-	//movb	$0x80, %dl	/* BIOS drive number is in DL */
-	call	int13
-	//popw	%ds
-	//popw	%es
+
+	/* should not use "call int13", because "int13" will restore DX,
+	 * and the DH returned by "int $0x13" thus be destroyed.
+	 */
+	pushw	%ds
+	pushw	%es
+	int	$0x13
+	popw	%es
+	popw	%ds
 	jc	3f		/* failed */
 	testb	$63, %cl
 	jz	3f		/* failed */
@@ -5538,6 +5542,7 @@ helper_start:
 	movb	%cl, 0x08	/* Smax */
 
 3:
+	popaw		/* <------ at least DL,SI need to be restored */
 	//xorl	%ebx, %ebx
 	movl	$32, %ebx
 	testb	%dl, %dl

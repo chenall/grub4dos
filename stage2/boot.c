@@ -62,22 +62,16 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
   unsigned char buffer[MULTIBOOT_SEARCH];
 #endif
 
+  errnum = ERR_NONE;
   /* sets the header pointer to point to the beginning of the
      buffer by default */
   pu.aout = (struct exec *) buffer;
 
   if (!grub_open (kernel))
-    return KERNEL_TYPE_NONE;
+	goto failure;
 
   if (!(len = grub_read ((unsigned long long)(unsigned long)buffer, MULTIBOOT_SEARCH, 0xedde0d90)) || len < 32)
-    {
-      grub_close ();
-      
-      if (!errnum)
-	errnum = ERR_EXEC_FORMAT;
-
-      return KERNEL_TYPE_NONE;
-    }
+	goto failure_exec_format;
 
   for (i = 0; i < len; i++)
     {
@@ -86,9 +80,8 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	  flags = ((struct multiboot_header *) (buffer + i))->flags;
 	  if (flags & MULTIBOOT_UNSUPPORTED)
 	    {
-	      grub_close ();
 	      errnum = ERR_BOOT_FEATURES;
-	      return KERNEL_TYPE_NONE;
+	      goto failure_exec_format;
 	    }
 	  type = KERNEL_TYPE_MULTIBOOT;
 	  str2 = "Multiboot";
@@ -123,14 +116,17 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	entry_addr = (entry_func) (pu.elf->e_entry & 0xFFFFFF);
 
       if (entry_addr < (entry_func) 0x100000)
+      {
 	errnum = ERR_BELOW_1MB;
+	goto failure_exec_format;
+      }
 
       /* don't want to deal with ELF program header at some random
          place in the file -- this generally won't happen */
       if (pu.elf->e_phoff == 0 || pu.elf->e_phnum == 0
 	  || ((pu.elf->e_phoff + (pu.elf->e_phentsize * pu.elf->e_phnum))
 	      >= len))
-	errnum = ERR_EXEC_FORMAT;
+	goto failure_exec_format;
       str = "elf";
 
       if (type == KERNEL_TYPE_NONE)
@@ -174,10 +170,13 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	  || pu.mb->load_end_addr <= pu.mb->load_addr
 	  || pu.mb->bss_end_addr < pu.mb->load_end_addr
 	  || (pu.mb->header_addr - pu.mb->load_addr) > i)
-	errnum = ERR_EXEC_FORMAT;
+	goto failure_exec_format;
 
       if (cur_addr < 0x100000)
+      {
 	errnum = ERR_BELOW_1MB;
+	goto failure_exec_format;
+      }
 
       pu.aout = (struct exec *) buffer;
       exec_type = 2;
@@ -225,7 +224,10 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
       bss_len = pu.aout->a_bss;
 
       if (cur_addr < 0x100000)
+      {
 	errnum = ERR_BELOW_1MB;
+	goto failure_exec_format;
+      }
 
       exec_type = 1;
       str = "a.out";
@@ -288,13 +290,16 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	{
 	  grub_printf (" linux 'zImage' kernel too big, try 'make bzImage'\n");
 	  errnum = ERR_WONT_FIT;
+	  goto failure_exec_format;
 	}
-      else if (linux_data_real_addr + LINUX_SETUP_MOVE_SIZE
+      if (linux_data_real_addr + LINUX_SETUP_MOVE_SIZE
 	       > RAW_ADDR ((char *) ((*(unsigned short *)0x413) << 10/*saved_mem_lower << 10*/)))
-	errnum = ERR_WONT_FIT;
-      else
 	{
-	  if (debug > 0)
+	  errnum = ERR_WONT_FIT;
+	  goto failure_exec_format;
+	}
+      
+	if (debug > 0)
 	      grub_printf ("   [Linux-%s, setup=0x%x, size=0x%x]\n",
 		       (big_linux ? "bzImage" : "zImage"), data_len, text_len);
 
@@ -303,7 +308,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	     represent how wrong and bad the Linux video support is,
 	     but I don't want to hear complaints from Linux fanatics
 	     any more. -okuji  */
-	  {
+	{
 	    char *vga;
 	
 	    /* Find the substring "vga=".  */
@@ -320,22 +325,15 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 		  vid_mode = LINUX_VID_MODE_EXTENDED;
 		else if (substring ("ask", value, 0) < 1)
 		  vid_mode = LINUX_VID_MODE_ASK;
-		else if (safe_parse_maxint (&value, &vid_mode))
-		  ;
-		else
-		  {
-		    /* ERRNUM is already set inside the function
-		       safe_parse_maxint.  */
-		    grub_close ();
-		    return KERNEL_TYPE_NONE;
-		  }
+		else if (! safe_parse_maxint (&value, &vid_mode))
+			goto failure_exec_format;
 	    
 		lh->vid_mode = (unsigned short)vid_mode;
 	      }
-	  }
+	}
 
-	  /* Check the mem= option to limit memory used for initrd.  */
-	  {
+	/* Check the mem= option to limit memory used for initrd.  */
+	{
 	    char *mem;
 	
 	    mem = grub_strstr (arg, "mem=");
@@ -386,22 +384,21 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	      }
 	    else
 	      linux_mem_size = 0;
-	  }
+	}
       
 	  /* It is possible that DATA_LEN + SECTOR_SIZE is greater than
 	     MULTIBOOT_SEARCH, so the data may have been read partially.  */
-	  if (data_len + SECTOR_SIZE <= MULTIBOOT_SEARCH)
+	if (data_len + SECTOR_SIZE <= MULTIBOOT_SEARCH)
 	    grub_memmove (linux_data_tmp_addr, buffer,
 			  data_len + SECTOR_SIZE);
-	  else
-	    {
+	else
+	  {
 	      grub_memmove (linux_data_tmp_addr, buffer, MULTIBOOT_SEARCH);
 	      grub_read ((unsigned long long)(unsigned long)(linux_data_tmp_addr + MULTIBOOT_SEARCH),
 			 data_len + SECTOR_SIZE - MULTIBOOT_SEARCH, 0xedde0d90);
-	    }
+	  }
 	  
-	  if (lh->header != LINUX_MAGIC_SIGNATURE ||
-	      lh->version < 0x0200)
+	if (lh->header != LINUX_MAGIC_SIGNATURE || lh->version < 0x0200)
 	    /* Clear the heap space.  */
 	    grub_memset (linux_data_tmp_addr + ((setup_sects + 1) << 9),
 			 0,
@@ -415,7 +412,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	     shells. Thus, the code below does a trick to avoid the bug.
 	     That is, copy "mem=XXX" to the end of the command-line, and
 	     avoid to copy spaces unnecessarily. Hell.  */
-	  {
+	{
 	    char *src = skip_to (0, arg);
 	    char *dest = linux_data_tmp_addr + LINUX_CL_OFFSET;
 	
@@ -453,43 +450,34 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	      }
 	
 	    *dest = 0;
-	  }
-      
-	  /* offset into file */
-	  filepos = data_len + SECTOR_SIZE;
-      
-	  cur_addr = (int) linux_data_tmp_addr + LINUX_SETUP_MOVE_SIZE;
-	  grub_read ((unsigned long long)(unsigned long) linux_bzimage_tmp_addr, text_len, 0xedde0d90);
-      
-	  if (errnum == ERR_NONE)
-	    {
-	      grub_close ();
-	  
-	      /* Sanity check.  */
-	      if (suggested_type != KERNEL_TYPE_NONE
-		  && ((big_linux && suggested_type != KERNEL_TYPE_BIG_LINUX)
-		      || (! big_linux && suggested_type != KERNEL_TYPE_LINUX)))
-		{
-		  errnum = ERR_EXEC_FORMAT;
-		  return KERNEL_TYPE_NONE;
-		}
-	  
-	      /* Ugly hack.  */
-	      linux_text_len = text_len;
-	  
-	      return big_linux ? KERNEL_TYPE_BIG_LINUX : KERNEL_TYPE_LINUX;
-	    }
 	}
+      
+	/* offset into file */
+	filepos = data_len + SECTOR_SIZE;
+      
+	cur_addr = (int) linux_data_tmp_addr + LINUX_SETUP_MOVE_SIZE;
+	grub_read ((unsigned long long)(unsigned long) linux_bzimage_tmp_addr, text_len, 0xedde0d90);
+      
+	if (errnum)
+		goto failure_exec_format;
+
+	/* Sanity check.  */
+	if (suggested_type != KERNEL_TYPE_NONE
+		&& ((big_linux && suggested_type != KERNEL_TYPE_BIG_LINUX)
+		    || (! big_linux && suggested_type != KERNEL_TYPE_LINUX)))
+		goto failure_exec_format;
+	  
+	/* Ugly hack.  */
+	linux_text_len = text_len;
+	  
+	type = (big_linux ? KERNEL_TYPE_BIG_LINUX : KERNEL_TYPE_LINUX);
+	goto success; 
     }
   else				/* no recognizable format */
-    errnum = ERR_EXEC_FORMAT;
+	goto failure_exec_format;
 
-  /* return if error */
   if (errnum)
-    {
-      grub_close ();
-      return KERNEL_TYPE_NONE;
-    }
+	goto failure_exec_format;
 
   /* fill the multiboot info structure */
   mbi.cmdline = (int) arg;
@@ -513,46 +501,40 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	str = "-and-data";
 
       if (debug > 0)
-          printf (", loadaddr=0x%x, text%s=0x%x", cur_addr, str, text_len);
+        printf (", loadaddr=0x%x, text%s=0x%x", cur_addr, str, text_len);
 
       /* read text, then read data */
-      if (grub_read ((unsigned long long) RAW_ADDR (cur_addr), text_len, 0xedde0d90) == text_len)
-	{
-	  cur_addr += text_len;
+      if (grub_read ((unsigned long long) RAW_ADDR (cur_addr), text_len, 0xedde0d90) != text_len)
+	goto failure_exec_format;
 
-	  if (!(flags & MULTIBOOT_AOUT_KLUDGE))
-	    {
-	      /* we have to align to a 4K boundary */
-	      if (align_4k)
+      cur_addr += text_len;
+
+      if (!(flags & MULTIBOOT_AOUT_KLUDGE))
+        {
+	  /* we have to align to a 4K boundary */
+	  if (align_4k)
 		cur_addr = (cur_addr + 0xFFF) & 0xFFFFF000;
-	      else
-		if (debug > 0)
-		    printf (", C");
+	  else if (debug > 0)
+		printf (", C");
 
-	      if (debug > 0)
-		  printf (", data=0x%x", data_len);
+	  if (debug > 0)
+		printf (", data=0x%x", data_len);
 
-	      if ((grub_read ((unsigned long long) RAW_ADDR (cur_addr), data_len, 0xedde0d90)
-		   != data_len)
-		  && !errnum)
-		errnum = ERR_EXEC_FORMAT;
-	      cur_addr += data_len;
-	    }
+	  if (grub_read ((unsigned long long) RAW_ADDR (cur_addr), data_len, 0xedde0d90) != data_len)
+		goto failure_exec_format;
+	  cur_addr += data_len;
+        }
 
-	  if (!errnum)
-	    {
-	      memset ((char *) RAW_ADDR (cur_addr), 0, bss_len);
-	      cur_addr += bss_len;
+      if (errnum)
+	goto failure_exec_format;
 
-	      if (debug > 0)
-		  printf (", bss=0x%x", bss_len);
-	    }
-	}
-      else if (!errnum)
-	errnum = ERR_EXEC_FORMAT;
+      memset ((char *) RAW_ADDR (cur_addr), 0, bss_len);
+      cur_addr += bss_len;
 
-      if (!errnum && pu.aout->a_syms
-	  && pu.aout->a_syms < (filemax - filepos))
+      if (debug > 0)
+	printf (", bss=0x%x", bss_len);
+
+      if (pu.aout->a_syms && pu.aout->a_syms < (filemax - filepos))
 	{
 	  int symtab_err, orig_addr = cur_addr;
 
@@ -568,8 +550,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	  if (debug > 0)
 	      printf (", symtab=0x%x", pu.aout->a_syms);
 
-	  if (grub_read ((unsigned long long) RAW_ADDR (cur_addr), pu.aout->a_syms, 0xedde0d90)
-	      == pu.aout->a_syms)
+	  if (grub_read ((unsigned long long) RAW_ADDR (cur_addr), pu.aout->a_syms, 0xedde0d90) == pu.aout->a_syms)
 	    {
 	      cur_addr += pu.aout->a_syms;
 	      mbi.syms.a.tabsize = pu.aout->a_syms;
@@ -586,8 +567,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 		  if (debug > 0)
 		      printf (", strtab=0x%x", i);
 
-		  symtab_err = (grub_read ((unsigned long long) RAW_ADDR (cur_addr), i, 0xedde0d90)
-				!= i);
+		  symtab_err = (grub_read ((unsigned long long) RAW_ADDR (cur_addr), i, 0xedde0d90) != i);
 		  cur_addr += i;
 		}
 	      else
@@ -614,6 +594,9 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
     {
       unsigned loaded = 0, memaddr, memsiz, filesiz;
       Elf32_Phdr *phdr;
+      Elf32_Shdr *shdr = NULL;
+      int tab_size, sec_size;
+      int symtab_err = 0;
 
       /* reset this to zero for now */
       cur_addr = 0;
@@ -621,9 +604,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
       /* scan for program segments */
       for (i = 0; i < pu.elf->e_phnum; i++)
 	{
-	  phdr = (Elf32_Phdr *)
-	    (pu.elf->e_phoff + ((int) buffer)
-	     + (pu.elf->e_phentsize * i));
+	  phdr = (Elf32_Phdr *)(pu.elf->e_phoff + ((int) buffer) + (pu.elf->e_phentsize * i));
 	  if (phdr->p_type == PT_LOAD)
 	    {
 	      /* offset into file */
@@ -637,152 +618,150 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	      
 	      memsiz = phdr->p_memsz;
 	      if (memaddr < RAW_ADDR (0x100000))
+	      {
 		errnum = ERR_BELOW_1MB;
+		goto failure_exec_format;
+	      }
 
 	      /* If the memory range contains the entry address, get the
 		 physical address here.  */
-	      if (type == KERNEL_TYPE_MULTIBOOT
-		  && (unsigned) entry_addr >= phdr->p_vaddr
-		  && (unsigned) entry_addr < phdr->p_vaddr + memsiz)
-		real_entry_addr = (entry_func) ((unsigned) entry_addr
-						+ memaddr - phdr->p_vaddr);
+	      if (type == KERNEL_TYPE_MULTIBOOT && (unsigned) entry_addr >= phdr->p_vaddr && (unsigned) entry_addr < phdr->p_vaddr + memsiz)
+		real_entry_addr = (entry_func) ((unsigned) entry_addr + memaddr - phdr->p_vaddr);
 		
 	      /* make sure we only load what we're supposed to! */
 	      if (filesiz > memsiz)
-		filesiz = memsiz;
+		  filesiz = memsiz;
 	      /* mark memory as used */
 	      if (cur_addr < memaddr + memsiz)
-		cur_addr = memaddr + memsiz;
+		  cur_addr = memaddr + memsiz;
 	      if (debug > 0)
-		  printf (", <0x%x:0x%x:0x%x>", memaddr, filesiz,
-		      (memsiz - filesiz));
+		  printf (", <0x%x:0x%x:0x%x>", memaddr, filesiz, (memsiz - filesiz));
 	      /* increment number of segments */
 	      loaded++;
 
 	      /* load the segment */
-	      if (memcheck (memaddr, memsiz)
-		  && grub_read ((unsigned long long) memaddr, filesiz, 0xedde0d90) == filesiz)
-		{
-		  if (memsiz > filesiz)
-		    memset ((char *) (memaddr + filesiz), 0, memsiz - filesiz);
-		}
-	      else
-		break;
+	      if (! memcheck (memaddr, memsiz))
+		goto failure_newline;
+	      if (grub_read ((unsigned long long) memaddr, filesiz, 0xedde0d90) != filesiz)
+		goto failure_newline;
+	      if (memsiz > filesiz)
+		memset ((char *) (memaddr + filesiz), 0, memsiz - filesiz);
 	    }
 	}
 
-      if (! errnum)
+      if (errnum)
+	goto failure_newline;
+
+      if (! loaded)
+	goto failure_newline;
+
+      /* Load ELF symbols.  */
+
+      mbi.syms.e.num = pu.elf->e_shnum;
+      mbi.syms.e.size = pu.elf->e_shentsize;
+      mbi.syms.e.shndx = pu.elf->e_shstrndx;
+
+      /* We should align to a 4K boundary here for good measure.  */
+      if (align_4k)
+	cur_addr = (cur_addr + 0xFFF) & 0xFFFFF000;
+
+      tab_size = pu.elf->e_shentsize * pu.elf->e_shnum;
+
+      filepos = pu.elf->e_shoff;
+      if (grub_read ((unsigned long long) RAW_ADDR (cur_addr), tab_size, 0xedde0d90) == tab_size)
 	{
-	  if (! loaded)
-	    errnum = ERR_EXEC_FORMAT;
-	  else
+	  mbi.syms.e.addr = cur_addr;
+	  shdr = (Elf32_Shdr *) mbi.syms.e.addr;
+	  cur_addr += tab_size;
+
+	  if (debug > 0)
+	      printf (", shtab=0x%x", cur_addr);
+
+	  for (i = 0; i < mbi.syms.e.num; i++)
 	    {
-	      /* Load ELF symbols.  */
-	      Elf32_Shdr *shdr = NULL;
-	      int tab_size, sec_size;
-	      int symtab_err = 0;
+	      /* This section is a loaded section,
+		 so we don't care.  */
+	      if (shdr[i].sh_addr != 0)
+		continue;
 
-	      mbi.syms.e.num = pu.elf->e_shnum;
-	      mbi.syms.e.size = pu.elf->e_shentsize;
-	      mbi.syms.e.shndx = pu.elf->e_shstrndx;
-	      
-	      /* We should align to a 4K boundary here for good measure.  */
-	      if (align_4k)
-		cur_addr = (cur_addr + 0xFFF) & 0xFFFFF000;
-	      
-	      tab_size = pu.elf->e_shentsize * pu.elf->e_shnum;
-	      
-	      filepos = pu.elf->e_shoff;
-	      if (grub_read ((unsigned long long) RAW_ADDR (cur_addr), tab_size, 0xedde0d90)
-		  == tab_size)
-		{
-		  mbi.syms.e.addr = cur_addr;
-		  shdr = (Elf32_Shdr *) mbi.syms.e.addr;
-		  cur_addr += tab_size;
-		  
-		  if (debug > 0)
-		      printf (", shtab=0x%x", cur_addr);
-  		  
-		  for (i = 0; i < mbi.syms.e.num; i++)
-		    {
-		      /* This section is a loaded section,
-			 so we don't care.  */
-		      if (shdr[i].sh_addr != 0)
-			continue;
-		      
-		      /* This section is empty, so we don't care.  */
-		      if (shdr[i].sh_size == 0)
-			continue;
-		      
-		      /* Align the section to a sh_addralign bits boundary.  */
-		      cur_addr = ((cur_addr + shdr[i].sh_addralign) & 
-				  - (int) shdr[i].sh_addralign);
-		      
-		      filepos = shdr[i].sh_offset;
-		      
-		      sec_size = shdr[i].sh_size;
+	      /* This section is empty, so we don't care.  */
+	      if (shdr[i].sh_size == 0)
+		continue;
 
-		      if (! (memcheck (cur_addr, sec_size)
-			     && (grub_read ((unsigned long long) RAW_ADDR (cur_addr),
-					    sec_size, 0xedde0d90)
-				 == sec_size)))
-			{
-			  symtab_err = 1;
-			  break;
-			}
-		      
-		      shdr[i].sh_addr = cur_addr;
-		      cur_addr += sec_size;
-		    }
-		}
-	      else 
-		symtab_err = 1;
-	      
-	      if (mbi.syms.e.addr < (unsigned long)(RAW_ADDR(0x10000)))
-		symtab_err = 1;
-	      
-	      if (symtab_err) 
+	      /* Align the section to a sh_addralign bits boundary.  */
+	      cur_addr = ((cur_addr + shdr[i].sh_addralign) & (-(int)shdr[i].sh_addralign));
+
+	      filepos = shdr[i].sh_offset;
+	      sec_size = shdr[i].sh_size;
+
+	      if (! (memcheck (cur_addr, sec_size)
+		     && (grub_read ((unsigned long long) RAW_ADDR (cur_addr),
+				    sec_size, 0xedde0d90)
+			 == sec_size)))
 		{
-		  if (debug > 0)
-		      printf ("(bad)");
-		  mbi.syms.e.num = 0;
-		  mbi.syms.e.size = 0;
-		  mbi.syms.e.addr = 0;
-		  mbi.syms.e.shndx = 0;
-		  cur_addr = 0;
+		  symtab_err = 1;
+		  break;
 		}
-	      else
-		mbi.flags |= MB_INFO_ELF_SHDR;
+
+	      shdr[i].sh_addr = cur_addr;
+	      cur_addr += sec_size;
 	    }
 	}
+      else 
+	symtab_err = 1;
+
+      if (mbi.syms.e.addr < (unsigned long)(RAW_ADDR(0x10000)))
+	symtab_err = 1;
+
+      if (symtab_err) 
+	{
+	  if (debug > 0)
+	      printf ("(bad)");
+	  mbi.syms.e.num = 0;
+	  mbi.syms.e.size = 0;
+	  mbi.syms.e.addr = 0;
+	  mbi.syms.e.shndx = 0;
+	  cur_addr = 0;
+	}
+      else
+	mbi.flags |= MB_INFO_ELF_SHDR;
     }
 
-  if (! errnum)
-    {
-      if (debug > 0)
-          grub_printf (", entry=0x%x]\n", entry_addr);
+  if (errnum)
+	goto failure_newline;
+
+  if (debug > 0)
+	grub_printf (", entry=0x%x]\n", entry_addr);
       
-      /* If the entry address is physically different from that of the ELF
-	 header, correct it here.  */
-      if (real_entry_addr)
+  /* If the entry address is physically different from that of the ELF
+     header, correct it here.  */
+  if (real_entry_addr)
 	entry_addr = real_entry_addr;
-    }
-  else
-    {
-      putchar ('\n');
-      type = KERNEL_TYPE_NONE;
-    }
-
-  grub_close ();
 
   /* Sanity check.  */
   if (suggested_type != KERNEL_TYPE_NONE && suggested_type != type)
-    {
-      errnum = ERR_EXEC_FORMAT;
-      return KERNEL_TYPE_NONE;
-    }
+	goto failure_exec_format;
   
+success:
+
+  grub_close ();
   return type;
+
+failure_newline:
+
+  if (debug > 0)
+	putchar ('\n');
+
+failure_exec_format:
+
+  grub_close ();
+
+  if (errnum == ERR_NONE)
+	errnum = ERR_EXEC_FORMAT;
+
+failure:
+
+  return KERNEL_TYPE_NONE;
 }
 
 int
@@ -796,7 +775,7 @@ load_module (char *module, char *arg)
   if (!grub_open (module))
     return 0;
 
-  len = grub_read ((unsigned long long) cur_addr, -1, 0xedde0d90);
+  len = grub_read ((unsigned long long) cur_addr, -1ULL, 0xedde0d90);
   if (! len)
     {
       grub_close ();
@@ -944,7 +923,7 @@ next_file1:
 #endif
 
 	grub_open (initrd);
-	tmp = grub_read (RAW_ADDR (moveto), -1, 0xedde0d90);
+	tmp = grub_read (RAW_ADDR (moveto), -1ULL, 0xedde0d90);
 	grub_close ();
 	if (tmp != filemax)
 	{

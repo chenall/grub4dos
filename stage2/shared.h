@@ -60,8 +60,8 @@ extern char *grub_scratch_mem;
 #define SCRATCHADDR  RAW_ADDR (0x77e00)
 #define SCRATCHSEG   RAW_SEG (0x77e0)
 #else
-#define SCRATCHADDR  RAW_ADDR (0x6fe00)
-#define SCRATCHSEG   RAW_SEG (0x6fe0)
+#define SCRATCHADDR  RAW_ADDR (0x37e00)
+#define SCRATCHSEG   RAW_SEG (0x37e0)
 #endif
 
 /*
@@ -74,8 +74,8 @@ extern char *grub_scratch_mem;
 #define BUFFERADDR  RAW_ADDR (0x70000)
 #define BUFFERSEG   RAW_SEG (0x7000)
 #else
-#define BUFFERADDR  RAW_ADDR (0x68000)
-#define BUFFERSEG   RAW_SEG (0x6800)
+#define BUFFERADDR  RAW_ADDR (0x30000)
+#define BUFFERSEG   RAW_SEG (0x3000)
 #endif
 
 #define BOOT_PART_TABLE	RAW_ADDR (0x07be)
@@ -660,6 +660,7 @@ typedef enum
   ERR_WRITE_GZIP_FILE,
   ERR_FUNC_CALL,
 //  ERR_WRITE_TO_NON_MEM_DRIVE,
+  ERR_INTERNAL_CHECK,
 
   MAX_ERR_NUM
 } grub_error_t;
@@ -679,6 +680,18 @@ extern char *linux_data_real_addr;
 extern char *linux_bzimage_tmp_addr;
 extern int quit_print;
 extern struct linux_kernel_header *linux_header;
+
+extern unsigned long free_mem_start;
+extern unsigned long free_mem_end;
+
+struct mem_alloc_array
+{
+  unsigned long addr;
+  unsigned long pid;
+};
+
+struct mem_alloc_array *mem_alloc_array_start;
+unsigned long mem_alloc_array_end;
 
 /* If not using config file, this variable is set to zero,
    otherwise non-zero.  */
@@ -839,7 +852,7 @@ struct geometry
   /* The number of sectors */
   unsigned long sectors;
   /* The total number of sectors */
-  unsigned long total_sectors;
+  unsigned long long total_sectors;
   /* Device sector size */
   unsigned long sector_size;
   /* Flags */

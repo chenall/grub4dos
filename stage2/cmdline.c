@@ -64,6 +64,11 @@ print_cmdline_message (int forever)
 	  (forever ? "" : "  ESC at any time exits."));
 }
 
+extern int command_func (char *arg, int flags);
+extern int commandline_func (char *arg, int flags);
+extern int errnum_func (char *arg, int flags);
+extern int checkrange_func (char *arg, int flags);
+
 /* Find the builtin whose command name is COMMAND and return the
    pointer. If not found, return 0.  */
 struct builtin *
@@ -72,6 +77,14 @@ find_command (char *command)
   char *ptr;
   char c;
   struct builtin **builtin;
+
+  if (! command)
+	return 0;
+
+  while (*command == ' ' || *command == '\t')command++;
+
+  if (! *command)
+	return 0;
 
   /* Find the first space and terminate the command name.  */
   ptr = command;
@@ -96,15 +109,18 @@ find_command (char *command)
 	break;
     }
 
+  *ptr = c;
+
+  /* Cannot find builtin COMMAND. Check if it is an executable file.  */
+  if (command_func (command, 0))
+    {
+	return (struct builtin *)(char *)(-1);
+    }
+
   /* Cannot find COMMAND.  */
   errnum = ERR_UNRECOGNIZED;
-  *ptr = c;
   return 0;
 }
-
-extern int commandline_func (char *arg, int flags);
-extern int errnum_func (char *arg, int flags);
-extern int checkrange_func (char *arg, int flags);
 
 /* Enter the command-line interface. HEAP is used for the command-line
    buffer. Return only if FOREVER is nonzero and get_cmdline returns
@@ -164,7 +180,7 @@ enter_cmdline (char *heap, int forever)
 	continue;
 
       /* If BUILTIN cannot be run in the command-line, skip it.  */
-      if (! (builtin->flags & BUILTIN_CMDLINE))
+      if ((int)builtin != -1 && ! (builtin->flags & BUILTIN_CMDLINE))
 	{
 	  errnum = ERR_UNRECOGNIZED;
 	  continue;
@@ -178,6 +194,7 @@ enter_cmdline (char *heap, int forever)
       if (use_pager)
 	count_lines = 0;
       
+      if ((int)builtin != -1)
       if ((builtin->func) == errnum_func || (builtin->func) == checkrange_func)
 	errnum = errnum_old;
 
@@ -194,6 +211,7 @@ enter_cmdline (char *heap, int forever)
 		/* handle the AND operator */
 		arg = skip_to (0, arg);
 		builtin1 = find_command (arg);
+		if ((int)builtin1 != -1)
 		if (! builtin1 || ! (builtin1->flags & BUILTIN_CMDLINE))
 		{
 			errnum = ERR_UNRECOGNIZED;
@@ -201,14 +219,19 @@ enter_cmdline (char *heap, int forever)
 		}
 
 		*arg1 = 0;
-		ret = (builtin->func) (skip_to (1, heap), BUILTIN_CMDLINE);
+		if ((int)builtin != -1)
+			ret = (builtin->func) (skip_to (1, heap), BUILTIN_CMDLINE);
+		else
+			ret = command_func (heap, BUILTIN_CMDLINE);
 		*arg1 = '&';
 		if (ret)
 		{
-			arg = skip_to (1, arg);
-			if ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func)
+			if ((int)builtin1 == -1 || ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func))
 				errnum = 0;
-			(builtin1->func) (arg, BUILTIN_CMDLINE);
+			if ((int)builtin1 != -1)
+				(builtin1->func) (skip_to (1, arg), BUILTIN_CMDLINE);
+			else
+				command_func (arg, BUILTIN_CMDLINE);
 		} else
 			errnum = 0;
 		goto next;
@@ -217,6 +240,7 @@ enter_cmdline (char *heap, int forever)
 		/* handle the OR operator */
 		arg = skip_to (0, arg);
 		builtin1 = find_command (arg);
+		if ((int)builtin1 != -1)
 		if (! builtin1 || ! (builtin1->flags & BUILTIN_CMDLINE))
 		{
 			errnum = ERR_UNRECOGNIZED;
@@ -224,14 +248,19 @@ enter_cmdline (char *heap, int forever)
 		}
 
 		*arg1 = 0;
-		ret = (builtin->func) (skip_to (1, heap), BUILTIN_CMDLINE);
+		if ((int)builtin != -1)
+			ret = (builtin->func) (skip_to (1, heap), BUILTIN_CMDLINE);
+		else
+			ret = command_func (heap, BUILTIN_CMDLINE);
 		*arg1 = '|';
 		if (! ret)
 		{
-			arg = skip_to (1, arg);
-			if ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func)
+			if ((int)builtin1 == -1 || ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func))
 				errnum = 0;
-			(builtin1->func) (arg, BUILTIN_CMDLINE);
+			if ((int)builtin1 != -1)
+				(builtin1->func) (skip_to (1, arg), BUILTIN_CMDLINE);
+			else
+				command_func (arg, BUILTIN_CMDLINE);
 		} else
 			errnum = 0;
 		goto next;
@@ -239,8 +268,13 @@ enter_cmdline (char *heap, int forever)
       }
 
 	/* Run BUILTIN->FUNC.  */
-	arg = (builtin->func) == commandline_func ? heap : skip_to (1, heap);
-	(builtin->func) (arg, BUILTIN_CMDLINE);
+	if ((int)builtin != -1)
+	{
+		arg = ((builtin->func) == commandline_func) ? heap : skip_to (1, heap);
+		(builtin->func) (arg, BUILTIN_CMDLINE);
+	}
+	else
+		command_func (heap, BUILTIN_CMDLINE);
 next:
       /* Finish the line count.  */
       count_lines = -1;

@@ -3864,3 +3864,17 @@ requires the right geometry in the partition table and BPB. Windows/Linux may
 also require it, since the boot process could run in real-mode.
 
 
+******************************************************************************
+***                            Version numbering                           ***
+******************************************************************************
+
+Now we append a letter 'a', 'b', 'c' or 'p' to the version number(e.g., 0.4.5).
+So the version will become 0.4.5a, 0.4.5b, 0.4.5c, 0.4.5 or 0.4.5p.
+
+'a' - alpha test. unstable, especially when there are known bugs.
+'b' - beta test. the developers think it has no bugs and want a widely testing.
+'c' - release candidate.
+''(nothing) - official release.
+'p' - patched versions to the official release.
+
+

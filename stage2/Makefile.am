@@ -374,4 +374,7 @@ pxegrub: pxeloader diskless
 SUFFIXES = .exec
 %: %.exec$(EXEEXT)
 	$(OBJCOPY) -O binary $< $@
+	if [ $@ = pre_stage2 ]; then dd if=pre_stage2 of=pre_stage2_fullsize bs=65536 skip=48 ;fi
+	if [ $@ = pre_stage2 ]; then sed -e "1s/^\x00*//" pre_stage2_fullsize > pre_stage2_tail ;fi
+	if [ $@ = pre_stage2 ]; then set dummy `ls -l pre_stage2_fullsize`; set $$6 `ls -l pre_stage2_tail`; dd if=pre_stage2 of=pre_stage2_head bs=`expr $$1 - $$6` count=1 ; cat pre_stage2_head pre_stage2_tail > pre_stage2 ;fi
 	if [ $@ = pre_stage2 ]; then echo -n -e "\0260\002\032\0316" >> $@ ;fi

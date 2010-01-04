@@ -49,10 +49,6 @@
 
 	.text
 
-	/* Tell GAS to generate 16-bit instructions so that this code works
-	   in real mode. */
-	.code16
-
 #ifndef STAGE1_5
 	/*
 	 * In stage2, do not link start.S with the rest of the source
@@ -65,6 +61,9 @@ _start:
 #endif /* ! STAGE1_5 */
 
 ENTRY(main)
+
+	.code16
+
 	/*
 	 *  Guarantee that "main" is loaded at 0x0:0x8200 in stage2 and
 	 *  at 0x0:0x2200 in stage1.5.
@@ -79,74 +78,65 @@ ENTRY(main)
 	 * bit 2 = 1: disable the "unconditional command-line entrance" feature
 	 * bit 3 = 1: disable geometry tune
 	 */
-
 	.byte	0
 
-	/*
-	 *  Compatibility version number
-	 *
-	 *  These MUST be at byte offset 6 and 7 of the executable
-	 *  DO NOT MOVE !!!
-	 */
 	. = EXT_C(main) + 0x6
-	.byte	COMPAT_VERSION_MAJOR, COMPAT_VERSION_MINOR
 
-	/*
-	 *  This is a special data area 8 bytes from the beginning.
-	 */
+	.byte	COMPAT_VERSION_MAJOR, COMPAT_VERSION_MINOR
 
 	. = EXT_C(main) + 0x8
 
 VARIABLE(install_partition)
-	.long	0xFFFFFF
-/* This variable is here only because of a historical reason.  */
+	.long	0x00FFFFFF
+
 VARIABLE(saved_entryno)
 #if defined(STAGE1_5) /* || ! defined(PRESET_MENU_STRING) */
 	.long	0
 #else
-
-/* Note: GRUB for DOS uses this for the commandline preset_menu.
- * A preset_menu can be embedded in the commandline of GRUB.EXE.
- * This new preset_menu overrides the built-in preset_menu.
- * If the variable is not touched, and the first byte at config_file is 0,
- * then the new menu at 0x0800 will work.
- * If the variable here is cleared to 0, or the first byte at config_file is
- * not 0, then the built-in preset_menu will work.
- *
- * Do NOT change this variable to other value than 0.
- */
-
-	.long	EXT_C(preset_menu)
+	/* Note: GRUB for DOS uses this for the commandline preset_menu.
+	 * A preset_menu can be embedded in the commandline of GRUB.EXE.
+	 * This new preset_menu overrides the built-in preset_menu.
+	 * If the variable is not touched, and the first byte at
+	 * config_file == 0, then the new menu at 0x0800 will work.
+	 * If the variable here is cleared to 0, or the first byte at
+	 * config_file != 0, then the built-in preset_menu will work.
+	 *
+	 * Do NOT change this variable to other value than 0.
+	 */
+	.long	ABS(EXT_C(preset_menu))
 #endif
+
 VARIABLE(stage2_id)
 	.byte	STAGE2_ID
+
 VARIABLE(force_lba)
 	.byte	0
+
 VARIABLE(version_string)
 	.string VERSION
+
 VARIABLE(config_file)
 #ifndef STAGE1_5
 	.string "/boot/grub/menu.lst"
-#else   /* STAGE1_5 */
+#else
 	.long	0xffffffff
 	.string "/boot/grub/stage2"
-#endif  /* STAGE1_5 */
+#endif
 
-	/*
-	 *  Leave some breathing room for the config file name.
+	/* Utilities may use this to locate the bss starting address,
+	 * where the "bootlace" signature is placed and preset-menu
+	 * follows.
 	 */
 
 	. = EXT_C(main) + 0x6C  #; bss starting address
+
 #ifndef STAGE1_5
 #if defined(HAVE_USCORE_USCORE_BSS_START_SYMBOL)
-	//.word	(__bss_start - main) & 0x0F, (__bss_start - main) >> 4
-	.long	__bss_start
+	.long	__bss_start - 0x300000
 #elif defined(HAVE_USCORE_EDATA_SYMBOL)
-	//.word	(_edata - main) & 0x0F, (_edata - main) >> 4
-	.long	_edata
+	.long	_edata - 0x300000
 #elif defined(HAVE_EDATA_SYMBOL)
-	//.word	(edata - main) & 0x0F, (edata - main) >> 4
-	.long	edata
+	.long	edata - 0x300000
 #else
 #error no bss starting address
 #endif
@@ -169,7 +159,6 @@ VARIABLE(boot_drive)
 	.long	0
 #endif
 
-//IP4 pxe_yip, pxe_sip, pxe_gip;
 VARIABLE(pxe_yip)
 	.long	0
 VARIABLE(pxe_sip)
@@ -260,13 +249,23 @@ VARIABLE(free_mem_start)	/* unused mem starting address. */
 VARIABLE(free_mem_end)		/* unused mem ending address */
 	.long	0		/* 0 for 4G(i.e., unlimited) */
 
+VARIABLE(saved_mmap_addr)	/* system memory map starting addess */
+	.long	ABS(end_of_low_16bit_code)
+
+VARIABLE(saved_mmap_length)	/* system memory map length */
+	.long	0
+
 	. = EXT_C(main) + 0x100
 
+VARIABLE(addr_system_functions)	/* system memory map length */
+	.long	ABS(EXT_C(system_functions))
+
+	. = EXT_C(main) + 0x110
+
 real_codestart:
-	cli		/* we're not safe here! */
+	cli
 	cld
 
-	/* set up %ds, %ss, and %es */
 	xorw	%ax, %ax
 	movw	%ax, %ds
 	movw	%ax, %es
@@ -346,20 +345,11 @@ real_codestart:
 	movw	$ABS(EXT_C(hooked_drive_map)), %si		/* CS=0 */
 	movw	$ABS(EXT_C(bios_drive_map)), %di		/* ES=0 */
 	cs repz movsw
-	//xorw	%ax, %ax
-	//movw	%ax, %ds			/* DS=0 */
-	//jmp	3f
 
 2:
 	xorw	%ax, %ax
 	movw	%ax, %ds			/* DS=0 */
 1:
-	//movl	ABS(EXT_C(ROM_int15)), %eax
-	//cmpl	$0x5A000000, %eax	// cmpl	$0x9A000000, %eax
-	//jnb	3f
-	//movl	0x0054, %eax
-	//movl	%eax, ABS(EXT_C(ROM_int15))
-//3:
 	/* check the BIOS type (currently only for Bochs) */
 	movw	$0xF000, %ax
 	movw	%ax, %es			/* ES=0xF000 */
@@ -371,127 +361,13 @@ real_codestart:
 	xorw	%ax, %ax
 	movw	%ax, %es			/* ES=0 */
 
-#endif  /* STAGE1_5 */
-//#ifndef SUPPORT_DISKLESS
-//	/*
-//	 * Save the sector number of the second sector (i.e. this sector)
-//	 * in INSTALL_SECOND_SECTOR. See also "stage2/start.S".
-//	 */
-//	ADDR32	movl	%ebp, EXT_C(install_second_sector)
-//#endif
-
-
-	/* the active mouse will hang the machine */
-
-#if 0
-	cli
-	pushal
-	pushw	%ds
-	pushw	%es
-	pushw	%cs
-	call	1f
-	popw	%es
-	popw	%ds
-	popal
-	jmp	2f
-1:
-	pushw	$0xADDA
-	//ljmp	$0xF000, $0x98E1
-	ljmp	$0xF000, $0xA5F2
-
-2:
-	ljmp	$0xF000, $0xFFF0
-#endif
+#endif /* !STAGE1_5 */
 
 	pushw	%dx		/* DL=boot drive */
-
-	/* qemu-0.8.0 could hang on mouse init here. */
-
-#if 0
-	/* reset mouse */
-	movw	$0xC201, %ax
-	int	$0x15
-#endif
-
-#if 0
-	/* disable mouse */
-	movw	$0xC200, %ax
-	xorw	%bx, %bx	/* BH=0 means disable */
-	int	$0x15
-#endif
-
-#if 0
-	/* set mouse handler address */
-	movw	$0xC207, %ax
-	xorw	%bx, %bx	/* ES:BX=0000:0000 to cancel the handler */
-	int	$0x15
-#endif
-
-#if 0
-	/* disable monitor clock (Watch-Dog) */
-	movw	$0xC300, %ax
-	int	$0x15
-#endif
-
-#if 0
-	/* restart all adaptors */
-	movb	$0xFF, %al
-	outb	%al, $0x96
-	xorw	%cx, %cx
-1:	loop	1b
-	movb	$0xF0, %al
-	outb	%al, $0x96
-	xorw	%cx, %cx
-1:	loop	1b
-	movb	$0x00, %al
-	outb	%al, $0x96
-	xorw	%cx, %cx
-1:	loop	1b
-
-	/* initialize all adaptors */
-	movw	$0xC000, %bx
-2:
-	movw	%bx, %ds
-	xorw	%si, %si
-	lodsw
-	cmpw	$0xAA55, %ax
-	jne	1f
-	xorw	%ax, %ax
-	lodsb			#; ROM size in sectors
-	addw	$3, %ax
-	andw	$0xFFFC, %ax
-	subw	$4, %ax
-	shlw	$5, %ax
-	pushaw
-	pushw	%bx
-	pushw	$3
-	movw	%sp, %bp
-	lcall	*(%bp)
-	popw	%bx
-	popw	%bx
-	popaw
-1:
-	addw	$0x80, %ax
-	addw	%ax, %bx
-	cmpw	$0xF000, %bx
-	jb	2b
-
-#endif
 
 	xorw	%ax, %ax
 	movw	%ax, %ds
 	movw	%ax, %es
-
-#if 0
-	/* cancel alarm clock */
-	movb	$0x07, %ah
-	int	$0x1A
-#endif
-
-#if 0	/* commented out 2008-06-11 */
-	/* clear VDS */
-	andb	$0xD7, 0x47B
-#endif
 
 #ifndef STAGE1_5
 
@@ -566,44 +442,19 @@ real_codestart:
 1:
 	popl	%eax
 4:
-	movb	%bh, EXT_C(debug_boot)
-#endif
+	movb	%bh, ABS(EXT_C(debug_boot))
+
+	testb	%bl, %bl
+	jnz	1f
+	movl	$0, ABS(EXT_C(use_config_file))
+1:
+#endif /* !STAGE1_5 */
 
 	popw	%dx		/* DL=boot drive */
 
-	//cli
-
-//	pushw	%bx
-
 #ifndef SUPPORT_DISKLESS
-	/* save boot drive reference */
-	ADDR32	movb	%dl, EXT_C(boot_drive)
-
-//	testb	%bh, %bh	/* debug_boot? */
-//	jz	1f
-//	movw	$ABS(reset_disk_string),%si
-//	call	print_message	/* will not change DX */
-//1:
-//	xorw	%ax, %ax
-//	/* reset disk system (%ah = 0) */
-//#ifdef STAGE1_5
-//	int	$0x13
-//#else
-//	call	safe_int13
-//#endif
-//	movw	$ABS(reset_disk_failure_string),%si
-//	jc	1f
-//	movw	$ABS(reset_disk_success_string),%si
-//1:
-//	popw	%bx
-//	pushw	%bx
-//	testb	%bh, %bh	/* debug_boot? */
-//	jz	1f
-//	call	print_message	/* will not change DX */
-//1:
+	ADDR32	movb	%dl, ABS(EXT_C(boot_drive))
 #endif
-
-//	popw	%bx
 
 	xorw	%ax, %ax
 	movw	%ax, %ds
@@ -612,7 +463,7 @@ real_codestart:
 	testb	$0x02, ABS(EXT_C(main)) + 5	/* disable keyboard intervention? */
 	jnz	4f			/* yes */
 
-	pushw	%bx
+	//pushw	%bx
 
 	/* clear keyboard buffer */
 2:
@@ -626,41 +477,64 @@ real_codestart:
 	jmp	2b
 1:
 
-	popw	%bx
+	//popw	%bx
 
 4:
+
+#ifndef STAGE1_5
+	/* Oops! I forgot to enable A20. Thanks to zw2312914. */
+	
+	movw	$0x00ff, %cx		# try so many times on failure
+	movw	$0x0101, %dx		# DL=1(enable A20), DH=1(debug on)
+
+	cli	/* yes, keep interrupt off when controlling A20 */
+	call	enable_disable_a20	# EAX, CX modified
+	sti
+
+	jz	1f		/* enabled A20 with success */
+
+	/* A20 control failed. Notify the user. */
+	pushw	$ABS(bootup_a20_failure)	# the format string
+	call	realmode_printf
+	//addw	$2, %sp	# adjust the stack pointer, but not required for now.
+	jmp	hard_stop
+
+bootup_a20_failure:
+	.ascii	"\r\ngrub4dos: A20 failure. Please report with error code(if any in the above line).\r\n\0"
+
+1:
+#endif /* !STAGE1_5 */
 
 	/* transition to protected mode */
 	DATA32	call EXT_C(real_to_prot)
 
-	/* The ".code32" directive takes GAS out of 16-bit mode. */
 	.code32
 
 #ifndef STAGE1_5
-	testb	%bl, %bl
-	jnz	1f
-	movl	$0, EXT_C(use_config_file)
-1:
+
+	/* if force_cdrom_as_boot_device==0, we are running by configfile, so we skip preset menu check */
+	cmpl	$0, ABS(EXT_C(force_cdrom_as_boot_device))
+	je	1f		/* skip all */
 
 	/* before clearing the bss, we move preset_menu to 0x800 */
 
-	movl	EXT_C(preset_menu), %eax
+	movl	ABS(EXT_C(preset_menu)), %eax
 
 #if defined(HAVE_USCORE_USCORE_BSS_START_SYMBOL)
-	cmpl	$__bss_start, %eax
+	cmpl	$__bss_start - 0x300000, %eax
 #elif defined(HAVE_USCORE_EDATA_SYMBOL)
-	cmpl	$_edata, %eax
+	cmpl	$_edata - 0x300000, %eax
 #elif defined(HAVE_EDATA_SYMBOL)
-	cmpl	$edata, %eax
+	cmpl	$edata - 0x300000, %eax
 #else
 #error no bss starting address
 #endif
-	jnz	1f		/* use old bootp for diskless */
+	jnz	4f		/* use old bootp for diskless */
 
 	xorl	%eax, %eax
-	cmpb	%al, EXT_C(config_file)	/* AL == 0 */
+	cmpb	%al, ABS(EXT_C(config_file))	/* AL == 0 */
 	jnz	2f
-	movl	EXT_C(saved_entryno), %ebx
+	movl	ABS(EXT_C(saved_entryno)), %ebx
 	testl	%ebx, %ebx
 	jnz	3f	/* use menu embedded in commnad-line of grub.exe */
 2:
@@ -669,11 +543,11 @@ real_codestart:
 	/* set the starting address of the preset_menu */
 
 #if defined(HAVE_USCORE_USCORE_BSS_START_SYMBOL)
-	movl	$__bss_start, %esi
+	movl	$__bss_start - 0x300000, %esi
 #elif defined(HAVE_USCORE_EDATA_SYMBOL)
-	movl	$_edata, %esi
+	movl	$_edata - 0x300000, %esi
 #elif defined(HAVE_EDATA_SYMBOL)
-	movl	$edata, %esi
+	movl	$edata - 0x300000, %esi
 #else
 #error no bss starting address
 #endif
@@ -690,25 +564,45 @@ real_codestart:
 
 3:
 	movl	$0x0800, EXT_C(preset_menu)	/* use new menu at 0x800 */
-1:
+4:
 #endif /* !STAGE1_5 */
 
-	/* if force_cdrom_as_boot_device==0, we are running by configfile, so we do not clear bss */
-	cmpl	$0, EXT_C(force_cdrom_as_boot_device)
-	je	1f
+//	/* if force_cdrom_as_boot_device==0, we are running by configfile, so we do not clear bss */
+//	cmpl	$0, ABS(EXT_C(force_cdrom_as_boot_device))
+//	je	1f
 
-	/* clean out the bss */
+	/* before clearing bss, move 32-bit code to above 3M. */
+	/* This need A20 to be enabled. */
 
-	/* set %edi to the bss starting address */
+	movl	$ABS(end_of_low_16bit_code), %esi
+	leal	0x300000(%esi), %edi
+
 #if defined(HAVE_USCORE_USCORE_BSS_START_SYMBOL)
-	movl	$__bss_start, %edi
+	movl	$__bss_start, %ecx
 #elif defined(HAVE_USCORE_EDATA_SYMBOL)
-	movl	$_edata, %edi
+	movl	$_edata, %ecx
 #elif defined(HAVE_EDATA_SYMBOL)
-	movl	$edata, %edi
+	movl	$edata, %ecx
 #else
 #error no bss starting address
 #endif
+	subl	%edi, %ecx
+	shrl	$2, %ecx
+	cld
+	repz movsl
+
+	/* clean out the bss */
+
+//	/* set %edi to the bss starting address */
+//#if defined(HAVE_USCORE_USCORE_BSS_START_SYMBOL)
+//	movl	$__bss_start, %edi
+//#elif defined(HAVE_USCORE_EDATA_SYMBOL)
+//	movl	$_edata, %edi
+//#elif defined(HAVE_EDATA_SYMBOL)
+//	movl	$edata, %edi
+//#else
+//#error no bss starting address
+//#endif
 
 	/* set %ecx to the bss end */
 #if defined(HAVE_END_SYMBOL)
@@ -721,16 +615,16 @@ real_codestart:
 
 	/* compute the bss length */
 	subl	%edi, %ecx
+	shrl	$2, %ecx
 
-	/* zero %al */
-	xorb	%al, %al
+	/* zero %eax */
+	xorl	%eax, %eax
 
 	/* set the direction */
 	cld
 
 	/* clean out */
-	rep
-	stosb
+	rep stosl
 
 1:
 	/*
@@ -769,6 +663,10 @@ hard_stop:
 	//jmp EXT_C(hard_stop)
 	jmp hard_stop
 
+VARIABLE(force_cdrom_as_boot_device)
+	.long	1
+VARIABLE(use_config_file)
+	.long	1
 VARIABLE(configfile_opened)
 	.long	0
 #ifndef STAGE1_5
@@ -778,14 +676,11 @@ VARIABLE(configfile_opened)
 VARIABLE(preset_menu)
 #if defined(PRESET_MENU_STRING)
 #if defined(HAVE_USCORE_USCORE_BSS_START_SYMBOL)
-	//.word	(__bss_start - main) & 0x0F, (__bss_start - main) >> 4
-	.long	__bss_start
+	.long	__bss_start - 0x300000
 #elif defined(HAVE_USCORE_EDATA_SYMBOL)
-	//.word	(_edata - main) & 0x0F, (_edata - main) >> 4
-	.long	_edata
+	.long	_edata - 0x300000
 #elif defined(HAVE_EDATA_SYMBOL)
-	//.word	(edata - main) & 0x0F, (edata - main) >> 4
-	.long	edata
+	.long	edata - 0x300000
 #else /* ! HAVE_EDATA_SYMBOL */
 #error no bss starting address
 #endif /* ! HAVE_EDATA_SYMBOL */
@@ -796,13 +691,16 @@ VARIABLE(preset_menu)
 VARIABLE(debug_boot)
 	.long	0
 #endif /* ! STAGE1_5 */
-	.code16
 
+#if 0
 	/* real mode print string */
 
 /* prints string DS:SI (modifies AX BX SI) */
 
 print_message:
+
+	.code16
+
 1:
 	sti		/* for hardware interrupt or watchdog */
 	cld
@@ -820,6 +718,7 @@ reset_disk_success_string:
 	.ascii	"Success.\r\n\0"
 reset_disk_failure_string:
 	.ascii	"Failure!\r\n\0"
+#endif
 
 bochs_copygrght_string:
 	.ascii	"(c) 2002 MandrakeSoft S.A. Written by Kevin Lawton & the Bochs team.\0"
@@ -837,6 +736,9 @@ ENTRY(bios_id)
  * scan pxe runtime
  */
 ENTRY(pxe_scan)
+
+	.code32
+
 	pushl	%ebx
 
 	call	EXT_C(prot_to_real)
@@ -897,6 +799,9 @@ ENTRY(pxe_scan)
  * PXE function call
  */
 ENTRY(pxe_call)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 	pushl	%esi
@@ -936,6 +841,39 @@ ENTRY(pxe_call)
 	popl	%ebp
 	ret
 
+/* this was originally defined in fsys_pxe.c, but should be in low memory.
+ *
+static PXENV_TFTP_OPEN_t pxe_tftp_open;
+ *
+ * So define it here.
+ *
+typedef struct {
+  PXENV_STATUS	Status;
+  IP4		ServerIPAddress;
+  IP4		GatewayIPAddress;
+  UINT8		FileName[128];
+  UDP_PORT	TFTPPort;
+  UINT16	PacketSize;
+} PACKED PXENV_TFTP_OPEN_t;
+typedef unsigned short	UINT16;
+typedef UINT16		PXENV_STATUS;
+typedef unsigned long	UINT32;
+typedef UINT32		IP4;
+typedef unsigned char	UINT8;
+typedef UINT16		UDP_PORT;
+ *
+ */
+
+	.align	2
+
+VARIABLE(pxe_tftp_open)
+	.word	0		# Status
+	.long	0		# ServerIPAddress
+	.long	0		# GatewayIPAddress
+	.space	128		# FileName[128];
+	.word	0		# TFTPPort
+	.word	0		# PacketSize
+
 #if PXE_FAST_READ
 
 /* int pxe_fast_read(void* data,int num)
@@ -943,6 +881,9 @@ ENTRY(pxe_call)
  * Read multiple packets
  */
 ENTRY(pxe_fast_read)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 	pushl	%esi
@@ -1026,6 +967,9 @@ ENTRY(pxe_fast_read)
  * jumped to with a known state.
  */
 ENTRY(stop_floppy)
+
+	.code32
+
 	pushal
 	call	EXT_C(prot_to_real)
 	.code16
@@ -1047,6 +991,9 @@ ENTRY(stop_floppy)
  * Reboot the system. At the moment, rely on BIOS.
  */
 ENTRY(grub_reboot)
+
+	.code32
+
 	call	EXT_C(prot_to_real)
 
 	.code16
@@ -1059,7 +1006,6 @@ ENTRY(grub_reboot)
 	movw	%ax, (%di)
 	ljmp	$0xFFFF, $0x0000
 
-	.code32
 
 /*
  * grub_halt(int no_apm)
@@ -1068,6 +1014,9 @@ ENTRY(grub_reboot)
  * APM even if it is available.
  */
 ENTRY(grub_halt)
+
+	.code32
+
 	/* get the argument */
 	movl	4(%esp), %eax
 
@@ -1122,80 +1071,13 @@ ENTRY(grub_halt)
 
 
 /*
- * int check_64bit (void)
- *
- * Checks whether 64-bit mode is supported
- *
- * Stolen from a patch originaly intended for syslinux
- * (http://syslinux.zytor.com/archives/2007-January/007832.html)
- *
- * Copyright (C) 2007 Byron Stanoszek <gandalf@winds.org>
- *
- * Adapted to AT&T syntax by Robert Millan <rmh@aybabtu.com>
- */
-
-ENTRY(check_64bit)
-
-	.code32
-
-	pushl	%ebp
-	pushl	%ebx
-	pushl	%edx
-
-	/* Check if this CPU supports the CPUID command */
-	pushfl
-	pushfl
-	popl	%eax
-	movl	%eax, %ebx
-	xorl	$(1 << 21), %eax	// CPUID bit
-	pushl	%eax
-	popfl
-	pushfl
-	popl	%eax
-	popfl				// Restore the original flags
-	xorl	%ebx, %eax
-	jz	is_32bit
-
-	/* Now check for the 64-bit flag in the CPU features byte ($0000_0001, edx)
-	This is bit 30 for Intel CPUs, and bit 29 for AMD CPUs */
-	movl	$0x00000000, %eax	// Find last Intel cpuid #
-	cpuid
-	cmpl	$0x00000000, %eax
-	je	test_amd
-	movl	$0x00000001, %eax	// Read Intel CPU flags
-	cpuid
-	btl	$30, %edx		// 64-bit if bit 30 is set
-	jc	is_64bit
-
-test_amd:
-	movl	$0x80000000, %eax	// Find last AMD cpuid #
-	cpuid
-	cmpl	$0x80000000, %eax
-	jbe	is_32bit
-	movl	$0x80000001, %eax	// Read AMD CPU flags
-	cpuid
-	btl	$29, %edx		// 64-bit if bit 29 is set
-	jnc	is_32bit
-
-is_64bit:
-	movl	$1, %eax
-	popl	%edx
-	popl	%ebx
-	popl	%ebp
-	ret
-is_32bit:
-	xorl	%eax, %eax
-	popl	%edx
-	popl	%ebx
-	popl	%ebp
-	ret
-
-
-/*
  * int tpm_init (void)
  *      return non-zero for success and zero for failure.
  */
 ENTRY(tpm_init)
+
+	.code32
+
 	pushl	%ebp
 	pushl	%ebx
 	pushl	%esi
@@ -1403,94 +1285,17 @@ fault_recovery_handler:
 
 	iret
 
-	.code32
-
-/*
- * set_int15_handler(void)
- *
- * Set up int15_handler.
- */
-ENTRY(set_int15_handler)
-
-	.code32
-
-	pushl	%edi
-
-	/* save the original int15 handler */
-	movl	$0x54, %edi
-#if 0
-	movw	(%edi), %ax
-	movw	%ax, ABS(int15_offset)
-	movw	2(%edi), %ax
-	movw	%ax, ABS(int15_segment)
-
-	/* save the new int15 handler */
-	movw	$ABS(int15_handler), %ax
-	movw	%ax, (%edi)
-	xorw	%ax, %ax
-	movw	%ax, 2(%edi)
-#else
-	movl	(%edi), %eax
-	movl	%eax, ABS(int15_offset)
-
-	/* set the new int15 handler */
-	movl	$ABS(int15_handler), %eax
-	stosl
-#endif
-
-	popl	%edi
-	ret
-
-
-/*
- * unset_int15_handler(void)
- *
- * Restore the original int15 handler
- */
-ENTRY(unset_int15_handler)
-
-	.code32
-
-	pushl	%edi
-
-	/* check if int15_handler is set */
-	movl	$0x54, %edi
-#if 0
-	movw	$ABS(int15_handler), %ax
-	cmpw	%ax, (%edi)
-	jne	1f
-	xorw	%ax, %ax
-	cmpw	%ax, 2(%edi)
-	jne	1f
-
-	/* restore the original */
-	movw	ABS(int15_offset), %ax
-	movw	%ax, (%edi)
-	movw	ABS(int15_segment), %ax
-	movw	%ax, 2(%edi)
-#else
-	movl	$ABS(int15_handler), %eax
-	cmpl	%eax, (%edi)
-	jne	1f
-
-	/* restore the original */
-	movl	ABS(int15_offset), %eax
-	stosl
-#endif
-
-1:
-	popl	%edi
-	ret
-
-
 /*
  * Translate a key code to another.
  *
  * Note: This implementation cannot handle more than one length
  * scancodes (such as Right Ctrl).
  */
-	.code16
+
 int15_handler:
+
+	.code16
+
 	/* if non-carrier, ignore it */
 	jnc	1f
 	/* check if AH=4F */
@@ -1560,179 +1365,9 @@ int15_skip_flag:
 int15_offset:	.word	0
 int15_segment:	.word	0
 
-	.code32
-
 	.align	4
 ENTRY(bios_key_map)
 	.space	(KEY_MAP_SIZE + 1) * 2
-
-
-/*
- * set_int13_handler(map)
- *
- * Copy MAP to the drive map and set up int13_handler.
- */
-ENTRY(set_int13_handler)
-
-	.code32
-
-	pushl	%ebp
-	movl	%esp, %ebp
-
-	pushl	%edi
-	pushl	%esi
-
-	/* copy MAP to the drive map */
-	movl	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 4), %ecx
-	movl	$ABS(EXT_C(hooked_drive_map)), %edi
-	movl	8(%ebp), %esi
-	cld
-	repz movsl
-
-//	Now initialized early at the beginning of this file
-//
-//	/* save the original int13 handler */
-//	movl	$0x4c, %edi
-//	movl	(%edi), %eax
-//	movl	%eax, ABS(ROM_int13)
-
-	/* decrease the lower memory size and set it to the BIOS memory */
-	movl	$0x413, %edi
-	movl	%edi, %esi
-
-	lodsw
-	/* KBytes that int13 handler occupies */
-	subb	ABS(int13_handler), %al
-	stosw
-
-	/* compute the segment(high word) */
-	shll	$(16 + 6), %eax
-
-	/* the offset(low word) should be 0x100 */
-	movw	$0x100, %ax
-
-	/* save the new int13 handler */
-	movl	$0x4c, %edi
-	stosl
-
-	/* EDI points to the destination int13 handler in the reserved area */
-	movl	%eax, %edi		/* the int13 vector just saved */
-	shrl	$12, %edi		/* get base address of segment */
-
-	/* set ESI to the drive map */
-	movl	$ABS(EXT_C(hooked_drive_map)), %esi
-	movl	$(DRIVE_MAP_SIZE), %ecx
-1:
-	cmpb	$0xff, 1(%esi)		/* Is there a mapped memdrive? */
-	jne	2f			/* No. Try next slot */
-	testb	$0x40, 5(%esi)		/* Is To_DRIVE a CDROM? */
-	jz	1f			/* No. Memdrive indeed. Hook int15 */
-2:
-	/* try next slot */
-	addl	$DRIVE_MAP_SLOT_SIZE, %esi
-	loop	1b
-	jmp	2f			/* no memdrives, don't hook int15 */
-
-1:
-	/* save the new int15 handler */
-	movw	$(int15_e820_handler - int13_handler), %ax	/* segment still in high word */
-	movl	%eax, 0x54
-
-2:
-	/* copy int13_handler to the reserved area */
-	movl	$ABS(int13_handler), %esi
-	movl	$((int13_handler_end - int13_handler) / 4), %ecx
-	cld
-	repz movsl
-
-	popl	%esi
-	popl	%edi
-	popl	%ebp
-	ret
-
-/* int
- * unset_int13_handler(check_status_only)
- *
- * Restore the original int13 handler
- *
- * Return 0 for success and non-zero for failure.
- */
-ENTRY(unset_int13_handler)
-
-	.code32
-
-	pushl	%ebp
-	movl	%esp, %ebp
-
-	pushl	%edi
-
-	/* check if int13_handler is set */
-	movl	$0x413, %edi
-	movw	(%edi), %ax
-	cmpw	$640, %ax
-	jae	1f		#; needn't unset
-//	cmpw	$632, %ax
-//	jb	1f
-	shll	$(16 + 6), %eax
-
-	/* the offset(low word) should be 0x100 */
-	movw	$0x100, %ax
-
-	cmpl	%eax, 0x4c
-	jne	1f		#; not hooked, unset failure
-	movl	%eax, %edi
-	shrl	$12, %edi	/* segment base address */
-
-	/* check our int13 signature "$INT13SFGRUB4DOS" */
-	cmpl	$0x544E4924, 0x103(%edi)	/* $INT */
-	jnz	1f
-	cmpl	$0x46533331, 0x107(%edi)	/* 13SF */
-	jnz	1f
-	cmpl	$0x42555247, 0x10B(%edi)	/* GRUB */
-	jnz	1f
-	cmpl	$0x534F4434, 0x10F(%edi)	/* 4DOS */
-	jnz	1f
-
-	//cmpl	$0x9A000000, 0x1C(%edi)		/* old int 13 */
-	cmpl	$0x5A000000, 0x1C(%edi)		/* old int 13 */
-	jb	1f
-
-	//cmpl	$0x9A000000, 0x0C(%edi)		/* old int 15 */
-	cmpl	$0x5A000000, 0x0C(%edi)		/* old int 15 */
-	jb	1f
-
-	movl	ABS(ROM_int13), %eax
-	cmpl	0x1C(%edi), %eax
-	jnz	1f
-
-	movl	ABS(EXT_C(ROM_int15)), %eax
-	cmpl	0x0C(%edi), %eax
-	jnz	1f
-
-	xorl	%eax, %eax
-
-	cmpl	%eax, 8(%ebp)
-	jnz	1f
-
-	/* increase the lower memory size */
-
-	movzbw	(%edi), %ax
-	addw	%ax, 0x413
-
-	/* restore the original int15 handler */
-	movl	ABS(EXT_C(ROM_int15)), %eax
-	movl	%eax, 0x54
-
-	/* restore the original int13 handler */
-	movl	ABS(ROM_int13), %eax
-	movl	%eax, 0x4c
-
-	xorl	%eax, %eax			/* success */
-1:
-	/* return non-zero for failure */
-	popl	%edi
-	popl	%ebp
-	ret
 
 
 /*
@@ -1797,7 +1432,8 @@ VARIABLE(ROM_int15)
 
 	. = int13_handler + 0x1C
 
-ROM_int13:	.long	0		/* original int13 vector */
+VARIABLE(ROM_int13)
+	.long	0		/* original int13 vector */
 
 	. = int13_handler + 0x20	/* drive map table begins at 0x20 */
 
@@ -1821,7 +1457,7 @@ ENTRY(hooked_drive_map)
 
 	. = int13_handler + 0x113
 
-ROM_int13_dup:		/* Win9x Safe-MBR-Hook structure requires this! */
+VARIABLE(ROM_int13_dup)	/* Win9x Safe-MBR-Hook structure requires this! */
 
 	.long	0
 
@@ -7651,8 +7287,6 @@ reg_probe_dev_exist:
 
 #endif	/* CDROM_INIT */
 
-	.code32
-
 
 /*
  * chain_stage1(segment, offset, part_table_addr)
@@ -7661,6 +7295,9 @@ reg_probe_dev_exist:
  */
 
 ENTRY(chain_stage1)
+
+	.code32
+
 	/* no need to save anything, just use %esp */
 
 	/* store %ESI, presuming %ES is 0 */
@@ -7689,7 +7326,7 @@ ENTRY(chain_stage1)
 #else
 	DATA32	ADDR32	ljmp	*(offset)
 #endif
-	.code32
+
 #endif /* ! STAGE1_5 */
 
 
@@ -7703,6 +7340,9 @@ ENTRY(chain_stage1)
  */
 
 ENTRY(chain_stage2)
+
+	.code32
+
 	/* no need to save anything, just use %esp */
 
 	/* store new offset */
@@ -7743,8 +7383,8 @@ ENTRY(chain_stage2)
 	DATA32	ADDR32	ljmp	*(offset)
 #endif
 
-	.code32
 #endif /* STAGE1_5 */
+
 
 /*
  *  These next two routines, "real_to_prot" and "prot_to_real" are structured
@@ -7754,6 +7394,7 @@ ENTRY(chain_stage2)
  */
 
 ENTRY(real_to_prot)
+
 	.code16
 
 	cli
@@ -7776,6 +7417,7 @@ ENTRY(real_to_prot)
 	 *  The ".code32" directive only works in GAS, the GNU assembler!
 	 *  This gets out of "16-bit" mode.
 	 */
+
 	.code32
 
 protcseg:
@@ -7808,6 +7450,9 @@ protcseg:
 
 
 ENTRY(prot_to_real)
+
+	.code32
+
 	/* just in case, set GDT */
 	lgdt	gdtdesc
 
@@ -7866,8 +7511,6 @@ realcseg:
 
 	/* return on new stack! */
 	DATA32	ret
-
-	.code32
 
 
 #ifndef STAGE1_5
@@ -8643,7 +8286,7 @@ no_fb:
 	ret
 
 check_sector_readable:
-	movw	$0x57E0, %ax	/* Don't use SCRATCHSEG */
+	movw	$0x27E0, %ax	/* Don't use SCRATCHSEG */
 	movw	%ax, %es
 	movw	%ax, %ds
 	xorw	%bx, %bx
@@ -8694,7 +8337,7 @@ check_sector_readable:
 	movb	%cs:ABS(Smax_tuned), %al	/* sectors to read */
 	incw	%ax		/* read 1 more sector */
 	movb	$2, %ah		/* READ */
-	movw	$0x5000, %bx
+	movw	$0x2000, %bx
 	movw	%bx, %es
 	movw	%bx, %ds
 	xorw	%bx, %bx
@@ -8713,7 +8356,7 @@ check_sector_readable:
 
 	movb	%cs:ABS(Smax_tuned), %al	/* sectors to read */
 	movb	$2, %ah		/* READ */
-	movw	$0x5800, %bx
+	movw	$0x2800, %bx
 	movw	%bx, %es
 	movw	%bx, %ds
 	xorw	%bx, %bx
@@ -8735,9 +8378,9 @@ check_sector_readable:
 	pushw	%di
 	movw	%cs:ABS(Smax_tuned), %cx	/* sectors */
 	shlw	$7, %cx				/* dwords */
-	movw	$0x5000, %ax
+	movw	$0x2000, %ax
 	movw	%ax, %ds
-	movw	$0x5800, %ax
+	movw	$0x2800, %ax
 	movw	%ax, %es
 	xorw	%si, %si
 	xorw	%di, %di
@@ -8756,7 +8399,7 @@ check_sector_readable:
 
 	movb	$0xFF, %dh	/* head=Max possible */
 1:
-	movw	$0x57E0, %ax	/* Don't use SCRATCHSEG */
+	movw	$0x27E0, %ax	/* Don't use SCRATCHSEG */
 	movw	%ax, %es
 	movw	%ax, %ds
 	xorw	%bx, %bx
@@ -8927,7 +8570,7 @@ tune_heads:
 	movb	$1, %cl		/* sector 1=the leading sector */
 	movb	$2, %ah		/* READ */
 	movb	%cs:ABS(Smax_tuned), %al	/* sectors to read */
-	movw	$0x5000, %bx
+	movw	$0x2000, %bx
 	movw	%bx, %es
 	movw	%bx, %ds
 	xorw	%bx, %bx
@@ -8950,7 +8593,7 @@ tune_heads:
 	movb	$1, %cl		/* sector 1=the leading sector */
 	movb	$2, %ah		/* READ */
 	movb	%cs:ABS(Smax_tuned), %al	/* sectors to read */
-	movw	$0x5800, %bx
+	movw	$0x2800, %bx
 	movw	%bx, %es
 	movw	%bx, %ds
 	xorw	%bx, %bx
@@ -8977,7 +8620,7 @@ tune_heads:
 	movb	$1, %cl		/* sector 1=the leading sector */
 	movb	$2, %ah		/* READ */
 	movb	%cs:ABS(Smax_tuned), %al	/* sectors to read */
-	movw	$0x5800, %bx
+	movw	$0x2800, %bx
 	movw	%bx, %es
 	movw	%bx, %ds
 	xorw	%bx, %bx
@@ -9017,9 +8660,9 @@ cmp_track:
 	pushw	%di
 	movw	%cs:ABS(Smax_tuned), %cx	/* sectors */
 	shlw	$7, %cx				/* dwords */
-	movw	$0x5000, %ax
+	movw	$0x2000, %ax
 	movw	%ax, %ds
-	movw	$0x5800, %ax
+	movw	$0x2800, %ax
 	movw	%ax, %es
 	xorw	%si, %si
 	xorw	%di, %di
@@ -9044,7 +8687,7 @@ tune_sectors:
 	/* read beginning sector of this track. */
 
 	movw	$0x201, %ax	/* read 1 sector */
-	movw	$0x5800, %bx
+	movw	$0x2800, %bx
 	movw	%bx, %es
 	movw	%bx, %ds
 	xorw	%bx, %bx
@@ -9063,7 +8706,7 @@ tune_sectors:
 	/* read ending sector of this track. */
 
 	movw	$0x202, %ax	/* read 2 sectors */
-	movw	$0x5000, %bx
+	movw	$0x2000, %bx
 	movw	%bx, %es
 	movw	%bx, %ds
 	xorw	%bx, %bx
@@ -9097,7 +8740,7 @@ tune_sectors:
 	/* read beginning sector of the next track. */
 
 	movw	$0x201, %ax	/* read 1 sector */
-	movw	$0x5800, %bx
+	movw	$0x2800, %bx
 	movw	%bx, %es
 	movw	%bx, %ds
 	xorw	%bx, %bx
@@ -9145,9 +8788,9 @@ cmp_sector:
 	pushw	%si
 	pushw	%di
 	movw	$0x80, %cx	/* 1 sector == 0x80 dwords */
-	movw	$0x5020, %ax
+	movw	$0x2020, %ax
 	movw	%ax, %ds
-	movw	$0x5800, %ax
+	movw	$0x2800, %ax
 	movw	%ax, %es
 	xorw	%si, %si
 	xorw	%di, %di
@@ -9177,25 +8820,6 @@ cross_track:
 
 //////////////////////////////////////////////////////////////////////////////
 
-	.code32
-
-
-#ifndef STAGE1_5
-/* get_code_end() :  return the address of the end of the code
- * This is here so that it can be replaced by asmstub.c.
- */
-ENTRY(get_code_end)
-	/* will be the end of the bss */
-# if defined(HAVE_END_SYMBOL)
-	movl	$end, %eax
-# elif defined(HAVE_USCORE_END_SYMBOL)
-	movl	$_end, %eax
-# endif
-	shrl	$2, %eax		/* Round up to the next word. */
-	incl	%eax
-	shll	$2, %eax
-	ret
-#endif /* ! STAGE1_5 */
 
 /*
  *
@@ -9208,6 +8832,9 @@ ENTRY(get_code_end)
  */
 
 ENTRY(get_memsize)
+
+	.code32
+
 	pushl	%ebp
 	pushl	%ebx
 
@@ -9265,6 +8892,9 @@ ENTRY(get_memsize)
  */
 
 ENTRY(get_eisamemsize)
+
+	.code32
+
 	pushl	%ebp
 	pushl	%ebx
 	pushl	%ecx
@@ -9336,24 +8966,28 @@ ENTRY(get_eisamemsize)
  *	Returns:  new (non-zero) continuation value, 0 if done.
  *
  * NOTE: Currently hard-coded for a maximum buffer length of 1024.
+ * Note: addr must be addressible by BIOS in the low memory. -Tinybit
  */
 
 ENTRY(get_mmap_entry)
+
+	.code32
+
 	pushl	%ebp
 	pushl	%ebx
 	pushl	%edi
 	pushl	%esi
 
 	/* place address (+4) in ES:DI */
-	movl	0x14(%esp), %eax
+	movl	0x14(%esp), %eax	/* addr */
 	addl	$4, %eax
 	movl	%eax, %edi
-	andl	$0xf, %edi
-	shrl	$4, %eax
+	andl	$0xf, %edi		/* offset */
+	shrl	$4, %eax		/* segment */
 	movl	%eax, %esi
 
 	/* set continuation value */
-	movl	0x18(%esp), %ebx
+	movl	0x18(%esp), %ebx	/* cont */
 
 	pushl	%ecx		/* save ECX */
 
@@ -9370,7 +9004,7 @@ ENTRY(get_mmap_entry)
 	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
-	movw	%si, %es
+	movw	%si, %es		/* ES=segment */
 
 	/* set additional registers to serve buggy BIOSes. */
 	movw	%si, %ds
@@ -9438,6 +9072,9 @@ ENTRY(get_mmap_entry)
  */
 
 ENTRY(get_rom_config_table)
+
+	.code32
+
 	pushl	%ebp
 	pushl	%ebx
 	pushl	%edx
@@ -9494,6 +9131,9 @@ found_rom_table:
  */
 
 ENTRY(get_vbe_controller_info)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -9549,6 +9189,9 @@ ENTRY(get_vbe_controller_info)
  */
 
 ENTRY(get_vbe_mode_info)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -9595,6 +9238,9 @@ ENTRY(get_vbe_mode_info)
  */
 
 ENTRY(set_vbe_mode)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -9647,6 +9293,9 @@ ENTRY(set_vbe_mode)
  */
 
 ENTRY(gfx_init_v1)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -9718,6 +9367,9 @@ gfx_init_50_v1:
  */
 
 ENTRY(gfx_done_v1)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -9774,6 +9426,9 @@ ENTRY(gfx_done_v1)
  */
 
 ENTRY(gfx_input_v1)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -9845,6 +9500,9 @@ ENTRY(gfx_input_v1)
 #define sizeof_menu_v1_desc	18
 
 ENTRY(gfx_setup_menu_v1)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -9927,6 +9585,9 @@ ENTRY(gfx_setup_menu_v1)
  */
 
 ENTRY(gfx_init_v2)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -9984,6 +9645,9 @@ ENTRY(gfx_init_v2)
  */
 
 ENTRY(gfx_done_v2)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -10040,6 +9704,9 @@ ENTRY(gfx_done_v2)
  */
 
 ENTRY(gfx_input_v2)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -10110,6 +9777,9 @@ ENTRY(gfx_input_v2)
 #define sizeof_menu_v2_desc	18
 
 ENTRY(gfx_setup_menu_v2)
+
+	.code32
+
 	pushl	%ebp
 	movl	%esp, %ebp
 
@@ -10188,7 +9858,7 @@ ENTRY(gfx_setup_menu_v2)
  */
 #endif /* SUPPORT_GFX */
 
-
+#if 0
 /*
  * grub2_gate_a20(int on)
  *
@@ -10339,6 +10009,8 @@ gate_a20_check_state:
 	popl	%ecx
 	popl	%ebx
 	ret
+#endif
+
 
 /*
  * int gateA20(int linear)
@@ -10456,7 +10128,6 @@ ENTRY(gateA20)
 	popl	%ebp
 	ret
 
-	.code32
 
 /*
  * linux_boot()
@@ -10478,6 +10149,9 @@ VARIABLE(linux_bzimage_tmp_addr)
 	.long	0x1000000		/* at 16M */
 
 ENTRY(linux_boot)
+
+	.code32
+
 	/* don't worry about saving anything, we're committed at this point */
 	cld	/* forward copying */
 
@@ -10493,6 +10167,9 @@ ENTRY(linux_boot)
 	jmp	linux_real_mode_startup
 
 ENTRY(big_linux_boot)
+
+	.code32
+
 	cld
 
 	/* copy kernel */
@@ -10554,31 +10231,6 @@ linux_real_mode_startup:
 	.word	0
 
 
-	.code32
-
-
-/*
- * multi_boot(int start, int mb_info)
- *
- *  This starts a kernel in the manner expected of the multiboot standard.
- */
-
-ENTRY(multi_boot)
-	/* no need to save anything */
-	call	EXT_C(stop_floppy)
-
-	movl	$0x2BADB002, %eax
-	movl	0x8(%esp), %ebx
-
-	/* boot kernel here (absolute address call) */
-	call	*0x4(%esp)
-
-	/* error */
-	call	EXT_C(stop)
-
-#endif /* ! STAGE1_5 */
-
-#ifndef STAGE1_5
 /*
  * void toggle_blinking (void)
  * BIOS call "INT 10H Function 1003h" to toggle intensity/blinking bit
@@ -10592,6 +10244,9 @@ ENTRY(multi_boot)
 
 
 ENTRY(toggle_blinking)
+
+	.code32
+
 	push	%ebp
 	push	%ebx                    /* save EBX */
 
@@ -10615,6 +10270,7 @@ ENTRY(toggle_blinking)
 	pop	%ebx
 	pop	%ebp
 	ret
+
 #endif /* ! STAGE1_5 */
 
 
@@ -10633,6 +10289,9 @@ ENTRY(toggle_blinking)
  * support setting a background attribute.
  */
 ENTRY(console_putchar)
+
+	.code32
+
 	movl	0x4(%esp), %edx
 	pusha
 #ifdef STAGE1_5
@@ -10731,9 +10390,10 @@ translation_table:
 /*
  * translate_keycode translates the key code %dx to an ascii code.
  */
+translate_keycode:
+
 	.code16
 
-translate_keycode:
 	pushw	%bx
 	pushw	%si
 
@@ -10757,16 +10417,14 @@ translate_keycode:
 	ret
 #endif
 
-	.code32
-
-
 /*
  * remap_ascii_char remaps the ascii code %dl to another if the code is
  * contained in ASCII_KEY_MAP.
  */
+remap_ascii_char:
+
 	.code16
 
-remap_ascii_char:
 	pushw	%si
 
 	movw	$ABS(EXT_C(ascii_key_map)), %si
@@ -10786,8 +10444,6 @@ remap_ascii_char:
 
 	ret
 
-	.code32
-
 	.align	4
 ENTRY(ascii_key_map)
 	.space	(KEY_MAP_SIZE + 1) * 2
@@ -10802,6 +10458,9 @@ ENTRY(ascii_key_map)
  */
 
 ENTRY(console_getkey)
+
+	.code32
+
 	push	%ebp
 
 	call	EXT_C(prot_to_real)
@@ -10847,6 +10506,9 @@ ENTRY(console_getkey)
  *			Zero flag = set
  */
 ENTRY(console_checkkey)
+
+	.code32
+
 	push	%ebp
 	xorl	%edx, %edx
 
@@ -10892,6 +10554,9 @@ pending:
 
 
 ENTRY(console_getxy)
+
+	.code32
+
 	push	%ebp
 	push	%ebx                    /* save EBX */
 
@@ -10928,6 +10593,9 @@ ENTRY(console_getxy)
 
 
 ENTRY(console_gotoxy)
+
+	.code32
+
 	push	%ebp
 	push	%ebx                    /* save EBX */
 
@@ -10965,6 +10633,9 @@ ENTRY(console_gotoxy)
 
 
 ENTRY(console_cls)
+
+	.code32
+
 	push	%ebp
 	push	%ebx                    /* save EBX */
 
@@ -11013,6 +10684,9 @@ console_cursor_shape:
 	.word	0
 
 ENTRY(console_setcursor)
+
+	.code32
+
 	push	%ebp
 	push	%ebx
 
@@ -11084,6 +10758,9 @@ VARIABLE(cursorBuf)
  *      Returns old videomode.
  */
 ENTRY(set_videomode)
+
+	.code32
+
 	push	%ebp
 	push	%ebx
 	push	%ecx
@@ -11123,6 +10800,9 @@ ENTRY(set_videomode)
  *      Call with       %ah = 0x11
  */
 ENTRY(graphics_get_font)
+
+	.code32
+
 	push	%ebp
 	push	%ebx
 	push	%ecx
@@ -11168,6 +10848,9 @@ ENTRY(graphics_get_font)
  */
 
 ENTRY(graphics_set_palette)
+
+	.code32
+
 	push	%ebp
 	push	%eax
 	push	%ebx
@@ -11245,6 +10928,9 @@ l2b:	inb	%dx, %al	/* wait vertical retrace */
  *                          that it isn't running)
  */
 ENTRY(getrtsecs)
+
+	.code32
+
 	push	%ebp
 
 	call	EXT_C(prot_to_real)	/* enter real mode */
@@ -11302,6 +10988,9 @@ gottime:
  *  void get_datetime(unsigned long *date, unsigned long *time);
  */
 ENTRY(get_datetime)
+
+	.code32
+
 	pushl	%ebp
 	call	EXT_C(prot_to_real)
 
@@ -11356,6 +11045,7 @@ ENTRY(get_datetime)
  *	18-20 per second
  */
 ENTRY(currticks)
+	.code32
 	pushl	%ebp
 
 	call	EXT_C(prot_to_real)	/* enter real mode */
@@ -11389,9 +11079,6 @@ ENTRY(currticks)
 
 #;protstack:
 #;	.long	PROTSTACKINIT
-
-//VARIABLE(install_second_sector)
-//	.long	0
 
 	/* an address can only be long-jumped to if it is in memory, this
 	   is used by multiple routines */
@@ -11462,13 +11149,13 @@ gdtdesc:
 #endif
 
 
-	.code32
-
 /* this code will be moved to and get executed at HMA_ADDR=0x2B0000 */
 
 /* our gdt starts at HMA_ADDR=0x2B0000 */
 
 ENTRY(HMA_start)
+
+	.code32
 
 	/* the first entry of GDT, i.e., the default null entry,
 	 * can be any value. it never get used. So we use these
@@ -11587,6 +11274,8 @@ VARIABLE(chain_boot_IP)
 VARIABLE(chain_boot_CS)
 	.word	0x0000		/* segment */
 
+	.align	4
+
 VARIABLE(chain_load_offset)
 	.word	0x7c00
 VARIABLE(chain_load_segment)
@@ -11607,9 +11296,381 @@ VARIABLE(chain_enable_gateA20)
 	/* max length of code is 1 sector */
 	. = . - (. - EXT_C(HMA_start))/0x201
 
+end_of_low_16bit_code:
+
 	/* ensure this resides in the first 64KB */
 	. = . - (ABS(.) / 0x10001)
 
+
+/****************************************************************************/
+/************************* 32-bit functions follow **************************/
+/****************************************************************************/
+
+
+#ifndef STAGE1_5
+
+	.space	0x300000	/* !!!! insert 3M !!!! */
+
+/*
+ * multi_boot(int start, int mb_info)
+ *
+ *  This starts a kernel in the manner expected of the multiboot standard.
+ */
+
+ENTRY(multi_boot)
+
 	.code32
 
+	/* no need to save anything */
+	call	EXT_C(stop_floppy)
+
+	movl	$0x2BADB002, %eax
+	movl	0x8(%esp), %ebx
+
+	/* boot kernel here (absolute address call) */
+	call	*0x4(%esp)
+
+	/* error */
+	call	EXT_C(stop)
+
+
+/*
+ * int check_64bit (void)
+ *
+ * Checks whether 64-bit mode is supported
+ *
+ * Stolen from a patch originaly intended for syslinux
+ * (http://syslinux.zytor.com/archives/2007-January/007832.html)
+ *
+ * Copyright (C) 2007 Byron Stanoszek <gandalf@winds.org>
+ *
+ * Adapted to AT&T syntax by Robert Millan <rmh@aybabtu.com>
+ */
+
+ENTRY(check_64bit)
+
+	.code32
+
+	pushl	%ebp
+	pushl	%ebx
+	pushl	%edx
+
+	/* Check if this CPU supports the CPUID command */
+	pushfl
+	pushfl
+	popl	%eax
+	movl	%eax, %ebx
+	xorl	$(1 << 21), %eax	// CPUID bit
+	pushl	%eax
+	popfl
+	pushfl
+	popl	%eax
+	popfl				// Restore the original flags
+	xorl	%ebx, %eax
+	jz	is_32bit
+
+	/* Now check for the 64-bit flag in the CPU features byte ($0000_0001, edx)
+	This is bit 30 for Intel CPUs, and bit 29 for AMD CPUs */
+	movl	$0x00000000, %eax	// Find last Intel cpuid #
+	cpuid
+	cmpl	$0x00000000, %eax
+	je	test_amd
+	movl	$0x00000001, %eax	// Read Intel CPU flags
+	cpuid
+	btl	$30, %edx		// 64-bit if bit 30 is set
+	jc	is_64bit
+
+test_amd:
+	movl	$0x80000000, %eax	// Find last AMD cpuid #
+	cpuid
+	cmpl	$0x80000000, %eax
+	jbe	is_32bit
+	movl	$0x80000001, %eax	// Read AMD CPU flags
+	cpuid
+	btl	$29, %edx		// 64-bit if bit 29 is set
+	jnc	is_32bit
+
+is_64bit:
+	movl	$1, %eax
+	popl	%edx
+	popl	%ebx
+	popl	%ebp
+	ret
+is_32bit:
+	xorl	%eax, %eax
+	popl	%edx
+	popl	%ebx
+	popl	%ebp
+	ret
+
+/*
+ * set_int15_handler(void)
+ *
+ * Set up int15_handler.
+ */
+ENTRY(set_int15_handler)
+
+	.code32
+
+	pushl	%edi
+
+	/* save the original int15 handler */
+	movl	$0x54, %edi
+#if 0
+	movw	(%edi), %ax
+	movw	%ax, ABS(int15_offset)
+	movw	2(%edi), %ax
+	movw	%ax, ABS(int15_segment)
+
+	/* save the new int15 handler */
+	movw	$ABS(int15_handler), %ax
+	movw	%ax, (%edi)
+	xorw	%ax, %ax
+	movw	%ax, 2(%edi)
+#else
+	movl	(%edi), %eax
+	movl	%eax, ABS(int15_offset)
+
+	/* set the new int15 handler */
+	movl	$ABS(int15_handler), %eax
+	stosl
+#endif
+
+	popl	%edi
+	ret
+
+
+/*
+ * unset_int15_handler(void)
+ *
+ * Restore the original int15 handler
+ */
+ENTRY(unset_int15_handler)
+
+	.code32
+
+	pushl	%edi
+
+	/* check if int15_handler is set */
+	movl	$0x54, %edi
+#if 0
+	movw	$ABS(int15_handler), %ax
+	cmpw	%ax, (%edi)
+	jne	1f
+	xorw	%ax, %ax
+	cmpw	%ax, 2(%edi)
+	jne	1f
+
+	/* restore the original */
+	movw	ABS(int15_offset), %ax
+	movw	%ax, (%edi)
+	movw	ABS(int15_segment), %ax
+	movw	%ax, 2(%edi)
+#else
+	movl	$ABS(int15_handler), %eax
+	cmpl	%eax, (%edi)
+	jne	1f
+
+	/* restore the original */
+	movl	ABS(int15_offset), %eax
+	stosl
+#endif
+
+1:
+	popl	%edi
+	ret
+
+
+/*
+ * set_int13_handler(map)
+ *
+ * Copy MAP to the drive map and set up int13_handler.
+ */
+ENTRY(set_int13_handler)
+
+	.code32
+
+	pushl	%ebp
+	movl	%esp, %ebp
+
+	pushl	%edi
+	pushl	%esi
+
+	/* copy MAP to the drive map */
+	movl	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 4), %ecx
+	movl	$ABS(EXT_C(hooked_drive_map)), %edi
+	movl	8(%ebp), %esi
+	cld
+	repz movsl
+
+//	Now initialized early at the beginning of this file
+//
+//	/* save the original int13 handler */
+//	movl	$0x4c, %edi
+//	movl	(%edi), %eax
+//	movl	%eax, ABS(ROM_int13)
+
+	/* decrease the lower memory size and set it to the BIOS memory */
+	movl	$0x413, %edi
+	movl	%edi, %esi
+
+	lodsw
+	/* KBytes that int13 handler occupies */
+	subb	ABS(int13_handler), %al
+	stosw
+
+	/* compute the segment(high word) */
+	shll	$(16 + 6), %eax
+
+	/* the offset(low word) should be 0x100 */
+	movw	$0x100, %ax
+
+	/* save the new int13 handler */
+	movl	$0x4c, %edi
+	stosl
+
+	/* EDI points to the destination int13 handler in the reserved area */
+	movl	%eax, %edi		/* the int13 vector just saved */
+	shrl	$12, %edi		/* get base address of segment */
+
+	/* set ESI to the drive map */
+	movl	$ABS(EXT_C(hooked_drive_map)), %esi
+	movl	$(DRIVE_MAP_SIZE), %ecx
+1:
+	cmpb	$0xff, 1(%esi)		/* Is there a mapped memdrive? */
+	jne	2f			/* No. Try next slot */
+	testb	$0x40, 5(%esi)		/* Is To_DRIVE a CDROM? */
+	jz	1f			/* No. Memdrive indeed. Hook int15 */
+2:
+	/* try next slot */
+	addl	$DRIVE_MAP_SLOT_SIZE, %esi
+	loop	1b
+	jmp	2f			/* no memdrives, don't hook int15 */
+
+1:
+	/* save the new int15 handler */
+	movw	$(int15_e820_handler - int13_handler), %ax	/* segment still in high word */
+	movl	%eax, 0x54
+
+2:
+	/* copy int13_handler to the reserved area */
+	movl	$ABS(int13_handler), %esi
+	movl	$((int13_handler_end - int13_handler) / 4), %ecx
+	cld
+	repz movsl
+
+	popl	%esi
+	popl	%edi
+	popl	%ebp
+	ret
+
+/* int
+ * unset_int13_handler(check_status_only)
+ *
+ * Restore the original int13 handler
+ *
+ * Return 0 for success and non-zero for failure.
+ */
+ENTRY(unset_int13_handler)
+
+	.code32
+
+	pushl	%ebp
+	movl	%esp, %ebp
+
+	pushl	%edi
+
+	/* check if int13_handler is set */
+	movl	$0x413, %edi
+	movw	(%edi), %ax
+	cmpw	$640, %ax
+	jae	1f		#; needn't unset
+//	cmpw	$632, %ax
+//	jb	1f
+	shll	$(16 + 6), %eax
+
+	/* the offset(low word) should be 0x100 */
+	movw	$0x100, %ax
+
+	cmpl	%eax, 0x4c
+	jne	1f		#; not hooked, unset failure
+	movl	%eax, %edi
+	shrl	$12, %edi	/* segment base address */
+
+	/* check our int13 signature "$INT13SFGRUB4DOS" */
+	cmpl	$0x544E4924, 0x103(%edi)	/* $INT */
+	jnz	1f
+	cmpl	$0x46533331, 0x107(%edi)	/* 13SF */
+	jnz	1f
+	cmpl	$0x42555247, 0x10B(%edi)	/* GRUB */
+	jnz	1f
+	cmpl	$0x534F4434, 0x10F(%edi)	/* 4DOS */
+	jnz	1f
+
+	//cmpl	$0x9A000000, 0x1C(%edi)		/* old int 13 */
+	cmpl	$0x5A000000, 0x1C(%edi)		/* old int 13 */
+	jb	1f
+
+	//cmpl	$0x9A000000, 0x0C(%edi)		/* old int 15 */
+	cmpl	$0x5A000000, 0x0C(%edi)		/* old int 15 */
+	jb	1f
+
+	movl	ABS(ROM_int13), %eax
+	cmpl	0x1C(%edi), %eax
+	jnz	1f
+
+	movl	ABS(EXT_C(ROM_int15)), %eax
+	cmpl	0x0C(%edi), %eax
+	jnz	1f
+
+	xorl	%eax, %eax
+
+	cmpl	%eax, 8(%ebp)
+	jnz	1f
+
+	/* increase the lower memory size */
+
+	movzbw	(%edi), %ax
+	addw	%ax, 0x413
+
+	/* restore the original int15 handler */
+	movl	ABS(EXT_C(ROM_int15)), %eax
+	movl	%eax, 0x54
+
+	/* restore the original int13 handler */
+	movl	ABS(ROM_int13), %eax
+	movl	%eax, 0x4c
+
+	xorl	%eax, %eax			/* success */
+1:
+	/* return non-zero for failure */
+	popl	%edi
+	popl	%ebp
+	ret
+
+
+/* get_code_end() :  return the address of the end of the code
+ * This is here so that it can be replaced by asmstub.c.
+ */
+
+ENTRY(get_code_end)
+
+	.code32
+
+	/* will be the end of the bss */
+# if defined(HAVE_END_SYMBOL)
+	movl	$end, %eax
+# elif defined(HAVE_USCORE_END_SYMBOL)
+	movl	$_end, %eax
+# endif
+	shrl	$2, %eax		/* Round up to the next word. */
+	incl	%eax
+	shll	$2, %eax
+	ret
+
+
+#endif /* ! STAGE1_5 */
+
+VARIABLE(system_functions)
+	.long	ABS(EXT_C(grub_sprintf))
 

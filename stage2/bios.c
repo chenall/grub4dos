@@ -82,17 +82,17 @@ biosdisk (int read, int drive, struct geometry *geometry,
 	
 	if (nsec <=0 || nsec >= 0x80)
 		return 1;	/* failure */
-	if ((unsigned long)sector + (unsigned long)nsec > geometry->total_sectors)
+	if ((unsigned long long)((unsigned long)sector + (unsigned long)nsec) > geometry->total_sectors)
 		return 1;	/* failure */
 	//if ((unsigned long)sector + (unsigned long)nsec >= 0x800000)
 	//	return 1;	/* failure */
 	
-	tmp = (((unsigned long long)sector+(unsigned long long)nsec) << 9);
+	tmp = (((unsigned long long)(unsigned long)sector+(unsigned long long)(unsigned long)nsec) << 9);
 	if (drive == ram_drive)
 	    tmp += rd_base;
 	if (tmp > 0x100000000ULL && ! is64bit)
 		return 1;	/* failure */
-	disk_sector = (((unsigned long long)sector<<9) + ((drive==0xffff) ? 0 : rd_base));
+	disk_sector = (((unsigned long long)((unsigned long)sector)<<9) + ((drive==0xffff) ? 0 : rd_base));
 	buf_address = (segment<<4);
 
 	if (read)	/* read == 1 really means write to DISK */
@@ -280,16 +280,17 @@ get_diskinfo (int drive, struct geometry *geometry)
       else
 	  grub_printf ("Address Map BIOS Interface is not activated.\n");
 
-      if (total_mem_sectors)
-      {
+//      if (total_mem_sectors)
+//      {
 	geometry->flags = BIOSDISK_FLAG_LBA_EXTENSION;
 	geometry->sector_size = SECTOR_SIZE;
-	geometry->total_sectors = total_mem_sectors;
+	/* if for some reason(e.g., a bios bug) the memory is reported less than 1M(too few), then we suppose the memory is unlimited. */
+	geometry->total_sectors = (total_mem_sectors < 0x800ULL ? 0x80000000000000ULL : total_mem_sectors);
 	geometry->heads = 255;
 	geometry->sectors = 63;
-	geometry->cylinders = (geometry->total_sectors + 255 * 63 -1) / (255 * 63);
+	geometry->cylinders = (geometry->total_sectors > (0xFFFFFFFFULL - 255 * 63 + 1) ? 0xFFFFFFFFUL / (255UL * 63UL):((unsigned long)geometry->total_sectors + 255 * 63 -1) / (255 * 63));
 	return 0;
-      }
+//      }
       
     } else if (drive == ram_drive)	/* ram disk device */
     {
@@ -300,7 +301,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 	geometry->total_sectors = (rd_size >> SECTOR_BITS) + !!(rd_size & (SECTOR_SIZE - 1));
 	geometry->heads = 255;
 	geometry->sectors = 63;
-	geometry->cylinders = (geometry->total_sectors + 255 * 63 -1) / (255 * 63);
+	geometry->cylinders = (geometry->total_sectors > (0xFFFFFFFFULL - 255 * 63 + 1) ? 0xFFFFFFFFUL / (255UL * 63UL):((unsigned long)geometry->total_sectors + 255 * 63 -1) / (255 * 63));
 	return 0;
       }
     }
@@ -373,7 +374,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 			geometry->sectors = 15;
 			geometry->sector_size = 2048;
 			geometry->total_sectors = hooked_drive_map[j].sector_count >> 2;
-			geometry->cylinders = geometry->total_sectors / (255 * 15);
+			geometry->cylinders = (geometry->total_sectors > (0xFFFFFFFFULL - 255 * 15 + 1) ? 0xFFFFFFFFUL / (255UL * 15UL):((unsigned long)geometry->total_sectors + 255 * 15 -1) / (255 * 15));
 			return 0;
 		}
 		geometry->flags = BIOSDISK_FLAG_LBA_EXTENSION;
@@ -382,7 +383,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 		geometry->sector_size = 512;
 		geometry->total_sectors = hooked_drive_map[j].sector_count;
 		geometry->cylinders = (geometry->heads * geometry->sectors);
-		geometry->cylinders = (geometry->total_sectors + geometry->cylinders - 1) / geometry->cylinders;
+		geometry->cylinders = (geometry->total_sectors > (0xFFFFFFFFULL - geometry->cylinders + 1) ? 0xFFFFFFFFUL / geometry->cylinders:((unsigned long)geometry->total_sectors + geometry->cylinders - 1) / geometry->cylinders);
 		return 0;
 	    }
 
@@ -679,7 +680,11 @@ failure_probe_boot_sector:
 	}
 	if (geometry->cylinders == 0)
 	{
-		geometry->cylinders = (geometry->total_sectors / geometry->heads / geometry->sectors);
+		unsigned long long tmp_sectors = geometry->total_sectors;
+
+		if (tmp_sectors > 0xFFFFFFFFULL)
+		    tmp_sectors = 0xFFFFFFFFULL;
+		geometry->cylinders = (((unsigned long)tmp_sectors) / geometry->heads / geometry->sectors);
 	}
 
 	if (geometry->cylinders == 0)

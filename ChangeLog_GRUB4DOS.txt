@@ -1,3 +1,5 @@
+2009-12-28 initial implementation of program execution. fixed a bug causing FAT16 search hang(grldrstart.S). version number changed to 0.4.5a. 
+2009-12-12 moved up 32-bit grub kernel code at above physical addess 3M. moved down buffer for dd and geometry-tune at 0x20000. moved down raw disk buffer at 0x30000. version number changed to 0.4.5. 
 2009-12-02 (chenall)fixed a bug in color_func(builtins.c).
 2009-12-01 (chenall)fixed a bug which caused dd/write to write onto the wrong sector of the disk(fsys_ntfs.c).
 2009-11-29 (chenall)fixed a bug when using (md) to access memory at 2G and above(bios.c). improved memmove64 to support overlap(asm.S).

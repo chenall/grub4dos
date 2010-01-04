@@ -64,10 +64,12 @@ MAC_ADDR pxe_mac;
 static UINT8 pxe_tftp_opened;
 static unsigned long pxe_saved_pos, pxe_cur_ofs, pxe_read_ofs;
 
-static PXENV_TFTP_OPEN_t pxe_tftp_open;
+extern PXENV_TFTP_OPEN_t pxe_tftp_open;	/* now it is defined in asm.S */
 static char *pxe_tftp_name;
 
 extern unsigned long ROM_int15;
+extern unsigned long ROM_int13;
+extern unsigned long ROM_int13_dup;
 extern struct drive_map_slot bios_drive_map[DRIVE_MAP_SIZE + 1];
 
 static char* pxe_outhex (char* pc, unsigned char c)
@@ -265,7 +267,7 @@ done:
 	buf_drive = -1;	/* invalidate disk cache. */
 	buf_track = -1;	/* invalidate disk cache. */
 	saved_entryno = 0;
-	force_cdrom_as_boot_device = 0;
+	//force_cdrom_as_boot_device = 0;
 	boot_drive = saved_drive;
 	install_partition = saved_partition;
 	current_drive = GRUB_INVALID_DRIVE;
@@ -638,6 +640,7 @@ void pxe_unload (void)
     *((unsigned short *)0x413) = pxe_freemem;
   pxe_entry = 0;
   ROM_int15 = *((unsigned long *)0x54);
+  ROM_int13 = ROM_int13_dup = *((unsigned long *)0x4C);
   grub_printf ("PXE stack unloaded\n");
 quit:
   if (! h)

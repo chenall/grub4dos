@@ -40,6 +40,9 @@
 
 #ifdef GRUB_UTIL
 # include <device.h>
+int use_config_file = 1;
+unsigned long free_mem_start;
+unsigned long free_mem_end;
 #else /* ! GRUB_UTIL */
 # include <apic.h>
 //# include <smp-imps.h>
@@ -94,7 +97,6 @@ int show_menu = 1;
 /* Don't display a countdown message for the hidden menu */
 int silent_hiddenmenu = 0;
 
-int use_config_file = 1;
 unsigned long pxe_restart_config = 0;
 #ifndef GRUB_UTIL
 unsigned long configfile_in_menu_init = 0;
@@ -185,6 +187,7 @@ static int is_io_orig = 0;
 static char chainloader_file[256];
 static char chainloader_file_orig[256];
 
+
 static const char *warning_defaultfile = "# WARNING: If you want to edit this file directly, do not remove any line";
 
 #ifndef GRUB_UTIL
@@ -231,6 +234,7 @@ static void lba_to_chs (unsigned long lba, unsigned long *cl, unsigned long *ch,
 //static char *set_device (char *device);
 //static int real_open_partition (int flags);
 //static int open_partition (void);
+int command_func (char *arg, int flags);
 int commandline_func (char *arg, int flags);
 int errnum_func (char *arg, int flags);
 int checkrange_func (char *arg, int flags);
@@ -385,7 +389,7 @@ blocklist_func (char *arg, int flags)
   rawread_ignore_memmove_overflow = 1;
   /* Read in the whole file to DUMMY.  */
   disk_read_hook = disk_read_blocklist_func;
-  err = grub_read ((unsigned long long)(unsigned int)dummy, (query_block_entries < 0 ? buf_geom.sector_size : -1), 0xedde0d90);
+  err = grub_read ((unsigned long long)(unsigned int)dummy, (query_block_entries < 0 ? buf_geom.sector_size : -1ULL), 0xedde0d90);
   disk_read_hook = 0;
   rawread_ignore_memmove_overflow = 0;
   if (! err)
@@ -424,7 +428,7 @@ blocklist_func (char *arg, int flags)
       /* read in the last sector to DUMMY */
       filepos = filemax ? (filemax - 1) & (-buf_geom.sector_size) : filemax;
       disk_read_hook = disk_read_blocklist_func;
-      err = grub_read ((unsigned long long)(unsigned int)dummy, -1, 0xedde0d90);
+      err = grub_read ((unsigned long long)(unsigned int)dummy, -1ULL, 0xedde0d90);
       disk_read_hook = 0;
       rawread_ignore_memmove_overflow = 0;
       if (! err)
@@ -810,7 +814,7 @@ boot_func (char *arg, int flags)
       
 #undef MIN_EMU_BASE
 	      //filepos = 0;
-	      if (grub_read (base, -1, 0xedde0d90) != filemax)
+	      if (grub_read (base, -1ULL, 0xedde0d90) != filemax)
 		{
 			grub_close ();
 			if (errnum == ERR_NONE)
@@ -2584,7 +2588,7 @@ cmp_func (char *arg, int flags)
   
   /* Get the size.  */
   size = filemax;
-  if (grub_read ((unsigned long long)(unsigned long)addr1, -1, 0xedde0d90) != size)
+  if (grub_read ((unsigned long long)(unsigned long)addr1, -1ULL, 0xedde0d90) != size)
     {
       grub_close ();
       return 0;
@@ -2597,7 +2601,7 @@ cmp_func (char *arg, int flags)
   if (! grub_open (file2))
     return 0;
 
-  if (! grub_read ((unsigned long long)(unsigned long)addr2, -1, 0xedde0d90))
+  if (! grub_read ((unsigned long long)(unsigned long)addr2, -1ULL, 0xedde0d90))
     {
       grub_close ();
       return 0;
@@ -3035,7 +3039,7 @@ configfile_func (char *arg, int flags)
   auth = 0;
   
   saved_entryno = 0;
-  force_cdrom_as_boot_device = 0;
+  //force_cdrom_as_boot_device = 0;
   boot_drive = (current_drive == 0xFFFF ? saved_drive : current_drive);
   install_partition = (current_drive == 0xFFFF ? saved_partition : current_partition);
 #ifdef GRUB_UTIL
@@ -3100,7 +3104,7 @@ dd_func (char *arg, int flags)
   unsigned long long in_filemax;
   unsigned long long out_filepos;
   unsigned long long out_filemax;
-  unsigned long long buf_addr = 0x50000ULL;
+  unsigned long long buf_addr = 0x20000ULL;
   unsigned long long buf_size = 0x10000ULL;
   char tmp_in_file[16];
   char tmp_out_file[16];
@@ -3949,17 +3953,22 @@ checkrange_func(char *arg, int flags)
 
   builtin1 = find_command (arg1);
 
+  if ((int)builtin1 != -1)
   if (! builtin1 || ! (builtin1->flags & flags))
   {
 	errnum = ERR_UNRECOGNIZED;
 	return 0;
   }
 
-  arg1 = skip_to (1, arg1);	/* get argument of command */
-  if ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func)
+  if ((int)builtin1 == -1 || ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func))
 	errnum = 0;
-  ret = (builtin1->func) (arg1, flags);
 
+  if ((int)builtin1 != -1)
+	ret = (builtin1->func) (skip_to (1, arg1), flags);
+  else
+	ret = command_func (arg1, flags);
+
+  if ((int)builtin1 != -1)
   if ((builtin1->func) == errnum_func /*|| (builtin1->func) == checkrange_func*/)
 	errnum = 0;
   if (errnum)
@@ -4314,7 +4323,7 @@ embed_func (char *arg, int flags)
     return 0;
 
   /* Read the whole of the Stage 1.5.  */
-  len = grub_read ((unsigned long long)(unsigned int)stage1_5_buffer, -1, 0xedde0d90);
+  len = grub_read ((unsigned long long)(unsigned int)stage1_5_buffer, -1ULL, 0xedde0d90);
   grub_close ();
   
   if (errnum)
@@ -4548,6 +4557,145 @@ static struct builtin builtin_fallback =
 };
 
 
+/* command */
+int
+command_func (char *arg, int flags)
+{
+  while (*arg == ' ' || *arg == '\t') arg++;
+  if ((unsigned char)*arg < 0x20)
+	return 0;
+
+  if (! flags)	/* check syntax only */
+  {
+    if (*arg == '/' || *arg == '(' || *arg == '+')
+	return 1;
+    if (*arg >= '0' && *arg <= '9')
+	return 1;
+    if (*arg >= 'a' && *arg <= 'z')
+	return 1;
+    if (*arg >= 'A' && *arg <= 'Z')
+	return 1;
+    return 0;
+  }
+
+  /* open the command file. */
+  {
+	char *filename;
+	char command_filename[256];
+
+	grub_memmove (command_filename + 1, arg, sizeof(command_filename) - 2);
+	command_filename[0] = '/';
+	command_filename[255] = 0;
+	nul_terminate (command_filename + 1);
+	filename = command_filename + 1;
+
+	if ((*arg >= 'a' && *arg <= 'z') || (*arg >= 'A' && *arg <= 'Z'))
+		filename--;
+	if (! grub_open (filename))
+		return 0;
+	if (filemax < 9ULL)
+	{
+		errnum = ERR_EXEC_FORMAT;
+		goto fail;
+	}
+  }
+
+  /* check if we have enough memory. */
+  {
+	unsigned long long memory_needed;
+
+	arg = skip_to (0, arg);		/* get argument of command */
+	memory_needed = filemax + ((grub_strlen (arg) + 16) & 0x0F) + 16 + 16;
+
+	/* The amount of free memory is (free_mem_end - free_mem_start) */
+
+	if (memory_needed > (free_mem_end - free_mem_start))
+	{
+		errnum = ERR_WONT_FIT;
+		goto fail;
+	}
+  }
+
+  /* Where is the free memory? build PSP, load the executable image. */
+  {
+	unsigned long pid = 255;
+	unsigned long j;
+
+	for (j = 1; (unsigned long)&mem_alloc_array_start[j] < mem_alloc_array_end && mem_alloc_array_start[j].addr; j++)
+	    if (pid < mem_alloc_array_start[j].pid)
+		pid = mem_alloc_array_start[j].pid;
+	pid++;	/* new pid. */
+
+	/* j - 1 is possibly for free memory start */
+	--j;
+
+	if ((mem_alloc_array_start[j].addr & 0x01))	/* no free memory. */
+	{
+		errnum = ERR_WONT_FIT;
+		goto fail;
+	}
+
+	/* check sanity */
+	if ((mem_alloc_array_start[j].addr & 0xFFFFFFF0) != free_mem_start)
+	{
+		errnum = ERR_INTERNAL_CHECK;
+		goto fail;
+	}
+
+	mem_alloc_array_start[j].addr |= 0x01;	/* the memory is now in use. */
+	mem_alloc_array_start[j].pid = pid;	/* with this pid. */
+	((unsigned long *)free_mem_start)[0] = pid = ((grub_strlen (arg) + 16) & 0x0F) + 16 + 16;
+	grub_memmove ((char *)(free_mem_start + 16), arg, grub_strlen (arg) + 1);
+	*(unsigned long *)(free_mem_start + pid - 4) = pid;		/* PSP */
+	*(unsigned long *)(free_mem_start + pid - 8) = pid - 16;	/* args */
+	*(unsigned long *)(free_mem_start + pid - 12) = flags;		/* flags */
+	/* (free_mem_start + pid - 16) is reserved for full pathname of the program file. */
+	if (grub_read ((unsigned long long)(free_mem_start + pid), -1ULL, 0xedde0d90) != filemax)
+	{
+		if (! errnum)
+			errnum = ERR_EXEC_FORMAT;
+		goto fail;
+	}
+	grub_close ();
+
+	/* check exec signature. */
+	if (*(unsigned long long *)(int)(free_mem_start + pid + filemax - 8) != 0xBCBAA7BA03051805ULL)
+		return ! (errnum = ERR_EXEC_FORMAT);
+
+	pid += free_mem_start;			/* pid = entry point of program. */
+	free_mem_start = free_mem_end;		/* no free memory for other programs. */
+
+	/* call the new program. */
+	pid = ((int (*)(void))(pid))();		/* pid holds return value. */
+
+	/* on exit, release the memory. */
+	for (j = 1; (unsigned long)&mem_alloc_array_start[j] < mem_alloc_array_end && mem_alloc_array_start[j].addr; j++)
+		;
+	--j;
+	mem_alloc_array_start[j].pid = 0;
+	free_mem_start = (mem_alloc_array_start[j].addr &= 0xFFFFFFF0);
+	return pid;
+  }
+
+
+  //return 1;
+
+fail:
+
+  grub_close ();
+  return 0;
+}
+
+static struct builtin builtin_command =
+{
+  "command",
+  command_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
+  "command FILE [ARGS]",
+  "Run executable file FILE with arguments ARGS."
+};
+
+
 /* commandline */
 int
 commandline_func (char *arg, int flags)
@@ -4735,22 +4883,26 @@ find_func (char *arg, int flags)
 
   /* arg points to command. */
 
-  if (*arg >= 'a' && *arg <= 'z')
+//  if (*arg >= 'a' && *arg <= 'z')
   {
     builtin1 = find_command (arg);
 
+    if ((int)builtin1 != -1)
     if (! builtin1 || ! (builtin1->flags & flags))
     {
 	errnum = ERR_UNRECOGNIZED;
 	return 0;
     }
-    arg = skip_to (1, arg);	/* get argument of command */
+    if ((int)builtin1 != -1)
+	arg = skip_to (1, arg);	/* get argument of command */
+    else
+	builtin1 = &builtin_command;
   }
-  else if (*arg)
-  {
-	errnum = ERR_UNRECOGNIZED;
-	return 0;
-  }
+//  else if (*arg)
+//  {
+//	errnum = ERR_UNRECOGNIZED;
+//	return 0;
+//  }
 
   errnum = 0;
 
@@ -6419,7 +6571,7 @@ install_func (char *arg, int flags)
   filepos = SECTOR_SIZE;
 
   disk_read_hook = disk_read_blocklist_func1;
-  if (! grub_read ((unsigned long long)(unsigned int)dummy, -1, 0xedde0d90))
+  if (! grub_read ((unsigned long long)(unsigned int)dummy, -1ULL, 0xedde0d90))
     goto fail;
   
   disk_read_hook = 0;
@@ -8824,10 +8976,10 @@ map_whole_drive:
 #if 1
 	    grub_memmove64 (bytes_needed, (unsigned long long)(unsigned int)BS, SECTOR_SIZE);
 	    /* read the rest of the sectors */
-	    if (grub_read ((bytes_needed + SECTOR_SIZE), -1, 0xedde0d90) != filemax - SECTOR_SIZE)
+	    if (grub_read ((bytes_needed + SECTOR_SIZE), -1ULL, 0xedde0d90) != filemax - SECTOR_SIZE)
 #else
 	    filepos = 0;
-	    if (grub_read (bytes_needed, -1, 0xedde0d90) != filemax)
+	    if (grub_read (bytes_needed, -1ULL, 0xedde0d90) != filemax)
 #endif
 	    {
 		unsigned long required = (probed_total_sectors << SECTOR_BITS) - SECTOR_SIZE;
@@ -12594,7 +12746,7 @@ title_func (char *arg, int flags)
   return 1;
 }
 
-static struct builtin builtin_title =
+struct builtin builtin_title =
 {
   "title",
   title_func,
@@ -12818,6 +12970,7 @@ struct builtin *builtin_table[] =
   &builtin_clear,
   &builtin_cmp,
   &builtin_color,
+  &builtin_command,
   &builtin_commandline,
   &builtin_configfile,
 #ifndef GRUB_UTIL

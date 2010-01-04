@@ -37,8 +37,8 @@ unsigned long saved_drive;
 unsigned long saved_partition;
 #endif
 char saved_dir[256];
-unsigned long force_cdrom_as_boot_device = 1;
 #ifdef GRUB_UTIL
+unsigned long force_cdrom_as_boot_device = 1;
 //unsigned long cdrom_drives[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 unsigned long cdrom_drive = GRUB_INVALID_DRIVE;
 unsigned long ram_drive = 0x7F;	/* default is a floppy. */
@@ -46,10 +46,10 @@ unsigned long long rd_base = 0;	/* Note the rd_base value of -1 invalidates the 
 unsigned long long rd_size = 0x100000000ULL;	/* default is 4G */
 unsigned long long saved_mem_higher = 0;
 unsigned long saved_mem_upper = 0;
+unsigned long saved_mmap_addr;
+unsigned long saved_mmap_length = 0;
 #endif
 unsigned long saved_mem_lower;
-unsigned long saved_mmap_addr;
-unsigned long saved_mmap_length;
 
 #ifndef STAGE1_5
 /* This saves the maximum size of extended memory (in KB).  */
@@ -145,6 +145,7 @@ char *err_list[] =
   [ERR_MD5_FORMAT] = "Unrecognized md5 string. You must create it using the MD5CRYPT command.",
   [ERR_WRITE_GZIP_FILE] = "Attempt to write a gzip file",
   [ERR_FUNC_CALL] = "Invalid function call",
+  [ERR_INTERNAL_CHECK] = "Internal check failed. Please report this bug.",
 //  [ERR_WRITE_TO_NON_MEM_DRIVE] = "Only RAM drives can be written when running in a script",
 
 };
@@ -208,6 +209,12 @@ init_bios_info (void)
 #ifndef STAGE1_5
   unsigned long force_pxe_as_boot_device;
 #endif /* ! STAGE1_5 */
+#endif /* ! GRUB_UTIL */
+
+#ifndef GRUB_UTIL
+  /* initialize mem alloc array */
+  mem_alloc_array_start[0].addr = free_mem_start;
+  mem_alloc_array_start[1].addr = 0;	/* end the array */
 #endif /* ! GRUB_UTIL */
 
   /*
@@ -285,9 +292,10 @@ init_bios_info (void)
    *  unused by GRUB.
    */
 
-  addr = get_code_end ();
-  saved_mmap_addr = addr;
-  saved_mmap_length = 0;
+#ifdef GRUB_UTIL
+  saved_mmap_addr = get_code_end ();
+#endif
+  addr = saved_mmap_addr;
   cont = 0;
 
   printf("\rGet E820 memory...           ");
@@ -434,7 +442,11 @@ init_bios_info (void)
       mbi.drives_length += info->size;
     }
 
+#ifdef GRUB_UTIL
   init_free_mem_start = addr;
+#else
+  init_free_mem_start = get_code_end ();
+#endif
 
   DEBUG_SLEEP
 #endif
@@ -706,6 +718,7 @@ set_root:
   /* Set root drive and partition.  */
   saved_drive = boot_drive;
   saved_partition = install_partition;
+  force_cdrom_as_boot_device = 0;
 
 #ifndef GRUB_UTIL
 #ifndef STAGE1_5
