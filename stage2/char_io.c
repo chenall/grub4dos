@@ -1096,6 +1096,154 @@ get_cmdline (char *cmdline)
   return ret;
 }
 
+// Parse decimal or hexadecimal ASCII input string to 64-bit integer
+// input number may have K,M,G,T or k,m,g,t suffix
+// if unitshift is 0, the number is plain number.
+//  1K=1024, 1M=1048576, 1G=1<<30, 1T=1<<40
+// if unitshift is 9, the input number is number of 512-bytes sectors and suffixes means KBytes, MBytes,...
+//  1K=2 sectors, 1M=2048 sectors, ...
+// unitshift must be in the range 0-63
+int
+safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, int unitshift)
+{
+  unsigned long long myint = 0;
+  //unsigned long long mult = 10;
+  char *ptr = *str_ptr;
+  char found = 0;
+  char negative = 0;
+
+  /*
+   *  The decimal numbers can be positive or negative, ranging from
+   *  0x8000000000000000(the minimal long long) to 0x7fffffffffffffff(the maximal long long).
+   *  The hex numbers are not checked.
+   */
+
+  if (*ptr == '-') /* check whether or not the negative sign exists */
+    {
+      ptr++;
+      negative = 1;
+    }
+
+  /*
+   *  Is this a hex number?
+   */
+  if (*ptr == '0' && (ptr[1]|32) == 'x') // |32 convert A-Z to lower case, no need to make sure it is really A-Z
+  //if (*ptr == '0' && tolower (*(ptr + 1)) == 'x')
+  {
+      ptr += 2;
+      while(1)
+      {
+      /* A bit tricky. This below makes use of the equivalence:
+	 (A <= B && A <= C) <=> ((A - B) <= (C - B))
+	 when C > B and A is unsigned.  */
+#if 1
+        unsigned char digit;
+	digit = (unsigned char)(*ptr-'0'); 
+	// '0'...'9' become 0...9, 'A'...'F' become 17...22, 'a'...'f' become 49...54
+	if (digit > 9) 
+	{
+	    digit = (digit|32)	// 'A'...'F' become 49...54, 'a'...'f' become 49...54
+	            -49;	// 'A'...'F' become 0...5, 'a'...'f' become 0...5
+	    if (digit > 5) 
+	        break; // end of hexadecimal number
+	    digit +=10;
+	} // don't have to call tolower function
+#else
+	unsigned int digit;
+
+	digit = tolower (*ptr) - '0';
+	if (digit > 9)
+	  {
+	    digit -= 'a' - '0';
+	    if (mult == 10 || digit > 5)
+	      break;
+	    digit += 10;
+	  }
+#endif
+	found = 16;
+	if ( myint>>(64-4) ) 
+	{ // highest digit has already been filled with non-zero, another left shift will overflow
+	  errnum = ERR_NUMBER_OVERFLOW;
+	  return 0;
+	}
+	myint = (myint << 4) | digit;
+        ptr++;
+      }
+  }
+  else // separated loop for base-16 and base-10 number may be slightly faster
+  {
+      while (1)
+      {
+	unsigned char digit;
+	digit = (unsigned char)(*ptr-'0'); 
+	if (digit>9) 
+	    break;
+	found = 10;
+#if 1
+	if ( myint > ((-1ULL>>1)/10) // multiply with 10 will overflow (result > max signed long long)
+	  || (myint = myint*10 + digit,
+	      // numbers less than (1ULL<<63) are valid (positive or negative).
+	      // overflow if bit63 is set, 
+	      (long long)myint < 0 
+	      // except for (1ULL<<63) which is valid if negative.
+	      // (1ULL<<63)*2 truncated to 64 bit is 0
+	      && ((myint+myint) || !negative )
+	     )
+	  )
+	{ 
+	    errnum = ERR_NUMBER_OVERFLOW;
+	    return 0;
+	}
+#else
+	/* we do not check for hex or negative */
+	if (mult == 10 && ! negative)
+	  /* 0xFFFFFFFFFFFFFFFF == 18446744073709551615ULL */
+  //	if ((unsigned)myint > (((unsigned)(MAXINT - digit)) / (unsigned)mult))
+	  if (myint > 1844674407370955161ULL ||
+	     (myint == 1844674407370955161ULL && digit > 5))
+	    {
+	      errnum = ERR_NUMBER_OVERFLOW;
+	      return 0;
+	    }
+	myint *= mult;
+	myint += digit;
+#endif
+	  ptr++;
+      }
+  }
+  if (!found)
+    {
+      errnum = ERR_NUMBER_PARSING;
+      return 0;
+    }
+  else
+  {
+    unsigned long long myint2,myint3;
+    int myshift;
+    switch ((*ptr)|32)
+    {
+      case 'k': myshift = 10-unitshift; ++ptr; break;
+      case 'm': myshift = 20-unitshift; ++ptr; break;
+      case 'g': myshift = 30-unitshift; ++ptr; break;
+      case 't': myshift = 40-unitshift; ++ptr; break;
+      default:  myshift = 0;
+    }
+    if (myshift >= 0)
+	myint3 = (myint2 = myint <<  myshift) >>  myshift;
+    else
+        myint3 = (myint2 = myint >> -myshift) << -myshift; 
+    // myint3 should be equal to myint unless some bit were lost
+    if( myint3 != myint // if some bits were lost
+      || ((long long)(myint2 ^ myint)<0 && found==10) ) // or sign bit changed for decimal number
+    {   
+	errnum = ERR_NUMBER_OVERFLOW;
+	return 0;
+    }
+    *myint_ptr = negative? -myint2: myint2;
+    *str_ptr = ptr;
+    return 1;
+  }
+}
 int
 safe_parse_maxint (char **str_ptr, unsigned long long *myint_ptr)
 {
@@ -1195,19 +1343,6 @@ grub_isspace (int c)
     }
 
   return 0;
-}
-
-int
-grub_memcmp64 (const unsigned long long s1, const unsigned long long s2, unsigned long long n)
-{
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
-	if (((unsigned long *)&s1)[1] || ((unsigned long *)&s2)[1] || ((unsigned long *)&n)[1] || (s1 + n) > 0x100000000ULL || (s2 + n) > 0x100000000ULL)
-	{
-		return mem64 (2, s1, s2, n);	/* 2 for CMP */
-	}
-#endif /* ! STAGE1_5 && ! GRUB_UTIL */
-
-	return grub_memcmp ((char *)(unsigned int)s1, (char *)(unsigned int)s2, n);
 }
 
 int
@@ -1529,6 +1664,72 @@ grub_memcpy(void *dest, const void *src, int len)
 }
 #endif
 
+
+static inline void * _memcpy_forward(void *dst, const void *src, unsigned int len)
+{
+    int r0, r1, r2, r3;
+    __asm__ __volatile__(
+	"movl %%ecx, %0; shrl $2, %%ecx; "	// ECX=(len / 4)
+	"rep; movsl; "
+	"movl %0, %%ecx; andl $3, %%ecx; "	// ECX=(len % 4)
+	"rep; movsb; "
+	: "=&r"(r0), "=&c"(r1), "=&D"(r2), "=&S"(r3)
+	: "1"(len), "2"((long)dst), "3"((long)src)
+	: "memory");
+    return dst;
+}
+static inline void * _memcpy_backward(void *dst, const void *src, unsigned int len)
+{
+    int r0, r1, r2, r3;
+    __asm__ __volatile__(
+	"std; \n\t"
+	"movl %%ecx, %0; andl $3, %%ecx; "	// now ESI,EDI point to end-1, ECX=(len % 4)
+	"rep; movsb; "
+	"subl $3, %%edi; subl $3, %%esi; "
+	"movl %0, %%ecx; shrl $2, %%ecx; "	// now ESI,EDI point to end-4, ECX=(len / 4)
+	"rep; movsl; \n\t"
+	"cld; \n\t"
+	: "=&r"(r0),"=&c"(r1), "=&D"(r2), "=&S"(r3)
+	: "1"(len), "2"((long)dst+len-1), "3"((long)src+len-1)
+	: "memory");
+    return dst;
+}
+static inline int _memcmp(const void *str1, const void *str2, unsigned int len)
+{
+    int a, r1, r2, r3;
+    __asm__ __volatile__(
+	"movl %%ecx, %%eax; shrl $2, %%ecx; "	// ECX=len/4
+	"repe; cmpsl; "
+	"je   1f; "	// jump if n/4==0 or all longs are equal
+	"movl $4, %%ecx; subl %%ecx,%%edi; subl %%ecx,%%esi; " // not equal, compare the previous 4 bytes again byte-by-byte
+	"jmp  2f;"
+	"\n1:\t"	// all longs are equal, compare the remaining 0-3 bytes
+	"andl $3, %%eax; movl %%eax, %%ecx; "	// ECX=len%4
+	"\n2:\t"
+	"repe; cmpsb; "	// final comparison
+	"seta %%al; "	// AL = (str1>str2)? 1:0, 3 high byte of EAX is already 0
+	"setb %%cl; "	// CL = (str1<str2)? 1:0, 3 high byte of ECX is already 0
+	"subl %%ecx,%%eax; "	// if (str1<str2) EAX = -1
+	: "=&a"(a), "=&c"(r1), "=&S"(r2), "=&D"(r3)
+	: "1"(len), "2"((long)str1), "3"((long)str2)
+	: "memory");
+    return a;
+}
+static inline void _memset(void *dst, unsigned char data, unsigned int len)
+{
+    int r0,r1,r2,r3;
+    __asm__ __volatile__ (
+	"movb %b2, %h2; movzwl %w2, %3; shll $16, %2; orl %3, %2; "	// duplicate data into all 4-bytes of EAX
+	"movl %0, %3; shrl $2, %0; "	// ECX=(len / 4)
+	"rep; stosl;  "
+	"movl %3, %0; andl $3, %0; "	// ECX=(len % 4)
+	"rep; stosb;  "
+	:"=&c"(r1),"=&D"(r2),"=&a"(r0),"=&r"(r3)
+	:"0"(len),"1"(dst),"2"(data)
+	:"memory");
+}
+
+
 /* struct copy needs the memcpy function */
 /* #undef memcpy */
 #if 1
@@ -1566,20 +1767,6 @@ void * grub_memcpy(void * to, const void * from, unsigned int n)
 }
 #endif
 
-void
-grub_memmove64 (unsigned long long to, const unsigned long long from, unsigned long long len)
-{
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
-	if (((unsigned long *)&to)[1] || ((unsigned long *)&from)[1] || ((unsigned long *)&len)[1] || (to + len) > 0x100000000ULL || (from + len) > 0x100000000ULL)
-	{
-		mem64 (1, to, from, len);	/* 1 for MOVE */
-		return;
-	}
-#endif /* ! STAGE1_5 && ! GRUB_UTIL */
-
-	grub_memmove ((void *)(unsigned int)to, (void *)(unsigned int)from, len);
-}
-
 void *
 grub_memmove (void *to, const void *from, int len)
 {
@@ -1616,20 +1803,6 @@ grub_memmove (void *to, const void *from, int len)
    return errnum ? NULL : to;
 }
 
-void
-grub_memset64 (unsigned long long start, unsigned long long c, unsigned long long len)
-{
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
-	if (((unsigned long *)&start)[1] || ((unsigned long *)&len)[1] || (start + len) > 0x100000000ULL)
-	{
-		mem64 (3, start, c, len);	/* 3 for SET */
-		return;
-	}
-#endif /* ! STAGE1_5 && ! GRUB_UTIL */
-
-	grub_memset ((void *)(unsigned int)start, c, len);
-}
-
 void *
 grub_memset (void *start, int c, int len)
 {
@@ -1653,8 +1826,382 @@ grub_strcpy (char *dest, const char *src)
 }
 #endif /* ! STAGE1_5 */
 
+#ifndef STAGE1_5
+/* The strtok.c comes from reactos. It follows GPLv2. */
+
+/* Copyright (C) 1994 DJ Delorie, see COPYING.DJ for details */
+char*
+grub_strtok(char *s, const char *delim)
+{
+  const char *spanp;
+  int c, sc;
+  char *tok;
+  static char *last;
+   
+  if (s == NULL && (s = last) == NULL)
+    return (NULL);
+
+  /*
+   * Skip (span) leading delimiters (s += strspn(s, delim), sort of).
+   */
+ cont:
+  c = *s++;
+  for (spanp = delim; (sc = *spanp++) != 0;) {
+    if (c == sc)
+      goto cont;
+  }
+
+  if (c == 0) {			/* no non-delimiter characters */
+    last = NULL;
+    return (NULL);
+  }
+  tok = s - 1;
+
+  /*
+   * Scan token (scan for delimiters: s += strcspn(s, delim), sort of).
+   * Note that delim must have one NUL; we stop if we see that, too.
+   */
+  for (;;) {
+    c = *s++;
+    spanp = delim;
+    do {
+      if ((sc = *spanp++) == c) {
+	if (c == 0)
+	  s = NULL;
+	else
+	  s[-1] = 0;
+	last = s;
+	return (tok);
+      }
+    } while (sc != 0);
+  }
+  /* NOTREACHED */
+}
+#endif /* ! STAGE1_5 */
+
 #ifndef GRUB_UTIL
 # undef memcpy
 /* GCC emits references to memcpy() for struct copies etc.  */
 void *memcpy (void *dest, const void *src, int n)  __attribute__ ((alias ("grub_memmove")));
 #endif
+
+#if 0
+int
+grub_memcmp64_lm (const unsigned long long s1, const unsigned long long s2, unsigned long long n)
+{
+#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
+	if (((unsigned long *)&s1)[1] || ((unsigned long *)&s2)[1] || ((unsigned long *)&n)[1] || (s1 + n) > 0x100000000ULL || (s2 + n) > 0x100000000ULL)
+	{
+		return mem64 (2, s1, s2, n);	/* 2 for CMP */
+	}
+#endif /* ! STAGE1_5 && ! GRUB_UTIL */
+
+	return grub_memcmp ((char *)(unsigned int)s1, (char *)(unsigned int)s2, n);
+}
+
+void
+grub_memmove64 (unsigned long long to, const unsigned long long from, unsigned long long len)
+{
+#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
+	if (((unsigned long *)&to)[1] || ((unsigned long *)&from)[1] || ((unsigned long *)&len)[1] || (to + len) > 0x100000000ULL || (from + len) > 0x100000000ULL)
+	{
+	}
+#endif /* ! STAGE1_5 && ! GRUB_UTIL */
+
+	grub_memmove ((void *)(unsigned int)to, (void *)(unsigned int)from, len);
+}
+
+void
+grub_memset64 (unsigned long long start, unsigned long long c, unsigned long long len)
+{
+#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
+	if (((unsigned long *)&start)[1] || ((unsigned long *)&len)[1] || (start + len) > 0x100000000ULL)
+	{
+		mem64 (3, start, c, len);	/* 3 for SET */
+		return;
+	}
+#endif /* ! STAGE1_5 && ! GRUB_UTIL */
+
+	grub_memset ((void *)(unsigned int)start, c, len);
+}
+
+#endif
+
+#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
+
+#define PAGING_PML4_ADDR (PAGING_TABLES_BUF+0x0000)
+#define PAGING_PDPT_ADDR (PAGING_TABLES_BUF+0x1000)
+#define PAGING_PD_ADDR   (PAGING_TABLES_BUF+0x2000)
+
+// If this value is changed, memory_paging_map_for_transfer must also be modified.
+#define PAGINGTXSTEP 0x800000
+
+#define DST_VIRTUAL_BASE  0x1000000UL
+#define SRC_VIRTUAL_BASE  0x2000000UL
+#define DST_VIRTUAL_ADDR(addr) (((unsigned long)(addr) & 0x1FFFFFUL)+DST_VIRTUAL_BASE)
+#define SRC_VIRTUAL_ADDR(addr) (((unsigned long)(addr) & 0x1FFFFFUL)+SRC_VIRTUAL_BASE)
+#define DST_VIRTUAL_PTR(addr) ((void*)DST_VIRTUAL_ADDR(addr))
+#define SRC_VIRTUAL_PTR(addr) ((void*)SRC_VIRTUAL_ADDR(addr))
+
+// Set to 0 to test mem64 function
+#define DISABLE_AMD64 1
+
+extern void memory_paging_init(void);
+extern void memory_paging_enable(void);
+extern void memory_paging_disable(void);
+extern void memory_paging_map_for_transfer(unsigned long long dst_addr, unsigned long long src_addr);
+
+unsigned char memory_paging_initialized = 0;
+
+void memory_paging_init()
+{
+    // prepare PDP, PDT
+    unsigned long long *paging_PML4 = (unsigned long long *)PAGING_PML4_ADDR;
+    unsigned long long *paging_PDPT = (unsigned long long *)PAGING_PDPT_ADDR;
+    unsigned long long *paging_PD   = (unsigned long long *)PAGING_PD_ADDR;
+    unsigned long long a;
+    
+    paging_PML4[0] = PAGING_PDPT_ADDR | PML4E_P;
+    _memset(paging_PML4+1,0,4096-8*1);
+    
+    paging_PDPT[0] = PAGING_PD_ADDR | PDPTE_P;
+    _memset(paging_PDPT+1,0,4096-8*1);
+    
+    // virtual address 0-16MB = physical address 0-16MB
+    paging_PD[ 0] = a = 0ULL | (PDE_P|PDE_RW|PDE_US|PDE_PS|PDE_G); 
+    paging_PD[ 1] = (a += 0x200000); 
+    paging_PD[ 2] = (a += 0x200000); 
+    paging_PD[ 3] = (a += 0x200000); 
+    paging_PD[ 4] = (a += 0x200000); 
+    paging_PD[ 5] = (a += 0x200000); 
+    paging_PD[ 6] = (a += 0x200000); 
+    paging_PD[ 7] = (a += 0x200000); 
+    _memset(paging_PD+8,0,4096-8*8);
+    
+    memory_paging_initialized = 1;
+}
+void memory_paging_map_for_transfer(unsigned long long dst_addr, unsigned long long src_addr)
+{
+    unsigned long long *paging_PD = (unsigned long long *)PAGING_PD_ADDR;
+    unsigned long long a;
+    if (!memory_paging_initialized) 
+	memory_paging_init();
+    // map 5 2MB-pages for transfer up to 4*2MB.
+    // virtual address 16MB 0x01000000
+    paging_PD[ 8] = a = (dst_addr&(-2ULL<<20)) | (PDE_P|PDE_RW|PDE_US|PDE_PS); 
+    paging_PD[ 9] = (a += 0x200000); 
+    paging_PD[10] = (a += 0x200000); 
+    paging_PD[11] = (a += 0x200000); 
+    paging_PD[12] = (a += 0x200000); 
+    // virtual address 32MB 0x02000000
+    paging_PD[16] = a = (src_addr&(-2ULL<<20)) | (PDE_P|PDE_RW|PDE_US|PDE_PS); 
+    paging_PD[17] = (a += 0x200000); 
+    paging_PD[18] = (a += 0x200000); 
+    paging_PD[19] = (a += 0x200000); 
+    paging_PD[20] = (a += 0x200000); 
+    // invalidate non-global TLB entries
+    { int r0; 
+      asm volatile ("movl %%cr3,%0; movl %0,%%cr3" : "=&q"(r0) : : "memory");
+    }
+}
+void memory_paging_enable()
+{
+    if (!memory_paging_initialized) 
+	memory_paging_init();
+    // enable paging
+    {
+      int r0,r1;
+      asm volatile (
+	"movl %%cr0, %0; movl %%cr4, %1; \n\t"
+	"orl  $0x80000001,%0; \n\t" // CR0.PE(bit0)|PG(bit31)
+	"orl  $0x00000030,%1; \n\t" // CR4.PAE(bit4)|PSE(bit5)
+	"movl %1, %%cr4; \n\t"  // set PAE|PSE
+	"movl %2, %%cr3; \n\t"  // point to PDPT
+	"movl %0, %%cr0; \n\t"  // set PE|PG
+	"ljmp %3,$(1f) \n1:\t"  // flush instruction cache
+	//"movl %4, %0; movl %0, %%ds; movl %0, %%es; movl %0, %%ss;" // reload DS,ES,SS
+	"btsl $7, %1;    \n\t"  // CR4.PGE(bit7)
+	"movl %1, %%cr4; \n\t"  // set PGE
+	:"=&r"(r0),"=&r"(r1)
+	:"r"(PAGING_PDPT_ADDR),
+	 "i"(PROT_MODE_CSEG),
+	 "i"(PROT_MODE_DSEG)
+	:"memory");
+    }
+}
+void memory_paging_disable()
+{
+    int r0;
+    asm volatile (
+	"movl %%cr0,%0;  andl %1,%0;  movl %0,%%cr0; \n\t"
+	"ljmp %3,$(1f) \n1:\t"  // flush instruction cache
+	"movl %%cr4,%0;  andl %2,%0;  movl %0,%%cr4; \n\t"
+	"                xorl %0,%0;  movl %0,%%cr3; \n\t"
+	:"=&a"(r0)
+	:"i"(~(CR0_PG)),
+	 "i"(~(CR4_PSE|CR4_PAE|CR4_PGE)),
+	 "i"(PROT_MODE_CSEG)
+	:"memory");
+}
+
+#endif /* ! STAGE1_5 && ! GRUB_UTIL */
+
+/*
+Transfer data in memory.
+Limitation:
+SRCADDR and SRCADDR+LEN must be below 64MB. (36-bit PAE) 
+DSTADDR and DSTADDR+LEN must be below 64MB. (36-bit PAE) 
+code must be below 4MB. 
+*/
+unsigned long long
+grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len)
+{
+    if (!len)      { errnum = 0; return dst_addr; }
+    if (!dst_addr) { errnum = ERR_WONT_FIT; return 0; }
+
+    // forward copy should be faster than backward copy
+    // If src_addr < dst_addr < src_addr+len, forward copy is not safe, so we do backward copy in that case. 
+    unsigned char backward = ((src_addr < dst_addr) && (dst_addr < src_addr+len));  
+    unsigned long highaddr = (unsigned long)( dst_addr       >>32)
+			   | (unsigned long)((dst_addr+len-1)>>32)
+			   | (unsigned long)( src_addr       >>32)
+			   | (unsigned long)((src_addr+len-1)>>32);
+    if ( highaddr==0 )
+    { // below 4GB just copy it normally
+	void *pdst = (void*)(unsigned long)dst_addr; 
+	void *psrc = (void*)(unsigned long)src_addr; 
+	if (backward)
+	    _memcpy_backward(pdst, psrc, len);
+	else
+	    _memcpy_forward(pdst, psrc, len);
+	errnum = 0; return dst_addr;
+    }
+#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
+    else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_AMD64) && !DISABLE_AMD64)
+    { // AMD64/IA32-e paging
+	mem64 (1, dst_addr, src_addr, len);	/* 1 for MOVE */
+	return dst_addr;
+    }
+    else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_PAE))
+    { // PAE paging
+	void *pdst = DST_VIRTUAL_PTR(dst_addr); 
+	void *psrc = SRC_VIRTUAL_PTR(src_addr); 
+	unsigned long long dsta = dst_addr, srca = src_addr;
+	memory_paging_enable();
+	memory_paging_map_for_transfer(dsta, srca);
+	// transfer
+	unsigned long long nr = len; // number of bytes remaining
+	while (1)
+	{
+	    unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (4MB)
+	    // Copy
+	    if (backward)
+		_memcpy_backward(pdst, psrc, n1);
+	    else
+		_memcpy_forward(pdst, psrc, n1);
+	    // update loop variables
+	    if ((nr -= n1)==0) break;
+	    memory_paging_map_for_transfer((dsta+=n1), (srca+=n1));
+	}
+	memory_paging_disable();
+	errnum = 0; return dst_addr;
+    }
+#endif /* ! STAGE1_5 && ! GRUB_UTIL */
+    else
+    {
+	errnum = ERR_WONT_FIT; return 0;
+    }
+}
+unsigned long long 
+grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long len)
+{
+    if (!len)      { errnum=0; return dst_addr; }
+    if (!dst_addr) { errnum = ERR_WONT_FIT; return 0; }
+    unsigned long highaddr = (unsigned long)( dst_addr       >>32)
+			   | (unsigned long)((dst_addr+len-1)>>32);
+    if ( highaddr==0 )
+    { // below 4GB
+	_memset((void*)(unsigned long)dst_addr, data, len);
+	errnum = 0; return dst_addr;
+    }
+#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
+    else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_AMD64) && !DISABLE_AMD64)
+    { // AMD64/IA32-e paging
+	mem64 (3, dst_addr, data, len);	/* 3 for SET */
+	return dst_addr;
+    }
+    else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_PAE))
+    { // PAE paging
+	void *pdst = DST_VIRTUAL_PTR(dst_addr); 
+	unsigned long long dsta = dst_addr;
+	memory_paging_enable();
+	memory_paging_map_for_transfer(dsta, dsta);
+	// transfer
+	unsigned long long nr = len; // number of bytes remaining
+	while (1)
+	{
+	    unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (4MB)
+	    // Copy
+	    _memset(pdst, data, n1);
+	    // update loop variables
+	    if ((nr -= n1)==0) break;
+	    dsta+=n1;
+	    memory_paging_map_for_transfer(dsta, dsta);
+	}
+	memory_paging_disable();
+	errnum = 0; return dst_addr;
+    }
+#endif /* ! STAGE1_5 && ! GRUB_UTIL */
+    else
+    {
+	errnum = ERR_WONT_FIT; return 0;
+    }
+}
+int 
+grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned long long len)
+{
+    if (!len)      { errnum=0; return 0; }
+    unsigned long highaddr = (unsigned long)( str1addr       >>32)
+			   | (unsigned long)((str1addr+len-1)>>32)
+			   | (unsigned long)( str2addr       >>32)
+			   | (unsigned long)((str2addr+len-1)>>32);
+    if ( highaddr==0 )
+    { // below 4GB
+	return _memcmp((const char*)(unsigned long)str1addr,
+	    (const char*)(unsigned long)str2addr, (unsigned long)len);
+    }
+#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
+    else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_AMD64) && !DISABLE_AMD64)
+    { // AMD64/IA32-e paging
+	return mem64 (2, str1addr, str2addr, len);	/* 2 for CMP */
+    }
+    else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_PAE))
+    { // PAE paging
+	void *p1 = DST_VIRTUAL_PTR(str1addr); 
+	void *p2 = SRC_VIRTUAL_PTR(str2addr); 
+	unsigned long long a1=str1addr, a2= str2addr;
+	unsigned long long nr = len; // number of bytes remaining
+	int r=0;
+	memory_paging_enable();
+	memory_paging_map_for_transfer(a1, a2);
+	{
+	    while (1)
+	    {
+		unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (4MB)
+		// Compare
+		r = _memcmp(p1, p2, n1);
+		if (r) break;
+		// update loop variables
+		if ((nr -= n1)==0) break;
+		memory_paging_map_for_transfer((a1+=n1), (a2+=n1));
+	    }
+	}
+	memory_paging_disable();
+	return r;
+    }
+#endif /* ! STAGE1_5 && ! GRUB_UTIL */
+    else
+    {
+	errnum = ERR_WONT_FIT; return 0;
+    }
+}

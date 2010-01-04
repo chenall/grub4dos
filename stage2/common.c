@@ -58,14 +58,13 @@ unsigned long init_free_mem_start;
 #endif
 #ifdef GRUB_UTIL
 int is64bit = 0;
+grub_error_t errnum = ERR_NONE;
 #endif
 int errorcheck = 1;
 
 /*
  *  Error code stuff.
  */
-
-grub_error_t errnum = ERR_NONE;
 
 #ifndef STAGE1_5
 
@@ -197,6 +196,76 @@ mmap_avail_at (unsigned long long bottom)
 }
 #endif /* ! STAGE1_5 */
 
+#ifndef GRUB_UTIL
+#ifndef STAGE1_5
+unsigned int
+grub_sleep (unsigned int seconds)
+{
+	unsigned long long j;
+	int time1;
+	int time2;
+
+	/* Get current time.  */
+	while ((time2 = getrtsecs ()) == 0xFF);
+
+	for (j = 0; seconds; j++)
+	{
+	  if ((time1 = getrtsecs ()) != time2 && time1 != 0xFF)
+	    {
+		time2 = time1;
+		seconds--;
+		j = 0;
+		continue;
+	    }
+	  if (j == 0x100000000ULL)
+	    {
+		seconds--;
+		j = 0;
+		continue;
+	    }
+	}
+
+	return seconds;
+}
+
+// check 64bit and PAE
+// return value bit0=PAE supported bit1=AMD64/Intel64 supported
+int check_64bit_and_PAE ()
+{
+    unsigned int has_cpuid_instruction;
+    // check for CPUID instruction
+    asm ( "pushfl; popl %%eax;"	// get original EFLAGS
+	  "movl %%eax, %%edx;"
+	  "xorl $(1<<21), %%eax;"
+	  "pushl %%eax; popfl;"	// try flip bit 21 of EFLAGS
+	  "pushfl; popl %%eax;"	// get the modified EFLAGS
+	  "pushl %%edx; popfl;"	// restore original EFLAGS
+	  "xorl %%edx, %0; shrl $21, %%eax; and $1, %%eax;"	// check for bit 21 difference
+	: "=a"(has_cpuid_instruction) : : "%edx" );
+    if (!has_cpuid_instruction)
+	return 0;
+    unsigned int maxfn,feature;
+    int x=0;
+    asm ("cpuid;" : "=a"(maxfn): "0"(0x00000000) : "%ebx","%ecx","%edx");
+    if (maxfn >= 0x00000001)
+    {
+	asm ("cpuid;" : "=d" (feature) : "a" (1) : "%ebx", "%ecx");
+	if (feature & (1<<6)) // PAE
+	    x |= IS64BIT_PAE;
+    }
+    asm ("cpuid;" : "=a"(maxfn): "0"(0x80000000) : "%ebx","%ecx","%edx");
+    if (maxfn >= 0x80000001)
+    {
+	asm ("cpuid;" : "=d" (feature) : "a" (0x80000001) : "%ebx", "%ecx");
+	if (feature & (1<<29)) // AMD64, EM64T/IA-32e/Intel64
+	    x |= IS64BIT_AMD64;
+    }
+    return x;
+}
+
+#endif /* ! STAGE1_5 */
+#endif /* ! GRUB_UTIL */
+
 /* This queries for BIOS information.  */
 void
 init_bios_info (void)
@@ -208,6 +277,12 @@ init_bios_info (void)
 #ifndef GRUB_UTIL
 #ifndef STAGE1_5
   unsigned long force_pxe_as_boot_device;
+#endif /* ! STAGE1_5 */
+#endif /* ! GRUB_UTIL */
+
+#ifndef GRUB_UTIL
+#ifndef STAGE1_5
+  is64bit = check_64bit_and_PAE ();
 #endif /* ! STAGE1_5 */
 #endif /* ! GRUB_UTIL */
 
@@ -243,34 +318,13 @@ init_bios_info (void)
   printf("\rTurning on gate A20...                          ");
 #if 1
     {
-	unsigned long j;
-	int wait;
-	int time1;
-	int time2;
-
 	if (gateA20 (1))			/* int15/24 -----safe enough */
 	{
 		/* wipe out the messages on success */
 		printf("\r                                                                \r");
-		wait = 0;	/* sleep 0 second after A20 control */
 	} else {
 		printf("Failure! Report bug, please!\n");
-		wait = 5;	/* sleep 5 second on failure */
-	}
-
-	/* Get current time.  */
-	while ((time2 = getrtsecs ()) == 0xFF);
-
-	for (j = 0; j < 0x00800000; j++)
-	{
-	  if ((time1 = getrtsecs ()) != time2 && time1 != 0xFF)
-	    {
-	      if (wait == 0)
-		  break;
-	      
-	      time2 = time1;
-	      wait--;
-	    }
+		grub_sleep (5);	/* sleep 5 second on failure */
 	}
     }
 #else
@@ -385,10 +439,6 @@ init_bios_info (void)
   mbi.mem_lower = saved_mem_lower;
   mbi.mmap_addr = saved_mmap_addr;
   mbi.mmap_length = saved_mmap_length;
-
-#ifndef GRUB_UTIL
-  is64bit = check_64bit ();
-#endif
 
 #if 1
   /* Get the drive info.  */

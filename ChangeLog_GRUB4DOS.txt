@@ -1,3 +1,6 @@
+2010-01-03 applied karyonix's patch(PAE paging).
+2010-01-02 applied karyonix's patch(map improvements).
+2009-12-30 fixed the failed find. note that the kernel command could hang while loading non-linux kernels, which is a known bug on newish 0.4.5 versions. 
 2009-12-28 initial implementation of program execution. fixed a bug causing FAT16 search hang(grldrstart.S). version number changed to 0.4.5a. 
 2009-12-12 moved up 32-bit grub kernel code at above physical addess 3M. moved down buffer for dd and geometry-tune at 0x20000. moved down raw disk buffer at 0x30000. version number changed to 0.4.5. 
 2009-12-02 (chenall)fixed a bug in color_func(builtins.c).

@@ -1792,7 +1792,7 @@ grub_open (char *filename)
 	{
 	  unsigned long long tmp;
 	  tmp = 0;
-	  safe_parse_maxint (&ptr, &tmp);
+	  safe_parse_maxint_with_suffix (&ptr, &tmp, 9);
 	  errnum = 0;
 
 	  if (*ptr != '+')
@@ -1818,7 +1818,7 @@ grub_open (char *filename)
 	  *((unsigned long*)list_addr) = tmp;	/* BLK_BLKSTART */
 	  ptr++;		/* skip the plus sign */
 
-	  safe_parse_maxint (&ptr, &tmp);
+	  safe_parse_maxint_with_suffix (&ptr, &tmp, 9);
 
 	  if (errnum)
 		return 0;

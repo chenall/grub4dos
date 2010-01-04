@@ -3878,3 +3878,83 @@ So the version will become 0.4.5a, 0.4.5b, 0.4.5c, 0.4.5 or 0.4.5p.
 'p' - patched versions to the official release.
 
 
+******************************************************************************
+***                          Running User Programs                         ***
+******************************************************************************
+
+From 0.4.5 on, user programs can be developed for running under grub4dos. The
+executable program file must end with the 8-byte grub4dos EXEC signature:
+
+		0x05, 0x18, 0x05, 0x03, 0xBA, 0xA7, 0xBA, 0xBC
+
+The executable must have no relocations, and the entry point is at the very
+beginning of the file, just like a DOS .com file(but the grub4dos executable
+is 32-bit).
+
+Here is a sample file echo.c:
+
+/*================ begin echo.c ================*/
+
+/*
+ * compile:			
+
+gcc -nostdlib -fno-zero-initialized-in-bss -fno-function-cse -fno-jump-tables -Wl,-N -fPIE echo.c
+
+ * disassemble:			objdump -d a.out
+ * confirm no relocation:	readelf -r a.out
+ * generate executable:		objcopy -O binary a.out b.out
+ *
+ * and then the resultant b.out will be grub4dos executable.
+ */
+
+/*
+ * This is a simple ECHO command, running under grub4dos.
+ */
+
+int i = 0x66666666;	/* this is needed, see the following comment. */
+
+/* gcc treat the following as data only if a global initialization like the
+ * above line occurs.
+ */
+
+/* a valid executable file for grub4dos must end with these 8 bytes */
+asm(".long 0x03051805");
+asm(".long 0xBCBAA7BA");
+/* thank goodness gcc will place the above 8 bytes at the end of the b.out
+ * file. Do not insert any other asm lines here.
+ */
+
+int
+main()
+{
+        void *p = &main;
+
+	return
+	/* the following line is calling the grub_sprintf function. */
+	((int (*)(char *, const char *, ...))((*(int **)0x8300)[0]))
+	/* the following line includes arguments passed to grub_sprintf. */
+		(0, p - (*(int *)(p - 8)));
+}
+
+/*================  end  echo.c ================*/
+
+0x8300 is a pointer to the grub4dos system funtions(API). The system_functions
+variable is defined in asm.S.
+
+
+******************************************************************************
+***                      Map options added by Karyonix                     ***
+******************************************************************************
+
+(from boot-land.net) Karyonix's note:
+
+map --add-mbt= option to be used with --mem. If =0 master boot track will not
+	be added automatically.
+map --top option to be used with --mem. map --mem will try to allocate memory
+	at highest available address.
+map --mem-max=, map --mem-min options to be used before map --mem. Allow user
+	to manually limit range of address that map --mem can use.
+
+safe_parse_maxint_with_suffix function parses K,M,G,T suffix after number.
+
+

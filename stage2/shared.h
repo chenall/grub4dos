@@ -103,6 +103,16 @@ extern char *grub_scratch_mem;
 #define FSYS_BUF RAW_ADDR (0x3E0000)
 #endif
 
+/* Paging structure : PML4, PDPT, PD  4096-bytes each */
+/* Memory area from 0x50000 to the end of low memory is used by gfxmenu. So we
+ * should not use 0x60000 for page tables. And all other free room in the low
+ * memory is reserved. So we should use extended memory if possible.
+ * Currently we use the ending 16K of the first 16M. -- tinybit
+ */
+//#define PAGING_TABLES_BUF	0x60000
+#define PAGING_TABLES_BUF	0xFFC000
+#define PAGING_TABLES_BUFLEN	0x4000
+
 /* Command-line buffer for Multiboot kernels and modules. This area
    includes the area into which Stage 1.5 and Stage 1 are loaded, but
    that's no problem.  */
@@ -293,6 +303,21 @@ extern char *grub_scratch_mem;
 #define STACKOFF	MB_CMDLINE_BUF	/* (0x2000 - 0x10) */
 #define PROTSTACKINIT   (FSYS_BUF - 0x10)
 
+#define CR0_PE   0x00000001UL
+#define CR0_WP   0x00010000UL
+#define CR0_PG   0x80000000UL
+#define CR4_PSE  0x00000010UL
+#define CR4_PAE  0x00000020UL
+#define CR4_PGE  0x00000080UL
+#define PML4E_P  0x0000000000000001ULL
+#define PDPTE_P  0x0000000000000001ULL
+#define PDE_P    0x0000000000000001ULL
+#define PDE_RW   0x0000000000000002ULL
+#define PDE_US   0x0000000000000004ULL
+#define PDE_PS   0x0000000000000080ULL
+#define PDE_G    0x0000000000000100ULL
+#define MSR_IA32_EFER 0xC0000080UL
+#define IA32_EFER_LME 0x00000100ULL
 
 /*
  * Assembly code defines
@@ -1173,14 +1198,18 @@ void *grub_memmove (void *to, const void *from, int len);
 void *grub_memset (void *start, int c, int len);
 int grub_strncat (char *s1, const char *s2, int n);
 char *grub_strstr (const char *s1, const char *s2);
+char *grub_strtok (char *s, const char *delim);
 int grub_memcmp (const char *s1, const char *s2, int n);
 int grub_strcmp (const char *s1, const char *s2);
 int grub_strlen (const char *str);
 char *grub_strcpy (char *dest, const char *src);
 
-void grub_memset64 (unsigned long long start, unsigned long long c, unsigned long long len);
-int grub_memcmp64 (const unsigned long long s1, const unsigned long long s2, unsigned long long n);
-void grub_memmove64 (unsigned long long to, const unsigned long long from, unsigned long long len);
+unsigned long long grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len);
+unsigned long long grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long len);
+int grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned long long len);
+//void grub_memset64 (unsigned long long start, unsigned long long c, unsigned long long len);
+//int grub_memcmp64 (const unsigned long long s1, const unsigned long long s2, unsigned long long n);
+//void grub_memmove64 (unsigned long long to, const unsigned long long from, unsigned long long len);
 int mem64 (int func, unsigned long long dest, unsigned long long src, unsigned long long len);
 
 #ifndef GRUB_UTIL
@@ -1217,10 +1246,12 @@ int get_cmdline (char *cmdline);
 int substring (const char *s1, const char *s2, int case_insensitive);
 int nul_terminate (char *str);
 int get_based_digit (int c, int base);
+int safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, int unitshift);
 int safe_parse_maxint (char **str_ptr, unsigned long long *myint_ptr);
 int parse_string (char *arg);
 int memcheck (unsigned long long addr, unsigned long long len);
 void grub_putstr (const char *str);
+unsigned int grub_sleep (unsigned int seconds);
 
 #ifndef NO_DECOMPRESSION
 /* Compression support. */
@@ -1404,7 +1435,13 @@ struct drive_parameters
 } __attribute__ ((packed));
 
 int check_64bit (void);
+int check_64bit_and_PAE  (void);
 extern int is64bit;
+
+// mask for is64bit bits
+#define IS64BIT_PAE   1
+#define IS64BIT_AMD64 2
+
 extern int errorcheck;
 extern unsigned long pxe_restart_config;
 

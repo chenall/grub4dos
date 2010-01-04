@@ -4884,9 +4884,9 @@ find_func (char *arg, int flags)
   /* arg points to command. */
 
 //  if (*arg >= 'a' && *arg <= 'z')
+  if (*arg)
   {
     builtin1 = find_command (arg);
-
     if ((int)builtin1 != -1)
     if (! builtin1 || ! (builtin1->flags & flags))
     {
@@ -7114,6 +7114,7 @@ print_bios_total_drives(void)
 #endif
   
 unsigned long probed_total_sectors;
+unsigned long probed_total_sectors_round;
 unsigned long probed_heads;
 unsigned long probed_sectors_per_track;
 unsigned long probed_cylinders;
@@ -7269,6 +7270,7 @@ int
 probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, unsigned long sector_count1, unsigned long part_start1)
 {
   unsigned long i, j;
+  unsigned long lba_total_sectors = 0;
   
   /* probe the partition table */
   
@@ -7289,6 +7291,8 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 	   */
 	  if (! BS->P[i].start_lba || ! BS->P[i].total_sectors)
 		return 2;
+	  if (lba_total_sectors < BS->P[i].start_lba+BS->P[i].total_sectors)
+	      lba_total_sectors = BS->P[i].start_lba+BS->P[i].total_sectors;
 	  /* the partitions should not overlap each other */
 	  for (j = 0; j < i; j++)
 	  {
@@ -7505,7 +7509,8 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 		  probed_cylinders = 1; 
 	}
       sectors_per_cylinder = probed_heads * probed_sectors_per_track;
-      probed_total_sectors = sectors_per_cylinder * probed_cylinders;
+      probed_total_sectors_round = sectors_per_cylinder * probed_cylinders;
+      probed_total_sectors = lba_total_sectors;
     }
   else
     {
@@ -7590,7 +7595,8 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
       probed_cylinders = (sector_count1 + sectors_per_cylinder - 1) / sectors_per_cylinder;
       if (probed_cylinders < Cmax + 1)
 	      probed_cylinders = Cmax + 1;
-      probed_total_sectors = sectors_per_cylinder * probed_cylinders;
+      probed_total_sectors_round = sectors_per_cylinder * probed_cylinders;
+      probed_total_sectors = lba_total_sectors;
     }
 
   
@@ -7603,6 +7609,10 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 //#include "fat.h"
 
 #ifndef GRUB_UTIL
+
+unsigned long long map_mem_min = 0x100000;
+unsigned long long map_mem_max = (-4096ULL);
+
 /* map */
 /* Map FROM_DRIVE to TO_DRIVE.  */
 int
@@ -7633,6 +7643,8 @@ map_func (char *arg, int flags)
   unsigned long BPB_H = 0;
   unsigned long BPB_S = 0;
   int in_situ = 0;
+  int add_mbt = -1;
+  int prefer_top = 0;
   filesystem_type = -1;
   start_sector = sector_count = 0;
   
@@ -7976,7 +7988,7 @@ map_func (char *arg, int flags)
       {
 	unsigned long long tmp;
 	p = arg + 10;
-	if (! safe_parse_maxint (&p, &tmp))
+	if (! safe_parse_maxint_with_suffix (&p, &tmp, 9))
 		return 0;
 //	if (tmp == 0xffffffff)
 //		return ! (errnum = ERR_INVALID_RD_BASE);
@@ -7988,7 +8000,7 @@ map_func (char *arg, int flags)
       {
 	unsigned long long tmp;
 	p = arg + 10;
-	if (! safe_parse_maxint (&p, &tmp))
+	if (! safe_parse_maxint_with_suffix (&p, &tmp, 9))
 		return 0;
 //	if (tmp == 0)
 //		return ! (errnum = ERR_INVALID_RD_SIZE);
@@ -8032,10 +8044,39 @@ map_func (char *arg, int flags)
 	int13_scheme = tmp;
 	return 1;
       }
+    else if (grub_memcmp (arg, "--mem-max=", 10) == 0)
+      {
+	unsigned long long num;
+	p = arg + 10;
+	if (! safe_parse_maxint_with_suffix (&p, &num, 9))
+		return 0;
+	map_mem_max = (num<<9) & (-4096ULL); // convert to bytes, 4KB alignment, round down
+	if (is64bit) {
+	  if (map_mem_max==0)
+	      map_mem_max = (-4096ULL);
+	} else {
+	  if (map_mem_max==0 || map_mem_max>(1ULL<<32))
+	      map_mem_max = (1ULL<<32); // 4GB
+	}
+	grub_printf("map_mem_max = 0x%lX sectors = 0x%lX bytes\n",map_mem_max>>9,map_mem_max);
+	return 1;
+      }
+    else if (grub_memcmp (arg, "--mem-min=", 10) == 0)
+      {
+	unsigned long long num;
+	p = arg + 10;
+	if (! safe_parse_maxint_with_suffix (&p, &num, 9))
+		return 0;
+	map_mem_min = (((num<<9)+4095)&(-4096ULL)); // convert to bytes, 4KB alignment, round up
+	if (map_mem_min < (1ULL<<20))
+	    map_mem_min = (1ULL<<20); // 1MB
+	grub_printf("map_mem_min = 0x%lX sectors = 0x%lX bytes\n",map_mem_min>>9,map_mem_min);
+	return 1;
+      }
     else if (grub_memcmp (arg, "--mem=", 6) == 0)
       {
 	p = arg + 6;
-	if (! safe_parse_maxint (&p, &mem))
+	if (! safe_parse_maxint_with_suffix (&p, &mem, 9))
 		return 0;
 	if (mem == -1ULL)
 		mem = -2ULL;//return errnum = ERR_INVALID_MEM_RESERV;
@@ -8043,6 +8084,10 @@ map_func (char *arg, int flags)
     else if (grub_memcmp (arg, "--mem", 5) == 0)
       {
 	mem = 0;
+      }
+    else if (grub_memcmp (arg, "--top", 5) == 0)
+      {
+	prefer_top = 1;
       }
     else if (grub_memcmp (arg, "--read-only", 11) == 0)
       {
@@ -8095,6 +8140,16 @@ map_func (char *arg, int flags)
 		return 0;
 	if ((unsigned long long)sectors_per_track > 63)
 		return ! (errnum = ERR_INVALID_SECTORS);
+      }
+    else if (grub_memcmp (arg, "--add-mbt=", 10) == 0)
+      {
+	unsigned long long num;
+	p = arg + 10;
+	if (! safe_parse_maxint (&p, &num))
+		return 0;
+	add_mbt = num;
+	if (add_mbt < -1 || add_mbt > 1)
+		return 0;
       }
     else
 	break;
@@ -8408,6 +8463,8 @@ failed_probe_BPB:
 
   if (sector_count != 1)
     {
+      if (probed_total_sectors < probed_total_sectors_round && probed_total_sectors_round <= sector_count)
+	  probed_total_sectors = probed_total_sectors_round;
       if (debug > 0 && ! disable_map_info)
       {
 	if (probed_total_sectors > sector_count)
@@ -8788,6 +8845,7 @@ map_whole_drive:
   /* how much memory should we use for the drive emulation? */
   if (mem != -1ULL)
     {
+      unsigned long long start_byte;
       unsigned long long bytes_needed;
       unsigned long long base;
       unsigned long long top_end;
@@ -8800,15 +8858,11 @@ map_whole_drive:
       if (start_sector == part_start && part_start == 0 && sector_count == 1)
 		sector_count = part_length;
 
-      //bytes_needed = ((filemax + 0x3ff) & (-SECTOR_SIZE*2));
-      //bytes_needed = ((sector_count + 1) & ~1)<< SECTOR_BITS;
-      bytes_needed = sector_count << SECTOR_BITS;
-      //bytes_needed = sector_count << SECTOR_BITS;
-      if (((long long)mem) <= 0)
-	base = ((unsigned long long)(-mem)) << 9;
-      if (bytes_needed < base)
-	bytes_needed = base;
-      
+      if ( (long long)mem < 0LL && sector_count < (-mem) )
+	bytes_needed = (-mem) << SECTOR_BITS;
+      else
+	bytes_needed = sector_count << SECTOR_BITS;
+
       /* filesystem_type
        *	 0		an MBR device
        *	 1		FAT12
@@ -8820,19 +8874,22 @@ map_whole_drive:
        * Note: An MBR device is a whole disk image that has a partition table.
        */
 
-      if (filesystem_type && (from & 0x80) && (from < 0xA0))	/* no partition table */
+      if (add_mbt<0)
+	  add_mbt = (filesystem_type > 0 && (from & 0x80) && (from < 0xA0))? 1: 0; /* known filesystem without partition table */
+
+      if (add_mbt)
 	bytes_needed += sectors_per_track << SECTOR_BITS;	/* build the Master Boot Track */
 
-      bytes_needed = (bytes_needed + 0x3ff) & 0xFFFFFFFFFFFFFC00ULL;	/* KB alignment */
+      bytes_needed = ((bytes_needed+4095)&(-4096ULL));	/* 4KB alignment */
 //}
       if ((to == 0xffff || to == ram_drive) && sector_count == 1)
 	/* mem > 0 */
 	bytes_needed = 0;
-      base = 0;
+      //base = 0;
 
-      start_sector <<= SECTOR_BITS;
+      start_byte = start_sector << SECTOR_BITS;
       if (to == ram_drive)
-	start_sector += rd_base;
+	start_byte += rd_base;
   /* we can list the total memory thru int15/E820. on the other hand, we can
    * see thru our drive map slots how much memory have already been used for
    * drive emulation. */
@@ -8847,6 +8904,11 @@ map_whole_drive:
       /* once int13 hooked and at least 1 slot uses mem==1, also hook int15
        */
 
+      if (map_mem_max > 0x100000000ULL && ! is64bit)
+	  map_mem_max = 0x100000000ULL;
+      if (map_mem_min < 0x100000ULL)
+	  map_mem_min = 0x100000ULL;
+
       if (mbi.flags & MB_INFO_MEM_MAP)
         {
           struct AddrRangeDesc *map = (struct AddrRangeDesc *) saved_mmap_addr;
@@ -8854,36 +8916,29 @@ map_whole_drive:
 
           for (; end_addr > (unsigned long) map; map = (struct AddrRangeDesc *) (((int) map) + 4 + map->size))
 	    {
-
+	      unsigned long long tmpbase, tmpend, tmpmin;
 	      if (map->Type != MB_ARD_MEMORY)
 		  continue;
-	      //bottom_end = map->BaseAddr;
-	      top_end = map->BaseAddr + map->Length;
-	      if (! is64bit && top_end > 0x100000000ULL)
-		  top_end = 0x100000000ULL;
-  /* Search for mem map slots in BIOS_DRIVE_MAP.  */
+	      tmpmin = (map->BaseAddr > map_mem_min) ?
+			map->BaseAddr : map_mem_min;
+	      tmpmin = ((tmpmin+4095)&(-4096ULL));/* 4KB alignment, round up */
+	      tmpend = (map->BaseAddr + map->Length < map_mem_max) ?
+			map->BaseAddr + map->Length : map_mem_max;
+	      tmpend &= (-4096ULL);	/* 4KB alignment, round down */
+	      if (tmpend < bytes_needed)
+		  continue;
+	      tmpbase = tmpend - bytes_needed; // maximum possible base for this region
+	      //grub_printf("range b %lx l %lx -- tm %lx te %lx tb %lx\n",map->BaseAddr,map->Length,tmpmin,tmpend,tmpbase);
+	      if (((long long)mem) > 0)//force the base value
+	      {
+		  if (tmpbase >= (mem << 9))
+		      tmpbase =  (mem << 9); // move tmpbase down to forced value
+		  else // mem base exceed maximum possible base for this region
+		      continue;
+	      }
+	      if (tmpbase < tmpmin) // base fall below minimum address for this region
+		  continue;
 
-/* 0x4000000ULL is 64 MB , 0x100000ULL is 1 MB */
-#define MIN_EMU_BASE 0x100000ULL
-//	      if (to == 0xff)	/* mem > 0 */
-//		if (top_end >= ((unsigned long long)mem << 10))
-//		      bytes_needed = top_end - ((unsigned long long)mem << 10);
-//		else
-//		      continue;
-//	      else
-		if (((long long)mem) > 0)//force the base value
-		{
-		      if (((unsigned long long)mem << 9) < map->BaseAddr)
-			      continue;
-		      if (((unsigned long long)mem << 9) >= top_end)
-			      continue;
-		      if (top_end - ((unsigned long long)mem << 9) < bytes_needed)
-			      continue;
-		      //bytes_needed = top_end - ((unsigned long long)mem << 10);
-		      //break;
-		}
-
-	      if (map->Length >= bytes_needed && (base = (top_end - bytes_needed) & 0xFFFFFFFFFFFFF000ULL) >= MIN_EMU_BASE)
 	      for (i = 0; i < DRIVE_MAP_SIZE; i++)
 	        {
       
@@ -8893,42 +8948,69 @@ map_whole_drive:
 		  /* TO_DRIVE == 0xFF indicates a MEM map */
 		  if (bios_drive_map[i].to_drive == 0xFF && !(bios_drive_map[i].to_cylinder & 0x4000))
 	            {
-		      unsigned long long x, tmpbase;
-		      x = bios_drive_map[i].start_sector;
-		      x <<= SECTOR_BITS;
-		      if (x >= map->BaseAddr && x < top_end)
-			{
-			  if (x - map->BaseAddr >= bytes_needed && (tmpbase = (x - bytes_needed) & 0xFFFFFFFFFFFFF000ULL) >= MIN_EMU_BASE)
-			    {
-			      if (base > tmpbase)
-				  base = tmpbase;
-			    }
-			  else
-			    {
-				/* not enough room for this memory area */
-				base = 0;
-				break;
-			    }
+		      unsigned long long drvbase, drvend;
+		      drvbase = (bios_drive_map[i].start_sector << SECTOR_BITS);
+		      drvend  = (bios_drive_map[i].sector_count << SECTOR_BITS) + drvbase;
+		      drvend  = ((drvend+4095)&(-4096ULL));/* 4KB alignment, round up */
+		      drvbase &= (-4096ULL);	/* 4KB alignment, round down */
+		      //grub_printf("drv %02x: db %lx de %lx -- tb %lx te %lx\n",bios_drive_map[i].from_drive,drvbase,drvend,tmpbase,tmpend);
+		      if (tmpbase < drvend && drvbase < tmpend)
+			{ // overlapped address, move tmpend and tmpbase down
+			  tmpend = drvbase;
+			  if (tmpend >= bytes_needed)
+			  {
+			      if ((long long)mem <= 0)
+			      { // decrease tmpbase
+				  tmpbase = tmpend - bytes_needed;
+				  if (tmpbase >= tmpmin)
+				  { // recheck new tmpbase 
+				      i = -1; continue;
+				  }
+			      }
+			      else 
+			      { // force base value, cannot decrease tmpbase
+				  /* changed "<" to "<=". -- tinybit */
+				  if (tmpbase <= tmpend - bytes_needed)
+				  { // there is still enough space below drvbase
+				      continue;
+				  }
+			      }
+			  }
+			  /* not enough room for this memory area */
+			//  grub_printf("region can't be used bn %lx te %lx  tb %lx\n",bytes_needed,tmpend,tmpbase);
+			  tmpbase = 0; break;
 			}
 		    }
 	        } /* for (i = 0; i < DRIVE_MAP_SIZE; i++) */
 
-	      if (base >= MIN_EMU_BASE)
+	      if (tmpbase >= tmpmin)
 	      {
 		/* check if the memory area overlaps the (md)... or (rd)... file. */
-		if (to != 0xffff && to != ram_drive)	/* TO is not in memory */
-		    break;	/* success */
-		if (((long long)mem) > 0)	/* TO is in memory but is mapped at a fixed location */
-		    break;	/* success */
-		if (!compressed_file) /* TO is in memory and is normally mapped and uncompressed */
-		    break;	/* success */
+		if ( (to != 0xffff && to != ram_drive)	/* TO is not in memory */
+		  || ((long long)mem) > 0	/* TO is in memory but is mapped at a fixed location */
+		  || !compressed_file		/* TO is in memory and is normally mapped and uncompressed */
 		/* Now TO is in memory and is normally mapped and compressed */
-		if (base + bytes_needed <= start_sector) /* XXX: destination is below the gzip image */
-		    break;	/* success */
-		if (base >= start_sector + bytes_needed) /* XXX: destination is above the gzip image */
-		    break;	/* success */
-		/* destination overlaps the gzip image */
-		base = 0;	/* fail and try next memory block. */
+		  || tmpbase + bytes_needed <= start_byte  /* XXX: destination is below the gzip image */
+		  || tmpbase >= start_byte + bytes_needed) /* XXX: destination is above the gzip image */
+		{
+		    if (prefer_top)
+		    {
+			if (base < tmpbase)
+			{
+			    base = tmpbase; top_end = tmpend;
+			}
+			continue; // find available region with highest address
+		    }
+		    else
+		    {
+			base = tmpbase; top_end = tmpend;
+			break; // use the first available region
+		    }
+		}
+		else
+		    /* destination overlaps the gzip image */
+		    /* fail and try next memory block. */
+		    continue;
 	      }
 	      //if (to == 0xff)
 		//bytes_needed = 0;
@@ -8939,7 +9021,7 @@ map_whole_drive:
       else
 	  grub_printf ("\nFatal: Your BIOS has no support for System Memory Map(INT15/EAX=E820h).\nAs a result you cannot use the --mem option.\n");
 
-      if (base < MIN_EMU_BASE)
+      if (base < map_mem_min)
       {
 	  grub_close ();
 	  return ! (errnum = ERR_WONT_FIT);
@@ -8955,12 +9037,12 @@ map_whole_drive:
       }
 
       bytes_needed = base;
-      if (filesystem_type && (from & 0x80) && (from < 0xA0))	/* no partition table */
+      if (add_mbt)	/* no partition table */
 	bytes_needed += sectors_per_track << SECTOR_BITS;	/* build the Master Boot Track */
 
       /* bytes_needed points to the first partition, base points to MBR */
       
-#undef MIN_EMU_BASE
+//#undef MIN_EMU_BASE
       //      if (! grub_open (filename1))
       //	return 0;
 	
@@ -8970,42 +9052,46 @@ map_whole_drive:
 	  /* if image is in memory and not compressed, we can simply move it. */
 	  if ((to == 0xffff || to == ram_drive) && !compressed_file)
 	  {
-	    if (bytes_needed != start_sector)
-		grub_memmove64 (bytes_needed, start_sector, filemax);
+	    if (bytes_needed != start_byte)
+		grub_memmove64 (bytes_needed, start_byte, filemax);
 	  } else {
-#if 1
+	    unsigned long long read_result;
 	    grub_memmove64 (bytes_needed, (unsigned long long)(unsigned int)BS, SECTOR_SIZE);
 	    /* read the rest of the sectors */
-	    if (grub_read ((bytes_needed + SECTOR_SIZE), -1ULL, 0xedde0d90) != filemax - SECTOR_SIZE)
-#else
-	    filepos = 0;
-	    if (grub_read (bytes_needed, -1ULL, 0xedde0d90) != filemax)
-#endif
+	    read_result = grub_read ((bytes_needed + SECTOR_SIZE), -1ULL, 0xedde0d90);
+	    if (read_result != filemax - SECTOR_SIZE)
 	    {
-		unsigned long required = (probed_total_sectors << SECTOR_BITS) - SECTOR_SIZE;
+		//if ( !probed_total_sectors || read_result<(probed_total_sectors<<SECTOR_BITS) )
+		//{
+		unsigned long long required = (probed_total_sectors << SECTOR_BITS) - SECTOR_SIZE;
 		/* read again only required sectors */
-		if (! probed_total_sectors || required >= filemax - SECTOR_SIZE ||
-			((filepos = SECTOR_SIZE),
-			grub_read (bytes_needed + SECTOR_SIZE, required, 0xedde0d90) != required))
+		if ( ! probed_total_sectors 
+		     || required >= filemax - SECTOR_SIZE
+		     || ( (filepos = SECTOR_SIZE), /* re-read from the second sector. */
+			  grub_read (bytes_needed + SECTOR_SIZE, required, 0xedde0d90) != required
+			)
+		   )
 		{
-			grub_close ();
-			if (errnum == ERR_NONE)
-				errnum = ERR_READ;
-			return 0;
+		    grub_close ();
+		    if (errnum == ERR_NONE)
+			errnum = ERR_READ;
+		    return 0;
 		}
+		//}
 	    }
 	  }
 	  grub_close ();
 	}
       else if ((to == 0xffff || to == ram_drive) && !compressed_file)
 	{
-	    if ((int)bytes_needed != start_sector)
-		grub_memmove64 (bytes_needed, start_sector, filemax);
+	    if ((int)bytes_needed != start_byte)
+		grub_memmove64 (bytes_needed, start_byte, filemax);
 	}
 
       start_sector = base >> SECTOR_BITS;
       to = 0xFFFF/*GRUB_INVALID_DRIVE*/;
-      if (filesystem_type && (from & 0x80) && (from < 0xA0))	/* no partition table */
+
+      if (add_mbt)	/* no partition table */
       {
 	unsigned long sectors_per_cylinder1, cylinder, sector_rem;
 	unsigned long head, sector;
@@ -9077,17 +9163,22 @@ map_whole_drive:
 	else if ((*(long *)((int)base + 0x1b8) & 0xFFFFFF00) == 0)
 	  *(long *)((int)base + 0x1b8) |= (from << 8); 
       }
-    }
-#endif	/* GRUB_UTIL */
 
-  if (from == ram_drive)
-  {
-	rd_base = (start_sector << SECTOR_BITS);
+      /* if FROM is (rd), no mapping is established. but the image will be
+       * loaded into memory, and (rd) will point to it. Note that Master
+       * Boot Track and MBR code have been built as above when needed
+       * for ram_drive > 0x80.
+       */
+      if (from == ram_drive)
+      {
+	rd_base = base;
 	rd_size = filemax;//(sector_count << SECTOR_BITS);
-	if (filesystem_type && (from & 0x80) && (from < 0xA0))	/* no partition table */
+	if (add_mbt)
 		rd_size += sectors_per_track << SECTOR_BITS;	/* build the Master Boot Track */
 	return 1;
-  }
+      }
+    }
+#endif	/* GRUB_UTIL */
 
   if (in_situ)
 	bios_drive_map[j].to_cylinder = 

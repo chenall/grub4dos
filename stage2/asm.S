@@ -258,10 +258,21 @@ VARIABLE(saved_mmap_length)	/* system memory map length */
 	. = EXT_C(main) + 0x100
 
 VARIABLE(addr_system_functions)	/* system memory map length */
+#ifndef STAGE1_5
 	.long	ABS(EXT_C(system_functions))
+#else
+	.long	0
+#endif /* !STAGE1_5 */
 
 	. = EXT_C(main) + 0x110
 
+VARIABLE(addr_saved_dir)
+	.long	ABS(EXT_C(saved_dir))
+
+VARIABLE(errnum)
+	.long	0
+
+	. = EXT_C(main) + 0x120
 real_codestart:
 	cli
 	cld
@@ -293,8 +304,8 @@ real_codestart:
 	movl	0x54, %eax
 	movl	%eax, ABS(EXT_C(ROM_int15))
 	movl	0x4C, %eax
-	movl	%eax, ABS(ROM_int13)
-	movl	%eax, ABS(ROM_int13_dup)
+	movl	%eax, ABS(EXT_C(ROM_int13))
+	movl	%eax, ABS(EXT_C(ROM_int13_dup))
 	cmpl	$0xC0000000, %eax
 	jnb	1f
 	cmpl	$0x5A000000, %eax	// cmpl	$0x9A000000, %eax
@@ -319,7 +330,7 @@ real_codestart:
 	cmpl	$0x534F4434, 0x10F	/* 4DOS */
 	jnz	2f
 
-	movl	(ROM_int13 - int13_handler), %eax	/* 0x1C=ROM int 13 */
+	movl	(EXT_C(ROM_int13) - int13_handler), %eax	/* 0x1C=ROM int 13 */
 	cmpl	$0x5A000000, %eax	// cmpl	$0x9A000000, %eax
 	jb	2f					/* not our handler */
 
@@ -3734,7 +3745,7 @@ backup_int13:
 	movw	%ax, %ds
 	movl	0x4C, %eax	/* current int 13 vector */
 	movl	%eax, %cs:(tmp_int13 - int13_handler)
-	movl	%cs:(ROM_int13 - int13_handler), %eax
+	movl	%cs:(EXT_C(ROM_int13) - int13_handler), %eax
 	movl	%eax, 0x4C
 	popl	%eax
 	popw	%ds
@@ -11508,7 +11519,7 @@ ENTRY(set_int13_handler)
 //	/* save the original int13 handler */
 //	movl	$0x4c, %edi
 //	movl	(%edi), %eax
-//	movl	%eax, ABS(ROM_int13)
+//	movl	%eax, ABS(EXT_C(ROM_int13))
 
 	/* decrease the lower memory size and set it to the BIOS memory */
 	movl	$0x413, %edi
@@ -11615,7 +11626,7 @@ ENTRY(unset_int13_handler)
 	cmpl	$0x5A000000, 0x0C(%edi)		/* old int 15 */
 	jb	1f
 
-	movl	ABS(ROM_int13), %eax
+	movl	ABS(EXT_C(ROM_int13)), %eax
 	cmpl	0x1C(%edi), %eax
 	jnz	1f
 
@@ -11638,7 +11649,7 @@ ENTRY(unset_int13_handler)
 	movl	%eax, 0x54
 
 	/* restore the original int13 handler */
-	movl	ABS(ROM_int13), %eax
+	movl	ABS(EXT_C(ROM_int13)), %eax
 	movl	%eax, 0x4c
 
 	xorl	%eax, %eax			/* success */
@@ -11671,6 +11682,59 @@ ENTRY(get_code_end)
 
 #endif /* ! STAGE1_5 */
 
+#ifndef STAGE1_5
+
+/*
+ * The C code for a grub4dos executable may have defines as follows:
+ *
+
+#define sprintf ((int (*)(char *, const char *, ...))((*(int **)0x8300)[0]))
+#define printf(...) sprintf(NULL, __VA_ARGS__)
+
+ *
+ */
+
 VARIABLE(system_functions)
 	.long	ABS(EXT_C(grub_sprintf))
+	.long	ABS(EXT_C(grub_putstr))
+	.long	ABS(EXT_C(grub_putchar))
+	.long	ABS(EXT_C(get_cmdline))
+	.long	ABS(EXT_C(getxy))
+	.long	ABS(EXT_C(gotoxy))
+	.long	ABS(EXT_C(cls))
+	.long	ABS(EXT_C(setcursor))
+	.long	ABS(EXT_C(nul_terminate))
+	.long	ABS(EXT_C(safe_parse_maxint))
+	.long	ABS(EXT_C(substring))
+	.long	ABS(EXT_C(grub_strstr))
+	.long	ABS(EXT_C(grub_strlen))
+	.long	ABS(EXT_C(grub_strtok))
+	.long	ABS(EXT_C(grub_strncat))
+	.long	ABS(EXT_C(grub_strcmp))
+	.long	ABS(EXT_C(grub_strcpy))
+	.long	ABS(EXT_C(grub_tolower))
+	.long	ABS(EXT_C(grub_isspace))
+	.long	ABS(EXT_C(getkey))	/* getchar */
+	.long	ABS(EXT_C(checkkey))
+	.long	ABS(EXT_C(grub_sleep))
+	.long	ABS(EXT_C(grub_memcmp))
+	.long	ABS(EXT_C(grub_memmove))
+	.long	ABS(EXT_C(grub_memset))
+	.long	ABS(EXT_C(mem64))
+	.long	ABS(EXT_C(grub_open))
+	.long	ABS(EXT_C(grub_read))
+	.long	ABS(EXT_C(grub_close))
+	.long	ABS(EXT_C(unicode_to_utf8))
+	.long	ABS(EXT_C(rawread))
+	.long	ABS(EXT_C(rawwrite))
+	.long	ABS(EXT_C(devread))
+	.long	ABS(EXT_C(devwrite))
+	.long	ABS(EXT_C(next_partition))
+	.long	ABS(EXT_C(open_device))
+	.long	ABS(EXT_C(real_open_partition))
+	.long	ABS(EXT_C(set_device))
+	.long	ABS(EXT_C(dir))
+	.long	ABS(EXT_C(print_a_completion))
+	.long	ABS(EXT_C(print_completions))
 
+#endif /* ! STAGE1_5 */

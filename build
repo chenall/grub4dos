@@ -121,7 +121,7 @@ cp stage2/grldr stage2/grub.exe stage2/badgrub.exe grub4dos-${VER}/chinese || ex
 #	Create ZIP ball or TAR ball
 #############################################
 
-rm -f ../${RELEASE}.zip ../${RELEASE}.tar.gz || exit $?
+rm -f ../${RELEASE}.zip ../${RELEASE}.rar ../${RELEASE}.tar.gz || exit $?
 if ! rar a -r -s -m5 ../${RELEASE}.rar grub4dos-${VER} ; then
 	echo rar failed. Continue with zip or tar...
 fi
