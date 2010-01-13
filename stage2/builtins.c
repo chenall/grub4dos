@@ -40,9 +40,6 @@
 
 #ifdef GRUB_UTIL
 # include <device.h>
-int use_config_file = 1;
-unsigned long free_mem_start;
-unsigned long free_mem_end;
 #else /* ! GRUB_UTIL */
 # include <apic.h>
 //# include <smp-imps.h>
@@ -57,19 +54,22 @@ unsigned long free_mem_end;
 /* The type of kernel loaded.  */
 kernel_t kernel_type;
 static kernel_t kernel_type_orig;
+
 /* The boot device.  */
 //static int bootdev = 0;
-#if 0
-/* True when the debug mode is turned on, and false
-   when it is turned off.  */
-int debug = 0;
-#else
+
+#ifdef GRUB_UTIL
 /* 0 for silent, 1 for normal, 2..MAX_UINT for verbose.
  * if debug == MAX_UINT or debug < 0, then filesystem debug mode is on.
  * (MAX_UINT is 0x7FFFFFFF)
  */
 int debug = 1;
+
+int use_config_file = 1;
+unsigned long free_mem_start;
+unsigned long free_mem_end;
 #endif
+
 /* The default entry.  */
 int default_entry = 0;
 /* The fallback entry.  */
@@ -4558,13 +4558,43 @@ static struct builtin builtin_fallback =
 
 
 /* command */
+char command_path[128]="(bd)/grub/";
 int
 command_func (char *arg, int flags)
 {
   while (*arg == ' ' || *arg == '\t') arg++;
   if ((unsigned char)*arg < 0x20)
-	return 0;
-
+  {
+	if (debug > 0)
+		printf("Current default path: %s\n",command_path);
+	return 20;
+  }
+	
+	if (grub_memcmp (arg, "--set-path=", 11) == 0)
+	{
+		arg += 11;
+		if (strlen(arg) >= 127)
+		{
+			if (debug > 0)
+				printf("Set default command path error: PATH is too long \n");
+			return 0;
+		}
+		if (! *arg)
+			return sprintf(command_path,"(bd)/grub/\0");
+		int j;
+		for (j = 0; j < sizeof (command_path); j++)
+		{
+			if (*arg == 0x20 || *arg == '\t' || *arg == 0)
+			{
+				command_path[j] = 0;
+				break;
+			}
+			command_path[j] = *arg;
+			arg++;
+		}
+		command_path[sizeof (command_path)-1] = 0;
+		return 1;
+	}
   if (! flags)	/* check syntax only */
   {
     if (*arg == '/' || *arg == '(' || *arg == '+')
@@ -4591,8 +4621,20 @@ command_func (char *arg, int flags)
 
 	if ((*arg >= 'a' && *arg <= 'z') || (*arg >= 'A' && *arg <= 'Z'))
 		filename--;
+
 	if (! grub_open (filename))
-		return 0;
+	{
+		if (*filename == '/')
+		{
+			char filename_t[256];
+			sprintf(filename_t,"%s%s\0",command_path,filename+1);
+			if (! grub_open (filename_t)) 
+				return 0;
+		}
+		else
+			return 0;
+	}
+
 	if (filemax < 9ULL)
 	{
 		errnum = ERR_EXEC_FORMAT;
@@ -4605,7 +4647,7 @@ command_func (char *arg, int flags)
 	unsigned long long memory_needed;
 
 	arg = skip_to (0, arg);		/* get argument of command */
-	memory_needed = filemax + ((grub_strlen (arg) + 16) & 0x0F) + 16 + 16;
+	memory_needed = filemax + ((grub_strlen (arg) + 16) & ~0xF) + 16 + 16;
 
 	/* The amount of free memory is (free_mem_end - free_mem_start) */
 
@@ -4644,7 +4686,7 @@ command_func (char *arg, int flags)
 
 	mem_alloc_array_start[j].addr |= 0x01;	/* the memory is now in use. */
 	mem_alloc_array_start[j].pid = pid;	/* with this pid. */
-	((unsigned long *)free_mem_start)[0] = pid = ((grub_strlen (arg) + 16) & 0x0F) + 16 + 16;
+	((unsigned long *)free_mem_start)[0] = pid = ((grub_strlen (arg) + 16) & ~0xF) + 16 + 16;
 	grub_memmove ((char *)(free_mem_start + 16), arg, grub_strlen (arg) + 1);
 	*(unsigned long *)(free_mem_start + pid - 4) = pid;		/* PSP */
 	*(unsigned long *)(free_mem_start + pid - 8) = pid - 16;	/* args */
@@ -4691,8 +4733,9 @@ static struct builtin builtin_command =
   "command",
   command_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
-  "command FILE [ARGS]",
+  "command [--set-path=PATH] FILE [ARGS]",
   "Run executable file FILE with arguments ARGS."
+  "--set-path sets a search PATH for executable files,default is (bd)/grub."
 };
 
 
@@ -12830,18 +12873,18 @@ static struct builtin builtin_timeout =
 
 
 /* title */
-static int
-title_func (char *arg, int flags)
-{
-  /* This function is not actually used at least currently.  */
-  return 1;
-}
+//static int
+//title_func (char *arg, int flags)
+//{
+//  /* This function is not actually used at least currently.  */
+//  return 1;
+//}
 
 struct builtin builtin_title =
 {
   "title",
-  title_func,
-  BUILTIN_TITLE,
+  NULL/*title_func*/,
+  0/*BUILTIN_TITLE*/,
 #if 0
   "title [NAME ...]",
   "Start a new boot entry, and set its name to the contents of the"

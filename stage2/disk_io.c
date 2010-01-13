@@ -75,9 +75,19 @@ part_choice;
  * Do NOT overwrite the pre_stage2 code at 0x8200!
  */
 char *mbr = (char *)0x8000; /* 512-byte buffer for any use. */
+
+extern unsigned long next_partition_drive;
+extern unsigned long next_partition_dest;
+extern unsigned long *next_partition_partition;
+extern unsigned long *next_partition_type;
+extern unsigned long *next_partition_start;
+extern unsigned long *next_partition_len;
+extern unsigned long *next_partition_offset;
+extern unsigned long *next_partition_entry;
+extern unsigned long *next_partition_ext_offset;
+extern char *next_partition_buf;
 #else
 char mbr[SECTOR_SIZE];
-#endif
 
 unsigned long next_partition_drive;
 unsigned long next_partition_dest;
@@ -89,6 +99,7 @@ unsigned long *next_partition_offset;
 unsigned long *next_partition_entry;
 unsigned long *next_partition_ext_offset;
 char *next_partition_buf;
+#endif
 
 static unsigned long dest_partition;
 static unsigned long part_offset;
@@ -152,8 +163,11 @@ struct fsys_entry fsys_table[NUM_FSYS + 1] =
 
 /* These have the same format as "boot_drive" and "install_partition", but
    are meant to be working values. */
+#ifdef GRUB_UTIL
 unsigned long current_drive = GRUB_INVALID_DRIVE;
 unsigned long current_partition;
+unsigned long current_slice;
+#endif
 
 #ifndef STAGE1_5
 /* The register ESI should contain the address of the partition to be
@@ -180,8 +194,6 @@ unsigned long long part_start;
 unsigned long long part_length;
 #endif
 
-unsigned long current_slice;
-
 /* disk buffer parameters */
 
 int buf_drive = -1;
@@ -195,9 +207,9 @@ struct geometry hd_geom[8];
 int rawread_ignore_memmove_overflow = 0;/* blocklist_func() set this to 1 */
 
 /* filesystem common variables */
+#ifdef GRUB_UTIL
 unsigned long long filepos;
 unsigned long long filemax;
-#ifdef GRUB_UTIL
 unsigned long long filesize;
 #endif
 

@@ -399,14 +399,15 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  #endif
  };
  
-@@ -4692,7 +4824,9 @@
-   command_func,
+@@ -4725,7 +4857,10 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
-   "command FILE [ARGS]",
--  "Run executable file FILE with arguments ARGS."
-+  "Run executable file FILE with arguments ARGS.",
-+  "command FILE [ARGS]",
+   "command [--set-path=PATH] FILE [ARGS]",
+   "Run executable file FILE with arguments ARGS."
+-  "--set-path sets a search PATH for executable files,default is (bd)/grub."
++  "--set-path sets a search PATH for executable files,default is (bd)/grub.",
++  "command [--set-path=PATH] FILE [ARGS]",
 +  "\t运行可执行文件 FILE，可以带参数 ARGS。"
++  "\n\t--set-path 参数设置默认可执行文件搜索路径，若未设置默认是(bd)/grub"
  };
  
  

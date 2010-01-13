@@ -114,7 +114,7 @@ int count_lines = -1;
 int use_pager = 1;
 #endif
 
-int quit_print = 0;
+int quit_print;
 
 void
 print_error (void)

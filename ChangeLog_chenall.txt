@@ -1,3 +1,13 @@
+2010-01-13
+	修改设置默认可执行文件搜索路径参数为
+	--set-path=PATH
+	例子
+	command --set-path=(bd)/grub/
+2010-01-09
+	1.为command参数添加一个参数--set-root用于设置默认可执行文件的搜索路径。
+	add option --set-root for command
+	sets a search PATH for executable files,default is (bd)/grub
+
 2009-12-03 g@chenall.cn
 	1.修改了cat --hex代码，现在cat --hex会显示ascii>127的字符。
 	2.修改了cmp --hex代码，现在cmp --hex后面显示的字符同样可以显示中文。

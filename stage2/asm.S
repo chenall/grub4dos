@@ -257,9 +257,16 @@ VARIABLE(saved_mmap_length)	/* system memory map length */
 
 	. = EXT_C(main) + 0x100
 
-VARIABLE(addr_system_functions)	/* system memory map length */
+VARIABLE(addr_system_functions)
 #ifndef STAGE1_5
 	.long	ABS(EXT_C(system_functions))
+#else
+	.long	0
+#endif /* !STAGE1_5 */
+
+VARIABLE(addr_system_variables)
+#ifndef STAGE1_5
+	.long	ABS(EXT_C(system_variables))
 #else
 	.long	0
 #endif /* !STAGE1_5 */
@@ -272,7 +279,30 @@ VARIABLE(addr_saved_dir)
 VARIABLE(errnum)
 	.long	0
 
+VARIABLE(current_drive)
+	.long	0xFFFFFFFF
+
+VARIABLE(current_partition)
+	.long	0
+
 	. = EXT_C(main) + 0x120
+
+VARIABLE(filemax)
+	.long	0, 0
+
+VARIABLE(filepos)
+	.long	0, 0
+
+	. = EXT_C(main) + 0x130
+
+VARIABLE(debug)
+	.long	0
+
+VARIABLE(current_slice)
+	.long	0
+
+	. = EXT_C(main) + 0x140
+
 real_codestart:
 	cli
 	cld
@@ -11690,6 +11720,48 @@ ENTRY(get_code_end)
 
 #define sprintf ((int (*)(char *, const char *, ...))((*(int **)0x8300)[0]))
 #define printf(...) sprintf(NULL, __VA_ARGS__)
+#define putstr ((void (*)(const char *))((*(int **)0x8300)[1]))
+#define putchar ((void (*)(int))((*(int **)0x8300)[2]))
+#define get_cmdline ((int (*)(char *))((*(int **)0x8300)[3]))
+#define getxy ((int (*)(void))((*(int **)0x8300)[4]))
+#define gotoxy ((void (*)(int, int))((*(int **)0x8300)[5]))
+#define cls ((void (*)(void))((*(int **)0x8300)[6]))
+#define setcursor ((int (*)(int))((*(int **)0x8300)[7]))
+#define nul_terminate ((int (*)(char *))((*(int **)0x8300)[8]))
+#define safe_parse_maxint ((int (*)(char **, unsigned long long *))((*(int **)0x8300)[9]))
+#define substring ((int (*)(const char *, const char *, int))((*(int **)0x8300)[10]))
+#define strstr ((char *(*)(const char *, const char *))((*(int **)0x8300)[11]))
+#define strlen ((int (*)(const char *))((*(int **)0x8300)[12]))
+#define strtok ((char *(*)(char *, const char *))((*(int **)0x8300)[13]))
+#define strncat ((int (*)(char *, const char *, int))((*(int **)0x8300)[14]))
+#define strcmp ((int (*)(const char *, const char *))((*(int **)0x8300)[15]))
+#define strcpy ((char *(*)(char *, const char *))((*(int **)0x8300)[16]))
+#define tolower ((int (*)(int))((*(int **)0x8300)[17]))
+#define isspace ((int (*)(int))((*(int **)0x8300)[18]))
+#define getkey ((int (*)(void))((*(int **)0x8300)[19]))
+#define checkkey ((int (*)(void))((*(int **)0x8300)[20]))
+#define sleep ((unsigned int (*)(unsigned int))((*(int **)0x8300)[21]))
+#define memcmp ((int (*)(const char *, const char *, int))((*(int **)0x8300)[22]))
+#define memmove ((void *(*)(void *, const void *, int))((*(int **)0x8300)[23]))
+#define memset ((void *(*)(void *, int, int))((*(int **)0x8300)[24]))
+#define mem64 ((int (*)(int, unsigned long long, unsigned long long, unsigned long long))((*(int **)0x8300)[25]))
+#define open ((int (*)(char *))((*(int **)0x8300)[26]))
+#define read ((unsigned long (*)(unsigned long long, unsigned long long, unsigned long))((*(int **)0x8300)[27]))
+#define close ((void (*)(void))((*(int **)0x8300)[28]))
+#define unicode_to_utf8 ((void (*)(unsigned short *, unsigned char *, unsigned long))((*(int **)0x8300)[29]))
+#define rawread ((int (*)(unsigned long, unsigned long, unsigned long, unsigned long, unsigned long long, unsigned long))((*(int **)0x8300)[30]))
+#define rawwrite ((int (*)(unsigned long, unsigned long, char *))((*(int **)0x8300)[31]))
+#define devread ((int (*)(unsigned long, unsigned long, unsigned long, unsigned long long, unsigned long))((*(int **)0x8300)[32]))
+#define devwrite ((int (*)(unsigned long, unsigned long, char *))((*(int **)0x8300)[33]))
+#define next_partition ((int (*)(void))((*(int **)0x8300)[34]))
+#define open_device ((int (*)(void))((*(int **)0x8300)[35]))
+#define real_open_partition ((int (*)(int))((*(int **)0x8300)[36]))
+#define set_device ((char *(*)(char *))((*(int **)0x8300)[37]))
+#define dir ((int (*)(char *))((*(int **)0x8300)[38]))
+#define print_a_completion ((void (*)(char *))((*(int **)0x8300)[39]))
+#define print_completions ((int (*)(int, int))((*(int **)0x8300)[40]))
+#define parse_string ((int (*)(char *))((*(int **)0x8300)[41]))
+#define hexdump ((void (*)(unsigned long, char *, int))((*(int **)0x8300)[42]))
 
  *
  */
@@ -11736,5 +11808,51 @@ VARIABLE(system_functions)
 	.long	ABS(EXT_C(dir))
 	.long	ABS(EXT_C(print_a_completion))
 	.long	ABS(EXT_C(print_completions))
+	.long	ABS(EXT_C(parse_string))
+	.long	ABS(EXT_C(hexdump))
+	.long	ABS(EXT_C(skip_to))
+
+/*
+ * The C code for a grub4dos executable may have defines as follows:
+ *
+
+#define next_partition_drive		((*(unsigned long **)0x8304)[0])
+#define next_partition_dest		((*(unsigned long **)0x8304)[1])
+#define next_partition_partition	((*(unsigned long ***)0x8304)[2])
+#define next_partition_type		((*(unsigned long ***)0x8304)[3])
+#define next_partition_start		((*(unsigned long ***)0x8304)[4])
+#define next_partition_len		((*(unsigned long ***)0x8304)[5])
+#define next_partition_offset		((*(unsigned long ***)0x8304)[6])
+#define next_partition_entry		((*(unsigned long ***)0x8304)[7])
+#define next_partition_ext_offset	((*(unsigned long ***)0x8304)[8])
+#define next_partition_buf		((*(char ***)0x8304)[9])
+
+ *
+ */
+
+VARIABLE(system_variables)
+VARIABLE(next_partition_drive)
+	.long	0
+VARIABLE(next_partition_dest)
+	.long	0
+VARIABLE(next_partition_partition)
+	.long	0
+VARIABLE(next_partition_type)
+	.long	0
+VARIABLE(next_partition_start)
+	.long	0
+VARIABLE(next_partition_len)
+	.long	0
+VARIABLE(next_partition_offset)
+	.long	0
+VARIABLE(next_partition_entry)
+	.long	0
+VARIABLE(next_partition_ext_offset)
+	.long	0
+VARIABLE(next_partition_buf)
+	.long	0
+VARIABLE(quit_print)
+	.long	0
+
 
 #endif /* ! STAGE1_5 */
