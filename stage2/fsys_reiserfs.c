@@ -21,6 +21,7 @@
 #ifdef FSYS_REISERFS
 #include "shared.h"
 #include "filesys.h"
+#include "iamath.h"
 
 #undef REISERDEBUG
 

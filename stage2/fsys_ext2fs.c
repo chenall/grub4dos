@@ -34,6 +34,7 @@
 
 #include "shared.h"
 #include "filesys.h"
+#include "iamath.h"
 
 static int mapblock1, mapblock2;
 

@@ -22,6 +22,7 @@
 #include <shared.h>
 #include <filesys.h>
 #include <iso9660.h>
+#include "iamath.h"
 
 #ifdef SUPPORT_NETBOOT
 # define GRUB	1
@@ -185,7 +186,8 @@ int bsd_evil_hack;
 
 /* filesystem type */
 //#ifdef GRUB_UTIL
-int fsys_type = NUM_FSYS;
+int fsys_type;
+//fsys_type = NUM_FSYS;
 //#endif
 
 /* these are the translated numbers for the open partition */
@@ -196,8 +198,8 @@ unsigned long long part_length;
 
 /* disk buffer parameters */
 
-int buf_drive = -1;
-int buf_track = -1;
+int buf_drive;
+int buf_track;
 
 struct geometry buf_geom;
 struct geometry tmp_geom;	/* tmp variable used in many functions. */
@@ -214,15 +216,6 @@ unsigned long long filesize;
 #endif
 
 unsigned long emu_iso_sector_size_2048 = 0;
-
-inline unsigned long
-log2_tmp (unsigned long word)
-{
-  asm volatile ("bsfl %1,%0"
-		: "=r" (word)
-		: "r" (word));
-  return word;
-}
 
 /* Convert unicode filename to UTF-8 filename. N is the max characters to be
  * converted. The caller should asure there is enough room in the UTF8 buffer.
@@ -266,7 +259,7 @@ unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n)
  * sector number SECTOR and with BYTE_LEN bytes long.
  */
 int
-rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, unsigned long byte_len, unsigned long long buf, unsigned long write)
+rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
 {
   unsigned long slen, sectors_per_vtrack;
   unsigned long sector_size_bits = log2_tmp (buf_geom.sector_size);
@@ -281,7 +274,7 @@ rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, u
 
   while (byte_len > 0)
   {
-      unsigned long soff, num_sect, track, size = byte_len;
+      unsigned long soff, num_sect, track, size;
       char *bufaddr;
       int bufseg;
 
@@ -295,8 +288,10 @@ rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, u
 	  sector_size_bits = log2_tmp (buf_geom.sector_size);
       }
 
+      size = (byte_len > BUFFERLEN)? BUFFERLEN: (unsigned long)byte_len;
+
       /* Sectors that need to read. */
-      slen = ((byte_offset + byte_len + buf_geom.sector_size - 1) >> sector_size_bits);
+      slen = ((byte_offset + size + buf_geom.sector_size - 1) >> sector_size_bits);
 
       /* Eliminate a buffer overflow.  */
       if ((buf_geom.sectors << sector_size_bits) > BUFFERLEN)
@@ -407,17 +402,14 @@ next:
 
 
 int
-devread (unsigned long sector, unsigned long byte_offset, unsigned long byte_len, unsigned long long buf, unsigned long write)
+devread (unsigned long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
 {
   unsigned long sector_size_bits = log2_tmp(buf_geom.sector_size);
 
   if (emu_iso_sector_size_2048)
     {
       emu_iso_sector_size_2048 = 0;
-      asm volatile ("shl%L0 %1,%0"
-		: "=r"(sector)
-		: "Ic"((int8_t)(ISO_SECTOR_BITS - sector_size_bits)),
-		"0"(sector));
+      sector <<= (ISO_SECTOR_BITS - sector_size_bits);
     }
 
   /* Check partition boundaries */
@@ -1764,6 +1756,19 @@ print_completions (int is_filename, int is_completion)
 
 #ifndef NO_BLOCK_FILES
 static int block_file = 0;
+
+struct BLK_LIST_ENTRY {
+    unsigned long start, length;
+};
+struct BLK_BUF {
+  unsigned long long cur_filepos;
+  struct BLK_LIST_ENTRY *cur_blklist;
+  unsigned long cur_blknum;
+  struct BLK_LIST_ENTRY blklist[1];
+};
+#define blk_buf (*(struct BLK_BUF *)FSYS_BUF)
+#define blk_max_ptr ((struct BLK_LIST_ENTRY *)(FSYS_BUF+0x7800-sizeof(struct BLK_LIST_ENTRY)))
+
 #endif /* NO_BLOCK_FILES */
 
 /*
@@ -1797,10 +1802,12 @@ grub_open (char *filename)
       return !(errnum = ERR_BAD_FILENAME);
 #else
       char *ptr = filename;
-      unsigned long list_addr = FSYS_BUF + 12;  /* BLK_BLKLIST_START */
+      //unsigned long list_addr = FSYS_BUF + 12;  /* BLK_BLKLIST_START */
+      struct BLK_LIST_ENTRY *p_blklist = blk_buf.blklist;
       filemax = 0;
 
-      while (list_addr < FSYS_BUF + 0x77F9)	/* BLK_MAX_ADDR */
+      //while (list_addr < FSYS_BUF + 0x77F9)	/* BLK_MAX_ADDR */
+      while (p_blklist < blk_max_ptr)
 	{
 	  unsigned long long tmp;
 	  tmp = 0;
@@ -1827,7 +1834,8 @@ grub_open (char *filename)
 	     be remounted */
 	  fsys_type = NUM_FSYS;
 
-	  *((unsigned long*)list_addr) = tmp;	/* BLK_BLKSTART */
+	  //*((unsigned long*)list_addr) = tmp;	/* BLK_BLKSTART */
+	  p_blklist->start = tmp;
 	  ptr++;		/* skip the plus sign */
 
 	  safe_parse_maxint_with_suffix (&ptr, &tmp, 9);
@@ -1838,11 +1846,13 @@ grub_open (char *filename)
 	  if (!tmp || (*ptr && *ptr != ',' && *ptr != '/' && !isspace (*ptr)))
 		break;		/* failure */
 
-	  *((unsigned long*)(list_addr+4)) = tmp;	/* BLK_BLKLENGTH */
+	  //*((unsigned long*)(list_addr+4)) = tmp;	/* BLK_BLKLENGTH */
+	  p_blklist->length = tmp;
 
 	  //tmp *= buf_geom.sector_size;
 	  filemax += tmp * buf_geom.sector_size;
-	  list_addr += 8;			/* BLK_BLKLIST_INC_VAL */
+	  //list_addr += 8;			/* BLK_BLKLIST_INC_VAL */
+	  ++p_blklist;
 
 	  if (*ptr != ',')
 		goto block_file;		/* success */
@@ -1856,19 +1866,25 @@ grub_open (char *filename)
 //	{
 block_file:
 	  block_file = 1;
-	  (*((unsigned long*)FSYS_BUF))= 0;	/* BLK_CUR_FILEPOS */
-	  (*((unsigned long*)(FSYS_BUF+4))) = FSYS_BUF + 12;	/* let BLK_CUR_BLKLIST = BLK_BLKLIST_START */
-	  (*((unsigned long*)(FSYS_BUF+8))) = 0;	/* BLK_CUR_BLKNUM */
+	  //(*((unsigned long*)FSYS_BUF))= 0;	/* BLK_CUR_FILEPOS */
+	  //(*((unsigned long*)(FSYS_BUF+4))) = FSYS_BUF + 12;	/* let BLK_CUR_BLKLIST = BLK_BLKLIST_START */
+	  //(*((unsigned long*)(FSYS_BUF+8))) = 0;	/* BLK_CUR_BLKNUM */
+	  blk_buf.cur_filepos = 0;
+	  blk_buf.cur_blklist = blk_buf.blklist;
+	  blk_buf.cur_blknum = 0;
 
-	  if (current_drive == ram_drive && filemax == 512/* &&  filemax < rd_size*/ && (*(long *)(FSYS_BUF + 12)) == 0)
+	  //if (current_drive == ram_drive && filemax == 512/* &&  filemax < rd_size*/ && (*(long *)(FSYS_BUF + 12)) == 0)
+	  if (current_drive == ram_drive && filemax == 512/* &&  filemax < rd_size*/ && (blk_buf.blklist[0].start) == 0)
 	  {
 		filemax = rd_size;
-		*(long *)(FSYS_BUF + 16) = (filemax + 0x1FF) >> 9;
+		// *(long *)(FSYS_BUF + 16) = (filemax + 0x1FF) >> 9;
+		blk_buf.blklist[0].length = (filemax + 0x1FF) >> 9;
 	  }
 #ifdef NO_DECOMPRESSION
 	  return 1;
 #else
-	  return (current_drive == 0xffff && ! *((unsigned long*)(FSYS_BUF + 12)) ) ? 1 : gunzip_test_header ();
+	  //return (current_drive == 0xffff && ! *((unsigned long*)(FSYS_BUF + 12)) ) ? 1 : gunzip_test_header ();
+	  return (current_drive == 0xffff && !(blk_buf.blklist[0].start) ) ? 1 : gunzip_test_header ();
 #endif
 //	}
 #endif /* block files */
@@ -1914,7 +1930,7 @@ block_file:
 }
 
 
-unsigned long
+unsigned long long
 grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
 //  if (write != 0x900ddeed && write != 0xedde0d90)
@@ -1946,35 +1962,50 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
 #ifndef NO_BLOCK_FILES
   if (block_file)
     {
-      unsigned long size, off, ret = 0;
+      unsigned long long ret = 0;
+      unsigned long size;
+      unsigned long off;
 
       while (len && !errnum)
 	{
 	  /* we may need to look for the right block in the list(s) */
-	  if (filepos < (*((unsigned long*)FSYS_BUF)) /* BLK_CUR_FILEPOS */)
+	  //if (filepos < (*((unsigned long*)FSYS_BUF)) /* BLK_CUR_FILEPOS */)
+	  if (filepos < blk_buf.cur_filepos)
 	    {
-	      (*((unsigned long*)FSYS_BUF)) = 0;
-	      (*((unsigned long*)(FSYS_BUF+4))) = FSYS_BUF + 12;	/* let BLK_CUR_BLKLIST = BLK_BLKLIST_START */
-	      (*((unsigned long*)(FSYS_BUF+8))) = 0;	/* BLK_CUR_BLKNUM */
+	      //(*((unsigned long*)FSYS_BUF)) = 0;
+	      //(*((unsigned long*)(FSYS_BUF+4))) = FSYS_BUF + 12;	/* let BLK_CUR_BLKLIST = BLK_BLKLIST_START */
+	      //(*((unsigned long*)(FSYS_BUF+8))) = 0;	/* BLK_CUR_BLKNUM */
+	      blk_buf.cur_filepos = 0;
+	      blk_buf.cur_blklist = blk_buf.blklist;
+	      blk_buf.cur_blknum = 0;
 	    }
 
 	  /* run BLK_CUR_FILEPOS up to filepos */
-	  while (filepos > (*((unsigned long*)FSYS_BUF)))
+	  //while (filepos > (*((unsigned long*)FSYS_BUF)))
+	  while (filepos > blk_buf.cur_filepos)
 	    {
-	      if ((filepos - ((*((unsigned long*)FSYS_BUF)) & ~(buf_geom.sector_size - 1)))
-		  >= buf_geom.sector_size)
+	      //if ((filepos - ((*((unsigned long*)FSYS_BUF)) & ~(buf_geom.sector_size - 1)))
+	      //  >= buf_geom.sector_size)
+	      if ( (filepos - (blk_buf.cur_filepos & (-(unsigned long long)buf_geom.sector_size)))
+		  >= buf_geom.sector_size )
 		{
-		  (*((unsigned long*)FSYS_BUF)) += buf_geom.sector_size;
-		  (*((unsigned long*)(FSYS_BUF+8)))++;
+		  //(*((unsigned long*)FSYS_BUF)) += buf_geom.sector_size;
+		  blk_buf.cur_filepos += buf_geom.sector_size;
+		  //(*((unsigned long*)(FSYS_BUF+8)))++;
+		  blk_buf.cur_blknum++;
 
-		  if ((*((unsigned long*)(FSYS_BUF+8))) >= *((unsigned long*) ((*((unsigned long*)(FSYS_BUF+4))) + 4)) )
+		  //if ((*((unsigned long*)(FSYS_BUF+8))) >= *((unsigned long*) ((*((unsigned long*)(FSYS_BUF+4))) + 4)) )
+		  if (blk_buf.cur_blknum >= blk_buf.cur_blklist->length )
 		    {
-		      (*((unsigned long*)(FSYS_BUF+4))) += 8;	/* BLK_CUR_BLKLIST */
-		      (*((unsigned long*)(FSYS_BUF+8))) = 0;	/* BLK_CUR_BLKNUM */
+		      //(*((unsigned long*)(FSYS_BUF+4))) += 8;	/* BLK_CUR_BLKLIST */
+		      blk_buf.cur_blklist++;
+		      //(*((unsigned long*)(FSYS_BUF+8))) = 0;	/* BLK_CUR_BLKNUM */
+		      blk_buf.cur_blknum = 0;
 		    }
 		}
 	      else
-		(*((unsigned long*)FSYS_BUF)) = filepos;
+		//(*((unsigned long*)FSYS_BUF)) = filepos;
+		blk_buf.cur_filepos = filepos;
 	    }
 
 	  off = filepos & (buf_geom.sector_size - 1);
@@ -1982,16 +2013,20 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
 	  {
 	    unsigned long long tmp;
 
-	    tmp = ((unsigned long long)(*((unsigned long*)((*((unsigned long*)(FSYS_BUF+4))) + 4)) - (*((unsigned long*)(FSYS_BUF+8))))
-		  * (unsigned long long)(buf_geom.sector_size)) - (unsigned long long)off;
-	    size = (tmp > (unsigned long long)len) ? len : (unsigned long)tmp;
+	    //tmp = ((unsigned long long)(*((unsigned long*)((*((unsigned long*)(FSYS_BUF+4))) + 4)) - (*((unsigned long*)(FSYS_BUF+8))))
+	    //  * (unsigned long long)(buf_geom.sector_size)) - (unsigned long long)off;
+	    tmp = (unsigned long long)(blk_buf.cur_blklist->length - blk_buf.cur_blknum) * (buf_geom.sector_size)
+		  - off;
+	    if (tmp > 0x40000000) tmp = 0x40000000;
+	    size = (tmp > len) ? (unsigned long)len : (unsigned long)tmp;
 	  }
 
 	  disk_read_func = disk_read_hook;
 
 	  /* read current block and put it in the right place in memory */
-	  devread ((*((unsigned long*)(*((unsigned long*)(FSYS_BUF+4))))) + (*((unsigned long*)(FSYS_BUF+8))),
-		   off, size, buf, write);
+	  //devread ((*((unsigned long*)(*((unsigned long*)(FSYS_BUF+4))))) + (*((unsigned long*)(FSYS_BUF+8))),
+	  //	   off, size, buf, write);
+	  devread (blk_buf.cur_blklist->start + blk_buf.cur_blknum, off, size, buf, write);
 
 	  disk_read_func = NULL;
 

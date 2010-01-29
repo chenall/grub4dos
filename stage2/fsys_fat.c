@@ -21,6 +21,7 @@
 
 #include "shared.h"
 #include "filesys.h"
+#include "iamath.h"
 #include "fat.h"
 
 struct fat_superblock 

@@ -1,3 +1,4 @@
+2010-01-22 applied karyonix's patch(PAE).
 2010-01-07 fixed problem of "command-line length limited to 15" on external executables.
 2010-01-03 applied karyonix's patch(PAE paging).
 2010-01-02 applied karyonix's patch(map improvements).

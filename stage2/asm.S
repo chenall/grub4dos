@@ -1484,7 +1484,7 @@ ENTRY(hooked_drive_map)
 	/* 8-byte space reserved. */
 
 	. = int13_handler + 0x100	/* real int13 handler entry at 0x100 */
-
+int13_handler_entry:
 	jmp	1f
 
 	. = int13_handler + 0x103
@@ -1541,6 +1541,133 @@ VARIABLE(saved_pxe_mac)
 	/* space reserved. */
 
 	. = int13_handler + 0x140
+
+#endif /* ! STAGE1_5 */
+
+	// GDT used by int13_handler RAM disk (32-bit protected mode, PAE paging, and 64-bit long mode)
+	// Linear address will be set by set_int13_handler routine
+	// int13_handler does not have to modify it
+	.align 16
+MyGDT:
+//gdt:
+/* 0*/	.word	0	/* NULL entry. Can be used at will. */
+gdtdesc:		/* 6 bytes used for gdt descriptor. */
+	.word	MyGDTEnd - MyGDT - 1	/* GDT limit */
+	/* The gdt linear base address will be adjusted by set_int13_handler,
+	 * but not touched outside int13_handler. */
+	.long	ABS(MyGDT)		/* GDT linear address */
+
+/* 8*/	PM_DS16 = (. - MyGDT)	/* adjusted base = int13_handler */
+	.long	0x0000FFFF, 0x00009300	/* 16-bit data 64K limit */
+/*16*/	PM_DS32 = (. - MyGDT)
+	.long	0x0000FFFF, 0x00CF9300	/* 32-bit data 4GB limit */
+
+	/* The 16-bit code segment base will be adjusted by set_int13_handler,
+	 * but not touched outside int13_handler. */
+/*24*/	PM_CS16 = (. - MyGDT)	/* adjusted base = int13_handler */
+	.long	0x0000FFFF, 0x00009B00	/* 16-bit code 64K limit */
+/*32*/	LM_CS64 = (. - MyGDT)
+	.long	0x0000FFFF, 0x00AF9B00	/* 64-bit code 4GB limit */
+
+	/* This gdt entry is not used by int13_handler, but used outside. */
+/*40*/	PM_CS32 = (. - MyGDT)
+	.long	0x0000FFFF, 0x00CF9B00	/* 32-bit code 4GB limit */
+MyGDTEnd:
+
+OldGDT:
+	/* The int13_handler only uses it as a temp space for the OldGDT variable.
+	 * Only the last 6 bytes are used by OldGDT, and the starting 2 bytes
+	 * are not used by OldGDT. */
+	//.word	0
+int13_is64bit:
+	.byte	0	// bit0 1=support PAE. bit1 1=support AMD64 long mode.
+int13_need_64_bit:
+int13_prev_DL:		// used in 64-bit code
+	.byte	0
+OldGDTdesc:
+	.word	0
+	.long	0
+
+#ifndef STAGE1_5
+
+	.align 4
+int13_prev_CR0:
+	.long	0
+int13_prev_CR3:
+old_cr3:
+	.long	0
+int13_prev_CR4:
+old_cr4:
+	.long	0
+int13_prev_PML4T_entry:
+	.long	0, 0
+int13_prev_PDPT_entry:
+	.long	0, 0
+int13_prev_PDT_entry:
+	.long	0, 0
+	.long	0, 0
+	.long	0, 0
+
+//DS_seg:	.word	0
+//ES_seg:	.word	0
+//FS_seg:	.word	0
+//GS_seg:	.word	0
+//SP_off:	.word	0
+//SS_seg:	.word	0
+//DX_reg:	.word	0
+//DI_reg:	.word	0
+
+data_addr_above_1M:
+	.long	0
+	.long	0
+data_addr_below_1M:
+	.long	0
+//	.long	0
+
+	.align	4
+
+int13_old_cs_ip:	.long	0
+int13_old_eax:		.long	0
+int13_old_ebx:		.long	0
+int13_old_ecx:		.long	0
+int13_old_edx:		.long	0
+int13_old_esi:		.long	0
+int13_old_edi:		.long	0
+int13_old_esp:		.long	0
+int13_old_ebp:		.long	0
+int13_old_ds:		.word	0
+int13_old_es:		.word	0
+int13_old_flags:	.word	0
+int13_new_bp:		.word	0
+
+
+/* cache 1 big 2048-byte sector at edd30_disk_buffer */
+
+	.align	4
+int13_cdrom_edi:
+	.long	0
+int13_cdrom_ebx:
+	.long	0
+int13_cdrom_cx:
+	.word	0
+int13_cdrom_bx:
+	.word	0
+int13_cdrom_es:
+	.word	0
+
+last_read_cd_drive:
+	.byte	0	#; a value < 0x80 normally invalidate the cache
+
+	.align	4
+last_read_sector: /* set it to 0xFFFFFFFFFFFFFFFF to invalidate the cache */
+	.long	0xFFFFFFFF	#; lo dword. for a valid cache, lowest 2 bits=0
+	.long	0xFFFFFFFF	#; hi dword
+
+tmp_dap:
+	.long	0
+	.long	0
+	.long	0
+	.long	0
 
 #if 0
 1:
@@ -1881,22 +2008,6 @@ int13_new_ss:		.word	0
 	movl	%cs:(int13_old_ebp - int13_handler), %ebp
 	movw	%cs:(int13_old_esp - int13_handler), %sp
 	ljmp	*%cs:(int13_old_cs_ip - int13_handler)
-
-	.align	4
-
-int13_old_cs_ip:	.long	0
-int13_old_eax:		.long	0
-int13_old_ebx:		.long	0
-int13_old_ecx:		.long	0
-int13_old_edx:		.long	0
-int13_old_esi:		.long	0
-int13_old_edi:		.long	0
-int13_old_esp:		.long	0
-int13_old_ebp:		.long	0
-int13_old_ds:		.word	0
-int13_old_es:		.word	0
-int13_old_flags:	.word	0
-int13_new_bp:		.word	0
 
 /****************************************************************************/
 restricted_map:
@@ -2691,7 +2802,7 @@ real_int13_service:
 	shldl	$9, %ecx, %ebx
 	shll	$9, %ecx	#; EBX:ECX=linear address of SECTOR(above 1M)
 	//xorl	%edx, %edx
-	//movl	%edi, %cs:(data_addr_below_1M - int13_handler)
+	movl	%edi, %cs:(data_addr_below_1M - int13_handler)
 	//movl	%edx, %cs:(data_addr_below_1M - int13_handler + 4)
 	movl	%ecx, %cs:(data_addr_above_1M - int13_handler)
 	movl	%ebx, %cs:(data_addr_above_1M - int13_handler + 4)
@@ -2703,7 +2814,7 @@ real_int13_service:
 	addl	%ecx, %ebx
 	setc	%dh
 	orb	%dh, %dl
-	movb	%dl, %cs:(need_64_bit - int13_handler)
+	movb	%dl, %cs:(int13_need_64_bit - int13_handler)
 
 	/* if RAM disk is at above 4G, the int15/ah=87h call will fail. */
 
@@ -2768,16 +2879,18 @@ a20_failure:
 	movw	%cs, %bx
 	movw	%bx, %ds
 
-	shll	$4, %ebx
-	addl	$(MyGDT - int13_handler), %ebx
-	movl	%ebx, %cs:MyGDT - int13_handler + 4
+	// GDT is initialized by set_int13_handler
+	//shll	$4, %ebx
+	//addl	$(MyGDT - int13_handler), %ebx
+	//movl	%ebx, %cs:MyGDT - int13_handler + 4
 
 	movzbl	2(%si), %ecx	#; ECX=number of sectors to transfer
 	shll	$7, %ecx	/* 128 dwords per sector */
+	cld
 
-	sgdtl	%cs:OldGDT - int13_handler + 2
-	lgdt	%cs:MyGDT - int13_handler + 2
-	testb	$1, %cs:(need_64_bit - int13_handler)	# need 64 bit?
+	sgdtl	%cs:(OldGDTdesc - int13_handler)
+	lgdt	%cs:(gdtdesc - int13_handler)
+	testb	$0xFF, %cs:(int13_need_64_bit - int13_handler)	# need 64 bit?
 	jnz	move_block_using_64_bit			# yes
 	//jmp	move_block_using_64_bit		/* only test 64-bit code */
 
@@ -2795,372 +2908,48 @@ a20_failure:
 3:
 				#; ESI changed!!
 	movl	%cr0, %eax
-	andl	$0x0000FFFF, %eax
-	orb	$1, %al
+	//andl	$0x7FFFFFFF, %eax
+	orb	$1, %al		// set CR0.PE(bit0)
 
 	cli
 	movl	%eax, %cr0	/* Switch to protected mode */
 
-	movw	$16, %bx	/* Switch to 4G data segment */
+	movw	$(PM_DS32), %bx	/* Switch to 4G data segment */
 	movw	%bx, %ds
 	movw	%bx, %es
 
-	cld
 	addr32	rep movsl	/* ESI, EDI changed! */
 
-	andb	$0xFE, %al
-	movl	%eax, %cr0	/* Back to real mode */
-
-	jmp	move_block_finished
-
-move_block_using_64_bit:
-
-#if 1	/* Yes, you may comment out the 64-bit code on a 32-bit platform. */
-
-	/* EDI=linear address of BUFFER(below 1M) */
-
-	/* DS=CS */
-
-	movw	%cs, /*%cs:*/(CS_seg - int13_handler)
-	movw	%es, /*%cs:*/(ES_seg - int13_handler)
-	movw	%fs, /*%cs:*/(FS_seg - int13_handler)
-	movw	%gs, /*%cs:*/(GS_seg - int13_handler)
-	movw	%ss, /*%cs:*/(SS_seg - int13_handler)
-	movw	%sp, /*%cs:*/(SP_off - int13_handler)
-	movw	%di, /*%cs:*/(DI_reg - int13_handler)
-
-	//sidtl	%cs:OldIDT - int13_handler
-	movw	%dx, /*%cs:*/(DX_reg - int13_handler)	/* save DX */
-	movl	%cr3, %eax
-	movl	%eax, /*%cs:*/(old_cr3 - int13_handler)	/* save CR3 */
-	movl	%cr4, %eax
-	movl	%eax, /*%cs:*/(old_cr4 - int13_handler)	/* save CR4 */
-
-	/* EDI=linear address of BUFFER(below 1M) */
-
-	/* if BUF_ADDR >= 16K, we build page tables at 4K, 8K and 12K; */
-	/* otherwise, we build page tables at 84K, 88K and 92K. */
-	/* in either case, the page tables will not overlap the buffer, */
-	/* because the buffer length is <= 64K as for each int13 call. */
-	xorl	%ebx, %ebx
-	movb	$0x01, %bh	/* BX=0x0100 */
-	cmpl	$0x4000, %edi
-	jnb	3f
-	movb	$0x15, %bh	/* BX=0x1500 */
-3:
-	movw	%bx, /*%cs:*/(DS_seg - int13_handler)	/* for page tables */
-	movw	%bx, %ds	/* DS:0000 = PML4 base */
-
-	/* DS changed!! DS != CS */
-
-	shll	$4, %ebx	/* EBX=0x1000 or 0x15000 */
-
-	movl	%ebx, %cr3	/* load new PML4 base */
-
-	addw	$0x1007, %bx		/* EBX=EBX+0x1007, CF=0 */
-
-	/* EDI=linear address of BUFFER(below 1M) */
-	/* SI no longer be used. It can be changed. */
-
-	movw	%cs, %ax
-	movw	%ax, %es
-
-	/* ES changed!! ES=CS */
-
-	movw	$(PML4T_entry - int13_handler), %di
-
-	/* DI changed!! */
-
-	xorw	%si, %si
-
-	cld
-
-	cli
-
-	/* backup PML4 table and build it */
-	/* lo of entry 0 */
-	//lodsl		//movl	0, %eax
-	//stosl		//movl	%eax, %cs:(PML4T_entry - int13_handler)
-	movsl
-	movl	%ebx, -4(%si)	//movl	%ebx, 0
-
-	/* hi of entry 0 */
-	//lodsl		//movl	4, %eax
-	//stosl		//movl	%eax, %cs:(PML4T_entry - int13_handler + 4)
-	movsl
-	movl	$0, -4(%si)	//movl	$0, 4
-
-	/* backup PDP table and build it */
-	/* lo of entry 0 */
-	movw	$0x1000, %si
-	addw	%si, %bx	//CF=0, so the same as addl	$0x1000, %ebx
-	//lodsl		//movl	0x1000, %eax
-	//stosl		//movl	%eax, %cs:(PDPT_entry - int13_handler)
-	movsl
-	movl	%ebx, -4(%si)	//movl	%ebx, 0x1000
-
-	/* hi of entry 0 */
-	//lodsl		//movl	0x1004, %eax
-	//stosl		//movl	%eax, %cs:(PDPT_entry - int13_handler + 4)
-	movsl
-	movl	$0, -4(%si)	//movl	$0, 0x1004
-
-	/* backup PD table and build it */
-	/* entry 0 is identity mapping, 2M page size */
-	/* lo of entry 0 */
-	movw	$0x2000, %si
-	//lodsl		//movl	0x2000, %eax
-	//stosl		//movl	%eax, %cs:(PDT_entry - int13_handler)
-	movsl
-	movl	$0x00000087, -4(%si)	//movl	$0x00000087, 0x2000
-
-	/* hi of entry 0 */
-	//lodsl		//movl	0x2004, %eax
-	//stosl		//movl	%eax, %cs:(PDT_entry - int13_handler + 4)
-	movsl
-	movl	$0, -4(%si)	//movl	$0, 0x2004
-
-	/* load linear address of the disk block into EBX:EDX */
-	movl	%cs:(data_addr_above_1M - int13_handler), %edx
-	movl	%cs:(data_addr_above_1M - int13_handler + 4), %ebx
-
-	andl	$0xFFE00000, %edx		# align to 2M boundary
-	orl	$0x00000087, %edx
-
-	/* entry 1 is mapping to the first half 2M page of the disk block. */
-	/* lo of entry 1 */
-	//lodsl		//movl	0x2008, %eax
-	//stosl		//movl	%eax, %cs:(PDT_entry - int13_handler + 8)
-	movsl
-	movl	%edx, -4(%si)	//movl	%edx, 0x2008
-
-	/* hi of entry 1 */
-	//lodsl		//movl	0x200C, %eax
-	//stosl		//movl	%eax, %cs:(PDT_entry - int13_handler + 12)
-	movsl
-	movl	%ebx, -4(%si)	//movl	%ebx, 0x200C
-
-	addl	$0x00200000, %edx
-	adcl	$0, %ebx
-
-	/* entry 2 is mapping to the last half 2M page of the disk block. */
-	/* lo of entry 2 */
-	//lodsl		//movl	0x2010, %eax
-	//stosl		//movl	%eax, %cs:(PDT_entry - int13_handler + 16)
-	movsl
-	movl	%edx, -4(%si)	//movl	%edx, 0x2010
-
-	/* hi of entry 2 */
-	//lodsl		//movl	0x2014, %eax
-	//stosl		//movl	%eax, %cs:(PDT_entry - int13_handler + 20)
-	movsl
-	movl	%ebx, -4(%si)	//movl	%ebx, 0x2014
-
-	/* enter 64-bit mode */
-
-	xorl	%eax, %eax
-	movw	%cs, %ax
-	shll	$4, %eax
-	movl	%eax, %ebx		# linear base addess of CS
-	addl	$(start_64_bit - int13_handler), %eax
-	movl	%eax, %cs:(to_64_bit - int13_handler)
-	movl	%ebx, %eax		# linear base addess of CS
-	//addl	$(start_16_bit - int13_handler), %eax
-	movw	%ax, %cs:(MyGDT - int13_handler + 24 + 2)	# lo 16 bit
-	shrl	$16, %eax
-	movb	%al, %cs:(MyGDT - int13_handler + 24 + 4)	# hi 8 bit
-
-	movl	%cr4, %eax
-	orb	$0x20, %al		# 0x80=PGE, 0x20=PAE, 0x10=PSE
-	movl	%eax, %cr4
-
-	//movl	%cs:(PML4_base_CR3 - int13_handler), %eax
-	//movl	%eax, %cr3
-
-	movl	%ecx, %esi		# save ECX into ESI
-
-	/* rdmsr will change EDX:EAX */
-	movl	$0xC0000080, %ecx	# specify EFER MSR
-	rdmsr				# enable long mode(EFER.LME=1)
-	orb	$0x1, %ah
-	wrmsr
-
-	movl	%esi, %ecx		# restore ECX from ESI
-
-	/* virtual linear address of disk block */
-	movl	%cs:(data_addr_above_1M - int13_handler), %esi
-	andl	$0x001FFFFF, %esi
-	addl	$0x00200000, %esi
-
-	//movl	%cs:(data_addr_below_1M - int13_handler), %edi
-	movw	%cs:(DI_reg - int13_handler), %di	/* restore DI */
-
-	testb	$1, %cs:(int13_reg_AX - int13_handler + 1)	# AH
-	jz	3f						# read
-	xchgl	%esi, %edi
-3:
-				#; ESI changed!!
-
-	movl	%cr0, %eax		# Activate long mode by enabling
-	orl	$0x80000001, %eax	# paging and protection simultaneously
-	movl	%eax, %cr0		# skipping protected mode entirely
-
-	.byte	0x66, 0xEA		# 32-bit long jmp
-to_64_bit:
-	.long	0			# linear address of start_64_bit
-	.word	32			# 64-bit code 4GB limit
-
-	.code64
-
-start_64_bit:
-
-	/* only use 32-bit virtual adresses ESI, EDI */
-	cld
-	addr32	rep movsl	/* ESI, EDI changed! */
-
-	/* back to real mode */
-
-	ljmp	*(to_16_bit - int13_handler)(%ebx)	# EBX=linear base of CS
-
-to_16_bit:
-	.long	(start_16_bit - int13_handler)
-	.word	24			# 16-bit code 64K limit
-
-	.code16
-
-start_16_bit:
-
-	/* now in 16-bit compatability mode */
-
-	movl	%cr0, %eax
-	andl	$0x7FFFFFFF, %eax	# disable paging, leaving long mode
-	movl	%eax, %cr0
-
-	//xorl	%eax, %eax
-	movl	%cs:(old_cr3 - int13_handler), %eax
-	movl	%eax, %cr3		# flush the TLB
-
-	/* now in 16-bit protected mode */
-
-	/* rdmsr will change EDX:EAX */
-	movl	$0xC0000080, %ecx	# specify EFER MSR
-	rdmsr				# disable long mode(EFER.LME=0)
-	andb	$0xFE, %ah
-	wrmsr
-
-	movl	%cs:(old_cr4 - int13_handler), %eax
-	movl	%eax, %cr4
-
-	movw	$8, %ax			# 16-bit data 64K limit
-	movw	%ax, %ss
-	movw	$16, %ax		# 32-bit data 4GB limit
-	movw	%ax, %ds
-	movw	%ax, %es
-	movw	%ax, %fs
-	movw	%ax, %gs
-
-	movl	%cr0, %eax
-	andb	$0xFE, %al
-	movl	%eax, %cr0		# back to real mode
-
-	.byte	0xEA			# ljmp
-	.word	(start_real_mode - int13_handler)
-CS_seg:	.word	0
-DS_seg:	.word	0
-ES_seg:	.word	0
-FS_seg:	.word	0
-GS_seg:	.word	0
-SP_off:	.word	0
-SS_seg:	.word	0
-DX_reg:	.word	0
-DI_reg:	.word	0
-old_cr3:	.long	0
-old_cr4:	.long	0
-
-	.align	4
-
-//PML4_base_CR3:
-//	.long	0x00001000	/* will change to 0x00015000 if necessary. */
-
-	.align	8
-
-PML4T_entry:
-	.long	0, 0
-PDPT_entry:
-	.long	0, 0
-PDT_entry:
-	.long	0, 0
-	.long	0, 0
-	.long	0, 0
-
-start_real_mode:
-
-	/* restore DS and DX */
-	movw	%cs, %ax
-	movw	%ax, %ds
-	movw	/*%cs:*/(DX_reg - int13_handler), %dx
-
-	lss	/*%cs:*/(SP_off - int13_handler), %sp
-	movw	/*%cs:*/(DS_seg - int13_handler), %es	/* for page tables */
-	movw	/*%cs:*/(FS_seg - int13_handler), %fs
-	movw	/*%cs:*/(GS_seg - int13_handler), %gs
-
-	//lidtl	%cs:OldIDT - int13_handler
-
-	//movl	%cs:(old_cr4 - int13_handler), %eax
-	//movl	%eax, %cr4
-
-	/* restore page tables */
-	movw	$(PML4T_entry - int13_handler), %si
-	xorw	%di, %di
-
-	cld
-	//lodsl		//movl	%cs:(PML4T_entry - int13_handler), %eax
-	//stosl		//movl	%eax, %es:0
-	movsl
-	//lodsl		//movl	%cs:(PML4T_entry - int13_handler + 4), %eax
-	//stosl		//movl	%eax, %es:4
-	movsl
-
-	movw	$0x1000, %di
-	//lodsl		//movl	%cs:(PDPT_entry - int13_handler), %eax
-	//stosl		//movl	%eax, %es:0x1000
-	movsl
-	//lodsl		//movl	%cs:(PDPT_entry - int13_handler + 4), %eax
-	//stosl		//movl	%eax, 0x1004
-	movsl
-	movw	$0x2000, %di
-	//lodsl		//movl	%cs:(PDT_entry - int13_handler), %eax
-	//stosl		//movl	%eax, 0x2000
-	movsl
-	//lodsl		//movl	%cs:(PDT_entry - int13_handler + 4), %eax
-	//stosl		//movl	%eax, 0x2004
-	movsl
-	//lodsl		//movl	%cs:(PDT_entry - int13_handler + 8), %eax
-	//stosl		//movl	%eax, 0x2008
-	movsl
-	//lodsl		//movl	%cs:(PDT_entry - int13_handler + 12), %eax
-	//stosl		//movl	%eax, 0x200C
-	movsl
-	//lodsl		//movl	%cs:(PDT_entry - int13_handler + 16), %eax
-	//stosl		//movl	%eax, 0x2010
-	movsl
-	//lodsl		//movl	%cs:(PDT_entry - int13_handler + 20), %eax
-	//stosl		//movl	%eax, 0x2014
-	movsl
-
-	// no need to restore ES
-	//movw	/*%cs:*/(ES_seg - int13_handler), %es
-
-#endif	/* end of 64-bit code */
+	/* Don't switch back to 64K limit for DS and ES. Keeping 4G limit
+	 * would hurt nothing(in principle). There are softwares which run
+	 * initially with DS and ES able to access 4G memory. They call
+	 * int13 and expect on return the DS and ES could still access 4G
+	 * memory. So we should not forcibly set the limit to a lower value
+	 * of 64K. -- tinybit
+	 */
+#if 0
+	movw	$(PM_DS16), %bx	// 64KB data segment limit
+	movw	%bx,  %ds
+	movw	%bx,  %es
+#endif
+
+	//movl	%cr0, %eax	/* EAX not touched */
+	andb	$0xFE, %al	// reset CR0.PE(bit0)
+	movl	%eax, %cr0	// back to real mode
+
+	/* no problem if we skip this and save some bytes of code. */
+#if 0
+	movw	%cs,  %bx
+	movw	%bx,  %ds
+	movw	%bx,  %es
+#endif
 
 move_block_finished:
-
-	lgdtl	%cs:OldGDT - int13_handler + 2
+	lgdtl	%cs:(OldGDTdesc - int13_handler)
 
 	sti
 
-	cmpl	$0, %cs:(EXT_C(a20_keep_on) - int13_handler)
+	cmpl	$0, (EXT_C(a20_keep_on) - int13_handler)
 	jne	1f	/* Keep A20 on. This should hurt nothing. */
 
 	/* Disable A20 if necessary ! */
@@ -3177,8 +2966,276 @@ move_block_finished:
 	clc
 	jmp	*%cs:(int13_ret_IP - int13_handler)	//ret
 
-need_64_bit:
-	.byte	0
+move_block_using_64_bit:
+
+#if 1	/* Yes, you may comment out the 64-bit code on a 32-bit platform. */
+
+	/* EDI=linear address of BUFFER(below 1M) */
+
+	/* DS=CS */
+
+	//movw	%cs, /*%cs:*/(CS_seg - int13_handler)
+	//movw	%es, /*%cs:*/(ES_seg - int13_handler)
+	//movw	%fs, /*%cs:*/(FS_seg - int13_handler)
+	//movw	%gs, /*%cs:*/(GS_seg - int13_handler)
+	//movw	%ss, /*%cs:*/(SS_seg - int13_handler)
+	//movw	%sp, /*%cs:*/(SP_off - int13_handler)
+	//movw	%di, /*%cs:*/(DI_reg - int13_handler)
+
+	////sidtl	%cs:OldIDT - int13_handler
+	movb	%dl, /*%cs:*/(int13_prev_DL - int13_handler)	/* save DL */
+	movl	%cr3, %eax
+	movl	%eax, /*%cs:*/(int13_prev_CR3 - int13_handler)	/* save CR3 */
+	movl	%cr4, %eax
+	movl	%eax, /*%cs:*/(int13_prev_CR4 - int13_handler)	/* save CR4 */
+
+	/* EDI=linear address of BUFFER(below 1M) */
+
+	/* if BUF_ADDR >= 16K, we build page tables at 4K, 8K and 12K; */
+	/* otherwise, we build page tables at 84K, 88K and 92K. */
+	/* in either case, the page tables will not overlap the buffer, */
+	/* because the buffer length is <= 64K as for each int13 call. */
+	xorl	%ebx, %ebx
+	movb	$0x01, %bh	/* BX=0x0100 */
+	cmpl	$0x4000, %edi
+	jnb	3f
+	movb	$0x15, %bh	/* BX=0x1500 */
+3:
+	//movw	%bx, /*%cs:*/(DS_seg - int13_handler)	/* for page tables */
+	movw	%bx, %ds	/* DS:0000 = PML4 base */
+	/* DS changed!! DS != CS */
+
+	shll	$4, %ebx	/* EBX=0x1000 or 0x15000 */
+
+	movw	%cs, %ax
+	movw	%ax, %es
+	/* ES changed!! ES=CS */
+
+	movw	$(int13_prev_PML4T_entry - int13_handler), %di
+				// DI = offset to backup variables
+	/* DI changed!! */
+	xorw	%si, %si
+
+	//cld
+	cli
+	/* backup PML4 table and build it */
+	/* lo of entry 0 */
+	movsl
+	movl	%ebx, %eax
+	addw	$0x1007, %ax	/* EAX=EAX+0x1007, CF=0 */
+	movl	%eax, -4(%si)	//movl	%eax, 0
+
+	/* hi of entry 0 */
+	movsl
+	movl	$0, -4(%si)	//movl	$0, 4
+
+	/* backup PDP table and build it */
+	/* lo of entry 0 */
+	movw	$0x1000, %si
+	addw	%si, %ax	//CF=0, so the same as addl $0x1000, %eax
+				//EAX = (addr of PD | 7)
+	movsl
+	movl	%eax, -4(%si)	//movl	%eax, 0x1000
+
+	/* hi of entry 0 */
+	movsl
+	movl	$0, -4(%si)	//movl	$0, 0x1004
+
+	/* backup PD table and build it */
+	/* entry 0 is identity mapping, 2M page size */
+	/* lo of entry 0 */
+	movw	$0x2000, %si
+	movsl
+	movl	$0x00000087, -4(%si)	//movl	$0x00000087, 0x2000
+	/* hi of entry 0 */
+	movsl
+	movl	$0, -4(%si)	//movl	$0, 0x2004
+
+	/* load linear address of the disk block into EDX:EAX */
+	movl	%cs:(data_addr_above_1M - int13_handler), %eax
+	movl	%cs:(data_addr_above_1M - int13_handler + 4), %edx
+
+	andl	$0xFFE00000, %eax	# align to 2M boundary
+	orb	$0x87, %al
+	/* entry 1 is mapping to the first half 2M page of the disk block. */
+	/* lo of entry 1 */
+	movsl
+	movl	%eax, -4(%si)	//movl	%edx, 0x2008
+	/* hi of entry 1 */
+	movsl
+	movl	%edx, -4(%si)	//movl	%ebx, 0x200C
+
+	addl	$0x00200000, %eax
+	adcl	$0, %edx
+	/* entry 2 is mapping to the last half 2M page of the disk block. */
+	/* lo of entry 2 */
+	movsl
+	movl	%eax, -4(%si)	//movl	%edx, 0x2010
+	/* hi of entry 2 */
+	movsl
+	movl	%edx, -4(%si)	//movl	%ebx, 0x2014
+
+	/* virtual linear address of disk block */
+	movl	%cs:(data_addr_above_1M - int13_handler), %esi
+	andl	$0x001FFFFF, %esi
+	addl	$0x00200000, %esi
+	movl	%cs:(data_addr_below_1M - int13_handler), %edi
+
+	testb	$1, %cs:(int13_reg_AX - int13_handler + 1)	# AH
+	jz	3f						# read
+	xchgl	%esi, %edi
+3:
+
+	/* prepare to enter paging or 64-bit mode */
+	movl	%cr4, %eax
+	orb	$0x30, %al		# 0x80=PGE, 0x20=PAE, 0x10=PSE
+	movl	%eax, %cr4
+
+	/* EBX = address of PML4T, EBX+0x1000 = address of PDPT */
+
+	testb	$2, %cs:(int13_is64bit - int13_handler) 
+	jz	int13_paemove	// use PAE if AMD64 is not supported
+	//jmp	int13_paemove	// only test PAE code
+
+	.code16
+//int13_lm64move:
+	movl	%ebx, %cr3	// CR3 = address of PML4T
+
+	movl	%ecx, %ebx		# save ECX into EBX
+	/* rdmsr will change EDX:EAX */
+	movl	$0xC0000080, %ecx	# specify EFER MSR
+	rdmsr				# enable long mode(EFER.LME=1)
+	orb	$0x1, %ah
+	wrmsr
+	movl	%ebx, %ecx		# restore ECX from EBX
+
+	xorl	%ebx, %ebx
+	movw	%cs, %bx
+	shll	$4, %ebx	// EBX=linear address of int13_handler
+
+	movl	%cr0, %eax		# Activate long mode by enabling
+	orl	$0x80000001, %eax	# paging and protection simultaneously
+	movl	%eax, %cr0		# skipping protected mode entirely
+
+	.byte	0x66, 0xEA		# 32-bit long jmp
+int13_lm64move_lm64_start_addr:
+	/* linear address of start_64_bit, adjusted by set_int13_handler */
+	.long	(int13_lm64move_lm64_start - int13_handler)
+	.word	LM_CS64		# 64-bit code 4GB limit
+
+	.code64
+int13_lm64move_lm64_start:
+	/* DS, ES is not used in 64-bit */
+
+	shrl	$1, %ecx	/* we will move 2 dwords at a time */
+
+	/* only use 32-bit virtual adresses ESI, EDI */
+	addr32	rep movsq	/* ESI, EDI changed! */
+
+	/* switch to 16-bit compatibility mode then back to real mode */
+	ljmp	*(int13_lm64move_cm16_addr - int13_handler)(%ebx)
+				// EBX=linear address of int13_handler
+int13_lm64move_cm16_addr:
+	.long	(int13_lm64move_cm16 - int13_handler)
+	.word	PM_CS16		# 16-bit code 64K limit
+
+	.code16
+int13_paemove:
+	// DS:0x1000=PDPTE. The lowest byte of PDPTE was set to 7 by code above.  For PAE paging, only bit 0 must be 1, bit1-2 must be 0.
+	movb	$1, 0x1000
+	addl	$0x1000, %ebx	// EBX = linear address of PDPT
+	movl	%ebx, %cr3	// CR3 = linear address of PDPT
+
+	movl	%cr0, %eax
+	orl	$0x80000001, %eax
+	movl	%eax, %cr0	// protected mode with PAE paging
+	ljmp	$(PM_CS16), $(int13_paemove_pm_start - int13_handler)
+int13_paemove_pm_start:
+	movw	$PM_DS32, %bx	/* Switch to 4G data segment */
+	movw	%bx, %ds
+	movw	%bx, %es
+
+	/* use 32-bit virtual adresses ESI, EDI */
+	addr32	rep movsl	/* ESI, EDI changed! */
+
+	movl	%cr0, %eax
+	andl	$0x7FFFFFFF, %eax	# disable paging
+	movl	%eax, %cr0
+
+	subl	$0x1000, %ebx	// EBX=linear address of PML4E
+	jmp	int13_pgmove_exit_pm
+
+	.code16
+int13_lm64move_cm16:
+	/* now in 16-bit compatability mode */
+	movl	%cr0, %eax
+	andl	$0x7FFFFFFF, %eax	# disable paging, leaving long mode
+	movl	%eax, %cr0
+	/* now in 16-bit flat protected mode */
+	/* rdmsr will change EDX:EAX */
+	movl	$0xC0000080, %ecx	# specify EFER MSR
+	rdmsr
+	andb	$0xFE, %ah		# disable long mode(EFER.LME=0)
+	wrmsr
+	movl	%cr3, %ebx	// EBX=linear address of PML4E
+//	jmp	int13_pgmove_exit_pm
+
+int13_pgmove_exit_pm:	// shared by PAE and long mode block move
+	movw	$(PM_DS16), %ax // int13_handler data segment
+	movw	%ax, %ds	// DS limit=64KB base=int13_handler
+	//movw	%ax, %es	// ES limit=64KB base=int13_handler
+
+	movl	(int13_prev_CR4 - int13_handler), %eax
+	movl	%eax, %cr4
+	movl	(int13_prev_CR3 - int13_handler), %eax
+	movl	%eax, %cr3
+
+	/* Switching to 4GB limit for DS and ES would hurt nothing(in
+	 * principle). There are softwares which run initially with DS and
+	 * ES able to access 4G memory. They call int13 and expect on return
+	 * the DS and ES could still access 4G memory. So we should not
+	 * forcibly set the limit to a lower value of 64K. -- tinybit
+	 */
+	movw	$(PM_DS32), %ax // 4G data segment
+	movw	%ax, %ds	// DS limit=4GB base=0
+	movw	%ax, %es	// ES limit=4GB base=0
+
+	movl	%cr0, %eax
+	andb	$0xFE, %al	// reset CR0.PE(bit0)
+	movl	%eax, %cr0	// back to real mode
+	ljmp	$0, $(int13_pgmove_to_rm - int13_handler)
+int13_pgmove_to_rm_cs  = . - 2	// segment will be set by set_int13_handler
+int13_pgmove_to_rm:
+	movw	%cs, %ax	
+	movw	%ax, %ds	// DS=int13_handler segment
+	shrl	$4, %ebx
+	movw	%bx, %es	// ES=PML4T, PDPT, PD segment
+
+	/* restore page tables */
+	movw	$(int13_prev_PML4T_entry - int13_handler), %si
+	xorw	%di, %di
+	//cld
+	movsl
+	movsl
+	movw	$0x1000, %di
+	movsl
+	movsl
+	movw	$0x2000, %di
+	movsl
+	movsl
+	movsl
+	movsl
+	movsl
+	movsl
+
+	// no need to restore ES
+	//movw	/*%cs:*/(ES_seg - int13_handler), %es
+
+	/* restore DL and clear DH */
+	movzbw	(int13_prev_DL - int13_handler), %dx
+
+#endif	/* end of 64-bit code */
+	jmp	move_block_finished
 
 int15_87:
 	/* EDI=linear address of BUFFER(below 1M) */
@@ -3455,39 +3512,6 @@ normal_disk_drive:
 	movl	%cs:(int13_cdrom_edi - int13_handler), %edi
 	stc
 	jmp	*%cs:(int13_ret_IP - int13_handler)	//ret
-
-/* cache 1 big 2048-byte sector at edd30_disk_buffer */
-
-last_read_cd_drive:
-	.byte	0	#; a value < 0x80 normally invalidate the cache
-
-	.align	4
-tmp_dap:
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-
-last_read_sector: /* set it to 0xFFFFFFFFFFFFFFFF to invalidate the cache */
-	.long	0xFFFFFFFF	#; lo dword. for a valid cache, lowest 2 bits=0
-	.long	0xFFFFFFFF	#; hi dword
-
-data_addr_above_1M:
-	.long	0
-	.long	0
-//data_addr_below_1M:
-//	.long	0
-//	.long	0
-int13_cdrom_edi:
-	.long	0
-int13_cdrom_ebx:
-	.long	0
-int13_cdrom_cx:
-	.word	0
-int13_cdrom_bx:
-	.word	0
-int13_cdrom_es:
-	.word	0
 
 1:
 	#;jmp	1f	/* just check if CHS translation code works */
@@ -6745,41 +6769,7 @@ GDT_data:		/* used by int15/ah=87h */
 /*28*/	.long	0, 0	/* stack segment descriptor, must be 0 */
 /*30*/
 
-#endif /* ! STAGE1_5 */
-
 	.align	16
-
-MyGDT:
-//gdt:
-/* 0*/	.word	0	/* NULL entry. Can be used at will. */
-gdtdesc:		/* 6 bytes used for gdt descriptor. */
-	.word	MyGDTEnd - MyGDT - 1	/* GDT limit */
-
-	/* The gdt linear base address will be adjusted by int13_handler,
-	 * but not touched outside int13_handler. */
-
-	.long	ABS(MyGDT)		/* GDT linear address */
-
-/* 8*/	.long	0x0000FFFF, 0x00009300	/* 16-bit data 64K limit */
-/*16*/	.long	0x0000FFFF, 0x00CF9300	/* 32-bit data 4GB limit */
-
-	/* The 16-bit code segment base will be adjusted by int13_handler,
-	 * but not touched outside int13_handler. */
-/*24*/	.long	0x0000FFFF, 0x00009B00	/* 16-bit code 64K limit */
-/*32*/	.long	0x0000FFFF, 0x00AF9B00	/* 64-bit code 4GB limit */
-
-OldGDT:
-	/* This gdt entry is no use for int13_handler, but used outside. The
-	 * int13_handler only uses it as a temp space for the OldGDT variable.
-	 * Only the last 6 bytes are used by OldGDT, and the starting 2 bytes
-	 * are not used by OldGDT. */
-/*40*/	.long	0x0000FFFF, 0x00CF9B00	/* 32-bit code 4GB limit */
-
-MyGDTEnd:
-
-#ifndef STAGE1_5
-//OldIDT:
-//	.long	0, 0
 
 	#;*******************************************************************
 	#;			ATA Registers Layout
@@ -6839,7 +6829,9 @@ EBIOS_disk_address_packet:
 
 int13_handler_end:
 
-	//. = . - (int13_handler_end - int13_handler)/0x2FE1
+	/* Total size of int13_handler should better not exceed 12KB. */
+
+	. = . - (int13_handler_end - int13_handler)/0x3001
 
 #;============================================================================
 
@@ -11544,6 +11536,10 @@ ENTRY(set_int13_handler)
 	cld
 	repz movsl
 
+	/* other variable(s) */
+	movb	ABS(EXT_C(is64bit)), %dl
+	movb	%dl, ABS(int13_is64bit)
+
 //	Now initialized early at the beginning of this file
 //
 //	/* save the original int13 handler */
@@ -11552,28 +11548,50 @@ ENTRY(set_int13_handler)
 //	movl	%eax, ABS(EXT_C(ROM_int13))
 
 	/* decrease the lower memory size and set it to the BIOS memory */
-	movl	$0x413, %edi
-	movl	%edi, %esi
 
-	lodsw
+	/* read available lower memory size */
+	movzwl  0x413, %eax
+	
 	/* KBytes that int13 handler occupies */
-	subb	ABS(int13_handler), %al
-	stosw
+	movzbl	ABS(int13_handler), %edx	/* EDX=KBytes used by new int13_handler */
+	subl	%edx, %eax			/* EAX=new available low memory(KBytes) */
+	/* save remaining lower memory size in BIOS data area */
+	movw	%ax, 0x413
+	
+	/* copy int13_handler to the reserved area */
+	shll    $10, %eax	
+	movl    %eax, %edi	/* EDI=EAX=destination int13_handler address */
+	movl	$ABS(int13_handler), %esi
+	movl	$((int13_handler_end-int13_handler) / 4), %ecx
+	// cld
+	repz	movsl
+	
+	movl	%eax, %edi
+	/* EDI=EAX=linear address of int13_handler */
+	///* save size (KBytes) of int13_handler in its header */
+	//movb	%dl, (%edi)
+	/* linear address of int13_handler (less than 0x100000) */
+	orl	%eax, (PM_DS16+2+MyGDT-int13_handler)(%edi)
+	orl	%eax, (PM_CS16+2+MyGDT-int13_handler)(%edi)
+	//orl	%eax, (PM_CS32+2+MyGDT-int13_handler)(%edi)
+	/* calculate linear address of MyGDT and save in gdtdesc+2 */
+	addl	$(MyGDT-int13_handler), %eax
+	movl	%eax, (2+gdtdesc-int13_handler)(%edi)
+	// calculate linear address of int13_lm64move_lm64_start
+	addl	$(int13_lm64move_lm64_start-MyGDT), %eax
+	movl	%eax, (int13_lm64move_lm64_start_addr - int13_handler)(%edi)
+	movl	%edi, %eax
+	// real mode segment of int13_handler
+	shrl	$4, %eax
+	movw	%ax, (int13_pgmove_to_rm_cs - int13_handler)(%edi)
 
-	/* compute the segment(high word) */
-	shll	$(16 + 6), %eax
-
-	/* the offset(low word) should be 0x100 */
-	movw	$0x100, %ax
-
+	/* move segment to high word */
+	shll	$16, %eax
+	/* the offset low word should be 0x100 */
+	movw	$(int13_handler_entry-int13_handler), %ax
 	/* save the new int13 handler */
-	movl	$0x4c, %edi
-	stosl
-
-	/* EDI points to the destination int13 handler in the reserved area */
-	movl	%eax, %edi		/* the int13 vector just saved */
-	shrl	$12, %edi		/* get base address of segment */
-
+	movl	%eax, 0x004c
+	
 	/* set ESI to the drive map */
 	movl	$ABS(EXT_C(hooked_drive_map)), %esi
 	movl	$(DRIVE_MAP_SIZE), %ecx
@@ -11587,19 +11605,11 @@ ENTRY(set_int13_handler)
 	addl	$DRIVE_MAP_SLOT_SIZE, %esi
 	loop	1b
 	jmp	2f			/* no memdrives, don't hook int15 */
-
 1:
 	/* save the new int15 handler */
 	movw	$(int15_e820_handler - int13_handler), %ax	/* segment still in high word */
 	movl	%eax, 0x54
-
 2:
-	/* copy int13_handler to the reserved area */
-	movl	$ABS(int13_handler), %esi
-	movl	$((int13_handler_end - int13_handler) / 4), %ecx
-	cld
-	repz movsl
-
 	popl	%esi
 	popl	%edi
 	popl	%ebp
@@ -11776,7 +11786,7 @@ VARIABLE(system_functions)
 	.long	ABS(EXT_C(cls))
 	.long	ABS(EXT_C(setcursor))
 	.long	ABS(EXT_C(nul_terminate))
-	.long	ABS(EXT_C(safe_parse_maxint))
+	.long	ABS(EXT_C(safe_parse_maxint_with_suffix))
 	.long	ABS(EXT_C(substring))
 	.long	ABS(EXT_C(grub_strstr))
 	.long	ABS(EXT_C(grub_strlen))
@@ -11811,6 +11821,11 @@ VARIABLE(system_functions)
 	.long	ABS(EXT_C(parse_string))
 	.long	ABS(EXT_C(hexdump))
 	.long	ABS(EXT_C(skip_to))
+	.long	ABS(EXT_C(builtin_cmd))
+	.long	ABS(EXT_C(get_datetime))
+	.long	ABS(EXT_C(lba_to_chs))
+	.long	ABS(EXT_C(probe_bpb))
+	.long	ABS(EXT_C(probe_mbr))
 
 /*
  * The C code for a grub4dos executable may have defines as follows:
@@ -11853,6 +11868,22 @@ VARIABLE(next_partition_buf)
 	.long	0
 VARIABLE(quit_print)
 	.long	0
-
+VARIABLE(buf_drive)
+	.long	-1
+VARIABLE(buf_track)
+	.long	-1
+VARIABLE(filesystem_type)
+	.long	0
+VARIABLE(query_block_entries)
+	.long	0
+VARIABLE(map_start_sector)
+	.long	0
+	.long	ABS(EXT_C(buf_geom))
+	.long	ABS(EXT_C(tmp_geom))
+	.long	ABS(EXT_C(term_table))
+	.long	ABS(EXT_C(fsys_table))
+VARIABLE(fsys_type)
+	.long	NUM_FSYS
+	.long	NUM_FSYS
 
 #endif /* ! STAGE1_5 */

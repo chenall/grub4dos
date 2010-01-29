@@ -27,6 +27,7 @@
 #include <shared.h>
 #include <filesys.h>
 #include <term.h>
+#include "iamath.h"
 
 #ifdef SUPPORT_NETBOOT
 # define GRUB	1
@@ -230,7 +231,7 @@ int disable_map_info = 0;
 /* Prototypes for allowing straightfoward calling of builtins functions
    inside other functions.  */
 static int configfile_func (char *arg, int flags);
-static void lba_to_chs (unsigned long lba, unsigned long *cl, unsigned long *ch, unsigned long *dh);
+void lba_to_chs (unsigned long lba, unsigned long *cl, unsigned long *ch, unsigned long *dh);
 //static char *set_device (char *device);
 //static int real_open_partition (int flags);
 //static int open_partition (void);
@@ -267,8 +268,8 @@ disk_read_print_func (unsigned long sector, unsigned long offset, unsigned long 
 }
 
 extern int rawread_ignore_memmove_overflow; /* defined in disk_io.c */
-static long query_block_entries = 0;
-static unsigned long map_start_sector = 0;
+long query_block_entries;
+unsigned long map_start_sector;
 static unsigned long map_num_sectors = 0;
 
 static unsigned long blklst_start_sector;
@@ -1228,13 +1229,13 @@ cat_func (char *arg, int flags)
     else if (grub_memcmp (arg, "--skip=", 7) == 0)
       {
 	p = arg + 7;
-	if (! safe_parse_maxint (&p, &skip))
+	if (! safe_parse_maxint_with_suffix (&p, &skip, 0))
 		return 0;
       }
     else if (grub_memcmp (arg, "--length=", 9) == 0)
       {
 	p = arg + 9;
-	if (! safe_parse_maxint (&p, &length))
+	if (! safe_parse_maxint_with_suffix (&p, &length, 0))
 		return 0;
       }
     else if (grub_memcmp (arg, "--locate=", 9) == 0)
@@ -4662,6 +4663,7 @@ command_func (char *arg, int flags)
   {
 	unsigned long pid = 255;
 	unsigned long j;
+	unsigned long psp_len;
 
 	for (j = 1; (unsigned long)&mem_alloc_array_start[j] < mem_alloc_array_end && mem_alloc_array_start[j].addr; j++)
 	    if (pid < mem_alloc_array_start[j].pid)
@@ -4684,15 +4686,13 @@ command_func (char *arg, int flags)
 		goto fail;
 	}
 
-	mem_alloc_array_start[j].addr |= 0x01;	/* the memory is now in use. */
-	mem_alloc_array_start[j].pid = pid;	/* with this pid. */
-	((unsigned long *)free_mem_start)[0] = pid = ((grub_strlen (arg) + 16) & ~0xF) + 16 + 16;
-	grub_memmove ((char *)(free_mem_start + 16), arg, grub_strlen (arg) + 1);
-	*(unsigned long *)(free_mem_start + pid - 4) = pid;		/* PSP */
-	*(unsigned long *)(free_mem_start + pid - 8) = pid - 16;	/* args */
-	*(unsigned long *)(free_mem_start + pid - 12) = flags;		/* flags */
+	((unsigned long *)free_mem_start)[0] = psp_len = ((grub_strlen (arg) + 16) & ~0xF) + 16 + 16;
+	grub_memmove ((char *)(free_mem_start + 16), arg, grub_strlen (arg) + 1);	/* copy args into somewhere in PSP. */
+	*(unsigned long *)(free_mem_start + psp_len - 4) = psp_len;		/* PSP length in bytes. it is in both the starting dword and the ending dword of the PSP. */
+	*(unsigned long *)(free_mem_start + psp_len - 8) = psp_len - 16;	/* args is here. */
+	*(unsigned long *)(free_mem_start + psp_len - 12) = flags;		/* flags is here. */
 	/* (free_mem_start + pid - 16) is reserved for full pathname of the program file. */
-	if (grub_read ((unsigned long long)(free_mem_start + pid), -1ULL, 0xedde0d90) != filemax)
+	if (grub_read ((unsigned long long)(free_mem_start + psp_len), -1ULL, 0xedde0d90) != filemax)
 	{
 		if (! errnum)
 			errnum = ERR_EXEC_FORMAT;
@@ -4701,14 +4701,18 @@ command_func (char *arg, int flags)
 	grub_close ();
 
 	/* check exec signature. */
-	if (*(unsigned long long *)(int)(free_mem_start + pid + filemax - 8) != 0xBCBAA7BA03051805ULL)
+	if (*(unsigned long long *)(int)(free_mem_start + psp_len + filemax - 8) != 0xBCBAA7BA03051805ULL)
 		return ! (errnum = ERR_EXEC_FORMAT);
 
-	pid += free_mem_start;			/* pid = entry point of program. */
+	/* allocate all memory to the program. */
+	mem_alloc_array_start[j].addr |= 0x01;	/* the memory is now in use. */
+	mem_alloc_array_start[j].pid = pid;	/* with this pid. */
+
+	psp_len += free_mem_start;
 	free_mem_start = free_mem_end;		/* no free memory for other programs. */
 
-	/* call the new program. */
-	pid = ((int (*)(void))(pid))();		/* pid holds return value. */
+	/* call the new program.  (free_mem_start + psp_len) = entry point of program. */
+	pid = ((int (*)(void))(psp_len))();	/* pid holds return value. */
 
 	/* on exit, release the memory. */
 	for (j = 1; (unsigned long)&mem_alloc_array_start[j] < mem_alloc_array_end && mem_alloc_array_start[j].addr; j++)
@@ -4718,7 +4722,6 @@ command_func (char *arg, int flags)
 	free_mem_start = (mem_alloc_array_start[j].addr &= 0xFFFFFFF0);
 	return pid;
   }
-
 
   //return 1;
 
@@ -9621,7 +9624,7 @@ static struct builtin builtin_pager =
 
 
   /* Convert a LBA address to a CHS address in the INT 13 format.  */
-static void
+void
 lba_to_chs (unsigned long lba, unsigned long *cl, unsigned long *ch, unsigned long *dh)
 {
       unsigned long cylinder, head, sector;
@@ -13078,6 +13081,37 @@ static struct builtin builtin_vbeprobe =
   " the information about only the mode."
 };
   
+
+int
+builtin_cmd (char *cmd, char *arg, int flags)
+{
+	struct builtin *builtin1 = 0;
+
+	builtin1 = find_command (cmd);
+  
+	if ((int)builtin1 != -1)
+	{
+		if (! builtin1 || ! (builtin1->flags & flags))
+		{
+			errnum = ERR_UNRECOGNIZED;
+			return 0;
+		}
+		else
+		{
+			return (builtin1->func) (arg, flags);
+		}
+	}
+	return 0;
+/*	if ((int)builtin1 != -1)
+	{
+		return (builtin1->func) (arg, flags);
+	}
+	else
+	{
+		return command_func (arg, flags);
+	}
+*/
+}
 
 /* The table of builtin commands. Sorted in dictionary order.  */
 struct builtin *builtin_table[] =

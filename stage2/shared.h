@@ -754,6 +754,7 @@ extern int map_func (char *arg, int flags);
 #endif
 
 extern void hexdump(unsigned long,char*,int);
+extern int builtin_cmd (char *cmd, char *arg, int flags);
 
 #ifndef STAGE1_5
 /* GUI interface variables. */
@@ -862,7 +863,7 @@ extern unsigned long current_partition;
 
 extern int fsys_type;
 
-extern inline unsigned long log2_tmp (unsigned long word);
+//extern inline unsigned long log2_tmp (unsigned long word);
 extern void unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n);
 
 /* The information for a disk geometry. The CHS information is only for
@@ -1259,8 +1260,8 @@ int gunzip_test_header (void);
 unsigned long gunzip_read (unsigned long long buf, unsigned long len);
 #endif /* NO_DECOMPRESSION */
 
-int rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, unsigned long byte_len, unsigned long long buf, unsigned long write);
-int devread (unsigned long sector, unsigned long byte_offset, unsigned long byte_len, unsigned long long buf, unsigned long write);
+int rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write);
+int devread (unsigned long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write);
 int rawwrite (unsigned long drive, unsigned long sector, char *buf);
 int devwrite (unsigned long sector, unsigned long sector_len, char *buf);
 
@@ -1289,10 +1290,10 @@ int grub_open (char *filename);
 
 /* Read LEN bytes into BUF from the file that was opened with
    GRUB_OPEN.  If LEN is -1, read all the remaining data in the file.  */
-unsigned long grub_read (unsigned long long buf, unsigned long long len, unsigned long write);
+unsigned long long grub_read (unsigned long long buf, unsigned long long len, unsigned long write);
 
 /* Reposition a file offset.  */
-unsigned long grub_seek (unsigned long offset);
+//unsigned long grub_seek (unsigned long offset);
 
 /* Close a file.  */
 void grub_close (void);

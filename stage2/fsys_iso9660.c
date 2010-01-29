@@ -55,16 +55,6 @@ struct iso_inode_info {
 #define RRCONT_BUF      ((unsigned char *)(FSYS_BUF + 6144))
 #define NAME_BUF        ((unsigned char *)(FSYS_BUF + 8192))
 
-
-//static inline unsigned long
-//log2_tmp (unsigned long word)
-//{
-//  asm volatile ("bsfl %1,%0"
-//		:          "=r" (word)
-//		:          "r" (word));
-//  return word;
-//}
-
 #if 0
 static int
 iso9660_devread (unsigned long sector, unsigned long byte_offset, unsigned long byte_len, char *buf)
