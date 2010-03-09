@@ -159,7 +159,8 @@ int fb_mount (void)
   return (current_drive == FB_DRIVE);
 }
 
-unsigned long fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
+unsigned long long
+fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   int ret;
   unsigned long sector, ofs, saved_len;

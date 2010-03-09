@@ -10773,6 +10773,7 @@ ENTRY(console_setcursor)
 
 /* graphics mode functions */
 #ifdef SUPPORT_GRAPHICS
+ENTRY(VARIABLE_GRAPHICS)
 VARIABLE(cursorX)
 	.word	0
 VARIABLE(cursorY)
@@ -11826,7 +11827,9 @@ VARIABLE(system_functions)
 	.long	ABS(EXT_C(lba_to_chs))
 	.long	ABS(EXT_C(probe_bpb))
 	.long	ABS(EXT_C(probe_mbr))
-
+//	.long	ABS(EXT_C(graphics_init))
+//	.long	ABS(EXT_C(graphics_end))
+//	.long	ABS(EXT_C(graphics_get_font))
 /*
  * The C code for a grub4dos executable may have defines as follows:
  *
@@ -11881,9 +11884,22 @@ VARIABLE(map_start_sector)
 	.long	ABS(EXT_C(buf_geom))
 	.long	ABS(EXT_C(tmp_geom))
 	.long	ABS(EXT_C(term_table))
+VARIABLE(current_term)
+	.long	ABS(EXT_C(term_table))
 	.long	ABS(EXT_C(fsys_table))
 VARIABLE(fsys_type)
 	.long	NUM_FSYS
 	.long	NUM_FSYS
-
+VARIABLE(graphics_inited)
+	.long	0
+	.long	ABS(EXT_C(VARIABLE_GRAPHICS))
+VARIABLE(font8x16)
+	.long	0
+VARIABLE(fontx)
+	.long	0
+VARIABLE(fonty)
+	.long	0
+VARIABLE(graphics_CURSOR)
+	.long	0
+	.long	(EXT_C(menu_broder))
 #endif /* ! STAGE1_5 */

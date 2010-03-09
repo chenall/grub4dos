@@ -901,7 +901,7 @@ search_stat (__u32 dir_id, __u32 objectid)
   return 0;
 }
 
-unsigned long
+unsigned long long
 reiserfs_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long blocksize;

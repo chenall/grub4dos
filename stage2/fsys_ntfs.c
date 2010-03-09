@@ -1412,7 +1412,8 @@ int ntfs_dir (char *dirname)
   return ret;
 }
 
-unsigned long ntfs_read(unsigned long long buf, unsigned long long len, unsigned long write)
+unsigned long long
+ntfs_read(unsigned long long buf, unsigned long long len, unsigned long write)
 {
   char *cur_mft;
 

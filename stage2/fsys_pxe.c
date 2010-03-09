@@ -545,7 +545,8 @@ int pxe_mount (void)
 }
 
 /* Read up to SIZE bytes, returned in ADDR.  */
-unsigned long pxe_read (unsigned long long buf, unsigned long long len, unsigned long write)
+unsigned long long
+pxe_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long nr;
 

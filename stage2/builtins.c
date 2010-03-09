@@ -1,4 +1,5 @@
 /* builtins.c - the GRUB builtin commands */
+/* builtins.c - the GRUB builtin commands */
 /*
  *  GRUB  --  GRand Unified Bootloader
  *  Copyright (C) 1999,2000,2001,2002,2003,2004  Free Software Foundation, Inc.
@@ -2559,17 +2560,31 @@ cmp_func (char *arg, int flags)
   char *file1, *file2;
   /* The addresses.  */
   char *addr1, *addr2;
-  int i;
+  int i, Hex;
   /* The size of the file.  */
-  int size,Hex;
+  unsigned long long size;
+  unsigned long long cur_pos = 0;
     quit_print=0;
     Hex = 0;
+
+  for (;;)
+  {
+		if (grub_memcmp (arg, "--hex", 5) == 0)
+		{
+			Hex = 1;
+			arg=skip_to (0, arg);
+		}
+		else if (grub_memcmp (arg, "--skip=", 7) == 0)
+		{
+			arg += 7;
+			if (! safe_parse_maxint_with_suffix (&arg, &cur_pos, 0))
+				return 0;
+		  while (*arg == ' ' || *arg == '\t') arg++;
+		}
+		else
+			break;
+   }
   /* Get the filenames from ARG.  */
-  if (grub_memcmp (arg, "--hex", 5) == 0)
-    {
-        Hex = 1;
-        arg=skip_to (0, arg);
-    }
   file1 = arg;
   file2 = skip_to (0, arg);
   if (! *file1 || ! *file2)
@@ -2583,133 +2598,160 @@ cmp_func (char *arg, int flags)
   nul_terminate (file2);
 
   /* Read the whole data from FILE1.  */
-  addr1 = (char *) RAW_ADDR (0x400000);
+  #define CMP_BUF_SIZE 0x100000ULL
+  addr1 = (char *) RAW_ADDR (0x600000);
+  addr2 = addr1 + CMP_BUF_SIZE;
   if (! grub_open (file1))
     return 0;
   
   /* Get the size.  */
   size = filemax;
-  if (grub_read ((unsigned long long)(unsigned long)addr1, -1ULL, 0xedde0d90) != size)
-    {
-      grub_close ();
-      return 0;
-    }
-  
-  grub_close ();
-
-  /* Read the whole data from FILE2.  */
-  addr2 = addr1 + size;
+  grub_close();
+ 
   if (! grub_open (file2))
     return 0;
+  grub_close();
 
-  if (! grub_read ((unsigned long long)(unsigned long)addr2, -1ULL, 0xedde0d90))
+  if ((size != filemax) && !Hex)
     {
+      grub_printf ("Differ in size: 0x%lx [%s], 0x%lx [%s]\n", size, file1, filemax, file2);
       grub_close ();
       return 0;
     }
-  
-  grub_close ();
-
+    
   if (Hex)
-	{
+  {
 	if (current_term->setcolorstate)
 		current_term->setcolorstate (COLOR_STATE_HEADING);
+		
 	grub_printf("Compare FILE1:%s <--> FILE2:%s\t\n",file1,file2);
+	
 	if (current_term->setcolorstate)
 		current_term->setcolorstate (COLOR_STATE_STANDARD);
-	for (i = 0; i < (filemax>=size?size:filemax); i+=16)
-	{
-		int k,cnt;
-		unsigned char c;
-		if (quit_print)
-			break;
-		if (current_term->setcolorstate)
-			current_term->setcolorstate (COLOR_STATE_NORMAL);
-		grub_printf("0x%X\t0x%X/0x%X\n",i,size,filemax);
-		if (current_term->setcolorstate)
-			current_term->setcolorstate (COLOR_STATE_STANDARD);
-		grub_printf ("%08X: ", i);
-		cnt = 16;
-		if (cnt+i > (filemax >= size?size:filemax))
-			cnt=(filemax >= size?size:filemax)-i;
-		for (k=0;k<cnt;k++)
-		{
-			c = (unsigned char)(addr1[i+k]);
-			if ((addr1[i+k] != addr2[i+k]) && (current_term->setcolorstate))
-				current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
-			printf("%02X", c);
-			if ((addr1[i+k] != addr2[i+k]) && (current_term->setcolorstate))
-				current_term->setcolorstate (COLOR_STATE_STANDARD);
-			if ((k != 15) && ((k & 3)==3))
-				printf(" ");
-			printf(" ");
-		}
-		for (;k<16;k++)
-		{
-			printf("   ");
-			if ((k!=15) && ((k & 3)==3))
-				printf(" ");
-		}
-		printf("; ");
-
-		for (k=0;k<cnt;k++)
-		{
-			c=(unsigned char)(addr1[i+k]);
-			printf("%c",((c>=32) && (c != 127))?c:'.');
-		}
-		printf("\n");
-		grub_printf ("%08X: ", i);
-		for (k=0;k<cnt;k++)
-		{
-			c = (unsigned char)(addr2[i+k]);
-			if ((addr1[i+k] != addr2[i+k]) && (current_term->setcolorstate))
-				current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
-			printf("%02X", c);
-			if ((addr1[i+k] != addr2[i+k]) && (current_term->setcolorstate))
-				current_term->setcolorstate (COLOR_STATE_STANDARD);
-			if ((k!=15) && ((k & 3)==3))
-				printf(" ");
-			printf(" ");
-		}
-
-		for (;k<16;k++)
-		{
-			printf("   ");
-			if ((k!=15) && ((k & 3)==3))
-				printf(" ");
-		}
-		printf("; ");
-
-		for (k=0;k<cnt;k++)
-		{
-			c = (unsigned char)(addr2[i+k]);
-			printf("%c",((c>=32) && (c != 127))?c:'.');
-		}
-		printf("\n");
-	}
-	return 1;
-	}
-  /* Check if the size of FILE2 is equal to the one of FILE2.  */
-  if (size != filemax)
-    {
-      grub_printf ("Differ in size: 0x%x [%s], 0x%x [%s]\n", size, file1, (unsigned long)filemax, file2);
-      grub_close ();
-      return 0;
-    }
-
-  /* Now compare ADDR1 with ADDR2.  */
-  for (i = 0; i < size; i++)
-    {
-      if (addr1[i] != addr2[i])
-      {
-	grub_printf ("Differ at the offset %d: 0x%x [%s], 0x%x [%s]\n",
-		     (unsigned long)i, (unsigned long) addr1[i], file1,
-		     (unsigned long) addr2[i], file2);
-	return 0;
-      }
-    }
+  }
   
-  return 1;
+ 
+  if (! grub_open (file1))
+	return 0;
+
+  unsigned long long size1, size2;
+  
+  if (Hex)
+	filepos = cur_pos & -16ULL;
+  else
+    filepos = cur_pos;
+
+  while ((size1 = grub_read ((unsigned long long)(unsigned long)addr1, CMP_BUF_SIZE, 0xedde0d90)))
+  {
+  		cur_pos = filepos;
+		grub_close();
+		if (! grub_open (file2))
+			return 0;
+		
+		filepos = cur_pos - size1;
+		if (! (size2 = grub_read ((unsigned long long)(unsigned long)addr2, size1, 0xedde0d90)))
+		{
+			grub_close ();
+			return 0;
+		}
+		grub_close();
+		
+		if (Hex)
+		{
+			for (i = 0; i < size2; i+=16)
+			{
+				int k,cnt;
+				unsigned char c;
+				unsigned long cur_offset;
+				cur_offset = (unsigned long)(cur_pos - size1 + i);
+				if (current_term->setcolorstate)
+					current_term->setcolorstate (COLOR_STATE_NORMAL);
+				grub_printf("0x%X\t0x%lX/0x%lX\n",cur_offset, size, filemax);
+				if (current_term->setcolorstate)
+					current_term->setcolorstate (COLOR_STATE_STANDARD);
+				grub_printf ("%08X: ",cur_offset);
+				cnt = 16;
+				if (cnt+i > size2)
+					cnt=size2 - i;
+				for (k=0;k<cnt;k++)
+				{
+					c = (unsigned char)(addr1[i+k]);
+					if ((addr1[i+k] != addr2[i+k]) && (current_term->setcolorstate))
+						current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+					printf("%02X", c);
+					if ((addr1[i+k] != addr2[i+k]) && (current_term->setcolorstate))
+						current_term->setcolorstate (COLOR_STATE_STANDARD);
+					if ((k != 15) && ((k & 3)==3))
+						printf(" ");
+					printf(" ");
+				}
+				for (;k<16;k++)
+				{
+					printf("   ");
+					if ((k!=15) && ((k & 3)==3))
+						printf(" ");
+				}
+				printf("; ");
+
+				for (k=0;k<cnt;k++)
+				{
+					c=(unsigned char)(addr1[i+k]);
+					printf("%c",((c>=32) && (c != 127))?c:'.');
+				}
+				printf("\n");
+				grub_printf ("%08X: ",cur_offset);
+				for (k=0;k<cnt;k++)
+				{
+					c = (unsigned char)(addr2[i+k]);
+					if ((addr1[i+k] != addr2[i+k]) && (current_term->setcolorstate))
+						current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+					printf("%02X", c);
+					if ((addr1[i+k] != addr2[i+k]) && (current_term->setcolorstate))
+						current_term->setcolorstate (COLOR_STATE_STANDARD);
+					if ((k!=15) && ((k & 3)==3))
+						printf(" ");
+					printf(" ");
+				}
+
+				for (;k<16;k++)
+				{
+					printf("   ");
+					if ((k!=15) && ((k & 3)==3))
+						printf(" ");
+				}
+				printf("; ");
+
+				for (k=0;k<cnt;k++)
+				{
+					c = (unsigned char)(addr2[i+k]);
+					printf("%c",((c>=32) && (c != 127))?c:'.');
+				}
+				printf("\n");
+				if (quit_print)
+					return 1;
+			}
+		}
+		else
+		{
+			  /* Now compare ADDR1 with ADDR2.  */
+			for (i = 0; i < size2; i++)
+			{
+				if (addr1[i] != addr2[i])
+				{
+					grub_printf ("Differ at the offset %d: 0x%x [%s], 0x%x [%s]\n",
+						(unsigned long)(cur_pos - size1 + i), (unsigned long) addr1[i], file1,
+						(unsigned long) addr2[i], file2);
+					return 0;
+				}
+			}
+		}
+		
+		if (! grub_open (file1))
+			return 0;	
+		filepos = cur_pos;
+  }
+	grub_close();
+	return 1;
 }
 
 static struct builtin builtin_cmp =
@@ -4511,7 +4553,12 @@ static int
 fallback_func (char *arg, int flags)
 {
   unsigned long i = 0;
-
+  int go=0;
+  if (memcmp(arg,"--go",4) == 0)
+	{
+		go = 1;
+		arg = skip_to (0, arg);
+	}
   while (*arg)
     {
       unsigned long long entry;
@@ -4538,7 +4585,7 @@ fallback_func (char *arg, int flags)
     fallback_entries[i] = -1;
 
   fallback_entryno = (i == 0) ? -1 : 0;
-  
+  if (go) return (errnum = MAX_ERR_NUM);
   return 1;
 }
 
@@ -8904,6 +8951,19 @@ map_whole_drive:
       if (start_sector == part_start && part_start == 0 && sector_count == 1)
 		sector_count = part_length;
 
+      /* For GZIP disk image if uncompressed size >= 4GB, 
+         high bits of filemax is wrong, sector_count is also wrong. */
+      #if 0
+      if ( compressed_file && (sector_count < probed_total_sectors) && filesystem_type > 0 )
+      {   /* adjust high bits of filemax and sector_count */
+	  unsigned long sizehi = (unsigned long)(probed_total_sectors >> (32-SECTOR_BITS));
+	  if ( (unsigned long)filemax < (unsigned long)(probed_total_sectors << SECTOR_BITS) )
+	      ++sizehi;
+	  fsmax = filemax += (unsigned long long)sizehi << 32;
+	  sector_count = filemax >> SECTOR_BITS;
+	  grub_printf("Uncompressed size is probably %ld sectors\n",sector_count);
+      }
+		#endif
       if ( (long long)mem < 0LL && sector_count < (-mem) )
 	bytes_needed = (-mem) << SECTOR_BITS;
       else
@@ -9093,8 +9153,10 @@ map_whole_drive:
       //	return 0;
 	
       /* the first sector already read at BS */
+      #if 0
       if ((to != 0xffff && to != ram_drive) || ((long long)mem) <= 0)
 	{
+		#endif
 	  /* if image is in memory and not compressed, we can simply move it. */
 	  if ((to == 0xffff || to == ram_drive) && !compressed_file)
 	  {
@@ -9127,13 +9189,21 @@ map_whole_drive:
 	    }
 	  }
 	  grub_close ();
+	 #if 0
 	}
-      else if ((to == 0xffff || to == ram_drive) && !compressed_file)
+      else if (/*(to == 0xffff || to == ram_drive) && */!compressed_file)
 	{
-	    if ((int)bytes_needed != start_byte)
+	    if (bytes_needed != start_byte)
 		grub_memmove64 (bytes_needed, start_byte, filemax);
+		grub_close ();
 	}
-
+	else
+     {
+		grub_memmove64 (bytes_needed, (unsigned long long)(unsigned int)BS, SECTOR_SIZE);
+        grub_read (bytes_needed + SECTOR_SIZE, -1ULL, 0xedde0d90);
+        grub_close ();
+      }
+	#endif
       start_sector = base >> SECTOR_BITS;
       to = 0xFFFF/*GRUB_INVALID_DRIVE*/;
 
@@ -9141,21 +9211,30 @@ map_whole_drive:
       {
 	unsigned long sectors_per_cylinder1, cylinder, sector_rem;
 	unsigned long head, sector;
+
+	/* First sector of disk image has already been read to buffer BS/mbr */
 	
 	/* modify the BPB drive number. required for FAT12/16/32/NTFS */
 	if (filesystem_type != -1)
-	if (!*(char *)((int)bytes_needed + ((filesystem_type == 3) ? 0x41 : 0x25)))
-		*(char *)((int)bytes_needed + ((filesystem_type == 3) ? 0x40 : 0x24)) = from;
+	if (!*(char *)((int)BS + ((filesystem_type == 3) ? 0x41 : 0x25)))
+		*(char *)((int)BS + ((filesystem_type == 3) ? 0x40 : 0x24)) = from;
 	
 	/* modify the BPB hidden sectors. required for FAT12/16/32/NTFS/EXT2 */
-	if (filesystem_type != -1 || *(unsigned long *)((int)bytes_needed + 0x1c) == (unsigned long)part_start)
-	    *(unsigned long *)((int)bytes_needed + 0x1c) = sectors_per_track;
+	if (filesystem_type != -1 || *(unsigned long *)((int)BS + 0x1c) == (unsigned long)part_start)
+	    *(unsigned long *)((int)BS + 0x1c) = sectors_per_track;
+	
+	grub_memmove64 (bytes_needed, (unsigned long long)(unsigned int)BS, SECTOR_SIZE);
+	
+	/* clear BS/mbr buffer */
+	grub_memset(mbr, 0, SECTOR_SIZE);
 	
 	/* clear MS magic number */
-	*(long *)((int)base + 0x1b8) = 0; 
+	//*(long *)((int)mbr + 0x1b8) = 0; 
+	/* Let MS magic number = virtual BIOS drive number */
+	*(long *)((int)mbr + 0x1b8) = (unsigned char)from; 
 	/* build the partition table */
-	*(long *)((int)base + 0x1be) = 0x00010180L; 
-	*(char *)((int)base + 0x1c2) = //((filesystem_type == -1 || filesystem_type == 5)? 0x83 : filesystem_type == 4 ? 0x07 : 0x0c); 
+	*(long *)((int)mbr + 0x1be) = 0x00010180L; 
+	*(char *)((int)mbr + 0x1c2) = //((filesystem_type == -1 || filesystem_type == 5)? 0x83 : filesystem_type == 4 ? 0x07 : 0x0c); 
 		filesystem_type == 1 ? 0x0E /* FAT12 */ :
 		filesystem_type == 2 ? 0x0E /* FAT16 */ :
 		filesystem_type == 3 ? 0x0C /* FAT32 */ :
@@ -9171,43 +9250,46 @@ map_whole_drive:
 	head = sector_rem / (unsigned long)sectors_per_track;
 	sector = sector_rem % (unsigned long)sectors_per_track;
 	sector++;
-	*(char *)((int)base + 0x1c3) = head;
-	*(unsigned short *)((int)base + 0x1c4) = sector | (cylinder << 8) | ((cylinder >> 8) << 6);
-	*(unsigned long *)((int)base + 0x1c6) = sectors_per_track; /* start LBA */
-	*(unsigned long *)((int)base + 0x1ca) = sector_count - sectors_per_track; /* sector count */
-	*(long long *)((int)base + 0x1ce) = 0LL; 
-	*(long long *)((int)base + 0x1d6) = 0LL; 
-	*(long long *)((int)base + 0x1de) = 0LL; 
-	*(long long *)((int)base + 0x1e6) = 0LL; 
-	*(long long *)((int)base + 0x1ee) = 0LL; 
-	*(long long *)((int)base + 0x1f6) = 0LL; 
-	*(unsigned short *)((int)base + 0x1fe) = 0xAA55;
+	*(char *)((int)mbr + 0x1c3) = head;
+	*(unsigned short *)((int)mbr + 0x1c4) = sector | (cylinder << 8) | ((cylinder >> 8) << 6);
+	*(unsigned long *)((int)mbr + 0x1c6) = sectors_per_track; /* start LBA */
+	*(unsigned long *)((int)mbr + 0x1ca) = sector_count - sectors_per_track; /* sector count */
+	*(long long *)((int)mbr + 0x1ce) = 0LL; 
+	*(long long *)((int)mbr + 0x1d6) = 0LL; 
+	*(long long *)((int)mbr + 0x1de) = 0LL; 
+	*(long long *)((int)mbr + 0x1e6) = 0LL; 
+	*(long long *)((int)mbr + 0x1ee) = 0LL; 
+	*(long long *)((int)mbr + 0x1f6) = 0LL; 
+	*(unsigned short *)((int)mbr + 0x1fe) = 0xAA55;
 	
 	/* compose a master boot record routine */
-	*(char *)((int)base) = 0xFA;	/* cli */
-	*(unsigned short *)((int)base + 0x01) = 0xC033; /* xor AX,AX */
-	*(unsigned short *)((int)base + 0x03) = 0xD08E; /* mov SS,AX */
-	*(long *)((int)base + 0x05) = 0xFB7C00BC; /* mov SP,7C00 ; sti */
-	*(long *)((int)base + 0x09) = 0x07501F50; /* push AX; pop DS */
+	*(char *)((int)mbr) = 0xFA;	/* cli */
+	*(unsigned short *)((int)mbr + 0x01) = 0xC033; /* xor AX,AX */
+	*(unsigned short *)((int)mbr + 0x03) = 0xD08E; /* mov SS,AX */
+	*(long *)((int)mbr + 0x05) = 0xFB7C00BC; /* mov SP,7C00 ; sti */
+	*(long *)((int)mbr + 0x09) = 0x07501F50; /* push AX; pop DS */
 						  /* push AX; pop ES */
-	*(long *)((int)base + 0x0d) = 0x7C1CBEFC; /* cld; mov SI,7C1C */
-	*(long *)((int)base + 0x11) = 0x50061CBF; /* mov DI,061C ; push AX */
-	*(long *)((int)base + 0x15) = 0x01E4B957; /* push DI ; mov CX, 01E4 */
-	*(long *)((int)base + 0x19) = 0x1ECBA4F3; /* repz movsb;retf;push DS */
-	*(long *)((int)base + 0x1d) = 0x537C00BB; /* mov BX,7C00 ; push BX */
-	*(long *)((int)base + 0x21) = 0x520180BA; /* mov DX,0180 ; push DX */
-	*(long *)((int)base + 0x25) = 0x530201B8; /* mov AX,0201 ; push BX */
-	*(long *)((int)base + 0x29) = 0x5F13CD41; /* inc CX; int 13; pop DI */
-	*(long *)((int)base + 0x2d) = 0x5607BEBE; /* mov SI,07BE ; push SI */
-	*(long *)((int)base + 0x31) = 0xCBFA5A5D; /* pop BP;pop DX;cli;retf */
+	*(long *)((int)mbr + 0x0d) = 0x7C1CBEFC; /* cld; mov SI,7C1C */
+	*(long *)((int)mbr + 0x11) = 0x50061CBF; /* mov DI,061C ; push AX */
+	*(long *)((int)mbr + 0x15) = 0x01E4B957; /* push DI ; mov CX, 01E4 */
+	*(long *)((int)mbr + 0x19) = 0x1ECBA4F3; /* repz movsb;retf;push DS */
+	*(long *)((int)mbr + 0x1d) = 0x537C00BB; /* mov BX,7C00 ; push BX */
+	*(long *)((int)mbr + 0x21) = 0x520180BA; /* mov DX,0180 ; push DX */
+	*(long *)((int)mbr + 0x25) = 0x530201B8; /* mov AX,0201 ; push BX */
+	*(long *)((int)mbr + 0x29) = 0x5F13CD41; /* inc CX; int 13; pop DI */
+	*(long *)((int)mbr + 0x2d) = 0x5607BEBE; /* mov SI,07BE ; push SI */
+	*(long *)((int)mbr + 0x31) = 0xCBFA5A5D; /* pop BP;pop DX;cli;retf */
+	grub_memmove64 (base, (unsigned long long)(unsigned int)mbr, SECTOR_SIZE);
       }
-      if ((from & 0x80) && (from < 0xA0))	/* the virtual drive is hard drive */
+      else if ((from & 0x80) && (from < 0xA0))	/* the virtual drive is hard drive */
       {
-	if (*(long *)((int)base + 0x1b8) == 0)
+	/* First sector of disk image has already been read to buffer BS/mbr */
+	if (*(long *)((int)mbr + 0x1b8) == 0)
 	  /* Let MS magic number = virtual BIOS drive number */
-	  *(long *)((int)base + 0x1b8) = (unsigned char)from; 
-	else if ((*(long *)((int)base + 0x1b8) & 0xFFFFFF00) == 0)
-	  *(long *)((int)base + 0x1b8) |= (from << 8); 
+	  *(long *)((int)mbr + 0x1b8) = (unsigned char)from; 
+	else if ((*(long *)((int)mbr + 0x1b8) & 0xFFFFFF00) == 0)
+	  *(long *)((int)mbr + 0x1b8) |= (from << 8); 
+	grub_memmove64 (base, (unsigned long long)(unsigned int)mbr, SECTOR_SIZE);
       }
 
       /* if FROM is (rd), no mapping is established. but the image will be
@@ -10767,11 +10849,19 @@ print_root_device (void)
       /* Network drive.  */
       grub_printf (" (nd):");
     }
-  else if (saved_drive & 0x80)
-    {
-      /* Hard disk drive.  */
-      grub_printf (" (hd%d", (saved_drive - 0x80));
-      
+  else
+    { 
+      if (saved_drive & 0x80)
+	{
+	  /* Hard disk drive.  */
+	  grub_printf (" (hd%d", (saved_drive - 0x80));
+	}
+      else
+	{
+	  /* Floppy disk drive.  */
+	  grub_printf (" (fd%d", saved_drive);
+	}
+
       if ((saved_partition & 0xFF0000) != 0xFF0000)
 	grub_printf (",%d", (unsigned long)(unsigned char)(saved_partition >> 16));
 
@@ -10779,11 +10869,6 @@ print_root_device (void)
 	grub_printf (",%c", (unsigned long)(unsigned char)((saved_partition >> 8) + 'a'));
 
       grub_printf ("):");
-    }
-  else
-    {
-      /* Floppy disk drive.  */
-      grub_printf (" (fd%d):", saved_drive);
     }
 }
 
@@ -13113,6 +13198,127 @@ builtin_cmd (char *cmd, char *arg, int flags)
 */
 }
 
+static unsigned long long read_val(char **str_ptr)
+{
+	char *p;
+	char *arg = *str_ptr;
+	unsigned long long val_t;
+	unsigned long long val;
+	while (*arg == ' ' || *arg == '\t') arg++;
+	p = arg;
+	if (*arg == '*') arg++;
+	if (! safe_parse_maxint_with_suffix (&arg, &val_t , 0))
+	{
+		return 0;
+	}
+	val = val_t;
+	if (*p == '*')
+	{
+		val = *(unsigned long long *)(unsigned long)val_t;
+	}
+	while (*arg == ' ' || *arg == '\t') arg++;
+	*str_ptr = arg;
+	return val;
+}
+
+static int
+calc_func (char *arg, int flags)
+{
+	unsigned long long val_t;
+	unsigned long long *val, val1, val2 = 0;
+	char O;
+	char *P = arg;
+	if (*P == '*') arg++;
+	if (! safe_parse_maxint_with_suffix (&arg, &val_t, 0))
+	{
+		return 0;
+	}
+	val1 = val_t;
+	val = &val1;
+	if (*P == '*') 
+	{
+		val = (unsigned long long *)(unsigned long)(val_t);
+		val1 = *val;
+	}
+	
+	while (*arg == ' ' || *arg == '\t') arg++;
+	if (*arg == '=')
+	{
+		arg++;
+		val1 = read_val(&arg);
+		*val = val1;
+	}
+	while (*arg)
+	{
+		val2 = 0ULL;
+		O = *arg;
+		arg++;
+		if (O == '>' || O == '<')
+		{
+			if (*arg != O)
+				return 0;
+			arg++;
+		}
+		else if ((O == '+' || O == '-') && (*arg == O))
+		{
+			val2 = 1ULL;
+			arg++;
+		}
+		if (!val2)
+			val2 = read_val(&arg);
+		switch(O)
+		{
+			case '+':
+				*val += val2;
+				break;
+			case '-':
+				*val -= val2;
+				break;
+			case '*':
+				*val *= val2;
+				break;
+			case '/':
+				*(unsigned long *)val /= (unsigned long)val2;
+				break;
+			case '%':
+				*(unsigned long *)val %= (unsigned long)val2;
+				break;
+			case '&':
+				*val &= val2;
+				break;
+			case '|':
+				*val |= val2;
+				break;
+			case '^':
+				*val ^= val2;
+				break;
+			case '<':
+				*val <<= val2;
+				break;
+			case '>':
+				*val >>= val2;
+				break;
+			default:
+				return 0;
+		}
+	}
+//	val1 = *val;
+	if (debug > 0)
+		printf(" %ld (HEX:0x%lX)\n",*val,*val);
+	return *val;
+}
+
+static struct builtin builtin_calc =
+{
+  "calc",
+  calc_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  "calc [*INTEGER=] [*]INTEGER OPERATOR [[*]INTEGER]",
+  "GRUB4DOS Simple Calculator.\n"
+  "Available Operators: + - * / % << >> ^ & |"
+  "\nNote: this is a Simple Calculator and From left to right only."
+};
+
 /* The table of builtin commands. Sorted in dictionary order.  */
 struct builtin *builtin_table[] =
 {
@@ -13126,6 +13332,7 @@ struct builtin *builtin_table[] =
   &builtin_bootp,
 #endif /* SUPPORT_NETBOOT */
 #endif /* ! GRUB_UTIL */
+  &builtin_calc,
   &builtin_cat,
 #if ! defined(GRUB_UTIL) && ! defined (STAGE1_5)
   &builtin_cdrom,

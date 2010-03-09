@@ -1189,10 +1189,10 @@ initialize_tables (void)
 }
 
 
-unsigned long
-gunzip_read (unsigned long long buf, unsigned long len)
+unsigned long long
+gunzip_read (unsigned long long buf, unsigned long long len)
 {
-  unsigned long ret = 0;
+  unsigned long long ret = 0;
 
   compressed_file = 0;
   gunzip_swap_values ();
@@ -1212,7 +1212,7 @@ gunzip_read (unsigned long long buf, unsigned long len)
 
   while (len > 0 && !errnum)
     {
-      register unsigned long size;
+      register unsigned long long size;
       register char *srcaddr;
 
       while (gzip_filepos >= saved_filepos)

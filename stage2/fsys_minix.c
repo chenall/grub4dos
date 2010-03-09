@@ -249,7 +249,7 @@ minix_block_map (int logical_block)
 }
 
 /* read from INODE into BUF */
-unsigned long
+unsigned long long
 minix_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long logical_block;

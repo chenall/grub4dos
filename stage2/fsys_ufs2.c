@@ -166,7 +166,7 @@ block_map (int file_block)
 				    - mapblock_offset]);
 }
 
-unsigned long
+unsigned long long
 ufs2_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long logno, off, size, ret = 0;

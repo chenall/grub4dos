@@ -1251,14 +1251,14 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
 +unsigned short stg2_ptborder = 0; /* Is called from stage2 drawing the menu border? */
 +
  static int saved_videomode = 0;
- static unsigned char *font8x16 = 0;
+ extern unsigned char *font8x16;
 +static int dbcs_ending_byte = 0;
  
  int outline = 0;
  int disable_space_highlight = 0;
 @@ -62,6 +68,9 @@
- static int fontx = 0;
- static int fonty = 0;
+ extern int fontx;
+ extern int fonty;
  
 +//static char* chrMsg = "(r)Powered by Gandalf, f22_storm@163.com, 07/15/2004";
 +
@@ -1266,7 +1266,14 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
  /* global state so that we don't try to recursively scroll or cursor */
  static int no_scroll = 0;
  
-@@ -124,11 +133,41 @@
+@@ -119,17 +128,47 @@
+      * invalidate the kernel_type. */
+     kernel_type = KERNEL_TYPE_NONE;
+ 	if (! graphics_CURSOR) graphics_CURSOR = (void *)&graphics_cursor;
+-	
++
+     if (! graphics_inited)
+     {
          saved_videomode = set_videomode (0x12);
      }
  
@@ -1311,7 +1318,7 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
      }
  
      font8x16 = (unsigned char *) graphics_get_font (); /* code in asm.S */
-@@ -139,7 +178,7 @@
+@@ -140,7 +179,7 @@
      graphics_highlight_color = ((graphics_normal_color >> 4) | 
  				((graphics_normal_color & 0xf) << 4));
  
@@ -1320,7 +1327,7 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
  }
  
  /* Leave graphics mode */
-@@ -150,9 +189,12 @@
+@@ -151,9 +190,12 @@
      {
          set_videomode (saved_videomode);
          graphics_inited = 0;
@@ -1333,7 +1340,7 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
  /* Print ch on the screen.  Handle any needed scrolling or the like */
  void
  graphics_putchar (int ch)
-@@ -182,12 +224,12 @@
+@@ -183,12 +225,12 @@
  
      text[fonty * 80 + fontx] = ch;
      text[fonty * 80 + fontx] &= 0x00ff;
@@ -1341,14 +1348,14 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
 +    if (graphics_current_color == graphics_highlight_color)//if (graphics_current_color & 0xf0)
          text[fonty * 80 + fontx] |= 0x10000;//0x100;
  
-     graphics_cursor(0);
+     graphics_CURSOR(0);
  
 -    if ((fontx + 1) >= x1)
 +    if (fontx + 1 >= x1)
      {
          if (fonty + 1 < y1)
              graphics_setxy(x0, fonty + 1);
-@@ -537,24 +579,100 @@
+@@ -538,24 +580,100 @@
  static unsigned char chr[16 << 2];
  static unsigned char mask[16];
  
@@ -1450,7 +1457,7 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
      if (set)
      {
          MapMask(15);
-@@ -643,6 +761,17 @@
+@@ -644,6 +762,17 @@
      }
  
      MapMask(15);

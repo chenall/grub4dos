@@ -31,11 +31,11 @@
 #include <graphics.h>
 
 static int saved_videomode = 0;
-static unsigned char *font8x16 = 0;
+extern unsigned char *font8x16;
 
 int outline = 0;
 int disable_space_highlight = 0;
-int graphics_inited = 0;
+extern int graphics_inited;
 char splashimage[64];
 
 #define VSHADOW VSHADOW1
@@ -59,8 +59,8 @@ const int y1 = 30;
 int foreground = (63 << 16) | (63 << 8) | (63), background = 0, border = 0;
 
 /* current position */
-static int fontx = 0;
-static int fonty = 0;
+extern int fontx;
+extern int fonty;
 
 /* global state so that we don't try to recursively scroll or cursor */
 static int no_scroll = 0;
@@ -79,7 +79,7 @@ static color_state graphics_color_state = COLOR_STATE_STANDARD;
 static void graphics_setxy (int col, int row);
 static void graphics_scroll (void);
 static int read_image (char *s);
-
+extern void (*graphics_CURSOR) (int set);
 /* FIXME: where do these really belong? */
 static inline void outb(unsigned short port, unsigned char val)
 {
@@ -118,7 +118,8 @@ graphics_init (void)
     /* graphics mode will corrupt the extended memory. so we should
      * invalidate the kernel_type. */
     kernel_type = KERNEL_TYPE_NONE;
-
+	if (! graphics_CURSOR) graphics_CURSOR = (void *)&graphics_cursor;
+	
     if (! graphics_inited)
     {
         saved_videomode = set_videomode (0x12);
@@ -159,33 +160,33 @@ graphics_putchar (int ch)
 {
     ch &= 0xff;
 
-    //graphics_cursor(0);
+    //graphics_CURSOR(0);
 
     if (ch == '\n') {
         if (fonty + 1 < y1)
             graphics_gotoxy(fontx, fonty + 1);
         else
 	{
-	    graphics_cursor(0);
+	    graphics_CURSOR(0);
             graphics_scroll();
-	    graphics_cursor(1);
+	    graphics_CURSOR(1);
 	}
-        //graphics_cursor(1);
+        //graphics_CURSOR(1);
         return;
     } else if (ch == '\r') {
         graphics_gotoxy(x0, fonty);
-        //graphics_cursor(1);
+        //graphics_CURSOR(1);
         return;
     }
 
-    //graphics_cursor(0);
+    //graphics_CURSOR(0);
 
     text[fonty * 80 + fontx] = ch;
     text[fonty * 80 + fontx] &= 0x00ff;
     if (graphics_current_color & 0xf0)
         text[fonty * 80 + fontx] |= 0x10000;//0x100;
 
-    graphics_cursor(0);
+    graphics_CURSOR(0);
 
     if ((fontx + 1) >= x1)
     {
@@ -200,7 +201,7 @@ graphics_putchar (int ch)
         graphics_setxy(fontx + 1, fonty);
     }
 
-    graphics_cursor(1);
+    graphics_CURSOR(1);
 }
 
 /* get the current location of the cursor */
@@ -213,11 +214,11 @@ graphics_getxy(void)
 void
 graphics_gotoxy (int x, int y)
 {
-    graphics_cursor(0);
+    graphics_CURSOR(0);
 
     graphics_setxy(x, y);
 
-    graphics_cursor(1);
+    graphics_CURSOR(1);
 }
 
 void
@@ -226,7 +227,7 @@ graphics_cls (void)
     int i;
     unsigned char *mem, *s1, *s2, *s4, *s8;
 
-    graphics_cursor(0);
+    graphics_CURSOR(0);
     graphics_gotoxy(x0, y0);
 
     mem = (unsigned char*)VIDEOMEM;
@@ -237,7 +238,7 @@ graphics_cls (void)
 
     for (i = 0; i < 80 * 30; i++)
         text[i] = ' ';
-    graphics_cursor(1);
+    graphics_CURSOR(1);
 
     BitMask(0xff);
 

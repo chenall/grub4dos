@@ -235,7 +235,7 @@ jfs_mount (void)
 	return 1;
 }
 
-unsigned long
+unsigned long long
 jfs_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
 	struct xad *xad;

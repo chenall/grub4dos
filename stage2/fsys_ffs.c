@@ -142,7 +142,7 @@ block_map (int file_block)
 }
 
 
-unsigned long
+unsigned long long
 ffs_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long logno, off, size, map, ret = 0;

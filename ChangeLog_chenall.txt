@@ -1,8 +1,35 @@
+﻿2010-03-09
+	1.注释掉karyonix 4G GZIP MAP的部份代码。
+	2.添加UNIFONT外部命令，可以加载UNIFONT字库。当菜单文件是UTF8格式时可以显示多国语言。
+	Support multi-language menu with UNIFONT.
+	
+2010-03-01
+	1.打上了karyonix的4G map 补丁
+	http://bbs.znpc.net/viewthread.php?tid=5844
+	http://www.boot-land.net/forums/index.php?s=&showtopic=10096&view=findpost&p=91378
+	
+	2.添加fontfile外部命令.
+	3.添加menuset外部命令.
+
+2010-02-09
+	1.重写cmp部份代码(注:比较时可能会比较慢,因为只使用了1MB的缓存,之前的版本是完全缓存).
+	顺便添加了新参数 --skip= 
+	可以指定在比较时跳过几个字节,用于cmp --hex时方便查看差异.
+	
+2010-02-05
+	1.添加calc简单计算器功能.
+	calc [*INTEGER=] [*]INTEGER OPERATOR [[*]INTEGER]
+	
+	具体使用方法参考这里的外部命令calc的用法,是一样的,只是内置了.
+	http://www.chenall.com/blog/2010/02/grub4dos_calc.html
+	
+	
 2010-01-13
 	修改设置默认可执行文件搜索路径参数为
 	--set-path=PATH
 	例子
 	command --set-path=(bd)/grub/
+	
 2010-01-09
 	1.为command参数添加一个参数--set-root用于设置默认可执行文件的搜索路径。
 	add option --set-root for command

@@ -432,7 +432,7 @@ iso9660_dir (char *dirname)
   return 1;
 }
 
-unsigned long
+unsigned long long
 iso9660_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long sector, blkoffset, size, ret;

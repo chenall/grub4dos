@@ -506,7 +506,7 @@ xfs_mount (void)
 	return 1;
 }
 
-unsigned long
+unsigned long long
 xfs_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
 	xad_t *xad;

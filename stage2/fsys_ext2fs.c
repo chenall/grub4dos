@@ -716,7 +716,7 @@ ext4fs_block_map (int logical_block)
 }
 
 /* preconditions: all preconds of ext2fs_block_map */
-unsigned long
+unsigned long long
 ext2fs_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long logical_block;

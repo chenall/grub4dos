@@ -240,7 +240,7 @@ fat_mount (void)
   return 1;
 }
 
-unsigned long
+unsigned long long
 fat_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long logical_clust;

@@ -107,7 +107,7 @@ struct term_entry term_table[] =
   };
 
 /* This must be console.  */
-struct term_entry *current_term = term_table;
+struct term_entry *current_term;
 
 int max_lines = 25;
 int count_lines = -1;

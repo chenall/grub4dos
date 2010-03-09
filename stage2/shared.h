@@ -406,12 +406,12 @@ extern char *grub_scratch_mem;
 #define ACS_DARROW	'v'
 
 /* Special graphics characters for IBM displays. */
-#define DISP_UL		218
-#define DISP_UR		191
-#define DISP_LL		192
-#define DISP_LR		217
-#define DISP_HORIZ	196
-#define DISP_VERT	179
+#define DISP_UL		(menu_broder.disp_ul)
+#define DISP_UR		(menu_broder.disp_ur)
+#define DISP_LL		(menu_broder.disp_ll)
+#define DISP_LR		(menu_broder.disp_lr)
+#define DISP_HORIZ	(menu_broder.disp_horiz)
+#define DISP_VERT	(menu_broder.disp_vert)
 #define DISP_LEFT	0x1b
 #define DISP_RIGHT	0x1a
 #define DISP_UP		0x18
@@ -690,6 +690,21 @@ typedef enum
   MAX_ERR_NUM
 } grub_error_t;
 
+struct broder {
+	unsigned char disp_ul;
+	unsigned char disp_ur;
+	unsigned char disp_ll;
+	unsigned char disp_lr;
+	unsigned char disp_horiz;
+	unsigned char disp_vert;
+	unsigned char menu_box_x; /* line start */
+	unsigned char menu_box_w; /* line width */
+	unsigned char menu_box_y; /* first line number */
+	unsigned char menu_box_h;
+	unsigned char menu_box_b;
+} __attribute__ ((packed));
+
+extern struct broder menu_broder;
 extern unsigned long install_partition;
 extern unsigned long boot_drive;
 //extern unsigned long install_second_sector;
@@ -1257,7 +1272,7 @@ unsigned int grub_sleep (unsigned int seconds);
 #ifndef NO_DECOMPRESSION
 /* Compression support. */
 int gunzip_test_header (void);
-unsigned long gunzip_read (unsigned long long buf, unsigned long len);
+unsigned long long gunzip_read (unsigned long long buf, unsigned long long len);
 #endif /* NO_DECOMPRESSION */
 
 int rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write);

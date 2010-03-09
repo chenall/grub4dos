@@ -212,7 +212,7 @@ vstafs_dir (char *dirname)
   return 1;
 }
 
-unsigned long 
+unsigned long long
 vstafs_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   //struct alloc *blocks;

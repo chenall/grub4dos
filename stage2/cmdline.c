@@ -199,7 +199,7 @@ enter_cmdline (char *heap, int forever)
 	errnum = errnum_old;
 
       /* find && and || */
-
+#if 0
       for (arg = skip_to (0, heap); *arg != 0; arg = skip_to (0, arg))
       {
 	struct builtin *builtin1;
@@ -275,6 +275,68 @@ enter_cmdline (char *heap, int forever)
 	}
 	else
 		command_func (heap, BUILTIN_CMDLINE);
+#else
+		char *p;
+		arg = heap;
+		for (p = arg; *p != 0; p = skip_to (0, p))
+		{
+			if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
+			{
+				*p++ = 0;
+				break;
+			}
+			if (((*p == '&' && p[1] == '&') || (*p == '|' && p[1] == '|')) && (p[2] == ' ' || p[2] == '\t'))
+			{
+				/* handle the AND / OR operator */
+				int ret;
+				*p = 0;
+				builtin = find_command (arg);
+				if ((int)builtin != -1)
+				{
+					if (! builtin || ! (builtin->flags & BUILTIN_CMDLINE))
+					{
+						errnum = ERR_UNRECOGNIZED;
+						goto next;
+					}
+					ret = (builtin->func) (skip_to (1,arg), BUILTIN_CMDLINE);
+				}
+				else
+					ret = command_func (arg, BUILTIN_CMDLINE);
+				p++;
+				if ((*p == '&' && ret) || (*p == '|' && ! ret))
+				{
+					arg = skip_to (0, p);
+				}
+				else
+				{
+					errnum = 0;
+					for (;*p ; p = skip_to (0, p))
+					{
+						if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
+						{
+							arg = skip_to (0,p);
+							break;
+						}
+					}
+					if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
+					{
+						p = arg;
+						continue;
+					}
+					goto next;
+				}
+			}
+		}
+	/* Run BUILTIN->FUNC.  */
+	builtin = find_command (arg);
+	if ((int)builtin != -1)
+	{
+		arg = ((builtin->func) == commandline_func) ? heap : skip_to(1,arg);
+		(builtin->func) (arg, BUILTIN_CMDLINE);
+	}
+	else
+		command_func (arg, BUILTIN_CMDLINE);
+#endif
 next:
       /* Finish the line count.  */
       count_lines = -1;

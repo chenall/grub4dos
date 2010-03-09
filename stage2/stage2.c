@@ -45,7 +45,9 @@ const char *preset_menu = 0;
 #endif /* GRUB_UTIL */
 
 static unsigned long preset_menu_offset;
-
+static unsigned long menu_file_magic;
+#define UTF8_MAGIC 0xBFBBEF
+#define UNICODE_MAGIC 0xFEFF
 static int
 open_preset_menu (void)
 {
@@ -103,27 +105,22 @@ read_from_preset_menu (char *buf, int max_len)
 #define DISP_DOWN	ACS_DARROW	/* 0x19 , 'v' */
 #endif
 
-/* line start */
-#define MENU_BOX_X	2
-
-/* line width */
-#define MENU_BOX_W	76
-
-/* first line number */
-#define MENU_BOX_Y	2
-
+#define MENU_BOX_X	(menu_broder.menu_box_x)
+#define MENU_BOX_W	(menu_broder.menu_box_w)
+#define MENU_BOX_Y	(menu_broder.menu_box_y)
 /* window height */
-#define MENU_BOX_H	(current_term->max_lines - 8)
+#define MENU_BOX_H	(menu_broder.menu_box_h) //current_term->max_lines - 8
 
 /* line end */
 #define MENU_BOX_E	(MENU_BOX_X + MENU_BOX_W)
 
 /* window bottom */
-#define MENU_BOX_B	(MENU_BOX_Y + MENU_BOX_H)
+#define MENU_BOX_B	(menu_broder.menu_box_b) //current_term->max_lines - 7
 
 static long temp_entryno;
 static char * *titles;	/* title array, point to 256 strings. */
 static int default_help_message_destoyed = 1;
+struct broder menu_broder = {218,191,192,217,196,179,2,76,2,0,0};
 
 static void
 print_default_help_message (char *config_entries)
@@ -175,13 +172,34 @@ get_entry (char *list, int num)
 
   return list;
 }
-
+static int utf8_unicode(unsigned char *ch,unsigned long *unicode)
+{
+	*unicode = (*ch & 0xff);
+	#ifdef SUPPORT_GRAPHICS
+	if ( !graphics_inited || (! (*ch & 0x80)) || menu_file_magic != UTF8_MAGIC)
+	#endif
+		return 1;
+	*unicode &= 0x3f;
+	*unicode <<= 6;
+	int i;
+	for (i=1;i<6;i++)
+	{
+		*unicode |= (ch[i] & 0x3f);
+		if (! ((*ch) & (1<<(6-i)))) break;
+		*unicode ^= (1 << (6-i +6*i));
+		*unicode <<= 6;
+	}
+	i++;
+	return i;
+}
 /* Print an entry in a line of the menu box.  */
 static void
 print_entry (int y, int highlight, char *entry, char *config_entries)
 {
   int x;
-  unsigned char c = (entry ? (unsigned char)*entry : 0);
+  unsigned long c = 0;
+  if (entry)
+	entry += utf8_unicode((unsigned char *)entry,&c);
 
   if (current_term->setcolorstate)
     current_term->setcolorstate (highlight ? COLOR_STATE_HIGHLIGHT : COLOR_STATE_NORMAL);
@@ -193,24 +211,29 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 #ifdef SUPPORT_GRAPHICS
   disable_space_highlight = 1;
 #endif /* SUPPORT_GRAPHICS */
-  grub_putchar (' ');
+	if (highlight)
+		grub_putchar(30);
+	else
+		grub_putchar (' ');
 #ifdef SUPPORT_GRAPHICS
   disable_space_highlight = 0;
 #endif /* SUPPORT_GRAPHICS */
-  for (x = MENU_BOX_X; x < MENU_BOX_E; x++)
+
+  for (x = MENU_BOX_X; x < MENU_BOX_E-1; x++)
     {
-      if (c && c != '\n' && x <= MENU_BOX_W)
+      if (c && c != '\n' /* && x <= MENU_BOX_W*/)
 	{
-	  if (x == MENU_BOX_W)
+	  if (x >= (MENU_BOX_E - 2))
 	    grub_putchar (DISP_RIGHT);
 	  else
 	  {
-	    while (c == 8 || c == 9)//(c && (c <= 0x0F))
-	      c = *(++entry);
-	    if (! c || c == '\n')
-		goto space_no_highlight;
-	    grub_putchar (c);
-	    c = *(++entry);
+	  	while (c == 8 || c == 9)//(c && (c <= 0x0F))
+			entry += utf8_unicode((unsigned char *)entry,&c);
+		if (! c || c == '\n')
+			goto space_no_highlight;
+		grub_putchar (c | (highlight <<16) );
+		if (c & 0xff00) x++;
+		entry += utf8_unicode((unsigned char *)entry,&c);
 	  }
 	}
       else
@@ -220,7 +243,7 @@ space_no_highlight:
 	if (! disable_space_highlight)
 	      disable_space_highlight = 1;
 #endif /* SUPPORT_GRAPHICS */
-	grub_putchar (' ');
+		grub_putchar (' ');
       }
     }
 #ifdef SUPPORT_GRAPHICS
@@ -234,28 +257,32 @@ space_no_highlight:
 
 	if (current_term->setcolorstate)
 	    current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+	
 
-	if (entry && (c = *entry) == '\n')
+	if (c == '\n')
 	{
 		default_help_message_destoyed = 1;
 		//c = *(++entry);
 		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
 		{
 			if (c == '\n')
-				c = *(++entry);
-			gotoxy (MENU_BOX_X - 2, j);
-			for (x = 0; x < 79; x++)
+				entry += utf8_unicode((unsigned char *)entry,&c);
+			gotoxy (0, j);
+			for (x = 0; x < MENU_BOX_X - 2; x++) grub_putchar (' ');
+			for (x = 0; x <= MENU_BOX_W + 2; x++)
 			{
 				if (c && c != '\n')
 				{
 					if (c == '\r')
 						x = 0;
 					grub_putchar (c);
-					c = *(++entry);
+					if (c & 0xff00) x++;
+					entry += utf8_unicode((unsigned char *)entry,&c);
 				}
 				else
 					grub_putchar (' ');
 			}
+			for (; x < 79; x++) grub_putchar (' ');
 		}
 		//gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
 		//grub_putstr (++entry);
@@ -265,11 +292,11 @@ space_no_highlight:
 	{
 		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 6; j++)
 		{
-			gotoxy (MENU_BOX_X - 2, j);
+			gotoxy (0, j);
 			for (x = 0; x < 79; x++)
 				grub_putchar (' ');
 		}
-		gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
+		gotoxy (0, MENU_BOX_B + 1);
 		print_default_help_message (config_entries);
 		gotoxy (MENU_BOX_E, y);
 	}
@@ -478,7 +505,7 @@ run_script (char *script, char *heap)
 	errnum = errnum_old;
 
       /* find && and || */
-
+#if 0
       for (arg = skip_to (0, heap); *arg != 0; arg = skip_to (0, arg))
       {
 	struct builtin *builtin1;
@@ -554,6 +581,68 @@ run_script (char *script, char *heap)
 	}
 	else
 		command_func (heap, BUILTIN_SCRIPT);
+#else
+		char *p;
+		arg = heap;
+		for (p = arg; *p != 0; p = skip_to (0, p))
+		{
+			if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
+			{
+				*p++ = 0;
+				break;
+			}
+			if (((*p == '&' && p[1] == '&') || (*p == '|' && p[1] == '|')) && (p[2] == ' ' || p[2] == '\t'))
+			{
+				/* handle the AND / OR operator */
+				int ret;
+				*p = 0;
+				builtin = find_command (arg);
+				if ((int)builtin != -1)
+				{
+					if (! builtin || ! (builtin->flags & BUILTIN_CMDLINE))
+					{
+						errnum = ERR_UNRECOGNIZED;
+						goto next;
+					}
+					ret = (builtin->func) (skip_to (1,arg), BUILTIN_CMDLINE);
+				}
+				else
+					ret = command_func (arg, BUILTIN_CMDLINE);
+				p++;
+				if ((*p == '&' && ret) || (*p == '|' && ! ret))
+				{
+					arg = skip_to (0, p);
+				}
+				else
+				{
+					errnum = 0;
+					for (;*p ; p = skip_to (0, p))
+					{
+						if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
+						{
+							arg = skip_to (0,p);
+							break;
+						}
+					}
+					if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
+					{
+						p = arg;
+						continue;
+					}
+					goto next;
+				}
+			}
+		}
+	/* Run BUILTIN->FUNC.  */
+	builtin = find_command (arg);
+	if ((int)builtin != -1)
+	{
+		arg = ((builtin->func) == commandline_func) ? heap : skip_to(1,arg);
+		(builtin->func) (arg, BUILTIN_CMDLINE);
+	}
+	else
+		command_func (arg, BUILTIN_CMDLINE);
+#endif
 next:
       if (! *old_entry)	/* HEAP holds the implicit BOOT command */
 	break;
@@ -675,11 +764,11 @@ restart:
 
 		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 6; j++)
 		{
-			gotoxy (MENU_BOX_X - 2, j);
+			gotoxy (0, j);
 			for (x = 0; x < 79; x++)
 				grub_putchar (' ');
 		}
-		gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
+		gotoxy (0, MENU_BOX_B + 1);
 	}
 
       print_default_help_message (config_entries);
@@ -730,7 +819,7 @@ restart:
 	      char ch = ' ';
 
 	      grub_sprintf (tmp_buf, " The highlighted entry will be booted automatically in %d seconds.", grub_timeout);
-	      gotoxy (MENU_BOX_X - 2, MENU_BOX_H + 7);
+	      gotoxy (0, MENU_BOX_B + 6);
 	      for (i = 0; i < 79; i++)
 	      {
 		if (ch)
@@ -788,7 +877,7 @@ restart:
 	      if (current_term->flags & TERM_DUMB)
 		grub_putchar ('\r');
 	      else
-		gotoxy (MENU_BOX_X - 2, MENU_BOX_H + 7);
+		gotoxy (0, MENU_BOX_B + 6);
 	      for (i = 0; i < 79/*158*/; i++)
 	      {
 //		if (i == 79)
@@ -1298,14 +1387,14 @@ done_key_handling:
 	if (config_entries)
 	{
 		char *p;
-		char ch;
+		unsigned long ch;
 
 		p = get_entry (menu_entries, first_entry + entryno);
 		//printf ("  Booting \'%s\'\n\n", (((*p) & 0xF0) ? p : ++p));
 		if (! ((*p) & 0xF0))
 			p++;
 		grub_putstr ("  Booting ");
-		while ((ch = *p++) && ch != '\n') grub_putchar (ch);
+		while ((*p) && (p += utf8_unicode((unsigned char *)p,&ch)) && ch != '\n') grub_putchar (ch);
 		grub_putchar ('\n');
 		grub_putchar ('\n');
 	}
@@ -1984,7 +2073,11 @@ cmain (void)
   
     titles = (char * *)init_free_mem_start;
     config_entries = ((char *) init_free_mem_start) + 256 * sizeof (char *);
-
+	if (! menu_broder.menu_box_h)
+		menu_broder.menu_box_h = current_term->max_lines - 7 - menu_broder.menu_box_y;
+	if (! menu_broder.menu_box_b)
+		menu_broder.menu_box_b = menu_broder.menu_box_h + 2;
+	
     /* Never return.  */
 restart:
     reset ();
@@ -2097,6 +2190,19 @@ restart_config:
 		goto done_config_file;
 	}
 
+	grub_read ((unsigned long long)(unsigned int)&menu_file_magic, 3, 0xedde0d90);
+
+	menu_file_magic &= 0xffffff;
+	
+	if ((menu_file_magic & 0xffff) == UNICODE_MAGIC)
+	{
+		menu_file_magic = 0xfeff;
+		filepos--;
+	}
+	else if (menu_file_magic != UTF8_MAGIC)
+	{
+		menu_file_magic = 0;
+	}
 	/* This is necessary, because the menu must be overrided.  */
 	reset ();
 	cmdline = (char *) CMDLINE_BUF;

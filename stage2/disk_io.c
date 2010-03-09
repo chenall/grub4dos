@@ -33,6 +33,12 @@
 # include <device.h>
 #endif
 
+/* function declaration */
+unsigned long long
+gunzip_read_func (unsigned long long buf, unsigned long long len, unsigned long write);
+unsigned long long
+block_read_func (unsigned long long buf, unsigned long long len, unsigned long write);
+
 /* instrumentation variables */
 void (*disk_read_hook) (unsigned long, unsigned long, unsigned long) = NULL;
 void (*disk_read_func) (unsigned long, unsigned long, unsigned long) = NULL;
@@ -1929,40 +1935,11 @@ block_file:
   return 0;
 }
 
-
-unsigned long long
-grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
-{
-//  if (write != 0x900ddeed && write != 0xedde0d90)
-//	return !(errnum = ERR_FUNC_CALL);
-
-//  if (filepos > filemax)
-//      filepos = filemax;
-  if (filepos >= filemax)
-      return 0;//!(errnum = ERR_FILELENGTH);
-
-  if (len > filemax - filepos)
-      len = filemax - filepos;
-
-  /* if target file position is past the end of
-     the supported/configured filesize, then
-     there is an error */
-  if (filepos + len > fsmax)
-      return !(errnum = ERR_FILELENGTH);
-
-#ifndef NO_DECOMPRESSION
-  if (compressed_file)
-  {
-    if (write == 0x900ddeed)
-	return !(errnum = ERR_WRITE_GZIP_FILE);
-    return gunzip_read (buf, len);
-  }
-#endif /* NO_DECOMPRESSION */
-
 #ifndef NO_BLOCK_FILES
-  if (block_file)
-    {
-      unsigned long long ret = 0;
+unsigned long long
+block_read_func (unsigned long long buf, unsigned long long len, unsigned long write)
+{
+          unsigned long long ret = 0;
       unsigned long size;
       unsigned long off;
 
@@ -2041,13 +2018,92 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
 	ret = 0;
 
       return ret;
-    }
+}
+#endif /* NO_BLOCK_FILES */
+
+#ifndef NO_DECOMPRESSION
+unsigned long long
+gunzip_read_func (unsigned long long buf, unsigned long long len, unsigned long write)
+{
+  if (write == 0x900ddeed)
+    return !(errnum = ERR_WRITE_GZIP_FILE);
+  return gunzip_read (buf, len);
+}
+#endif /* NO_DECOMPRESSION */
+
+unsigned long long grub_read_loop_threshold = 0x2000000ULL; // 32MB
+unsigned long long grub_read_step = 0x2000000ULL; // 32MB
+
+unsigned long long
+grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
+{
+//  if (write != 0x900ddeed && write != 0xedde0d90)
+//	return !(errnum = ERR_FUNC_CALL);
+
+//  if (filepos > filemax)
+//      filepos = filemax;
+  if (filepos >= filemax)
+      return 0;//!(errnum = ERR_FILELENGTH);
+
+  if (len > filemax - filepos)
+      len = filemax - filepos;
+
+  /* if target file position is past the end of
+     the supported/configured filesize, then
+     there is an error */
+  if (filepos + len > fsmax)
+      return !(errnum = ERR_FILELENGTH);
+
+  unsigned long long (*read_func) (unsigned long long _buf, unsigned long long _len, unsigned long _write);
+
+#ifndef NO_DECOMPRESSION
+  if (compressed_file)
+  {
+    if (write == 0x900ddeed)
+	return !(errnum = ERR_WRITE_GZIP_FILE);
+    else 
+	read_func = gunzip_read_func;
+  }
+  else 
+#endif /* NO_DECOMPRESSION */
+
+#ifndef NO_BLOCK_FILES
+  if (block_file)
+  {
+    read_func = block_read_func;
+  }
+  else
 #endif /* NO_BLOCK_FILES */
 
   if (fsys_type == NUM_FSYS)
-      return !(errnum = ERR_FSYS_MOUNT);
+    return !(errnum = ERR_FSYS_MOUNT);
+  else
+    read_func = fsys_table[fsys_type].read_func;
 
-  return (*(fsys_table[fsys_type].read_func)) (buf, len, write);
+  /* Now, read_func is ready. */
+  if (len < grub_read_loop_threshold)
+  {
+      return read_func(buf, len, write);
+  }
+  else 
+  {
+    unsigned long long byteread = 0;
+    unsigned long long remaining = len;
+    while (remaining)
+    {
+	unsigned long long len1;
+	unsigned long long ret1;
+	len1 = (remaining > grub_read_step)? grub_read_step : remaining;
+	ret1 = read_func(buf, len1, write);
+	if (!ret1) break;
+	byteread += ret1;
+	buf += ret1;
+	remaining -= ret1;
+	grub_printf("\r[%ldM/%ldM]",byteread>>20,len>>20);
+    }
+    grub_printf("\r[%ldM/%ldM]\n",byteread>>20,len>>20);
+    return byteread;
+  }
 }
 
 void
