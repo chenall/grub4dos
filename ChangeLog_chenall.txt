@@ -1,4 +1,7 @@
-﻿2010-03-09
+﻿2010-03-10
+	1.边框位置自动调整。
+
+2010-03-09
 	1.注释掉karyonix 4G GZIP MAP的部份代码。
 	2.添加UNIFONT外部命令，可以加载UNIFONT字库。当菜单文件是UTF8格式时可以显示多国语言。
 	Support multi-language menu with UNIFONT.

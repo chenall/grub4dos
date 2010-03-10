@@ -109,13 +109,13 @@ read_from_preset_menu (char *buf, int max_len)
 #define MENU_BOX_W	(menu_broder.menu_box_w)
 #define MENU_BOX_Y	(menu_broder.menu_box_y)
 /* window height */
-#define MENU_BOX_H	(menu_broder.menu_box_h) //current_term->max_lines - 8
+#define MENU_BOX_H	(menu_broder.menu_box_h?menu_broder.menu_box_h:(current_term->max_lines - 6 - menu_broder.menu_box_y)) //current_term->max_lines - 8
 
 /* line end */
 #define MENU_BOX_E	(MENU_BOX_X + MENU_BOX_W)
 
 /* window bottom */
-#define MENU_BOX_B	(menu_broder.menu_box_b) //current_term->max_lines - 7
+#define MENU_BOX_B	(menu_broder.menu_box_b?menu_broder.menu_box_b:(current_term->max_lines - 6)) //current_term->max_lines - 7
 
 static long temp_entryno;
 static char * *titles;	/* title array, point to 256 strings. */
@@ -172,12 +172,12 @@ get_entry (char *list, int num)
 
   return list;
 }
+
 static int utf8_unicode(unsigned char *ch,unsigned long *unicode)
 {
+#ifdef SUPPORT_GRAPHICS
 	*unicode = (*ch & 0xff);
-	#ifdef SUPPORT_GRAPHICS
 	if ( !graphics_inited || (! (*ch & 0x80)) || menu_file_magic != UTF8_MAGIC)
-	#endif
 		return 1;
 	*unicode &= 0x3f;
 	*unicode <<= 6;
@@ -191,7 +191,11 @@ static int utf8_unicode(unsigned char *ch,unsigned long *unicode)
 	}
 	i++;
 	return i;
+#else
+	return (*unicode = (*ch & 0xff));
+#endif
 }
+
 /* Print an entry in a line of the menu box.  */
 static void
 print_entry (int y, int highlight, char *entry, char *config_entries)
@@ -219,20 +223,28 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
   disable_space_highlight = 0;
 #endif /* SUPPORT_GRAPHICS */
 
-  for (x = MENU_BOX_X; x < MENU_BOX_E-1; x++)
+  for (x = MENU_BOX_X; x < MENU_BOX_E; x++)
     {
       if (c && c != '\n' /* && x <= MENU_BOX_W*/)
 	{
-	  if (x >= (MENU_BOX_E - 2))
-	    grub_putchar (DISP_RIGHT);
+	  if (x >= (MENU_BOX_E - 1))
+	    grub_putchar (DISP_RIGHT | (highlight <<16));
 	  else
 	  {
 	  	while (c == 8 || c == 9)//(c && (c <= 0x0F))
 			entry += utf8_unicode((unsigned char *)entry,&c);
 		if (! c || c == '\n')
 			goto space_no_highlight;
+		if (c & 0xff00) 
+		{
+			if (x >= (MENU_BOX_E - 2))
+			{
+				grub_putchar (' ' | (highlight <<16));
+				continue;
+			}
+			x++;
+		}
 		grub_putchar (c | (highlight <<16) );
-		if (c & 0xff00) x++;
 		entry += utf8_unicode((unsigned char *)entry,&c);
 	  }
 	}
@@ -290,7 +302,7 @@ space_no_highlight:
 	}
 	else if (default_help_message_destoyed)
 	{
-		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 6; j++)
+		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
 		{
 			gotoxy (0, j);
 			for (x = 0; x < 79; x++)
@@ -762,7 +774,7 @@ restart:
 		int j;
 		int x;
 
-		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 6; j++)
+		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
 		{
 			gotoxy (0, j);
 			for (x = 0; x < 79; x++)
@@ -819,7 +831,7 @@ restart:
 	      char ch = ' ';
 
 	      grub_sprintf (tmp_buf, " The highlighted entry will be booted automatically in %d seconds.", grub_timeout);
-	      gotoxy (0, MENU_BOX_B + 6);
+	      gotoxy (0, MENU_BOX_B + 5);
 	      for (i = 0; i < 79; i++)
 	      {
 		if (ch)
@@ -877,7 +889,7 @@ restart:
 	      if (current_term->flags & TERM_DUMB)
 		grub_putchar ('\r');
 	      else
-		gotoxy (0, MENU_BOX_B + 6);
+		gotoxy (0, MENU_BOX_B + 5);
 	      for (i = 0; i < 79/*158*/; i++)
 	      {
 //		if (i == 79)
@@ -2073,11 +2085,6 @@ cmain (void)
   
     titles = (char * *)init_free_mem_start;
     config_entries = ((char *) init_free_mem_start) + 256 * sizeof (char *);
-	if (! menu_broder.menu_box_h)
-		menu_broder.menu_box_h = current_term->max_lines - 7 - menu_broder.menu_box_y;
-	if (! menu_broder.menu_box_b)
-		menu_broder.menu_box_b = menu_broder.menu_box_h + 2;
-	
     /* Never return.  */
 restart:
     reset ();
