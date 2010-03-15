@@ -58,7 +58,7 @@ kernel_t kernel_type;
 static kernel_t kernel_type_orig;
 
 /* The boot device.  */
-//static int bootdev = 0;
+static int bootdev = 0;
 
 #ifdef GRUB_UTIL
 /* 0 for silent, 1 for normal, 2..MAX_UINT for verbose.
@@ -693,7 +693,7 @@ boot_func (char *arg, int flags)
     case KERNEL_TYPE_FREEBSD:
     case KERNEL_TYPE_NETBSD:
       /* *BSD */
-      bsd_boot (kernel_type, 0/*bootdev*/, (char *) mbi.cmdline);
+      bsd_boot (kernel_type, /*0*/bootdev, (char *) mbi.cmdline);
       break;
 
     case KERNEL_TYPE_LINUX:
@@ -10997,7 +10997,7 @@ real_root_func (char *arg, int attempt_mnt)
       if (! open_device () && errnum != ERR_FSYS_MOUNT)
 	return 0;
 
-#if 0
+#if 1
       if (next)
       {
 	unsigned long long hdbias = 0;
@@ -11009,8 +11009,8 @@ real_root_func (char *arg, int attempt_mnt)
 	errnum = 0;
 	bootdev = set_bootdev (hdbias);
       }
-//    if (errnum)
-//	return 0;
+      if (errnum)
+	return 0;
 #endif
       
       if (fsys_type != NUM_FSYS || ! next)
@@ -11026,7 +11026,7 @@ real_root_func (char *arg, int attempt_mnt)
       else
 	return ! (errnum = ERR_FSYS_MOUNT);
     }
-#if 0
+#if 1
   else if (next)
     {
       /* This is necessary, because the location of a partition table
@@ -11034,8 +11034,8 @@ real_root_func (char *arg, int attempt_mnt)
       if (open_partition ())
 	{
 	  set_bootdev (0);
-	  //if (errnum)
-	  //  return 0;
+	  if (errnum)
+	    return 0;
 	}
     }
 #endif

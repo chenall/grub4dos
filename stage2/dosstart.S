@@ -2626,7 +2626,12 @@ init_pic:
 	//outb(0xff, PIC_MASTER_IMR);	/* mask all of 8259A-1 */
 	//outb(0xff, PIC_SLAVE_IMR);	/* mask all of 8259A-2 */
 
-#if 1	/* marked off 2007-10-07, enabled 2008-05-23 */
+#if 0	/* marked off 2007-10-07, enabled 2008-05-23, disabled 2010-03-13 */
+
+	/* these commands are only valid after init of 8259, so comment out.
+	 *  - tinybit 2010-03-13
+	 */
+
 	/* send clear_mask command to slave and master */
 	movb	$0x48, %al
 	call	send_command_to_slave_and_master
@@ -2641,7 +2646,7 @@ init_pic:
 #endif
 
 
-#if 1	/* marked off 2007-10-07, enabled 2008-05-23 */
+#if 0	/* marked off 2007-10-07, enabled 2008-05-23, disabled 2010-03-13 */
 	########################################################################################
 	## make sure any possible coprocessor is properly reset..
 	########################################################################################
@@ -2673,19 +2678,72 @@ init_pic:
 	cli
 
 	//outb_p(0x11, PIC_MASTER_CMD);	/* ICW1: select 8259A-1 init */
+
+	/* init 8259a-1 */
+
+	# bit 7,6,5	used only in MCS-80/85 mode.
+	#		A7-A5 of interrupt vector address
+	# bit 7=0	unused
+	# bit 6=0	unused
+	# bit 5=0	unused
+	# bit 4=1	start init
+	# bit 3=0	edge trig(PC,XT,AT)
+	# bit 3=1	level trig(MCA)
+	# bit 2=0	call address interval(0=interval of 8, 1=interval of 4)
+	# bit 1=0	cascade mode(AT+ with 2 controlers)
+	# bit 1=1	single mode(PC/XT with 1 controler)
+	# bit 0=0	no ICW4 needed
+	# bit 0=1	ICW4 needed
+
+	# If bit 0=0 then all functions selected in ICW4 are set to zero
+	# (Non-Buffered mode, no Auto-EOI, MCS-80/85 system)
+
 	movb	$0x11, %al
-	movw	$0x20, %dx
+	movw	$0x20, %dx		# 8259-1 command port
 	call	outb_and_delay
 
+	/* the 2nd command byte sent to port 0x21 */
+
+	# in MCS-80/85 mode, bit 7-0 is for interrupt vector address bit 15-8.
+	# in 8086/8088 mode, bit 7-3 is for interrupt vector address bit 7-3.
+ 	#		interrupt vector address bit 2-0 is cleared.
+	# in 8086/8088 mode, bit 2-0 is not used.
+
 	//outb_p(0x20 + 0, PIC_MASTER_IMR);	/* ICW2: 8259A-1 IR0-7 mapped to 0x20-0x27 */
-	movb	$0x08, %al
+	movb	$0x08, %al		# interrupt number 0x08 - 0x0F
 	movw	$0x21, %dx
 	call	outb_and_delay
+
+	/* the 3rd command byte sent to port 0x21 */
+
+	# bit 7=0	no slave connected to IRQ 7
+	# bit 6=0	no slave connected to IRQ 6
+	# bit 5=0	no slave connected to IRQ 5
+	# bit 4=0	no slave connected to IRQ 4
+	# bit 3=0	no slave connected to IRQ 3
+	# bit 2=0	no slave connected to IRQ 2(PC/XT)
+	# bit 2=1	slave connected to IRQ 2(AT+)
+	# bit 1=0	no slave connected to IRQ 1
+	# bit 0=0	no slave connected to IRQ 0
 
 	//outb_p(1U << PIC_CASCADE_IR, PIC_MASTER_IMR);	/* 8259A-1 (the master) has a slave on IR2 */
 	movb	$0x04, %al
 	movw	$0x21, %dx
 	call	outb_and_delay
+
+	/* the 4th command byte sent to port 0x21 */
+
+	# bit 7=0	unused
+	# bit 6=0	unused
+	# bit 5=0	unused
+	# bit 4=0	not special fully nested mode
+	# bit 4=1	special fully nested mode
+	# bit 3=0	non-buffered mode(AT+), bit 2=unused
+	# bit 3=1	buffered mode(PC/XT), bit 2=0(slave)bit 2=1(master)
+	# bit 1=0	normal EOI
+	# bit 1=1	Auto EOI(no system support it)
+	# bit 0=1	8086/8088 mode
+	# bit 0=0	MCS-80/85 mode
 
 	/* Yes, the normal EOI should be used for real mode OS. */
 
@@ -2701,15 +2759,29 @@ init_pic:
 	call	outb_and_delay
 #endif
 
+	/* init 8259a-2 */
+
 	//outb_p(0x11, PIC_SLAVE_CMD);	/* ICW1: select 8259A-2 init */
 	movb	$0x11, %al
 	movw	$0xA0, %dx
 	call	outb_and_delay
 
 	//outb_p(0x20 + 8, PIC_SLAVE_IMR);	/* ICW2: 8259A-2 IR0-7 mapped to 0x28-0x2f */
-	movb	$0x70, %al
+	movb	$0x70, %al		# interrupt number 0x70 - 0x77
 	movw	$0xA1, %dx
 	call	outb_and_delay
+
+	/* the 3rd command byte sent to port 0xA1 */
+
+	# bit 7=0	unused
+	# bit 6=0	unused
+	# bit 5=0	unused
+	# bit 4=0	unused
+	# bit 3=0	unused
+	# bit 2,1,0	slave controler ID, should be 2 for IRQ 2
+	# bit 2=0
+	# bit 1=1
+	# bit 0=0
 
 	//outb_p(PIC_CASCADE_IR, PIC_SLAVE_IMR);	/* 8259A-2 is a slave on master's IR2 */
 	movb	$0x02, %al
@@ -2755,12 +2827,46 @@ init_pic:
 	/* end initialize PIC. */
 
 	/* FIXME: init edge-level-control-registers(IO ports 0x4D0, 0x4D1) for EISA */
+#if 1	/* added 2010-03-13 */
 
-#if 1		/* enabled 2008-05-23 */
+	/* EISA 8259-1 */
+
+	# bit 7=0	IRQ 7 edge trig
+	# bit 6=0	IRQ 6 edge trig
+	# bit 5=0	IRQ 5 edge trig
+	# bit 4=0	IRQ 4 edge trig
+	# bit 3=0	IRQ 3 edge trig
+	# bit 2=x	IRQ 2 (do not change)
+	# bit 1=x	IRQ 1 (do not change)
+	# bit 0=x	IRQ 0 (do not change)
+
+	movw	$0x4D0, %dx
+	inb	%dx, %al
+	andb	$0x07, %al	# clear bit 3-7 in case not cleared
+	call	outb_and_delay
+
+	/* EISA 8259-2 */
+
+	# bit 7=0	IRQ 15 edge trig
+	# bit 6=0	IRQ 14 edge trig
+	# bit 5=x	IRQ 13 (do not change)
+	# bit 4=0	IRQ 12 edge trig
+	# bit 3=0	IRQ 11 edge trig
+	# bit 2=0	IRQ 10 edge trig
+	# bit 1=0	IRQ 9 edge trig
+	# bit 0=x	IRQ 8 (do not change)
+
+	movw	$0x4D1, %dx
+	inb	%dx, %al
+	andb	$0x21, %al	# clear bit 1-4, 6-7 in case not cleared
+	call	outb_and_delay
+#endif
+
+	/* init system timer 0 (stolen from bochs rombios.c) */
+#if 0		/* enabled 2008-05-23, disabled 2010-03-13 */
 	/* this is needed for booting via win98 */
 
 	/* EISA 8259-1 */
-	/* init system timer 0 (stolen from bochs rombios.c) */
 
 	//movb	$0x34, %al	# system timer 0, 16-bit binary count, mode 2
 	movb	$0x36, %al	# system timer 0, 16-bit binary count, mode 3
@@ -2806,7 +2912,7 @@ init_pic:
 	call	outb_and_delay
 #endif
 
-#if 1	/* marked off 2007-10-07, enabled 2008-05-23 */
+#if 0	/* marked off 2007-10-07, enabled 2008-05-23, disabled 2010-03-13 */
 	movb	$0x20, %al	#; send EOI to 8259A-2
 	movw	$0xA0, %dx
 	call	outb_and_delay

@@ -611,23 +611,23 @@ run_script (char *script, char *heap)
 				builtin = find_command (arg);
 				if ((int)builtin != -1)
 				{
-					if (! builtin || ! (builtin->flags & BUILTIN_CMDLINE))
+					if (! builtin || ! (builtin->flags & BUILTIN_SCRIPT))
 					{
 						errnum = ERR_UNRECOGNIZED;
 						goto next;
 					}
-					ret = (builtin->func) (skip_to (1,arg), BUILTIN_CMDLINE);
+					ret = (builtin->func) (skip_to (1,arg), BUILTIN_SCRIPT);
 				}
 				else
-					ret = command_func (arg, BUILTIN_CMDLINE);
+					ret = command_func (arg, BUILTIN_SCRIPT);
 				p++;
+				errnum = 0;
 				if ((*p == '&' && ret) || (*p == '|' && ! ret))
 				{
 					arg = skip_to (0, p);
 				}
 				else
 				{
-					errnum = 0;
 					for (;*p ; p = skip_to (0, p))
 					{
 						if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
@@ -645,15 +645,16 @@ run_script (char *script, char *heap)
 				}
 			}
 		}
+	if (! *arg) goto next;
 	/* Run BUILTIN->FUNC.  */
 	builtin = find_command (arg);
 	if ((int)builtin != -1)
 	{
 		arg = ((builtin->func) == commandline_func) ? heap : skip_to(1,arg);
-		(builtin->func) (arg, BUILTIN_CMDLINE);
+		(builtin->func) (arg, BUILTIN_SCRIPT);
 	}
 	else
-		command_func (arg, BUILTIN_CMDLINE);
+		command_func (arg, BUILTIN_SCRIPT);
 #endif
 next:
       if (! *old_entry)	/* HEAP holds the implicit BOOT command */
@@ -2209,6 +2210,7 @@ restart_config:
 	else if (menu_file_magic != UTF8_MAGIC)
 	{
 		menu_file_magic = 0;
+		filepos = 0;
 	}
 	/* This is necessary, because the menu must be overrided.  */
 	reset ();
@@ -2427,7 +2429,7 @@ restart_config:
 		    errnum = errnum_old;
 
 		/* find && and || */
-
+#if 0
 		for (arg = skip_to (0, heap); *arg != 0; arg = skip_to (0, arg))
 		{
 		    struct builtin *builtin1;
@@ -2504,6 +2506,70 @@ restart_config:
 		else
 			command_func (heap, BUILTIN_MENU);
 
+#else
+		char *p;
+		arg = heap;
+		for (p = arg; *p != 0; p = skip_to (0, p))
+		{
+			if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
+			{
+				*p++ = 0;
+				break;
+			}
+			if (((*p == '&' && p[1] == '&') || (*p == '|' && p[1] == '|')) && (p[2] == ' ' || p[2] == '\t'))
+			{
+				/* handle the AND / OR operator */
+				int ret;
+				*p = 0;
+				builtin = find_command (arg);
+				if ((int)builtin != -1)
+				{
+					if (! builtin || ! (builtin->flags & BUILTIN_MENU))
+					{
+						errnum = ERR_UNRECOGNIZED;
+						goto next;
+					}
+					ret = (builtin->func) (skip_to (1,arg), BUILTIN_MENU);
+				}
+				else
+					ret = command_func (arg, BUILTIN_MENU);
+				p++;
+				errnum = 0;
+				if ((*p == '&' && ret) || (*p == '|' && ! ret))
+				{
+					arg = skip_to (0, p);
+				}
+				else
+				{
+					for (;*p ; p = skip_to (0, p))
+					{
+						if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
+						{
+							arg = skip_to (0,p);
+							break;
+						}
+					}
+					if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
+					{
+						p = arg;
+						continue;
+					}
+					goto next;
+				}
+			}
+		}
+	if (! *arg) goto next;
+	/* Run BUILTIN->FUNC.  */
+	builtin = find_command (arg);
+	if ((int)builtin != -1)
+	{
+		arg = ((builtin->func) == commandline_func) ? heap : skip_to(1,arg);
+		(builtin->func) (arg, BUILTIN_MENU);
+	}
+	else
+		command_func (arg, BUILTIN_MENU);
+#endif
+next:
 		/* if the INSERT key was pressed at startup, debug is not allowed to be turned off. */
 #ifndef GRUB_UTIL
 		if (debug_boot)
@@ -2514,7 +2580,6 @@ restart_config:
 		    }
 #endif /* ! GRUB_UTIL */
 
-next:
 #ifdef SUPPORT_GFX
 		if (num_entries && ! errnum && *graphics_file && !password && show_menu && grub_timeout)
 		{

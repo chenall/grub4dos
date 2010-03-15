@@ -303,13 +303,13 @@ enter_cmdline (char *heap, int forever)
 				else
 					ret = command_func (arg, BUILTIN_CMDLINE);
 				p++;
+				errnum = 0;
 				if ((*p == '&' && ret) || (*p == '|' && ! ret))
 				{
 					arg = skip_to (0, p);
 				}
 				else
 				{
-					errnum = 0;
 					for (;*p ; p = skip_to (0, p))
 					{
 						if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
@@ -327,6 +327,7 @@ enter_cmdline (char *heap, int forever)
 				}
 			}
 		}
+	if (! *arg) goto next;
 	/* Run BUILTIN->FUNC.  */
 	builtin = find_command (arg);
 	if ((int)builtin != -1)

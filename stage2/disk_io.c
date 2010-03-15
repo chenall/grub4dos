@@ -52,10 +52,38 @@ static unsigned long relative_path;
 #ifndef STAGE1_5
 int print_possibilities;
 
+/* patch about cur_part_start and cur_part_entry was suggested by Icecube:
+ *
+ * http://www.boot-land.net/forums/index.php?showtopic=10262
+ *
+ * with details:
+ *
+ * Grub4dos can't chainload my second logical partition (EXTLINUX installed)
+ * correctly:
+ *
+ *	title Boot Extlinux
+ *	root (hd0,5)
+ *	chainloader (hd0,5)+1
+ *
+ * EXTLINUX (and SYSLINUX) trust the info from the loader that loads the boot
+ * sector of the partition, not the partition offset stored on the partition
+ * itself.
+ *
+ * A patch for Grub Legacy can be found:
+ *
+ * Logical-partition-residing bootloader chainload patch for GRUB Legacy
+ * http://bugs.gentoo.org/230905
+ * http://forums.gentoo.org/viewtopic.php?p=5142693#5142693
+ *
+ */
+
 static int unique;
 static char *unique_string;
 static unsigned long cur_part_offset;
 static unsigned long cur_part_addr;
+static unsigned long cur_part_start;
+static unsigned long cur_part_entry;
+
 static int do_completion;
 
 int dir (char *dirname);
@@ -514,18 +542,18 @@ devwrite (unsigned long sector, unsigned long sector_count, char *buf)
 
 
 #ifndef STAGE1_5
-#if 0
+#if 1
 int
 set_bootdev (int hdbias)
 {
   int i, j;
 
-  if (kernel_type != KERNEL_TYPE_FREEBSD && kernel_type != KERNEL_TYPE_NETBSD)
-	return 0;
+//  if (kernel_type != KERNEL_TYPE_FREEBSD && kernel_type != KERNEL_TYPE_NETBSD)
+//	return 0;
   /* Copy the boot partition information to 0x7be-0x7fd for chain-loading.  */
-  if ((saved_drive & 0x80) && cur_part_addr)
+  if ((current_drive & 0x80) && cur_part_addr)
     {
-      if (rawread (saved_drive, cur_part_offset, 0, SECTOR_SIZE, (char *) SCRATCHADDR, 0xedde0d90))
+      if (rawread (current_drive, cur_part_offset, 0, SECTOR_SIZE, (unsigned long long)(unsigned long) SCRATCHADDR, 0xedde0d90))
 	{
 	  char *dst, *src;
 
@@ -536,6 +564,7 @@ set_bootdev (int hdbias)
 	  src = (char *) SCRATCHADDR + BOOTSEC_PART_OFFSET;
 	  while (dst < (char *) BOOT_PART_TABLE + BOOTSEC_PART_LENGTH)
 	    *dst++ = *src++;
+	  PC_SLICE_START (BOOT_PART_TABLE - PC_SLICE_OFFSET, cur_part_entry) = cur_part_start;
 
 	  /* Clear the active flag of all partitions.  */
 	  for (i = 0; i < 4; i++)
@@ -554,18 +583,18 @@ set_bootdev (int hdbias)
   /*
    *  Set BSD boot device.
    */
-  i = (saved_partition >> 16) + 2;
-  if (saved_partition == 0xFFFFFF)
+  i = (current_partition >> 16) + 2;
+  if (current_partition == 0xFFFFFF)
     i = 1;
-  else if ((saved_partition >> 16) == 0xFF)
+  else if ((current_partition >> 16) == 0xFF)
     i = 0;
 
   /* FIXME: extremely evil hack!!! */
   j = 2;
-  if (saved_drive & 0x80)
+  if (current_drive & 0x80)
     j = bsd_evil_hack;
 
-  return MAKEBOOTDEV (j, (i >> 4), (i & 0xF), ((saved_drive - hdbias) & 0x7F), ((saved_partition >> 8) & 0xFF));
+  return MAKEBOOTDEV (j, (i >> 4), (i & 0xF), ((current_drive - hdbias) & 0x7F), ((current_partition >> 8) & 0xFF));
 }
 #endif
 #endif /* STAGE1_5 */
@@ -938,6 +967,8 @@ real_open_partition (int flags)
 
       cur_part_offset = part_offset;
       cur_part_addr = BOOT_PART_TABLE + (entry << 4);
+      cur_part_start = part_start;
+      cur_part_entry = entry;
 #endif /* ! STAGE1_5 */
 
       /* If this is a valid partition...  */

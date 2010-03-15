@@ -1317,7 +1317,7 @@ void grub_close (void);
    printing all completions. */
 //int dir (char *dirname);
 
-//int set_bootdev (int hdbias);
+int set_bootdev (int hdbias);
 
 /* Display statistics on the current active device. */
 void print_fsys_type (void);
