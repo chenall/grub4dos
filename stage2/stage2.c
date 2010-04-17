@@ -45,9 +45,9 @@ const char *preset_menu = 0;
 #endif /* GRUB_UTIL */
 
 static unsigned long preset_menu_offset;
-static unsigned long menu_file_magic;
-#define UTF8_MAGIC 0xBFBBEF
-#define UNICODE_MAGIC 0xFEFF
+static unsigned long menu_file_encode;
+#define UTF8_BOM 0xBFBBEF
+
 static int
 open_preset_menu (void)
 {
@@ -177,7 +177,7 @@ static int utf8_unicode(unsigned char *ch,unsigned long *unicode)
 {
 #ifdef SUPPORT_GRAPHICS
 	*unicode = (*ch & 0xff);
-	if ( !graphics_inited || (! (*ch & 0x80)) || menu_file_magic != UTF8_MAGIC)
+	if ( !graphics_inited || (! (*ch & 0x80)) || menu_file_encode != UTF8_BOM)
 		return 1;
 	*unicode &= 0x3f;
 	*unicode <<= 6;
@@ -1205,11 +1205,12 @@ done_key_handling:
 
 		  /* Wipe out the previously entered password */
 		  grub_memset (entered, 0, sizeof (entered));
-		  prompt = "Password: ";
-		  maxlen = sizeof (entered) - 1;
-		  echo_char = '*';
-		  readline = 0;
-		  get_cmdline (entered);
+		  get_cmdline_str.prompt = "Password: ";
+		  get_cmdline_str.maxlen = sizeof (entered) - 1;
+		  get_cmdline_str.echo_char = '*';
+		  get_cmdline_str.readline = 0;
+		  get_cmdline_str.cmdline = entered;
+		  get_cmdline (get_cmdline_str);
 
 		  while (! isspace (*pptr) && *pptr)
 		    pptr++;
@@ -1324,11 +1325,12 @@ done_key_handling:
 		      saved_partition = install_partition;
 		      current_drive = GRUB_INVALID_DRIVE;
 
-		      prompt = PACKAGE " edit> ";
-		      maxlen = NEW_HEAPSIZE + 1;
-		      echo_char = 0;
-		      readline = 1;
-		      if (! get_cmdline (new_heap))
+		      get_cmdline_str.prompt = PACKAGE " edit> ";
+		      get_cmdline_str.maxlen = NEW_HEAPSIZE + 1;
+		      get_cmdline_str.echo_char = 0;
+		      get_cmdline_str.readline = 1;
+		      get_cmdline_str.cmdline=new_heap;
+		      if (! get_cmdline (get_cmdline_str))
 			{
 			  int j = 0;
 
@@ -2091,10 +2093,11 @@ restart:
     reset ();
       
     /* Here load the configuration file.  */
-      
+
     if (! use_config_file)
 	goto done_config_file;
-
+	/*comment by chenall on 2010-04-17,I think these are not necessary*/
+#if 0
     /* Get a saved default entry if possible.  */
     saved_entryno = 0;
     if (*config_file && boot_drive != cdrom_drive)
@@ -2141,6 +2144,7 @@ restart:
 	DEBUG_SLEEP
     }
     errnum = ERR_NONE;
+#endif
 
 #ifndef GRUB_UTIL
     pxe_restart_config = 0;
@@ -2163,7 +2167,7 @@ restart_config:
 
 	    is_preset = is_opened = 0;
 	    /* Try command-line menu first if it is specified. */
-	    if (preset_menu == (char *)0x0800 /*&& ! *config_file*/)
+	    if (preset_menu == (char *)0x0800/*&& ! *config_file*/)
 	    {
 		is_opened = is_preset = open_preset_menu ();
 	    }
@@ -2197,21 +2201,24 @@ restart_config:
 	    if (! is_opened)
 		goto done_config_file;
 	}
-
-	grub_read ((unsigned long long)(unsigned int)&menu_file_magic, 3, 0xedde0d90);
-
-	menu_file_magic &= 0xffffff;
 	
-	if ((menu_file_magic & 0xffff) == UNICODE_MAGIC)
+	if (is_preset)
 	{
-		menu_file_magic = 0xfeff;
-		filepos--;
+		read_from_preset_menu((char *)&menu_file_encode, 3);
 	}
-	else if (menu_file_magic != UTF8_MAGIC)
+	else
 	{
-		menu_file_magic = 0;
-		filepos = 0;
+		grub_read ((unsigned long long)(unsigned int)&menu_file_encode, 3, GRUB_READ);
 	}
+	
+	menu_file_encode &= 0xffffff;
+	
+	if (menu_file_encode != UTF8_BOM)
+	{
+		menu_file_encode = 0;
+		preset_menu_offset = filepos = 0;
+	}
+	
 	/* This is necessary, because the menu must be overrided.  */
 	reset ();
 	cmdline = (char *) CMDLINE_BUF;

@@ -160,11 +160,12 @@ enter_cmdline (char *heap, int forever)
       errnum = ERR_NONE;
 
       /* Get the command-line with the minimal BASH-like interface.  */
-      prompt = PACKAGE "> ";
-      maxlen = 2048;
-      echo_char = 0;
-      readline = 1;
-      if (get_cmdline (heap))
+      get_cmdline_str.prompt = PACKAGE "> ";
+      get_cmdline_str.maxlen = 2048;
+      get_cmdline_str.echo_char = 0;
+      get_cmdline_str.readline = 1;
+      get_cmdline_str.cmdline=heap;
+      if (get_cmdline (get_cmdline_str))
 	{
 	  kernel_type = KERNEL_TYPE_NONE;
 	  return;

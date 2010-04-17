@@ -521,12 +521,13 @@ add_history (const char *cmdline, int no)
 	until this code is freezed.  */
 #define CMDLINE_WIDTH	78
 #define CMDLINE_MARGIN	10
-  
+/*  
 char *prompt;
 int maxlen;
 int echo_char;
 int readline;
-
+*/
+struct get_cmdline_arg get_cmdline_str, *p_getcmdline_arg;
 static int xpos, lpos, section;
 
 /* The length of PROMPT.  */
@@ -588,10 +589,10 @@ static void cl_forward (int count)
 	      
 	      for (i = lpos - count; i < lpos; i++)
 		{
-		  if (! echo_char)
+		  if (! p_getcmdline_arg->echo_char)
 		    grub_putchar (buf[i]);
 		  else
-		    grub_putchar (echo_char);
+		    grub_putchar (p_getcmdline_arg->echo_char);
 		}
 	    }
 	  else
@@ -626,7 +627,7 @@ static void cl_refresh (int full, int len)
 	     print `<'.  */
 	  if (section == 0)
 	    {
-	      grub_printf ("%s", prompt);
+	      grub_printf ("%s", p_getcmdline_arg->prompt);
 	      len -= plen;
 	      pos += plen;
 	    }
@@ -667,10 +668,10 @@ static void cl_refresh (int full, int len)
       /* Print BUF. If ECHO_CHAR is not zero, put it instead.  */
       for (i = start; i < start + len && i < llen; i++)
 	{
-	  if (! echo_char)
+	  if (! p_getcmdline_arg->echo_char)
 	    grub_putchar (buf[i]);
 	  else
-	    grub_putchar (echo_char);
+	    grub_putchar (p_getcmdline_arg->echo_char);
 
 	  pos++;
 	}
@@ -719,7 +720,7 @@ static void cl_insert (const char *str)
 {
       int l = grub_strlen (str);
 
-      if (llen + l < maxlen)
+      if (llen + l < p_getcmdline_arg->maxlen)
 	{
 	  if (lpos == llen)
 	    grub_memmove (buf + lpos, str, l + 1);
@@ -791,12 +792,12 @@ real_get_cmdline (char *cmdline)
   int history = -1;
   
   buf = (char *) CMDLINE_BUF;
-  plen = grub_strlen (prompt);
+  plen = grub_strlen (p_getcmdline_arg->prompt);
   llen = grub_strlen (cmdline);
 
-  if (maxlen > MAX_CMDLINE)
+  if (p_getcmdline_arg->maxlen > MAX_CMDLINE)
     {
-      maxlen = MAX_CMDLINE;
+      p_getcmdline_arg->maxlen = MAX_CMDLINE;
       if (llen >= MAX_CMDLINE)
 	{
 	  llen = MAX_CMDLINE - 1;
@@ -811,7 +812,7 @@ real_get_cmdline (char *cmdline)
   while ((char)(c = /*ASCII_CHAR*/ (getkey ())) != '\n' && (char)c != '\r')
     {
       /* If READLINE is non-zero, handle readline-like key bindings.  */
-      if (readline)
+      if (p_getcmdline_arg->readline)
 	{
 	  if ((char)c == 9)	/* TAB lists completions */
 	      {
@@ -867,6 +868,11 @@ real_get_cmdline (char *cmdline)
 		grub_memmove (completion_buffer, buf + i, lpos - i);
 		completion_buffer[lpos - i] = 0;
 		ret = print_completions (is_filename, 1);
+
+		if (! is_filename && ret < 0)
+		{
+			ret = print_completions ((is_filename=1), 1);
+		}
 		errnum = ERR_NONE;
 
 		if (ret >= 0)
@@ -1012,7 +1018,7 @@ real_get_cmdline (char *cmdline)
 
   /* If ECHO_CHAR is NUL, remove the leading spaces.  */
   lpos = 0;
-  if (! echo_char)
+  if (! p_getcmdline_arg->echo_char)
     while (buf[lpos] == ' ')
       lpos++;
 
@@ -1021,7 +1027,7 @@ real_get_cmdline (char *cmdline)
 
   /* If the readline-like feature is turned on and CMDLINE is not
      empty, add it into the history list.  */
-  if (readline && lpos < llen)
+  if (p_getcmdline_arg->readline && lpos < llen)
     add_history (cmdline, 0);
 
   return 0;
@@ -1036,11 +1042,11 @@ real_get_cmdline (char *cmdline)
 
    If ECHO_CHAR is nonzero, echo it instead of the typed character. */
 int
-get_cmdline (char *cmdline)
+get_cmdline (struct get_cmdline_arg p_cmdline)
 {
   int old_cursor;
   int ret;
-
+  p_getcmdline_arg = &p_cmdline ;
   old_cursor = setcursor (1);
   
   /* Because it is hard to deal with different conditions simultaneously,
@@ -1048,16 +1054,16 @@ get_cmdline (char *cmdline)
      implies TERM_NO_EDIT.  */
   if (current_term->flags & (TERM_NO_ECHO | TERM_NO_EDIT))
     {
-      char *p = cmdline;
+      char *p = p_cmdline.cmdline;
       int c;
       
       /* Make sure that MAXLEN is not too large.  */
-      if (maxlen > MAX_CMDLINE)
-	maxlen = MAX_CMDLINE;
+      if (p_getcmdline_arg->maxlen > MAX_CMDLINE)
+		p_getcmdline_arg->maxlen = MAX_CMDLINE;
 
       /* Print only the prompt. The contents of CMDLINE is simply discarded,
 	 even if it is not empty.  */
-      grub_printf ("%s", prompt);
+      grub_printf ("%s", p_getcmdline_arg->prompt);
 
       /* Gather characters until a newline is gotten.  */
       while ((c = ASCII_CHAR (getkey ())) != '\n' && c != '\r')
@@ -1076,7 +1082,7 @@ get_cmdline (char *cmdline)
 		grub_putchar (c);
 
 	      /* Preceding space characters must be ignored.  */
-	      if (c != ' ' || p != cmdline)
+	      if (c != ' ' || p != p_cmdline.cmdline)
 		*p++ = c;
 	    }
 	}
@@ -1091,7 +1097,7 @@ get_cmdline (char *cmdline)
     }
 
   /* Complicated features are left to real_get_cmdline.  */
-  ret = real_get_cmdline (cmdline);
+  ret = real_get_cmdline (p_cmdline.cmdline);
   setcursor (old_cursor);
   return ret;
 }
@@ -1244,6 +1250,7 @@ safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, in
     return 1;
   }
 }
+#if 0
 int
 safe_parse_maxint (char **str_ptr, unsigned long long *myint_ptr)
 {
@@ -1317,6 +1324,7 @@ safe_parse_maxint (char **str_ptr, unsigned long long *myint_ptr)
 
   return 1;
 }
+#endif
 #endif /* STAGE1_5 */
 
 int

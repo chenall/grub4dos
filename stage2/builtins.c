@@ -1,5 +1,4 @@
 /* builtins.c - the GRUB builtin commands */
-/* builtins.c - the GRUB builtin commands */
 /*
  *  GRUB  --  GRand Unified Bootloader
  *  Copyright (C) 1999,2000,2001,2002,2003,2004  Free Software Foundation, Inc.
@@ -4630,17 +4629,19 @@ command_func (char *arg, int flags)
 		if (! *arg)
 			return sprintf(command_path,"(bd)/grub/\0");
 		int j;
-		for (j = 0; j < sizeof (command_path); j++)
+
+		for (j = 0; j < 126; j++)
 		{
 			if (*arg == 0x20 || *arg == '\t' || *arg == 0)
 			{
-				command_path[j] = 0;
 				break;
 			}
 			command_path[j] = *arg;
 			arg++;
 		}
-		command_path[sizeof (command_path)-1] = 0;
+		
+		if (command_path[j-1] != '/') command_path[j++] = '/';
+		command_path[j] = 0;
 		return 1;
 	}
   if (! flags)	/* check syntax only */
@@ -4668,19 +4669,19 @@ command_func (char *arg, int flags)
 	filename = command_filename + 1;
 
 	if ((*arg >= 'a' && *arg <= 'z') || (*arg >= 'A' && *arg <= 'Z'))
-		filename--;
-
-	if (! grub_open (filename))
 	{
-		if (*filename == '/')
+		char filename_t[256];
+		sprintf(filename_t,"%s%s\0",command_path,filename--);
+		if (grub_open (filename_t))
 		{
-			char filename_t[256];
-			sprintf(filename_t,"%s%s\0",command_path,filename+1);
-			if (! grub_open (filename_t)) 
-				return 0;
+			*filename = 0;
 		}
-		else
-			return 0;
+		errnum = 0;
+	}
+
+	if (*filename && (! grub_open (filename)))
+	{
+		return 0;
 	}
 
 	if (filemax < 9ULL)
@@ -4933,6 +4934,7 @@ find_func (char *arg, int flags)
   char *set_root = 0;
   unsigned long ignore_cd = 0;
   unsigned long ignore_floppies = 0;
+  unsigned long ignore_oem = 0;
   //char *in_drives = NULL;	/* search in drive list */
   char root_found[16];
   
@@ -4955,6 +4957,10 @@ find_func (char *arg, int flags)
     else if (grub_memcmp (arg, "--ignore-floppies", 17) == 0)
       {
 	ignore_floppies = 1;
+      }
+	else if (grub_memcmp (arg, "--ignore-oem", 12) == 0)
+      {
+	ignore_oem = 1;
       }
     else
 	break;
@@ -5074,6 +5080,7 @@ find_func (char *arg, int flags)
 		next_partition ()))
 	{
 	  if (type != PC_SLICE_TYPE_NONE
+		  && ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
 	      && ! IS_PC_SLICE_TYPE_BSD (type)
 	      && ! IS_PC_SLICE_TYPE_EXTENDED (type))
 	    {
@@ -9532,11 +9539,12 @@ md5crypt_func (char *arg, int flags)
   
   /* Get a password.  */
   grub_memset (key, 0, sizeof (key));
-  prompt = "Password: ";
-  maxlen = sizeof (key) - 1;
-  echo_char = '*';
-  readline = 0;
-  get_cmdline (key);
+  get_cmdline_str.prompt = "Password: ";
+  get_cmdline_str.maxlen = sizeof (key) - 1;
+  get_cmdline_str.echo_char = '*';
+  get_cmdline_str.readline = 0;
+  get_cmdline_str.cmdline = key;
+  get_cmdline (get_cmdline_str);
 
   /* Crypt the key.  */
   make_md5_password (key, crypted);
@@ -10167,11 +10175,12 @@ password_func (char *arg, int flags)
       
       /* Wipe out any previously entered password */
       entered[0] = 0;
-      prompt = "Password: ";
-      maxlen = sizeof (entered) - 1;
-      echo_char = '*';
-      readline = 0;
-      get_cmdline (entered);
+      get_cmdline_str.prompt = "Password: ";
+      get_cmdline_str.maxlen = sizeof (entered) - 1;
+      get_cmdline_str.echo_char = '*';
+      get_cmdline_str.readline = 0;
+      get_cmdline_str.cmdline = entered;
+      get_cmdline (get_cmdline_str);
 
       nul_terminate (arg);
       if ((len = check_password (entered, arg, type)) != 0)

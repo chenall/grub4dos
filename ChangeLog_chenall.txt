@@ -1,4 +1,20 @@
-﻿2010-03-10
+﻿2010-04-17
+	1.命令行自动完成调整.现在可以直接输入/+TAB显示当前目录下的文件或(hd0,0)/+TAB显示(hd0,0)/下面的文件列表
+	以前的版本必需要像以下命令才可以。
+		root /+TAB
+	2.get_cmdline函数调整，以方便外部命令直接调用。
+
+2010-03-29
+	1.外部命令执行过程调整。
+
+	例子:默认path (bd)/grub/
+ 	     echo abcd  ## 优先使用(bd)/grub/echo 文件，如果没有再找 /echo 文件
+	     /echo abcd ## 只查找/echo 文件。
+	     (fd0)/echo abcd ## 只找 (fd0)/echo abcd 文件。
+	2.find 命令添加一个 --ignore-oem 参数。
+	http://code.google.com/p/grub4dos-ireneuszp/
+
+2010-03-10
 	1.边框位置自动调整。
 
 2010-03-09

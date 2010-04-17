@@ -1258,12 +1258,22 @@ extern char *prompt;
 extern int maxlen;
 extern int echo_char;
 extern int readline;
-int get_cmdline (char *cmdline);
+struct get_cmdline_arg
+{
+	char *cmdline;
+	char *prompt;
+	int maxlen;
+	int echo_char;
+	int readline;
+} __attribute__ ((packed));
+extern struct get_cmdline_arg get_cmdline_str;
+int get_cmdline (struct get_cmdline_arg p_cmdline);
 int substring (const char *s1, const char *s2, int case_insensitive);
 int nul_terminate (char *str);
 int get_based_digit (int c, int base);
 int safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, int unitshift);
-int safe_parse_maxint (char **str_ptr, unsigned long long *myint_ptr);
+#define safe_parse_maxint(str_ptr, myint_ptr) safe_parse_maxint_with_suffix(str_ptr, myint_ptr, 0)
+//int safe_parse_maxint (char **str_ptr, unsigned long long *myint_ptr);
 int parse_string (char *arg);
 int memcheck (unsigned long long addr, unsigned long long len);
 void grub_putstr (const char *str);
@@ -1302,7 +1312,8 @@ int next_partition (void);
 /* Open a file or directory on the active device, using GRUB's
    internal filesystem support. */
 int grub_open (char *filename);
-
+#define GRUB_READ 0xedde0d90
+#define GRUB_WRITE 0x900ddeed
 /* Read LEN bytes into BUF from the file that was opened with
    GRUB_OPEN.  If LEN is -1, read all the remaining data in the file.  */
 unsigned long long grub_read (unsigned long long buf, unsigned long long len, unsigned long write);
