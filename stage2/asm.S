@@ -77,6 +77,7 @@ ENTRY(main)
 	 * bit 1 = 1: disable keyboard intervention in boot process
 	 * bit 2 = 1: disable the "unconditional command-line entrance" feature
 	 * bit 3 = 1: disable geometry tune
+	 * bit 4 = 1: disable startup cdrom drive look-up.
 	 */
 	.byte	0
 
@@ -226,7 +227,7 @@ VARIABLE(rd_size)
 			//         =3 reserved
 			// bit 3=reserved
 		long	// process id.
-			// 0 for kernel, others for user program
+			// 0 - 255 for kernel, others for user program
 	 */
 VARIABLE(mem_alloc_array_start)
 	.long	0x800000	/* at 8M */
@@ -1069,6 +1070,10 @@ ENTRY(grub_halt)
 
 	.code16
 
+	pushw	%ds
+	pushw	%es
+	pushal
+
 	//sti		/* this is not needed here, so comment it out. */
 	sti	#; added 2006-11-30
 
@@ -1077,7 +1082,7 @@ ENTRY(grub_halt)
 	xorw	%bx, %bx
 	int	$0x15
 	//jc	EXT_C(hard_stop)
-	jc	hard_stop
+	jc	1f
 	/* don't check %bx for buggy BIOSes... */
 
 	/* disconnect APM first */
@@ -1090,7 +1095,7 @@ ENTRY(grub_halt)
 	xorw	%bx, %bx
 	int	$0x15
 	//jc	EXT_C(hard_stop)
-	jc	hard_stop
+	jc	1f
 
 	/* set APM protocol level - 1.1 or bust. (this covers APM 1.2 also) */
 	movw	$0x530E, %ax
@@ -1098,7 +1103,7 @@ ENTRY(grub_halt)
 	movw	$0x0101, %cx
 	int	$0x15
 	//jc	EXT_C(hard_stop)
-	jc	hard_stop
+	jc	1f
 
 	/* set the power state to off */
 	movw	$0x5307, %ax
@@ -1108,7 +1113,24 @@ ENTRY(grub_halt)
 
 	/* shouldn't reach here */
 	//jmp	EXT_C(hard_stop)
-	jmp	hard_stop
+1:
+	//jmp	hard_stop
+	popal
+	popw	%es
+	popw	%ds
+	/* anyway, it failed. Return to caller with errnum set! */
+
+	DATA32	call	EXT_C(real_to_prot)
+	.code32
+
+	xorl	%eax, %eax	/* return 0 for false */
+
+	/* set errnum to ERR_HALT(=74). */
+	movl	$74, EXT_C(errnum)
+
+	cld		/* in case it is set by buggy BIOS int15. */
+
+	ret
 
 
 /*
@@ -11103,6 +11125,53 @@ ENTRY(currticks)
 	ret
 #endif
 
+/*
+ * multi_boot(int start, int mb_info, int, int, int, int, int)
+ *
+ *  This starts a kernel in the manner expected of the multiboot standard.
+ */
+
+ENTRY(multi_boot)
+
+	.code32
+
+	/* move image down 16M. This will destroy code at above 1M. So this
+	 * function must be at below 1M, together with real-mode functions.
+	 */
+
+	movl	$0x1100000, %esi	/* 17M */
+	movl	$0x0100000, %edi	/* 01M */
+	movl	ABS(cur_addr), %ecx
+	subl	%esi, %ecx
+	addl	$3, %ecx
+	shrl	$2, %ecx
+	cld
+	repz movsl
+
+	///* no need to save anything */
+	//call	EXT_C(stop_floppy)
+
+	movl	0x10(%esp), %ecx
+	jecxz	1f
+
+	movl	$0x2BADB002, %eax
+	movl	0x8(%esp), %ebx
+
+	/* boot kernel here (absolute address call) */
+	call	*0x4(%esp)
+
+	/* error */
+	call	EXT_C(stop)
+
+1:
+	/* BSD boot */
+	popl	%eax		/* discard return address */
+	popl	%eax		/* EAX=entry_addr */
+	call	*%eax
+
+	/* error */
+	call	EXT_C(stop)
+
 #endif /* ! STAGE1_5 */
 
 /*
@@ -11330,10 +11399,19 @@ VARIABLE(chain_enable_gateA20)
 	/* max length of code is 1 sector */
 	. = . - (. - EXT_C(HMA_start))/0x201
 
-end_of_low_16bit_code:
+	.align	4
+
+VARIABLE(mbi)
+	.space	(22 * 4)
+
+VARIABLE(end_of_low_16bit_code)
 
 	/* ensure this resides in the first 64KB */
 	. = . - (ABS(.) / 0x10001)
+
+	/* Although real-mode code ends at this point, the dynamic data
+	 * of multiboot will use a piece of memory here.
+	 */
 
 
 /****************************************************************************/
@@ -11344,29 +11422,6 @@ end_of_low_16bit_code:
 #ifndef STAGE1_5
 
 	.space	0x300000	/* !!!! insert 3M !!!! */
-
-/*
- * multi_boot(int start, int mb_info)
- *
- *  This starts a kernel in the manner expected of the multiboot standard.
- */
-
-ENTRY(multi_boot)
-
-	.code32
-
-	/* no need to save anything */
-	call	EXT_C(stop_floppy)
-
-	movl	$0x2BADB002, %eax
-	movl	0x8(%esp), %ebx
-
-	/* boot kernel here (absolute address call) */
-	call	*0x4(%esp)
-
-	/* error */
-	call	EXT_C(stop)
-
 
 /*
  * int check_64bit (void)
@@ -11903,3 +11958,4 @@ VARIABLE(graphics_CURSOR)
 	.long	0
 	.long	(EXT_C(menu_broder))
 #endif /* ! STAGE1_5 */
+

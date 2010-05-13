@@ -309,7 +309,7 @@ big_linux_boot (void)
 
 /* booting a multiboot executable */
 void
-multi_boot (int start, int mb_info)
+multi_boot (int start, int mb_info, int dummy1, int dummy2, int dummy3, int dummy4, int dummy5)
 {
   stop ();
 }

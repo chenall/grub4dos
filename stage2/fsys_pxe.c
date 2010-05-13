@@ -195,6 +195,13 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 	return 1;
   }
 
+	if (pxe_dir ("/menu.lst"))
+	{
+		grub_strcpy (pxe_tftp_name, "/menu.lst");
+		ret = 1;
+		goto done;
+	}
+
   grub_memcpy ((char *) saved_pxe_mac, (char *) pxe_mac, 6);
   saved_pxe_ip = pxe_yip;
 
@@ -734,6 +741,8 @@ int pxe_func (char *arg, int flags)
     }
   else if (grub_memcmp (arg, "keep", sizeof("keep") - 1) == 0)
     pxe_keep = 1;
+  else if (grub_memcmp (arg, "nokeep", sizeof("nokeep") - 1) == 0)
+    pxe_keep = 0;
   else if (grub_memcmp (arg, "unload", sizeof("unload") - 1) == 0)
     {
       pxe_keep = 0;

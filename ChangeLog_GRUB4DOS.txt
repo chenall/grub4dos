@@ -1,3 +1,5 @@
+2010-05-13 added --off option for hiddenmenu. added nokeep subcommand for pxe. let halt return on failure.
+2010-05-03 hopefully non-linux kernels could get loaded now. version number changed to 0.4.5b.
 2010-03-14 fixed problems in set_bootdev and others.
 2010-03-13 fixed a (possible)bug in init_pic(affect grub.exe as a linux kernel format). applied Icecube's patch(curr_part_start).
 2010-01-22 applied karyonix's patch(PAE).

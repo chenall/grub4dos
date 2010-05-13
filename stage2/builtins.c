@@ -1072,7 +1072,56 @@ boot_func (char *arg, int flags)
       }
 #endif
 
-      multi_boot ((int) entry_addr, (int) &mbi);
+	/* Get the drive info.  */
+	mbi.drives_length = 0;
+	mbi.drives_addr = (unsigned long)&end_of_low_16bit_code;
+
+	/* XXX: Too many drives will possibly use a piece of memory starting at 0x10000(64K). */
+
+#ifdef GRUB_UTIL
+#define FIND_DRIVES 8
+#else
+#define FIND_DRIVES (*((char *)0x475))
+#endif
+      {
+	unsigned int drive;
+	unsigned long addr = (unsigned long)&end_of_low_16bit_code;
+
+	for (drive = 0x80; drive < 0x80 + FIND_DRIVES; drive++)
+	{
+	    struct drive_info *info = (struct drive_info *) addr;
+      
+	    /* Get the geometry. This ensures that the drive is present.  */
+
+	    if (debug > 1)
+		grub_printf ("get_diskinfo(%X), ", drive);
+
+	    if (get_diskinfo (drive, &tmp_geom))
+		continue;//break;
+
+	    if (debug > 1)
+		grub_printf (" %sC/H/S=%d/%d/%d, Sector Count/Size=%ld/%d\n",
+			((tmp_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION) ? "LBA, " : ""),
+			tmp_geom.cylinders, tmp_geom.heads, tmp_geom.sectors,
+			(unsigned long long)tmp_geom.total_sectors, tmp_geom.sector_size);
+      
+	    /* Set the information.  */
+	    info->drive_number = drive;
+	    info->drive_mode = ((tmp_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION)
+				? MB_DI_LBA_MODE : MB_DI_CHS_MODE);
+	    info->drive_cylinders = tmp_geom.cylinders;
+	    info->drive_heads = tmp_geom.heads;
+	    info->drive_sectors = tmp_geom.sectors;
+
+	    addr += sizeof (struct drive_info);
+
+	    info->size = addr - (unsigned long) info;
+	    mbi.drives_length += info->size;
+	}
+      }
+#undef FIND_DRIVES
+
+      multi_boot ((int) entry_addr, (int) &mbi, 0, -1, 0, 0, 0);
       break;
 
     default:
@@ -4670,18 +4719,20 @@ command_func (char *arg, int flags)
 
 	if ((*arg >= 'a' && *arg <= 'z') || (*arg >= 'A' && *arg <= 'Z'))
 	{
-		char filename_t[256];
-		sprintf(filename_t,"%s%s\0",command_path,filename--);
-		if (grub_open (filename_t))
+		char filename_t[512];/* use 512 here instead of 256 to avoid buffer overflow in the following sprintf. */
+		sprintf(filename_t,"%s%s\0",command_path,filename);
+		if ((! grub_open (filename_t)) && (! grub_open (filename - 1)))
 		{
-			*filename = 0;
+			if (debug > 0)
+				grub_printf ("Warning! No such command: %s\n", filename);
+			errnum = 0;	/* No error, so that old menus will run smoothly. */
+			return 0;	/* return 0 indicating a failure or a false case. */
 		}
 		errnum = 0;
 	}
-
-	if (*filename && (! grub_open (filename)))
+	else if (! grub_open (filename))
 	{
-		return 0;
+		return 0;	/* return 'failure' with errnum set. */
 	}
 
 	if (filemax < 9ULL)
@@ -4740,6 +4791,11 @@ command_func (char *arg, int flags)
 	*(unsigned long *)(free_mem_start + psp_len - 8) = psp_len - 16;	/* args is here. */
 	*(unsigned long *)(free_mem_start + psp_len - 12) = flags;		/* flags is here. */
 	/* (free_mem_start + pid - 16) is reserved for full pathname of the program file. */
+
+	/* kernel image is destroyed, so invalidate the kernel */
+	if (kernel_type < KERNEL_TYPE_CHAINLOADER)
+	    kernel_type = KERNEL_TYPE_NONE;
+
 	if (grub_read ((unsigned long long)(free_mem_start + psp_len), -1ULL, 0xedde0d90) != filemax)
 	{
 		if (! errnum)
@@ -6140,6 +6196,12 @@ hiddenmenu_func (char *arg, int flags)
     if (grub_memcmp (arg, "--silent", 8) == 0)
       {
         silent_hiddenmenu = 1;
+      }
+    else if (grub_memcmp (arg, "--off", 5) == 0)
+      {
+	/* set to the default values. */
+	show_menu = 1;
+        silent_hiddenmenu = 0;
       }
     arg = skip_to (0, arg);
   }

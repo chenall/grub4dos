@@ -26,7 +26,7 @@
 #include "imgact_aout.h"
 #include "i386-elf.h"
 
-static unsigned long cur_addr;
+unsigned long cur_addr;
 entry_func entry_addr;
 static struct mod_list mll[99];
 static unsigned long long linux_mem_size;
@@ -62,6 +62,12 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
   unsigned char buffer[MULTIBOOT_SEARCH];
 #endif
 
+  if (free_mem_start > (unsigned long)linux_bzimage_tmp_addr)
+  {
+	errnum = ERR_KERNEL_WITH_PROGRAM;
+	goto failure;
+  }
+    
   errnum = ERR_NONE;
   /* sets the header pointer to point to the beginning of the
      buffer by default */
@@ -284,7 +290,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
       text_len = filemax - data_len - SECTOR_SIZE;
 
       linux_data_tmp_addr = linux_bzimage_tmp_addr + text_len;
-      
+
       if (! big_linux
 	  && text_len > linux_data_real_addr - (char *) LINUX_ZIMAGE_ADDR)	/* 0x10000 */
 	{
@@ -503,6 +509,9 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
       if (debug > 0)
         printf (", loadaddr=0x%x, text%s=0x%x", cur_addr, str, text_len);
 
+      /* we have to increase cur_addr for now... */
+      cur_addr += 0x1000000;	/* cur_addr is above 16M. */
+
       /* read text, then read data */
       if (grub_read ((unsigned long long) RAW_ADDR (cur_addr), text_len, 0xedde0d90) != text_len)
 	goto failure_exec_format;
@@ -542,7 +551,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	  if (align_4k)
 	    cur_addr = (cur_addr + 0xFFF) & 0xFFFFF000;
 
-	  mbi.syms.a.addr = cur_addr;
+	  mbi.syms.a.addr = cur_addr - 0x1000000;
 
 	  *((int *) RAW_ADDR (cur_addr)) = pu.aout->a_syms;
 	  cur_addr += sizeof (int);
@@ -592,7 +601,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
   else
     /* ELF executable */
     {
-      unsigned loaded = 0, memaddr, memsiz, filesiz;
+      unsigned loaded = 0;
       Elf32_Phdr *phdr;
       Elf32_Shdr *shdr = NULL;
       int tab_size, sec_size;
@@ -607,6 +616,8 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	  phdr = (Elf32_Phdr *)(pu.elf->e_phoff + ((int) buffer) + (pu.elf->e_phentsize * i));
 	  if (phdr->p_type == PT_LOAD)
 	    {
+	      unsigned memaddr, memsiz, filesiz;
+
 	      /* offset into file */
 	      filepos = phdr->p_offset;
 	      filesiz = phdr->p_filesz;
@@ -631,9 +642,6 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	      /* make sure we only load what we're supposed to! */
 	      if (filesiz > memsiz)
 		  filesiz = memsiz;
-	      /* mark memory as used */
-	      if (cur_addr < memaddr + memsiz)
-		  cur_addr = memaddr + memsiz;
 	      if (debug > 0)
 		  printf (", <0x%x:0x%x:0x%x>", memaddr, filesiz, (memsiz - filesiz));
 	      /* increment number of segments */
@@ -642,6 +650,12 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	      /* load the segment */
 	      if (! memcheck (memaddr, memsiz))
 		goto failure_newline;
+
+	      memaddr += 0x1000000;
+
+	      /* mark memory as used */
+	      if (cur_addr < memaddr + memsiz)
+		  cur_addr = memaddr + memsiz;
 	      if (grub_read ((unsigned long long) memaddr, filesiz, 0xedde0d90) != filesiz)
 		goto failure_newline;
 	      if (memsiz > filesiz)
@@ -790,9 +804,9 @@ load_module (char *module, char *arg)
   mbi.mods_addr = (int) mll;
 
   mll[mbi.mods_count].cmdline = (int) arg;
-  mll[mbi.mods_count].mod_start = cur_addr;
+  mll[mbi.mods_count].mod_start = cur_addr - 0x1000000;
   cur_addr += len;
-  mll[mbi.mods_count].mod_end = cur_addr;
+  mll[mbi.mods_count].mod_end = cur_addr - 0x1000000;
   mll[mbi.mods_count].pad = 0;
 
   /* increment number of modules included */
@@ -1092,7 +1106,8 @@ bsd_boot (kernel_t type, int bootdev, char *arg)
 	}
 
       /* call entry point */
-      (*entry_addr) (clval, bootdev, 0, 0, 0, ((int) bi));
+      //(*entry_addr) (clval, bootdev, 0, 0, 0, ((int) bi));
+      multi_boot ((int) entry_addr, clval, bootdev, 0, 0, 0, ((int) bi));
     }
   else
     {
@@ -1124,6 +1139,7 @@ bsd_boot (kernel_t type, int bootdev, char *arg)
 	/* FIXME: it should be mbi.syms.e.size.  */
 	end_mark = 0;
       
-      (*entry_addr) (clval, bootdev, 0, end_mark, extended_memory, (*(unsigned short *)0x413)/*saved_mem_lower*/);
+      //(*entry_addr) (clval, bootdev, 0, end_mark, extended_memory, (*(unsigned short *)0x413)/*saved_mem_lower*/);
+      multi_boot ((int) entry_addr, clval, bootdev, 0, end_mark, extended_memory, (*(unsigned short *)0x413)/*saved_mem_lower*/);
     }
 }

@@ -31,8 +31,8 @@
  *  Shared BIOS/boot data.
  */
 
-struct multiboot_info mbi;
 #ifdef GRUB_UTIL
+struct multiboot_info mbi;
 unsigned long saved_drive;
 unsigned long saved_partition;
 #endif
@@ -145,6 +145,8 @@ char *err_list[] =
   [ERR_WRITE_GZIP_FILE] = "Attempt to write a gzip file",
   [ERR_FUNC_CALL] = "Invalid function call",
   [ERR_INTERNAL_CHECK] = "Internal check failed. Please report this bug.",
+  [ERR_KERNEL_WITH_PROGRAM] = "Kernel cannot load if there is an active process",
+  [ERR_HALT] = "Halt failed.",
 //  [ERR_WRITE_TO_NON_MEM_DRIVE] = "Only RAM drives can be written when running in a script",
 
 };
@@ -440,7 +442,7 @@ init_bios_info (void)
   mbi.mmap_addr = saved_mmap_addr;
   mbi.mmap_length = saved_mmap_length;
 
-#if 1
+#if 0
   /* Get the drive info.  */
   /* FIXME: This should be postponed until a Multiboot kernel actually
      requires it, because this could slow down the start-up
@@ -491,6 +493,7 @@ init_bios_info (void)
       info->size = addr - (unsigned long) info;
       mbi.drives_length += info->size;
     }
+#endif
 
 #ifdef GRUB_UTIL
   init_free_mem_start = addr;
@@ -498,8 +501,7 @@ init_bios_info (void)
   init_free_mem_start = get_code_end ();
 #endif
 
-  DEBUG_SLEEP
-#endif
+  //DEBUG_SLEEP
 
   /*
    *  Initialize other Multiboot Info flags.
@@ -593,17 +595,24 @@ pxe_init_done:
 #if !defined(STAGE1_5) && !defined(GRUB_UTIL)
   /* Set cdrom drive.  */
     
+#ifdef GRUB_UTIL
+#define FIND_DRIVES 8
+#else
+#define FIND_DRIVES (*((char *)0x475))
+#endif
     /* Get the geometry.  */
     if (debug > 1)
 	printf("\rboot drive=%X, ", boot_drive);
-    cdrom_drive = get_cdinfo (boot_drive, &tmp_geom);
-    if (! cdrom_drive || cdrom_drive != boot_drive)
-	cdrom_drive = GRUB_INVALID_DRIVE;
-    if (cdrom_drive == GRUB_INVALID_DRIVE)
+    if ((((unsigned char)boot_drive) >= 0x80 + FIND_DRIVES)
+	&& ! ((*(char *)0x8205) & 0x10))	/* if it is not disable startup cdrom drive look-up. */
     {
-	/* read the first sector of the drive */
-	if (((unsigned char)boot_drive) >= 0x80 + FIND_DRIVES)
+	cdrom_drive = get_cdinfo (boot_drive, &tmp_geom);
+	if (! cdrom_drive || cdrom_drive != boot_drive)
+		cdrom_drive = GRUB_INVALID_DRIVE;
+
+	if (cdrom_drive == GRUB_INVALID_DRIVE)
 	{
+		/* read the first sector of the drive */
 		struct disk_address_packet
 		{
 			unsigned char length;
@@ -639,8 +648,9 @@ pxe_init_done:
 			}
 		}
 
-	} /* if (geometry->flags & BIOSDISK_FLAG_LBA_EXTENSION) */
+	}
     }
+#undef FIND_DRIVES
 
     if (debug > 1)
 	printf("%s\n", (cdrom_drive == GRUB_INVALID_DRIVE ? "Not CD":"Is CD"));
@@ -649,13 +659,13 @@ pxe_init_done:
   
 #if !defined(STAGE1_5) && !defined(GRUB_UTIL)
 
-  if (cdrom_drive == GRUB_INVALID_DRIVE)  
+  if (cdrom_drive == GRUB_INVALID_DRIVE
+     && ! ((*(char *)0x8205) & 0x10))	/* if it is not disable startup cdrom drive look-up. */
   {
     int err;
     int version;
     struct drive_parameters *drp = (struct drive_parameters *)0x600;
 
-#undef FIND_DRIVES
 #ifdef GRUB_UTIL
 #define FIND_DRIVES 8
 #else
@@ -666,7 +676,7 @@ pxe_init_done:
     for (drive = 0xFF; drive > 0x7F; drive--)
     {
       if (drive >= 0x80 && drive < 0x80 + FIND_DRIVES)
-	continue;
+	continue;	/* skip hard drives */
       
       /* Get the geometry.  */
       if (debug > 1)

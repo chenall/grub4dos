@@ -686,6 +686,8 @@ typedef enum
   ERR_FUNC_CALL,
 //  ERR_WRITE_TO_NON_MEM_DRIVE,
   ERR_INTERNAL_CHECK,
+  ERR_KERNEL_WITH_PROGRAM,
+  ERR_HALT,
 
   MAX_ERR_NUM
 } grub_error_t;
@@ -927,6 +929,7 @@ extern unsigned long emu_iso_sector_size_2048;
  *  Common BIOS/boot data.
  */
 
+extern char *end_of_low_16bit_code;
 extern struct multiboot_info mbi;
 extern unsigned long saved_drive;
 extern unsigned long saved_partition;
@@ -971,6 +974,7 @@ extern char *err_list[];
 typedef void (*entry_func) (int, int, int, int, int, int)
      __attribute__ ((noreturn));
 
+extern unsigned long cur_addr;
 extern entry_func entry_addr;
 
 /* Enter the stage1.5/stage2 C code after the stack is set up. */
@@ -1061,7 +1065,7 @@ void linux_boot (void) __attribute__ ((noreturn));
 void big_linux_boot (void) __attribute__ ((noreturn));
 
 /* booting a multiboot executable */
-void multi_boot (int start, int mb_info) __attribute__ ((noreturn));
+void multi_boot (int start, int mb_info, int, int, int, int, int) __attribute__ ((noreturn));
 
 /* If LINEAR is nonzero, then set the Intel processor to linear mode.
    Otherwise, bit 20 of all memory accesses is always forced to zero,
