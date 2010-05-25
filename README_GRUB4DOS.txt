@@ -2948,16 +2948,17 @@ grldr as boot file.
 You may also want to load a different menu.lst for different client. GRUB4DOS
 will scan the following location for configuration file:
 
-	[/mybootdir]/menu.lst/01-88-99-AA-BB-CC-DD
-	[/mybootdir]/menu.lst/C000025B
-	[/mybootdir]/menu.lst/C000025
-	[/mybootdir]/menu.lst/C00002
-	[/mybootdir]/menu.lst/C0000
-	[/mybootdir]/menu.lst/C000
-	[/mybootdir]/menu.lst/C00
-	[/mybootdir]/menu.lst/C0
-	[/mybootdir]/menu.lst/C
-	[/mybootdir]/menu.lst/default
+	[/mybootdir]/menu.lst
+	[/mybootdir]/menu/01-88-99-AA-BB-CC-DD
+	[/mybootdir]/menu/C000025B
+	[/mybootdir]/menu/C000025
+	[/mybootdir]/menu/C00002
+	[/mybootdir]/menu/C0000
+	[/mybootdir]/menu/C000
+	[/mybootdir]/menu/C00
+	[/mybootdir]/menu/C0
+	[/mybootdir]/menu/C
+	[/mybootdir]/menu/default
 
 Here, we assume the network card mac for the client machine is
 88:99:AA:BB:CC:DD, and the ip address is 192.0.2.91 (C000025B). /mybootdir is
@@ -2966,7 +2967,7 @@ mybootdir=tftp.
 
 If none of the above files is present, grldr will use its embeded menu.lst.
 
-This is a menu.lst to illstrate how to use files from the tftp server.
+This is a menu.lst to illustrate how to use files from the tftp server.
 
 	title Create ramdisk using map
 	map --mem (pd)/floppy.img (fd0)
@@ -3289,9 +3290,12 @@ will not produce bifurcate drives.
 GRLDR can be used as the PXE boot file on a remote/network server. The (pd)
 device is used to access files on the server. When GRLDR is booted through
 network, it will use its preset menu as the config file. However, you may use
-a "pxe detect" command, which acts the same way as PXELINUX:
+a "pxe detect" command, which acts this way:
 
-    * First, it will search for the config file using the hardware type (using
+    * First, it will search for the config file "menu.lst" in the same dir as
+      grldr.
+
+    * Second, it will search for the config file using the hardware type (using
       its ARP type code) and address, all in hexadecimal with dash separators;
       for example, for an Ethernet (ARP type 1) with address 88:99:AA:BB:CC:DD
       it would search for the filename 01-88-99-AA-BB-CC-DD. 
@@ -3304,16 +3308,17 @@ a "pxe detect" command, which acts the same way as PXELINUX:
       88:99:AA:BB:CC:DD and the IP address 192.0.2.91, it will try following
       files (in that order): 
 
-       /mybootdir/menu.lst/01-88-99-AA-BB-CC-DD
-       /mybootdir/menu.lst/C000025B
-       /mybootdir/menu.lst/C000025
-       /mybootdir/menu.lst/C00002
-       /mybootdir/menu.lst/C0000
-       /mybootdir/menu.lst/C000
-       /mybootdir/menu.lst/C00
-       /mybootdir/menu.lst/C0
-       /mybootdir/menu.lst/C
-       /mybootdir/menu.lst/default
+       /mybootdir/menu.lst
+       /mybootdir/menu/01-88-99-AA-BB-CC-DD
+       /mybootdir/menu/C000025B
+       /mybootdir/menu/C000025
+       /mybootdir/menu/C00002
+       /mybootdir/menu/C0000
+       /mybootdir/menu/C000
+       /mybootdir/menu/C00
+       /mybootdir/menu/C0
+       /mybootdir/menu/C
+       /mybootdir/menu/default
 
 You cannot directly map an image file on (pd). You must map it in memory using
 the --mem option. For example,

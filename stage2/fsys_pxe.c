@@ -183,6 +183,9 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 
   ret = 0;
 
+  grub_memcpy ((char *) saved_pxe_mac, (char *) pxe_mac, 6);
+  saved_pxe_ip = pxe_yip;
+
   if (config)
   {
 	if (*config == '/')
@@ -195,19 +198,34 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 	return 1;
   }
 
-	if (pxe_dir ("/menu.lst"))
-	{
-		grub_strcpy (pxe_tftp_name, "/menu.lst");
-		ret = 1;
+	//if (pxe_dir ("/menu.lst"))
+	//{
+	//	grub_strcpy (pxe_tftp_name, "/menu.lst");
+	//	ret = 1;
+	//	goto done;
+	//}
+
+	grub_strcpy (pxe_tftp_name, "/menu.lst");
+	grub_printf ("\nFrom now on, we first try to open this FILE: %s\n"
+		     "\nCaution: The PXE server should NOT have a DIR of \"%s\"."
+		     "\nCaution: The system could hang if \"%s\" is a DIR."
+		     "\nCaution: Your original \"menu.lst\" DIR should be renamed to \"menu\".\n"
+			, pxe_tftp_open.FileName
+			, pxe_tftp_open.FileName
+			, pxe_tftp_open.FileName);
+	ret = pxe_dir (pxe_tftp_name);
+	if (ret)
 		goto done;
-	}
 
-  grub_memcpy ((char *) saved_pxe_mac, (char *) pxe_mac, 6);
-  saved_pxe_ip = pxe_yip;
+  /* Reports from Ruymbeke: opening /menu.lst will hang if it is a dir.
+   * Do NOT use /menu.lst as a dir any more!! Use /menu for it instead.
+   */
 
-  grub_strcpy (pxe_tftp_name, "/menu.lst/");
+  grub_strcpy (pxe_tftp_name, "/menu/");
 
-  pc = pxe_tftp_name + 10;
+#define MENU_DIR_NAME_LENGTH (sizeof("/menu/") - 1)
+
+  pc = pxe_tftp_name + MENU_DIR_NAME_LENGTH;
   pc = pxe_outhex (pc, pxe_mac_type);
   for (i = 0; i < pxe_mac_len; i++)
     {
@@ -222,7 +240,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
       goto done;
     }
 
-  pc = pxe_tftp_name + 10;
+  pc = pxe_tftp_name + MENU_DIR_NAME_LENGTH;
   tmp = pxe_yip;
   for (i = 0; i < 4; i++)
     {
@@ -239,10 +257,12 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
           goto done;
         }
       *(--pc) = 0;
-    } while (pc > pxe_tftp_name + 10);
+    } while (pc > pxe_tftp_name + MENU_DIR_NAME_LENGTH);
   grub_strcpy (pc, "default");
   grub_printf ("%s\n", pxe_tftp_open.FileName);
   ret = pxe_dir (pxe_tftp_name);
+
+#undef MENU_DIR_NAME_LENGTH
 
 done:
 

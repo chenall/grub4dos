@@ -3567,7 +3567,7 @@ use_default_config_file:
 	pushw	%di
 	pushw	%si
 	pushw	%di
-	/* find options --bypass, --time-out=T, --hot-key=K, --duce, --chs-no-tune */
+	/* find options --bypass, --time-out=T, --hot-key=K, --duce, --chs-no-tune, --keep-pxe */
 4:
 	popw	%di
 	popw	%si
@@ -3615,6 +3615,7 @@ use_default_config_file:
 
 	//pushw	%di
 3:
+//////////////////////////////////////////////////////////////////////////////
 	testb	$1, ABS_PSP(options_done)
 	jne	5f
 
@@ -3663,7 +3664,7 @@ use_default_config_file:
 	//popw	%di
 	//pushw	%di
 5:
-
+//////////////////////////////////////////////////////////////////////////////
 	testb	$2, ABS_PSP(options_done)
 	jne	5f
 
@@ -3722,7 +3723,7 @@ use_default_config_file:
 	//pushw	%di
 
 5:
-
+//////////////////////////////////////////////////////////////////////////////
 	testb	$4, ABS_PSP(options_done)
 	jne	5f
 
@@ -3779,7 +3780,7 @@ use_default_config_file:
 
 	//popw	%di
 5:
-
+//////////////////////////////////////////////////////////////////////////////
 	testb	$8, ABS_PSP(options_done)
 	jne	5f
 
@@ -3828,7 +3829,7 @@ use_default_config_file:
 	//popw	%di
 	//pushw	%di
 5:
-
+//////////////////////////////////////////////////////////////////////////////
 	testb	$0x10, ABS_PSP(options_done)
 	jne	5f
 
@@ -3877,6 +3878,56 @@ use_default_config_file:
 	//popw	%di
 	//pushw	%di
 5:
+//////////////////////////////////////////////////////////////////////////////
+	testb	$0x20, ABS_PSP(options_done)
+	jne	5f
+
+	movl	$0x20, ABS_PSP(options_doing)
+	/* compare with "--keep-pxe" */
+	cld			/* compare upward */
+	movw	$ABS_PSP(option_keep_pxe_dos), %si
+	movw	%di, %dx	/* DI is our option string, save to DX */
+	movw	$(option_keep_pxe_dos_end - option_keep_pxe_dos), %cx
+				/* length of the string */
+	repz cmpsb
+	jz	2f		/* yes, exactly */
+
+	movw	$ABS_PSP(option_keep_pxe1_dos), %si
+	movw	%dx, %di	/* restore DI from DX */
+	movw	$(option_keep_pxe1_dos_end - option_keep_pxe1_dos), %cx
+				/* length of the string */
+	repz cmpsb
+	jnz	3f
+2:
+	/* found "--keep-pxe" */
+	cmpb	$0x20, (%di)
+	je	2f
+	cmpb	$0, (%di)
+	jne	3f
+	//orb	$1, ABS_PSP(options_done)
+2:
+	cmpl	$0, ABS_PSP(keep_pxe)
+	jne	invalid_option	/* specify --keep-pxe twice */
+	movl	$1, ABS_PSP(keep_pxe)
+	/* wipe off "--keep-pxe" */
+	movw	$(option_keep_pxe_dos_end - option_keep_pxe_dos), %cx
+	subw	%cx, %di
+	movb	$0x22, %al	/* double-quote */
+	stosb
+	decw	%cx
+	movb	$0x20, %al	/* SPACE */
+	repz stosb
+3:
+	popw	%ax		/* discard old DI */
+	pushw	%di		/* push new DI */
+	//testb	$1, ABS_PSP(options_done)
+	//jz	4b
+	jmp	4b
+
+	//popw	%di
+	//pushw	%di
+5:
+//////////////////////////////////////////////////////////////////////////////
 
 //	testb	$2, ABS_PSP(options_done)
 //	jne	5f
@@ -4104,7 +4155,10 @@ put_config_file_name:
 	movb	ABS_PSP(chs_no_tune), %ah
 	shlb	$3, %ah				/* bit3=chs-no-tune */
 	orb	%ah, %al
-	orb	$0x01, %al			/* bit0=disable pxe */
+	movb	ABS_PSP(keep_pxe), %ah
+	decb	%ah
+	negb	%ah		/* AH=disable pxe */
+	orb	%ah, %al			/* bit0=disable pxe */
 	orb	%al, -13(%di)
 
 	xorl	%eax, %eax	/* 0 means the end of the string */
@@ -6607,6 +6661,16 @@ option_chs_no_tune1_dos:
 	.ascii	"--CHS-NO-TUNE"
 option_chs_no_tune1_dos_end:
 	.align	4
+option_keep_pxe_dos:
+	.ascii	"--keep-pxe"
+option_keep_pxe_dos_end:
+	.align	4
+keep_pxe:
+	.long	0
+option_keep_pxe1_dos:
+	.ascii	"--KEEP-PXE"
+option_keep_pxe1_dos_end:
+	.align	4
 option_config_file_dos:
 	.ascii	"--config-file="
 option_config_file_dos_end:
@@ -6628,11 +6692,9 @@ usage_string: /* DOS string terminator is dollar($), not the null char */
 	.ascii	"\r\nGRUB: Unrecognized or failed command line parameters. Usage:\r\n"
 	.ascii	"\tGRUB [OPTIONS]\r\n"
 	.ascii	"OPTIONS: --bypass, --time-out=T, --hot-key=K, --duce, --chs-no-tune,\r\n"
-	.ascii	"OPTIONS: --config-file=\"FILE\"\r\n"
+	.ascii	"OPTIONS: --keep-pxe, --config-file=\"FILE\"\r\n"
 	.ascii	"The options are case-sensitive, you must use lower-case letters. Each\r\n"
 	.ascii	"option can be specified only once at most.\r\n"
-//	.ascii	"option can be specified only once at most. FILE defaults to (hd0,0)/menu.lst:\r\n"
-//	.ascii	"\tGRUB --config-file=(hd0,0)/menu.lst\r\n"
 	.ascii	"FILE can be specified in GRUB or DOS style. If FILE is led by the pair '#@',\r\n"
 	.ascii	"then a DOS filename follows.\r\n"
 	.ascii	"FILE can also be some GRUB commands delimited by semi-colon, or the whole\r\n"

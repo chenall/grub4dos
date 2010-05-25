@@ -1421,7 +1421,7 @@ ntfs_read(unsigned long long buf, unsigned long long len, unsigned long write)
   if (valueat(cur_mft,0x16,unsigned short) & 2)
     goto error;
 
-  if (disk_read_hook)
+  //if (disk_read_hook) /* commented out by chenall, 2010-05-13 */
     save_pos=1;
 
   if (! read_attr(cmft,buf,filepos,len,1,write))

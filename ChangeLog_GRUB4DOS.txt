@@ -1,3 +1,8 @@
+2010-05-23 change /main.lst back to /menu.lst, and the original /menu.lst dir to /menu for pxe booting.
+2010-05-21 changed initial config filename from /menu.lst to /main.lst for pxe booting.
+2010-05-19 fixed problem of mapping small file(<512B) to (rd).
+2010-05-15 added --keep-pxe option for grub.exe running under DOS.
+2010-05-14 (chenall)fixed ntfs small file(<4KB) access problem.
 2010-05-13 added --off option for hiddenmenu. added nokeep subcommand for pxe. let halt return on failure.
 2010-05-03 hopefully non-linux kernels could get loaded now. version number changed to 0.4.5b.
 2010-03-14 fixed problems in set_bootdev and others.

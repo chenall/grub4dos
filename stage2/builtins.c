@@ -8488,7 +8488,7 @@ map_func (char *arg, int flags)
     err = grub_read ((unsigned long long)(unsigned long) BS, SECTOR_SIZE, 0xedde0d90);
     disk_read_hook = 0;
     rawread_ignore_memmove_overflow = 0;
-    if (err != SECTOR_SIZE)
+    if (err != SECTOR_SIZE && from != ram_drive)
     {
       grub_close ();
       /* This happens, if the file size is less than 512 bytes. */
@@ -8528,7 +8528,7 @@ map_func (char *arg, int flags)
   if (buf_geom.sector_size == 2048)
 	start_sector *= 4;
 
-  if (BS->boot_signature != 0xAA55)
+  if (filemax < 512 || BS->boot_signature != 0xAA55)
 	goto geometry_probe_failed;
   
   /* probe the BPB */
@@ -8648,7 +8648,7 @@ geometry_probe_failed:
   }
 
   /* possible ISO9660 image */
-  if (BS->boot_signature != 0xAA55)
+  if (filemax < 512 || BS->boot_signature != 0xAA55)
   {
 	if ((long long)heads_per_cylinder < 0)
 		heads_per_cylinder = 0;
@@ -8881,7 +8881,7 @@ geometry_probe_ok:
       grub_printf ("\nprobed C/H/S = %d/%d/%d, probed total sectors = %ld\n", probed_cylinders, probed_heads, probed_sectors_per_track, (unsigned long long)probed_total_sectors);
     if (mem != -1ULL && ((long long)mem) <= 0)
     {
-      if (((unsigned long long)(-mem)) < probed_total_sectors && probed_total_sectors > 1)
+      if (((unsigned long long)(-mem)) < probed_total_sectors && probed_total_sectors > 1 && filemax >= 512)
 	mem = - (unsigned long long)probed_total_sectors;
     }
   }
@@ -9002,6 +9002,7 @@ map_whole_drive:
     }
 
   j = i;	/* save i into j */
+//grub_printf ("\n debug 4 start_sector=%lX, part_start=%lX, part_length=%lX, sector_count=%lX, filemax=%lX\n", start_sector, part_start, part_length, sector_count, filemax);
   
 #ifndef GRUB_UTIL
   /* how much memory should we use for the drive emulation? */
@@ -9235,9 +9236,11 @@ map_whole_drive:
 	    unsigned long long read_result;
 	    grub_memmove64 (bytes_needed, (unsigned long long)(unsigned int)BS, SECTOR_SIZE);
 	    /* read the rest of the sectors */
-	    read_result = grub_read ((bytes_needed + SECTOR_SIZE), -1ULL, 0xedde0d90);
-	    if (read_result != filemax - SECTOR_SIZE)
+	    if (filemax > SECTOR_SIZE)
 	    {
+	      read_result = grub_read ((bytes_needed + SECTOR_SIZE), -1ULL, 0xedde0d90);
+	      if (read_result != filemax - SECTOR_SIZE)
+	      {
 		//if ( !probed_total_sectors || read_result<(probed_total_sectors<<SECTOR_BITS) )
 		//{
 		unsigned long long required = (probed_total_sectors << SECTOR_BITS) - SECTOR_SIZE;
@@ -9255,6 +9258,7 @@ map_whole_drive:
 		    return 0;
 		}
 		//}
+	      }
 	    }
 	  }
 	  grub_close ();
