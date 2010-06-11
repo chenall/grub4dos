@@ -251,7 +251,7 @@ VARIABLE(free_mem_end)		/* unused mem ending address */
 	.long	0		/* 0 for 4G(i.e., unlimited) */
 
 VARIABLE(saved_mmap_addr)	/* system memory map starting addess */
-	.long	ABS(end_of_low_16bit_code)
+	.long	ABS(EXT_C(end_of_low_16bit_code))
 
 VARIABLE(saved_mmap_length)	/* system memory map length */
 	.long	0
@@ -616,7 +616,7 @@ bootup_a20_failure:
 	/* before clearing bss, move 32-bit code to above 3M. */
 	/* This need A20 to be enabled. */
 
-	movl	$ABS(end_of_low_16bit_code), %esi
+	movl	$ABS(EXT_C(end_of_low_16bit_code)), %esi
 	leal	0x300000(%esi), %edi
 
 #if defined(HAVE_USCORE_USCORE_BSS_START_SYMBOL)
@@ -1566,9 +1566,11 @@ VARIABLE(saved_pxe_mac)
 
 #endif /* ! STAGE1_5 */
 
-	// GDT used by int13_handler RAM disk (32-bit protected mode, PAE paging, and 64-bit long mode)
-	// Linear address will be set by set_int13_handler routine
-	// int13_handler does not have to modify it
+	/* GDT used by int13_handler RAM disk (32-bit protected mode, PAE
+	 * paging, and 64-bit long mode).
+	 * Linear address will be set by set_int13_handler routine.
+	 * int13_handler does not have to modify it.
+	 */
 	.align 16
 MyGDT:
 //gdt:
@@ -1597,9 +1599,9 @@ gdtdesc:		/* 6 bytes used for gdt descriptor. */
 MyGDTEnd:
 
 OldGDT:
-	/* The int13_handler only uses it as a temp space for the OldGDT variable.
-	 * Only the last 6 bytes are used by OldGDT, and the starting 2 bytes
-	 * are not used by OldGDT. */
+	/* The int13_handler only uses it as a temp space for the OldGDT
+	 * variable. Only the last 6 bytes are used by OldGDT, and the
+	 * starting 2 bytes are not used by OldGDT. */
 	//.word	0
 int13_is64bit:
 	.byte	0	// bit0 1=support PAE. bit1 1=support AMD64 long mode.
@@ -11141,7 +11143,7 @@ ENTRY(multi_boot)
 
 	movl	$0x1100000, %esi	/* 17M */
 	movl	$0x0100000, %edi	/* 01M */
-	movl	ABS(cur_addr), %ecx
+	movl	ABS(EXT_C(cur_addr)), %ecx
 	subl	%esi, %ecx
 	addl	$3, %ecx
 	shrl	$2, %ecx
@@ -11609,61 +11611,66 @@ ENTRY(set_int13_handler)
 	movzwl  0x413, %eax
 	
 	/* KBytes that int13 handler occupies */
-	movzbl	ABS(int13_handler), %edx	/* EDX=KBytes used by new int13_handler */
-	subl	%edx, %eax			/* EAX=new available low memory(KBytes) */
+	movzbl	ABS(int13_handler), %edx # EDX=KBytes used by new int13_handler
+	subl	%edx, %eax		 # EAX=new available low memory(KBytes)
 	/* save remaining lower memory size in BIOS data area */
 	movw	%ax, 0x413
 	
 	/* copy int13_handler to the reserved area */
 	shll    $10, %eax	
-	movl    %eax, %edi	/* EDI=EAX=destination int13_handler address */
+	movl    %eax, %edi	# EDI=EAX=destination int13_handler address
 	movl	$ABS(int13_handler), %esi
-	movl	$((int13_handler_end-int13_handler) / 4), %ecx
+	movl	$((int13_handler_end - int13_handler + 3) / 4), %ecx
 	// cld
 	repz	movsl
 	
-	movl	%eax, %edi
-	/* EDI=EAX=linear address of int13_handler */
+	movl	%eax, %edi	# EDI=EAX=linear address of int13_handler
+
 	///* save size (KBytes) of int13_handler in its header */
 	//movb	%dl, (%edi)
-	/* linear address of int13_handler (less than 0x100000) */
-	orl	%eax, (PM_DS16+2+MyGDT-int13_handler)(%edi)
-	orl	%eax, (PM_CS16+2+MyGDT-int13_handler)(%edi)
-	//orl	%eax, (PM_CS32+2+MyGDT-int13_handler)(%edi)
+
+	/* linear address of int13_handler (below 0x100000). yes, use 'orl'
+	 * because we only write the lower 24 bits of the linear addess.
+	 * The higher byte(8 bits) is on the highest byte of the gdt entry. 
+	 */
+	orl	%eax, (PM_DS16 + 2 + MyGDT - int13_handler)(%edi)
+	orl	%eax, (PM_CS16 + 2 + MyGDT - int13_handler)(%edi)
+	//orl	%eax, (PM_CS32 + 2 + MyGDT - int13_handler)(%edi)
+
 	/* calculate linear address of MyGDT and save in gdtdesc+2 */
-	addl	$(MyGDT-int13_handler), %eax
-	movl	%eax, (2+gdtdesc-int13_handler)(%edi)
-	// calculate linear address of int13_lm64move_lm64_start
-	addl	$(int13_lm64move_lm64_start-MyGDT), %eax
+	addl	$(MyGDT - int13_handler), %eax	# EAX=linear address of MyGDT
+	movl	%eax, (gdtdesc - int13_handler + 2)(%edi)
+
+	/* calculate linear address of int13_lm64move_lm64_start */
+	addl	$(int13_lm64move_lm64_start - MyGDT), %eax
 	movl	%eax, (int13_lm64move_lm64_start_addr - int13_handler)(%edi)
-	movl	%edi, %eax
-	// real mode segment of int13_handler
+
+	movl	%edi, %eax	# EDI=EAX=linear address of int13_handler
+
+	/* real mode segment of int13_handler */
 	shrl	$4, %eax
 	movw	%ax, (int13_pgmove_to_rm_cs - int13_handler)(%edi)
 
-	/* move segment to high word */
-	shll	$16, %eax
-	/* the offset low word should be 0x100 */
-	movw	$(int13_handler_entry-int13_handler), %ax
-	/* save the new int13 handler */
-	movl	%eax, 0x004c
+	shll	$16, %eax	# move segment to high word
+	movw	$(int13_handler_entry - int13_handler), %ax	# AX=0x100
+	movl	%eax, 0x004C	# save the new int13 handler
 	
 	/* set ESI to the drive map */
 	movl	$ABS(EXT_C(hooked_drive_map)), %esi
 	movl	$(DRIVE_MAP_SIZE), %ecx
 1:
-	cmpb	$0xff, 1(%esi)		/* Is there a mapped memdrive? */
-	jne	2f			/* No. Try next slot */
-	testb	$0x40, 5(%esi)		/* Is To_DRIVE a CDROM? */
-	jz	1f			/* No. Memdrive indeed. Hook int15 */
+	cmpb	$0xFF, 1(%esi)	# It is memdrive?
+	jne	2f		# No. Try next slot.
+	testb	$0x40, 5(%esi)	# To_DRIVE is CDROM?
+	jz	1f		# No. Memdrive indeed. Hook int15.
 2:
 	/* try next slot */
 	addl	$DRIVE_MAP_SLOT_SIZE, %esi
 	loop	1b
 	jmp	2f			/* no memdrives, don't hook int15 */
 1:
-	/* save the new int15 handler */
-	movw	$(int15_e820_handler - int13_handler), %ax	/* segment still in high word */
+	/* save the new int15 handler. segment still in high word of EAX. */
+	movw	$(int15_e820_handler - int13_handler), %ax	# offset
 	movl	%eax, 0x54
 2:
 	popl	%esi

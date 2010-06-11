@@ -1,3 +1,9 @@
+2010-06-09 applied karyonix's patch(fixes on grub_read and blocklist).
+2010-06-07 adjusted probe_int(dosstart.S) to deal with HP DV3-2309TX on its garbage int76 vector.
+2010-06-03 adjusted restore_BDA_EBDA(dosstart.S) to deal with HP on its garbage EBDA size byte.
+2010-05-31 unhook int13 before hooking it in load_initrd() to avoid duplicate hooking.
+2010-05-29 resolved conflict between drives_addr and mmap_addr for multiboot kernels.
+2010-05-27 adjusted probe_int(dosstart.S) to deal with DELL on its garbage int05 vector.
 2010-05-23 change /main.lst back to /menu.lst, and the original /menu.lst dir to /menu for pxe booting.
 2010-05-21 changed initial config filename from /menu.lst to /main.lst for pxe booting.
 2010-05-19 fixed problem of mapping small file(<512B) to (rd).

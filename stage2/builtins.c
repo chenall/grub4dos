@@ -427,7 +427,7 @@ blocklist_func (char *arg, int flags)
       blklst_last_length = 0;
       rawread_ignore_memmove_overflow = 1;
       /* read in the last sector to DUMMY */
-      filepos = filemax ? (filemax - 1) & (-buf_geom.sector_size) : filemax;
+      filepos = filemax ? (filemax - 1) & (-(unsigned long long)buf_geom.sector_size) : filemax;
       disk_read_hook = disk_read_blocklist_func;
       err = grub_read ((unsigned long long)(unsigned int)dummy, -1ULL, 0xedde0d90);
       disk_read_hook = 0;
@@ -1074,7 +1074,7 @@ boot_func (char *arg, int flags)
 
 	/* Get the drive info.  */
 	mbi.drives_length = 0;
-	mbi.drives_addr = (unsigned long)&end_of_low_16bit_code;
+	mbi.drives_addr = (unsigned long)(saved_mmap_addr + saved_mmap_length);
 
 	/* XXX: Too many drives will possibly use a piece of memory starting at 0x10000(64K). */
 
@@ -1085,7 +1085,7 @@ boot_func (char *arg, int flags)
 #endif
       {
 	unsigned int drive;
-	unsigned long addr = (unsigned long)&end_of_low_16bit_code;
+	unsigned long addr = mbi.drives_addr;
 
 	for (drive = 0x80; drive < 0x80 + FIND_DRIVES; drive++)
 	{
@@ -2440,7 +2440,7 @@ chainloader_func (char *arg, int flags)
 	  grub_printf("Will boot NTLDR from drive=0x%x, partition=0x%x(hidden sectors=0x%lx)\n", current_drive, (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long long)part_start);
     }
   else
-  if (filemax > 0x8000 && (*(short *)SCRATCHADDR) == 0x3EEB && //(*(long *)(SCRATCHADDR + 0x40)) == 0x5B0000E8 &&
+  if (filemax >= 0x4000 && (*(short *)SCRATCHADDR) == 0x3EEB && //(*(long *)(SCRATCHADDR + 0x40)) == 0x5B0000E8 &&
        (*((unsigned short *) (SCRATCHADDR + BOOTSEC_SIG_OFFSET)) != BOOTSEC_SIGNATURE))
     {
 	char tmp_buf[16];

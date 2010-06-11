@@ -305,22 +305,47 @@ rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, u
 
   if (write == 0x900ddeed && ! buf)
     return 1;
+  
+  /* Reset geometry and invalidate track buffer if the disk is wrong. */
+  if (buf_drive != drive)
+  {
+	if (get_diskinfo (drive, &buf_geom))
+	    return !(errnum = ERR_NO_DISK);
+	buf_drive = drive;
+	buf_track = -1;
+	sector_size_bits = log2_tmp (buf_geom.sector_size);
+  }
+
+  if (!buf)
+  {	/* Don't waste time reading from disk, just call disk_read_func. */
+	if (disk_read_func)
+	{
+	    unsigned long sectorsize = buf_geom.sector_size;
+	    if (byte_offset)
+	    {
+		unsigned long len = sectorsize - byte_offset;
+		if (len > byte_len) len = byte_len; 
+		(*disk_read_func) (sector++, byte_offset, len);
+		byte_len -= len;
+	    }
+	    if (byte_len)
+	    {
+		while (byte_len > sectorsize)
+		{
+		    (*disk_read_func) (sector++, 0, sectorsize);
+		    byte_len -= sectorsize;
+		}
+		(*disk_read_func) (sector, 0, byte_len);
+	    }
+	}
+	return 1;
+  }
 
   while (byte_len > 0)
   {
       unsigned long soff, num_sect, track, size;
       char *bufaddr;
       int bufseg;
-
-      /* Reset geometry and invalidate track buffer if the disk is wrong. */
-      if (buf_drive != drive)
-      {
-	  if (get_diskinfo (drive, &buf_geom))
-	      return !(errnum = ERR_NO_DISK);
-	  buf_drive = drive;
-	  buf_track = -1;
-	  sector_size_bits = log2_tmp (buf_geom.sector_size);
-      }
 
       size = (byte_len > BUFFERLEN)? BUFFERLEN: (unsigned long)byte_len;
 
@@ -2062,8 +2087,8 @@ gunzip_read_func (unsigned long long buf, unsigned long long len, unsigned long 
 }
 #endif /* NO_DECOMPRESSION */
 
-unsigned long long grub_read_loop_threshold = 0x2000000ULL; // 32MB
-unsigned long long grub_read_step = 0x2000000ULL; // 32MB
+unsigned long long grub_read_loop_threshold = 0x800000ULL; // 8MB
+unsigned long long grub_read_step = 0x800000ULL; // 8MB
 
 unsigned long long
 grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
@@ -2112,12 +2137,14 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
     read_func = fsys_table[fsys_type].read_func;
 
   /* Now, read_func is ready. */
-  if (len < grub_read_loop_threshold)
+  if ((!buf) || (len < grub_read_loop_threshold))
   {
+    /* Do whole request at once. */
       return read_func(buf, len, write);
   }
   else 
   {
+    /* Transfer small amount of data at a time and print progress. */
     unsigned long long byteread = 0;
     unsigned long long remaining = len;
     while (remaining)
@@ -2128,7 +2155,7 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
 	ret1 = read_func(buf, len1, write);
 	if (!ret1) break;
 	byteread += ret1;
-	buf += ret1;
+	buf += ret1;		/* Don't do this if buf is 0 */
 	remaining -= ret1;
 	grub_printf("\r[%ldM/%ldM]",byteread>>20,len>>20);
     }

@@ -2057,9 +2057,7 @@ void memory_paging_disable()
 /*
 Transfer data in memory.
 Limitation:
-SRCADDR and SRCADDR+LEN must be below 64MB. (36-bit PAE) 
-DSTADDR and DSTADDR+LEN must be below 64MB. (36-bit PAE) 
-code must be below 4MB. 
+code must be below 16MB as mapped by memory_paging_init function
 */
 unsigned long long
 grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len)
@@ -2101,7 +2099,7 @@ grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigne
 	unsigned long long nr = len; // number of bytes remaining
 	while (1)
 	{
-	    unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (4MB)
+	    unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (8MB)
 	    // Copy
 	    if (backward)
 		_memcpy_backward(pdst, psrc, n1);
@@ -2148,7 +2146,7 @@ grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long
 	unsigned long long nr = len; // number of bytes remaining
 	while (1)
 	{
-	    unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (4MB)
+	    unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (8MB)
 	    // Copy
 	    _memset(pdst, data, n1);
 	    // update loop variables
@@ -2195,7 +2193,7 @@ grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned
 	{
 	    while (1)
 	    {
-		unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (4MB)
+		unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (8MB)
 		// Compare
 		r = _memcmp(p1, p2, n1);
 		if (r) break;

@@ -954,6 +954,7 @@ next_file1:
 	if (*initrd)
 		goto next_file1;
 
+	unset_int13_handler (0);		/* unhook it */
 	set_int13_handler (bios_drive_map);	/* hook it */
 	buf_drive = -1;
 	buf_track = -1;
