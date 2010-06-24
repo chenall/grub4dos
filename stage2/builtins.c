@@ -10551,10 +10551,91 @@ parse_string (char *arg)
   int len;
   char *p;
   char ch;
-  int quote;
+  //int quote;
 
   //nul_terminate (arg);
+	#if 1
+	for (len = 0,p = arg;(ch = *p);p++)
+	{
+		if (ch == '\\' && (ch = *++p))
+		{
+			switch(ch)
+			{
+				case 't':
+					*arg++ = '\t';
+					break;
+				case 'r':
+					*arg++ = '\r';
+					break;
+				case 'n':
+					*arg++ = '\n';
+					break;
+				case 'a':
+					*arg++ = '\a';
+					break;
+				case 'b':
+					*arg++ = '\b';
+					break;
+				case 'f':
+					*arg++ = '\f';
+					break;
+				case 'v':
+					*arg++ = '\v';
+					break;
+				case 'x':
+				{
+					/* hex */
+					int val;
 
+					p++;
+					ch = *p;
+					if (ch >= '0' && ch <= '9')
+						val = ch - '0';
+					else if (ch >= 'A' && ch <= 'F')
+						val = ch - 'A' + 10;
+					else if (ch >= 'a' && ch <= 'f')
+						val = ch - 'a' + 10;
+					else
+						return len;	/* error encountered */
+					
+					p++;
+					ch = *p;
+					
+					if (ch >= '0' && ch <= '9')
+						val = (val << 4) + ch - '0';
+					else if (ch >= 'A' && ch <= 'F')
+						val = (val << 4) + ch - 'A' + 10;
+					else if (ch >= 'a' && ch <= 'f')
+						val = (val << 4) + ch - 'a' + 10;
+					else
+						p--;
+					
+					*arg++ = val;
+				}
+					break;
+				default:
+					if (ch >= '0' && ch <= '7')
+					{
+						/* octal */
+						int val = ch - '0';
+						int i;
+						
+						for (i=0;i<2 && p[1] >= '0' && p[1] <= '7';i++)
+						{
+							p++;
+							val <<= 3;
+							val += *p - '0';
+						}
+						
+						*arg++ = val;
+						break;
+					} else *arg++ = ch;
+			}
+		} else *arg++ = ch;
+		
+		len++;
+	}
+	#else
   for (quote = len = 0, p = arg; (ch = *p); p++)
   {
 	if (ch == '\\')
@@ -10685,6 +10766,8 @@ parse_string (char *arg)
 	len++;
 	quote = 0;
   }
+  #endif
+//  if (*arg) *arg = 0;
   return len;
 }
 

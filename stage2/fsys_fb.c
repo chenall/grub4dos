@@ -38,13 +38,12 @@ struct fb_mbr
 {
   uchar jmp_code;
   uchar jmp_ofs;
-  uchar boot_code[0x1a9];
-  uchar max_sec;		/* 0x1ab  */
-  uchar2 lba;			/* 0x1ac  */
-  uchar spt;			/* 0x1ae  */
-  uchar heads;			/* 0x1af  */
-  uchar2 boot_base;		/* 0x1b0  */
-  uchar2 boot_size;		/* 0x1b2  */
+  uchar boot_code[0x1ab];
+  uchar max_sec;		/* 0x1ad  */
+  uchar2 lba;			/* 0x1ae  */
+  uchar spt;			/* 0x1b0  */
+  uchar heads;			/* 0x1b1  */
+  uchar2 boot_base;		/* 0x1b2  */
   uchar4 fb_magic;		/* 0x1b4  */
   uchar mbr_table[0x46];	/* 0x1b8  */
   uchar2 end_magic;		/* 0x1fe  */
@@ -52,22 +51,23 @@ struct fb_mbr
 
 struct fb_data
 {
-  uchar2 menu_ofs;		/* 0x200  */
+  uchar2 boot_size;		/* 0x200  */
   uchar2 flags;			/* 0x202  */
   uchar ver_major;		/* 0x204  */
   uchar ver_minor;		/* 0x205  */
-  uchar4 pri_size;		/* 0x206  */
-  uchar4 ext_size;		/* 0x20a  */
+  uchar2 list_used;		/* 0x206  */
+  uchar2 list_size;		/* 0x208  */
+  uchar2 pri_size;		/* 0x20a  */
+  uchar4 ext_size;		/* 0x20c  */
 } __attribute__((packed));
 
 struct fbm_file
 {
   uchar size;
-  uchar type;
+  uchar flag;
   uchar4 data_start;
   uchar4 data_size;
   uchar4 data_time;
-  uchar flag;
   char name[0];
 } __attribute__((packed));
 
@@ -81,8 +81,8 @@ static void fb_init (void)
 {
   struct fb_mbr *m;
   struct fb_data *data;
-  int boot_base, boot_size, menu_ofs, list_size, i;
-  uchar *fb_list, *p;
+  int boot_base, boot_size, list_used, i;
+  uchar *fb_list, *p1, *p2;
 
   fb_inited++;
 
@@ -100,50 +100,32 @@ static void fb_init (void)
     goto fail;
 
   boot_base = m->boot_base;
-  boot_size = m->boot_size;
   fb_ofs = m->lba;
 
-  fb_list = (uchar *) m;
-  if (! rawread (fb_drive, boot_base + 1 - fb_ofs, 0, boot_size << 9,
-		 (unsigned long long)(unsigned int)(char *)fb_list, 0xedde0d90))
+  data = (struct fb_data *) m;
+  if (! rawread (fb_drive, boot_base + 1 - fb_ofs, 0, 512,
+		 (unsigned long long)(unsigned int)(char *)data, 0xedde0d90))
     goto fail;
 
-  data = ((struct fb_data *) fb_list);
-  if ((data->ver_major != 1) || (data->ver_minor < 5))
+  if ((data->ver_major != 1) || (data->ver_minor != 6))
     goto fail;
 
-  menu_ofs = data->menu_ofs;
+  boot_size = data->boot_size;
+  list_used = data->list_used;
   fb_pri_size = data->pri_size;
 
-  i = (menu_ofs >> 9) + 1;
-  p = fb_list + i * 512 - 2;
-  for (; i < boot_size; i++)
-    {
-      memcpy (p, fb_list + i * 512, 510);
-      p += 510;
-    }
+  fb_list = (char *) data;
+  if (! rawread (fb_drive, boot_base + 1 + boot_size - fb_ofs, 0,
+		 list_used << 9, fb_list, 0xedde0d90))
+    goto fail;
 
-  list_size = p - fb_list;
-
-  p = fb_list;
-  while (fb_list[menu_ofs])
-    {
-      int len;
-
-      len = fb_list[menu_ofs] + 2;
-
-      if (fb_list[menu_ofs + 1] == FBM_TYPE_FILE)
-	{
-	  memcpy (p, fb_list + menu_ofs, len);
-	  p += len;
-	}
-
-      menu_ofs += len;
-      if (menu_ofs >= list_size)
-	goto fail;
-    }
-
-  *p = 0;
+  p1 = p2 = fb_list;
+  for (i = 0; i < list_used - 1; i++)
+  {
+	p1 += 510;
+	p2 += 512;
+	grub_memcpy (p1, p2, 510);
+   }
 
   return;
 

@@ -2153,7 +2153,7 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
 	unsigned long long ret1;
 	len1 = (remaining > grub_read_step)? grub_read_step : remaining;
 	ret1 = read_func(buf, len1, write);
-	if (!ret1) break;
+	if (!ret1 || ret1 > len1) break;/*pxe_read returns 0xffffffff when error.*/
 	byteread += ret1;
 	buf += ret1;		/* Don't do this if buf is 0 */
 	remaining -= ret1;

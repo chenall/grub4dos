@@ -1,3 +1,4 @@
+2010-06-21 applied bean's patch(supported new (ud) device created with fbinst1.6).
 2010-06-09 applied karyonix's patch(fixes on grub_read and blocklist).
 2010-06-07 adjusted probe_int(dosstart.S) to deal with HP DV3-2309TX on its garbage int76 vector.
 2010-06-03 adjusted restore_BDA_EBDA(dosstart.S) to deal with HP on its garbage EBDA size byte.

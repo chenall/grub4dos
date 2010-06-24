@@ -317,12 +317,12 @@ real_codestart:
 	sti		/* added 2008-08-04 */
 
 #ifndef STAGE1_5
-	
+
 	/* check for fb structure  */
 	cmpl	$0x46424246, (0x21b4)
 	jnz	1f
-	movl	(0x21ac), %eax
-	movb	(0x21ab), %al
+	movl	(0x21ae), %eax
+	movb	(0x21ad), %al
 	movl	%eax, ABS(EXT_C(fb_status))
 1:
 	movb	0x0410, %al

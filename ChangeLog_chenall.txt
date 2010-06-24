@@ -1,4 +1,7 @@
-﻿2010-05-02
+﻿2010-06-21
+	1.打上支持新版FB的补丁
+	来源:http://www.burgloader.com/bbs/index.php?topic=37.30
+2010-05-02
 	1.PXE启动时首先尝试加载root目录下的menu.lst。
 	
 2010-04-17

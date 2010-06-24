@@ -188,14 +188,21 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 
   if (config)
   {
+
 	if (*config == '/')
 	{
-		grub_strcpy (pxe_tftp_name, config);
-		grub_printf ("%s\n", pxe_tftp_open.FileName);
-		ret = pxe_dir (pxe_tftp_name);
-		goto done;
-	}
-	return 1;
+		int n;
+		n = grub_strlen (config) - 1;
+		if (config[n] != '/')
+		{
+			grub_strcpy (pxe_tftp_name, config);
+			grub_printf ("%s\n", pxe_tftp_open.FileName);
+			ret = pxe_dir (pxe_tftp_name);
+			goto done;
+		}
+	} 
+	else
+		return 1;
   }
 
 	//if (pxe_dir ("/menu.lst"))
@@ -206,6 +213,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 	//}
 
 	grub_strcpy (pxe_tftp_name, "/menu.lst");
+	#if 0
 	grub_printf ("\nFrom now on, we first try to open this FILE: %s\n"
 		     "\nCaution: The PXE server should NOT have a DIR of \"%s\"."
 		     "\nCaution: The system could hang if \"%s\" is a DIR."
@@ -213,17 +221,21 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 			, pxe_tftp_open.FileName
 			, pxe_tftp_open.FileName
 			, pxe_tftp_open.FileName);
+	#endif
 	ret = pxe_dir (pxe_tftp_name);
-	if (ret)
+	if (ret && filemax)
 		goto done;
 
   /* Reports from Ruymbeke: opening /menu.lst will hang if it is a dir.
    * Do NOT use /menu.lst as a dir any more!! Use /menu for it instead.
    */
+	if (!config)
+		config = "/menu.lst/";
 
-  grub_strcpy (pxe_tftp_name, "/menu/");
-
-#define MENU_DIR_NAME_LENGTH (sizeof("/menu/") - 1)
+  grub_strcpy (pxe_tftp_name, config);
+	
+//#define MENU_DIR_NAME_LENGTH (sizeof("/menu.lst/") - 1)
+	int MENU_DIR_NAME_LENGTH = grub_strlen(config);
 
   pc = pxe_tftp_name + MENU_DIR_NAME_LENGTH;
   pc = pxe_outhex (pc, pxe_mac_type);
@@ -266,12 +278,16 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 
 done:
 
-  if (ret)
+  if (ret && filemax)
     {
 #if 1
 	char *new_config = config_file;
 	char *filename = (char *)pxe_tftp_open.FileName;
-
+	if (debug > 1)
+	{
+		grub_printf("PXE boot configfile:%s\n",filename);
+		DEBUG_SLEEP
+	}
 	pxe_close ();
 	/* got file name. put it in config_file */
 	if (grub_strlen (filename) >= ((char *)0x8270 - new_config))
@@ -379,7 +395,8 @@ static int pxe_open (char* name)
     grub_strcpy (pxe_tftp_name, name);
 
   pxe_call (PXENV_TFTP_GET_FSIZE, tftp_get_fsize);
-
+  filemax = tftp_get_fsize->FileSize;
+  
   if (tftp_get_fsize->Status)
   {
     pxe_tftp_opened = 0;
@@ -387,7 +404,7 @@ static int pxe_open (char* name)
     return 0;
   }
 
-  filemax = tftp_get_fsize->FileSize;
+
 
   /* we have to replace pxe_tftp_open.TFTPPort with tftp_get_fsize->FileSize
    * to avoid compiler optimization issue.  */
