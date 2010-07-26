@@ -1325,29 +1325,34 @@ cat_func (char *arg, int flags)
   }
   if (! length)
   {
-	if (grub_memcmp (arg,"()-1\0",5) == 0 )
-	{
+    if (grub_memcmp (arg,"()-1\0",5) == 0 )
+    {
         if (! grub_open ("()+1"))
             return 0;
         filesize = filemax*(unsigned long long)part_start;
-	} 
-	else if (grub_memcmp (arg,"()\0",3) == 0 )
-     {
+    } 
+    else if (grub_memcmp (arg,"()\0",3) == 0 )
+    {
         if (! grub_open ("()+1"))
             return 0;
         filesize = filemax*(unsigned long long)part_length;
-     }
+    }
     else 
     {
        if (! grub_open (arg))
             return 0;
+#ifndef NO_DECOMPRESSION
+       filesize = gzip_filemax;
+#else
        filesize = filemax;
-     }
+#endif
+    }
 	grub_close();
 	if (debug > 0)
 		grub_printf ("Filesize is 0x%lX\n", (unsigned long long)filesize);
-	ret = filemax;
-	return ret;
+	//ret = filemax;
+	//return ret;
+	return filesize;
   }
   if (! grub_open (arg))
     return 0; 
@@ -7802,6 +7807,7 @@ map_func (char *arg, int flags)
   int disable_chs_mode = 0;
   unsigned long long sectors_per_track = -1ULL;
   unsigned long long heads_per_cylinder = -1ULL;
+  unsigned long long to_filesize = 0;
   unsigned long BPB_H = 0;
   unsigned long BPB_S = 0;
   int in_situ = 0;
@@ -8497,6 +8503,7 @@ map_func (char *arg, int flags)
       return 0;
     }
 
+    to_filesize = gzip_filemax;
     sector_count = (filemax + 0x1ff) >> SECTOR_BITS; /* in small 512-byte sectors */
     if (start_sector == part_start /* && part_start */ && sector_count == 1)
     {
@@ -9167,7 +9174,7 @@ map_whole_drive:
 		  || !compressed_file		/* TO is in memory and is normally mapped and uncompressed */
 		/* Now TO is in memory and is normally mapped and compressed */
 		  || tmpbase + bytes_needed <= start_byte  /* XXX: destination is below the gzip image */
-		  || tmpbase >= start_byte + bytes_needed) /* XXX: destination is above the gzip image */
+		  || tmpbase >= start_byte + to_filesize) /* XXX: destination is above the gzip image */
 		{
 		    if (prefer_top)
 		    {

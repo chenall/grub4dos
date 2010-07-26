@@ -712,11 +712,20 @@ next_bsd_partition (/*unsigned long drive, unsigned long *partition, int *type, 
 
   /* Get next PC slice. Be careful of that this function may return
      an empty PC slice (i.e. a partition whose type is zero) as well.  */
+
+static char primary_partition_table[64];
+
 static int
 next_pc_slice (void)
 {
 redo:
       pc_slice_no = (*next_partition_partition & 0xFF0000) >> 16;
+
+      if (pc_slice_no == 0xFE)
+	{
+	  errnum = ERR_PARTITION_LOOP;
+	  return 0;
+	}
 
       /* If this is the first time...  */
       if (pc_slice_no == 0xFF)
@@ -734,9 +743,35 @@ redo:
       /* Check if it is valid.  */
       if (! PC_MBR_CHECK_SIG (next_partition_buf))
 	{
+bad_part_table:
 	  errnum = ERR_BAD_PART_TABLE;
 	  return 0;
 	}
+
+      /* backup partition table in the MBR */
+      if (*next_partition_offset == 0)
+      {
+	grub_memmove (primary_partition_table, next_partition_buf + 0x1BE, 64);
+      }
+      else
+      {
+	int i;
+
+	/* Check if it is the same as primary_partition_table.  */
+	if (! grub_memcmp (primary_partition_table, next_partition_buf + 0x1BE, 64))
+		goto bad_part_table;
+
+	/* Check if it contains extended partition entry. if yes, check if it is valid.  */
+	for (i = 0; i < PC_SLICE_MAX; i++)
+	{
+		if (IS_PC_SLICE_TYPE_EXTENDED (PC_SLICE_TYPE (next_partition_buf, i)))
+		{
+			/* the start should not equal to the last one */
+			if ((*next_partition_ext_offset + PC_SLICE_START (next_partition_buf, i)) == *next_partition_offset)
+				goto bad_part_table;
+		}
+	}
+      }
 
 next_entry:
       /* Increase the entry number.  */
@@ -754,9 +789,24 @@ next_entry:
 		{
 		  /* Found. Set the new offset and the entry number,
 		     and restart this function.  */
-		  *next_partition_offset = *next_partition_ext_offset + PC_SLICE_START (next_partition_buf, i);
+#if 1
+		  unsigned long long tmp_start = (unsigned long long)(unsigned long)(PC_SLICE_START (next_partition_buf, i));
+		  unsigned long long tmp_ext_offset = (unsigned long long)(unsigned long)(*next_partition_ext_offset);
+		  unsigned long long tmp_offset = tmp_ext_offset + tmp_start;
+#if 0
+		  /* if overflow ... */
+		  if (((unsigned long *)(&tmp_offset))[1])  //if (tmp_offset >= 0x100000000ULL)
+			continue;
+#endif
+		  *next_partition_offset = tmp_offset;
 		  if (! *next_partition_ext_offset)
-		    *next_partition_ext_offset = *next_partition_offset;
+		    *next_partition_ext_offset = tmp_start;
+#else
+		  if (! *next_partition_ext_offset)
+		    *next_partition_offset = (*next_partition_ext_offset = tmp_start);
+		  else
+		    *next_partition_offset = (*next_partition_ext_offset + tmp_start);
+#endif
 		  *next_partition_entry = -1;
 
 #if 0
@@ -771,30 +821,55 @@ next_entry:
 	  return 0;
 	}
 
-      *next_partition_type = PC_SLICE_TYPE (next_partition_buf, *next_partition_entry);
-      *next_partition_start = *next_partition_offset + PC_SLICE_START (next_partition_buf, *next_partition_entry);
-      *next_partition_len = PC_SLICE_LENGTH (next_partition_buf, *next_partition_entry);
+      {
+	unsigned long long tmp_start = (unsigned long long)(unsigned long)(PC_SLICE_START (next_partition_buf, *next_partition_entry));
+	unsigned long long tmp_offset = (unsigned long long)(unsigned long)(*next_partition_offset);
+	tmp_start += tmp_offset;
+	*next_partition_start = tmp_start;
+	*next_partition_type = PC_SLICE_TYPE (next_partition_buf, *next_partition_entry);
+	*next_partition_len = PC_SLICE_LENGTH (next_partition_buf, *next_partition_entry);
+	/* if overflow ... */
+	if (((unsigned long *)(&tmp_start))[1])  //if (tmp_start >= 0x100000000ULL)
+	  //if (((int)pc_slice_no) >= PC_SLICE_MAX - 1)	/* yes, on overflow it is always a logical partition. */
+		goto next_entry;
 
-      /* The calculation of a PC slice number is complicated, because of
-	 the rather odd definition of extended partitions. Even worse,
-	 there is no guarantee that this is consistent with every
-	 operating systems. Uggh.  */
-      if (((int)pc_slice_no) >= PC_SLICE_MAX - 1	/* if it is a logical partition */
-	  && (PC_SLICE_ENTRY_IS_EMPTY (next_partition_buf, *next_partition_entry))) /* ignore the garbage entry(typically all bytes are 0xF6). */
-	goto next_entry;
+	/* The calculation of a PC slice number is complicated, because of
+	   the rather odd definition of extended partitions. Even worse,
+	   there is no guarantee that this is consistent with every
+	   operating systems. Uggh.  */
+	if (((int)pc_slice_no) >= PC_SLICE_MAX - 1	/* if it is a logical partition */
+	    && (PC_SLICE_ENTRY_IS_EMPTY (next_partition_buf, *next_partition_entry))) /* ignore the garbage entry(typically all bytes are 0xF6). */
+		goto next_entry;
+
 #if 1
-      /* disable partition id 00. */
-      if (((int)pc_slice_no) >= PC_SLICE_MAX - 1	/* if it is a logical partition */
-	  && *next_partition_type == PC_SLICE_TYPE_NONE)	/* ignore the partition with id=00. */
-	goto next_entry;
+	/* disable partition id 00. */
+	if (((int)pc_slice_no) >= PC_SLICE_MAX - 1		/* if it is a logical partition */
+	    && *next_partition_type == PC_SLICE_TYPE_NONE)	/* ignore the partition with id=00. */
+		goto next_entry;
 #else
-      /* enable partition id 00. */
+	/* enable partition id 00. */
 #endif
-
+      }
+#if 0
       if (((int)pc_slice_no) < PC_SLICE_MAX - 1
 	  || ! IS_PC_SLICE_TYPE_EXTENDED (*next_partition_type))
 	pc_slice_no++;
+#else
+      if (((int)pc_slice_no) >= PC_SLICE_MAX - 1
+	  && IS_PC_SLICE_TYPE_EXTENDED (*next_partition_type))
+		goto next_entry;
 
+#if 1
+	/* disable partition length of 0. */
+	if (((int)pc_slice_no) >= PC_SLICE_MAX - 1	/* if it is a logical partition */
+	    && *next_partition_len == 0)		/* ignore the partition with length=0. */
+		goto next_entry;
+#else
+	/* enable partition length of 0. */
+#endif
+
+	pc_slice_no++;
+#endif
       *next_partition_partition = (pc_slice_no << 16) | 0xFFFF;
       return 1;
 }

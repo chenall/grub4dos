@@ -1,3 +1,10 @@
+2010-07-25 re-enabled the extended partition with logical partitions in disorder.
+2010-07-24 patch by chenall: cat --length=0 will return the size of the compressed file if it is gzipped; fix memory-not-enough problem when mapping a gzipped memory-file with a high compression ratio.
+2010-07-23 improved next_pc_slice() to cope with the partition-loop problem.
+2010-07-22 try to solve the problem of missing Linux extended partitions in Tab-completion.
+2010-07-21 improved next_pc_slice() to cope with the partition-loop problem.
+2010-07-20 changed code about pxe_basemem to solve the problem that pxe_unload fail to release memory.
+2010-07-12 fixed a bug in guess_dos_versions(for DOS executable grub.exe).
 2010-06-21 applied bean's patch(supported new (ud) device created with fbinst1.6).
 2010-06-09 applied karyonix's patch(fixes on grub_read and blocklist).
 2010-06-07 adjusted probe_int(dosstart.S) to deal with HP DV3-2309TX on its garbage int76 vector.

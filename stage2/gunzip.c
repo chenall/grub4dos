@@ -132,6 +132,7 @@
 /* so we can disable decompression  */
 #ifdef GRUB_UTIL
 int no_decompression = 0;
+unsigned long long gzip_filemax;
 #endif
 
 /* used to tell if "read" should be redirected to "gunzip_read" */
@@ -140,7 +141,6 @@ int compressed_file;
 /* internal variables only */
 static unsigned long long gzip_data_offset;
 static unsigned long long gzip_filepos;
-static unsigned long long gzip_filemax;
 static unsigned long long gzip_fsmax;
 static unsigned long long saved_filepos;
 static unsigned long gzip_crc;
@@ -278,6 +278,7 @@ gunzip_test_header (void)
    *  (other than a real error with the disk) then we don't think it
    *  is a compressed file, and simply mark it as such.
    */
+  gzip_filemax = filemax;
   if (no_decompression
       || grub_read ((unsigned long long)(unsigned int)(char *)buf, 10, 0xedde0d90) != 10
       || ((*((unsigned short *) buf) != GZIP_HDR_LE)

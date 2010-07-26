@@ -665,9 +665,18 @@ void pxe_unload (void)
   if (pxe_keep)
     return;
 
-  h = unset_int13_handler (1);
-  if (! h)
-    unset_int13_handler (0);
+  h = unset_int13_handler (1);	/* check if it was set. */
+  if (! h)	/* h==0 for set */
+    unset_int13_handler (0);	/* unset it */
+
+  /* at this moment, there should be no other handlers.
+   * if other handlers do exist, we should quit.
+   */
+  if (*((unsigned short *)0x413) != pxe_basemem)
+  {
+	grub_printf ("PXE unload failed because of an unknown handler(e.g., of int13) loaded.\n");
+	goto quit;
+  }
 
   i = 0;
   while (code[i])
@@ -681,14 +690,14 @@ void pxe_unload (void)
         }
       i++;
     }
-  if (*((unsigned short *)0x413) == pxe_basemem)
-    *((unsigned short *)0x413) = pxe_freemem;
+  //if (*((unsigned short *)0x413) == pxe_basemem)
+      *((unsigned short *)0x413) = pxe_freemem;
   pxe_entry = 0;
   ROM_int15 = *((unsigned long *)0x54);
   ROM_int13 = ROM_int13_dup = *((unsigned long *)0x4C);
   grub_printf ("PXE stack unloaded\n");
 quit:
-  if (! h)
+  if (! h)	/* h==0 for set */
     set_int13_handler (bios_drive_map);
 }
 

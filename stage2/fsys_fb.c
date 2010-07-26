@@ -114,9 +114,9 @@ static void fb_init (void)
   list_used = data->list_used;
   fb_pri_size = data->pri_size;
 
-  fb_list = (char *) data;
+  fb_list = (uchar *) data;
   if (! rawread (fb_drive, boot_base + 1 + boot_size - fb_ofs, 0,
-		 list_used << 9, fb_list, 0xedde0d90))
+		 (unsigned long long)list_used << 9, (unsigned long long)(unsigned int)fb_list, 0xedde0d90))
     goto fail;
 
   p1 = p2 = fb_list;

@@ -688,6 +688,7 @@ typedef enum
   ERR_INTERNAL_CHECK,
   ERR_KERNEL_WITH_PROGRAM,
   ERR_HALT,
+  ERR_PARTITION_LOOP,
 
   MAX_ERR_NUM
 } grub_error_t;
@@ -922,6 +923,7 @@ extern struct geometry hd_geom[8];
 extern unsigned long long filepos;
 extern unsigned long long filemax;
 extern unsigned long long filesize;
+extern unsigned long long gzip_filemax;
 
 extern unsigned long emu_iso_sector_size_2048;
 
@@ -1490,7 +1492,7 @@ extern BOOTPLAYER *discover_reply;
 extern unsigned short pxe_basemem, pxe_freemem;
 extern unsigned long pxe_entry;
 extern unsigned long pxe_inited;
-extern char* pxe_scan(void);
+extern unsigned long pxe_scan(void);
 extern int pxe_detect(int, char *);
 extern void pxe_unload(void);
 extern int pxe_call(int func,void* data);

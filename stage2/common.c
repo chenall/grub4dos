@@ -147,6 +147,7 @@ char *err_list[] =
   [ERR_INTERNAL_CHECK] = "Internal check failed. Please report this bug.",
   [ERR_KERNEL_WITH_PROGRAM] = "Kernel cannot load if there is an active process",
   [ERR_HALT] = "Halt failed.",
+  [ERR_PARTITION_LOOP] = "Too many partitions.",
 //  [ERR_WRITE_TO_NON_MEM_DRIVE] = "Only RAM drives can be written when running in a script",
 
 };
@@ -530,7 +531,7 @@ init_bios_info (void)
 
 	    if (pxe_entry)
 	    {
-		pxe_basemem = *((unsigned short*)0x413);
+		//pxe_basemem = *((unsigned short*)0x413);
 
 		get_cached_info.PacketType = PXENV_PACKET_TYPE_DHCP_ACK;
 		get_cached_info.Buffer = get_cached_info.BufferSize = 0;

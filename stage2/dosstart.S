@@ -7505,6 +7505,26 @@ failed_probe_int:
 
 
 #ifndef	BAD_BIOS
+compare_to_lowmem_size:
+
+	pushw	%ds
+	pushw	%bx
+	pushl	%ecx
+	xorw	%bx, %bx
+	movw	%bx, %ds	/* DS=0 */
+	movl	%eax, %ecx
+	movw	%ax, %bx
+	shrl	$16, %ecx	/* CX=segment */
+	shrw	$4, %bx
+	addw	%bx, %cx
+	movw	0x413, %bx	/* low mem size in KB */
+	shlw	$6, %bx		/* low mem size in paragraphs */
+	cmpw	%bx, %cx
+	popl	%ecx
+	popw	%bx
+	popw	%ds
+	ret
+
 /* begin guess_dos_versions */
 guess_dos_versions:
 
@@ -7827,12 +7847,15 @@ guess_dos_versions:
 	lodsl
 	cmpl	$0xC0000000, %eax
 	jnb	1f		/* need not change */
+	call	compare_to_lowmem_size
+	jnb	1f		/* need not change */
 	ldsw	-4(%si), %si	/* DS changed! */
 	subw	$4, %si
 	lodsl
 	xorw	%si, %si
 	movw	%si, %ds	/* DS = 0 */
-	cmpl	$0xC0000000, %eax
+	//cmpl	$0xC0000000, %eax
+	call	compare_to_lowmem_size
 	jnb	2f
 	movl	%cs:ABS_START(dummy_iret_vector), %eax
 2:
@@ -7844,10 +7867,13 @@ guess_dos_versions:
 	lodsl
 	cmpl	$0xC0000000, %eax
 	jnb	1f		/* need not change */
+	call	compare_to_lowmem_size
+	jnb	1f		/* need not change */
 	movw	$0x5E0, %si	/* int 71 */
 	cld
 	lodsl
-	cmpl	$0xC0000000, %eax
+	//cmpl	$0xC0000000, %eax
+	call	compare_to_lowmem_size
 	jb	1f
 	movw	$ABS_START(bios_interrupt_vector_table + 0x1C4), %di
 	stosl			/* save new int 71 */
@@ -7862,12 +7888,15 @@ guess_dos_versions:
 	lodsl
 	cmpl	$0xC0000000, %eax
 	jnb	1f		/* need not change */
+	call	compare_to_lowmem_size
+	jnb	1f		/* need not change */
 	ldsw	-4(%si), %si	/* DS changed! */
 	lodsw
 	lodsl
 	xorw	%si, %si
 	movw	%si, %ds	/* DS = 0 */
-	cmpl	$0xC0000000, %eax
+	//cmpl	$0xC0000000, %eax
+	call	compare_to_lowmem_size
 	jnb	2f
 	movl	%cs:ABS_START(dummy_iret_vector), %eax
 2:
@@ -7884,12 +7913,15 @@ guess_dos_versions:
 	lodsl
 	cmpl	$0xC0000000, %eax
 	jnb	1f		/* need not change */
+	call	compare_to_lowmem_size
+	jnb	1f		/* need not change */
 	ldsw	-4(%si), %si	/* DS changed! */
 	lodsw
 	lodsl
 	xorw	%si, %si
 	movw	%si, %ds	/* DS = 0 */
-	cmpl	$0xC0000000, %eax
+	//cmpl	$0xC0000000, %eax
+	call	compare_to_lowmem_size
 	jnb	2f
 	movl	%cs:ABS_START(dummy_iret_vector), %eax
 2:
@@ -7906,12 +7938,15 @@ guess_dos_versions:
 	lodsl
 	cmpl	$0xC0000000, %eax
 	jnb	1f		/* need not change */
+	call	compare_to_lowmem_size
+	jnb	1f		/* need not change */
 	ldsw	-4(%si), %si	/* DS changed! */
 	lodsw
 	lodsl
 	xorw	%si, %si
 	movw	%si, %ds	/* DS = 0 */
-	cmpl	$0xC0000000, %eax
+	//cmpl	$0xC0000000, %eax
+	call	compare_to_lowmem_size
 	jnb	2f
 	movl	%cs:ABS_START(dummy_iret_vector), %eax
 2:
@@ -7923,10 +7958,13 @@ guess_dos_versions:
 	lodsl
 	cmpl	$0xC0000000, %eax
 	jnb	1f		/* need not change */
+	call	compare_to_lowmem_size
+	jnb	1f		/* need not change */
 	movw	$0x5F0, %si	/* int 75 */
 	cld
 	lodsl
-	cmpl	$0xC0000000, %eax
+	//cmpl	$0xC0000000, %eax
+	call	compare_to_lowmem_size
 	jb	1f
 	movw	$ABS_START(bios_interrupt_vector_table + 0x1D4), %di
 	stosl			/* save new int 75 */
@@ -7941,12 +7979,15 @@ guess_dos_versions:
 	lodsl
 	cmpl	$0xC0000000, %eax
 	jnb	1f
+	call	compare_to_lowmem_size
+	jnb	1f		/* need not change */
 	ldsw	-4(%si), %si	/* DS changed! */
 	lodsw
 	lodsl
 	xorw	%si, %si
 	movw	%si, %ds	/* DS = 0 */
-	cmpl	$0xC0000000, %eax
+	//cmpl	$0xC0000000, %eax
+	call	compare_to_lowmem_size
 	jnb	2f
 	movl	%cs:ABS_START(dummy_iret_vector), %eax
 2:
@@ -7963,12 +8004,15 @@ guess_dos_versions:
 	lodsl
 	cmpl	$0xC0000000, %eax
 	jnb	1f
+	call	compare_to_lowmem_size
+	jnb	1f		/* need not change */
 	ldsw	-4(%si), %si	/* DS changed! */
 	lodsw
 	lodsl
 	xorw	%si, %si
 	movw	%si, %ds	/* DS = 0 */
-	cmpl	$0xC0000000, %eax
+	//cmpl	$0xC0000000, %eax
+	call	compare_to_lowmem_size
 	jnb	2f
 	movl	%cs:ABS_START(dummy_iret_vector), %eax
 2:

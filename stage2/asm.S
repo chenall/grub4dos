@@ -775,13 +775,18 @@ ENTRY(bios_id)
 #ifdef FSYS_PXE
 /* unsigned long pxe_scan(void)
  *
- * scan pxe runtime
+ * Scan pxe runtime.
+ *
+ * Return 0 on failure. Return the pxe_entry pointer on success.
  */
 ENTRY(pxe_scan)
 
 	.code32
 
 	pushl	%ebx
+	pushl	%ebp	/* save this in case int1A would change it! */
+	pushl	%esi	/* save this in case int1A would change it! */
+	pushl	%edi	/* save this in case int1A would change it! */
 
 	call	EXT_C(prot_to_real)
 	.code16
@@ -789,6 +794,7 @@ ENTRY(pxe_scan)
 	sti		/* for hardware interrupt or watchdog */
 	movw	$0x5650, %ax
 	int	$0x1A
+	xorl	%ecx, %ecx		//initialize it for "failure"
 	cmpw	$0x564E, %ax
 	jnz	1f
 	cmpl	$0x4E455850, %es:(%bx)		// PXEN(V+)
@@ -799,40 +805,99 @@ ENTRY(pxe_scan)
 	cmpl	$0x45585021, %es:(%bx)		// !PXE
 	jnz	1f
 	movw	%es, %cx
-	jmp	2f
+	shll	$4, %ecx
+	movzwl	%bx, %ebx
+	addl	%ebx, %ecx
 1:
-	xorw	%bx, %bx
-	xorw	%cx, %cx
-2:
 
 	DATA32  call EXT_C(real_to_prot)
 	.code32
 
-	xorl	%eax, %eax
-	movw	%cx, %ax
-	shll	$4, %eax
-	andl	$0xFFFF, %ebx
-	addl	%ebx, %eax
-	jz	3f
+	/* EAX=0 */
+	testl	%ecx, %ecx
+	jz	3f		// failure
 
-	movl	0x10(%eax), %ebx
-	movl	%ebx, EXT_C(pxe_entry)
-	xorl	%ecx, %ecx
-	movl	0x2A(%eax), %ebx
-	cmpl	0x32(%eax), %ebx
+	movl	0x10(%ecx), %eax	/* PXE API entry point, segoff16 */
+	movl	0x2A(%ecx), %edx
+	cmpl	0x32(%ecx), %edx
 	ja	1f
-	movl	0x32(%eax), %ebx
-	movw	0x36(%eax), %cx
+	movl	0x32(%ecx), %edx
+	movzwl	0x36(%ecx), %ebx
 	jmp	2f
 1:
-	movw	0x2E(%eax), %cx
+	movzwl	0x2E(%ecx), %ebx
 2:
-	addl	%ecx, %ebx
-	addl	$1023, %ebx
+	addl	%ebx, %edx
+	addl	$1023, %edx
+	shrl	$10, %edx
+	movw	%dx, EXT_C(pxe_freemem)
+
+	/* calculate base mem */
+
+	/* first, the low mem size */
+	movzwl	0x413, %esi
+	shll	$10, %esi
+
+	movl	$0xA0000, %ebx
+
+	movl	0x22(%ecx), %edx
+	cmpl	%esi, %edx
+	jb	4f
+	cmpl	%ebx, %edx
+	jnb	4f
+	movl	%edx, %ebx
+4:
+	movl	0x2A(%ecx), %edx
+	cmpl	%esi, %edx
+	jb	4f
+	cmpl	%ebx, %edx
+	jnb	4f
+	movl	%edx, %ebx
+4:
+	movl	0x32(%ecx), %edx
+	cmpl	%esi, %edx
+	jb	4f
+	cmpl	%ebx, %edx
+	jnb	4f
+	movl	%edx, %ebx
+4:
+	movl	0x3A(%ecx), %edx
+	cmpl	%esi, %edx
+	jb	4f
+	cmpl	%ebx, %edx
+	jnb	4f
+	movl	%edx, %ebx
+4:
+	movl	0x42(%ecx), %edx
+	cmpl	%esi, %edx
+	jb	4f
+	cmpl	%ebx, %edx
+	jnb	4f
+	movl	%edx, %ebx
+4:
+	movl	0x4A(%ecx), %edx
+	cmpl	%esi, %edx
+	jb	4f
+	cmpl	%ebx, %edx
+	jnb	4f
+	movl	%edx, %ebx
+4:
+	movl	0x52(%ecx), %edx
+	cmpl	%esi, %edx
+	jb	4f
+	cmpl	%ebx, %edx
+	jnb	4f
+	movl	%edx, %ebx
+4:
 	shrl	$10, %ebx
-	movw	%bx, EXT_C(pxe_freemem)
+	movw	%bx, EXT_C(pxe_basemem)
 
 3:
+	movl	%eax, EXT_C(pxe_entry)
+
+	popl	%edi
+	popl	%esi
+	popl	%ebp
 	popl	%ebx
 	ret
 
@@ -11964,5 +12029,8 @@ VARIABLE(fonty)
 VARIABLE(graphics_CURSOR)
 	.long	0
 	.long	(EXT_C(menu_broder))
+VARIABLE(gzip_filemax)
+	.long	0
+	.long	0
 #endif /* ! STAGE1_5 */
 
