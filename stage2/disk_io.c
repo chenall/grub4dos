@@ -793,9 +793,16 @@ next_entry:
 		  unsigned long long tmp_start = (unsigned long long)(unsigned long)(PC_SLICE_START (next_partition_buf, i));
 		  unsigned long long tmp_ext_offset = (unsigned long long)(unsigned long)(*next_partition_ext_offset);
 		  unsigned long long tmp_offset = tmp_ext_offset + tmp_start;
-#if 0
 		  /* if overflow ... */
+#if 0
 		  if (((unsigned long *)(&tmp_offset))[1])  //if (tmp_offset >= 0x100000000ULL)
+			continue;
+#else
+		  /* use this to keep away from the gcc bug.
+		   * (tmp_offset >= 0x100000000ULL) is also OK, but
+		   * (((unsigned long *)(&tmp_offset))[1]) is not OK with the buggy gcc.
+		   */
+		  if (tmp_offset >> 32) //if (tmp_offset >= 0x100000000ULL)
 			continue;
 #endif
 		  *next_partition_offset = tmp_offset;
@@ -829,7 +836,15 @@ next_entry:
 	*next_partition_type = PC_SLICE_TYPE (next_partition_buf, *next_partition_entry);
 	*next_partition_len = PC_SLICE_LENGTH (next_partition_buf, *next_partition_entry);
 	/* if overflow ... */
+#if 0
 	if (((unsigned long *)(&tmp_start))[1])  //if (tmp_start >= 0x100000000ULL)
+#else
+	/* use this to keep away from the gcc bug.
+	 * (tmp_start >= 0x100000000ULL) is also OK, but
+	 * (((unsigned long *)(&tmp_start))[1]) is not OK with the buggy gcc.
+	 */
+	if (tmp_start >> 32) //if (tmp_offset >= 0x100000000ULL)
+#endif
 	  //if (((int)pc_slice_no) >= PC_SLICE_MAX - 1)	/* yes, on overflow it is always a logical partition. */
 		goto next_entry;
 

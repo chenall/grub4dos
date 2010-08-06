@@ -1,3 +1,4 @@
+2010-08-04 finally find out the missing-extended-partition problem is caused by a gcc bug, and workarounds are created.
 2010-07-25 re-enabled the extended partition with logical partitions in disorder.
 2010-07-24 patch by chenall: cat --length=0 will return the size of the compressed file if it is gzipped; fix memory-not-enough problem when mapping a gzipped memory-file with a high compression ratio.
 2010-07-23 improved next_pc_slice() to cope with the partition-loop problem.
