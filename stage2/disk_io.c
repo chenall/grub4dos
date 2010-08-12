@@ -1032,6 +1032,7 @@ real_open_partition (int flags)
   dest_partition = current_partition;
 
 #ifndef STAGE1_5
+  cur_part_offset = 0;
   /* network drive */
   if ((current_drive == NETWORK_DRIVE) || (current_drive==PXE_DRIVE))
     return 1;

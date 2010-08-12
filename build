@@ -15,10 +15,10 @@ COPY_FILES="COPYING README_GRUB4DOS.txt ChangeLog_*.txt \
 	stage2/grldr stage2/grub.exe stage2/badgrub.exe stage2/grldr.mbr stage2/bootlace.com \
 	stage2/hmload.com"
 
-rm -rf *.zip *.rar *~ grub4dos-temp || exit $?
+rm -rf *.zip *.rar *~ || exit $?
 
 if [ -d .svn ]; then
-	svn export . grub4dos-temp || exit $?
+	svn export . grub4dos-temp --force || exit $?
 	CURR_REVISION=""
 	line=0
 	while read w1 w2; do
@@ -85,6 +85,7 @@ ${Get_source}and now you may \"cd grub4dos\" and do a \"make\" to compile.\r\n\r
 		fi
 	fi
 else
+	rm -rf grub4dos-temp
 	files=$(echo *)
 	mkdir grub4dos-temp || exit $?
 	cp -a $files grub4dos-temp || exit $?

@@ -2949,16 +2949,16 @@ You may also want to load a different menu.lst for different client. GRUB4DOS
 will scan the following location for configuration file:
 
 	[/mybootdir]/menu.lst
-	[/mybootdir]/menu/01-88-99-AA-BB-CC-DD
-	[/mybootdir]/menu/C000025B
-	[/mybootdir]/menu/C000025
-	[/mybootdir]/menu/C00002
-	[/mybootdir]/menu/C0000
-	[/mybootdir]/menu/C000
-	[/mybootdir]/menu/C00
-	[/mybootdir]/menu/C0
-	[/mybootdir]/menu/C
-	[/mybootdir]/menu/default
+	[/mybootdir]/menu.lst/01-88-99-AA-BB-CC-DD
+	[/mybootdir]/menu.lst/C000025B
+	[/mybootdir]/menu.lst/C000025
+	[/mybootdir]/menu.lst/C00002
+	[/mybootdir]/menu.lst/C0000
+	[/mybootdir]/menu.lst/C000
+	[/mybootdir]/menu.lst/C00
+	[/mybootdir]/menu.lst/C0
+	[/mybootdir]/menu.lst/C
+	[/mybootdir]/menu.lst/default
 
 Here, we assume the network card mac for the client machine is
 88:99:AA:BB:CC:DD, and the ip address is 192.0.2.91 (C000025B). /mybootdir is

@@ -1,4 +1,9 @@
-﻿2010-06-21
+﻿2010-08-10
+	1.fixed a bug in disk_io.c,it may return error 25 when set root to a cd drive.
+	  修正一个BUG,当设置root为cd设备时可能会提示Error 25的错误.
+	2.加快colinux下源码在cofs设备时编译的速度.
+
+2010-06-21
 	1.打上支持新版FB的补丁
 	来源:http://www.burgloader.com/bbs/index.php?topic=37.30
 2010-05-02

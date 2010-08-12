@@ -8655,7 +8655,7 @@ geometry_probe_failed:
   }
 
   /* possible ISO9660 image */
-  if (filemax < 512 || BS->boot_signature != 0xAA55)
+  if (filemax < 512 || BS->boot_signature != 0xAA55 || (unsigned char)from >= (unsigned char)0xA0)
   {
 	if ((long long)heads_per_cylinder < 0)
 		heads_per_cylinder = 0;

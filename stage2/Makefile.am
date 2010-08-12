@@ -164,7 +164,7 @@ grub.exe: pre_stage2 dosstart
 	-rm -f grub.exe
 	echo -n -e "\000\000\000\000\000\000\000\000\000\000\000\000" | cat dosstart pre_stage2 - > grub.exe
 	if [ -f ../preset_menu_used ]; then cat ../preset_menu_used >> grub.exe ;fi
-	dd if=/dev/zero bs=1 count=4128 >> grub.exe
+	dd if=/dev/zero bs=4128 count=1 >> grub.exe
 
 badgrubstart_exec_SOURCES = badgrubstart.S
 badgrubstart_exec_CCASFLAGS = $(STAGE2_COMPILE)
@@ -179,7 +179,7 @@ badgrub.exe: pre_stage2 badgrubstart
 	-rm -f badgrub.exe
 	echo -n -e "\000\000\000\000\000\000\000\000\000\000\000\000" | cat badgrubstart pre_stage2 - > badgrub.exe
 	if [ -f ../preset_menu_used ]; then cat ../preset_menu_used >> badgrub.exe ;fi
-	dd if=/dev/zero bs=1 count=4128 >> badgrub.exe
+	dd if=/dev/zero bs=4128 count=1 >> badgrub.exe
 
 grldrstart_exec_SOURCES = grldrstart.S
 grldrstart_exec_CCASFLAGS = $(STAGE2_COMPILE)
