@@ -1432,6 +1432,7 @@ checkkey (void)
 #endif /* ! STAGE1_5 */
 
 /* Display an ASCII character.  */
+struct output_status putchar_st = {0,0};
 void
 grub_putchar (int c)
 {
@@ -1447,10 +1448,14 @@ grub_putchar (int c)
   console_putchar (c);
   
 #else /* ! STAGE1_5 */
-  
+  if (putchar_st.flag)
+  {
+	*putchar_st.addr++ = (char)c;
+	return;
+  }
   if (c == '\t' && current_term->getxy)
     {
-      c = 8 - ((current_term->getxy () >> 8) & 3);
+      c = 8 - ((current_term->getxy () >> 8) & 7);
       while (c--)
 	//grub_putchar (' ');	/* recursive, bad!! */
 	current_term->putchar (' ');

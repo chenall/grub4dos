@@ -1203,6 +1203,7 @@ extern char *mbr;
 extern int grub_timeout;
 
 char *skip_to (int after_equal, char *cmdline);
+int run_line (char *heap,int flags);
 struct builtin *find_command (char *command);
 void print_cmdline_message (int forever);
 void enter_cmdline (char *heap, int forever);
@@ -1210,6 +1211,12 @@ void enter_cmdline (char *heap, int forever);
 
 /* C library replacement functions with identical semantics. */
 //void grub_printf (const char *format,...);
+struct output_status
+{
+	int flag;
+	char *addr;
+};
+extern struct output_status putchar_st;
 #define grub_printf(...) grub_sprintf(NULL, __VA_ARGS__)
 int grub_sprintf (char *buffer, const char *format, ...);
 int grub_tolower (int c);

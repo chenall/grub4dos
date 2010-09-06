@@ -92,13 +92,14 @@ else
 fi
 
 cd grub4dos-temp || exit $?
-
+rm -rf grub4dos-${VER}
 #############################################
 #	Build english version
 #############################################
 
 ./configure --enable-preset-menu=preset_menu.lst || exit $?
 make || exit $?
+rm -rf grub4dos-${VER}
 mkdir grub4dos-${VER} || exit $?
 cp $COPY_FILES grub4dos-${VER} || exit $?
 if [ -f Get_Source_of_This_Build.txt ]; then

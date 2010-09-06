@@ -4660,6 +4660,40 @@ static struct builtin builtin_fallback =
 
 /* command */
 char command_path[128]="(bd)/grub/";
+static int script_run (char *arg, int flags);
+
+static char* next_line(char *arg)
+{
+	char *P=arg;
+	
+	while(*P++)
+	{
+		if (*P == '\r' || *P == '\n') 
+		{
+			*P++ = 0;
+			while (*P == '\n' || *P == '\r' || *P == 0x20 || *P == '\t') P++;
+			if (*P == ':') continue;
+			if (*P) return P;
+			break;
+		}
+	}
+	return 0;
+}
+
+static int script_run (char *arg, int flags)
+{
+	char *P = next_line(arg);//skip head
+	if (!(arg = P)) return 0;
+	while ((P = next_line(arg)))
+	{
+		if (! run_line (arg,flags))
+			return 0;
+		arg = P;
+	}
+
+	return run_line (arg,flags);
+}
+
 int
 command_func (char *arg, int flags)
 {
@@ -4808,6 +4842,25 @@ command_func (char *arg, int flags)
 		goto fail;
 	}
 	grub_close ();
+
+	/*Is a batch file? */
+	if (*(unsigned long *)(free_mem_start + psp_len) == 0x54414221)//!BAT
+	{
+		mem_alloc_array_start[j].addr |= 0x01;
+		mem_alloc_array_start[j].pid = pid;
+		psp_len += free_mem_start;
+		free_mem_start = psp_len + filemax + 0x1f;
+		*(int *)(int)(psp_len + filemax) = 0;
+		free_mem_start &= 0xFFFFFFF0;
+		mem_alloc_array_start[j+1].addr = free_mem_start;/*next mem_alloc_array_start*/
+		/*run batch script*/
+		pid = script_run((char *)(int)psp_len, flags);
+		/*release memory. */
+		mem_alloc_array_start[j].pid = 0;
+		mem_alloc_array_start[j+1].addr = 0;
+		free_mem_start = (mem_alloc_array_start[j].addr &= 0xFFFFFFF0);
+		return pid;
+	}
 
 	/* check exec signature. */
 	if (*(unsigned long long *)(int)(free_mem_start + psp_len + filemax - 8) != 0xBCBAA7BA03051805ULL)
@@ -9495,7 +9548,7 @@ delete_drive_map_slot:
     {
       if (drive_map_slot_empty (bios_drive_map[i]))
 	break;
-      if (! (bios_drive_map[i].from_drive & 0x80) && from < bios_drive_map[i].from_drive + 1)
+      if (! (bios_drive_map[i].from_drive & 0xE0) && from < bios_drive_map[i].from_drive + 1)
 	from = bios_drive_map[i].from_drive + 1;
     }
 
@@ -9517,7 +9570,7 @@ delete_drive_map_slot:
     {
       if (drive_map_slot_empty (bios_drive_map[i]))
 	break;
-      if ((bios_drive_map[i].from_drive & 0x80) && from < bios_drive_map[i].from_drive - 0x80 + 1)
+      if ((bios_drive_map[i].from_drive & 0xE0) == 0x80 && from < bios_drive_map[i].from_drive - 0x80 + 1)
 	from = bios_drive_map[i].from_drive - 0x80 + 1;
     }
 

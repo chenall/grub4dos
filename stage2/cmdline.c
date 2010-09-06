@@ -121,6 +121,127 @@ find_command (char *command)
   errnum = ERR_UNRECOGNIZED;
   return 0;
 }
+#define PRINTF_BUFFER ((char *)0x1200200)
+int run_line (char *heap,int flags)
+{
+	char *p;
+	char *arg = heap;
+	int ret;
+	int status;
+	struct builtin *builtin;
+	for (p = arg; *p != 0; p = skip_to (0, p))
+	{
+		switch(*(unsigned short *)p)
+		{
+			case 0x2626://	operator AND "&&"
+				status = 1;
+				break;
+			case 0x7C7C://	operator OR "||"
+				status = 2;
+				break;
+			case 0x202E://	! 
+				status = 4;
+				break;
+			case 0x207C:// |
+				putchar_st.flag = 1;
+				putchar_st.addr = PRINTF_BUFFER;
+				status = 8;
+				break;
+			case 0x203e: // >
+				putchar_st.flag = 2;
+				putchar_st.addr = PRINTF_BUFFER;
+				status = 8;
+				break;
+			default:
+				continue;
+		}
+
+		*(p-1) = 0;
+
+		if (status == 4)
+		{
+			break;
+		}
+
+		builtin = find_command (arg);
+		if ((int)builtin != -1)
+		{
+			if (! builtin || ! (builtin->flags & flags))
+			{
+				errnum = ERR_UNRECOGNIZED;
+				goto next;
+			}
+			ret = (builtin->func) (skip_to (1,arg), flags);
+		}
+		else
+			ret = command_func (arg,flags);
+
+
+		if ( status == 8 || (ret && (status == 1)) || (! ret && (status == 2)) )
+		{
+			arg = skip_to (0, p);
+			if ( status == 8 ) break;
+			errnum = 0;
+		}
+		else
+		{
+			while(*(p = skip_to (0, p)))
+			{
+				if (*(unsigned short *)p == 0x202E)
+				{
+					p = arg = skip_to (0,p);
+					errnum = 0;
+					break;
+				}
+			}
+			if (! *p) goto next;
+		}
+
+	}
+
+	if (! *arg) return 0;
+
+	if (putchar_st.flag == 2)
+	{
+		ret = errnum;
+		putchar_st.flag = 0;
+		if (! grub_open (arg))
+			return 0;
+		if (grub_read ((unsigned long long)(int)PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER,GRUB_WRITE))
+			errnum = ret;
+		return !errnum;
+	}
+	else if (putchar_st.flag)
+	{
+		int len;
+		if ((len = strlen(arg)) > 0x200) return 0;
+		putchar_st.addr = PRINTF_BUFFER;
+		for (;len;len--)
+		{
+			*--putchar_st.addr = arg[len-1];
+		}
+		arg = putchar_st.addr;
+		putchar_st.flag = 0;
+	}
+	/* Run BUILTIN->FUNC.  */
+	builtin = find_command (arg);
+
+	if ((int)builtin != -1)
+	{
+		arg = ((builtin->func) == commandline_func) ? heap : skip_to(1,arg);
+		ret = (builtin->func) (arg, flags);
+	}
+	else
+	{
+		ret = command_func (arg, flags);
+	}
+	
+next:
+	putchar_st.flag = 0;
+	if (errnum) return 0;
+	return 1;
+}
+#undef PRINTF_BUFFER 
 
 /* Enter the command-line interface. HEAP is used for the command-line
    buffer. Return only if FOREVER is nonzero and get_cmdline returns
@@ -276,70 +397,9 @@ enter_cmdline (char *heap, int forever)
 	}
 	else
 		command_func (heap, BUILTIN_CMDLINE);
-#else
-		char *p;
-		arg = heap;
-		for (p = arg; *p != 0; p = skip_to (0, p))
-		{
-			if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
-			{
-				*p++ = 0;
-				break;
-			}
-			if (((*p == '&' && p[1] == '&') || (*p == '|' && p[1] == '|')) && (p[2] == ' ' || p[2] == '\t'))
-			{
-				/* handle the AND / OR operator */
-				int ret;
-				*p = 0;
-				builtin = find_command (arg);
-				if ((int)builtin != -1)
-				{
-					if (! builtin || ! (builtin->flags & BUILTIN_CMDLINE))
-					{
-						errnum = ERR_UNRECOGNIZED;
-						goto next;
-					}
-					ret = (builtin->func) (skip_to (1,arg), BUILTIN_CMDLINE);
-				}
-				else
-					ret = command_func (arg, BUILTIN_CMDLINE);
-				p++;
-				errnum = 0;
-				if ((*p == '&' && ret) || (*p == '|' && ! ret))
-				{
-					arg = skip_to (0, p);
-				}
-				else
-				{
-					for (;*p ; p = skip_to (0, p))
-					{
-						if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
-						{
-							arg = skip_to (0,p);
-							break;
-						}
-					}
-					if (*p == '!' && (p[1] == ' ' || p[1] == '\t'))
-					{
-						p = arg;
-						continue;
-					}
-					goto next;
-				}
-			}
-		}
-	if (! *arg) goto next;
-	/* Run BUILTIN->FUNC.  */
-	builtin = find_command (arg);
-	if ((int)builtin != -1)
-	{
-		arg = ((builtin->func) == commandline_func) ? heap : skip_to(1,arg);
-		(builtin->func) (arg, BUILTIN_CMDLINE);
-	}
-	else
-		command_func (arg, BUILTIN_CMDLINE);
 #endif
-next:
+	
+	run_line (heap , BUILTIN_CMDLINE);
       /* Finish the line count.  */
       count_lines = -1;
     }
