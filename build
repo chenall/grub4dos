@@ -18,6 +18,8 @@ COPY_FILES="COPYING README_GRUB4DOS.txt ChangeLog_*.txt \
 rm -rf *.zip *.rar *~ || exit $?
 
 if [ -d .svn ]; then
+	rm -rf grub4dos-temp-old
+	[ -e grub4dos-temp ] && mv -f grub4dos-temp grub4dos-temp-old
 	svn export . grub4dos-temp --force || exit $?
 	CURR_REVISION=""
 	line=0

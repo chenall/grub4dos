@@ -1,7 +1,7 @@
 diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.c
---- grub-0.97_splash/stage2/builtins.c	2010-01-03 20:22:31.000000000 +0800
-+++ grub-0.97_chinese/stage2/builtins.c	2010-01-03 21:53:30.000000000 +0800
-@@ -459,7 +459,10 @@
+--- grub-0.97_splash/stage2/builtins.c	2010-09-19 16:34:42.000000000 +0800
++++ grub-0.97_chinese/stage2/builtins.c	2010-09-19 16:35:56.000000000 +0800
+@@ -460,7 +460,10 @@
    blocklist_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "blocklist FILE",
@@ -13,7 +13,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  #if ! defined(GRUB_UTIL) && ! defined (STAGE1_5)
-@@ -1098,7 +1101,9 @@
+@@ -1148,7 +1151,9 @@
    boot_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
    "boot",
@@ -24,7 +24,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* ! GRUB_UTIL */
  
-@@ -1145,7 +1150,10 @@
+@@ -1195,7 +1200,10 @@
    "bootp [--with-configfile]",
    "Initialize a network device via BOOTP. If the option `--with-configfile'"
    " is given, try to load a configuration file specified by the 150 vendor"
@@ -36,7 +36,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* ! GRUB_UTIL */
  #endif /* SUPPORT_NETBOOT */
-@@ -1426,7 +1434,9 @@
+@@ -1481,7 +1489,9 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "cat [--hex] [--skip=S] [--length=L] [--locate=STRING] [--locate-align=A] FILE",
    "Print the contents of the file FILE, or print the locations "
@@ -47,7 +47,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -1483,7 +1493,11 @@
+@@ -1538,7 +1548,11 @@
    "cdrom --add-io-ports=P | --init | --stop",
    "Initialise/stop atapi cdroms or set additional I/O ports for a possible atapi cdrom device."
    " The high word of P specifies the base register of the control block registers, and"
@@ -60,7 +60,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* ! defined(GRUB_UTIL) && ! defined (STAGE1_5) */
  
-@@ -2542,7 +2556,19 @@
+@@ -2597,7 +2611,19 @@
    " RAM boot file format. Use --disable-a20 if you wish to turn off"
    " A20 when transferring control to the boot image."
    " SL specifies length in bytes at the beginning of the image to be"
@@ -81,7 +81,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -2718,7 +2744,9 @@
+@@ -2814,7 +2840,9 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "cmp [--hex] FILE1 FILE2",
    "Compare the file FILE1 with the FILE2 and inform the different values"
@@ -92,7 +92,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -2916,7 +2944,16 @@
+@@ -3012,7 +3040,16 @@
    " A symbolic color name must be one of these: black, blue, green,"
    " cyan, red, magenta, brown, light-gray, dark-gray, light-blue,"
    " light-green, light-cyan, light-red, light-magenta, yellow and white."
@@ -110,7 +110,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -3077,7 +3114,9 @@
+@@ -3173,7 +3210,9 @@
    configfile_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
    "configfile FILE",
@@ -121,7 +121,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -3576,7 +3615,16 @@
+@@ -3672,7 +3711,16 @@
    " of IF will be discarded. OF cannot be a gzipped file. If IF is a gzipped"
    " file, it will be decompressed automatically when copying. dd is dangerous,"
    " use at your own risk. To be on the safe side, you should only use dd to"
@@ -139,7 +139,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -3618,7 +3666,9 @@
+@@ -3714,7 +3762,9 @@
    debug_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "debug [on | off | normal | status | INTEGER]",
@@ -150,7 +150,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -3713,7 +3763,12 @@
+@@ -3809,7 +3859,12 @@
    " the key word `saved\' is specified, or to the entry number previously"
    " saved in the specified file FILE. When FILE is specified, all subsequent"
    " `savedefault\' commands will save default entry numbers into"
@@ -164,7 +164,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  #if 0
    "default [NUM | `saved']",
    "Set the default entry to entry number NUM (if not specified, it is"
-@@ -3758,7 +3813,10 @@
+@@ -3854,7 +3909,10 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "device DRIVE DEVICE",
    "Specify DEVICE as the actual drive for a BIOS drive DRIVE. This command"
@@ -176,7 +176,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* GRUB_UTIL */
  
-@@ -3778,12 +3836,13 @@
+@@ -3874,12 +3932,13 @@
    dhcp_func,
    BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
    "dhcp",
@@ -193,7 +193,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  
  #ifdef SUPPORT_GRAPHICS
  extern char splashimage[64];
-@@ -3840,7 +3899,9 @@
+@@ -3936,7 +3995,9 @@
    splashimage_func,
    BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
    "splashimage FILE",
@@ -204,7 +204,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -3870,7 +3931,10 @@
+@@ -3966,7 +4027,10 @@
    BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
    "foreground RRGGBB",
    "Sets the foreground color when in graphics mode."
@@ -216,7 +216,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -3899,7 +3963,10 @@
+@@ -3995,7 +4059,10 @@
    BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
    "background RRGGBB",
    "Sets the background color when in graphics mode."
@@ -228,7 +228,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  #endif /* SUPPORT_GRAPHICS */
-@@ -3983,7 +4050,9 @@
+@@ -4079,7 +4146,9 @@
    checkrange_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "checkrange RANGE COMMAND",
@@ -239,7 +239,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #ifndef GRUB_UTIL
  /* checktime */
-@@ -4122,7 +4191,9 @@
+@@ -4218,7 +4287,9 @@
    checktime_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "checktime min hour dom month dow",
@@ -250,7 +250,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif
  
-@@ -4142,7 +4213,9 @@
+@@ -4238,7 +4309,9 @@
    clear_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "clear",
@@ -261,7 +261,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -4184,7 +4257,9 @@
+@@ -4280,7 +4353,9 @@
    displayapm_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "displayapm",
@@ -272,7 +272,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif
  
-@@ -4194,22 +4269,59 @@
+@@ -4290,22 +4365,59 @@
  displaymem_func (char *arg, int flags)
  {
    if (get_eisamemsize () != -1)
@@ -336,7 +336,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
        while (end_addr > (unsigned long) map)
  	{
  	  char *str;
-@@ -4218,6 +4330,14 @@
+@@ -4314,6 +4426,14 @@
  	    str = "Usable RAM";
  	  else
  	    str = "Reserved";
@@ -351,7 +351,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  	  grub_printf ("  %s: Base: 0x%lX, Length: 0x%lX\n",
  		       str,
  		       (unsigned long long)(map->BaseAddr),
-@@ -4237,7 +4357,9 @@
+@@ -4333,7 +4453,9 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "displaymem",
    "Display what GRUB thinks the system address space map of the"
@@ -362,7 +362,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -4296,7 +4418,10 @@
+@@ -4392,7 +4514,10 @@
      BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
      "dump FROM TO",
      "Dump the contents of the file FROM to the file TO. FROM must be"
@@ -374,7 +374,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
    };
  #endif /* GRUB_UTIL */
  
-@@ -4444,7 +4569,11 @@
+@@ -4540,7 +4665,11 @@
    "embed STAGE1_5 DEVICE",
    "Embed the Stage 1.5 STAGE1_5 in the sectors after MBR if DEVICE"
    " is a drive, or in the \"bootloader\" area if DEVICE is a FFS partition."
@@ -387,7 +387,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* GRUB_UTIL */
  
-@@ -4552,7 +4681,10 @@
+@@ -4653,7 +4782,10 @@
    " errors, instead of waiting for the user to do anything, it"
    " immediately starts over using the NUM entry (same numbering as the"
    " `default' command). This obviously won't help if the machine"
@@ -399,7 +399,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  #endif
  };
  
-@@ -4725,7 +4857,10 @@
+@@ -4901,7 +5033,10 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
    "command [--set-path=PATH] FILE [ARGS]",
    "Run executable file FILE with arguments ARGS."
@@ -411,7 +411,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -4715,7 +4849,9 @@
+@@ -4924,7 +5059,9 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
  #if 1
    "commandline",
@@ -422,7 +422,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  #endif
  };
  
-@@ -5209,7 +5345,14 @@
+@@ -5424,7 +5561,14 @@
    " If the option --set-root is used and FILENAME is found on a device, then"
    " stop the find immediately and set the device as new root."
    " If the option --ignore-floppies is present, the search will bypass all"
@@ -438,7 +438,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -5421,7 +5564,14 @@
+@@ -5636,7 +5780,14 @@
    " on all devices(if UUID is not specified). If DEVICE is specified," 
    " return true or false according to whether or not the DEVICE matches"
    " the specified UUID(if UUID is specified), or just list the uuid of"
@@ -454,7 +454,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  static void
-@@ -5539,7 +5689,9 @@
+@@ -5754,7 +5905,9 @@
    fstest_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "fstest [on | off | status]",
@@ -465,7 +465,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  #ifdef SUPPORT_GFX
-@@ -5872,7 +6024,12 @@
+@@ -6087,7 +6240,12 @@
    " tuned value. If --sync is specified, the C/H/S values in partition table"
    " of DRIVE and H/S values in BPB of each primary partition of DRIVE"
    "(or BPB of floppy DRIVE) will be updated according to the current"
@@ -479,7 +479,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  #endif /* GRUB_UTIL */
  };
  
-@@ -5897,7 +6054,10 @@
+@@ -6112,7 +6270,10 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
    "halt [--no-apm]",
    "Halt your system. If APM is avaiable on it, turn off the power using"
@@ -491,7 +491,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -5984,11 +6144,23 @@
+@@ -6199,11 +6360,23 @@
  		  char *doc = (*builtin)->long_doc;
  
  		  /* At first, print the name and the short doc.  */
@@ -517,7 +517,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  		    {
  		      int len = grub_strlen (doc);
  		      int i;
-@@ -6025,7 +6197,9 @@
+@@ -6240,7 +6413,9 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "help [--all] [PATTERN ...]",
    "Display helpful information about builtin commands. Not all commands"
@@ -528,7 +528,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -6083,7 +6257,10 @@
+@@ -6304,7 +6479,10 @@
    "hide [PARTITION]",
    "Hide PARTITION by setting the \"hidden\" bit in"
    " its partition type code. The default partition is the current"
@@ -540,7 +540,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -6128,6 +6305,10 @@
+@@ -6349,6 +6527,10 @@
    "Hide/unhide PARTITION by setting/clearing the \"hidden\" bit in"
    " its partition type code, or report the hidden status."
    " The default partition is the current root device."
@@ -551,7 +551,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -6140,7 +6321,14 @@
+@@ -6361,7 +6543,14 @@
    
    if (! eth_probe ())
      {
@@ -567,7 +567,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
        errnum = ERR_DEV_VALUES;
        return 0;
      }
-@@ -6181,7 +6369,10 @@
+@@ -6402,7 +6591,10 @@
    BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
    "ifconfig [--address=IP] [--gateway=IP] [--mask=MASK] [--server=IP]",
    "Configure the IP address, the netmask, the gateway and the server"
@@ -579,7 +579,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* SUPPORT_NETBOOT */
  
-@@ -6215,7 +6406,10 @@
+@@ -6436,7 +6628,10 @@
    "impsprobe",
    "Probe the Intel Multiprocessor Specification 1.1 or 1.4"
    " configuration table and boot the various CPUs which are found into"
@@ -591,7 +591,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif
  
-@@ -6248,7 +6442,9 @@
+@@ -6469,7 +6664,9 @@
    "initrd FILE [FILE ...]",
    "Load an initial ramdisk FILE for a Linux format boot image and set the"
    " appropriate parameters in the Linux setup area in memory. For Linux"
@@ -602,7 +602,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -6822,7 +7018,15 @@
+@@ -7043,7 +7240,15 @@
    " patched with the configuration filename REAL_CONFIG_FILE."
    " If the option `--force-lba' is specified, disable some sanity checks"
    " for LBA mode. If the option `--stage2' is specified, rewrite the Stage"
@@ -619,7 +619,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* GRUB_UTIL */
  
-@@ -6933,7 +7137,13 @@
+@@ -7154,7 +7359,13 @@
    " to suggest what type of kernel to be loaded. TYPE must be either of"
    " \"netbsd\", \"freebsd\", \"openbsd\", \"linux\", \"biglinux\" and"
    " \"multiboot\". The option --no-mem-option tells GRUB not to pass a"
@@ -634,7 +634,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -6956,7 +7166,9 @@
+@@ -7177,7 +7388,9 @@
    lock_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "lock",
@@ -645,7 +645,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
    
  
-@@ -6980,7 +7192,9 @@
+@@ -7201,7 +7414,9 @@
    ls_func,
    BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
    "ls [FILE_OR_DIR]",
@@ -656,7 +656,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* STAGE1_5 */
  
-@@ -7082,7 +7296,9 @@
+@@ -7303,7 +7518,9 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "makeactive [--status] [PART]",
    "Activate the partition PART. PART defaults to the current root device."
@@ -667,7 +667,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -9356,7 +9572,29 @@
+@@ -9618,7 +9835,29 @@
    " memdrive is (-RESERV) in 512-byte-sectors. if RESERV is used and > 0,"
    " the memdrive will occupy the mem area starting at absolute physical"
    " address RESERV in 512-byte-sectors and ending at the end of this mem"
@@ -698,7 +698,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif	/* ! GRUB_UTIL */
  
-@@ -9423,7 +9661,9 @@
+@@ -9686,7 +9925,9 @@
    md5crypt_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "md5crypt",
@@ -709,7 +709,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* USE_MD5_PASSWORDS */
  
-@@ -9472,7 +9712,11 @@
+@@ -9735,7 +9976,11 @@
    " interpretation of the file contents is made, so users of this"
    " command must know what the kernel in question expects). The"
    " rest of the line is passed as the \"module command line\", like"
@@ -722,7 +722,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -9505,7 +9749,9 @@
+@@ -9768,7 +10013,9 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "modulenounzip FILE [ARG ...]",
    "The same as `module', except that automatic decompression is"
@@ -733,7 +733,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  #ifdef SUPPORT_GRAPHICS
-@@ -9539,7 +9785,9 @@
+@@ -9802,7 +10049,9 @@
    outline_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "outline [on | off | status]",
@@ -744,7 +744,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* SUPPORT_GRAPHICS */
  
-@@ -9573,7 +9821,9 @@
+@@ -9836,7 +10085,9 @@
    pager_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "pager [on | off | status]",
@@ -755,7 +755,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -9896,7 +10146,13 @@
+@@ -10159,7 +10410,13 @@
    " If --active is used, the new partition will be active. START can be"
    " a contiguous file that will be used as the content/data of the new"
    " partition, in which case the LEN parameter is ignored, and TYPE can"
@@ -770,7 +770,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -10008,7 +10264,10 @@
+@@ -10271,7 +10528,10 @@
    "parttype [PART] [TYPE]",
    "Change the type of the partition PART to TYPE. If TYPE is omitted, return "
    "the partition type of the specified device(instead of changing it). PART "
@@ -782,7 +782,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -10086,7 +10345,13 @@
+@@ -10350,7 +10610,13 @@
    " instructions.  You can also use it in the script section, in"
    " which case it will ask for the password, before continueing."
    " The option --md5 tells GRUB that PASSWD is encrypted with"
@@ -797,7 +797,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -10152,7 +10417,10 @@
+@@ -10416,7 +10682,10 @@
    pause_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_NO_ECHO,
    "pause [--wait=T] [MESSAGE ...]",
@@ -809,7 +809,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -10186,7 +10454,9 @@
+@@ -10450,7 +10719,9 @@
    quit_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
    "quit",
@@ -820,7 +820,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #else
  /* quit */
-@@ -10279,7 +10549,9 @@
+@@ -10543,7 +10814,9 @@
    quit_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
    "quit [--disable-a20]",
@@ -831,7 +831,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* GRUB_UTIL */
  
-@@ -10309,7 +10581,9 @@
+@@ -10573,7 +10846,9 @@
    rarp_func,
    BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
    "rarp",
@@ -842,7 +842,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* ! GRUB_UTIL */
  #endif /* SUPPORT_NETBOOT */
-@@ -10337,7 +10611,9 @@
+@@ -10601,7 +10876,9 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "read ADDR",
    "Read a 32-bit value from memory at address ADDR and"
@@ -853,7 +853,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* ! GRUB_UTIL */
  
-@@ -10687,7 +10963,9 @@
+@@ -11034,7 +11311,9 @@
    write_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "write [--offset=SKIP] ADDR_OR_FILE INTEGER_OR_STRING",
@@ -864,7 +864,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -10707,7 +10985,9 @@
+@@ -11054,7 +11333,9 @@
    reboot_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
    "reboot",
@@ -875,7 +875,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* ! GRUB_UTIL */
  
-@@ -10981,6 +11261,78 @@
+@@ -11331,6 +11612,78 @@
    return next ? 1 : (saved_drive & 0x80);
  }
  
@@ -954,7 +954,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  static int
  root_func (char *arg, int flags)
  {
-@@ -11002,7 +11354,13 @@
+@@ -11352,7 +11705,13 @@
    " optional HDBIAS parameter is a number to tell a BSD kernel"
    " how many BIOS drive numbers are on controllers before the current"
    " one. For example, if there is an IDE disk and a SCSI disk, and your"
@@ -969,7 +969,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -11023,7 +11381,12 @@
+@@ -11373,7 +11732,12 @@
    " is useful for when an OS is outside of the area of the disk that"
    " GRUB can read, but setting the correct root device is still"
    " desired. Note that the items mentioned in `root' which"
@@ -983,7 +983,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -11358,7 +11721,13 @@
+@@ -11708,7 +12072,13 @@
    " `fallback' is used, next fallback entry is saved."
    " If T is not 0, prompt the user to confirm the write operation by"
    " pressing the Y key, and if no key-press detected within T seconds,"
@@ -998,7 +998,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -11510,7 +11879,13 @@
+@@ -11860,7 +12230,13 @@
    " PARITY is the type of parity, which is one of `no', `odd' and `even'."
    " STOP is the length of stop bit(s). The option --device can be used only"
    " in the grub shell, which specifies the file name of a tty device. The"
@@ -1013,7 +1013,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* SUPPORT_SERIAL */
  
-@@ -11762,7 +12137,18 @@
+@@ -12112,7 +12488,18 @@
    " quote, doublequote, backquote, tilde, shift, backslash, bar, comma,"
    " less, period, greater, slash, question, alt, space, capslock, FX (X"
    " is a digit), and delete. If no argument is specified, reset key"
@@ -1033,7 +1033,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -12093,7 +12479,14 @@
+@@ -12443,7 +12830,14 @@
    " doesn't work in LBA mode, specify the option `--force-lba'."
    " If you install GRUB under the grub shell and you cannot unmount the"
    " partition where GRUB images reside, specify the option `--stage2'"
@@ -1049,7 +1049,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* GRUB_UTIL */
  
-@@ -12293,7 +12686,16 @@
+@@ -12643,7 +13037,16 @@
    " If you specify --no-edit, the BASH-like editing feature will be disabled."
    " If --timeout is present, this command will wait at most for SECS"
    " seconds. The option --lines specifies the maximum number of lines."
@@ -1067,7 +1067,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* SUPPORT_SERIAL || SUPPORT_HERCULES || SUPPORT_GRAPHICS */
  
-@@ -12409,7 +12811,13 @@
+@@ -12759,7 +13162,13 @@
    "Define the capabilities of your terminal. Use this command to"
    " define escape sequences, if it is not vt100-compatible."
    " You may use \\e for ESC and ^X for a control character."
@@ -1082,7 +1082,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* SUPPORT_SERIAL */
  	  
-@@ -12499,7 +12907,13 @@
+@@ -12849,7 +13258,13 @@
    " filepos=Y' reading has X and Y equal, then it is definitely"
    " consistent, and very likely works correctly subject to a"
    " consistent offset error. If this test succeeds, then a good next"
@@ -1097,7 +1097,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif
  
-@@ -12624,7 +13038,9 @@
+@@ -12974,7 +13389,9 @@
    testvbe_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "testvbe MODE",
@@ -1108,7 +1108,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  static inline unsigned long vbe_far_ptr_to_linear (unsigned long ptr)
-@@ -12774,7 +13190,10 @@
+@@ -13124,7 +13541,10 @@
    "setvbe [MODE_3D]",
    "Set the VBE mode MODE_3D(which is of the form 1024x768x32) for each subsequent kernel command-line."
    " If no argument is specified, clear(nullify, invalidate) the video option"
@@ -1120,7 +1120,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -12799,7 +13218,9 @@
+@@ -13149,7 +13569,9 @@
    tftpserver_func,
    BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
    "tftpserver IPADDR",
@@ -1131,7 +1131,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* SUPPORT_NETBOOT */
  
-@@ -12876,7 +13297,9 @@
+@@ -13226,7 +13648,9 @@
    tpm_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "tpm --init",
@@ -1142,7 +1142,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* ! defined(GRUB_UTIL) && ! defined (STAGE1_5) */
  
-@@ -12905,7 +13328,10 @@
+@@ -13255,7 +13679,10 @@
    "unhide [PARTITION]",
    "Unhide PARTITION by clearing the \"hidden\" bit in its"
    " partition type code. The default partition is the current"
@@ -1154,7 +1154,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  
  
-@@ -12928,7 +13354,10 @@
+@@ -13278,7 +13705,10 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "uppermem KBYTES",
    "Force GRUB to assume that only KBYTES kilobytes of upper memory are"
@@ -1166,7 +1166,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif
  
-@@ -13032,7 +13461,9 @@
+@@ -13382,7 +13812,9 @@
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "vbeprobe [MODE]",
    "Probe VBE information. If the mode number MODE is specified, show only"
@@ -1177,7 +1177,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
    
  
-@@ -13086,6 +13517,7 @@
+@@ -13642,6 +14074,7 @@
    &builtin_fallback,
    &builtin_find,
  #ifdef SUPPORT_GRAPHICS
@@ -1186,9 +1186,9 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  #endif
    &builtin_fstest,
 diff -Naur grub-0.97_splash/stage2/char_io.c grub-0.97_chinese/stage2/char_io.c
---- grub-0.97_splash/stage2/char_io.c	2010-01-03 20:18:13.000000000 +0800
-+++ grub-0.97_chinese/stage2/char_io.c	2010-01-03 21:53:30.000000000 +0800
-@@ -462,8 +462,17 @@
+--- grub-0.97_splash/stage2/char_io.c	2010-09-19 14:34:36.000000000 +0800
++++ grub-0.97_chinese/stage2/char_io.c	2010-09-19 16:01:25.000000000 +0800
+@@ -466,8 +466,17 @@
  {
    cls ();
  
@@ -1207,8 +1207,8 @@ diff -Naur grub-0.97_splash/stage2/char_io.c grub-0.97_chinese/stage2/char_io.c
  
  #endif
 diff -Naur grub-0.97_splash/stage2/cmdline.c grub-0.97_chinese/stage2/cmdline.c
---- grub-0.97_splash/stage2/cmdline.c	2009-12-29 02:59:47.000000000 +0800
-+++ grub-0.97_chinese/stage2/cmdline.c	2010-01-03 21:53:30.000000000 +0800
+--- grub-0.97_splash/stage2/cmdline.c	2010-09-06 22:56:18.000000000 +0800
++++ grub-0.97_chinese/stage2/cmdline.c	2010-09-19 16:01:25.000000000 +0800
 @@ -58,10 +58,23 @@
  void
  print_cmdline_message (int forever)
@@ -1234,8 +1234,8 @@ diff -Naur grub-0.97_splash/stage2/cmdline.c grub-0.97_chinese/stage2/cmdline.c
  
  extern int command_func (char *arg, int flags);
 diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.c
---- grub-0.97_splash/stage2/graphics.c	2009-11-27 11:01:29.000000000 +0800
-+++ grub-0.97_chinese/stage2/graphics.c	2010-01-03 21:53:30.000000000 +0800
+--- grub-0.97_splash/stage2/graphics.c	2010-09-19 15:14:09.000000000 +0800
++++ grub-0.97_chinese/stage2/graphics.c	2010-09-19 16:22:23.000000000 +0800
 @@ -1,4 +1,5 @@
  /* graphics.c - graphics mode support for GRUB */
 +/* Chinese double-byte character support by Gandalf <f22_storm@163.com> */
@@ -1256,7 +1256,7 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
  
  int outline = 0;
  int disable_space_highlight = 0;
-@@ -62,6 +68,9 @@
+@@ -67,6 +73,9 @@
  extern int fontx;
  extern int fonty;
  
@@ -1266,59 +1266,45 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
  /* global state so that we don't try to recursively scroll or cursor */
  static int no_scroll = 0;
  
-@@ -119,17 +128,47 @@
-      * invalidate the kernel_type. */
-     kernel_type = KERNEL_TYPE_NONE;
- 	if (! graphics_CURSOR) graphics_CURSOR = (void *)&graphics_cursor;
--	
-+
-     if (! graphics_inited)
-     {
-         saved_videomode = set_videomode (0x12);
+@@ -147,11 +156,34 @@
+ 	}
      }
  
-+ 	if (! ushFontReaded)
-+ 	{
-+ 		ushFontReaded = 1;
-+ 		
-+ /* 		remove them all.    
-+ 		grub_open("/boot/grub/fonts") ||
-+ 		grub_open("/boot/fonts") ||
-+ 		grub_open("/grub/fonts") ||
-+ 		grub_open("/fonts") 
-+ */		    		
-+ 
-+ 		if (grub_strlen (fontfile) > 0)
-+ 		{
-+ 			if (grub_open (fontfile) )
-+ 			{
-+ 				grub_read ((unsigned long long)(unsigned int)(char *) RAW_ADDR (0x500000), -1, 0xedde0d90);
-+ 
-+ 				grub_close ();
-+ 			}
-+ 			else
-+ 			{
-+ 				ushFontReaded = 0;			
-+ 				grub_printf ("load fontfile failed!\n");
-+ 			}
-+ 		}
-+ 	}
-+ 
++    if (! ushFontReaded)
++    {
++	ushFontReaded = 1;
++
++	if (grub_strlen (fontfile) > 0)
++	{
++		if (grub_open (fontfile) )
++		{
++			grub_read ((unsigned long long)(unsigned int)(char *) RAW_ADDR (0x500000), -1, 0xedde0d90);
++
++			grub_close ();
++		}
++		else
++		{
++			ushFontReaded = 0;                      
++			grub_printf ("load fontfile failed!\n");
++		}
++	}
++    }
++
      if (! read_image (splashimage))
      {
 -        set_videomode (saved_videomode);
 -        grub_printf("failed to read image\n");
 -        return 0;
-+ 		if (! ushFontReaded)
-+ 		{
-+ 			set_videomode (saved_videomode);
-+ 			grub_printf ("failed to read image\n");
-+ 			return 0;	/* graphics_init failure! */
-+ 		}
++	if (! ushFontReaded)
++	{
++		set_videomode (saved_videomode);
++		grub_printf ("failed to read image\n");
++		return 0;	/* graphics_init failure! */
++	}
      }
  
      font8x16 = (unsigned char *) graphics_get_font (); /* code in asm.S */
-@@ -140,7 +179,7 @@
+@@ -162,7 +194,7 @@
      graphics_highlight_color = ((graphics_normal_color >> 4) | 
  				((graphics_normal_color & 0xf) << 4));
  
@@ -1327,7 +1313,7 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
  }
  
  /* Leave graphics mode */
-@@ -151,9 +190,12 @@
+@@ -173,9 +205,12 @@
      {
          set_videomode (saved_videomode);
          graphics_inited = 0;
@@ -1340,13 +1326,13 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
  /* Print ch on the screen.  Handle any needed scrolling or the like */
  void
  graphics_putchar (int ch)
-@@ -183,12 +225,12 @@
+@@ -205,12 +240,12 @@
  
-     text[fonty * 80 + fontx] = ch;
-     text[fonty * 80 + fontx] &= 0x00ff;
+     text[fonty * x1 + fontx] = ch;
+     text[fonty * x1 + fontx] &= 0x00ff;
 -    if (graphics_current_color & 0xf0)
 +    if (graphics_current_color == graphics_highlight_color)//if (graphics_current_color & 0xf0)
-         text[fonty * 80 + fontx] |= 0x10000;//0x100;
+         text[fonty * x1 + fontx] |= 0x10000;//0x100;
  
      graphics_CURSOR(0);
  
@@ -1355,7 +1341,7 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
      {
          if (fonty + 1 < y1)
              graphics_setxy(x0, fonty + 1);
-@@ -538,24 +580,100 @@
+@@ -554,24 +589,100 @@
  static unsigned char chr[16 << 2];
  static unsigned char mask[16];
  
@@ -1377,11 +1363,11 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
      if (set && no_scroll)
          return;
  
-     offset = cursorY * 80 + fontx;
+     offset = cursorY * x1 + fontx;
 +
-     ch = text[fonty * 80 + fontx] & 0xff;
+     ch = text[fonty * x1 + fontx] & 0xff;
      if (ch != ' ' || ! disable_space_highlight)
- 	invert = (text[fonty * 80 + fontx] & /*0xff00*/ 0xffff0000) != 0;
+ 	invert = (text[fonty * x1 + fontx] & /*0xff00*/ 0xffff0000) != 0;
 +
      pat = font8x16 + (ch << 4);
  
@@ -1403,8 +1389,8 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
 +	 * if the last byte is the 1st byte of a Chinese Character,,, ,,, */
 +        for (n = 0; n < fontx; n++)
 +        {
-+            ch1 = text[fonty * 80 + n] & 0xff;
-+            ch2 = text[fonty * 80 + n+1] & 0xff;
++            ch1 = text[fonty * x1 + n] & 0xff;
++            ch2 = text[fonty * x1 + n+1] & 0xff;
 +
 +            if ((ch1>=0xa1 && ch1<=0xfe)&&(ch2>=0xa1 && ch2<=0xfe))
 +            {
@@ -1431,13 +1417,13 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
 +        }
 +	if (! dbcs_ending_byte)
 +	{
-+		if (fontx == 79)
++		if (fontx == x1 - 1)
 +		{
 +			graphics_putchar (' ');
-+			text[fonty * 80 + fontx] = ch;
-+			text[fonty * 80 + fontx] &= 0x00ff;
++			text[fonty * x1 + fontx] = ch;
++			text[fonty * x1 + fontx] &= 0x00ff;
 +			if (graphics_current_color == graphics_highlight_color)//if (graphics_current_color & 0xf0)
-+				text[fonty * 80 + fontx] |= 0x10000;//0x100;
++				text[fonty * x1 + fontx] |= 0x10000;//0x100;
 +		}
 +		return;
 +	}
@@ -1457,7 +1443,7 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
      if (set)
      {
          MapMask(15);
-@@ -644,6 +762,17 @@
+@@ -660,6 +771,17 @@
      }
  
      MapMask(15);
@@ -1468,7 +1454,7 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
 +
 +	/* reset the mem position */
 +	mem++;//mem += 1;//mem = (unsigned char*)VIDEOMEM + offset;
-+	offset = cursorY * 80 + fontx;
++	offset = cursorY * x1 + fontx;
 +	pat = chsb;
 +	goto write_char;
 +    }
@@ -1476,8 +1462,8 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
  
  #endif /* SUPPORT_GRAPHICS */
 diff -Naur grub-0.97_splash/stage2/shared.h grub-0.97_chinese/stage2/shared.h
---- grub-0.97_splash/stage2/shared.h	2010-01-03 21:20:55.000000000 +0800
-+++ grub-0.97_chinese/stage2/shared.h	2010-01-03 21:53:30.000000000 +0800
+--- grub-0.97_splash/stage2/shared.h	2010-09-06 22:56:18.000000000 +0800
++++ grub-0.97_chinese/stage2/shared.h	2010-09-19 16:01:25.000000000 +0800
 @@ -479,6 +479,12 @@
   *  Below this should be ONLY defines and other constructs for C code.
   */
@@ -1491,7 +1477,7 @@ diff -Naur grub-0.97_splash/stage2/shared.h grub-0.97_chinese/stage2/shared.h
  /* multiboot stuff */
  
  #include "mb_header.h"
-@@ -1153,6 +1159,10 @@
+@@ -1175,6 +1181,10 @@
    char *short_doc;
    /* The long version of the documentation.  */
    char *long_doc;
@@ -1503,9 +1489,9 @@ diff -Naur grub-0.97_splash/stage2/shared.h grub-0.97_chinese/stage2/shared.h
  
  /* All the builtins are registered in this.  */
 diff -Naur grub-0.97_splash/stage2/stage2.c grub-0.97_chinese/stage2/stage2.c
---- grub-0.97_splash/stage2/stage2.c	2009-12-29 03:04:06.000000000 +0800
-+++ grub-0.97_chinese/stage2/stage2.c	2010-01-03 21:53:30.000000000 +0800
-@@ -128,6 +128,12 @@
+--- grub-0.97_splash/stage2/stage2.c	2010-09-19 02:06:17.000000000 +0800
++++ grub-0.97_chinese/stage2/stage2.c	2010-09-19 16:01:25.000000000 +0800
+@@ -126,6 +126,12 @@
  static void
  print_default_help_message (char *config_entries)
  {
@@ -1518,7 +1504,7 @@ diff -Naur grub-0.97_splash/stage2/stage2.c grub-0.97_chinese/stage2/stage2.c
        grub_printf ("\n Use the %c and %c keys to highlight an entry.",
  		   (unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
        
-@@ -143,18 +149,38 @@
+@@ -141,18 +147,38 @@
  	    }
  #endif
  #endif
@@ -1562,7 +1548,7 @@ diff -Naur grub-0.97_splash/stage2/stage2.c grub-0.97_chinese/stage2/stage2.c
  	}
  
        default_help_message_destoyed = 0;
-@@ -367,6 +393,8 @@
+@@ -407,6 +433,8 @@
    
    gotoxy (MENU_BOX_X - 2, y);
  
@@ -1571,7 +1557,7 @@ diff -Naur grub-0.97_splash/stage2/stage2.c grub-0.97_chinese/stage2/stage2.c
    grub_putchar (DISP_UL);
    for (i = 0; i < MENU_BOX_W + 1; i++)
      grub_putchar (DISP_HORIZ);
-@@ -394,6 +422,8 @@
+@@ -434,6 +462,8 @@
  
    gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
  
@@ -1580,7 +1566,7 @@ diff -Naur grub-0.97_splash/stage2/stage2.c grub-0.97_chinese/stage2/stage2.c
    if (current_term->setcolorstate)
      current_term->setcolorstate (COLOR_STATE_STANDARD);
  }
-@@ -648,8 +678,14 @@
+@@ -751,8 +781,14 @@
  	      /* Print a message.  */
  	      if (! silent_hiddenmenu)
  	      {
@@ -1597,7 +1583,7 @@ diff -Naur grub-0.97_splash/stage2/stage2.c grub-0.97_chinese/stage2/stage2.c
  	      }
  	    }
  	}
-@@ -685,7 +721,12 @@
+@@ -788,7 +824,12 @@
        print_default_help_message (config_entries);
  
        if (current_term->flags & TERM_DUMB)
@@ -1611,7 +1597,7 @@ diff -Naur grub-0.97_splash/stage2/stage2.c grub-0.97_chinese/stage2/stage2.c
        else
  	print_entries (first_entry, entryno, menu_entries, config_entries);
      }
-@@ -721,14 +762,25 @@
+@@ -824,14 +865,25 @@
  	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
  
  	  if (current_term->flags & TERM_DUMB)
@@ -1637,9 +1623,9 @@ diff -Naur grub-0.97_splash/stage2/stage2.c grub-0.97_chinese/stage2/stage2.c
 +	      else
 +#endif
  	      grub_sprintf (tmp_buf, " The highlighted entry will be booted automatically in %d seconds.", grub_timeout);
- 	      gotoxy (MENU_BOX_X - 2, MENU_BOX_H + 7);
- 	      for (i = 0; i < 79; i++)
-@@ -762,7 +814,14 @@
+ 	      gotoxy (0, MENU_BOX_B + 5);
+ 	      for (i = 0; i < current_term->chars_per_line - 1; i++)
+@@ -865,7 +917,14 @@
  	     since we're comming in here also on GRUB_TIMEOUT == -1 and
  	     hang in GETKEY */
  	  if (current_term->flags & TERM_DUMB)
@@ -1655,7 +1641,7 @@ diff -Naur grub-0.97_splash/stage2/stage2.c grub-0.97_chinese/stage2/stage2.c
  
  	  c = /*ASCII_CHAR*/ (getkey ());
  
-@@ -782,9 +841,6 @@
+@@ -885,9 +944,6 @@
  	    {
  	      int i;
  

@@ -106,7 +106,8 @@ read_from_preset_menu (char *buf, int max_len)
 #endif
 
 #define MENU_BOX_X	(menu_broder.menu_box_x)
-#define MENU_BOX_W	(menu_broder.menu_box_w)
+//#define MENU_BOX_W	(menu_broder.menu_box_w)
+#define MENU_BOX_W	(current_term->chars_per_line - 4)
 #define MENU_BOX_Y	(menu_broder.menu_box_y)
 /* window height */
 #define MENU_BOX_H	(menu_broder.menu_box_h?menu_broder.menu_box_h:(current_term->max_lines - 6 - menu_broder.menu_box_y)) //current_term->max_lines - 8
@@ -294,7 +295,7 @@ space_no_highlight:
 				else
 					grub_putchar (' ');
 			}
-			for (; x < 79; x++) grub_putchar (' ');
+			for (; x < current_term->chars_per_line - 1; x++) grub_putchar (' ');
 		}
 		//gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
 		//grub_putstr (++entry);
@@ -305,7 +306,7 @@ space_no_highlight:
 		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
 		{
 			gotoxy (0, j);
-			for (x = 0; x < 79; x++)
+			for (x = 0; x < current_term->chars_per_line - 1; x++)
 				grub_putchar (' ');
 		}
 		gotoxy (0, MENU_BOX_B + 1);
@@ -778,7 +779,7 @@ restart:
 		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
 		{
 			gotoxy (0, j);
-			for (x = 0; x < 79; x++)
+			for (x = 0; x < current_term->chars_per_line - 1; x++)
 				grub_putchar (' ');
 		}
 		gotoxy (0, MENU_BOX_B + 1);
@@ -833,7 +834,7 @@ restart:
 
 	      grub_sprintf (tmp_buf, " The highlighted entry will be booted automatically in %d seconds.", grub_timeout);
 	      gotoxy (0, MENU_BOX_B + 5);
-	      for (i = 0; i < 79; i++)
+	      for (i = 0; i < current_term->chars_per_line - 1; i++)
 	      {
 		if (ch)
 			ch = tmp_buf[i];

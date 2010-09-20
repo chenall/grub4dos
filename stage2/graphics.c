@@ -40,20 +40,25 @@ char splashimage[64];
 
 #define VSHADOW VSHADOW1
 /* 8x16 dot array, total chars = 80*30. plano size = 80*30*16 = 38400 bytes */
-static unsigned char *VSHADOW1 = (unsigned char *)0x3A0000;	//unsigned char VSHADOW1[38400];
-static unsigned char *VSHADOW2 = (unsigned char *)0x3A9600;	//unsigned char VSHADOW2[38400];
-static unsigned char *VSHADOW4 = (unsigned char *)0x3B2C00;	//unsigned char VSHADOW4[38400];
-static unsigned char *VSHADOW8 = (unsigned char *)0x3BC200;	//unsigned char VSHADOW8[38400];
+/* 8x16 dot array, total chars = 100*37. plano size = 800*600/8 = 60000 bytes */
+static unsigned char *VSHADOW1 = (unsigned char *)0x3A0000;	//unsigned char VSHADOW1[60000];
+static unsigned char *VSHADOW2 = (unsigned char *)0x3AEA60;	//unsigned char VSHADOW2[60000];
+static unsigned char *VSHADOW4 = (unsigned char *)0x3BD4C0;	//unsigned char VSHADOW4[60000];
+static unsigned char *VSHADOW8 = (unsigned char *)0x3CBF20;	//unsigned char VSHADOW8[60000]; end at 0x3DA980
 /* text buffer has to be kept around so that we can write things as we
  * scroll and the like */
 //static unsigned short text[80 * 30];
-static unsigned long *text = (unsigned long *)0x3C5800; // length in bytes = 80*30*4
+static unsigned long *text = (unsigned long *)0x3FC000; // length in bytes = 100*37*4 = 0x39D0
 
 /* constants to define the viewable area */
-const int x0 = 0;
-const int x1 = 80;
-const int y0 = 0;
-const int y1 = 30;
+const unsigned long x0 = 0;
+unsigned long x1 = 80;
+const unsigned long y0 = 0;
+unsigned long y1 = 30;
+unsigned long xpixels = 640;
+unsigned long ypixels = 480;
+unsigned long plano_size = 38400;
+unsigned long graphics_mode = 0x12;
 
 /* why do these have to be kept here? */
 int foreground = (63 << 16) | (63 << 8) | (63), background = 0, border = 0;
@@ -122,7 +127,24 @@ graphics_init (void)
 	
     if (! graphics_inited)
     {
-        saved_videomode = set_videomode (0x12);
+        saved_videomode = set_videomode (graphics_mode);
+
+	if (graphics_mode == 0x6A)
+	{
+		current_term->chars_per_line = x1 = 100;
+		current_term->max_lines = y1 = 37;
+		plano_size = 60000;
+		xpixels = 800;
+		ypixels = 600;
+	}
+	else
+	{
+		current_term->chars_per_line = x1 = 80;
+		current_term->max_lines = y1 = 30;
+		plano_size = 38400;
+		xpixels = 640;
+		ypixels = 480;
+	}
     }
 
     if (! read_image (splashimage))
@@ -181,10 +203,10 @@ graphics_putchar (int ch)
 
     //graphics_CURSOR(0);
 
-    text[fonty * 80 + fontx] = ch;
-    text[fonty * 80 + fontx] &= 0x00ff;
+    text[fonty * x1 + fontx] = ch;
+    text[fonty * x1 + fontx] &= 0x00ff;
     if (graphics_current_color & 0xf0)
-        text[fonty * 80 + fontx] |= 0x10000;//0x100;
+        text[fonty * x1 + fontx] |= 0x10000;//0x100;
 
     graphics_CURSOR(0);
 
@@ -236,7 +258,7 @@ graphics_cls (void)
     s4 = (unsigned char*)VSHADOW4;
     s8 = (unsigned char*)VSHADOW8;
 
-    for (i = 0; i < 80 * 30; i++)
+    for (i = 0; i < x1 * y1; i++)
         text[i] = ' ';
     graphics_CURSOR(1);
 
@@ -244,19 +266,19 @@ graphics_cls (void)
 
     /* plano 1 */
     MapMask(1);
-    grub_memcpy(mem, s1, 38400);
+    grub_memcpy(mem, s1, plano_size);
 
     /* plano 2 */
     MapMask(2);
-    grub_memcpy(mem, s2, 38400);
+    grub_memcpy(mem, s2, plano_size);
 
     /* plano 3 */
     MapMask(4);
-    grub_memcpy(mem, s4, 38400);
+    grub_memcpy(mem, s4, plano_size);
 
     /* plano 4 */
     MapMask(8);
-    grub_memcpy(mem, s8, 38400);
+    grub_memcpy(mem, s8, plano_size);
 
     MapMask(15);
  
@@ -328,7 +350,7 @@ read_image (char *s)
 	errnum = 0;
 	//graphics_set_palette(1, 0, 0, 0);
 	
-	for (i = 0; i < 38400 / 4; i++)
+	for (i = 0; i < plano_size / 4; i++)
 		((long *)s1)[i] = ((long *)s2)[i] = ((long *)s4)[i] = ((long *)s8)[i] = 0;
 
 	//for (y = 0, len = 0; y < 480; y++, len += 80) {
@@ -414,13 +436,11 @@ read_image (char *s)
         }
     }
 
-    x = y = len = 0;
-
-    for (i = 0; i < 38400 / 4; i++)
+    for (i = 0; i < plano_size / 4; i++)
 	((long *)s1)[i] = ((long *)s2)[i] = ((long *)s4)[i] = ((long *)s8)[i] = 0;
 
     /* parse xpm data */
-    while (y < height) {
+    for (y = len = 0; y < height && y < ypixels; ++y, len += x1) {
         while (1) {
             if (!grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
                 grub_close();
@@ -430,29 +450,25 @@ read_image (char *s)
                 break;
         }
 
-        while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && c != '"') {
-            for (i = 1; i < 15; i++)
+        for (x = 0; grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && c != '"'; ++x)
+	{
+            if (x < width && x < xpixels)
+            {
+              for (i = 1; i < 15; i++)
                 if (pal[i] == c) {
                     c = i;
                     break;
                 }
 
-            mask = 0x80 >> (x & 7);
-            if (c & 1)
+              mask = 0x80 >> (x & 7);
+              if (c & 1)
                 s1[len + (x >> 3)] |= mask;
-            if (c & 2)
+              if (c & 2)
                 s2[len + (x >> 3)] |= mask;
-            if (c & 4)
+              if (c & 4)
                 s4[len + (x >> 3)] |= mask;
-            if (c & 8)
+              if (c & 8)
                 s8[len + (x >> 3)] |= mask;
-
-            if (++x >= 640) {
-                x = 0;
-
-                if (y < 480)
-                    len += 80;
-                ++y;
             }
         }
     }
@@ -519,7 +535,7 @@ graphics_scroll (void)
 
         for (i = x0; i < x1; i++)
        	{
-            graphics_putchar (text[j * 80 + i]);
+            graphics_putchar (text[j * x1 + i]);
         }
     }
 
@@ -548,10 +564,10 @@ graphics_cursor (int set)
     if (set && no_scroll)
         return;
 
-    offset = cursorY * 80 + fontx;
-    ch = text[fonty * 80 + fontx] & 0xff;
+    offset = cursorY * x1 + fontx;
+    ch = text[fonty * x1 + fontx] & 0xff;
     if (ch != ' ' || ! disable_space_highlight)
-	invert = (text[fonty * 80 + fontx] & /*0xff00*/ 0xffff0000) != 0;
+	invert = (text[fonty * x1 + fontx] & /*0xff00*/ 0xffff0000) != 0;
     pat = font8x16 + (ch << 4);
 
     mem = (unsigned char*)VIDEOMEM + offset;
@@ -560,7 +576,7 @@ graphics_cursor (int set)
     {
         MapMask(15);
         ptr = mem;
-        for (i = 0; i < 16; i++, ptr += 80)
+        for (i = 0; i < 16; i++, ptr += x1)
        	{
             cursorBuf[i] = pat[i];
             *ptr = ~pat[i];
@@ -580,7 +596,7 @@ graphics_cursor (int set)
 	mask[i] = ~(mask[i]);
       }
 
-    for (i = 0; i < 16; i++, offset += 80)
+    for (i = 0; i < 16; i++, offset += x1)
     {
 	unsigned char m, p, c1, c2, c4, c8;
 
@@ -639,7 +655,7 @@ graphics_cursor (int set)
 
         MapMask(i);
         ptr = mem;
-        for (j = 0; j < 16; j++, ptr += 80)
+        for (j = 0; j < 16; j++, ptr += x1)
             *ptr = chr[j + offset];
     }
 

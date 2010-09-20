@@ -35,6 +35,7 @@ struct term_entry term_table[] =
     {
       "console",
       0,
+      80,
       25,
       console_putchar,
       console_checkkey,
@@ -53,6 +54,7 @@ struct term_entry term_table[] =
       "serial",
       /* A serial device must be initialized.  */
       TERM_NEED_INIT,
+      80,
       25,
       serial_putchar,
       serial_checkkey,
@@ -71,6 +73,7 @@ struct term_entry term_table[] =
     {
       "hercules",
       0,
+      80,
       25,
       hercules_putchar,
       console_checkkey,
@@ -88,6 +91,7 @@ struct term_entry term_table[] =
 #ifdef SUPPORT_GRAPHICS
     { "graphics",
       TERM_NEED_INIT, /* flags */
+      80,
       30, /* number of lines */
       graphics_putchar, /* putchar */
       console_checkkey, /* checkkey */
@@ -444,7 +448,7 @@ init_page (void)
 		(unsigned long)(saved_mem_upper >> 10),
 		(unsigned long long)(saved_mem_higher >> 10),
 		(unsigned int)(((char *) init_free_mem_start) + 256 * sizeof (char *) + config_len));
-  for (i = 0; i < 79; i++)
+  for (i = 0; i < current_term->chars_per_line - 1; i++)
   {
 	if (ch)
 		ch = tmp_buf[i];
@@ -519,7 +523,7 @@ add_history (const char *cmdline, int no)
 
 /* XXX: These should be defined in shared.h, but I leave these here,
 	until this code is freezed.  */
-#define CMDLINE_WIDTH	78
+#define CMDLINE_WIDTH	(current_term->chars_per_line - 2)
 #define CMDLINE_MARGIN	10
 /*  
 char *prompt;

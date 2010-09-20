@@ -1,3 +1,4 @@
+2010-09-19 added support for 800x600 graphics mode(SVGA mode 6A).
 2010-08-09 improved CHS probing code of map command on ISO9660 images.
 2010-08-04 finally find out the missing-extended-partition problem is caused by a gcc bug, and workarounds are created.
 2010-07-25 re-enabled the extended partition with logical partitions in disorder.

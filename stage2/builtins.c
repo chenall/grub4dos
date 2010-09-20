@@ -4853,7 +4853,7 @@ command_func (char *arg, int flags)
 		*(int *)(int)(psp_len + filemax) = 0;
 		free_mem_start &= 0xFFFFFFF0;
 		mem_alloc_array_start[j+1].addr = free_mem_start;/*next mem_alloc_array_start*/
-		mem_alloc_array_start[j+2].addr = 0;/*/* end the mem_alloc_array */
+		mem_alloc_array_start[j+2].addr = 0;/* end the mem_alloc_array */
 		/*run batch script*/
 		pid = script_run((char *)(int)psp_len, flags);
 		/*release memory. */
@@ -13537,6 +13537,61 @@ static struct builtin builtin_calc =
   "Available Operators: + - * / % << >> ^ & |"
   "\nNote: this is a Simple Calculator and From left to right only."
 };
+
+#ifndef GRUB_UTIL
+/* graphicsmode */
+static int
+graphicsmode_func (char *arg, int flags)
+{
+  extern unsigned long graphics_mode;
+  unsigned long long tmp_graphicsmode;
+  int old_graphics_mode = graphics_mode;
+
+  if (! *arg)
+  {
+    if (debug > 0)
+	grub_printf (" Current graphics mode setting is 0x%X\n", graphics_mode);
+  }
+  else if (safe_parse_maxint (&arg, &tmp_graphicsmode))
+  {
+    if (tmp_graphicsmode != 0x12 && tmp_graphicsmode != 0x6A)
+    {
+      errnum = ERR_BAD_ARGUMENT;
+      return 0;
+    }
+    if (graphics_mode != (unsigned long)tmp_graphicsmode)
+    {
+      graphics_mode = tmp_graphicsmode;
+      if (debug > 0)
+	grub_printf (" Graphics mode number set to 0x%X\n", graphics_mode);
+    }
+    else
+    {
+      if (debug > 0)
+	grub_printf (" Graphics mode number was already 0x%X\n", graphics_mode);
+    }
+  }
+  else
+  {
+    if (errnum == 0)
+      errnum = ERR_BAD_ARGUMENT;
+    return 0;
+  }
+
+  return old_graphics_mode;
+}
+
+static struct builtin builtin_graphicsmode =
+{
+  "graphicsmode",
+  graphicsmode_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  "graphicsmode [0x12 | 0x6A]",
+  "Display/set the graphics mode number for the next graphics init."
+  "\nReturn the current graphics mode setting."
+};
+#endif /* ! GRUB_UTIL */
+
 
 /* The table of builtin commands. Sorted in dictionary order.  */
 struct builtin *builtin_table[] =
@@ -13596,6 +13651,9 @@ struct builtin *builtin_table[] =
 #ifdef SUPPORT_GFX
   &builtin_gfxmenu,
 #endif
+#ifndef GRUB_UTIL
+  &builtin_graphicsmode,
+#endif /* ! GRUB_UTIL */
   &builtin_halt,
   &builtin_help,
   &builtin_hiddenflag,

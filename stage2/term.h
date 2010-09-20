@@ -64,6 +64,8 @@ struct term_entry
   const char *name;
   /* The feature flags defined above.  */
   unsigned long flags;
+  /* Default for screen width in chars if not specified */
+  unsigned short chars_per_line;
   /* Default for maximum number of lines if not specified */
   unsigned short max_lines;
   /* Put a character.  */
