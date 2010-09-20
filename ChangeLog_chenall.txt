@@ -1,4 +1,7 @@
-﻿2010-09-06
+﻿2010-09-16
+	1.修正一个产生Error 27的错误。
+
+2010-09-06
 	1.添加操作符号"|" ">"，输出重定向（有点类似DOS）
 	Implemented two syntactic operators "|" and ">".Like Dos Output redirection.
 	note: 1.use with "&&" and "||" ,the "|" and ">" must be at last.

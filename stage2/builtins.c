@@ -4853,6 +4853,7 @@ command_func (char *arg, int flags)
 		*(int *)(int)(psp_len + filemax) = 0;
 		free_mem_start &= 0xFFFFFFF0;
 		mem_alloc_array_start[j+1].addr = free_mem_start;/*next mem_alloc_array_start*/
+		mem_alloc_array_start[j+2].addr = 0;/*/* end the mem_alloc_array */
 		/*run batch script*/
 		pid = script_run((char *)(int)psp_len, flags);
 		/*release memory. */
