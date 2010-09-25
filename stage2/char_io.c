@@ -90,7 +90,7 @@ struct term_entry term_table[] =
 #endif /* SUPPORT_HERCULES */
 #ifdef SUPPORT_GRAPHICS
     { "graphics",
-      TERM_NEED_INIT, /* flags */
+      0/*TERM_NEED_INIT*/, /* flags */
       80,
       30, /* number of lines */
       graphics_putchar, /* putchar */

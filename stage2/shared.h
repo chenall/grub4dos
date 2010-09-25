@@ -60,6 +60,7 @@ extern char *grub_scratch_mem;
 #define SCRATCHADDR  RAW_ADDR (0x77e00)
 #define SCRATCHSEG   RAW_SEG (0x77e0)
 #else
+/* more than 1 sector used! See chainloader code. */
 #define SCRATCHADDR  RAW_ADDR (0x37e00)
 #define SCRATCHSEG   RAW_SEG (0x37e0)
 #endif

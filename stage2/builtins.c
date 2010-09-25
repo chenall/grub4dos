@@ -2488,18 +2488,41 @@ chainloader_func (char *arg, int flags)
 check_isolinux:
       if (((*(long long *)SCRATCHADDR) & 0xFFFFFFFFFF00FFFFLL) == 0x909000007C00EAFALL && filemax > 0x2000 && filemax < 0x20000)
 	{
-		for (p = (char *)(SCRATCHADDR + 0x40); p < (char *)(SCRATCHADDR + 0x140); p++)
+		/* Read the 2nd, 3rd and 4th sectors. */
+
+		/**********************************************/
+		/**** 4 sectors at SCRATCHADDR are used!!! ****/
+		/**********************************************/
+
+	    filepos = 0x200;
+
+	    if (grub_read ((unsigned long long) SCRATCHADDR+0x200, 0x600, 0xedde0d90) != 0x600)
+		goto failure_exec_format;
+
+	    for (p = (char *)(SCRATCHADDR + 0x40); p < (char *)(SCRATCHADDR + 0x7F3); p++)
+	    {
+		if (	*(unsigned long *)p == 0xBB0201B8 &&
+			*(unsigned long *)(p - 4) == 0 &&
+			*(unsigned long *)(p + 4) == 0x06B97C00 &&
+			*(unsigned long *)(p + 8) == 0x0180BA00 &&
+			*(unsigned short *)(p + 12) == 0x9A9C)
 		{
-			if (*(unsigned long *)p == 0xD08EC031 &&
-				*(unsigned short *)(p - 10) == 0x892E &&
-				*(unsigned short *)(p - 5) == 0x8C2E &&
-				*(unsigned char *)(p + 4) == 0xBC &&
-				*(unsigned char *)(p - 8) == 0x26 &&
-				*(unsigned char *)(p - 3) == 0x16)
-			{
-				goto isolinux_ok;
-			}
+			goto isolinux_ok;
 		}
+	    }
+		/* comment out old code */
+		//for (p = (char *)(SCRATCHADDR + 0x40); p < (char *)(SCRATCHADDR + 0x140); p++)
+		//{
+		//	if (*(unsigned long *)p == 0xD08EC031 &&
+		//		*(unsigned short *)(p - 10) == 0x892E &&
+		//		*(unsigned short *)(p - 5) == 0x8C2E &&
+		//		*(unsigned char *)(p + 4) == 0xBC &&
+		//		*(unsigned char *)(p - 8) == 0x26 &&
+		//		*(unsigned char *)(p - 3) == 0x16)
+		//	{
+		//		goto isolinux_ok;
+		//	}
+		//}
 		goto check_signature;	/* it is not isolinux. */
 isolinux_ok:
 	    if (buf_geom.sector_size != 2048)
@@ -3906,13 +3929,13 @@ splashimage_func(char *arg, int flags)
 
     strcpy(splashimage, arg);
 
-    /* get rid of TERM_NEED_INIT from the graphics terminal. */
-    for (i = 0; term_table[i].name; i++) {
-	if (grub_strcmp (term_table[i].name, "graphics") == 0) {
-	    term_table[i].flags &= ~TERM_NEED_INIT;
-	    break;
-	}
-    }
+//    /* get rid of TERM_NEED_INIT from the graphics terminal. */
+//    for (i = 0; term_table[i].name; i++) {
+//	if (grub_strcmp (term_table[i].name, "graphics") == 0) {
+//	    term_table[i].flags &= ~TERM_NEED_INIT;
+//	    break;
+//	}
+//    }
     
     //graphics_set_splash (splashimage);
 

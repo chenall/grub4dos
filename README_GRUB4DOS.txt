@@ -3963,3 +3963,23 @@ map --mem-max=, map --mem-min options to be used before map --mem. Allow user
 safe_parse_maxint_with_suffix function parses K,M,G,T suffix after number.
 
 
+******************************************************************************
+***                 Graphics mode 6A: 800x600 with 16 colors               ***
+******************************************************************************
+
+Graphics mode now has 2 possibilities, one is the default 640x480 mode, and the
+other is 800x600 mode.
+
+To enter 800x600 mode, follow this way:
+
+1. Be sure you are in console text mode. You may execute "terminal console".
+2. Set graphics mode to 0x6A by using command "graphicsmode 0x6A".
+3. Enter graphics mode. You may execute command "terminal graphics".
+
+To return to 640x480 mode, follow this way:
+
+1. Be sure you are in console text mode. You may execute "terminal console".
+2. Set graphics mode to 0x12 by using command: "graphicsmode 0x12".
+3. Enter graphics mode. You may execute command "terminal graphics".
+
+
