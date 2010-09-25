@@ -4721,40 +4721,7 @@ int
 command_func (char *arg, int flags)
 {
   while (*arg == ' ' || *arg == '\t') arg++;
-  if ((unsigned char)*arg < 0x20)
-  {
-	if (debug > 0)
-		printf("Current default path: %s\n",command_path);
-	return 20;
-  }
-	
-	if (grub_memcmp (arg, "--set-path=", 11) == 0)
-	{
-		arg += 11;
-		if (strlen(arg) >= 127)
-		{
-			if (debug > 0)
-				printf("Set default command path error: PATH is too long \n");
-			return 0;
-		}
-		if (! *arg)
-			return sprintf(command_path,"(bd)/grub/\0");
-		int j;
 
-		for (j = 0; j < 126; j++)
-		{
-			if (*arg == 0x20 || *arg == '\t' || *arg == 0)
-			{
-				break;
-			}
-			command_path[j] = *arg;
-			arg++;
-		}
-		
-		if (command_path[j-1] != '/') command_path[j++] = '/';
-		command_path[j] = 0;
-		return 1;
-	}
   if (! flags)	/* check syntax only */
   {
     if (*arg == '/' || *arg == '(' || *arg == '+')
@@ -4767,7 +4734,41 @@ command_func (char *arg, int flags)
 	return 1;
     return 0;
   }
+  
+   if ((unsigned char)*arg < 0x20)
+   {
+      if (debug > 0)
+	 printf("Current default path: %s\n",command_path);
+      return 20;
+   }
+	
+   if (grub_memcmp (arg, "--set-path=", 11) == 0)
+   {
+      arg += 11;
+      if (strlen(arg) >= 127)
+      {
+	 if (debug > 0)
+	      printf("Set default command path error: PATH is too long \n");
+	 return 0;
+      }
+      if (! *arg)
+	    return sprintf(command_path,"(bd)/grub/\0");
+      int j;
 
+      for (j = 0; j < 126; j++)
+      {
+	 if (*arg == 0x20 || *arg == '\t' || *arg == 0)
+	 {
+		 break;
+	 }
+	 command_path[j] = *arg;
+	 arg++;
+      }
+
+      if (command_path[j-1] != '/') command_path[j++] = '/';
+      command_path[j] = 0;
+      return 1;
+   }
   /* open the command file. */
   {
 	char *filename;
@@ -13489,14 +13490,12 @@ calc_func (char *arg, int flags)
       }
    }
 
-   if (arg[0] == arg[1])
+   if ((arg[0] == arg[1]) && (arg[0] == '+' || arg[0] == '-'))
    {
       if (arg[0] == '+')
-	 *p_result += 1;
-      else if (arg[0] == '-')
-	 *p_result -= 1;
+	 (*p_result)++;
       else
-	 return 0;
+	 (*p_result)--;
       arg += 2;
       while (*arg == ' ') arg++;
    }
@@ -13649,7 +13648,27 @@ static struct builtin builtin_graphicsmode =
   "\nReturn the current graphics mode setting."
 };
 #endif /* ! GRUB_UTIL */
-
+
+/* init_file */
+char menu_init_script_file[32];
+static int
+initscript_func (char *arg, int flags)
+{
+	if (grub_strlen(arg) > 32 || ! grub_open (arg))
+	{
+		return 0;
+	}
+	grub_close();
+	grub_strcpy (menu_init_script_file , arg);
+	return 1;
+}
+ 
+static struct builtin builtin_initscript =
+{
+  "initscript",
+  initscript_func,
+  BUILTIN_MENU,
+};
 
 /* The table of builtin commands. Sorted in dictionary order.  */
 struct builtin *builtin_table[] =
@@ -13722,6 +13741,7 @@ struct builtin *builtin_table[] =
 #endif /* SUPPORT_NETBOOT */
 //  &builtin_impsprobe,
   &builtin_initrd,
+  &builtin_initscript,
 #ifdef GRUB_UTIL
   &builtin_install,
 #endif /* GRUB_UTIL */

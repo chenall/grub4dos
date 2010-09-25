@@ -1,4 +1,13 @@
 ﻿2010-09-25
+	1.修正calc计算的一个逻辑错误。
+	2.使用fbinst启动默认root设为ud
+	set boot_drive to fb_drive(ud) if boot from fbinst.
+	3.添加一个新的命令initscript，只能用于菜单中。
+	  initscript用于初始化菜单，每次返回菜单时在显示完菜单后执行。
+	  有时候会需要这样的功能，比如执行某个菜单失败后返回菜单时重新执行一次初始化。
+	initscript /initscript.g4d
+	
+2010-09-25
 	1.简易计算器调整.如果没有"="则不保存计算结果,但++和--除外.
 	例子:
 		calc *0x60000 + 4 不保存计算结果,所以内存指向*0x60000的值不会被改变.

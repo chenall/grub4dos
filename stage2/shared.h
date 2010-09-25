@@ -965,6 +965,7 @@ extern unsigned long extended_memory;
 extern unsigned long init_free_mem_start;
 extern int config_len;
 #endif
+extern char menu_init_script_file[32];
 
 /*
  *  Error variables.

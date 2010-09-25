@@ -324,6 +324,7 @@ real_codestart:
 	movl	(0x21ae), %eax
 	movb	(0x21ad), %al
 	movl	%eax, ABS(EXT_C(fb_status))
+	movb	$(FB_DRIVE),%dl
 1:
 	movb	0x0410, %al
 	movb	%al, ABS(EXT_C(floppies_orig))

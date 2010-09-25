@@ -806,6 +806,7 @@ restart:
 	print_entries (first_entry, entryno, menu_entries, config_entries);
     }
 
+   if (menu_init_script_file[0] != 0 )	command_func(menu_init_script_file,BUILTIN_MENU);
 
   /* XX using RT clock now, need to initialize value */
   while ((time1 = getrtsecs()) == 0xFF);
@@ -2175,7 +2176,7 @@ restart_config:
 	int state = 0, prev_config_len = 0;
 	char *cmdline;
 	int is_preset;
-
+	 menu_init_script_file[0] = 0;
 	{
 	    int is_opened;
 
