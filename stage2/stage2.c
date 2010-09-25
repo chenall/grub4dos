@@ -107,7 +107,7 @@ read_from_preset_menu (char *buf, int max_len)
 
 #define MENU_BOX_X	(menu_broder.menu_box_x)
 //#define MENU_BOX_W	(menu_broder.menu_box_w)
-#define MENU_BOX_W	(current_term->chars_per_line - 4)
+#define MENU_BOX_W	(menu_broder.menu_box_w ? menu_broder.menu_box_w : current_term->chars_per_line - 4)
 #define MENU_BOX_Y	(menu_broder.menu_box_y)
 /* window height */
 #define MENU_BOX_H	(menu_broder.menu_box_h?menu_broder.menu_box_h:(current_term->max_lines - 6 - menu_broder.menu_box_y)) //current_term->max_lines - 8
@@ -121,7 +121,20 @@ read_from_preset_menu (char *buf, int max_len)
 static long temp_entryno;
 static char * *titles;	/* title array, point to 256 strings. */
 static int default_help_message_destoyed = 1;
-struct broder menu_broder = {218,191,192,217,196,179,2,76,2,0,0};
+/*
+	unsigned char disp_ul;
+	unsigned char disp_ur;
+	unsigned char disp_ll;
+	unsigned char disp_lr;
+	unsigned char disp_horiz;
+	unsigned char disp_vert;
+	unsigned char menu_box_x; // line start 
+	unsigned char menu_box_w; // line width 
+	unsigned char menu_box_y; // first line number 
+	unsigned char menu_box_h;
+	unsigned char menu_box_b;
+*/
+struct broder menu_broder = {218,191,192,217,196,179,2,0,2,0,0};
 
 static void
 print_default_help_message (char *config_entries)

@@ -13440,114 +13440,144 @@ builtin_cmd (char *cmd, char *arg, int flags)
 */
 }
 
-static unsigned long long read_val(char **str_ptr)
+static int read_val(char **str_ptr,unsigned long long *val)
 {
-	char *p;
-	char *arg = *str_ptr;
-	unsigned long long val_t;
-	unsigned long long val;
-	while (*arg == ' ' || *arg == '\t') arg++;
-	p = arg;
-	if (*arg == '*') arg++;
-	if (! safe_parse_maxint_with_suffix (&arg, &val_t , 0))
-	{
-		return 0;
-	}
-	val = val_t;
-	if (*p == '*')
-	{
-		val = *(unsigned long long *)(unsigned long)val_t;
-	}
-	while (*arg == ' ' || *arg == '\t') arg++;
-	*str_ptr = arg;
-	return val;
+      char *p;
+      char *arg = *str_ptr;
+      while (*arg == ' ' || *arg == '\t') arg++;
+      p = arg;
+      if (*arg == '*') arg++;
+      
+      if (! safe_parse_maxint_with_suffix (&arg, val, 0))
+      {
+	 return 0;
+      }
+      
+      if (*p == '*')
+      {
+	 *val = *((unsigned long long *)(int)*val);
+      }
+      
+      while (*arg == ' ' || *arg == '\t') arg++;
+      *str_ptr = arg;
+      return 1;
 }
 
 static int
 calc_func (char *arg, int flags)
 {
-	unsigned long long val_t;
-	unsigned long long *val, val1, val2 = 0;
-	char O;
-	char *P = arg;
-	if (*P == '*') arg++;
-	if (! safe_parse_maxint_with_suffix (&arg, &val_t, 0))
-	{
-		return 0;
-	}
-	val1 = val_t;
-	val = &val1;
-	if (*P == '*') 
-	{
-		val = (unsigned long long *)(unsigned long)(val_t);
-		val1 = *val;
-	}
-	
-	while (*arg == ' ' || *arg == '\t') arg++;
-	if (*arg == '=')
-	{
-		arg++;
-		val1 = read_val(&arg);
-		*val = val1;
-	}
-	while (*arg)
-	{
-		val2 = 0ULL;
-		O = *arg;
-		arg++;
-		if (O == '>' || O == '<')
-		{
-			if (*arg != O)
-				return 0;
-			arg++;
-		}
-		else if ((O == '+' || O == '-') && (*arg == O))
-		{
-			val2 = 1ULL;
-			arg++;
-		}
-		if (!val2)
-			val2 = read_val(&arg);
-		switch(O)
-		{
-			case '+':
-				*val += val2;
-				break;
-			case '-':
-				*val -= val2;
-				break;
-			case '*':
-				*val *= val2;
-				break;
-			case '/':
-				*(unsigned long *)val /= (unsigned long)val2;
-				break;
-			case '%':
-				*(unsigned long *)val %= (unsigned long)val2;
-				break;
-			case '&':
-				*val &= val2;
-				break;
-			case '|':
-				*val |= val2;
-				break;
-			case '^':
-				*val ^= val2;
-				break;
-			case '<':
-				*val <<= val2;
-				break;
-			case '>':
-				*val >>= val2;
-				break;
-			default:
-				return 0;
-		}
-	}
-//	val1 = *val;
-	if (debug > 0)
-		printf(" %ld (HEX:0x%lX)\n",*val,*val);
-	return *val;
+   unsigned long long val1 = 0;
+   unsigned long long val2 = 0;
+   unsigned long long *p_result = &val1;
+   char O;
+   
+   if (*arg == '*')
+   {
+      arg++;
+      if (! safe_parse_maxint_with_suffix (&arg, &val1, 0))
+      {
+	 return 0;
+      }
+      p_result = (unsigned long long *)(int)val1;
+      while (*arg == ' ') arg++;
+   }
+   else
+   {
+      if (!read_val(&arg, p_result))
+      {
+	 return 0;
+      }
+   }
+
+   if (arg[0] == arg[1])
+   {
+      if (arg[0] == '+')
+	 *p_result += 1;
+      else if (arg[0] == '-')
+	 *p_result -= 1;
+      else
+	 return 0;
+      arg += 2;
+      while (*arg == ' ') arg++;
+   }
+
+   if (*arg == '=')
+   {
+      arg++;
+      if (! read_val(&arg, p_result))
+	 return 0;
+   }
+   else if (p_result != &val1)
+   {
+      val1 = *p_result;
+      p_result = &val1;
+   }
+
+   while (*arg)
+   {
+      val2 = 0ULL;
+      O = *arg;
+      arg++;
+
+      if (O == '>' || O == '<')
+      {
+	 if (*arg != O)
+		 return 0;
+	 arg++;
+      }
+      
+      if ((O == '+' || O == '-') && (*arg == O))
+      {
+	 val2 = 1ULL;
+	 arg++;
+	 while (*arg == ' ') arg++;
+      }
+      else
+      {
+	 if (! read_val(&arg, &val2))
+	    return 0;
+      }
+
+      switch(O)
+      {
+	 case '+':
+		 *p_result += val2;
+		 break;
+	 case '-':
+		 *p_result -= val2;
+		 break;
+	 case '*':
+		 *p_result *= val2;
+		 break;
+	 case '/':
+		 *(unsigned long *)p_result /= (unsigned long)val2;
+		 break;
+	 case '%':
+		 *(unsigned long *)p_result %= (unsigned long)val2;
+		 break;
+	 case '&':
+		 *p_result &= val2;
+		 break;
+	 case '|':
+		 *p_result |= val2;
+		 break;
+	 case '^':
+		 *p_result ^= val2;
+		 break;
+	 case '<':
+		 *p_result <<= val2;
+		 break;
+	 case '>':
+		 *p_result >>= val2;
+		 break;
+	 default:
+		 return 0;
+      }
+   }
+   
+   if (debug > 0)
+	  printf(" %ld (HEX:0x%lX)\n",*p_result,*p_result);
+   return *p_result;
 }
 
 static struct builtin builtin_calc =
@@ -13585,6 +13615,11 @@ graphicsmode_func (char *arg, int flags)
     if (graphics_mode != (unsigned long)tmp_graphicsmode)
     {
       graphics_mode = tmp_graphicsmode;
+       if (graphics_inited)
+      {
+	 current_term->shutdown();
+	 current_term->startup();
+      }
       if (debug > 0)
 	grub_printf (" Graphics mode number set to 0x%X\n", graphics_mode);
     }
