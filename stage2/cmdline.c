@@ -33,11 +33,29 @@
 char *
 skip_to (int after_equal, char *cmdline)
 {
+   if (after_equal == 0xd)
+   {
+      while (*cmdline++)
+      {
+	 if (*cmdline == '\r' || *cmdline == '\n')
+	 {
+	    *cmdline++ = 0;
+	    while (*cmdline == '\r' || *cmdline == '\n' || *cmdline == ' ' || *cmdline == '\t') cmdline++;
+	    if (*cmdline == ':') continue;
+	    break;
+	 }
+      }
+      return *cmdline?cmdline:0;
+   }
   /* Skip until we hit whitespace, or maybe an equal sign. */
   while (*cmdline && *cmdline != ' ' && *cmdline != '\t' &&
 	 ! (after_equal && *cmdline == '='))
   {
-	if (*cmdline == '\\')
+	if (*cmdline == '\"')
+	{
+	    while (*++cmdline && *cmdline != '\"');
+	}
+	else if (*cmdline == '\\')
 	{
 		cmdline ++;
 		if (*cmdline == 0)
@@ -139,10 +157,11 @@ int run_line (char *heap,int flags)
 			case 0x7C7C://	operator OR "||"
 				status = 2;
 				break;
-			case 0x202E://	! 
+			case 0x2021://	! 
 				status = 4;
 				break;
 			case 0x207C:// |
+			case 0x007C:
 				putchar_st.flag = 1;
 				putchar_st.addr = PRINTF_BUFFER;
 				status = 8;
@@ -187,7 +206,7 @@ int run_line (char *heap,int flags)
 		{
 			while(*(p = skip_to (0, p)))
 			{
-				if (*(unsigned short *)p == 0x202E)
+				if (*(unsigned short *)p == 0x2021)
 				{
 					p = arg = skip_to (0,p);
 					errnum = 0;
@@ -199,8 +218,6 @@ int run_line (char *heap,int flags)
 
 	}
 
-	if (! *arg) return 0;
-
 	if (putchar_st.flag == 2)
 	{
 		ret = errnum;
@@ -211,18 +228,31 @@ int run_line (char *heap,int flags)
 			errnum = ret;
 		return !errnum;
 	}
-	else if (putchar_st.flag)
+	
+	if (putchar_st.flag == 1)
 	{
 		int len;
+		putchar_st.flag = 0;
 		if ((len = strlen(arg)) > 0x200) return 0;
+		*putchar_st.addr = 0; //terminate
 		putchar_st.addr = PRINTF_BUFFER;
+	        if (len > 0) *--putchar_st.addr = 0x20;
 		for (;len;len--)
 		{
 			*--putchar_st.addr = arg[len-1];
 		}
-		arg = putchar_st.addr;
-		putchar_st.flag = 0;
+		while (*putchar_st.addr == '\"' || *putchar_st.addr == ' ') putchar_st.addr++; //skip '"' and space
+		if (*putchar_st.addr == '\0')
+		{
+		  return ret;
+		}
+		else
+		{
+		  return run_line (putchar_st.addr,flags);
+		}
 	}
+
+	if (! *arg) goto next;	
 	/* Run BUILTIN->FUNC.  */
 	builtin = find_command (arg);
 
@@ -237,7 +267,6 @@ int run_line (char *heap,int flags)
 	}
 	
 next:
-	putchar_st.flag = 0;
 	if (errnum) return 0;
 	return 1;
 }

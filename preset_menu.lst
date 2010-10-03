@@ -5,9 +5,9 @@ timeout 1
 
 title find /menu.lst, /boot/grub/menu.lst, /grub/menu.lst
 	errorcheck off
-	configfile /MENU.LST
-	configfile /BOOT/GRUB/MENU.LST
-	configfile /GRUB/MENU.LST
+	configfile /menu.lst || configfile /MENU.LST
+	configfile /boot/grub/menu.lst || configfile /BOOT/GRUB/MENU.LST
+	configfile /grub/menu.lst
 	find --set-root --ignore-floppies --ignore-cd /menu.lst && configfile /menu.lst
 	find --set-root --ignore-floppies --ignore-cd /boot/grub/menu.lst && configfile /boot/grub/menu.lst
 	find --set-root --ignore-floppies --ignore-cd /grub/menu.lst && configfile /grub/menu.lst

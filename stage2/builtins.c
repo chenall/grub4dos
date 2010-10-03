@@ -4684,7 +4684,7 @@ static struct builtin builtin_fallback =
 /* command */
 char command_path[128]="(bd)/grub/";
 static int script_run (char *arg, int flags);
-
+#if 0
 static char* next_line(char *arg)
 {
 	char *P=arg;
@@ -4702,18 +4702,17 @@ static char* next_line(char *arg)
 	}
 	return 0;
 }
-
+#endif
 static int script_run (char *arg, int flags)
 {
-	char *P = next_line(arg);//skip head
+	char *P = skip_to(0xd,arg);//skip head
 	if (!(arg = P)) return 0;
-	while ((P = next_line(arg)))
+	while ((P = skip_to(0xd,arg)))
 	{
 		if (! run_line (arg,flags))
 			return 0;
 		arg = P;
 	}
-
 	return run_line (arg,flags);
 }
 
@@ -13525,17 +13524,8 @@ calc_func (char *arg, int flags)
 	 arg++;
       }
       
-      if ((O == '+' || O == '-') && (*arg == O))
-      {
-	 val2 = 1ULL;
-	 arg++;
-	 while (*arg == ' ') arg++;
-      }
-      else
-      {
-	 if (! read_val(&arg, &val2))
-	    return 0;
-      }
+      if (! read_val(&arg, &val2))
+	 return 0;
 
       switch(O)
       {
@@ -13670,6 +13660,115 @@ static struct builtin builtin_initscript =
   BUILTIN_MENU,
 };
 
+static int echo_func (char *arg,int flags)
+{
+   int saved_xy = 0;
+   int x,y;
+   x = y = getxy() & 0xffff;
+   x >>= 8;
+   y &= 0xff;
+
+   for(;;)
+   {
+      if (grub_memcmp(arg,"-P:",3) == 0)
+      {
+	 arg += 3;
+	 char c = 0;
+	 if (*arg == '-') c=*arg++;
+	 y = ((*arg++ - '0') & 15)*10;
+	 y += ((*arg++ - '0') & 15);
+	 if ( c != '\0' )
+	 {
+	    y = current_term->max_lines - y;
+	    c = '\0';
+	 }
+
+	 if (*arg == '-') c = *arg++;
+	 
+	 x = ((*arg++ - '0') & 15)*10;
+	 x += ((*arg++ - '0') & 15);
+	 if (c != 0) x = current_term->chars_per_line - x;
+	 saved_xy = getxy();
+	 arg = skip_to (0,arg);
+	 gotoxy(x,y);
+      }
+      else if (grub_memcmp(arg,"-h",2) == 0 )
+      {
+	 int i,j;
+	 printf("01234567  -Light-  01234567");
+	 for (i=0;i<8;i++)
+	 {
+	    if (y < current_term->max_lines-1)
+	       y++;
+	    else
+	       putchar('\n');
+
+	    gotoxy(x,y);
+
+	    for (j=0;j<8;j++)
+	    {
+	       console_current_color = (i << 4) | j;
+	       putchar(65);
+	    }
+
+	    console_current_color = A_NORMAL;
+	    printf(" [%d]Light- ",i);
+	    for (j=0;j<8;j++)
+	    {
+	       console_current_color = (i << 4) | j | 8;
+	       putchar(65);
+	    }
+	    console_current_color = A_NORMAL;
+	 }
+	 console_current_color = A_NORMAL;
+	 if (saved_xy) gotoxy((saved_xy >> 8) & 0xff,saved_xy & 0xff);//restor cursor
+	 return 1;
+      }
+      else break;
+   }
+
+   flags = parse_string(arg);
+   arg[flags] = 0;
+
+   for(;*arg;arg++)
+   {
+      if (*arg == '$' && arg[1] == '[' && (arg[2] == ']' || arg[6] == ']'))
+      {
+	 if (arg[2] == ']')
+	 {
+	    if (current_term->setcolorstate)
+	       current_term->setcolorstate (COLOR_STATE_STANDARD);
+	 }
+	 else
+	 {
+	    int char_attr = 0;
+	    char_attr |= (arg[2] == '0')?0:0x80;
+	    char_attr |= (arg[3] == '0')?0:8;
+	    char_attr |= ((arg[4] - '0') & 7) << 4;
+	    char_attr |= ((arg[5] - '0') & 7);
+	    console_current_color = char_attr;
+	    arg += 6;
+	 }
+      }
+      else
+      {
+	    grub_putchar(*arg);
+      }
+   }
+
+   if (current_term->setcolorstate)
+	  current_term->setcolorstate (COLOR_STATE_STANDARD);
+   if (saved_xy) gotoxy((saved_xy >> 8) & 0xff,saved_xy & 0xff);//restor cursor
+   return 1;
+}
+static struct builtin builtin_echo =
+{
+   "echo",
+   echo_func,
+   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
+};
+
+
 /* The table of builtin commands. Sorted in dictionary order.  */
 struct builtin *builtin_table[] =
 {
@@ -13714,6 +13813,11 @@ struct builtin *builtin_table[] =
   &builtin_displaymem,
 #ifdef GRUB_UTIL
   &builtin_dump,
+#endif /* GRUB_UTIL */
+#ifndef GRUB_UTIL
+  &builtin_echo,
+#endif
+#ifdef GRUB_UTIL
   &builtin_embed,
 #endif /* GRUB_UTIL */
   &builtin_errnum,
@@ -13741,7 +13845,9 @@ struct builtin *builtin_table[] =
 #endif /* SUPPORT_NETBOOT */
 //  &builtin_impsprobe,
   &builtin_initrd,
+#ifndef GRUB_UTIL
   &builtin_initscript,
+#endif
 #ifdef GRUB_UTIL
   &builtin_install,
 #endif /* GRUB_UTIL */

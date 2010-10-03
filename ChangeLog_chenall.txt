@@ -1,4 +1,19 @@
-﻿2010-09-25
+﻿2010-10-03
+	1.使用操作符"|"时默认自动添加空格,并解决使用"|"时可能导致死机或重启的问题。
+
+2010-09-30
+	1.修正操作符号!失效的问题。
+	2.恢复内置菜单的大写MENU.LST为小写（保持兼容性）。
+	3.内置echo命令。
+	用法：
+	  echo [-P:[-]XX[-]YY] MESSAGE
+	XX: Line number.
+	YY: Column number.
+	
+	XXYY指定后面MESSAGE要显示的位置。
+	XX指定行号，YY指定列号。前导“－”，即倒数.
+
+2010-09-25
 	1.修正calc计算的一个逻辑错误。
 	2.使用fbinst启动默认root设为ud
 	set boot_drive to fb_drive(ud) if boot from fbinst.
