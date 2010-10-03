@@ -13639,6 +13639,7 @@ static struct builtin builtin_graphicsmode =
 };
 #endif /* ! GRUB_UTIL */
 
+#ifndef GRUB_UTIL
 /* init_file */
 char menu_init_script_file[32];
 static int
@@ -13767,6 +13768,7 @@ static struct builtin builtin_echo =
    echo_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
 };
+#endif
 
 
 /* The table of builtin commands. Sorted in dictionary order.  */

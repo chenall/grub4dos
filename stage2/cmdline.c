@@ -144,7 +144,7 @@ int run_line (char *heap,int flags)
 {
 	char *p;
 	char *arg = heap;
-	int ret;
+	int ret = 0;
 	int status;
 	struct builtin *builtin;
 	for (p = arg; *p != 0; p = skip_to (0, p))
@@ -300,7 +300,7 @@ enter_cmdline (char *heap, int forever)
   while (1)
     {
       struct builtin *builtin;
-      char *arg;
+//      char *arg;
       grub_error_t errnum_old;
 
       errnum_old = errnum;

@@ -805,9 +805,9 @@ restart:
       else
 	print_entries (first_entry, entryno, menu_entries, config_entries);
     }
-
+#ifndef GRUB_UTIL
    if (menu_init_script_file[0] != 0 )	command_func(menu_init_script_file,BUILTIN_MENU);
-
+#endif
   /* XX using RT clock now, need to initialize value */
   while ((time1 = getrtsecs()) == 0xFF);
 
@@ -2176,7 +2176,9 @@ restart_config:
 	int state = 0, prev_config_len = 0;
 	char *cmdline;
 	int is_preset;
+	#ifndef GRUB_UTIL
 	 menu_init_script_file[0] = 0;
+	#endif
 	{
 	    int is_opened;
 
