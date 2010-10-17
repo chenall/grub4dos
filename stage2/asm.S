@@ -1132,6 +1132,120 @@ ENTRY(grub_halt)
 	testl	%eax, %eax
 	jnz	EXT_C(stop)
 
+	/* try ACPI */
+
+	pushal
+
+	/* search for RSDP in 1st 1KB of Extended BIOS Data Area (EBDA) */
+	movzwl	0x40E, %eax		/* EBDA segment */
+	testw	%ax, %ax		/* segment should >= 0x8000 */
+	jns	2f			/* No EBDA */
+	shll	$4, %eax		/* EAX=physical address */
+	//jz	2f			/* No EBDA */
+
+	movl	$(1024/16), %ecx
+	call	find_rsdp
+	jnc	3f			/* rsdp found */
+2:
+	/* search for RSDP in ROM space 0xE0000-0xFFFFF */
+	movl	$0xE0000, %eax
+	movl	$(0x20000/0x10), %ecx
+	call	find_rsdp
+	jc	1f			/* no acpi */
+3:
+	movl	16(%eax), %esi		/* physical address of RSDT */
+	cmpl	$0x54445352, (%esi)	/* 'RSDT' */
+	jnz	1f			/* no acpi */
+	mov	4(%esi), %ecx		/* RSDT length */
+	subl	$0x24, %ecx
+	jbe	1f			/* no acpi */
+	shrl	$2, %ecx
+	addl	$0x24, %esi
+4://find_facp:
+	lodsl
+	movl	%eax, %ebx
+	cmpl	$0x50434146, (%ebx)	/* 'FACP' */
+	jz	5f			/* facp found */
+	loop	4b			/* continue */
+	jmp	1f			/* no acpi */
+5://facp_found:
+	movl	40(%ebx), %edi		/* physical address of DSDT */
+	cmpl	$0x54445344, (%edi)	/* 'DSDT' */
+	jnz	1f			/* no acpi */
+	mov	4(%edi), %eax		/* DSDT length */
+	subl	$40, %eax
+	jbe	1f			/* no acpi */
+	addl	$36, %edi
+6://find_dsdt:
+	cmpl	$0x5F35535F, (%edi)	/* '_S5_' */
+	jnz	7f
+	cmpb	$0x12, 4(%edi)		/* DefPackage opcode */
+	jnz	7f
+	movb	6(%edi), %dl
+	cmpb	$4, %dl		/* _S5_ package must contain 4 bytes */
+				/* but VirtualBox has only 2 bytes   */
+	ja	7f
+	cmpb	$1, %dl
+	jb	7f
+	leal	7(%edi), %edi
+	xorl	%ecx, %ecx
+	cmpb	$0, (%edi)	/* 0 means 0 byte */
+	jz	8f
+	cmpb	$0xA, (%edi)	/* 0A xx means byte xx */
+	jnz	1f			/* no acpi */
+	incl	%edi
+	movb	(%edi), %cl
+8:
+	incl	%edi
+	cmpb	$2, %dl
+	jb	8f
+	cmpb	$0, (%edi)
+	jz	8f
+	cmpb	$0xA, (%edi)
+	jnz	1f			/* no acpi */
+	incl	%edi
+	movb	(%edi), %ch
+8:
+	jmp	9f			/* power off */
+7://find_dsdt2:
+	incl	%edi
+	decl	%eax
+	jnz	6b
+	jmp	1f			/* no acpi */
+9://acpi_power_off:
+	movl	48(%ebx), %edx
+	testl	%edx, %edx
+	jz	10f
+	movb	52(%ebx), %al
+	outb	%al, %dx
+	movl	64(%ebx), %edx
+11:
+	inw	%dx, %ax
+	testb	$1, %al
+	jz	11b
+10://no_smi:
+	andw	$0x0707, %cx
+	shlw	$2, %cx
+	orw	$0x2020, %cx
+	movl	64(%ebx), %edx
+	inw	%dx, %ax
+	andw	$0x0203, %ax
+	orb	%cl, %ah
+	outw	%ax, %dx
+	movl	68(%ebx), %edx
+	testl	%edx, %edx
+	jz	12f
+	inw	%dx, %ax
+	andw	$0x0203, %ax
+	orb	%ch, %ah
+	outw	%ax, %dx
+12:
+	//jmp	12b
+1:
+	popal
+
+	/* ACPI failed, try APM */
+
 	call	EXT_C(prot_to_real)
 
 	.code16
@@ -1143,6 +1257,7 @@ ENTRY(grub_halt)
 	//sti		/* this is not needed here, so comment it out. */
 	sti	#; added 2006-11-30
 
+#if 0
 	/* detect APM */
 	movw	$0x5300, %ax
 	xorw	%bx, %bx
@@ -1180,6 +1295,96 @@ ENTRY(grub_halt)
 	/* shouldn't reach here */
 	//jmp	EXT_C(hard_stop)
 1:
+#else
+
+//	jmp	1f
+
+	movw	$0x5300, %ax	/* installation check (v1.0+)       */
+	xorw	%bx, %bx	/* device ID of system BIOS (0000h) */
+	int	$0x15		/* CF set on error, AH=error code   */
+
+//9:
+//	sti
+//	hlt
+//	jmp	9b
+
+	jc	1f		/* No APM present, fail             */
+
+	pushw	%ax		/* AH/AL=major/minor version (BCD)  */
+
+	movw	$0x5304, %ax	/* disconnect interface (v1.0+)     */
+	xorw	%bx, %bx	/* device ID of system BIOS (0000h) */
+	int	$0x15		/* CF set on error, AH=error code   */
+
+	movw	$0x5301, %ax	/* connect real-mode interface (v1.0+)    */
+	xorw	%bx, %bx	/* device ID of system BIOS (0000h)       */
+	int	$0x15		/* CF set on error, AH=error code         */
+
+	popw	%cx		/* CH/CL=driver major/minor version (BCD)    */
+	jc	1f		/* No real-mode interface, fail */
+	pushw	%cx		/* CH/CL=driver major/minor version (BCD)    */
+
+	/* power off all devices using protocol 1.0 */
+	movw	$0x5307, %ax	/* set power state (v1.0+)                   */
+	movw	$0xFFFF, %bx	/* device ID for all devices (-1 for v1.0)   */
+	movw	$3, %cx		/* system state ID (3=off)                   */
+	int	$0x15
+
+	/* power off all devices using protocol 1.1 */
+	movw	$0x5307, %ax	/* set power state (v1.0+)                   */
+	movw	$1, %bx		/* device ID for all devices (1 for v1.1+)   */
+	movw	$3, %cx		/* system state ID (3=off)                   */
+	int	$0x15
+
+	/* power off system BIOS using protocol 1.0 */
+	movw	$0x5307, %ax	/* set power state (v1.0+)                   */
+	xorw	%bx, %bx	/* try again with device=system BIOS (0000h) */
+	movw	$3, %cx		/* system state ID (3=off)                   */
+	int	$0x15
+
+	popw	%cx		/* CH/CL=driver major/minor version (BCD)    */
+	cmp	$0x0101, %cx
+	jb	1f		/* support only 1.0, fail */
+
+	/* 1.0 failed, try 1.1 */
+
+	movw	$0x5308, %ax	/* enable/disable power management (v1.0+) */
+	movw	$1, %bx		/* device ID for all devices (1 for v1.1+) */
+	movw	%bx, %cx	/* 1 for enabled, 0 for disabled           */
+	int	$0x15		/* CF set on error, AH=error code          */
+
+	movw	$0x530E, %ax	/* set driver version (v1.1+)                */
+	xorw	%bx, %bx	/* device ID of system BIOS (0000h)          */
+	movw	$0x0101, %cx	/* set APM protocol level 1.1                */
+	int	$0x15		/* AH/AL=connection major/minor version(BCD) */
+
+	movw	$0x530D, %ax	/* en/disable device power management(v1.1+) */
+	movw	$1, %bx		/* device ID for all devices (1 for v1.1+)   */
+	movw	%bx, %cx	/* 1 for enabled, 0 for disabled             */
+	int	$0x15		/* CF set on error, AH=error code            */
+
+	movw	$0x530F, %ax	/* engage/disengage power management(v1.1+) */
+	movw	$1, %bx		/* device ID for all devices (1 for v1.1+)  */
+	movw	%bx, %cx	/* 1 for engage, 0 for disengage            */
+	int	$0x15		/* CF set on error, AH=error code           */
+
+	movw	$0x5307, %ax	/* set power state (v1.0+)                   */
+	movw	$1, %bx		/* device ID for all devices (1 for v1.1+)   */
+	movw	$3, %cx		/* system state ID (3=off, but not supported */
+				/* for device ID 1 in APM v1.0)              */
+	int	$0x15
+
+	movw	$0x5307, %ax	/* set power state (v1.0+)                   */
+	movw	$0xFFFF, %bx	/* device ID for all devices (-1 for v1.0)   */
+	movw	$3, %cx		/* system state ID (3=off)                   */
+	int	$0x15
+
+	movw	$0x5307, %ax	/* set power state (v1.0+)                   */
+	xorw	%bx, %bx	/* try again with device=system BIOS (0000h) */
+	movw	$3, %cx		/* system state ID (3=off)                   */
+	int	$0x15
+1:
+#endif
 	//jmp	hard_stop
 	popal
 	popw	%es
@@ -1198,6 +1403,29 @@ ENTRY(grub_halt)
 
 	ret
 
+find_rsdp:
+
+	.code32
+2:
+	cmpl	$0x20445352, (%eax)	/* 'RSD ' */
+	jnz	1f
+	cmpl	$0x20525450, 4(%eax)	/* 'PTR ' */
+	jnz	1f
+	xorl	%edx, %edx
+	xorl	%esi, %esi
+3:
+	addb	(%eax, %esi), %dl
+	incl	%esi
+	cmpl	$20, %esi
+	jnz	3b
+	testb	%dl, %dl
+	jz	2f			/* success with CF=0 */
+1:
+	addl	$0x10, %eax
+	loop	2b
+	stc				/* failure with CF=1 */
+2:
+	ret
 
 /*
  * int tpm_init (void)

@@ -2646,7 +2646,12 @@ init_pic:
 #endif
 
 
-#if 0	/* marked off 2007-10-07, enabled 2008-05-23, disabled 2010-03-13 */
+#if 1	/* off 2007-10-07, on 2008-05-23, off 2010-03-13, on 2010-10-08 */
+
+	/* WinPE requires this. Confirmed by in8ape at
+	 *	http://www.boot-land.net/forums/index.php?showtopic=12620
+	 */
+
 	########################################################################################
 	## make sure any possible coprocessor is properly reset..
 	########################################################################################
@@ -2827,7 +2832,12 @@ init_pic:
 	/* end initialize PIC. */
 
 	/* FIXME: init edge-level-control-registers(IO ports 0x4D0, 0x4D1) for EISA */
-#if 1	/* added 2010-03-13 */
+#if 1	/* added 2010-03-13, disabled 2010-10-07, enabled 2010-10-09 */
+
+	/* WinPE (on a HP model) requires this. Confirmed by in8ape at
+	 *	http://www.boot-land.net/forums/index.php?showtopic=12620
+	 * Without this code, WinPE boots extremely slow(expend sevral hours).
+	 */
 
 	/* EISA 8259-1 */
 
@@ -2863,8 +2873,15 @@ init_pic:
 #endif
 
 	/* init system timer 0 (stolen from bochs rombios.c) */
-#if 0		/* enabled 2008-05-23, disabled 2010-03-13 */
+#if 1	/* enabled 2008-05-23, disabled 2010-03-13, enabled 2010-10-11 */
+
 	/* this is needed for booting via win98 */
+
+	/* WinPE (on a HP model) requires this. Confirmed by in8ape at
+	 *	http://www.boot-land.net/forums/index.php?showtopic=12620
+	 * Without this code, the HP hangs halfway through the Windows
+	 * progress bar "Windows is loading files...".
+	 */
 
 	/* EISA 8259-1 */
 
@@ -2912,14 +2929,18 @@ init_pic:
 	call	outb_and_delay
 #endif
 
-#if 0	/* marked off 2007-10-07, enabled 2008-05-23, disabled 2010-03-13 */
+#if 1	/* marked off 2007-10-07, enabled 2008-05-23, disabled 2010-03-13 */
+	/* enabled 2010-10-04 and improved with loop */
+	movl	$100, %ecx
+1:
 	movb	$0x20, %al	#; send EOI to 8259A-2
 	movw	$0xA0, %dx
-	call	outb_and_delay
+	//call	outb_and_delay
 
-	movb	$0x20, %al	#; send EOI to 8259A-1
+	//movb	$0x20, %al	#; send EOI to 8259A-1
 	movw	$0x20, %dx
-	call	outb_and_delay
+	//call	outb_and_delay
+	loop	1b
 #endif
 
 #if 0

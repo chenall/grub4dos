@@ -8,7 +8,7 @@
 #	./build
 
 VER=`cat grub4dos_version`
-DATE=`date +%Y-%m-%d`
+DATE=`date -u +%Y-%m-%d`
 RELEASE=grub4dos-${VER}-${DATE}
 COPY_FILES="COPYING README_GRUB4DOS.txt ChangeLog_*.txt \
 	config.sys default menu.lst grub.pif \

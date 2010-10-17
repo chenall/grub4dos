@@ -13539,10 +13539,10 @@ calc_func (char *arg, int flags)
 		 *p_result *= val2;
 		 break;
 	 case '/':
-		 *(unsigned long *)p_result /= (unsigned long)val2;
+		 *p_result = (long)*presult / (long)val2;
 		 break;
 	 case '%':
-		 *(unsigned long *)p_result %= (unsigned long)val2;
+		 *p_result = (long)*presult % (long)val2;
 		 break;
 	 case '&':
 		 *p_result &= val2;
