@@ -7263,7 +7263,7 @@ makeactive_func (char *arg, int flags)
 
   /* The partition must be a primary partition.  */
   if ((part = (current_partition >> 16)) > 3
-      || (current_partition & 0xFFFF) != 0xFFFF)
+      /*|| (current_partition & 0xFFFF) != 0xFFFF*/)
     {
       errnum = ERR_DEV_VALUES;
       return 0;

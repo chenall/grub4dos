@@ -1132,119 +1132,7 @@ ENTRY(grub_halt)
 	testl	%eax, %eax
 	jnz	EXT_C(stop)
 
-	/* try ACPI */
-
-	pushal
-
-	/* search for RSDP in 1st 1KB of Extended BIOS Data Area (EBDA) */
-	movzwl	0x40E, %eax		/* EBDA segment */
-	testw	%ax, %ax		/* segment should >= 0x8000 */
-	jns	2f			/* No EBDA */
-	shll	$4, %eax		/* EAX=physical address */
-	//jz	2f			/* No EBDA */
-
-	movl	$(1024/16), %ecx
-	call	find_rsdp
-	jnc	3f			/* rsdp found */
-2:
-	/* search for RSDP in ROM space 0xE0000-0xFFFFF */
-	movl	$0xE0000, %eax
-	movl	$(0x20000/0x10), %ecx
-	call	find_rsdp
-	jc	1f			/* no acpi */
-3:
-	movl	16(%eax), %esi		/* physical address of RSDT */
-	cmpl	$0x54445352, (%esi)	/* 'RSDT' */
-	jnz	1f			/* no acpi */
-	mov	4(%esi), %ecx		/* RSDT length */
-	subl	$0x24, %ecx
-	jbe	1f			/* no acpi */
-	shrl	$2, %ecx
-	addl	$0x24, %esi
-4://find_facp:
-	lodsl
-	movl	%eax, %ebx
-	cmpl	$0x50434146, (%ebx)	/* 'FACP' */
-	jz	5f			/* facp found */
-	loop	4b			/* continue */
-	jmp	1f			/* no acpi */
-5://facp_found:
-	movl	40(%ebx), %edi		/* physical address of DSDT */
-	cmpl	$0x54445344, (%edi)	/* 'DSDT' */
-	jnz	1f			/* no acpi */
-	mov	4(%edi), %eax		/* DSDT length */
-	subl	$40, %eax
-	jbe	1f			/* no acpi */
-	addl	$36, %edi
-6://find_dsdt:
-	cmpl	$0x5F35535F, (%edi)	/* '_S5_' */
-	jnz	7f
-	cmpb	$0x12, 4(%edi)		/* DefPackage opcode */
-	jnz	7f
-	movb	6(%edi), %dl
-	cmpb	$4, %dl		/* _S5_ package must contain 4 bytes */
-				/* but VirtualBox has only 2 bytes   */
-	ja	7f
-	cmpb	$1, %dl
-	jb	7f
-	leal	7(%edi), %edi
-	xorl	%ecx, %ecx
-	cmpb	$0, (%edi)	/* 0 means 0 byte */
-	jz	8f
-	cmpb	$0xA, (%edi)	/* 0A xx means byte xx */
-	jnz	1f			/* no acpi */
-	incl	%edi
-	movb	(%edi), %cl
-8:
-	incl	%edi
-	cmpb	$2, %dl
-	jb	8f
-	cmpb	$0, (%edi)
-	jz	8f
-	cmpb	$0xA, (%edi)
-	jnz	1f			/* no acpi */
-	incl	%edi
-	movb	(%edi), %ch
-8:
-	jmp	9f			/* power off */
-7://find_dsdt2:
-	incl	%edi
-	decl	%eax
-	jnz	6b
-	jmp	1f			/* no acpi */
-9://acpi_power_off:
-	movl	48(%ebx), %edx
-	testl	%edx, %edx
-	jz	10f
-	movb	52(%ebx), %al
-	outb	%al, %dx
-	movl	64(%ebx), %edx
-11:
-	inw	%dx, %ax
-	testb	$1, %al
-	jz	11b
-10://no_smi:
-	andw	$0x0707, %cx
-	shlw	$2, %cx
-	orw	$0x2020, %cx
-	movl	64(%ebx), %edx
-	inw	%dx, %ax
-	andw	$0x0203, %ax
-	orb	%cl, %ah
-	outw	%ax, %dx
-	movl	68(%ebx), %edx
-	testl	%edx, %edx
-	jz	12f
-	inw	%dx, %ax
-	andw	$0x0203, %ax
-	orb	%ch, %ah
-	outw	%ax, %dx
-12:
-	//jmp	12b
-1:
-	popal
-
-	/* ACPI failed, try APM */
+	//call	acpi_off
 
 	call	EXT_C(prot_to_real)
 
@@ -1394,6 +1282,8 @@ ENTRY(grub_halt)
 	DATA32	call	EXT_C(real_to_prot)
 	.code32
 
+	call	acpi_off
+
 	xorl	%eax, %eax	/* return 0 for false */
 
 	/* set errnum to ERR_HALT(=74). */
@@ -1425,6 +1315,125 @@ find_rsdp:
 	loop	2b
 	stc				/* failure with CF=1 */
 2:
+	ret
+
+acpi_off:
+
+	.code32
+
+	pushal
+
+	/* search for RSDP in 1st 1KB of Extended BIOS Data Area (EBDA) */
+	movzwl	0x40E, %eax		/* EBDA segment */
+	testw	%ax, %ax		/* segment should >= 0x8000 */
+	jns	2f			/* No EBDA */
+	shll	$4, %eax		/* EAX=physical address */
+	//jz	2f			/* No EBDA */
+
+	movl	$(1024/16), %ecx
+	call	find_rsdp
+	jnc	3f			/* rsdp found */
+2:
+	/* search for RSDP in ROM space 0xE0000-0xFFFFF */
+	movl	$0xE0000, %eax
+	movl	$(0x20000/0x10), %ecx
+	call	find_rsdp
+	jc	1f			/* no acpi */
+3:
+	movl	16(%eax), %esi		/* physical address of RSDT */
+	cmpl	$0x54445352, (%esi)	/* 'RSDT' */
+	jnz	1f			/* no acpi */
+	mov	4(%esi), %ecx		/* RSDT length */
+	subl	$0x24, %ecx
+	jbe	1f			/* no acpi */
+	shrl	$2, %ecx
+	addl	$0x24, %esi
+4://find_facp:
+	lodsl
+	movl	%eax, %ebx
+	cmpl	$0x50434146, (%ebx)	/* 'FACP' */
+	jz	5f			/* facp found */
+	loop	4b			/* continue */
+	jmp	1f			/* no acpi */
+5://facp_found:
+	movl	40(%ebx), %edi		/* physical address of DSDT */
+	cmpl	$0x54445344, (%edi)	/* 'DSDT' */
+	jnz	1f			/* no acpi */
+	mov	4(%edi), %eax		/* DSDT length */
+	subl	$40, %eax
+	jbe	1f			/* no acpi */
+	addl	$36, %edi
+6://find_dsdt:
+	cmpl	$0x5F35535F, (%edi)	/* '_S5_' */
+	jnz	7f
+	cmpb	$0x12, 4(%edi)		/* DefPackage opcode */
+	jnz	7f
+	movb	6(%edi), %dl
+	cmpb	$4, %dl		/* _S5_ package must contain 4 bytes */
+				/* but VirtualBox has only 2 bytes   */
+	ja	7f
+	cmpb	$1, %dl
+	jb	7f
+	leal	7(%edi), %edi
+	xorl	%ecx, %ecx
+	cmpb	$0, (%edi)	/* 0 means 0 byte */
+	jz	8f
+	cmpb	$0xA, (%edi)	/* 0A xx means byte xx */
+	jnz	1f			/* no acpi */
+	incl	%edi
+	movb	(%edi), %cl
+8:
+	incl	%edi
+	cmpb	$2, %dl
+	jb	8f
+	cmpb	$0, (%edi)
+	jz	8f
+	cmpb	$0xA, (%edi)
+	jnz	1f			/* no acpi */
+	incl	%edi
+	movb	(%edi), %ch
+8:
+	jmp	9f			/* power off */
+7://find_dsdt2:
+	incl	%edi
+	decl	%eax
+	jnz	6b
+	jmp	1f			/* no acpi */
+9://acpi_power_off:
+	movl	48(%ebx), %edx
+	testl	%edx, %edx
+	jz	10f
+	movb	52(%ebx), %al
+	outb	%al, %dx
+	movl	64(%ebx), %edx
+	xorl	%edi, %edi
+11:
+	inw	%dx, %ax
+	testb	$1, %al
+	jnz	10f
+	decl	%edi
+	jnz	11b
+10://no_smi:
+	andw	$0x0707, %cx
+	shlw	$2, %cx
+	orw	$0x2020, %cx
+	movl	64(%ebx), %edx
+	inw	%dx, %ax
+	andw	$0x0203, %ax
+	orb	%cl, %ah
+	outw	%ax, %dx
+	movl	68(%ebx), %edx
+	testl	%edx, %edx
+	jz	12f
+	inw	%dx, %ax
+	andw	$0x0203, %ax
+	orb	%ch, %ah
+	outw	%ax, %dx
+12:
+	//jmp	12b
+1:
+	popal
+
 	ret
 
 /*

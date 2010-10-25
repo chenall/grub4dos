@@ -1,3 +1,5 @@
+2010-10-22 fixed AMI netbook gray-screen-of-death problem on halt.
+2010-10-19 allow BSD primary partitions to be made active.
 2010-10-12 fixed grub.exe issues when booting off Linux/kexec. Only comments added compared to 2010-10-11.
 2010-10-11 try to fix grub.exe issues when booting off Linux/kexec(enabled system timer 0 init).
 2010-10-09 try to fix grub.exe issues when booting off Linux/kexec(enabled writing ELCR port 4D0/4D1).
