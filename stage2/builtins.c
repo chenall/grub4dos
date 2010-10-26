@@ -5059,13 +5059,36 @@ static int real_root_func (char *arg1, int attempt_mnt);
 /* Search for the filename ARG in all of partitions and optionally make that
  * partition root("--set-root", Thanks to Chris Semler <csemler@mail.com>).
  */
+static void print_root_device (void);
+static int find_check(char *filename,struct builtin *builtin1,char *arg,int flags)
+{
+	saved_drive = current_drive;
+	saved_partition = current_partition;
+	if (filename == NULL || (open_device() && grub_open (filename)))
+	{
+		grub_close ();
+		if (builtin1 ? (builtin1->func) (arg, flags) : 1)
+		{
+			if (debug > 0)
+			{
+				print_root_device();
+				putchar('\n');
+			}
+			return 1;
+		}
+	}
+
+	errnum = ERR_NONE;
+	return 0;
+}
+
 static int
 find_func (char *arg, int flags)
 {
   struct builtin *builtin1 = 0;
-  int ret;
+//  int ret;
   char *filename;
-  unsigned long drive;
+//  unsigned long drive;
   unsigned long tmp_drive = saved_drive;
   unsigned long tmp_partition = saved_partition;
   unsigned long got_file = 0;
@@ -5074,7 +5097,7 @@ find_func (char *arg, int flags)
   unsigned long ignore_floppies = 0;
   unsigned long ignore_oem = 0;
   //char *in_drives = NULL;	/* search in drive list */
-  char root_found[16];
+//  char root_found[16];
   
   for (;;)
   {
@@ -5143,293 +5166,156 @@ find_func (char *arg, int flags)
 
   errnum = 0;
 
-#ifdef FSYS_FB
-  if (fb_status)
-    {
-      current_drive = FB_DRIVE;
-      current_partition = 0xFFFFFF;
-      
-      if (filename == 0)
+	current_drive = saved_drive;
+	current_partition = saved_partition;
+	if (find_check(filename,builtin1,arg,flags) == 1)
 	{
-	  saved_drive = current_drive;
-	  saved_partition = current_partition;
-	  ret = builtin1 ? (builtin1->func) (arg, flags) : 1;
-	  if (ret)
-	  {
-	    grub_sprintf (root_found, "(ud)");
-	    if (debug > 0)
-		grub_printf (" %s\n", root_found);
-	    got_file = 1;
-	    if (set_root)
-		goto found;
-	  }
+		got_file = 1;
+		if (set_root)
+				goto found;
 	}
-      else if (open_device ())
+#ifdef FSYS_FB
+	if (fb_status && tmp_drive != FB_DRIVE)
 	{
-	  saved_drive = current_drive;
-	  saved_partition = current_partition;
-	  if (grub_open (filename))
-	    {
-	      grub_close ();
-	      ret = builtin1 ? (builtin1->func) (arg, flags) : 1;
-	      if (ret)
-	      {
-	        grub_sprintf (root_found, "(ud)");
-	        if (debug > 0)
-		  grub_printf (" %s\n", root_found);
-	        got_file = 1;
-	        if (set_root)
-		  goto found;
-	      }
-	    }
+		current_drive = FB_DRIVE;
+		current_partition = 0xFFFFFF;
+		if (find_check(filename,builtin1,arg,flags) == 1)
+		{
+			got_file = 1;
+			if (set_root)
+					goto found;
+		}
+	}
+#endif
+
+	/* CD-ROM.  */
+	if (cdrom_drive != GRUB_INVALID_DRIVE && ! ignore_cd && tmp_drive != cdrom_drive)
+	{
+		current_drive = cdrom_drive;
+		current_partition = 0xFFFFFF;
+
+		if (find_check(filename,builtin1,arg,flags) == 1)
+		{
+			got_file = 1;
+			if (set_root)
+				goto found;
+		}
 	}
 
-      errnum = ERR_NONE;
-    }
-#endif
- 
   /* Hard disks. Search in hard disks first, since floppies are slow */
 #ifdef GRUB_UTIL
-#define FIND_DRIVES 8
+#define FIND_HD_DRIVES 8
+#define FIND_FD_DRIVES 8
 #else
-#define FIND_DRIVES (*((char *)0x475))
+#define FIND_HD_DRIVES  (*((char *)0x475))
+#define FIND_FD_DRIVES  (((*(char*)0x410) & 1)?((*(char*)0x410) >> 6) + 1 : 0)
 #endif
-  for (drive = 0x80; drive < 0x80 + FIND_DRIVES; drive++)
-#undef FIND_DRIVES
-    {
-      unsigned long part = 0xFFFFFF;
-      unsigned long start, len, offset, ext_offset1;
-      unsigned long type, entry1;
-#if defined(STAGE1_5) || defined(GRUB_UTIL)
-//      char mbr[SECTOR_SIZE];
-#endif
-
-      current_drive = drive;
-      while ((	next_partition_drive		= drive,
-		next_partition_dest		= 0xFFFFFF,
-		next_partition_partition	= &part,
-		next_partition_type		= &type,
-		next_partition_start		= &start,
-		next_partition_len		= &len,
-		next_partition_offset		= &offset,
-		next_partition_entry		= &entry1,
-		next_partition_ext_offset	= &ext_offset1,
-		next_partition_buf		= mbr,
-		next_partition ()))
+	for (current_drive = 0x80; /*drive < 0x80 + FIND_DRIVES*/; current_drive++)
 	{
-	  if (type != PC_SLICE_TYPE_NONE
-		  && ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
-	      && ! IS_PC_SLICE_TYPE_BSD (type)
-	      && ! IS_PC_SLICE_TYPE_EXTENDED (type))
-	    {
-	      current_partition = part;
-	      if (filename == 0)
+		unsigned long part = 0xFFFFFF;
+		unsigned long start, len, offset, ext_offset1;
+		unsigned long type, entry1;
+
+		/* Floppies.  */
+		if (current_drive >= 0x80 + FIND_HD_DRIVES)
 		{
-		  int bsd_part = (part >> 8) & 0xFF;
-		  int pc_slice = part >> 16;
-		      
-		  saved_drive = current_drive;
-		  saved_partition = current_partition;
-
-		  ret = builtin1 ? (builtin1->func) (arg, flags) : 1;
-		  if (ret)
-		  {
-		    if (bsd_part == 0xFF)
-			grub_sprintf (root_found, "(hd%d,%d)",
-				     (drive - 0x80), pc_slice);
-		    else
-			grub_sprintf (root_found, "(hd%d,%d,%c)",
-				     (drive - 0x80), pc_slice, (bsd_part + 'a'));
-
-		    if (debug > 0)
-		        grub_printf (" %s\n", root_found);
-		    got_file = 1;
-		    if (set_root)
-			goto found;
-		  }
-		}
-	      else if (open_device ())
-		{
-		  saved_drive = current_drive;
-		  saved_partition = current_partition;
-		  if (grub_open (filename))
-		    {
-		      int bsd_part = (part >> 8) & 0xFF;
-		      int pc_slice = part >> 16;
-		      
-		      grub_close ();
-		      
-		      ret = builtin1 ? (builtin1->func) (arg, flags) : 1;
-		      if (ret)
-		      {
-		        if (bsd_part == 0xFF)
-			  grub_sprintf (root_found, "(hd%d,%d)",
-				     (drive - 0x80), pc_slice);
-		        else
-			  grub_sprintf (root_found, "(hd%d,%d,%c)",
-				     (drive - 0x80), pc_slice, (bsd_part + 'a'));
-
-		        if (debug > 0)
-		          grub_printf (" %s\n", root_found);
-		        got_file = 1;
-		        if (set_root)
-			  goto found;
-		      }
-		    }
-		}
-	    }
-
-	  /* We want to ignore any error here.  */
-	  errnum = ERR_NONE;
-	}
-
-      /* next_partition always sets ERRNUM in the last call, so clear
-	 it.  */
-      errnum = ERR_NONE;
-    }
-
-  /* CD-ROM.  */
-  if (cdrom_drive != GRUB_INVALID_DRIVE && ! ignore_cd)
-    {
-      current_drive = cdrom_drive;
-      current_partition = 0xFFFFFF;
-      
-      if (filename == 0)
-	{
-	  saved_drive = current_drive;
-	  saved_partition = current_partition;
-	  ret = builtin1 ? (builtin1->func) (arg, flags) : 1;
-	  if (ret)
-	  {
-	    grub_sprintf (root_found, "(cd)");
-	    if (debug > 0)
-		grub_printf (" %s\n", root_found);
-	    got_file = 1;
-	    if (set_root)
-		goto found;
-	  }
-	}
-      else if (open_device ())
-	{
-	  saved_drive = current_drive;
-	  saved_partition = current_partition;
-	  if (grub_open (filename))
-	    {
-	      grub_close ();
-	      ret = builtin1 ? (builtin1->func) (arg, flags) : 1;
-	      if (ret)
-	      {
-	        grub_sprintf (root_found, "(cd)");
-	        if (debug > 0)
-		  grub_printf (" %s\n", root_found);
-	        got_file = 1;
-	        if (set_root)
-		  goto found;
-	      }
-	    }
-	}
-
-      errnum = ERR_NONE;
-    }
-
-  /* Floppies.  */
-#ifdef GRUB_UTIL
-#define FIND_DRIVES 8
-#else
-#define FIND_DRIVES (((*(char*)0x410) & 1)?((*(char*)0x410) >> 6) + 1 : 0)
-#endif
-  if (! ignore_floppies)
-  {
-    for (drive = 0; drive < 0 + FIND_DRIVES; drive++)
-#undef FIND_DRIVES
-    {
-      current_drive = drive;
-      current_partition = 0xFFFFFF;
-      
-      if (filename == 0)
-	{
-	  saved_drive = current_drive;
-	  saved_partition = current_partition;
-	  ret = builtin1 ? (builtin1->func) (arg, flags) : 1;
-	  if (ret)
-	  {
-	    grub_sprintf (root_found, "(fd%d)", drive);
-	    if (debug > 0)
-		grub_printf (" %s\n", root_found);
-	    got_file = 1;
-	    if (set_root)
-		goto found;
-	  }
-	}
-      else if (open_device ())
-	{
-	  saved_drive = current_drive;
-	  saved_partition = current_partition;
-	  if (grub_open (filename))
-	    {
-	      grub_close ();
-	      ret = builtin1 ? (builtin1->func) (arg, flags) : 1;
-	      if (ret)
-	      {
-	        grub_sprintf (root_found, "(fd%d)", drive);
-	        if (debug > 0)
-		  grub_printf (" %s\n", root_found);
-	        got_file = 1;
-	        if (set_root)
-		  goto found;
-	      }
-	    }
-	}
-
-      errnum = ERR_NONE;
-    }
-  }
-
-found:
-  saved_drive = tmp_drive;
-  saved_partition = tmp_partition;
-
-  if (got_file)
-    {
-	errnum = ERR_NONE;
-	if (set_root)
-	{
-		int j;
-
-		//return real_root_func (root_found, 1);
-		saved_drive = current_drive;
-		saved_partition = current_partition;
-		/* copy root prefix to saved_dir */
-		for (j = 0; j < sizeof (saved_dir); j++)
-		{
-		    char ch;
-
-		    ch = set_root[j];
-		    if (ch == 0 || ch == 0x20 || ch == '\t')
-			break;
-		    if (ch == '\\')
-		    {
-			saved_dir[j] = ch;
-			j++;
-			ch = set_root[j];
-			if (! ch || j >= sizeof (saved_dir))
-			{
-				j--;
-				saved_dir[j] = 0;
+			if (ignore_floppies)
 				break;
-			}
-		    }
-		    saved_dir[j] = ch;
+			current_drive = 0;	/* begin floppy */
+		}
+		else if (current_drive < 0x80 && current_drive >= FIND_FD_DRIVES)
+		{
+				break;	/* end floppy */
 		}
 
-		if (saved_dir[j-1] == '/')
+		current_partition = part;
+		if (open_device()) //if is a partition 
 		{
-		    saved_dir[j-1] = 0;
-		} else
-		    saved_dir[j] = 0;
+			if (find_check(filename,builtin1,arg,flags) == 1)
+			{
+				got_file = 1;
+				if (set_root)
+					goto found;
+			}
+			continue;
+		}
+
+		while ((	next_partition_drive		= current_drive,
+			next_partition_dest		= 0xFFFFFF,
+			next_partition_partition	= &part,
+			next_partition_type		= &type,
+			next_partition_start		= &start,
+			next_partition_len		= &len,
+			next_partition_offset		= &offset,
+			next_partition_entry		= &entry1,
+			next_partition_ext_offset	= &ext_offset1,
+			next_partition_buf		= mbr,
+			next_partition ()))
+		{
+			if (type != PC_SLICE_TYPE_NONE
+				&& ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
+				&& ! IS_PC_SLICE_TYPE_BSD (type)
+				&& ! IS_PC_SLICE_TYPE_EXTENDED (type))
+			{
+				current_partition = part;
+				if (find_check(filename,builtin1,arg,flags) == 1)
+				{
+					got_file = 1;
+					if (set_root)
+						goto found;
+				}
+			} /*end if*/
+		} /*while next_partition*/
+
+		/* next_partition always sets ERRNUM in the last call, so clear it.  */
+		errnum = ERR_NONE;
 	}
-	return 1;
-    }
+
+	saved_drive = tmp_drive;
+	saved_partition = tmp_partition;
+found:
+	if (got_file)
+	{
+		errnum = ERR_NONE;
+		if (set_root)
+		{
+			int j;
+
+			//return real_root_func (root_found, 1);
+			//saved_drive = current_drive;
+			//saved_partition = current_partition;
+			/* copy root prefix to saved_dir */
+			for (j = 0; j < sizeof (saved_dir); j++)
+			{
+				 char ch;
+
+				 ch = set_root[j];
+				 if (ch == 0 || ch == 0x20 || ch == '\t')
+				break;
+				 if (ch == '\\')
+				 {
+				saved_dir[j] = ch;
+				j++;
+				ch = set_root[j];
+				if (! ch || j >= sizeof (saved_dir))
+				{
+					j--;
+					saved_dir[j] = 0;
+					break;
+				}
+				 }
+				 saved_dir[j] = ch;
+			}
+
+			if (saved_dir[j-1] == '/')
+			{
+				 saved_dir[j-1] = 0;
+			} else
+				 saved_dir[j] = 0;
+		} //if set_root
+		
+		return 1;
+	}
 
   errnum = ERR_FILE_NOT_FOUND;
   return 0;
@@ -5486,7 +5372,7 @@ uuid_func (char *arg, int flags)
 			if (debug > 0)
 			{
 				print_root_device ();
-				grub_printf (" UUID is %s\n\t", ((*uuid_found) ? uuid_found : "(unsupported)"));
+				grub_printf (": UUID is %s\n\t", ((*uuid_found) ? uuid_found : "(unsupported)"));
 				print_fsys_type ();
 			}
 			saved_drive = tmp_drive;
@@ -11086,32 +10972,50 @@ static struct builtin builtin_reboot =
 static void
 print_root_device (void)
 {
-  if (saved_drive == NETWORK_DRIVE)
-    {
-      /* Network drive.  */
-      grub_printf (" (nd):");
-    }
-  else
-    { 
-      if (saved_drive & 0x80)
+	switch(saved_drive)
 	{
-	  /* Hard disk drive.  */
-	  grub_printf (" (hd%d", (saved_drive - 0x80));
+	#ifdef FSYS_FB
+		case FB_DRIVE:
+			grub_printf(" (ud)");
+			break;
+	#endif /* FSYS_FB */
+	#ifdef FSYS_PXE
+		case PXE_DRIVE:
+			grub_printf(" (pd)");
+			break;
+	#endif /* PXE drive. */
+	#ifdef SUPPORT_NETBOOT
+		case NETWORK_DRIVE:
+			grub_printf (" (nd)");
+			break;
+	#endif /* SUPPORT_NETBOOT */
+		default:
+			if (saved_drive == cdrom_drive)
+			{
+				grub_printf(" (cd)");
+				break;
+			}
+			if (saved_drive & 0x80)
+			{
+				/* Hard disk drive.  */
+				grub_printf (" (hd%d", (saved_drive - 0x80));
+			}
+			else
+			{
+				/* Floppy disk drive.  */
+				grub_printf (" (fd%d", saved_drive);
+			}
+
+			if ((saved_partition & 0xFF0000) != 0xFF0000)
+				grub_printf (",%d", (unsigned long)(unsigned char)(saved_partition >> 16));
+
+			if ((saved_partition & 0x00FF00) != 0x00FF00)
+				grub_printf (",%c", (unsigned long)(unsigned char)((saved_partition >> 8) + 'a'));
+
+			grub_printf (")");
+			break;
 	}
-      else
-	{
-	  /* Floppy disk drive.  */
-	  grub_printf (" (fd%d", saved_drive);
-	}
-
-      if ((saved_partition & 0xFF0000) != 0xFF0000)
-	grub_printf (",%d", (unsigned long)(unsigned char)(saved_partition >> 16));
-
-      if ((saved_partition & 0x00FF00) != 0x00FF00)
-	grub_printf (",%c", (unsigned long)(unsigned char)((saved_partition >> 8) + 'a'));
-
-      grub_printf ("):");
-    }
+	return;
 }
 
 static int
