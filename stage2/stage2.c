@@ -607,7 +607,7 @@ run_script (char *script, char *heap)
 	}
 	else
 		command_func (heap, BUILTIN_SCRIPT);
-#else
+//#else
 		char *p;
 		arg = heap;
 		for (p = arg; *p != 0; p = skip_to (0, p))
@@ -671,6 +671,7 @@ run_script (char *script, char *heap)
 		command_func (arg, BUILTIN_SCRIPT);
 #endif
 next:
+	run_line (heap , BUILTIN_SCRIPT);
       if (! *old_entry)	/* HEAP holds the implicit BOOT command */
 	break;
     } /* while (1) */
@@ -1441,6 +1442,9 @@ done_key_handling:
 	cur_entry = titles[current_entryno];
 	while (*cur_entry++);
       }
+
+	if (current_entryno >= num_entries)//Max entries
+		break;
 
       if (! run_script (cur_entry, heap))
 	break;
@@ -2530,7 +2534,7 @@ restart_config:
 		else
 			command_func (heap, BUILTIN_MENU);
 
-#else
+//#else
 		char *p;
 		arg = heap;
 		for (p = arg; *p != 0; p = skip_to (0, p))
@@ -2594,6 +2598,7 @@ restart_config:
 		command_func (arg, BUILTIN_MENU);
 #endif
 next:
+		run_line (heap , BUILTIN_MENU);
 		/* if the INSERT key was pressed at startup, debug is not allowed to be turned off. */
 #ifndef GRUB_UTIL
 		if (debug_boot)

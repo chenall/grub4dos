@@ -1,4 +1,23 @@
-﻿2010-10-26
+﻿2010-10-28
+ 	1.some bug fixed.
+	2.find支持查找使用cdrom --init生成的光驱(只找第一个)
+
+2010-10-27
+	1.修改printf函数,支持显示"%",和C语言的语法一样,使用"%%"来显示一个"%"
+	2.重写find的查询代码.
+	3.find新增参数--devices=[DEVICES],指定要查找的设备.
+
+	说明:DEVICES可以是以下字符的组合:
+	u,p,n,h,c,f -->分别对应 ud,pd,nd,hd,cd,fd,
+
+	例子:--devices=hcf //只查找hd,cd,fd,从hd开始.
+	注:优先current root.然后再按上面的顺序.(current root必须在列表中,否则跳过)
+
+	可以使用这个参数来重新设定查找顺序,默认(find order):ud->pd->nd->hd->cd->fd
+
+	4.保留--ignore-cd和--ignore-floppies参数(会自动转换).
+
+2010-10-26
 	1.find支持(fdx,y)的格式.
 	2.优先查找当前root.
 2010-10-03

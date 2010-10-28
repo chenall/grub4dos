@@ -5096,12 +5096,13 @@ find_func (char *arg, int flags)
   unsigned long ignore_cd = 0;
   unsigned long ignore_floppies = 0;
   unsigned long ignore_oem = 0;
+  char find_devices[8]="upnhcf";//find order:ud->pd->nd->hd->cd->fd
   //char *in_drives = NULL;	/* search in drive list */
 //  char root_found[16];
   
-  for (;;)
-  {
-    if (grub_memcmp (arg, "--set-root=", 11) == 0)
+	for (;;)
+	{
+		if (grub_memcmp (arg, "--set-root=", 11) == 0)
       {
 	set_root = arg + 11;
 	if (*set_root && *set_root != ' ' && *set_root != '\t' && *set_root != '/')
@@ -5123,8 +5124,18 @@ find_func (char *arg, int flags)
       {
 	ignore_oem = 1;
       }
-    else
-	break;
+		else if (grub_memcmp(arg, "--devices=", 10) == 0)
+		{
+			int i = 0;
+			arg += 10;
+			while (i < 7 && *arg >= 'a')
+			{
+				find_devices[i++] = *arg++;
+			}
+			find_devices[i] = '\0';
+		}
+		else
+			break;
     arg = skip_to (0, arg);
   }
   
@@ -5166,14 +5177,166 @@ find_func (char *arg, int flags)
 
   errnum = 0;
 
-	current_drive = saved_drive;
-	current_partition = saved_partition;
-	if (find_check(filename,builtin1,arg,flags) == 1)
+	char *devtype = find_devices;
+	unsigned int FIND_DRIVES = 0;
+	/*check if current root in find_devices list*/
+	for (; *devtype; devtype++)
 	{
-		got_file = 1;
-		if (set_root)
-				goto found;
+		switch(*devtype)
+		{
+			case 'h':
+				if (tmp_drive >= 0x80 && tmp_drive < 0xA0)
+					FIND_DRIVES = 1;
+				break;
+			case 'u':
+				if (tmp_drive == FB_DRIVE)
+					FIND_DRIVES = 1;
+				break;
+			case 'p':
+				if (PXE_DRIVE == tmp_drive)
+					FIND_DRIVES = 1;
+				break;
+			case 'c':
+				if (ignore_cd)
+					*devtype = ' ';
+				else if (tmp_drive >= 0xa0 && tmp_drive < 0xff)
+					FIND_DRIVES = 1;
+				break;
+			case 'f':
+				if (ignore_floppies)
+					*devtype = ' ';
+				else if (tmp_drive < 8)
+					FIND_DRIVES = 1;
+				break;
+		}
 	}
+	/*search in current root device*/
+	if (FIND_DRIVES)
+	{
+		current_drive = saved_drive;
+		current_partition = saved_partition;
+		if (find_check(filename,builtin1,arg,flags) == 1)
+		{
+			got_file = 1;
+			if (set_root)
+				goto found;
+		}
+	}
+	/*search other devices*/
+	for (devtype = find_devices; *devtype; devtype++)
+	{
+		current_partition = 0xFFFFFF;
+		switch(*devtype)
+		{
+#ifdef FSYS_FB
+			case 'u':
+				if (fb_status)
+					current_drive = FB_DRIVE;
+				else
+					continue;
+				break;
+#endif
+#ifdef SUPPORT_NETBOOT
+			case 'n':
+				if (network_ready)
+					current_drive = NETWORK_DRIVE;
+				else
+					continue;
+				break;
+#endif /* SUPPORT_NETBOOT */
+#ifdef FSYS_PXE
+			case 'p':
+				if (pxe_entry)
+					current_drive = PXE_DRIVE;
+				else
+					continue;
+				break;
+#endif
+			case 'c':/*Only search first cdrom*/
+				if (cdrom_drive != GRUB_INVALID_DRIVE)
+					current_drive = cdrom_drive;
+#ifndef GRUB_UTIL
+				else if (atapi_dev_count)
+					current_drive = min_cdrom_id;
+#endif
+				else
+					continue;
+				break;
+			case 'h':
+			case 'f':
+				#ifdef GRUB_UTIL
+				#define FIND_HD_DRIVES 8
+				#define FIND_FD_DRIVES 8
+				#else
+				#define FIND_HD_DRIVES  (*((char *)0x475))
+				#define FIND_FD_DRIVES  (((*(char*)0x410) & 1)?((*(char*)0x410) >> 6) + 1 : 0)
+				#endif
+				FIND_DRIVES = (*devtype == 'h') ? 0x80 + FIND_HD_DRIVES : FIND_FD_DRIVES;
+				for (current_drive = (*devtype == 'h')?0x80:0; current_drive < FIND_DRIVES; current_drive++)
+				{
+					unsigned long part = 0xFFFFFF;
+					unsigned long start, len, offset, ext_offset1;
+					unsigned long type, entry1;
+
+					current_partition = part;
+					if (open_device()) //if is a partition 
+					{
+						if ((tmp_drive != current_drive || tmp_partition != current_partition) && find_check(filename,builtin1,arg,flags) == 1)
+						{
+							got_file = 1;
+							if (set_root)
+								goto found;
+						}
+						continue;
+					}
+
+					while ((	next_partition_drive		= current_drive,
+							next_partition_dest		= 0xFFFFFF,
+							next_partition_partition	= &part,
+							next_partition_type		= &type,
+							next_partition_start		= &start,
+							next_partition_len		= &len,
+							next_partition_offset		= &offset,
+							next_partition_entry		= &entry1,
+							next_partition_ext_offset	= &ext_offset1,
+							next_partition_buf		= mbr,
+							next_partition ()))
+					{
+						if (type != PC_SLICE_TYPE_NONE
+							&& ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
+							&& ! IS_PC_SLICE_TYPE_BSD (type)
+							&& ! IS_PC_SLICE_TYPE_EXTENDED (type))
+						{
+							current_partition = part;
+
+							if ((tmp_drive != current_drive || tmp_partition != current_partition) && find_check(filename,builtin1,arg,flags) == 1)
+							{
+								got_file = 1;
+								if (set_root)
+									goto found;
+							}
+						} /*end if*/
+					} /*while next_partition*/
+
+				/* next_partition always sets ERRNUM in the last call, so clear it.  */
+					errnum = ERR_NONE;
+				}
+				#undef FIND_HD_DRIVES
+				#undef FIND_FD_DRIVES
+				//h,f. no break;default continue;
+			default:
+				continue;
+		}
+		if (tmp_drive == current_drive)
+			continue;
+		if (find_check(filename,builtin1,arg,flags) == 1)
+		{
+			got_file = 1;
+			if (set_root)
+				goto found;
+		}
+	}
+#if 0
 #ifdef FSYS_FB
 	if (fb_status && tmp_drive != FB_DRIVE)
 	{
@@ -5223,7 +5386,8 @@ find_func (char *arg, int flags)
 				break;
 			current_drive = 0;	/* begin floppy */
 		}
-		else if (current_drive < 0x80 && current_drive >= FIND_FD_DRIVES)
+
+		if (current_drive < 0x80 && current_drive >= FIND_FD_DRIVES)
 		{
 				break;	/* end floppy */
 		}
@@ -5270,7 +5434,7 @@ find_func (char *arg, int flags)
 		/* next_partition always sets ERRNUM in the last call, so clear it.  */
 		errnum = ERR_NONE;
 	}
-
+#endif
 	saved_drive = tmp_drive;
 	saved_partition = tmp_partition;
 found:

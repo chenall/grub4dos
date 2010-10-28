@@ -309,7 +309,14 @@ get_next_c:
 
 find_specifier:
 	switch (c)
-	  {
+	{
+		case '%':
+			if (buffer)
+				*bp = c;
+			else
+				grub_putchar(c);
+			bp++;
+			break;
 	  case 'd': case 'x':	case 'X':  case 'u':
 	    {
 		unsigned int lo, hi;

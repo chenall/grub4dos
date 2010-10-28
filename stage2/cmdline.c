@@ -204,12 +204,12 @@ int run_line (char *heap,int flags)
 		}
 		else
 		{
+			errnum = 0;
 			while(*(p = skip_to (0, p)))
 			{
 				if (*(unsigned short *)p == 0x2021)
 				{
 					p = arg = skip_to (0,p);
-					errnum = 0;
 					break;
 				}
 			}
