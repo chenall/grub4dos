@@ -5088,7 +5088,7 @@ find_func (char *arg, int flags)
   struct builtin *builtin1 = 0;
 //  int ret;
   char *filename;
-//  unsigned long drive;
+  unsigned long drive;
   unsigned long tmp_drive = saved_drive;
   unsigned long tmp_partition = saved_partition;
   unsigned long got_file = 0;
@@ -5272,14 +5272,15 @@ find_func (char *arg, int flags)
 				#define FIND_FD_DRIVES  (((*(char*)0x410) & 1)?((*(char*)0x410) >> 6) + 1 : 0)
 				#endif
 				FIND_DRIVES = (*devtype == 'h') ? 0x80 + FIND_HD_DRIVES : FIND_FD_DRIVES;
-				for (current_drive = (*devtype == 'h')?0x80:0; current_drive < FIND_DRIVES; current_drive++)
+				for (drive = (*devtype == 'h')?0x80:0; drive < FIND_DRIVES; drive++)
 				{
 					unsigned long part = 0xFFFFFF;
 					unsigned long start, len, offset, ext_offset1;
 					unsigned long type, entry1;
 
-					current_partition = part;
-					if (open_device()) //if is a partition 
+					saved_drive = current_drive = drive;
+					saved_partition = current_partition = part;
+					if ((*devtype == 'f') && open_device()) //if is a partition 
 					{
 						if ((tmp_drive != current_drive || tmp_partition != current_partition) && find_check(filename,builtin1,arg,flags) == 1)
 						{
@@ -5287,10 +5288,11 @@ find_func (char *arg, int flags)
 							if (set_root)
 								goto found;
 						}
-						continue;
+						//continue;
 					}
 
-					while ((	next_partition_drive		= current_drive,
+					saved_drive = current_drive = drive;
+					while ((	next_partition_drive		= drive,
 							next_partition_dest		= 0xFFFFFF,
 							next_partition_partition	= &part,
 							next_partition_type		= &type,
@@ -5317,6 +5319,19 @@ find_func (char *arg, int flags)
 							}
 						} /*end if*/
 					} /*while next_partition*/
+
+					saved_drive = current_drive = drive;
+					saved_partition = current_partition = 0xFFFFFF;
+					if ((*devtype == 'h') && open_device()) //if is a partition 
+					{
+						if ((tmp_drive != current_drive || tmp_partition != current_partition) && find_check(filename,builtin1,arg,flags) == 1)
+						{
+							got_file = 1;
+							if (set_root)
+								goto found;
+						}
+						//continue;
+					}
 
 				/* next_partition always sets ERRNUM in the last call, so clear it.  */
 					errnum = ERR_NONE;
@@ -6169,10 +6184,24 @@ static struct builtin builtin_geometry =
 static int
 halt_func (char *arg, int flags)
 {
-  int no_apm;
+  int skip_flags = 0;
 
-  no_apm = (grub_memcmp (arg, "--no-apm", 8) == 0);
-  grub_halt (no_apm);
+  for (;;)
+  {
+    if (grub_memcmp (arg, "--no-apm", 8) == 0)
+      {
+	skip_flags |= 1;
+      }
+    else if (grub_memcmp (arg, "--no-acpi", 9) == 0)
+      {
+	skip_flags |= 2;
+      }
+    else
+	break;
+    arg = skip_to (0, arg);
+  }
+  
+  grub_halt (skip_flags);
   
   /* Never reach here.  */
   return 0;
@@ -6183,9 +6212,10 @@ static struct builtin builtin_halt =
   "halt",
   halt_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
-  "halt [--no-apm]",
-  "Halt your system. If APM is avaiable on it, turn off the power using"
-  " the APM BIOS, unless you specify the option `--no-apm'."
+  "halt [--no-apm] [--no-acpi]",
+  "Halt the system using ACPI and APM. If --no-acpi is specified, only APM is"
+  "\n\tto be tried. If --no-apm is specified, only ACPI is to be tried. if"
+  "\n\tboth options are specified, return to grub4dos with failure."
 };
 
 

@@ -1114,87 +1114,395 @@ ENTRY(grub_reboot)
 	movw	%ax, (%di)
 	ljmp	$0xFFFF, $0x0000
 
-
 /*
- * grub_halt(int no_apm)
+ * grub_halt(int skip_flags)
  *
- * Halt the system, using APM if possible. If NO_APM is true, don't use
+ * Halt the system, using APM or ACPI if possible. If NO_APM is true, don't use
  * APM even if it is available.
  */
+
 ENTRY(grub_halt)
+	.code32
+	
+	movl	4(%esp), %eax	/* get the argument */
+
+	testl	$2, %eax	/* bit 1=1 for --no-acpi */
+	jnz	1f
+	call 	acpi_soft_off
+1:
+	testl	$1, %eax	/* bit 0=1 for --no-apm */
+	jnz	1f
+	call	try_apm
+1:
+	xorl	%eax, %eax	/* return 0 for false */
+
+	pushl	%eax		/* EAX=0 */
+	popfl			/* cld, cli, ... */
+
+	/* set errnum to ERR_HALT(=74). */
+	movl	$74, EXT_C(errnum)
+	ret
+
+acpi_soft_off:
+
+	/* contributor: zw2312914, 2010-10-27 */
 
 	.code32
 
-	/* get the argument */
-	movl	4(%esp), %eax
+	pushal
+	
+	/* find RSDP in 0xE0000-0xFFFFF. it should be there in most cases. */
+	movl	$0xE0000, %eax
+	movl	$(0x20000/0x10), %ecx
+	call	find_rsdp
+	jnc	3f			/* rsdp found */
+	
+	/* try the 1st 1KB of EBDA */
+	movzwl	0x40E, %eax		/* EBDA segment */
+	testw	%ax, %ax		/* segment should >= 0x8000 */
+	jns	1f			/* no EBDA, fail */
+	shll	$4, %eax		/* EAX=physical address */
+	movl	$(1024/16), %ecx
+	call	find_rsdp
+	jc	1f			/* fail */
+3:
+	/* locate rsdt, ignoring xsdt table for simplicity. */
+	movl	16(%eax), %esi		/* physical address of RSDT */
+	cmpl	$0x54445352, (%esi)	/* 'RSDT' */
+	jnz	1f			/* fail, ignoring xsdt */
+	mov	4(%esi), %ecx		/* RSDT length */
+	subl	$0x24, %ecx
+	jbe	1f			/* fail */
+	shrl	$2, %ecx
+	addl	$0x24, %esi
+	cld
 
-	/* see if zero */
-	testl	%eax, %eax
-	jnz	EXT_C(stop)
+4://find_facp:
+	lodsl
+	movl	%eax, %ebx
+	cmpl	$0x50434146, (%ebx)	/* 'FACP' */
+	jz	5f			/* found, exit loop */
+	loop	4b			/* try next DWORD */
+	jmp	1f			/* fail */
 
-	//call	acpi_off
+5://facp_found:
+	movl	40(%ebx), %edi		/* physical address of DSDT */
+	cmpl	$0x54445344, (%edi)	/* 'DSDT' */
+	jnz	1f			/* fail */
+	movl	4(%edi), %eax		/* DSDT length */
+	subl	$40, %eax
+	jbe	1f			/* fail */
+	addl	$36, %edi
 
+6://find_dsdt:
+	cmpl	$0x5F35535F, (%edi)	/* '_S5_' */
+	jnz	7f
+	#; DefPackage := PackageOp PkgLength NumElements PackageElementList
+	#; PackageOp  := 0x12
+	#; NumElements        := ByteData
+	#; PackageElementList := Nothing | <PackageElement PackageElementList>
+	#; PackageElement     := DataRefObject | NameString
+	#; PkgLength          := PkgLeadByte |
+	#;                       <PkgLeadByte ByteData> |
+	#;                       <PkgLeadByte ByteData ByteData> |
+	#;                       <PkgLeadByte ByteData ByteData ByteData>
+	#; PkgLeadByte        := <bit 7-6: ByteData count that follows (0-3)>
+	#;                       <bit 5-4: Only used if PkgLength < 63>
+	#;                       <bit 3-0: Least significant PkgLength nybble>
+	#; Note: The high 2 bits of the first byte reveal how many follow bytes
+	#; are in the PkgLength. If the PkgLength has only one byte, bit 0
+	#; through 5 are used to encode the package length (in other words,
+	#; values 0-63). If the package length value is more than 63, more than
+	#; one byte must be used for the encoding in which case bit 4 and 5 of
+	#; the PkgLeadByte are reserved and must be zero. If the multiple bytes
+	#; encoding is used, bits 0-3 of the PkgLeadByte become the least
+	#; significant 4 bits of the resulting package length value. The next
+	#; ByteData will become the next least significant 8 bits of the
+	#; resulting value and so on, up to 3 ByteData bytes. Thus, the maximum
+	#; package length is 2**28.
+
+	cmpb	$0x12, 4(%edi)	/* PackageOp */
+	jnz	7f
+	//testb	$0xC0, 5(%edi)	/* PkgLeadByte */
+	//jnz	7f
+	cmpb	$4, 5(%edi)	/* PkgLeadByte, the minimum should be 4 */
+	jb	7f
+	cmpb	$0x0A, 5(%edi)	/* PkgLeadByte, the maximum should be 10 */
+	ja	7f
+	cmpb	$0x08, -1(%edi)	/* NameOp */
+	jz	8f
+	cmpb	$0x5C, -1(%edi)	/* RootChar '\' */
+	jnz	7f
+	cmpb	$0x08, -2(%edi)	/* NameOp with RootChar prefix '\' */
+	jnz	7f
+8://locate_next:
+	movb	6(%edi), %dl	/* NumElements */
+
+	cmpb	$4, %dl		#; it should be 4, but some BIOSes use 2
+	ja	7f
+	cmpb	$0, %dl
+	ja	8f		/* find succeeded */
+
+7://loop_continue:
+	incl	%edi
+	decl	%eax
+	jnz	6b
+	jmp	1f		/* fail */
+
+8:
+	leal	7(%edi), %edi
+	xorl	%ecx, %ecx
+	call 	data_analyze
+	jnz	1f
+	movb 	(%edi), %cl	/* SLP_TYPa value */
+	movl	68(%ebx), %edx 	/* PM1b_CNT_BLK port */
+	testl	%edx, %edx
+	jz	9f
+	incl 	%edi
+	call	data_analyze
+	jnz	1f
+	movb	(%edi), %ch	/* SLP_TYPb value */
+
+9://acpi_power_off:
+#if 0
+	/* enabling ACPI caused hangup on an AMI netbook, xianglang report */
+	movl	64(%ebx), %edx	/* PM1a_CNT_BLK port */
+	testl	%edx, %edx
+	jz	10f
+	inw	%dx, %ax
+	testb	$1, %al
+	jnz	10f		/* ACPI already enabled */
+
+	movl	48(%ebx), %edx  /* SMI_CMD port */
+	testl	%edx, %edx	/* must be non-zero */
+	jz	10f
+	movb	52(%ebx), %al	/* ACPI_ENABLE value */
+	testb	%al, %al	/* must be non-zero */
+	jz	10f
+	outb	%al, %dx	/* enter SCI mode, usually not needed */
+#if 1
+	movl	64(%ebx), %edx	/* PM1a_CNT_BLK port */
+	testl	%edx, %edx
+	jz	11f
+	movl	$0x10000, %edi	/* set loop count */
+12:
+	inw	%dx, %ax
+	testb	$1, %al
+	jnz	10f
+	decl	%edi
+	jnz	12b
+#endif
+#endif
+
+10://no_smi:
+	/*	PM1 Control Registers Fixed Hardware Feature Control Bits
+	Bit    Name	Description
+	---    ----	------------------------------------------------------
+	0      SCI_EN	Selects the power management event to be either an SCI
+			or SMI interrupt for the following events. When this
+			bit is set, then power management events will generate
+			an SCI interrupt. When this bit is reset power
+			management events will generate an SMI interrupt. It
+			is the responsibility of the hardware to set or reset
+			this bit. OSPM always preserves this bit position.
+	1      BM_RLD	When set, this bit allows the generation of a bus
+			master request to cause any processor in the C3 state
+			to transition to the C0 state. When this bit is reset,
+			the generation of a bus master request does not affect
+			any processor in the C3 state.
+	2      GBL_RLS	This write-only bit is used by the ACPI software to
+			raise an event to the BIOS software, that is,
+			generates an SMI to pass execution control to the BIOS
+			for IA-PC platforms. BIOS software has a corresponding
+			enable and status bit to control its ability to
+			receive ACPI events (for example, BIOS_EN and
+			BIOS_STS). The GBL_RLS bit is set by OSPM to indicate
+			a release of the Global Lock and the setting of the
+			pending bit in the FACS memory structure.
+	3-8    Reserved These bits are reserved by OSPM.
+	9      Ignore	Software ignores this bit field.
+	10-12  SLP_TYPx	Defines the type of sleeping state the system enters
+			when the SLP_EN bit is set to one. This 3-bit field
+			defines the type of hardware sleep state the system
+			enters when the SLP_EN bit is set. The \_Sx object
+			contains 3-bit binary values associated with the
+			respective sleeping state(as described by the object).
+			OSPM takes the two values from the \_Sx object and
+			programs each value into the respective SLP_TYPx
+			field.
+	13     SLP_EN   This is a write-only bit and reads to it always return
+			a zero. Setting this bit causes the system to sequence
+			into the sleeping state associated with the SLP_TYPx
+			fields programmed with the values from the \_Sx
+			object.
+	14-15  Reserved	This field always returns zero. */
+
+	andw	$0x0707, %cx
+	shlw	$2, %cx
+	orw	$0x2020, %cx
+
+	movl	64(%ebx), %edx	/* PM1a_CNT_BLK port */
+	testl	%edx, %edx
+	jz 	11f
+	call	write_pm1_cnt
+	movl	68(%ebx), %edx 	/* PM1b_CNT_BLK port */
+	testl	%edx, %edx
+	jz	11f
+	movb	%ch, %cl
+	call	write_pm1_cnt
+11:
+	/* acpi soft off failed. disable acpi if possible!!! */
+	//xorl 	%edx, %edx
+	movl	48(%ebx), %edx	/* SMI_CMD port */
+	testl   %edx, %edx	/* must be non-zero */
+	jz	1f
+	/* first enable it, then disable it */
+	movb	52(%ebx), %al	/* ACPI_ENABLE value */
+	testb	%al, %al	/* must be non-zero */
+	jz	10f
+	outb	%al, %dx	/* enable ACPI */
+#if 1
+	movl	64(%ebx), %edx	/* PM1a_CNT_BLK port */
+	testl	%edx, %edx
+	jz	13f
+	movl	$0x10000, %edi	/* set loop count */
+12:
+	inw	%dx, %ax
+	testb	$1, %al
+	jnz	13f
+	decl	%edi
+	jnz	12b
+13:
+#endif
+	movl	48(%ebx), %edx	/* SMI_CMD port */
+	movb	53(%ebx), %al	/* ACPI_DISABLE value */ 
+	testb	%al, %al	/* must be non-zero */
+	jz	1f
+	outb	%al, %dx	/* disable ACPI */
+#if 1
+	movl	64(%ebx), %edx	/* PM1a_CNT_BLK port */
+	testl	%edx, %edx
+	jz	13f
+	movl	$0x10000, %edi	/* set loop count */
+12:
+	inw	%dx, %ax
+	testb	$1, %al
+	jz	13f
+	decl	%edi
+	jnz	12b
+13:
+#endif
+1:
+	popal
+	ret
+
+write_pm1_cnt:
+#if 1
+	inw	%dx, %ax
+	andb	$0xE3, %ah	/* clear typ */
+#else
+	#; This also works!!
+	xorw	%ax, %ax
+#endif
+	orb	%cl, %ah	/* set new typ */
+	//andb	$0xF9, %al	/* clear BM_RLD, GBL_RLS */
+	outw	%ax, %dx
+	ret
+
+find_rsdp:
+
+	.code32
+1:
+	cmpl	$0x20445352, (%eax)	/* 'RSD ' */
+	jnz	2f
+	cmpl	$0x20525450, 4(%eax)	/* 'PTR ' */
+#if 1
+	jnz	2f
+
+	/* checksum */
+	xorl	%edx, %edx
+	xorl	%esi, %esi
+4:
+	addb	(%eax, %esi), %dl
+	incl	%esi
+	cmpl	$20, %esi
+	jnz	4b
+	testb	%dl, %dl
+#endif
+	jz	3f		/* success with CF=0 */
+2:
+	addl	$0x10, %eax
+	loop	1b
+	stc			/* failure with CF=1 */
+3:
+	ret
+
+data_analyze:
+	movb	(%edi), %dl
+	cmpb	$0x0A, %dl	/* bytedata Prefix */
+	jz	1f
+	cmpb	$0, %dl		/* zeroOP */
+	jz	2f
+	cmpb	$1, %dl		/* oneOP */
+	jz	2f
+	cmpb	$0xFF, %dl	/* onesOp */
+	jmp	2f
+1:
+	incl	%edi
+	cmpb	%dl, %dl	/* success, set ZF=1 */
+2:
+	ret
+
+try_apm:
+	
 	call	EXT_C(prot_to_real)
 
 	.code16
-
+	
 	pushw	%ds
 	pushw	%es
 	pushal
 
-	//sti		/* this is not needed here, so comment it out. */
-	sti	#; added 2006-11-30
+	sti
 
-#if 0
+#if 1
 	/* detect APM */
 	movw	$0x5300, %ax
 	xorw	%bx, %bx
 	int	$0x15
-	//jc	EXT_C(hard_stop)
-	jc	1f
+	jc	1f		/* APM fail */
 	/* don't check %bx for buggy BIOSes... */
 
-	/* disconnect APM first */
-	movw	$0x5304, %ax
-	xorw	%bx, %bx
-	int	$0x15
+	/* This caused hangup/reboot. commented out by zw2312914. */
+	///* disconnect APM first */
+	//movw	$0x5304, %ax
+	//xorw	%bx, %bx
+	//int	$0x15
 
-	/* connect APM */
+	/* connect real mode interface of APM */		
 	movw	$0x5301, %ax
 	xorw	%bx, %bx
 	int	$0x15
-	//jc	EXT_C(hard_stop)
-	jc	1f
+	jc	1f		/* APM fail */
 
 	/* set APM protocol level - 1.1 or bust. (this covers APM 1.2 also) */
 	movw	$0x530E, %ax
 	xorw	%bx, %bx
 	movw	$0x0101, %cx
 	int	$0x15
-	//jc	EXT_C(hard_stop)
 	jc	1f
 
-	/* set the power state to off */
+	/* turn off system by APM 1.1+ */
 	movw	$0x5307, %ax
 	movw	$1, %bx
 	movw	$3, %cx
 	int	$0x15
-
-	/* shouldn't reach here */
-	//jmp	EXT_C(hard_stop)
 1:
 #else
-
-//	jmp	1f
-
+	/* This also could hangup on some machines. */
 	movw	$0x5300, %ax	/* installation check (v1.0+)       */
 	xorw	%bx, %bx	/* device ID of system BIOS (0000h) */
 	int	$0x15		/* CF set on error, AH=error code   */
-
-//9:
-//	sti
-//	hlt
-//	jmp	9b
 
 	jc	1f		/* No APM present, fail             */
 
@@ -1273,168 +1581,19 @@ ENTRY(grub_halt)
 	int	$0x15
 1:
 #endif
-	//jmp	hard_stop
+
 	popal
 	popw	%es
 	popw	%ds
-	/* anyway, it failed. Return to caller with errnum set! */
 
 	DATA32	call	EXT_C(real_to_prot)
-	.code32
-
-	call	acpi_off
-
-	xorl	%eax, %eax	/* return 0 for false */
-
-	/* set errnum to ERR_HALT(=74). */
-	movl	$74, EXT_C(errnum)
-
-	cld		/* in case it is set by buggy BIOS int15. */
-
-	ret
-
-find_rsdp:
 
 	.code32
-2:
-	cmpl	$0x20445352, (%eax)	/* 'RSD ' */
-	jnz	1f
-	cmpl	$0x20525450, 4(%eax)	/* 'PTR ' */
-	jnz	1f
-	xorl	%edx, %edx
-	xorl	%esi, %esi
-3:
-	addb	(%eax, %esi), %dl
-	incl	%esi
-	cmpl	$20, %esi
-	jnz	3b
-	testb	%dl, %dl
-	jz	2f			/* success with CF=0 */
-1:
-	addl	$0x10, %eax
-	loop	2b
-	stc				/* failure with CF=1 */
-2:
-	ret
+	ret			/* APM code end */
 
-acpi_off:
+	/* end of halt code */
 
-	.code32
-
-	pushal
-
-	/* search for RSDP in 1st 1KB of Extended BIOS Data Area (EBDA) */
-	movzwl	0x40E, %eax		/* EBDA segment */
-	testw	%ax, %ax		/* segment should >= 0x8000 */
-	jns	2f			/* No EBDA */
-	shll	$4, %eax		/* EAX=physical address */
-	//jz	2f			/* No EBDA */
-
-	movl	$(1024/16), %ecx
-	call	find_rsdp
-	jnc	3f			/* rsdp found */
-2:
-	/* search for RSDP in ROM space 0xE0000-0xFFFFF */
-	movl	$0xE0000, %eax
-	movl	$(0x20000/0x10), %ecx
-	call	find_rsdp
-	jc	1f			/* no acpi */
-3:
-	movl	16(%eax), %esi		/* physical address of RSDT */
-	cmpl	$0x54445352, (%esi)	/* 'RSDT' */
-	jnz	1f			/* no acpi */
-	mov	4(%esi), %ecx		/* RSDT length */
-	subl	$0x24, %ecx
-	jbe	1f			/* no acpi */
-	shrl	$2, %ecx
-	addl	$0x24, %esi
-4://find_facp:
-	lodsl
-	movl	%eax, %ebx
-	cmpl	$0x50434146, (%ebx)	/* 'FACP' */
-	jz	5f			/* facp found */
-	loop	4b			/* continue */
-	jmp	1f			/* no acpi */
-5://facp_found:
-	movl	40(%ebx), %edi		/* physical address of DSDT */
-	cmpl	$0x54445344, (%edi)	/* 'DSDT' */
-	jnz	1f			/* no acpi */
-	mov	4(%edi), %eax		/* DSDT length */
-	subl	$40, %eax
-	jbe	1f			/* no acpi */
-	addl	$36, %edi
-6://find_dsdt:
-	cmpl	$0x5F35535F, (%edi)	/* '_S5_' */
-	jnz	7f
-	cmpb	$0x12, 4(%edi)		/* DefPackage opcode */
-	jnz	7f
-	movb	6(%edi), %dl
-	cmpb	$4, %dl		/* _S5_ package must contain 4 bytes */
-				/* but VirtualBox has only 2 bytes   */
-	ja	7f
-	cmpb	$1, %dl
-	jb	7f
-	leal	7(%edi), %edi
-	xorl	%ecx, %ecx
-	cmpb	$0, (%edi)	/* 0 means 0 byte */
-	jz	8f
-	cmpb	$0xA, (%edi)	/* 0A xx means byte xx */
-	jnz	1f			/* no acpi */
-	incl	%edi
-	movb	(%edi), %cl
-8:
-	incl	%edi
-	cmpb	$2, %dl
-	jb	8f
-	cmpb	$0, (%edi)
-	jz	8f
-	cmpb	$0xA, (%edi)
-	jnz	1f			/* no acpi */
-	incl	%edi
-	movb	(%edi), %ch
-8:
-	jmp	9f			/* power off */
-7://find_dsdt2:
-	incl	%edi
-	decl	%eax
-	jnz	6b
-	jmp	1f			/* no acpi */
-9://acpi_power_off:
-	movl	48(%ebx), %edx
-	testl	%edx, %edx
-	jz	10f
-	movb	52(%ebx), %al
-	outb	%al, %dx
-	movl	64(%ebx), %edx
-	xorl	%edi, %edi
-11:
-	inw	%dx, %ax
-	testb	$1, %al
-	jnz	10f
-	decl	%edi
-	jnz	11b
-10://no_smi:
-	andw	$0x0707, %cx
-	shlw	$2, %cx
-	orw	$0x2020, %cx
-	movl	64(%ebx), %edx
-	inw	%dx, %ax
-	andw	$0x0203, %ax
-	orb	%cl, %ah
-	outw	%ax, %dx
-	movl	68(%ebx), %edx
-	testl	%edx, %edx
-	jz	12f
-	inw	%dx, %ax
-	andw	$0x0203, %ax
-	orb	%ch, %ah
-	outw	%ax, %dx
-12:
-	//jmp	12b
-1:
-	popal
-
-	ret
+////////////////////////////////////////////////////////////////////////////
 
 /*
  * int tpm_init (void)

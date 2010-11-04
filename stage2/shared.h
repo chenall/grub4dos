@@ -993,7 +993,7 @@ void grub_reboot (void) __attribute__ ((noreturn));
 
 /* Halt the system, using APM if possible. If NO_APM is true, don't use
    APM even if it is available.  */
-void grub_halt (int no_apm); //__attribute__ ((noreturn));
+void grub_halt (int skip_flags); //__attribute__ ((noreturn));
 
 struct drive_map_slot
 {
