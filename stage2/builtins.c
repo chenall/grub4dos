@@ -3911,7 +3911,7 @@ static int
 splashimage_func(char *arg, int flags)
 {
     //char splashimage[64];
-    int i;
+//    int i;
 
     /* If ARG is empty, we reset SPLASHIMAGE.  */
     if (*arg)
@@ -4709,7 +4709,8 @@ static int script_run (char *arg, int flags)
 	if (!(arg = P)) return 0;
 	while ((P = skip_to(0xd,arg)))
 	{
-		if (! run_line (arg,flags))
+		run_line (arg,flags);
+		if (errnum)
 			return 0;
 		arg = P;
 	}
@@ -11508,7 +11509,7 @@ static unsigned long saved_lengths[2];
 static unsigned long long wait;
 static unsigned long long entryno;
 static char *default_file;
-static int c;
+//static int c;
 static int deny_write;
 
   /* Save sector information about at most two sectors.  */
@@ -11531,7 +11532,7 @@ static void
 prompt_user (void)
 {
 	int wait1;
-
+	int c;
 	wait1 = wait;
 
 	printf("\nAbout to write the entry number %d to file %s\n\n"
@@ -13766,7 +13767,7 @@ static int echo_func (char *arg,int flags)
    x = y = getxy() & 0xffff;
    x >>= 8;
    y &= 0xff;
-
+	char echo_ec = 0;
    for(;;)
    {
       if (grub_memcmp(arg,"-P:",3) == 0)
@@ -13788,7 +13789,6 @@ static int echo_func (char *arg,int flags)
 	 x += ((*arg++ - '0') & 15);
 	 if (c != 0) x = current_term->chars_per_line - x;
 	 saved_xy = getxy();
-	 arg = skip_to (0,arg);
 	 gotoxy(x,y);
       }
       else if (grub_memcmp(arg,"-h",2) == 0 )
@@ -13823,11 +13823,23 @@ static int echo_func (char *arg,int flags)
 	 if (saved_xy) gotoxy((saved_xy >> 8) & 0xff,saved_xy & 0xff);//restor cursor
 	 return 1;
       }
+      else if (grub_memcmp(arg,"-n",2) == 0)
+      {
+			echo_ec |= 1;
+      }
+      else if (grub_memcmp(arg,"-e",2) == 0)
+      {
+			echo_ec |= 2;
+      }
       else break;
+   	 arg = skip_to (0,arg);
    }
 
-   flags = parse_string(arg);
-   arg[flags] = 0;
+	if (echo_ec & 2)
+	{
+		flags = parse_string(arg);
+		arg[flags] = 0;
+	}
 
    for(;*arg;arg++)
    {
@@ -13854,6 +13866,9 @@ static int echo_func (char *arg,int flags)
 	    grub_putchar(*arg);
       }
    }
+
+	if ((echo_ec & 1) == 0)
+		putchar('\n');
 
    if (current_term->setcolorstate)
 	  current_term->setcolorstate (COLOR_STATE_STANDARD);

@@ -33,7 +33,7 @@
 char *
 skip_to (int after_equal, char *cmdline)
 {
-   if (after_equal == 0xd)
+   if (after_equal == 0xd)//skip to next line
    {
       while (*cmdline++)
       {
@@ -139,136 +139,148 @@ find_command (char *command)
   errnum = ERR_UNRECOGNIZED;
   return 0;
 }
-#define PRINTF_BUFFER ((char *)0x1200200)
+
+static char *skip_to_next_cmd (char *cmd,int *status)
+{
+	*status = 0;
+	if (cmd == NULL || *cmd == 0)
+		return NULL;
+	while (*(cmd = skip_to (0, cmd)))
+	{
+		switch (*(unsigned short *)cmd)
+		{
+			case 0x2626://	operator AND "&&"
+				*status = 1;
+				break;
+			case 0x7C7C://	operator OR "||"
+				*status = 2;
+				break;
+			case 0x2021://	! 
+				*status = 4;
+				break;
+			case 0x207C:// |
+			case 0x007C:
+				*status = 8 | 1;
+				break;
+			case 0x203e: // >
+				*status = 8 | 2;
+				break;
+			case 0x3e3e: // >>
+				*status = 8 | 3;
+				break;
+			default:
+				continue;
+		}
+		*(cmd - 1) = '\0';
+		return skip_to (0,cmd);
+	}
+	return cmd;
+}
+
+#define PRINTF_BUFFER ((char *)0x1201000)
+#define CMD_BUFFER ((char *)0x1200000)
 int run_line (char *heap,int flags)
 {
 	char *p;
 	char *arg = heap;
 	int ret = 0;
-	int status;
+	int status = 0;
 	struct builtin *builtin;
-	for (p = arg; *p != 0; p = skip_to (0, p))
+	int status_t = 0;
+	while ((heap = skip_to_next_cmd(arg,&status)) != NULL)
 	{
-		switch(*(unsigned short *)p)
+		putchar_st.flag = 0;
+		switch(status_t)
 		{
-			case 0x2626://	operator AND "&&"
-				status = 1;
+			case 1:// operator "|"
+				ret = grub_strlen(arg);
+				grub_memmove(CMD_BUFFER,arg,ret);
+				p = skip_to (0, arg);
+				if (*p == 0)
+					CMD_BUFFER[ret++] = ' ';
+				if (putchar_st.addr >= PRINTF_BUFFER + 0xC00)
+					return !(errnum = ERR_WONT_FIT);
+				grub_memmove(CMD_BUFFER + ret,PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER);
+				arg = CMD_BUFFER;
 				break;
-			case 0x7C7C://	operator OR "||"
-				status = 2;
-				break;
-			case 0x2021://	! 
-				status = 4;
-				break;
-			case 0x207C:// |
-			case 0x007C:
-				putchar_st.flag = 1;
-				putchar_st.addr = PRINTF_BUFFER;
-				status = 8;
-				break;
-			case 0x203e: // >
-				putchar_st.flag = 2;
-				putchar_st.addr = PRINTF_BUFFER;
-				status = 8;
-				break;
+			case 2:// operator ">"
+			case 3:// operator ">>
+					if (! grub_open (arg))
+						return 0;
+					if (status_t & 1)//>> append
+					{
+						char *f_buf = CMD_BUFFER;
+						int t_read,t_len;
+						while ((t_read = grub_read ((unsigned long long)(int)f_buf,0x400,GRUB_READ)))
+						{
+							f_buf[t_read] = 0;
+							t_len = grub_strlen(f_buf);
+							if (t_len < t_read)
+							{
+								filepos -= t_read - t_len;
+								break;
+							}
+						}
+					}
+					if (grub_read ((unsigned long long)(int)PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER,GRUB_WRITE) == 0)
+					{
+						return 0;
+					}
+					status_t = 0;
+					arg = heap;
+					continue;
 			default:
-				continue;
+				break;
 		}
 
-		*(p-1) = 0;
-
-		if (status == 4)
+		if (status & 8)
 		{
-			break;
+			putchar_st.addr = PRINTF_BUFFER;
+			putchar_st.flag = status & 3;
 		}
 
+		errnum = 0;
 		builtin = find_command (arg);
 		if ((int)builtin != -1)
 		{
 			if (! builtin || ! (builtin->flags & flags))
 			{
 				errnum = ERR_UNRECOGNIZED;
-				goto next;
+				break;
 			}
 			ret = (builtin->func) (skip_to (1,arg), flags);
 		}
 		else
 			ret = command_func (arg,flags);
 
+		if ((status & 4) || status == 0)
+			break;
 
-		if ( status == 8 || (ret && (status == 1)) || (! ret && (status == 2)) )
+		arg = heap;//next cmd
+
+		if (status & 8)
 		{
-			arg = skip_to (0, p);
-			if ( status == 8 ) break;
-			errnum = 0;
+			status_t = status & 3;
+			*putchar_st.addr++ = 0;
+			continue;
 		}
-		else
+
+		errnum = 0;
+		status_t = 0;
+		if ((status == 1 && ret == 0) || (status == 2 && ret))
 		{
-			errnum = 0;
-			while(*(p = skip_to (0, p)))
+			do
 			{
-				if (*(unsigned short *)p == 0x2021)
-				{
-					p = arg = skip_to (0,p);
-					break;
-				}
-			}
-			if (! *p) goto next;
-		}
+				arg = skip_to_next_cmd(arg,&status);
+			} while (status && status != 4);
 
-	}
-
-	if (putchar_st.flag == 2)
-	{
-		ret = errnum;
-		putchar_st.flag = 0;
-		if (! grub_open (arg))
-			return 0;
-		if (grub_read ((unsigned long long)(int)PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER,GRUB_WRITE))
-			errnum = ret;
-		return !errnum;
-	}
-	
-	if (putchar_st.flag == 1)
-	{
-		int len;
-		putchar_st.flag = 0;
-		if ((len = strlen(arg)) > 0x200) return 0;
-		*putchar_st.addr = 0; //terminate
-		putchar_st.addr = PRINTF_BUFFER;
-	        if (len > 0) *--putchar_st.addr = 0x20;
-		for (;len;len--)
-		{
-			*--putchar_st.addr = arg[len-1];
-		}
-		while (*putchar_st.addr == '\"' || *putchar_st.addr == ' ') putchar_st.addr++; //skip '"' and space
-		if (*putchar_st.addr == '\0')
-		{
-		  return ret;
-		}
-		else
-		{
-		  return run_line (putchar_st.addr,flags);
+			if (status != 4)
+				break;
 		}
 	}
 
-	if (! *arg) goto next;	
-	/* Run BUILTIN->FUNC.  */
-	builtin = find_command (arg);
-
-	if ((int)builtin != -1)
-	{
-		arg = ((builtin->func) == commandline_func) ? heap : skip_to(1,arg);
-		ret = (builtin->func) (arg, flags);
-	}
-	else
-	{
-		ret = command_func (arg, flags);
-	}
-	
-next:
-	if (errnum) return 0;
-	return 1;
+	putchar_st.flag = 0;
+	return errnum?0:ret;
 }
 #undef PRINTF_BUFFER 
 

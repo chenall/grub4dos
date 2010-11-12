@@ -465,7 +465,7 @@ run_script (char *script, char *heap)
   char *old_entry = 0;
   char *cur_entry = script;
   struct builtin *builtin = 0;
-  char *arg;
+//  char *arg;
   grub_error_t errnum_old;
 
   /* Initialize the data.  */
@@ -670,7 +670,7 @@ run_script (char *script, char *heap)
 	else
 		command_func (arg, BUILTIN_SCRIPT);
 #endif
-next:
+//next:
 	run_line (heap , BUILTIN_SCRIPT);
       if (! *old_entry)	/* HEAP holds the implicit BOOT command */
 	break;
@@ -2379,7 +2379,7 @@ restart_config:
 	    while (1)
 	    {
 		struct builtin *builtin;
-		char *arg;
+//		char *arg;
 		grub_error_t errnum_old;
 
 #ifndef GRUB_UTIL
@@ -2597,7 +2597,7 @@ restart_config:
 	else
 		command_func (arg, BUILTIN_MENU);
 #endif
-next:
+//next:
 		run_line (heap , BUILTIN_MENU);
 		/* if the INSERT key was pressed at startup, debug is not allowed to be turned off. */
 #ifndef GRUB_UTIL
