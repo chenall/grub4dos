@@ -6197,6 +6197,10 @@ halt_func (char *arg, int flags)
       {
 	skip_flags |= 2;
       }
+	else if (grub_memcmp (arg, "--force-sci", 11) ==0)
+	  {
+	skip_flags |= 4;
+      }
     else
 	break;
     arg = skip_to (0, arg);

@@ -1126,26 +1126,24 @@ ENTRY(grub_halt)
 	
 	movl	4(%esp), %eax	/* get the argument */
 
-	testl	$2, %eax	/* bit 1=1 for --no-acpi */
+	testl	$2, %eax		/* bit 1=1 for --no-acpi */
 	jnz	1f
 	call 	acpi_soft_off
 1:
-	testl	$1, %eax	/* bit 0=1 for --no-apm */
+	testl	$1, %eax		/* bit 0=1 for --no-apm */
 	jnz	1f
 	call	try_apm
 1:
-	xorl	%eax, %eax	/* return 0 for false */
+	xorl	%eax, %eax		/* return 0 for false */
 
-	pushl	%eax		/* EAX=0 */
-	popfl			/* cld, cli, ... */
+	pushl	%eax			/* EAX=0 */
+	popfl					/* cld, cli, ... */
 
 	/* set errnum to ERR_HALT(=74). */
 	movl	$74, EXT_C(errnum)
 	ret
 
 acpi_soft_off:
-
-	/* contributor: zw2312914, 2010-10-27 */
 
 	.code32
 
@@ -1155,48 +1153,60 @@ acpi_soft_off:
 	movl	$0xE0000, %eax
 	movl	$(0x20000/0x10), %ecx
 	call	find_rsdp
-	jnc	3f			/* rsdp found */
+	jnz	3f							/* rsdp found */
 	
 	/* try the 1st 1KB of EBDA */
-	movzwl	0x40E, %eax		/* EBDA segment */
-	testw	%ax, %ax		/* segment should >= 0x8000 */
-	jns	1f			/* no EBDA, fail */
-	shll	$4, %eax		/* EAX=physical address */
+	movzwl	0x40E, %eax				/* EBDA segment */
+	testl	%eax, %eax				/* segment should >= 0x8000 */
+	jns	1f							/* no EBDA, fail */
+	shll	$4, %eax				/* EAX=physical address */
 	movl	$(1024/16), %ecx
 	call	find_rsdp
-	jc	1f			/* fail */
+	jz	1f							/* fail */
 3:
 	/* locate rsdt, ignoring xsdt table for simplicity. */
-	movl	16(%eax), %esi		/* physical address of RSDT */
-	cmpl	$0x54445352, (%esi)	/* 'RSDT' */
-	jnz	1f			/* fail, ignoring xsdt */
-	mov	4(%esi), %ecx		/* RSDT length */
+	movl	16(%eax), %esi			/* physical address of RSDT */
+	cmpl	$0x54445352, (%esi)		/* 'RSDT' */
+	jnz	1f							/* fail, ignoring xsdt */
+	movl	4(%esi), %ecx			/* RSDT length */
 	subl	$0x24, %ecx
-	jbe	1f			/* fail */
+	jbe	1f							/* fail */
 	shrl	$2, %ecx
 	addl	$0x24, %esi
-	cld
 
 4://find_facp:
 	lodsl
-	movl	%eax, %ebx
-	cmpl	$0x50434146, (%ebx)	/* 'FACP' */
-	jz	5f			/* found, exit loop */
-	loop	4b			/* try next DWORD */
-	jmp	1f			/* fail */
+	cmpl	$0x50434146, (%eax)		/* 'FACP' */
+	jz	5f							/* found, exit loop */
+	loop	4b						/* try next DWORD */
+	jmp	1f							/* fail */
 
 5://facp_found:
-	movl	40(%ebx), %edi		/* physical address of DSDT */
-	cmpl	$0x54445344, (%edi)	/* 'DSDT' */
-	jnz	1f			/* fail */
-	movl	4(%edi), %eax		/* DSDT length */
+	movl	%eax, %ebx				/* fadt address */
+	cmpl	$0,	64(%ebx)			/* power off will use pm1a_cnt_blk port, it must be true */
+	jz	1f
+	
+	movl	$1,	%edi			
+	call 	write_smi_port			/* pass EDI = 1 for enable SCI */
+	jz	1f							/* don't transform */
+	
+	movl	40(%ebx), %edi			/* physical address of DSDT */
+	cmpl	$0x54445344, (%edi)		/* 'DSDT' */
+	jnz	1f							/* fail */
+	movl	4(%edi), %eax			/* DSDT length */
 	subl	$40, %eax
-	jbe	1f			/* fail */
+	jbe	1f							/* fail */
 	addl	$36, %edi
 
-6://find_dsdt:
-	cmpl	$0x5F35535F, (%edi)	/* '_S5_' */
+6://locate_S5:
+	cmpl	$0x5F35535F, (%edi)		/* '_S5_' */
 	jnz	7f
+	cmpb	$0x08, -1(%edi)			/* NameOp */
+	jz	8f
+	cmpb	$0x08, -2(%edi)			/* NameOp possible with RootChar prefix '\' */
+	jnz	7f
+	
+8://locate_next:	
 	#; DefPackage := PackageOp PkgLength NumElements PackageElementList
 	#; PackageOp  := 0x12
 	#; NumElements        := ByteData
@@ -1221,80 +1231,140 @@ acpi_soft_off:
 	#; resulting value and so on, up to 3 ByteData bytes. Thus, the maximum
 	#; package length is 2**28.
 
-	cmpb	$0x12, 4(%edi)	/* PackageOp */
+	cmpb	$0x12, 4(%edi)			/* PackageOp */
 	jnz	7f
-	//testb	$0xC0, 5(%edi)	/* PkgLeadByte */
-	//jnz	7f
-	cmpb	$4, 5(%edi)	/* PkgLeadByte, the minimum should be 4 */
+	cmpb	$4, 5(%edi)				/* PkgLeadByte,  the minimum must be 4 for \S5_ object */
 	jb	7f
-	cmpb	$0x0A, 5(%edi)	/* PkgLeadByte, the maximum should be 10 */
-	ja	7f
-	cmpb	$0x08, -1(%edi)	/* NameOp */
-	jz	8f
-	cmpb	$0x5C, -1(%edi)	/* RootChar '\' */
-	jnz	7f
-	cmpb	$0x08, -2(%edi)	/* NameOp with RootChar prefix '\' */
-	jnz	7f
-8://locate_next:
-	movb	6(%edi), %dl	/* NumElements */
+	movb	6(%edi), %dl			/* NumElements */
 
-	cmpb	$4, %dl		#; it should be 4, but some BIOSes use 2
+	cmpb	$4, %dl					/* 	Complete _S5_ object should contain 4 NumElements,
+										but some BIOSes reduced to 2 . 
+										because 2 reserved NumElements be ignored */
 	ja	7f
 	cmpb	$0, %dl
-	ja	8f		/* find succeeded */
+	ja	8f							/* find succeeded */
 
 7://loop_continue:
 	incl	%edi
 	decl	%eax
 	jnz	6b
-	jmp	1f		/* fail */
+	jmp	1f							/* fail */
 
-8:
+8://get_slp_typx:
 	leal	7(%edi), %edi
-	xorl	%ecx, %ecx
 	call 	data_analyze
-	jnz	1f
-	movb 	(%edi), %cl	/* SLP_TYPa value */
-	movl	68(%ebx), %edx 	/* PM1b_CNT_BLK port */
-	testl	%edx, %edx
-	jz	9f
 	incl 	%edi
-	call	data_analyze
-	jnz	1f
-	movb	(%edi), %ch	/* SLP_TYPb value */
+	call	data_analyze			/* slp_typ_a in %cl, slp_typ_b in %ch */
+	andl	$0x0707, %ecx			/* slp_typX only have 3 bit */
+	shll	$2, %ecx				/* the description of slp_typX in pm1_cnt_blk Description see below */
 
-9://acpi_power_off:
-#if 0
-	/* enabling ACPI caused hangup on an AMI netbook, xianglang report */
-	movl	64(%ebx), %edx	/* PM1a_CNT_BLK port */
-	testl	%edx, %edx
-	jz	10f
-	inw	%dx, %ax
-	testb	$1, %al
-	jnz	10f		/* ACPI already enabled */
+/* The following will enter G2 state (ie acpi soft off)*/
+/* AT here, %ebx = FADT address, %cx = slp_typX(a and b) of high byte, other regsiters is free */
 
-	movl	48(%ebx), %edx  /* SMI_CMD port */
-	testl	%edx, %edx	/* must be non-zero */
-	jz	10f
-	movb	52(%ebx), %al	/* ACPI_ENABLE value */
-	testb	%al, %al	/* must be non-zero */
-	jz	10f
-	outb	%al, %dx	/* enter SCI mode, usually not needed */
-#if 1
-	movl	64(%ebx), %edx	/* PM1a_CNT_BLK port */
-	testl	%edx, %edx
-	jz	11f
-	movl	$0x10000, %edi	/* set loop count */
-12:
-	inw	%dx, %ax
-	testb	$1, %al
+/* Thanks for MR.rockrock99 and MR.xianglang reports their different and special hardware response mechanism */
+
+9://read_pm1_cnt_group:
+	xorl	%esi, %esi
+	movl	64(%ebx), %edx			/* pm1a_cnt_blk port */
+	inw		%dx, %ax
+	call	wait_io_delay
+	call	test_pm1b_port 			/* when pm1b_cnt_blk value is true, will use slp_typ_b port */
 	jnz	10f
-	decl	%edi
-	jnz	12b
-#endif
-#endif
+	movl	%eax, %esi
+	inw		%dx, %ax
+	call	wait_io_delay
 
-10://no_smi:
+10://is_enable_SCI:
+	orl		%eax, %esi				/* PM1_cnt_group state is pm1a OR pm1b */
+	testl	$0x4, 4(%esp)			/* possible use esp+4 of bit3 for force enable SCI */
+	jnz	11f
+	xorl	%edi, %edi				/* pass EDI = 1 for disable SCI */
+	call	write_smi_port			/* faster closed SCI for MR.rockrock99's Pc */
+	jz	1f
+	
+11://write_pm1_cnt_group:
+	movl	%esi, %eax				/* PM1_cnt_group read back value */
+	movl	64(%ebx), %edx			/* PM1a_CNT_BLK port */
+	call	write_pm1_cnt_group
+	call	test_pm1b_port 			/* when pm1b_cnt_blk value is true, will use slp_typ_b port */
+	jz	12f
+	xchgb	%ch, %cl
+	call	write_pm1_cnt_group
+	
+12://disable_acpi:		/* acpi soft off failed. disable acpi if possible!!! */
+	xorl	%edi, %edi
+	call	write_smi_port			/* pass EDI = 0 for disable SCI */
+
+1://acpi_fail:
+	popal
+	ret
+
+find_rsdp:
+1:
+	cmpl	$0x20445352, (%eax)		/* 'RSD ' */
+	jnz	3f
+	cmpl	$0x20525450, 4(%eax)	/* 'PTR ' */
+	jnz	3f
+	
+	/* checksum for rsdp version 0 */
+	xorl	%edx, %edx
+	xorl	%esi, %esi
+2:
+	addb	(%eax, %esi), %dl
+	incl	%esi
+	cmpl	$20, %esi
+	jnz	2b
+	jz 4f
+3:
+	leal	16(%eax), %eax
+	loop 1b
+4:
+	testl	%ecx, %ecx				/* success with ZF=0, failure with ZF=1 */
+	ret
+
+test_pm1b_port:
+	movl	68(%ebx), %edx 			/* PM1b_CNT_BLK port */
+	testl	%edx, %edx
+	ret
+
+data_analyze:
+    cmpb    $0xa, (%edi)    		/* bytedata Prefix */
+    jnz 	1f
+    incl    %edi
+1:
+	movb 	(%edi), %cl
+	xchgb	%cl, %ch
+    ret
+	
+wait_io_delay:
+	pushl %edi
+	movl	$0x1FFFFF, %edi		/* times should be enough, For example, more than 400 ms based 2G cpu */
+1:
+	nop
+	dec		%edi
+	jnz	1b
+	popl 	%edi
+	ret	
+	
+write_smi_port:			/* input: %edi = 0 for diable acpi, %edi = 1 for enable acpi */	
+	movl	48(%ebx), %edx			/* SMI_CMD port */
+	testl   %edx, %edx				/* must be non-zero */
+	jz	2f
+	movb	52(%ebx), %ah			/* ACPI_ENABLE value in %al*/
+	movb	53(%ebx), %al			/* ACPI_DISABLE value in %al*/
+	testl	%edi, %edi
+	jz 1f
+	xchgb	%ah, %al
+1:
+	testb	%al, %al				/* must be non-zero */
+	jz	2f
+	outb	%al, %dx
+	call	wait_io_delay
+	testl	%eax, %eax				
+2:
+	ret
+	
+write_pm1_cnt_group:
 	/*	PM1 Control Registers Fixed Hardware Feature Control Bits
 	Bit    Name	Description
 	---    ----	------------------------------------------------------
@@ -1336,123 +1406,14 @@ acpi_soft_off:
 			fields programmed with the values from the \_Sx
 			object.
 	14-15  Reserved	This field always returns zero. */
-
-	andw	$0x0707, %cx
-	shlw	$2, %cx
-	orw	$0x2020, %cx
-
-	movl	64(%ebx), %edx	/* PM1a_CNT_BLK port */
-	testl	%edx, %edx
-	jz 	11f
-	call	write_pm1_cnt
-	movl	68(%ebx), %edx 	/* PM1b_CNT_BLK port */
-	testl	%edx, %edx
-	jz	11f
-	movb	%ch, %cl
-	call	write_pm1_cnt
-11:
-	/* acpi soft off failed. disable acpi if possible!!! */
-	//xorl 	%edx, %edx
-	movl	48(%ebx), %edx	/* SMI_CMD port */
-	testl   %edx, %edx	/* must be non-zero */
-	jz	1f
-	/* first enable it, then disable it */
-	movb	52(%ebx), %al	/* ACPI_ENABLE value */
-	testb	%al, %al	/* must be non-zero */
-	jz	10f
-	outb	%al, %dx	/* enable ACPI */
-#if 1
-	movl	64(%ebx), %edx	/* PM1a_CNT_BLK port */
-	testl	%edx, %edx
-	jz	13f
-	movl	$0x10000, %edi	/* set loop count */
-12:
-	inw	%dx, %ax
-	testb	$1, %al
-	jnz	13f
-	decl	%edi
-	jnz	12b
-13:
-#endif
-	movl	48(%ebx), %edx	/* SMI_CMD port */
-	movb	53(%ebx), %al	/* ACPI_DISABLE value */ 
-	testb	%al, %al	/* must be non-zero */
-	jz	1f
-	outb	%al, %dx	/* disable ACPI */
-#if 1
-	movl	64(%ebx), %edx	/* PM1a_CNT_BLK port */
-	testl	%edx, %edx
-	jz	13f
-	movl	$0x10000, %edi	/* set loop count */
-12:
-	inw	%dx, %ax
-	testb	$1, %al
-	jz	13f
-	decl	%edi
-	jnz	12b
-13:
-#endif
-1:
-	popal
-	ret
-
-write_pm1_cnt:
-#if 1
-	inw	%dx, %ax
-	andb	$0xE3, %ah	/* clear typ */
-#else
-	#; This also works!!
-	xorw	%ax, %ax
-#endif
-	orb	%cl, %ah	/* set new typ */
-	//andb	$0xF9, %al	/* clear BM_RLD, GBL_RLS */
+	
+	andw	$0x63F9, %ax			/* reserved and ignored bits must use read back value, clear others */	   
+	orb		%cl, %ah				/* set new slp_typX from \S5 object */
+	bts		$13, %ax				/* set slp_en bit */	
 	outw	%ax, %dx
+	call	wait_io_delay			
 	ret
-
-find_rsdp:
-
-	.code32
-1:
-	cmpl	$0x20445352, (%eax)	/* 'RSD ' */
-	jnz	2f
-	cmpl	$0x20525450, 4(%eax)	/* 'PTR ' */
-#if 1
-	jnz	2f
-
-	/* checksum */
-	xorl	%edx, %edx
-	xorl	%esi, %esi
-4:
-	addb	(%eax, %esi), %dl
-	incl	%esi
-	cmpl	$20, %esi
-	jnz	4b
-	testb	%dl, %dl
-#endif
-	jz	3f		/* success with CF=0 */
-2:
-	addl	$0x10, %eax
-	loop	1b
-	stc			/* failure with CF=1 */
-3:
-	ret
-
-data_analyze:
-	movb	(%edi), %dl
-	cmpb	$0x0A, %dl	/* bytedata Prefix */
-	jz	1f
-	cmpb	$0, %dl		/* zeroOP */
-	jz	2f
-	cmpb	$1, %dl		/* oneOP */
-	jz	2f
-	cmpb	$0xFF, %dl	/* onesOp */
-	jmp	2f
-1:
-	incl	%edi
-	cmpb	%dl, %dl	/* success, set ZF=1 */
-2:
-	ret
-
+	
 try_apm:
 	
 	call	EXT_C(prot_to_real)
@@ -1465,19 +1426,12 @@ try_apm:
 
 	sti
 
-#if 1
 	/* detect APM */
 	movw	$0x5300, %ax
 	xorw	%bx, %bx
 	int	$0x15
 	jc	1f		/* APM fail */
 	/* don't check %bx for buggy BIOSes... */
-
-	/* This caused hangup/reboot. commented out by zw2312914. */
-	///* disconnect APM first */
-	//movw	$0x5304, %ax
-	//xorw	%bx, %bx
-	//int	$0x15
 
 	/* connect real mode interface of APM */		
 	movw	$0x5301, %ax
@@ -1497,90 +1451,6 @@ try_apm:
 	movw	$1, %bx
 	movw	$3, %cx
 	int	$0x15
-1:
-#else
-	/* This also could hangup on some machines. */
-	movw	$0x5300, %ax	/* installation check (v1.0+)       */
-	xorw	%bx, %bx	/* device ID of system BIOS (0000h) */
-	int	$0x15		/* CF set on error, AH=error code   */
-
-	jc	1f		/* No APM present, fail             */
-
-	pushw	%ax		/* AH/AL=major/minor version (BCD)  */
-
-	movw	$0x5304, %ax	/* disconnect interface (v1.0+)     */
-	xorw	%bx, %bx	/* device ID of system BIOS (0000h) */
-	int	$0x15		/* CF set on error, AH=error code   */
-
-	movw	$0x5301, %ax	/* connect real-mode interface (v1.0+)    */
-	xorw	%bx, %bx	/* device ID of system BIOS (0000h)       */
-	int	$0x15		/* CF set on error, AH=error code         */
-
-	popw	%cx		/* CH/CL=driver major/minor version (BCD)    */
-	jc	1f		/* No real-mode interface, fail */
-	pushw	%cx		/* CH/CL=driver major/minor version (BCD)    */
-
-	/* power off all devices using protocol 1.0 */
-	movw	$0x5307, %ax	/* set power state (v1.0+)                   */
-	movw	$0xFFFF, %bx	/* device ID for all devices (-1 for v1.0)   */
-	movw	$3, %cx		/* system state ID (3=off)                   */
-	int	$0x15
-
-	/* power off all devices using protocol 1.1 */
-	movw	$0x5307, %ax	/* set power state (v1.0+)                   */
-	movw	$1, %bx		/* device ID for all devices (1 for v1.1+)   */
-	movw	$3, %cx		/* system state ID (3=off)                   */
-	int	$0x15
-
-	/* power off system BIOS using protocol 1.0 */
-	movw	$0x5307, %ax	/* set power state (v1.0+)                   */
-	xorw	%bx, %bx	/* try again with device=system BIOS (0000h) */
-	movw	$3, %cx		/* system state ID (3=off)                   */
-	int	$0x15
-
-	popw	%cx		/* CH/CL=driver major/minor version (BCD)    */
-	cmp	$0x0101, %cx
-	jb	1f		/* support only 1.0, fail */
-
-	/* 1.0 failed, try 1.1 */
-
-	movw	$0x5308, %ax	/* enable/disable power management (v1.0+) */
-	movw	$1, %bx		/* device ID for all devices (1 for v1.1+) */
-	movw	%bx, %cx	/* 1 for enabled, 0 for disabled           */
-	int	$0x15		/* CF set on error, AH=error code          */
-
-	movw	$0x530E, %ax	/* set driver version (v1.1+)                */
-	xorw	%bx, %bx	/* device ID of system BIOS (0000h)          */
-	movw	$0x0101, %cx	/* set APM protocol level 1.1                */
-	int	$0x15		/* AH/AL=connection major/minor version(BCD) */
-
-	movw	$0x530D, %ax	/* en/disable device power management(v1.1+) */
-	movw	$1, %bx		/* device ID for all devices (1 for v1.1+)   */
-	movw	%bx, %cx	/* 1 for enabled, 0 for disabled             */
-	int	$0x15		/* CF set on error, AH=error code            */
-
-	movw	$0x530F, %ax	/* engage/disengage power management(v1.1+) */
-	movw	$1, %bx		/* device ID for all devices (1 for v1.1+)  */
-	movw	%bx, %cx	/* 1 for engage, 0 for disengage            */
-	int	$0x15		/* CF set on error, AH=error code           */
-
-	movw	$0x5307, %ax	/* set power state (v1.0+)                   */
-	movw	$1, %bx		/* device ID for all devices (1 for v1.1+)   */
-	movw	$3, %cx		/* system state ID (3=off, but not supported */
-				/* for device ID 1 in APM v1.0)              */
-	int	$0x15
-
-	movw	$0x5307, %ax	/* set power state (v1.0+)                   */
-	movw	$0xFFFF, %bx	/* device ID for all devices (-1 for v1.0)   */
-	movw	$3, %cx		/* system state ID (3=off)                   */
-	int	$0x15
-
-	movw	$0x5307, %ax	/* set power state (v1.0+)                   */
-	xorw	%bx, %bx	/* try again with device=system BIOS (0000h) */
-	movw	$3, %cx		/* system state ID (3=off)                   */
-	int	$0x15
-1:
-#endif
 
 	popal
 	popw	%es
