@@ -267,6 +267,76 @@ int check_64bit_and_PAE ()
 }
 
 #endif /* ! STAGE1_5 */
+void *grub_malloc(int size)
+{
+	struct malloc_array *p_memalloc_array = malloc_array_start;
+	unsigned long alloc_mem = 0;
+	size = (size + 0x1F) & ~0xf; //分配内存,16字节对齐,额外分配16字节.也就是说最少的内存分配是32字节.
+
+	for ( ; p_memalloc_array->addr != free_mem_end; p_memalloc_array = p_memalloc_array->next)//find free mem array;
+	{
+		if (p_memalloc_array->addr & 1)//used mem
+			continue;
+		alloc_mem = p_memalloc_array->next->addr - p_memalloc_array->addr;
+		if (alloc_mem < size)
+		{
+			continue;
+		}
+
+		if (alloc_mem > size) //add new array
+		{
+			struct malloc_array *P = malloc_array_start;
+			for ( ; P->addr; P++)
+			{
+				if (P == (struct malloc_array *)mem_alloc_array_end)
+					return NULL;
+			}
+
+			P->addr = p_memalloc_array->addr + size;
+			P->next = p_memalloc_array->next;
+			p_memalloc_array->next = P;
+		}
+
+		alloc_mem =  p_memalloc_array->addr;
+		p_memalloc_array->addr |= 1;//set mem used
+
+		return (void *)alloc_mem;
+	}
+	return NULL;
+}
+
+void grub_free(void *ptr)
+{
+	if (ptr == NULL)
+		return;
+	struct malloc_array *P = malloc_array_start;
+	struct malloc_array *P1 = malloc_array_start;
+
+	for (;P->addr != free_mem_end;P1 = P,P = P->next)
+	{
+		if ((P->addr & ~0xfUL) == (unsigned long)ptr)
+		{
+			if (P == malloc_array_start)
+			{
+				P->addr &= ~0xfUL;
+			}
+			else
+			{//合并可用内存块.
+				P1->next = P->next;
+				P->addr = 0;
+			}
+			P = P->next;
+			if (P->addr != free_mem_end && (P->addr & 1) == 0)
+			{//合并可用内存块.
+				P->addr = 0;
+				P1->next = P->next;
+			}
+			return;
+		}
+	}
+	return;
+}
+
 #endif /* ! GRUB_UTIL */
 
 /* This queries for BIOS information.  */
@@ -291,8 +361,12 @@ init_bios_info (void)
 
 #ifndef GRUB_UTIL
   /* initialize mem alloc array */
+  grub_memset(mem_alloc_array_start,0,(int)(mem_alloc_array_end - mem_alloc_array_start));
   mem_alloc_array_start[0].addr = free_mem_start;
   mem_alloc_array_start[1].addr = 0;	/* end the array */
+  malloc_array_start = (struct malloc_array *)mem_alloc_array_start + 10;
+  malloc_array_start->addr = 0x2000000;
+  malloc_array_start->next = (struct malloc_array *)&free_mem_end;
 #endif /* ! GRUB_UTIL */
 
   /*

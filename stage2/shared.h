@@ -735,7 +735,17 @@ struct mem_alloc_array
 };
 
 struct mem_alloc_array *mem_alloc_array_start;
-unsigned long mem_alloc_array_end;
+struct mem_alloc_array *mem_alloc_array_end;
+
+struct malloc_array
+{
+  unsigned long addr;
+  struct malloc_array *next;
+};
+
+void *grub_malloc(int size);
+void grub_free(void *ptr);
+struct malloc_array *malloc_array_start;
 
 /* If not using config file, this variable is set to zero,
    otherwise non-zero.  */

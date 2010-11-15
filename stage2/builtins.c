@@ -1447,7 +1447,7 @@ cat_func (char *arg, int flags)
   {
     for (j = skip; j - skip < length && (len = grub_read ((unsigned long long)(unsigned long)&s, 16, 0xedde0d90)); j += 16)
     {
-	if (debug > 0)
+//	if (debug > 0) //chenall 2010-11-12 changed.always show.
 		hexdump(j,(char*)&s,(len>length+skip-j)?(length+skip-j):len);
 	if (quit_print)
 		break;
@@ -1456,7 +1456,7 @@ cat_func (char *arg, int flags)
     for (j = 0; j < length && grub_read ((unsigned long long)(unsigned long)&c, 1, 0xedde0d90); j++)
     {
 #if 1
-	if (debug > 0)
+//	if (debug > 0)//chenall 2010-11-12 changed.always show.
 		grub_putchar (c);
 #else
 	/* Because running "cat" with a binary file can confuse the terminal,
@@ -4826,8 +4826,7 @@ command_func (char *arg, int flags)
 	unsigned long pid = 255;
 	unsigned long j;
 	unsigned long psp_len;
-
-	for (j = 1; (unsigned long)&mem_alloc_array_start[j] < mem_alloc_array_end && mem_alloc_array_start[j].addr; j++)
+	for (j = 1; &mem_alloc_array_start[j] < mem_alloc_array_end && mem_alloc_array_start[j].addr; j++)
 	    if (pid < mem_alloc_array_start[j].pid)
 		pid = mem_alloc_array_start[j].pid;
 	pid++;	/* new pid. */
@@ -4902,7 +4901,7 @@ command_func (char *arg, int flags)
 	pid = ((int (*)(void))(psp_len))();	/* pid holds return value. */
 
 	/* on exit, release the memory. */
-	for (j = 1; (unsigned long)&mem_alloc_array_start[j] < mem_alloc_array_end && mem_alloc_array_start[j].addr; j++)
+	for (j = 1; &mem_alloc_array_start[j] < mem_alloc_array_end && mem_alloc_array_start[j].addr; j++)
 		;
 	--j;
 	mem_alloc_array_start[j].pid = 0;
@@ -13872,7 +13871,7 @@ static int echo_func (char *arg,int flags)
    }
 
 	if ((echo_ec & 1) == 0)
-		putchar('\n');
+		grub_putstr("\r\n");
 
    if (current_term->setcolorstate)
 	  current_term->setcolorstate (COLOR_STATE_STANDARD);
