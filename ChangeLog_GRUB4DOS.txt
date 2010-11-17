@@ -1,3 +1,4 @@
+2010-11-15 improved ACPI halt code(patched by zw2312914,Thanks for MR.rockrock99 and MR.xianglang reports their different and special hardware response mechanism ).
 2010-11-04 finally fixed the ACPI halt failure on AMI netbook(by commenting out ACPI-enable code).
 2010-11-03 partially go back to ACPI halt code of 2010-10-29.
 2010-11-02 deleted a duplicate code snip which could cause halt failure.

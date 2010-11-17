@@ -267,7 +267,9 @@ int check_64bit_and_PAE ()
 }
 
 #endif /* ! STAGE1_5 */
-void *grub_malloc(int size)
+#endif /* ! GRUB_UTIL */
+
+void *grub_malloc(unsigned long size)
 {
 	struct malloc_array *p_memalloc_array = malloc_array_start;
 	unsigned long alloc_mem = 0;
@@ -316,28 +318,26 @@ void grub_free(void *ptr)
 	{
 		if ((P->addr & ~0xfUL) == (unsigned long)ptr)
 		{
-			if (P == malloc_array_start)
-			{
-				P->addr &= ~0xfUL;
-			}
-			else
-			{//合并可用内存块.
+			P->addr &= ~0xfUL;//unused memory
+
+			if (P1 != P && (P1->addr & 1) == 0)
+			{//向前合并可用内存块.
 				P1->next = P->next;
 				P->addr = 0;
+				P = P1;
 			}
-			P = P->next;
-			if (P->addr != free_mem_end && (P->addr & 1) == 0)
-			{//合并可用内存块.
-				P->addr = 0;
-				P1->next = P->next;
+
+			P1 = P->next;
+			if (P1->addr != free_mem_end && (P1->addr & 1) == 0)
+			{//向后合并可用内存块.
+				P1->addr = 0;
+				P->next = P1->next;
 			}
 			return;
 		}
 	}
 	return;
 }
-
-#endif /* ! GRUB_UTIL */
 
 /* This queries for BIOS information.  */
 void

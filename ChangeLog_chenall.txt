@@ -1,4 +1,16 @@
-﻿2010-11-15
+﻿2010-11-17
+	1.重写command_func函数大部份代码。
+	  为了方便外命命令的编写，修改主函数调用为以下格式。
+	int main (char *arg, int flags)
+	新的版本可以直接使用arg和flags参数，不需要再进行计算了。
+	
+2010-11-16
+	1.改进malloc/free函数。
+	2.允许执行多个外部命令（之前只允许一个），现在可以在外部命令里面调用其它外部命令。
+	外部命令调用方法使用builtin_cmd函数：builtin_cmd(char *cmd,char *arg,chat *flags);
+	builtin_cmd(NULL,Command and parameters,flags);
+
+2010-11-15
 	1.内置echo命令自动回车符改为"\r\n"
 	2.添加malloc/free函数.
 

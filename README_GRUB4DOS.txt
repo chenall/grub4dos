@@ -2759,6 +2759,20 @@ Examples:
 	is64bit && default 0
 	is64bit || default 1
 
+2010-11-04
+	Add new operators "|", ">" , ">>"
+Usage:
+	command1 | command2
+
+	command > file
+	or
+	command >> file
+
+Node: The file must already exist, GRUB4DOS can not create file or change the file size.
+Examples:
+	cat /test.txt > /abcd.txt
+
+
 ******************************************************************************
 ***          Three new commands is64bit, errnum and errorcheck             ***
 ******************************************************************************
@@ -3946,6 +3960,22 @@ main()
 0x8300 is a pointer to the grub4dos system funtions(API). The system_functions
 variable is defined in asm.S.
 
+More function can use in user programs:
+	http://grubutils.googlecode.com/svn/trunk/src/include/grub4dos.h
+Node: After 2010-11-16 version of grub4dos,you can use like below.
+/////////////////echo.c start///////////////////////////////////////////////
+#define sprintf ((int (*)(char *, const char *, ...))((*(int **)0x8300)[0]))
+
+#define printf(...) sprintf(NULL, __VA_ARGS__)
+int i = 0x66666666;
+asm(".long 0x03051805");
+asm(".long 0xBCBAA7BA");
+int main(char *arg,int flags)
+{
+
+	return printf("%s\n",arg);
+}
+/////////////////echo.c end/////////////////////////////////////////////////
 
 ******************************************************************************
 ***                      Map options added by Karyonix                     ***

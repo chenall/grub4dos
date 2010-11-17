@@ -4684,25 +4684,7 @@ static struct builtin builtin_fallback =
 /* command */
 char command_path[128]="(bd)/grub/";
 static int script_run (char *arg, int flags);
-#if 0
-static char* next_line(char *arg)
-{
-	char *P=arg;
-	
-	while(*P++)
-	{
-		if (*P == '\r' || *P == '\n') 
-		{
-			*P++ = 0;
-			while (*P == '\n' || *P == '\r' || *P == 0x20 || *P == '\t') P++;
-			if (*P == ':') continue;
-			if (*P) return P;
-			break;
-		}
-	}
-	return 0;
-}
-#endif
+
 static int script_run (char *arg, int flags)
 {
 	char *P = skip_to(0xd,arg);//skip head
@@ -4735,42 +4717,69 @@ command_func (char *arg, int flags)
     return 0;
   }
   
-   if ((unsigned char)*arg < 0x20)
+   if (*arg <= ' ')
    {
       if (debug > 0)
 	 printf("Current default path: %s\n",command_path);
       return 20;
    }
 	
-   if (grub_memcmp (arg, "--set-path=", 11) == 0)
-   {
-      arg += 11;
-      if (strlen(arg) >= 127)
-      {
-	 if (debug > 0)
-	      printf("Set default command path error: PATH is too long \n");
-	 return 0;
-      }
-      if (! *arg)
-	    return sprintf(command_path,"(bd)/grub/\0");
-      int j;
+	if (grub_memcmp (arg, "--set-path=", 11) == 0)
+	{
+		arg += 11;
 
-      for (j = 0; j < 126; j++)
-      {
-	 if (*arg == 0x20 || *arg == '\t' || *arg == 0)
-	 {
-		 break;
-	 }
-	 command_path[j] = *arg;
-	 arg++;
-      }
+		if (! *arg)
+			return grub_sprintf(command_path,"(bd)/grub/");
 
-      if (command_path[j-1] != '/') command_path[j++] = '/';
-      command_path[j] = 0;
-      return 1;
-   }
+		int j = grub_strlen(arg);
+
+		if (j >= 127)
+		{
+			if (debug > 0)
+				printf("Set default command path error: PATH is too long \n");
+			return 0;
+		}
+
+		grub_memmove(command_path, arg, j + 1);
+		if (command_path[j-1] != '/')
+			command_path[j++] = '/';
+		command_path[j] = 0;
+		return 1;
+	}
   /* open the command file. */
   {
+#if 1
+	char *filename = arg;
+	char *command_filename;
+	arg = skip_to(0,arg);/* get argument of command */
+	nul_terminate(filename);
+	if ((command_filename = grub_malloc(128 + grub_strlen(filename))) == NULL)
+	{
+		errnum = ERR_WONT_FIT;
+		return 0;
+	}
+
+	grub_free(command_filename);//This memory is only temporary use,so we can release now.
+	if (*filename == '(' || *filename == '/')
+	{
+		if (grub_open (filename) == 0)
+		{
+			return 0;	/* return 'failure' with errnum set. */
+		}
+	}
+	else
+	{
+		grub_sprintf (command_filename,"%s%s",command_path,filename);
+		filename = command_filename + grub_strlen(command_path) - 1;
+		if (grub_open(command_filename) == 0 && grub_open(filename) == 0)
+		{
+			if (debug > 0)
+				grub_printf ("Warning! No such command: %s\n", filename);
+			errnum = 0;	/* No error, so that old menus will run smoothly. */
+			return 0;	/* return 0 indicating a failure or a false case. */
+		}
+	}
+#else
 	char *filename;
 	char command_filename[256];
 
@@ -4797,15 +4806,74 @@ command_func (char *arg, int flags)
 	{
 		return 0;	/* return 'failure' with errnum set. */
 	}
-
+#endif
 	if (filemax < 9ULL)
 	{
 		errnum = ERR_EXEC_FORMAT;
 		goto fail;
 	}
   }
+	
+#if 1
+	char *psp;
+	unsigned long psp_len;
+	unsigned long arg_len;
+	arg_len = grub_strlen (arg);
+	psp_len = ((arg_len + 16) & ~0xF) + 16 + 16;
+	psp = (char *)grub_malloc(filemax + psp_len);
 
-  /* check if we have enough memory. */
+	if (psp == NULL)
+	{
+		errnum = ERR_WONT_FIT;
+		goto fail;
+	}
+
+	char *program = psp + psp_len;//(psp + psp_len) = entry point of program.
+	if (grub_read ((unsigned long long)(int)program, -1ULL, 0xedde0d90) != filemax)
+	{
+		if (! errnum)
+			errnum = ERR_EXEC_FORMAT;
+		grub_free(psp);
+		goto fail;
+	}
+
+	grub_close ();
+	unsigned long pid;
+	/*Is a batch file? */
+	if (*(unsigned long *)program == 0x54414221)//!BAT
+	{
+		pid = script_run(program, flags);
+		/*release memory. */
+		grub_free(psp);
+		return pid;
+	}
+
+	grub_memmove (psp + 16, arg, arg_len + 1);	/* copy args into somewhere in PSP. */
+	*(unsigned long *)psp = psp_len;
+	*(unsigned long *)(psp + psp_len - 4) = psp_len;		/* PSP length in bytes. it is in both the starting dword and the ending dword of the PSP. */
+	*(unsigned long *)(psp + psp_len - 8) = psp_len - 16;	/* args is here. */
+	*(unsigned long *)(psp + psp_len - 12) = flags;		/* flags is here. */
+	/* (free_mem_start + pid - 16) is reserved for full pathname of the program file. */
+
+	/* kernel image is destroyed, so invalidate the kernel */
+	if (kernel_type < KERNEL_TYPE_CHAINLOADER)
+		kernel_type = KERNEL_TYPE_NONE;
+	
+	/* check exec signature. */
+	if (*(unsigned long long *)(int)(program + filemax - 8) != 0xBCBAA7BA03051805ULL)
+	{
+		grub_free(psp);
+		return ! (errnum = ERR_EXEC_FORMAT);
+	}
+	
+	/* call the new program. */
+	pid = ((int (*)(char *,int))program)(psp + 16,flags);	/* pid holds return value. */
+
+	/* on exit, release the memory. */
+	grub_free(psp);
+	return pid;
+#else
+	/* check if we have enough memory. */
   {
 	unsigned long long memory_needed;
 
@@ -4908,7 +4976,7 @@ command_func (char *arg, int flags)
 	free_mem_start = (mem_alloc_array_start[j].addr &= 0xFFFFFFF0);
 	return pid;
   }
-
+#endif
   //return 1;
 
 fail:
@@ -13516,8 +13584,14 @@ builtin_cmd (char *cmd, char *arg, int flags)
 {
 	struct builtin *builtin1 = 0;
 
+	if (cmd == NULL)
+	{
+		cmd = arg;
+		arg = skip_to (0, arg);
+	}
+
 	builtin1 = find_command (cmd);
-  
+
 	if ((int)builtin1 != -1)
 	{
 		if (! builtin1 || ! (builtin1->flags & flags))
@@ -13530,16 +13604,8 @@ builtin_cmd (char *cmd, char *arg, int flags)
 			return (builtin1->func) (arg, flags);
 		}
 	}
-	return 0;
-/*	if ((int)builtin1 != -1)
-	{
-		return (builtin1->func) (arg, flags);
-	}
-	else
-	{
-		return command_func (arg, flags);
-	}
-*/
+	
+	return command_func(arg, flags);
 }
 
 static int read_val(char **str_ptr,unsigned long long *val)

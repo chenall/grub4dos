@@ -743,8 +743,8 @@ struct malloc_array
   struct malloc_array *next;
 };
 
-void *grub_malloc(int size);
-void grub_free(void *ptr);
+extern void *grub_malloc(unsigned long size);
+extern void grub_free(void *ptr);
 struct malloc_array *malloc_array_start;
 
 /* If not using config file, this variable is set to zero,
