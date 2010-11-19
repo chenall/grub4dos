@@ -4688,15 +4688,17 @@ static int script_run (char *arg, int flags);
 static int script_run (char *arg, int flags)
 {
 	char *P = skip_to(0xd,arg);//skip head
-	if (!(arg = P)) return 0;
-	while ((P = skip_to(0xd,arg)))
+	while ((arg = P))
 	{
+		errnum = 0;
+		P = skip_to (0xd,arg);
 		run_line (arg,flags);
-		if (errnum)
+		if (errnum && errorcheck)
+		{
 			return 0;
-		arg = P;
+		}
 	}
-	return run_line (arg,flags);
+	return 1;
 }
 
 int
@@ -4836,7 +4838,7 @@ command_func (char *arg, int flags)
 		grub_free(psp);
 		goto fail;
 	}
-
+	program[filemax] = '\0';
 	grub_close ();
 	unsigned long pid;
 	/*Is a batch file? */
@@ -5267,7 +5269,7 @@ find_func (char *arg, int flags)
 			case 'c':
 				if (ignore_cd)
 					*devtype = ' ';
-				else if (tmp_drive >= 0xa0 && tmp_drive < 0xff)
+				else if (tmp_drive >= 0xa0 && tmp_drive <= 0xff)
 					FIND_DRIVES = 1;
 				break;
 			case 'f':

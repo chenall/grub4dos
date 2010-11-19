@@ -365,7 +365,7 @@ init_bios_info (void)
   mem_alloc_array_start[0].addr = free_mem_start;
   mem_alloc_array_start[1].addr = 0;	/* end the array */
   malloc_array_start = (struct malloc_array *)mem_alloc_array_start + 10;
-  malloc_array_start->addr = 0x2000000;
+  malloc_array_start->addr = free_mem_start + 0x100000;
   malloc_array_start->next = (struct malloc_array *)&free_mem_end;
 #endif /* ! GRUB_UTIL */
 

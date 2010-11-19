@@ -150,7 +150,12 @@ codestart:
 	jmp	real_codestart
 
 	/* internal variables follow */
-
+	#include "grub4dos_int_ver.h"
+	#ifdef GRUB4DOS_INT_VER
+	. = EXT_C(main) + 0x78
+	.long GRUB4DOS_INT_VER
+	#undef GRUB4DOS_INT_VER
+	#endif
 	. = EXT_C(main) + 0x80
 
 VARIABLE(boot_drive)

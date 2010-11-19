@@ -1,4 +1,10 @@
-﻿2010-11-17
+﻿2010-11-18
+	1.Fixed a bug in batch file,thanks Mr.zhaohj.
+	http://bbs.wuyou.com/viewthread.php?tid=180142&page=9#pid2087407
+	2.Add a new variable at 0000:8278 for grub4dos version by date.
+	e.g. read 0x8278 return 0x132B7FE  (20101118)
+	3.Fixed a bug in find_func,thanks Mr.pseudo.
+2010-11-17
 	1.重写command_func函数大部份代码。
 	  为了方便外命命令的编写，修改主函数调用为以下格式。
 	int main (char *arg, int flags)
