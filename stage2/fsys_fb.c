@@ -198,7 +198,11 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
 int fb_dir (char *dirname)
 {
   int found = 0;
-
+	char *dirpath = dirname;
+	dirpath += grub_strlen(dirname);
+	while (dirpath != dirname && *dirpath != '/')
+		dirpath--;
+	int i = dirpath - dirname;
   while (*dirname == '/')
     dirname++;
 
@@ -212,7 +216,7 @@ int fb_dir (char *dirname)
 	  if (substring (dirname, cur_file->name, 1) <= 0)
 	    {
 	      found = 1;
-	      print_a_completion (cur_file->name);
+	      print_a_completion (cur_file->name + i);
 	    }
 	}
       else

@@ -1,4 +1,13 @@
-﻿2010-11-18
+﻿2010-11-21
+	1.解决在(ud)上使用自动补全功能问题.
+	http://bbs.znpc.net/viewthread.php?tid=5976
+
+2010-11-19 supported pxe_dir list.
+	1.添加PXE(pd)文件列表的支持.TFTP ROOT 上的每个目录下都需要有dir.txt才支持.
+	可以使用以下命令生成dir.txt文件
+	for /r %i in (.) do (dir /a/b %i >%i\dir.txt)
+
+2010-11-18
 	1.Fixed a bug in batch file,thanks Mr.zhaohj.
 	http://bbs.wuyou.com/viewthread.php?tid=180142&page=9#pid2087407
 	2.Add a new variable at 0000:8278 for grub4dos version by date.

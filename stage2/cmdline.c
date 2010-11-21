@@ -177,8 +177,8 @@ static char *skip_to_next_cmd (char *cmd,int *status)
 	return cmd;
 }
 
-#define PRINTF_BUFFER ((char *)0x1201000)
-#define CMD_BUFFER ((char *)0x1200000)
+#define PRINTF_BUFFER ((char *)0x1011000)
+#define CMD_BUFFER ((char *)0x1010000)
 int run_line (char *heap,int flags)
 {
 	char *p;
@@ -222,6 +222,12 @@ int run_line (char *heap,int flags)
 							}
 						}
 					}
+					else if (filemax < 10000)
+					{
+						grub_memset((char *)putchar_st.addr,0,filemax);
+						putchar_st.addr = PRINTF_BUFFER + filemax;
+					}
+
 					if (grub_read ((unsigned long long)(int)PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER,GRUB_WRITE) == 0)
 					{
 						return 0;

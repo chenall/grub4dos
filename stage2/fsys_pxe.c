@@ -396,7 +396,7 @@ static int pxe_open (char* name)
 
   pxe_call (PXENV_TFTP_GET_FSIZE, tftp_get_fsize);
   filemax = tftp_get_fsize->FileSize;
-  
+  filepos = 0;
   if (tftp_get_fsize->Status)
   {
     pxe_tftp_opened = 0;
@@ -631,16 +631,60 @@ pxe_read (unsigned long long buf, unsigned long long len, unsigned long write)
    FILEMAX. return 1 if succeed, 0 if fail.  */
 int pxe_dir (char *dirname)
 {
-  int ret, ch;
-
-  if (print_possibilities)
-    return 1;
-
-  pxe_close ();
-
+  int ret;
+  char ch;
   ret = 1;
   ch = nul_terminate (dirname);
 
+  if (print_possibilities)
+  {
+		char dir_tmp[128];
+		char *p_dir;
+		ret = grub_strlen(dirname);
+		p_dir = &dirname[ret];
+		*p_dir = ch;
+		if (ret && ret <=120)
+		{
+			while (ret && dirname[ret] != '/') 
+			{
+				ret--;
+			}
+			grub_memmove(dir_tmp,dirname,ret);
+		}
+		else
+			ret = 0;
+
+		grub_sprintf(&dir_tmp[ret],"/dir.txt");
+		if (pxe_open(dir_tmp))
+		{
+			char *dir_buff=grub_malloc(filemax+1);
+			if (dir_buff && pxe_read((unsigned long long)(int)dir_buff,-1,GRUB_READ))
+			{
+				dir_buff[filemax] = '\0';
+				char *p,*p1;
+				p1 = dir_buff;
+				*p_dir = '\0';
+				dirname += ret + 1;
+				while ((p = p1))
+				{
+					p1 = skip_to(0xd,p);
+					nul_terminate(p);
+					if (*dirname == 0 || substring (dirname, p, 1) < 1)
+					{
+						print_a_completion(p);
+					}
+				}
+				*p_dir = ch;
+				grub_free(dir_buff);
+			}
+
+			pxe_close();
+			return 1;
+		}
+		errnum = ERR_FILE_NOT_FOUND;
+    return 0;
+  }
+  pxe_close ();
   if (! pxe_open (dirname))
     {
       errnum = ERR_FILE_NOT_FOUND;
