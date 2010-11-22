@@ -222,7 +222,7 @@ int run_line (char *heap,int flags)
 							}
 						}
 					}
-					else if (filemax < 10000)
+					else if (filemax < 0x10000)
 					{
 						grub_memset((char *)putchar_st.addr,0,filemax);
 						putchar_st.addr = PRINTF_BUFFER + filemax;

@@ -1180,6 +1180,7 @@ acpi_soft_off:
 	addl	$0x24, %esi
 
 4://find_facp:
+	cld
 	lodsl
 	cmpl	$0x50434146, (%eax)		/* 'FACP' */
 	jz	5f							/* found, exit loop */
@@ -1192,7 +1193,7 @@ acpi_soft_off:
 	jz	1f
 	
 	movl	$1,	%edi			
-	call 	write_smi_port			/* pass EDI = 1 for enable SCI */
+	call 	write_smi_port			/* pass EDI = 1 for enable ACPI */
 	jz	1f							/* don't transform */
 	
 	movl	40(%ebx), %edi			/* physical address of DSDT */
@@ -1274,17 +1275,17 @@ acpi_soft_off:
 	inw		%dx, %ax
 	call	wait_io_delay
 	call	test_pm1b_port 			/* when pm1b_cnt_blk value is true, will use slp_typ_b port */
-	jnz	10f
+	jz	10f
 	movl	%eax, %esi
 	inw		%dx, %ax
 	call	wait_io_delay
 
 10://is_enable_SCI:
 	orl		%eax, %esi				/* PM1_cnt_group state is pm1a OR pm1b */
-	testl	$0x4, 4(%esp)			/* possible use esp+4 of bit3 for force enable SCI */
+	testl	$0x4, 4(%esp)			/* check for --force-sci */
 	jnz	11f
-	xorl	%edi, %edi				/* pass EDI = 1 for disable SCI */
-	call	write_smi_port			/* faster closed SCI for MR.rockrock99's Pc */
+	xorl	%edi, %edi				/* pass EDI = 0 for disable SCI */
+	call	write_smi_port			/* faster closed SCI for MR.xianglang's Pc */
 	jz	1f
 	
 11://write_pm1_cnt_group:
@@ -1343,7 +1344,7 @@ data_analyze:
 	
 wait_io_delay:
 	pushl %edi
-	movl	$0x1FFFFF, %edi		/* times should be enough, For example, more than 400 ms based 2G cpu */
+	movl	$0xFFFFF, %edi
 1:
 	nop
 	dec		%edi
@@ -1457,6 +1458,7 @@ try_apm:
 	movw	$3, %cx
 	int	$0x15
 
+1:
 	popal
 	popw	%es
 	popw	%ds

@@ -13939,8 +13939,10 @@ static int echo_func (char *arg,int flags)
    }
 
 	if ((echo_ec & 1) == 0)
-		grub_putstr("\r\n");
-
+	{
+		grub_putchar('\r');
+		grub_putchar('\n');
+	}
    if (current_term->setcolorstate)
 	  current_term->setcolorstate (COLOR_STATE_STANDARD);
    if (saved_xy) gotoxy((saved_xy >> 8) & 0xff,saved_xy & 0xff);//restor cursor
