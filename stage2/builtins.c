@@ -4687,13 +4687,13 @@ static int script_run (char *arg, int flags);
 
 static int script_run (char *arg, int flags)
 {
-	char *P = skip_to(0xd,arg);//skip head
+	char *P = skip_to(0x100,arg);//skip head
 	while ((arg = P))
 	{
 		errnum = 0;
-		P = skip_to (0xd,arg);
+		P = skip_to (0x100,arg);
 		run_line (arg,flags);
-		if (errnum && errorcheck)
+		if (errnum)
 		{
 			return 0;
 		}
@@ -13588,9 +13588,11 @@ builtin_cmd (char *cmd, char *arg, int flags)
 
 	if (cmd == NULL)
 	{
-		cmd = arg;
-		arg = skip_to (0, arg);
+		return run_line (arg, flags);
 	}
+
+	if (substring(cmd,"exec",1) == 0)
+		return command_func(arg, flags);
 
 	builtin1 = find_command (cmd);
 
@@ -13606,8 +13608,8 @@ builtin_cmd (char *cmd, char *arg, int flags)
 			return (builtin1->func) (arg, flags);
 		}
 	}
-	
-	return command_func(arg, flags);
+
+	return 0;
 }
 
 static int read_val(char **str_ptr,unsigned long long *val)

@@ -1,4 +1,8 @@
-﻿2010-11-21
+﻿2010-11-24
+	1.修正一个skip_to函数的bug。
+	fixed a bug in skip_to func,thanks tuxw.
+
+2010-11-21
 	1.解决在(ud)上使用自动补全功能问题.
 	http://bbs.znpc.net/viewthread.php?tid=5976
 

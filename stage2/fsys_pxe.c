@@ -658,6 +658,7 @@ int pxe_dir (char *dirname)
 		if (pxe_open(dir_tmp))
 		{
 			char *dir_buff=grub_malloc(filemax+1);
+			int found = 0;
 			if (dir_buff && pxe_read((unsigned long long)(int)dir_buff,-1,GRUB_READ))
 			{
 				dir_buff[filemax] = '\0';
@@ -667,22 +668,23 @@ int pxe_dir (char *dirname)
 				dirname += ret + 1;
 				while ((p = p1))
 				{
-					p1 = skip_to(0xd,p);
+					p1 = skip_to(0x100,p);
 					nul_terminate(p);
 					if (*dirname == 0 || substring (dirname, p, 1) < 1)
 					{
+						found = 1;
 						print_a_completion(p);
 					}
 				}
 				*p_dir = ch;
 				grub_free(dir_buff);
 			}
-
 			pxe_close();
-			return 1;
+			if (found)
+				return 1;
 		}
 		errnum = ERR_FILE_NOT_FOUND;
-    return 0;
+		return 0;
   }
   pxe_close ();
   if (! pxe_open (dirname))

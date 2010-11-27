@@ -31,42 +31,48 @@
    AFTER_EQUAL is non-zero, assume that the character `=' is treated as
    a space. Caution: this assumption is for backward compatibility.  */
 char *
-skip_to (int after_equal, char *cmdline)
+skip_to (int flags, char *cmdline)
 {
-   if (after_equal == 0xd)//skip to next line
-   {
-      while (*cmdline++)
-      {
-	 if (*cmdline == '\r' || *cmdline == '\n')
-	 {
-	    *cmdline++ = 0;
-	    while (*cmdline == '\r' || *cmdline == '\n' || *cmdline == ' ' || *cmdline == '\t') cmdline++;
-	    if (*cmdline == ':') continue;
-	    break;
-	 }
-      }
-      return *cmdline?cmdline:0;
-   }
+	if (flags & 0x100)//skip to next line
+	{
+		char eol = flags & 0xff;
+		if (eol == '\0')
+			eol = ':';
+		while (*cmdline)
+		{
+			if (*cmdline == '\r' || *cmdline == '\n')
+			{
+				*cmdline++ = 0;
+				while (*cmdline == '\r' || *cmdline == '\n' || *cmdline == ' ' || *cmdline == '\t')
+					cmdline++;
+				if (*cmdline != eol)
+					break;
+			}
+			cmdline++;
+		}
+		return *cmdline?cmdline:0;
+	}
   /* Skip until we hit whitespace, or maybe an equal sign. */
   while (*cmdline && *cmdline != ' ' && *cmdline != '\t' &&
-	 ! (after_equal && *cmdline == '='))
+	 ! (flags && *cmdline == '='))
   {
 	if (*cmdline == '\"')
 	{
-	    while (*++cmdline && *cmdline != '\"');
+	    while (*++cmdline && *cmdline != '\"')
+			;
 	}
 	else if (*cmdline == '\\')
 	{
 		cmdline ++;
-		if (*cmdline == 0)
-			break;
 	}
-	cmdline ++;
+
+	if (*cmdline)
+		cmdline ++;
   }
 
   /* Skip whitespace, and maybe equal signs. */
   while (*cmdline == ' ' || *cmdline == '\t' ||
-	 (after_equal && *cmdline == '='))
+	 (flags && *cmdline == '='))
     cmdline ++;
 
   return cmdline;
@@ -140,9 +146,9 @@ find_command (char *command)
   return 0;
 }
 
-static char *skip_to_next_cmd (char *cmd,int *status)
+static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 {
-	*status = 0;
+//	*status = 0;
 	if (cmd == NULL || *cmd == 0)
 		return NULL;
 	while (*(cmd = skip_to (0, cmd)))
@@ -171,9 +177,17 @@ static char *skip_to_next_cmd (char *cmd,int *status)
 			default:
 				continue;
 		}
-		*(cmd - 1) = '\0';
-		return skip_to (0,cmd);
+
+		if (flags == 0 || *status == flags)
+		{
+			*(cmd - 1) = '\0';
+			cmd = skip_to (0, cmd);
+			break;
+		}
 	}
+
+	if (*cmd == '\0')
+		*status = 0;
 	return cmd;
 }
 
@@ -181,30 +195,31 @@ static char *skip_to_next_cmd (char *cmd,int *status)
 #define CMD_BUFFER ((char *)0x1010000)
 int run_line (char *heap,int flags)
 {
-	char *p;
+//	char *p;
 	char *arg = heap;
 	int ret = 0;
 	int status = 0;
 	struct builtin *builtin;
 	int status_t = 0;
-	while ((heap = skip_to_next_cmd(arg,&status)) != NULL)
+	while (*heap && (arg = heap))
 	{
 		putchar_st.flag = 0;
+		heap = skip_to_next_cmd(heap,&status,0);//next cmd
 		switch(status_t)
 		{
 			case 1:// operator "|"
-				ret = grub_strlen(arg);
-				grub_memmove(CMD_BUFFER,arg,ret);
-				p = skip_to (0, arg);
-				if (*p == 0)
-					CMD_BUFFER[ret++] = ' ';
+				status_t = grub_strlen(arg);
+				grub_memmove(CMD_BUFFER,arg,status_t);
+				arg = skip_to (0, arg);
+				if (*arg == 0)
+					CMD_BUFFER[status_t++] = ' ';
 				if (putchar_st.addr >= PRINTF_BUFFER + 0xC00)
 					return !(errnum = ERR_WONT_FIT);
-				grub_memmove(CMD_BUFFER + ret,PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER);
+				grub_memmove(CMD_BUFFER + status_t,PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER);
 				arg = CMD_BUFFER;
 				break;
 			case 2:// operator ">"
-			case 3:// operator ">>
+			case 3:// operator ">>"
 					if (! grub_open (arg))
 						return 0;
 					if (status_t & 1)//>> append
@@ -222,7 +237,7 @@ int run_line (char *heap,int flags)
 							}
 						}
 					}
-					else if (filemax < 0x10000)
+					else if (filemax < 0x40000)
 					{
 						grub_memset((char *)putchar_st.addr,0,filemax);
 						putchar_st.addr = PRINTF_BUFFER + filemax;
@@ -230,11 +245,11 @@ int run_line (char *heap,int flags)
 
 					if (grub_read ((unsigned long long)(int)PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER,GRUB_WRITE) == 0)
 					{
+						grub_close();
 						return 0;
 					}
-					status_t = 0;
-					arg = heap;
-					continue;
+					grub_close();
+					goto check_status;
 			default:
 				break;
 		}
@@ -245,7 +260,6 @@ int run_line (char *heap,int flags)
 			putchar_st.flag = status & 3;
 		}
 
-		errnum = 0;
 		builtin = find_command (arg);
 		if ((int)builtin != -1)
 		{
@@ -259,11 +273,6 @@ int run_line (char *heap,int flags)
 		else
 			ret = command_func (arg,flags);
 
-		if ((status & 4) || status == 0)
-			break;
-
-		arg = heap;//next cmd
-
 		if (status & 8)
 		{
 			status_t = status & 3;
@@ -271,24 +280,22 @@ int run_line (char *heap,int flags)
 			continue;
 		}
 
+		check_status:
+		if (status == 0 || (status & 12))
+			break;
 		errnum = 0;
 		status_t = 0;
 		if ((status == 1 && ret == 0) || (status == 2 && ret))
 		{
-			do
-			{
-				arg = skip_to_next_cmd(arg,&status);
-			} while (status && status != 4);
-
-			if (status != 4)
-				break;
+			heap = skip_to_next_cmd(heap,&status,4);
 		}
 	}
 
 	putchar_st.flag = 0;
-	return errnum?0:ret;
+	return ret;
 }
 #undef PRINTF_BUFFER 
+
 
 /* Enter the command-line interface. HEAP is used for the command-line
    buffer. Return only if FOREVER is nonzero and get_cmdline returns

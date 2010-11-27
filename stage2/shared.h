@@ -1215,7 +1215,7 @@ extern char *mbr;
 #endif
 extern int grub_timeout;
 
-char *skip_to (int after_equal, char *cmdline);
+char *skip_to (int flags, char *cmdline);
 int run_line (char *heap,int flags);
 struct builtin *find_command (char *command);
 void print_cmdline_message (int forever);

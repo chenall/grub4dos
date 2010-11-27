@@ -1129,7 +1129,9 @@ ENTRY(grub_reboot)
 ENTRY(grub_halt)
 	.code32
 	
-	movl	4(%esp), %eax	/* get the argument */
+	pushl	%ebp
+	movl	%esp, %ebp
+	movl	8(%ebp), %eax		/* get the argument: skip_flags */
 
 	testl	$2, %eax		/* bit 1=1 for --no-acpi */
 	jnz	1f
@@ -1142,10 +1144,10 @@ ENTRY(grub_halt)
 	xorl	%eax, %eax		/* return 0 for false */
 
 	pushl	%eax			/* EAX=0 */
-	popfl					/* cld, cli, ... */
+	popfl				/* cld, cli, ... */
 
-	/* set errnum to ERR_HALT(=74). */
-	movl	$74, EXT_C(errnum)
+	movl	$74, EXT_C(errnum)	/* set errnum to ERR_HALT(=74) */
+	popl	%ebp
 	ret
 
 acpi_soft_off:
@@ -1158,60 +1160,60 @@ acpi_soft_off:
 	movl	$0xE0000, %eax
 	movl	$(0x20000/0x10), %ecx
 	call	find_rsdp
-	jnz	3f							/* rsdp found */
+	jnz	3f			/* rsdp found */
 	
 	/* try the 1st 1KB of EBDA */
-	movzwl	0x40E, %eax				/* EBDA segment */
-	testl	%eax, %eax				/* segment should >= 0x8000 */
-	jns	1f							/* no EBDA, fail */
-	shll	$4, %eax				/* EAX=physical address */
+	movzwl	0x40E, %eax		/* EBDA segment */
+	testl	%eax, %eax		/* segment should >= 0x8000 */
+	jns	1f			/* no EBDA, fail */
+	shll	$4, %eax		/* EAX=physical address */
 	movl	$(1024/16), %ecx
 	call	find_rsdp
-	jz	1f							/* fail */
+	jz	1f			/* fail */
 3:
 	/* locate rsdt, ignoring xsdt table for simplicity. */
-	movl	16(%eax), %esi			/* physical address of RSDT */
-	cmpl	$0x54445352, (%esi)		/* 'RSDT' */
-	jnz	1f							/* fail, ignoring xsdt */
-	movl	4(%esi), %ecx			/* RSDT length */
+	movl	16(%eax), %esi		/* physical address of RSDT */
+	cmpl	$0x54445352, (%esi)	/* 'RSDT' */
+	jnz	1f			/* fail, ignoring xsdt */
+	movl	4(%esi), %ecx		/* RSDT length */
 	subl	$0x24, %ecx
-	jbe	1f							/* fail */
+	jbe	1f			/* fail */
 	shrl	$2, %ecx
 	addl	$0x24, %esi
 
 4://find_facp:
 	cld
 	lodsl
-	cmpl	$0x50434146, (%eax)		/* 'FACP' */
-	jz	5f							/* found, exit loop */
-	loop	4b						/* try next DWORD */
-	jmp	1f							/* fail */
+	cmpl	$0x50434146, (%eax)	/* 'FACP' */
+	jz	5f			/* found, exit loop */
+	loop	4b			/* try next DWORD */
+	jmp	1f			/* fail */
 
 5://facp_found:
-	movl	%eax, %ebx				/* fadt address */
-	cmpl	$0,	64(%ebx)			/* power off will use pm1a_cnt_blk port, it must be true */
-	jz	1f
+	movl	%eax, %ebx		/* fadt address */
+	cmpl	$0, 64(%ebx)		/* PM1a_CNT_BLK port must be true */
+	jz	1f			/* fail */
 	
-	movl	$1,	%edi			
-	call 	write_smi_port			/* pass EDI = 1 for enable ACPI */
-	jz	1f							/* don't transform */
+	movl	$1, %edi		/* pass EDI = 1 for enable ACPI */
+	call 	write_smi_port		/* this call running at here , purpose of the delay is sufficient */
+	jz	1f			/* fail, don't transform */
 	
-	movl	40(%ebx), %edi			/* physical address of DSDT */
-	cmpl	$0x54445344, (%edi)		/* 'DSDT' */
-	jnz	1f							/* fail */
-	movl	4(%edi), %eax			/* DSDT length */
+	movl	40(%ebx), %edi		/* physical address of DSDT */
+	cmpl	$0x54445344, (%edi)	/* 'DSDT' */
+	jnz	12f			/* if fail, disable_acpi */
+	movl	4(%edi), %eax		/* DSDT length */
 	subl	$40, %eax
-	jbe	1f							/* fail */
+	jbe	12f			/* if fail, disable_acpi */
 	addl	$36, %edi
 
 6://locate_S5:
-	cmpl	$0x5F35535F, (%edi)		/* '_S5_' */
+	cmpl	$0x5F35535F, (%edi)	/* '_S5_' */
 	jnz	7f
-	cmpb	$0x08, -1(%edi)			/* NameOp */
+	cmpb	$0x08, -1(%edi)		/* NameOp */
 	jz	8f
-	cmpb	$0x08, -2(%edi)			/* NameOp possible with RootChar prefix '\' */
+	cmpb	$0x08, -2(%edi)		/* NameOp with RootChar prefix '\' */
 	jnz	7f
-	
+
 8://locate_next:	
 	#; DefPackage := PackageOp PkgLength NumElements PackageElementList
 	#; PackageOp  := 0x12
@@ -1254,7 +1256,7 @@ acpi_soft_off:
 	incl	%edi
 	decl	%eax
 	jnz	6b
-	jmp	1f							/* fail */
+	jmp	12f							/* if fail, disable_acpi */
 
 8://get_slp_typx:
 	leal	7(%edi), %edi
@@ -1265,49 +1267,49 @@ acpi_soft_off:
 	shll	$2, %ecx				/* the description of slp_typX in pm1_cnt_blk Description see below */
 
 /* The following will enter G2 state (ie acpi soft off)*/
-/* AT here, %ebx = FADT address, %cx = slp_typX(a and b) of high byte, other regsiters is free */
+/* AT here, %ebx = FADT address, %cx = slp_typX(a and b), other regsiters is free */
 
 /* Thanks for MR.rockrock99 and MR.xianglang reports their different and special hardware response mechanism */
 
-9://read_pm1_cnt_group:
+9://is_keep_SCI:
+	testl	$0x4, 8(%ebp)	/* check for --force-sci */
+	jnz	10f		/* if --force-sic is true, don't disable acpi */
+	xorl	%edi, %edi	/* pass EDI = 0 for disable SCI */
+	call	write_smi_port	/* faster close SCI for MR.xianglang's Pc */
+	jz	1f							/* fail, don't transform */
+	
+10://read_pm1_cnt_group:
 	xorl	%esi, %esi
-	movl	64(%ebx), %edx			/* pm1a_cnt_blk port */
-	inw		%dx, %ax
+	movl	64(%ebx), %edx	/* PM1a_CNT_BLK port */
+	inw	%dx, %ax
 	call	wait_io_delay
-	call	test_pm1b_port 			/* when pm1b_cnt_blk value is true, will use slp_typ_b port */
-	jz	10f
-	movl	%eax, %esi
-	inw		%dx, %ax
+	call	test_pm1b_port	/* when pm1b_cnt_blk value is true, will use slp_typ_b port */
+	jz	11f
+	xchgl	%eax, %esi
+	inw	%dx, %ax
 	call	wait_io_delay
-
-10://is_enable_SCI:
-	orl		%eax, %esi				/* PM1_cnt_group state is pm1a OR pm1b */
-	testl	$0x4, 4(%esp)			/* check for --force-sci */
-	jnz	11f
-	xorl	%edi, %edi				/* pass EDI = 0 for disable SCI */
-	call	write_smi_port			/* faster closed SCI for MR.xianglang's Pc */
-	jz	1f
 	
 11://write_pm1_cnt_group:
-	movl	%esi, %eax				/* PM1_cnt_group read back value */
-	movl	64(%ebx), %edx			/* PM1a_CNT_BLK port */
+	orl	%esi, %eax	/* PM1_cnt_group state is pm1a OR pm1b */
+	movl	64(%ebx), %edx	/* PM1a_CNT_BLK port */
 	call	write_pm1_cnt_group
-	call	test_pm1b_port 			/* when pm1b_cnt_blk value is true, will use slp_typ_b port */
+	call	test_pm1b_port 	/* when pm1b_cnt_blk value is true, will use slp_typ_b port */
 	jz	12f
 	xchgb	%ch, %cl
 	call	write_pm1_cnt_group
 	
 12://disable_acpi:		/* acpi soft off failed. disable acpi if possible!!! */
 	xorl	%edi, %edi
-	call	write_smi_port			/* pass EDI = 0 for disable SCI */
+	call	write_smi_port	/* pass EDI = 0 for disable ACPI */
 
 1://acpi_fail:
 	popal
 	ret
 
 find_rsdp:
+	/* will change EAX, ECX, EDX, ESI */
 1:
-	cmpl	$0x20445352, (%eax)		/* 'RSD ' */
+	cmpl	$0x20445352, (%eax)	/* 'RSD ' */
 	jnz	3f
 	cmpl	$0x20525450, 4(%eax)	/* 'PTR ' */
 	jnz	3f
@@ -1320,56 +1322,54 @@ find_rsdp:
 	incl	%esi
 	cmpl	$20, %esi
 	jnz	2b
-	jz 4f
+	jz	4f
 3:
 	leal	16(%eax), %eax
-	loop 1b
+	loop	1b
 4:
-	testl	%ecx, %ecx				/* success with ZF=0, failure with ZF=1 */
+	testl	%ecx, %ecx	/* success with ZF=0, failure with ZF=1 */
 	ret
 
 test_pm1b_port:
-	movl	68(%ebx), %edx 			/* PM1b_CNT_BLK port */
+	movl	68(%ebx), %edx	/* PM1b_CNT_BLK port */
 	testl	%edx, %edx
 	ret
 
 data_analyze:
-    cmpb    $0xa, (%edi)    		/* bytedata Prefix */
-    jnz 	1f
-    incl    %edi
+	cmpb	$0x0A, (%edi)	/* ByteData Prefix */
+	jnz	1f
+	incl	%edi
 1:
 	movb 	(%edi), %cl
 	xchgb	%cl, %ch
-    ret
-	
-wait_io_delay:
-	pushl %edi
-	movl	$0xFFFFF, %edi
+	ret
+
+wait_io_delay:			/* NOTE: we have not save %edi, and %edi will be set to zero */
+	movl	$0x1FFFFF, %edi
 1:
 	nop
-	dec		%edi
+	decl	%edi
 	jnz	1b
-	popl 	%edi
-	ret	
-	
-write_smi_port:			/* input: %edi = 0 for diable acpi, %edi = 1 for enable acpi */	
-	movl	48(%ebx), %edx			/* SMI_CMD port */
-	testl   %edx, %edx				/* must be non-zero */
+	ret
+
+write_smi_port:
+	/* input: %edi = 0 for disable acpi, %edi = 1 for enable acpi */
+	movl	48(%ebx), %edx	/* SMI_CMD port */
+	testl   %edx, %edx	/* must be non-zero */
 	jz	2f
-	movb	52(%ebx), %ah			/* ACPI_ENABLE value in %al*/
-	movb	53(%ebx), %al			/* ACPI_DISABLE value in %al*/
+	movw	52(%ebx), %ax	/* AH for ACPI_DISABLE, AL for ACPI_ENABLE */
 	testl	%edi, %edi
-	jz 1f
+	jnz	1f
 	xchgb	%ah, %al
 1:
-	testb	%al, %al				/* must be non-zero */
+	testb	%al, %al	/* must be non-zero */
 	jz	2f
 	outb	%al, %dx
 	call	wait_io_delay
-	testl	%eax, %eax				
+	testl	%eax, %eax
 2:
 	ret
-	
+
 write_pm1_cnt_group:
 	/*	PM1 Control Registers Fixed Hardware Feature Control Bits
 	Bit    Name	Description
@@ -1413,11 +1413,11 @@ write_pm1_cnt_group:
 			object.
 	14-15  Reserved	This field always returns zero. */
 	
-	andw	$0x63F9, %ax			/* reserved and ignored bits must use read back value, clear others */	   
-	orb		%cl, %ah				/* set new slp_typX from \S5 object */
-	bts		$13, %ax				/* set slp_en bit */	
+	andw	$0x63F9, %ax	/* reserved and ignored bits must use read back value, clear others */	   
+	orb	%cl, %ah	/* set new slp_typX from \S5 object */
+	bts	$13, %ax	/* set slp_en bit */
 	outw	%ax, %dx
-	call	wait_io_delay			
+	call	wait_io_delay
 	ret
 	
 try_apm:
