@@ -201,6 +201,7 @@ int run_line (char *heap,int flags)
 	int status = 0;
 	struct builtin *builtin;
 	int status_t = 0;
+	int stat_bak = putchar_st.flag;
 	while (*heap && (arg = heap))
 	{
 		putchar_st.flag = 0;
@@ -291,7 +292,8 @@ int run_line (char *heap,int flags)
 		}
 	}
 
-	putchar_st.flag = 0;
+	putchar_st.flag = stat_bak;
+	putchar_st.addr = PRINTF_BUFFER;
 	return ret;
 }
 #undef PRINTF_BUFFER 
