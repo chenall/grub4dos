@@ -33,7 +33,7 @@
 char *
 skip_to (int flags, char *cmdline)
 {
-	if (flags & 0x100)//skip to next line
+	if (flags & SKIP_LINE)//skip to next line
 	{
 		char eol = flags & 0xff;
 		if (eol == '\0')
@@ -54,25 +54,28 @@ skip_to (int flags, char *cmdline)
 	}
   /* Skip until we hit whitespace, or maybe an equal sign. */
   while (*cmdline && *cmdline != ' ' && *cmdline != '\t' &&
-	 ! (flags && *cmdline == '='))
+	 ! (flags == 1 && *cmdline == '='))
   {
-	if (*cmdline == '\"')
-	{
-	    while (*++cmdline && *cmdline != '\"')
-			;
-	}
-	else if (*cmdline == '\\')
-	{
-		cmdline ++;
-	}
+		if (*cmdline == '\"')
+		{
+			 while (*++cmdline && *cmdline != '\"')
+				;
+		}
+		else if (*cmdline == '\\')
+		{
+			cmdline ++;
+		}
 
-	if (*cmdline)
-		cmdline ++;
+		if (*cmdline)
+			cmdline ++;
   }
+	//with Terminate
+	if ((flags & SKIP_WITH_TERMINATE) && *cmdline)
+		*cmdline++ ='\0';
 
   /* Skip whitespace, and maybe equal signs. */
   while (*cmdline == ' ' || *cmdline == '\t' ||
-	 (flags && *cmdline == '='))
+	 (flags == 1  && *cmdline == '='))
     cmdline ++;
 
   return cmdline;

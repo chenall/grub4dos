@@ -4683,6 +4683,7 @@ static struct builtin builtin_fallback =
 
 /* command */
 char command_path[128]="(bd)/grub/";
+#if 0
 static int script_run (char *arg, int flags);
 
 static int script_run (char *arg, int flags)
@@ -4700,7 +4701,7 @@ static int script_run (char *arg, int flags)
 	}
 	return 1;
 }
-
+#endif
 int
 command_func (char *arg, int flags)
 {
@@ -4749,12 +4750,11 @@ command_func (char *arg, int flags)
 		return 1;
 	}
   /* open the command file. */
+  char *filename = arg;
+  arg = skip_to(SKIP_WITH_TERMINATE,arg);/* get argument of command */
   {
-#if 1
-	char *filename = arg;
 	char *command_filename;
-	arg = skip_to(0,arg);/* get argument of command */
-	nul_terminate(filename);
+//	nul_terminate(filename);
 	if ((command_filename = grub_malloc(128 + grub_strlen(filename))) == NULL)
 	{
 		errnum = ERR_WONT_FIT;
@@ -4781,34 +4781,7 @@ command_func (char *arg, int flags)
 			return 0;	/* return 0 indicating a failure or a false case. */
 		}
 	}
-#else
-	char *filename;
-	char command_filename[256];
 
-	grub_memmove (command_filename + 1, arg, sizeof(command_filename) - 2);
-	command_filename[0] = '/';
-	command_filename[255] = 0;
-	nul_terminate (command_filename + 1);
-	filename = command_filename + 1;
-
-	if ((*arg >= 'a' && *arg <= 'z') || (*arg >= 'A' && *arg <= 'Z'))
-	{
-		char filename_t[512];/* use 512 here instead of 256 to avoid buffer overflow in the following sprintf. */
-		sprintf(filename_t,"%s%s\0",command_path,filename);
-		if ((! grub_open (filename_t)) && (! grub_open (filename - 1)))
-		{
-			if (debug > 0)
-				grub_printf ("Warning! No such command: %s\n", filename);
-			errnum = 0;	/* No error, so that old menus will run smoothly. */
-			return 0;	/* return 0 indicating a failure or a false case. */
-		}
-		errnum = 0;
-	}
-	else if (! grub_open (filename))
-	{
-		return 0;	/* return 'failure' with errnum set. */
-	}
-#endif
 	if (filemax < 9ULL)
 	{
 		errnum = ERR_EXEC_FORMAT;
@@ -4844,8 +4817,93 @@ command_func (char *arg, int flags)
 	/*Is a batch file? */
 	if (*(unsigned long *)program == 0x54414221)//!BAT
 	{
-		pid = script_run(program, flags);
+		char *cmd_buff = grub_malloc((filemax >> 1) * grub_strlen(arg) + 1);
+
+		if (cmd_buff == NULL)
+		{
+			errnum = ERR_WONT_FIT;
+			grub_free(psp);
+			return 0;
+		}
+
+		char *s[11] = {filename};
+		int i;
+		for (i = 1;i < 10;i++)
+		{
+			s[i] = arg;
+			if (*arg)
+				arg = skip_to(SKIP_WITH_TERMINATE,arg);
+		}
+
+		char *p_cmd;
+		char *p_bat;
+		char *p_rep;
+
+		program = skip_to(SKIP_LINE,program);//skip head
+
+		while ((p_bat = program))
+		{
+			program = skip_to (SKIP_LINE,program);
+			p_cmd = cmd_buff;
+
+			while(*p_bat)
+			{
+				if (*p_bat != '%')
+				{
+					*p_cmd++ = *p_bat++;
+					continue;
+				}
+
+				*p_cmd = *p_bat++;
+
+				if (*p_bat == '%')
+				{
+					p_cmd++,p_bat++;
+					continue;
+				}
+			
+				i = *p_bat;
+				if (*p_bat == '~')
+				{
+					p_bat++;
+				}
+
+				if (*p_bat <= '9' && *p_bat >= '0')
+				{
+					p_rep = s[*p_bat - '0'];
+					if ((char)i == '~' && *p_rep == '\"')
+					{
+						p_rep++;
+					}
+
+					while (*p_rep)
+						*p_cmd++ = *p_rep++;
+
+					if ((char)i == '~' && *--p_rep == '\"')
+					{
+						p_cmd--;
+					}
+				}
+				else
+				{
+					p_cmd++;
+					if ((char)i == '~')
+						*p_cmd++ = '~';
+					*p_cmd++ = *p_bat;
+				}
+				p_bat++;
+			}
+
+			*p_cmd = '\0';
+			pid = run_line (cmd_buff,flags);
+			if (errnum)
+			{
+				break;
+			}
+		}
+		
 		/*release memory. */
+		grub_free(cmd_buff);
 		grub_free(psp);
 		return pid;
 	}

@@ -1,4 +1,7 @@
-﻿2010-11-24
+﻿2010-12-06
+	1.批处理脚本支持参数%0 - %9同cmd批处理用法一样。%~n 可以去掉前后的引号
+
+2010-11-24
 	1.修正一个skip_to函数的bug。
 	fixed a bug in skip_to func,thanks tuxw.
 
