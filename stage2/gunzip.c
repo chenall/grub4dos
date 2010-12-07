@@ -129,6 +129,8 @@
 
 #include "filesys.h"
 
+#include "decomp.h"
+
 /* so we can disable decompression  */
 #ifdef GRUB_UTIL
 int no_decompression = 0;
@@ -137,6 +139,15 @@ unsigned long long gzip_filemax;
 
 /* used to tell if "read" should be redirected to "gunzip_read" */
 int compressed_file;
+
+/* identify active decompressor */
+int decomp_type;
+
+struct decomp_entry decomp_table[NUM_DECOM] =
+{
+	{"gz",gunzip_test_header,gunzip_close,gunzip_read},
+	{"lzma",dec_lzma_open,dec_lzma_close,dec_lzma_read}
+};
 
 /* internal variables only */
 static unsigned long long gzip_data_offset;
@@ -324,6 +335,7 @@ gunzip_test_header (void)
 
   initialize_tables ();
 
+  decomp_type = 0;
   compressed_file = 1;
   gunzip_swap_values ();
   /*
@@ -333,6 +345,11 @@ gunzip_test_header (void)
   filepos = 0;
 
   return 1;
+}
+
+void 
+gunzip_close (void)
+{
 }
 
 
@@ -1191,7 +1208,7 @@ initialize_tables (void)
 
 
 unsigned long long
-gunzip_read (unsigned long long buf, unsigned long long len)
+gunzip_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
   unsigned long long ret = 0;
 

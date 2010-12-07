@@ -1342,7 +1342,7 @@ cat_func (char *arg, int flags)
        if (! grub_open (arg))
             return 0;
 #ifndef NO_DECOMPRESSION
-       filesize = gzip_filemax;
+       filesize = (compressed_file ? gzip_filemax : filemax);
 #else
        filesize = filemax;
 #endif

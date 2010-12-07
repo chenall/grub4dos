@@ -149,6 +149,7 @@ char *err_list[] =
   [ERR_HALT] = "Halt failed.",
   [ERR_PARTITION_LOOP] = "Too many partitions.",
 //  [ERR_WRITE_TO_NON_MEM_DRIVE] = "Only RAM drives can be written when running in a script",
+  [ERR_NOT_ENOUGH_MEMORY] = "Not enough memory",
 
 };
 

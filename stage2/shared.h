@@ -690,6 +690,7 @@ typedef enum
   ERR_KERNEL_WITH_PROGRAM,
   ERR_HALT,
   ERR_PARTITION_LOOP,
+  ERR_NOT_ENOUGH_MEMORY,
 
   MAX_ERR_NUM
 } grub_error_t;
@@ -1312,7 +1313,11 @@ unsigned int grub_sleep (unsigned int seconds);
 #ifndef NO_DECOMPRESSION
 /* Compression support. */
 int gunzip_test_header (void);
-unsigned long long gunzip_read (unsigned long long buf, unsigned long long len);
+void gunzip_close (void);
+unsigned long long gunzip_read (unsigned long long buf, unsigned long long len, unsigned long write);
+int dec_lzma_open (void);
+void dec_lzma_close (void);
+unsigned long long dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long write);
 #endif /* NO_DECOMPRESSION */
 
 int rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write);

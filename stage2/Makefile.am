@@ -16,6 +16,7 @@ INCLUDES = -I$(top_srcdir)/stage1 -I$(top_srcdir)/netboot
 # The library for /sbin/grub.
 noinst_LIBRARIES = libgrub.a
 libgrub_a_SOURCES = boot.c builtins.c char_io.c cmdline.c common.c \
+	dec_lzma.c \
 	disk_io.c fsys_ext2fs.c fsys_fat.c fsys_ntfs.c fsys_ffs.c fsys_iso9660.c \
 	fsys_jfs.c fsys_minix.c fsys_reiserfs.c fsys_ufs2.c \
 	fsys_vstafs.c fsys_xfs.c fsys_pxe.c fsys_fb.c gunzip.c md5.c serial.c \
@@ -100,7 +101,7 @@ STAGE1_5_COMPILE = $(STAGE2_COMPILE) -DNO_DECOMPRESSION=1 -DSTAGE1_5=1
 
 # For stage2 target.
 pre_stage2_exec_SOURCES = asm.S bios.c boot.c builtins.c char_io.c \
-	cmdline.c common.c console.c disk_io.c fsys_ext2fs.c \
+	cmdline.c common.c console.c dec_lzma.c disk_io.c fsys_ext2fs.c \
 	fsys_fat.c fsys_ntfs.c fsys_ffs.c fsys_iso9660.c fsys_jfs.c fsys_minix.c \
 	fsys_reiserfs.c fsys_ufs2.c fsys_vstafs.c fsys_xfs.c fsys_pxe.c fsys_fb.c gunzip.c \
 	hercules.c md5.c serial.c smp-imps.c stage2.c terminfo.c tparm.c graphics.c

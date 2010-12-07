@@ -21,6 +21,7 @@
 
 #include <shared.h>
 #include <filesys.h>
+#include <decomp.h>
 #include <iso9660.h>
 #include "iamath.h"
 
@@ -2075,7 +2076,16 @@ block_file:
 #ifdef NO_DECOMPRESSION
       return 1;
 #else
-      return gunzip_test_header ();
+      if (no_decompression)
+	return 1;
+      int i;
+      i = strlen(open_filename);
+      if (i>=5 && strcmp(open_filename+i-5,".lzma")==0)
+        dec_lzma_open ();
+      else
+        gunzip_test_header ();
+      errnum = 0;
+      return 1;
 #endif
     }
 
@@ -2168,16 +2178,6 @@ block_read_func (unsigned long long buf, unsigned long long len, unsigned long w
 }
 #endif /* NO_BLOCK_FILES */
 
-#ifndef NO_DECOMPRESSION
-unsigned long long
-gunzip_read_func (unsigned long long buf, unsigned long long len, unsigned long write)
-{
-  if (write == 0x900ddeed)
-    return !(errnum = ERR_WRITE_GZIP_FILE);
-  return gunzip_read (buf, len);
-}
-#endif /* NO_DECOMPRESSION */
-
 unsigned long long grub_read_loop_threshold = 0x800000ULL; // 8MB
 unsigned long long grub_read_step = 0x800000ULL; // 8MB
 
@@ -2209,7 +2209,7 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
     if (write == 0x900ddeed)
 	return !(errnum = ERR_WRITE_GZIP_FILE);
     else 
-	read_func = gunzip_read_func;
+	read_func = decomp_table[decomp_type].read_func;
   }
   else 
 #endif /* NO_DECOMPRESSION */
@@ -2228,7 +2228,11 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
     read_func = fsys_table[fsys_type].read_func;
 
   /* Now, read_func is ready. */
-  if ((!buf) || (len < grub_read_loop_threshold))
+  if ((!buf) || (len < grub_read_loop_threshold) 
+#ifndef NO_DECOMPRESSION
+      || compressed_file
+#endif /* NO_DECOMPRESSION */
+      )
   {
     /* Do whole request at once. */
       return read_func(buf, len, write);
@@ -2258,6 +2262,12 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
 void
 grub_close (void)
 {
+#ifndef NO_DECOMPRESSION
+  if (compressed_file)
+      decomp_table[decomp_type].close_func ();
+  compressed_file = 0;
+#endif /* NO_DECOMPRESSION */
+
 #ifndef NO_BLOCK_FILES
   if (block_file)
     return;
