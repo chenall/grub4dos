@@ -6030,7 +6030,15 @@ geometry_func (char *arg, int flags)
   {
     if (grub_memcmp (arg, "--tune", 6) == 0)
     {
+      if (force_geometry_tune) 
+	  return (errnum = ERR_BAD_ARGUMENT, 0);
       force_geometry_tune = 1;
+    }
+    else if (grub_memcmp (arg, "--bios", 6) == 0)
+    {
+      if (force_geometry_tune) 
+	  return (errnum = ERR_BAD_ARGUMENT, 0);
+      force_geometry_tune = 2;
     }
     else if (grub_memcmp (arg, "--sync", 6) == 0)
     {
@@ -6072,17 +6080,106 @@ geometry_func (char *arg, int flags)
   force_geometry_tune = 0;
 #endif
 
+#if 0
+	/* The situation described as follows should never occur. So comment
+	 * out. Another reason to comment out: the SCRATCHSEG has only 512
+	 * byte room and it cannot hold a large 2048-byte cdrom sector.
+	 *
+	 *		Commented out 2008-09-30 by Tinybit.
+	 */
+
+  /* Attempt to read the first sector, because some BIOSes turns out not
+     to support LBA even though they set the bit 0 in the support
+     bitmap, only after reading something actually.  */
+#ifdef GRUB_UTIL
+  if (current_drive != cdrom_drive)
+#else
+  if (current_drive != cdrom_drive && (current_drive < (unsigned char)min_cdrom_id || current_drive >= (unsigned char)(min_cdrom_id + atapi_dev_count)))
+#endif /* GRUB_UTIL */
+  {
+    if (biosdisk (BIOSDISK_READ, current_drive, &tmp_geom, 0, 1, SCRATCHSEG))
+    {
+	if (debug > 1)
+		printf("biosdisk read first sector of drive 0x%X: failure! errnum=%d\n", current_drive, errnum);
+	errnum = 0;
+//	errnum = ERR_READ;
+//	return 0;
+    }
+  }
+#endif
+
+#ifdef GRUB_UTIL
+  arg/*ptr*/ = skip_to (0, arg/*device*/);
+  if (*arg/*ptr*/)
+    {
+      char *cylinder, *head, *sector, *total_sector;
+      unsigned long long num_cylinder, num_head, num_sector, num_total_sector;
+
+      cylinder = arg/*ptr*/;
+      head = skip_to (0, cylinder);
+      sector = skip_to (0, head);
+      total_sector = skip_to (0, sector);
+      if (! safe_parse_maxint (&cylinder, &num_cylinder)
+	  || ! safe_parse_maxint (&head, &num_head)
+	  || ! safe_parse_maxint (&sector, &num_sector))
+	return 0;
+
+      disks[current_drive].cylinders = num_cylinder;
+      disks[current_drive].heads = num_head;
+      disks[current_drive].sectors = num_sector;
+
+      if (safe_parse_maxint (&total_sector, &num_total_sector))
+	disks[current_drive].total_sectors = num_total_sector;
+      else
+	disks[current_drive].total_sectors
+	  = num_cylinder * num_head * num_sector;
+      errnum = 0;
+
+      tmp_geom = disks[current_drive];
+      buf_drive = -1;
+    }
+#endif /* GRUB_UTIL */
+
+#ifdef GRUB_UTIL
+  msg = device_map[current_drive];
+#else
+  if (tmp_geom.flags & BIOSDISK_FLAG_BIFURCATE)
+    msg = "BIF";
+  else if (tmp_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION)
+    msg = "LBA";
+  else
+    msg = "CHS";
+#endif
+
+  grub_printf ("drive 0x%02X(%s): C/H/S=%d/%d/%d, Sector Count/Size=%ld/%d\n",
+	       current_drive, msg,
+	       tmp_geom.cylinders, tmp_geom.heads, tmp_geom.sectors,
+	       (unsigned long long)tmp_geom.total_sectors, tmp_geom.sector_size);
+
 #ifndef GRUB_UTIL
   if (sync)
   {
 #define	BS	((struct master_and_dos_boot_sector *)mbr)
+    
+    // Make sure rawread will not call get_diskinfo again after force_geometry_tune is reset.
+    if (buf_drive != current_drive)
+    {
+	buf_drive = current_drive;
+	buf_track = -1; // invalidate track buffer
+    }
+    buf_geom = tmp_geom;
 
     /* Read MBR or the floppy boot sector.  */
     if (! rawread (current_drive, 0, 0, SECTOR_SIZE, (unsigned long long)(unsigned long)mbr, 0xedde0d90))
 	return 0;
 
     if (current_drive == cdrom_drive || (current_drive >= (unsigned char)min_cdrom_id && current_drive < (unsigned char)(min_cdrom_id + atapi_dev_count)))
-	return 1;
+    {
+	grub_printf ("Cannot sync CD-ROM.\n");
+	errnum = ERR_BAD_ARGUMENT;
+	return 0;
+    }
+
     if (current_drive & 0x80)
     {
 	unsigned long start_cl, start_ch, start_dh, start_lba[4];
@@ -6090,7 +6187,10 @@ geometry_func (char *arg, int flags)
 	unsigned long entry1;
 
 	if (current_drive >= 0x88 || current_drive >= 0x80 + (*(unsigned char *)0x475))
-		return 1;
+	{
+	    errnum = ERR_NO_DISK;
+	    return 0;
+	}
 
 	/* repair partition table. */
 
@@ -6191,86 +6291,11 @@ geometry_func (char *arg, int flags)
 	    }
 	}
     }
-    return 1;
+    //return 1;
 #undef BS
   }
 #endif
 
-#if 0
-	/* The situation described as follows should never occur. So comment
-	 * out. Another reason to comment out: the SCRATCHSEG has only 512
-	 * byte room and it cannot hold a large 2048-byte cdrom sector.
-	 *
-	 *		Commented out 2008-09-30 by Tinybit.
-	 */
-
-  /* Attempt to read the first sector, because some BIOSes turns out not
-     to support LBA even though they set the bit 0 in the support
-     bitmap, only after reading something actually.  */
-#ifdef GRUB_UTIL
-  if (current_drive != cdrom_drive)
-#else
-  if (current_drive != cdrom_drive && (current_drive < (unsigned char)min_cdrom_id || current_drive >= (unsigned char)(min_cdrom_id + atapi_dev_count)))
-#endif /* GRUB_UTIL */
-  {
-    if (biosdisk (BIOSDISK_READ, current_drive, &tmp_geom, 0, 1, SCRATCHSEG))
-    {
-	if (debug > 1)
-		printf("biosdisk read first sector of drive 0x%X: failure! errnum=%d\n", current_drive, errnum);
-	errnum = 0;
-//	errnum = ERR_READ;
-//	return 0;
-    }
-  }
-#endif
-
-#ifdef GRUB_UTIL
-  arg/*ptr*/ = skip_to (0, arg/*device*/);
-  if (*arg/*ptr*/)
-    {
-      char *cylinder, *head, *sector, *total_sector;
-      unsigned long long num_cylinder, num_head, num_sector, num_total_sector;
-
-      cylinder = arg/*ptr*/;
-      head = skip_to (0, cylinder);
-      sector = skip_to (0, head);
-      total_sector = skip_to (0, sector);
-      if (! safe_parse_maxint (&cylinder, &num_cylinder)
-	  || ! safe_parse_maxint (&head, &num_head)
-	  || ! safe_parse_maxint (&sector, &num_sector))
-	return 0;
-
-      disks[current_drive].cylinders = num_cylinder;
-      disks[current_drive].heads = num_head;
-      disks[current_drive].sectors = num_sector;
-
-      if (safe_parse_maxint (&total_sector, &num_total_sector))
-	disks[current_drive].total_sectors = num_total_sector;
-      else
-	disks[current_drive].total_sectors
-	  = num_cylinder * num_head * num_sector;
-      errnum = 0;
-
-      tmp_geom = disks[current_drive];
-      buf_drive = -1;
-    }
-#endif /* GRUB_UTIL */
-
-#ifdef GRUB_UTIL
-  msg = device_map[current_drive];
-#else
-  if (tmp_geom.flags & BIOSDISK_FLAG_BIFURCATE)
-    msg = "BIF";
-  else if (tmp_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION)
-    msg = "LBA";
-  else
-    msg = "CHS";
-#endif
-
-  grub_printf ("drive 0x%02X(%s): C/H/S=%d/%d/%d, Sector Count/Size=%ld/%d\n",
-	       current_drive, msg,
-	       tmp_geom.cylinders, tmp_geom.heads, tmp_geom.sectors,
-	       (unsigned long long)tmp_geom.total_sectors, tmp_geom.sector_size);
 #ifdef GRUB_UTIL
   if (current_drive != cdrom_drive)
 #else
@@ -6297,10 +6322,12 @@ static struct builtin builtin_geometry =
   " respectively. If you omit TOTAL_SECTOR, then it will be calculated based"
   " on the C/H/S values automatically."
 #else
-  "geometry [--tune] [--sync] [DRIVE]",
+  "geometry [--tune] [--bios] [--sync] [DRIVE]",
   "Print the information for drive DRIVE or the current root device if DRIVE"
-  " is not specified. If --tune is specified, the geometry will change to the"
-  " tuned value. If --sync is specified, the C/H/S values in partition table"
+  " is not specified."
+  " If --tune is specified, the geometry will change to the tuned value."
+  " If --bios is specified, the geometry will change to BIOS reported value."
+  " If --sync is specified, the C/H/S values in partition table"
   " of DRIVE and H/S values in BPB of each primary partition of DRIVE"
   "(or BPB of floppy DRIVE) will be updated according to the current"
   " geometry of DRIVE in use."

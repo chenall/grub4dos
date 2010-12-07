@@ -481,7 +481,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 
 #ifndef STAGE1_5
 	if (debug > 1)
-		grub_printf ("err=%X, ", err);
+		grub_printf ("err=%X\n", err);
 #endif
 
 	//version = 0;
@@ -572,63 +572,67 @@ get_diskinfo (int drive, struct geometry *geometry)
 	/* successfully read boot sector */
 
 #ifndef STAGE1_5
-	if (drive & 0x80)
-	{
-		/* hard disk */
-		if ((err = probe_mbr((struct master_and_dos_boot_sector *)0x5F000/*SCRATCHADDR*/, 0, total_sectors, 0)))
-		{
-			if (debug > 1)
-				grub_printf ("\nWarning: Unrecognized partition table for drive %X. Please rebuild it using\na Microsoft-compatible FDISK tool(err=%d). Current C/H/S=%d/%d/%d\n", drive, err, geometry->cylinders, geometry->heads, geometry->sectors);
-			goto failure_probe_boot_sector;
-		}
-		err = (int)"MBR";
-	}else{
-		/* floppy */
-		if (probe_bpb((struct master_and_dos_boot_sector *)0x5F000/*SCRATCHADDR*/))
-		{
-			goto failure_probe_boot_sector;
-		}
-
-		err = (int)"BPB";
-	}
-
-	if (drive & 0x80)
-	if (probed_cylinders != geometry->cylinders)
-	    if (debug > 1)
-		grub_printf ("\nWarning: %s cylinders(%d) is not equal to the BIOS one(%d).\n", err, probed_cylinders, geometry->cylinders);
-
-	geometry->cylinders = probed_cylinders;
-
-	if (probed_heads != geometry->heads)
-	    if (debug > 1)
-		grub_printf ("\nWarning: %s heads(%d) is not equal to the BIOS one(%d).\n", err, probed_heads, geometry->heads);
-
-	geometry->heads	= probed_heads;
-
-	if (probed_sectors_per_track != geometry->sectors)
-	    if (debug > 1)
-		grub_printf ("\nWarning: %s sectors per track(%d) is not equal to the BIOS one(%d).\n", err, probed_sectors_per_track, geometry->sectors);
-
-	geometry->sectors = probed_sectors_per_track;
-
-	if (probed_total_sectors > total_sectors)
+	
+	if (force_geometry_tune != 2) /* if not force BIOS geometry */
 	{
 	    if (drive & 0x80)
-	    if (debug > 1)
-		grub_printf ("\nWarning: %s total sectors(%d) is greater than the BIOS one(%d).\nSome buggy BIOSes could hang when you access sectors exceeding the BIOS limit.\n", err, probed_total_sectors, total_sectors);
-	    geometry->total_sectors	= probed_total_sectors;
+	    {
+		    /* hard disk */
+		    if ((err = probe_mbr((struct master_and_dos_boot_sector *)0x5F000/*SCRATCHADDR*/, 0, total_sectors, 0)))
+		    {
+			    if (debug > 1)
+				    grub_printf ("\nWarning: Unrecognized partition table for drive %X. Please rebuild it using\na Microsoft-compatible FDISK tool(err=%d). Current C/H/S=%d/%d/%d\n", drive, err, geometry->cylinders, geometry->heads, geometry->sectors);
+			    goto failure_probe_boot_sector;
+		    }
+		    err = (int)"MBR";
+	    }else{
+		    /* floppy */
+		    if (probe_bpb((struct master_and_dos_boot_sector *)0x5F000/*SCRATCHADDR*/))
+		    {
+			    goto failure_probe_boot_sector;
+		    }
+
+		    err = (int)"BPB";
+	    }
+
+	    if (drive & 0x80)
+	    if (probed_cylinders != geometry->cylinders)
+		if (debug > 1)
+		    grub_printf ("\nWarning: %s cylinders(%d) is not equal to the BIOS one(%d).\n", err, probed_cylinders, geometry->cylinders);
+
+	    geometry->cylinders = probed_cylinders;
+
+	    if (probed_heads != geometry->heads)
+		if (debug > 1)
+		    grub_printf ("\nWarning: %s heads(%d) is not equal to the BIOS one(%d).\n", err, probed_heads, geometry->heads);
+
+	    geometry->heads	= probed_heads;
+
+	    if (probed_sectors_per_track != geometry->sectors)
+		if (debug > 1)
+		    grub_printf ("\nWarning: %s sectors per track(%d) is not equal to the BIOS one(%d).\n", err, probed_sectors_per_track, geometry->sectors);
+
+	    geometry->sectors = probed_sectors_per_track;
+
+	    if (probed_total_sectors > total_sectors)
+	    {
+		if (drive & 0x80)
+		if (debug > 1)
+		    grub_printf ("\nWarning: %s total sectors(%d) is greater than the BIOS one(%d).\nSome buggy BIOSes could hang when you access sectors exceeding the BIOS limit.\n", err, probed_total_sectors, total_sectors);
+		geometry->total_sectors	= probed_total_sectors;
+	    }
+
+	    if (drive & 0x80)
+	    if (probed_total_sectors < total_sectors)
+		if (debug > 1)
+		    grub_printf ("\nWarning: %s total sectors(%d) is less than the BIOS one(%d).\n", err, probed_total_sectors, total_sectors);
+
 	}
-
-	if (drive & 0x80)
-	if (probed_total_sectors < total_sectors)
-	    if (debug > 1)
-		grub_printf ("\nWarning: %s total sectors(%d) is less than the BIOS one(%d).\n", err, probed_total_sectors, total_sectors);
-
 failure_probe_boot_sector:
 	
 #ifndef GRUB_UTIL
 #if 1
-	if (force_geometry_tune || (!(geometry->flags & BIOSDISK_FLAG_LBA_EXTENSION) && ! ((*(char *)0x8205) & 0x08)))
+	if (force_geometry_tune==1 || (!(geometry->flags & BIOSDISK_FLAG_LBA_EXTENSION) && ! ((*(char *)0x8205) & 0x08)))
 	{
 		err = geometry->heads;
 		version = geometry->sectors;
