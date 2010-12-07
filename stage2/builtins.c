@@ -4817,7 +4817,7 @@ command_func (char *arg, int flags)
 	/*Is a batch file? */
 	if (*(unsigned long *)program == 0x54414221)//!BAT
 	{
-		char *cmd_buff = grub_malloc((filemax >> 1) * grub_strlen(arg) + 1);
+		char *cmd_buff = grub_malloc(0x1000);
 
 		if (cmd_buff == NULL)
 		{
