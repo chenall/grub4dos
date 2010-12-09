@@ -4683,6 +4683,13 @@ static struct builtin builtin_fallback =
 
 /* command */
 char command_path[128]="(bd)/grub/";
+struct exec_array
+{
+	char name[16];
+	char	*addr;
+	int	len;
+	struct exec_array *next;
+} *p_exec,*grub_exec = NULL;
 #if 0
 static int script_run (char *arg, int flags);
 
@@ -4702,6 +4709,119 @@ static int script_run (char *arg, int flags)
 	return 1;
 }
 #endif
+
+static int grub_exec_run(char *program, int flags)
+{
+	int pid;
+	char *filename = program - (*(unsigned long *)(program - 16));
+	char *arg = program - (*(unsigned long *)(program - 8));
+
+		/* kernel image is destroyed, so invalidate the kernel */
+	if (kernel_type < KERNEL_TYPE_CHAINLOADER)
+		kernel_type = KERNEL_TYPE_NONE;
+
+	/*Is a batch file? */
+	if (*(unsigned long *)program == 0x54414221)//!BAT
+	{
+		char *cmd_buff = grub_malloc((*(unsigned long *)(program - 20)) + 0x1000);
+
+		if (cmd_buff == NULL)
+		{
+			errnum = ERR_WONT_FIT;
+			return 0;
+		}
+
+		char *s[11] = {filename};
+		int i;
+		for (i = 1;i < 10;i++)
+		{
+			s[i] = arg;
+			if (*arg)
+				arg = skip_to(SKIP_WITH_TERMINATE,arg);
+		}
+
+		char *p_cmd;
+		char *p_bat;
+		char *p_rep;
+		int debug_ori = debug;
+
+		program = skip_to(SKIP_LINE,program);//skip head
+
+		while ((p_bat = program))
+		{
+			program = skip_to (SKIP_LINE,program);
+			p_cmd = cmd_buff;
+			while(*p_bat)
+			{
+				if (*p_bat != '%')
+				{
+					*p_cmd++ = *p_bat++;
+					continue;
+				}
+
+				*p_cmd = *p_bat++;
+
+				if (*p_bat == '%')
+				{
+					p_cmd++,p_bat++;
+					continue;
+				}
+
+				i = *p_bat;
+
+				if (*p_bat == '~')
+				{
+					p_bat++;
+				}
+
+				if (*p_bat <= '9' && *p_bat >= '0')
+				{
+					p_rep = s[*p_bat - '0'];
+					if (p_rep != NULL)
+					{
+						if ((char)i == '~' && *p_rep == '\"')
+						{
+							p_rep++;
+						}
+
+						while (*p_rep)
+							*p_cmd++ = *p_rep++;
+
+						if ((char)i == '~' && *--p_rep == '\"')
+						{
+							p_cmd--;
+						}
+					}
+				}
+				else
+				{
+					p_cmd++;
+					if ((char)i == '~')
+						*p_cmd++ = '~';
+					*p_cmd++ = *p_bat;
+				}
+				p_bat++;
+			}
+
+			*p_cmd = '\0';
+			pid = run_line (cmd_buff,flags);
+			if (errnum)
+			{
+				break;
+			}
+		}
+
+		debug = debug_ori;
+		/*release memory. */
+		grub_free(cmd_buff);
+		return pid;
+	}
+
+	/* call the new program. */
+	pid = ((int (*)(char *,int))program)(arg, flags);/* pid holds return value. */
+	return pid;
+}
+
 int
 command_func (char *arg, int flags)
 {
@@ -4749,15 +4869,65 @@ command_func (char *arg, int flags)
 		command_path[j] = 0;
 		return 1;
 	}
+	else if (substring("load ",arg,1) < 1)
+	{
+		flags = -1;
+		arg = skip_to(0,arg);
+		if (*arg == '\0')
+			return 0;
+		for (p_exec = grub_exec; p_exec != NULL; p_exec=p_exec->next)
+		{
+			if (grub_strcmp(arg,p_exec->name) == 0)
+			{
+				return grub_printf("%s already loaded.\n",arg);
+			}
+		}
+	}
+	else if (substring("unload ",arg,1) < 1)
+	{
+		arg = skip_to(0,arg);
+		if (*arg == '\0')
+			return 0;
+		struct exec_array *p_exec_pre = NULL;
+		for (p_exec = grub_exec; p_exec != NULL; p_exec=p_exec->next)
+		{
+			if (grub_strcmp(arg,p_exec->name) == 0)
+			{
+				if (p_exec_pre == NULL)
+					grub_exec = p_exec->next;
+				else
+					p_exec_pre->next = p_exec->next;
+				grub_free(p_exec);
+				return (debug?grub_printf("%s unloaded.\n",arg):1);
+			}
+			p_exec_pre = p_exec;
+		}
+		return 1;
+	}
+
   /* open the command file. */
+  p_exec = NULL;
   char *filename = arg;
-  arg = skip_to(SKIP_WITH_TERMINATE,arg);/* get argument of command */
+  unsigned long arg_len = grub_strlen(arg);/*get length for build psp */
+  char *cmd_arg = skip_to(SKIP_WITH_TERMINATE,arg);/* get argument of command */
+	if (*filename >= '0')
+	{
+		for (p_exec = grub_exec; p_exec != NULL; p_exec = p_exec->next)
+		{
+			if (grub_strcmp(filename,p_exec->name) == 0)
+			{
+				break;
+			}
+		}
+	}
+
+  if (p_exec == NULL)
   {
 	char *command_filename;
 //	nul_terminate(filename);
 	if ((command_filename = grub_malloc(128 + grub_strlen(filename))) == NULL)
 	{
-		errnum = ERR_WONT_FIT;
+//		errnum = ERR_WONT_FIT;
 		return 0;
 	}
 
@@ -4787,152 +4957,75 @@ command_func (char *arg, int flags)
 		errnum = ERR_EXEC_FORMAT;
 		goto fail;
 	}
-  }
-	
+	}
+
 #if 1
 	char *psp;
 	unsigned long psp_len;
-	unsigned long arg_len;
-	arg_len = grub_strlen (arg);
-	psp_len = ((arg_len + 16) & ~0xF) + 16 + 16;
-	psp = (char *)grub_malloc(filemax + psp_len);
+	unsigned long prog_len;
+	char *program;
+	prog_len = (filename?filemax:p_exec->len);
+	psp_len = ((arg_len + 16) & ~0xF) + 0x10 + 0x20;
+	psp = (char *)grub_malloc(prog_len + psp_len);
 
 	if (psp == NULL)
 	{
-		errnum = ERR_WONT_FIT;
+//		errnum = ERR_WONT_FIT;
 		goto fail;
 	}
 
-	char *program = psp + psp_len;//(psp + psp_len) = entry point of program.
-	if (grub_read ((unsigned long long)(int)program, -1ULL, 0xedde0d90) != filemax)
-	{
-		if (! errnum)
-			errnum = ERR_EXEC_FORMAT;
-		grub_free(psp);
-		goto fail;
-	}
-	program[filemax] = '\0';
-	grub_close ();
-	unsigned long pid;
-	/*Is a batch file? */
-	if (*(unsigned long *)program == 0x54414221)//!BAT
-	{
-		char *cmd_buff = grub_malloc(0x1000);
+	program = psp + psp_len;//(psp + psp_len) = entry point of program.
 
-		if (cmd_buff == NULL)
+	if (p_exec == NULL)
+	{
+			/* read file to buff and check exec signature. */
+		if ((grub_read ((unsigned long long)(int)program, -1ULL, 0xedde0d90) != filemax) || (*(unsigned long long *)(int)(program + prog_len - 8) != 0xBCBAA7BA03051805ULL && (*(unsigned long *)program != 0x54414221)))
 		{
-			errnum = ERR_WONT_FIT;
+			if (! errnum)
+				errnum = ERR_EXEC_FORMAT;
 			grub_free(psp);
-			return 0;
+			goto fail;
 		}
+		grub_close ();
 
-		char *s[11] = {filename};
-		int i;
-		for (i = 1;i < 10;i++)
+		if (flags == -1)//load exec to buff
 		{
-			s[i] = arg;
-			if (*arg)
-				arg = skip_to(SKIP_WITH_TERMINATE,arg);
+			filename = skip_to(0,filename);
+			while (*filename != '/')
+				filename--;
+			filename++;
+			p_exec = (struct exec_array *)psp;
+			grub_strcpy(psp,filename);
+			p_exec->addr = program;
+			p_exec->len = prog_len;
+			p_exec->next = grub_exec;
+			grub_exec = p_exec;
+			return (debug)?grub_printf("%s loaded\n", arg):1;
 		}
-
-		char *p_cmd;
-		char *p_bat;
-		char *p_rep;
-
-		program = skip_to(SKIP_LINE,program);//skip head
-
-		while ((p_bat = program))
-		{
-			program = skip_to (SKIP_LINE,program);
-			p_cmd = cmd_buff;
-
-			while(*p_bat)
-			{
-				if (*p_bat != '%')
-				{
-					*p_cmd++ = *p_bat++;
-					continue;
-				}
-
-				*p_cmd = *p_bat++;
-
-				if (*p_bat == '%')
-				{
-					p_cmd++,p_bat++;
-					continue;
-				}
-			
-				i = *p_bat;
-				if (*p_bat == '~')
-				{
-					p_bat++;
-				}
-
-				if (*p_bat <= '9' && *p_bat >= '0')
-				{
-					p_rep = s[*p_bat - '0'];
-					if ((char)i == '~' && *p_rep == '\"')
-					{
-						p_rep++;
-					}
-
-					while (*p_rep)
-						*p_cmd++ = *p_rep++;
-
-					if ((char)i == '~' && *--p_rep == '\"')
-					{
-						p_cmd--;
-					}
-				}
-				else
-				{
-					p_cmd++;
-					if ((char)i == '~')
-						*p_cmd++ = '~';
-					*p_cmd++ = *p_bat;
-				}
-				p_bat++;
-			}
-
-			*p_cmd = '\0';
-			pid = run_line (cmd_buff,flags);
-			if (errnum)
-			{
-				break;
-			}
-		}
-		
-		/*release memory. */
-		grub_free(cmd_buff);
-		grub_free(psp);
-		return pid;
+	}
+	else
+	{
+		grub_memmove(program,p_exec->addr,prog_len);
 	}
 
-	grub_memmove (psp + 16, arg, arg_len + 1);	/* copy args into somewhere in PSP. */
+	program[prog_len] = '\0';
+	grub_memset(psp, 0, psp_len);
+	grub_memmove (psp + 16, arg , arg_len + 1);/* copy args into somewhere in PSP. */
 	*(unsigned long *)psp = psp_len;
-	*(unsigned long *)(psp + psp_len - 4) = psp_len;		/* PSP length in bytes. it is in both the starting dword and the ending dword of the PSP. */
-	*(unsigned long *)(psp + psp_len - 8) = psp_len - 16;	/* args is here. */
-	*(unsigned long *)(psp + psp_len - 12) = flags;		/* flags is here. */
+	*(unsigned long *)(program - 4) = psp_len;		/* PSP length in bytes. it is in both the starting dword and the ending dword of the PSP. */
+	*(unsigned long *)(program - 8) = psp_len - 16 - (cmd_arg - arg);	/* args is here. */
+	*(unsigned long *)(program - 12) = flags;		/* flags is here. */
+	*(unsigned long *)(program - 16) = psp_len - 16;/*program file here.*/
+	*(unsigned long *)(program - 20) = prog_len;//program length
 	/* (free_mem_start + pid - 16) is reserved for full pathname of the program file. */
 
-	/* kernel image is destroyed, so invalidate the kernel */
-	if (kernel_type < KERNEL_TYPE_CHAINLOADER)
-		kernel_type = KERNEL_TYPE_NONE;
-	
-	/* check exec signature. */
-	if (*(unsigned long long *)(int)(program + filemax - 8) != 0xBCBAA7BA03051805ULL)
-	{
-		grub_free(psp);
-		return ! (errnum = ERR_EXEC_FORMAT);
-	}
-	
-	/* call the new program. */
-	pid = ((int (*)(char *,int))program)(psp + 16,flags);	/* pid holds return value. */
-
+	int pid;
+	pid = grub_exec_run(program, flags);
 	/* on exit, release the memory. */
 	grub_free(psp);
 	return pid;
-#else
+#endif
+#if 0
 	/* check if we have enough memory. */
   {
 	unsigned long long memory_needed;

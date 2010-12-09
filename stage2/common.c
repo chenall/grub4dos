@@ -292,7 +292,10 @@ void *grub_malloc(unsigned long size)
 			for ( ; P->addr; P++)
 			{
 				if (P == (struct malloc_array *)mem_alloc_array_end)
+				{
+					errnum = ERR_WONT_FIT;
 					return NULL;
+				}
 			}
 
 			P->addr = p_memalloc_array->addr + size;
@@ -305,6 +308,7 @@ void *grub_malloc(unsigned long size)
 
 		return (void *)alloc_mem;
 	}
+	errnum = ERR_WONT_FIT;
 	return NULL;
 }
 
@@ -366,7 +370,7 @@ init_bios_info (void)
   mem_alloc_array_start[0].addr = free_mem_start;
   mem_alloc_array_start[1].addr = 0;	/* end the array */
   malloc_array_start = (struct malloc_array *)mem_alloc_array_start + 10;
-  malloc_array_start->addr = free_mem_start + 0x100000;
+  malloc_array_start->addr = free_mem_start + 0x400000;
   malloc_array_start->next = (struct malloc_array *)&free_mem_end;
 #endif /* ! GRUB_UTIL */
 
