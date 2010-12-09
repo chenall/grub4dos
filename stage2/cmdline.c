@@ -37,7 +37,7 @@ skip_to (int flags, char *cmdline)
 	{
 		char eol = flags & 0xff;
 		if (eol == '\0')
-			eol = ':';
+			eol = '#';
 		while (*cmdline)
 		{
 			if (*cmdline == '\r' || *cmdline == '\n')
@@ -45,7 +45,7 @@ skip_to (int flags, char *cmdline)
 				*cmdline++ = 0;
 				while (*cmdline == '\r' || *cmdline == '\n' || *cmdline == ' ' || *cmdline == '\t')
 					cmdline++;
-				if (*cmdline != eol)
+				if (*cmdline != eol || *(unsigned short *)cmdline != 0x3A3A)
 					break;
 			}
 			cmdline++;

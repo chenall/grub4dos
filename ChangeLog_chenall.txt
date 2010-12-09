@@ -1,7 +1,13 @@
-﻿2010-12-07
+﻿2010-12-09
+	1.批处理脚本支持标签(类拟BAT批处理).
+	support goto/call and :label in batch script.
+	CALL :label arguments
+	goto label
+
+2010-12-07
 	1.添加两个命令用于加载外部命令到内存中,加快运行速度.
-	load  path-to-program
-	unload program
+	insmod  path-to-program
+	delmod program
 
 2010-12-06
 	1.批处理脚本支持参数%0 - %9同cmd批处理用法一样。%~n 可以去掉前后的引号

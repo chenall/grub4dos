@@ -4723,97 +4723,171 @@ static int grub_exec_run(char *program, int flags)
 	/*Is a batch file? */
 	if (*(unsigned long *)program == 0x54414221)//!BAT
 	{
-		char *cmd_buff = grub_malloc((*(unsigned long *)(program - 20)) + 0x1000);
-
-		if (cmd_buff == NULL)
-		{
-			errnum = ERR_WONT_FIT;
-			return 0;
-		}
-
-		char *s[11] = {filename};
-		int i;
-		for (i = 1;i < 10;i++)
-		{
-			s[i] = arg;
-			if (*arg)
-				arg = skip_to(SKIP_WITH_TERMINATE,arg);
-		}
-
-		char *p_cmd;
 		char *p_bat;
-		char *p_rep;
-		int debug_ori = debug;
+		struct bat_label
+		{
+			char *label;
+			int line;
+		} *label_entry;
 
+		char **bat_entry;
+		int i_bat = 0,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
+		if ((label_entry = (struct bat_label *)grub_malloc(0x2400)) == NULL)
+			return 0;
+		bat_entry = (char **)(label_entry + 0x80);//0x400/sizeof(label_entry)
 		program = skip_to(SKIP_LINE,program);//skip head
 
 		while ((p_bat = program))
 		{
-			program = skip_to (SKIP_LINE,program);
-			p_cmd = cmd_buff;
-			while(*p_bat)
+			program = skip_to(SKIP_LINE,program);
+			if (*p_bat == ':')
 			{
-				if (*p_bat != '%')
+				nul_terminate(p_bat);
+				label_entry[i_lab].label = p_bat + 1;
+				label_entry[i_lab].line = i_bat;
+				i_lab++;
+			}
+			else
+				bat_entry[i_bat++] = p_bat;
+			if ((i_lab & 0x80) || (i_bat & 0x800))//max label 128,max script line 2048.
+			{
+				grub_free(label_entry);
+				return 0;
+			}
+		}
+		label_entry[i_lab].label = NULL;
+		bat_entry[i_bat] = NULL;
+		label_entry[0].label = "eof";
+		label_entry[0].line = i_bat;
+		auto int bat_script_run(char *arg1,int line);
+		int bat_script_run(char *arg1,int line)
+		{
+			char *cmd_buff;
+			if ((cmd_buff = grub_malloc(0x1000)) == NULL)
+			{
+				return 0;
+			}
+
+			char *s[11] = {filename};
+			int i;
+			char *p_cmd;
+			char *p_rep;
+			int debug_ori = debug;
+
+			for (i = 1;i < 10;i++)
+			{
+				s[i] = arg1;
+				if (*arg1)
+					arg1 = skip_to(SKIP_WITH_TERMINATE,arg1);
+			}
+
+			char **p_entry = bat_entry + line;
+			int ret = 0;
+
+			while ((p_bat = *p_entry))
+			{
+				p_entry++;
+				p_cmd = cmd_buff;
+				while(*p_bat)
 				{
-					*p_cmd++ = *p_bat++;
-					continue;
-				}
+					if (*p_bat != '%')
+					{
+						*p_cmd++ = *p_bat++;
+						continue;
+					}
 
-				*p_cmd = *p_bat++;
+					*p_cmd = *p_bat++;
 
-				if (*p_bat == '%')
-				{
-					p_cmd++,p_bat++;
-					continue;
-				}
+					if (*p_bat == '%')
+					{
+						p_cmd++,p_bat++;
+						continue;
+					}
 
-				i = *p_bat;
+					i = *p_bat;
 
-				if (*p_bat == '~')
-				{
+					if (*p_bat == '~')
+					{
+						p_bat++;
+					}
+
+					if (*p_bat <= '9' && *p_bat >= '0')
+					{
+						p_rep = s[*p_bat - '0'];
+						if (p_rep != NULL)
+						{
+							if ((char)i == '~' && *p_rep == '\"')
+							{
+								p_rep++;
+							}
+
+							while (*p_rep)
+								*p_cmd++ = *p_rep++;
+
+							if ((char)i == '~' && *--p_rep == '\"')
+							{
+								p_cmd--;
+							}
+						}
+					}
+					else
+					{
+						p_cmd++;
+						if ((char)i == '~')
+							*p_cmd++ = '~';
+						*p_cmd++ = *p_bat;
+					}
 					p_bat++;
 				}
 
-				if (*p_bat <= '9' && *p_bat >= '0')
+				*p_cmd = '\0';
+				int status = (substring("goto ", cmd_buff, 1) < 0 );
+				if (status || (substring("call ", cmd_buff, 1) < 0))
 				{
-					p_rep = s[*p_bat - '0'];
-					if (p_rep != NULL)
+					cmd_buff = skip_to(0,cmd_buff);
+					if (*cmd_buff == ':')
+						cmd_buff++;
+					for (i=0;i<i_lab;i++)
 					{
-						if ((char)i == '~' && *p_rep == '\"')
+						if (substring(label_entry[i].label,cmd_buff,1) <= 0)
 						{
-							p_rep++;
+							break;
 						}
+					}
 
-						while (*p_rep)
-							*p_cmd++ = *p_rep++;
+					if (i >= i_lab)
+					{
+						errnum = ERR_BAD_ARGUMENT;
+						printf("cannot find the batch label specified - %s\n",cmd_buff);
+						break;
+					}
 
-						if ((char)i == '~' && *--p_rep == '\"')
-						{
-							p_cmd--;
-						}
+					i = label_entry[i].line;
+					if (status)
+						p_entry = bat_entry + i;
+					else
+					{
+						ret = bat_script_run(skip_to(0,cmd_buff),i);
 					}
 				}
 				else
 				{
-					p_cmd++;
-					if ((char)i == '~')
-						*p_cmd++ = '~';
-					*p_cmd++ = *p_bat;
+					ret = run_line (cmd_buff,flags);
 				}
-				p_bat++;
+				if (errnum)
+				{
+					break;
+				}
 			}
 
-			*p_cmd = '\0';
-			pid = run_line (cmd_buff,flags);
-			if (errnum)
-			{
-				break;
-			}
+			debug = debug_ori;
+			/*release memory. */
+			grub_free(cmd_buff);
+			return ret;
 		}
 
-		debug = debug_ori;
-		/*release memory. */
-		grub_free(cmd_buff);
+		pid = bat_script_run(arg,0);
+		grub_free(label_entry);
 		return pid;
 	}
 
@@ -4869,7 +4943,7 @@ command_func (char *arg, int flags)
 		command_path[j] = 0;
 		return 1;
 	}
-	else if (substring("load ",arg,1) < 1)
+	else if (substring("insmod ",arg,1) < 1)
 	{
 		flags = -1;
 		arg = skip_to(0,arg);
@@ -4883,7 +4957,7 @@ command_func (char *arg, int flags)
 			}
 		}
 	}
-	else if (substring("unload ",arg,1) < 1)
+	else if (substring("delmod ",arg,1) < 1)
 	{
 		arg = skip_to(0,arg);
 		if (*arg == '\0')
@@ -4945,7 +5019,7 @@ command_func (char *arg, int flags)
 		filename = command_filename + grub_strlen(command_path) - 1;
 		if (grub_open(command_filename) == 0 && grub_open(filename) == 0)
 		{
-			if (debug > 0)
+//			if (debug > 0)
 				grub_printf ("Warning! No such command: %s\n", filename);
 			errnum = 0;	/* No error, so that old menus will run smoothly. */
 			return 0;	/* return 0 indicating a failure or a false case. */
@@ -4964,10 +5038,10 @@ command_func (char *arg, int flags)
 	unsigned long psp_len;
 	unsigned long prog_len;
 	char *program;
-	prog_len = (filename?filemax:p_exec->len);
+	prog_len = (p_exec?p_exec->len:filemax);
 	psp_len = ((arg_len + 16) & ~0xF) + 0x10 + 0x20;
 	psp = (char *)grub_malloc(prog_len + psp_len);
-
+	grub_memset(psp, 0, psp_len);
 	if (psp == NULL)
 	{
 //		errnum = ERR_WONT_FIT;
@@ -5009,7 +5083,6 @@ command_func (char *arg, int flags)
 	}
 
 	program[prog_len] = '\0';
-	grub_memset(psp, 0, psp_len);
 	grub_memmove (psp + 16, arg , arg_len + 1);/* copy args into somewhere in PSP. */
 	*(unsigned long *)psp = psp_len;
 	*(unsigned long *)(program - 4) = psp_len;		/* PSP length in bytes. it is in both the starting dword and the ending dword of the PSP. */
