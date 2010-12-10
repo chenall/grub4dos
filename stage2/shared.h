@@ -691,6 +691,8 @@ typedef enum
   ERR_HALT,
   ERR_PARTITION_LOOP,
   ERR_NOT_ENOUGH_MEMORY,
+  ERR_BAT_GOTO,
+  ERR_BAT_CALL,
 
   MAX_ERR_NUM
 } grub_error_t;
@@ -875,7 +877,8 @@ extern int use_pager;
 #endif
 
 #ifndef NO_DECOMPRESSION
-extern int no_decompression;
+extern int do_decompression;
+#define no_decompression (!do_decompression)
 extern int compressed_file;
 #endif
 
@@ -1169,12 +1172,15 @@ void stop_floppy (void);
 
 /* The flags for the builtins.  */
 #define BUILTIN_CMDLINE		0x1	/* Run in the command-line.  */
-#define BUILTIN_MENU		0x2	/* Run in the menu.  */
-#define BUILTIN_TITLE		0x4	/* Only for the command title.  */
-#define BUILTIN_SCRIPT		0x8	/* Run in the script.  */
-#define BUILTIN_NO_ECHO		0x10	/* Don't print command on booting. */
-#define BUILTIN_HELP_LIST	0x20	/* Show help in listing.  */
-#define BUILTIN_BOOTING		0x40	/* The command is boot-sensitive.  */
+#define BUILTIN_MENU			(1 << 1)/* Run in the menu.  */
+#define BUILTIN_TITLE		(1 << 2)	/* Only for the command title.  */
+#define BUILTIN_SCRIPT		(1 << 3)/* Run in the script.  */
+#define BUILTIN_NO_ECHO		(1 << 4)	/* Don't print command on booting. */
+#define BUILTIN_HELP_LIST	(1 << 5)/* Show help in listing.  */
+#define BUILTIN_BOOTING		(1 << 6)	/* The command is boot-sensitive.  */
+#define BUILTIN_BAT_SCRIPT	(1 << 7)
+#define BUILTIN_USER_PROG	(1 << 8)
+
 
 /* The table for a builtin.  */
 struct builtin

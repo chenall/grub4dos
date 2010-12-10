@@ -341,7 +341,7 @@ blocklist_func (char *arg, int flags)
   char *dummy = NULL;
   int err;
 #ifndef NO_DECOMPRESSION
-  int no_decompression_bak = no_decompression;
+  int do_decompression_bak = do_decompression;
 #endif
   
   blklst_start_sector = 0;
@@ -367,7 +367,7 @@ blocklist_func (char *arg, int flags)
     }
 
     grub_close ();
-    no_decompression = 1;
+    do_decompression = 0;
     if (! grub_open (arg))
 	goto fail_open;
   }
@@ -446,7 +446,7 @@ fail_read:
 fail_open:
 
 #ifndef NO_DECOMPRESSION
-  no_decompression = no_decompression_bak;
+  do_decompression = do_decompression_bak;
 #endif
 
   if (query_block_entries < 0)
@@ -4736,8 +4736,9 @@ static int grub_exec_run(char *program, int flags)
 			return 0;
 		bat_entry = (char **)(label_entry + 0x80);//0x400/sizeof(label_entry)
 		program = skip_to(SKIP_LINE,program);//skip head
+		flags |= BUILTIN_BAT_SCRIPT;
 
-		while ((p_bat = program))
+		while ((p_bat = program))//scan batch file and make label and bat entry.
 		{
 			program = skip_to(SKIP_LINE,program);
 			if (*p_bat == ':')
@@ -4760,19 +4761,24 @@ static int grub_exec_run(char *program, int flags)
 		label_entry[0].label = "eof";
 		label_entry[0].line = i_bat;
 		auto int bat_script_run(char *arg1,int line);
-		int bat_script_run(char *arg1,int line)
+		int bat_script_run(char *arg1,int line)//run batch script from bat_entry[line] with arg1.
 		{
 			char *cmd_buff;
 			if ((cmd_buff = grub_malloc(0x1000)) == NULL)
 			{
 				return 0;
 			}
-
 			char *s[11] = {filename};
 			int i;
 			char *p_cmd;
 			char *p_rep;
+			char *p_buff;//buff for command_line
 			int debug_ori = debug;
+			i = grub_strlen(arg1);
+
+			grub_memmove(cmd_buff,arg1,i+1);
+			p_buff = cmd_buff + ((i+16) & ~0xf);
+			arg1 = cmd_buff;
 
 			for (i = 1;i < 10;i++)
 			{
@@ -4784,10 +4790,10 @@ static int grub_exec_run(char *program, int flags)
 			char **p_entry = bat_entry + line;
 			int ret = 0;
 
-			while ((p_bat = *p_entry))
+			while ((p_bat = *p_entry))//copy cmd_line to p_buff and then run it;
 			{
-				p_entry++;
-				p_cmd = cmd_buff;
+				p_cmd = p_buff;
+				char *file_name,*file_ext;
 				while(*p_bat)
 				{
 					if (*p_bat != '%')
@@ -4804,11 +4810,28 @@ static int grub_exec_run(char *program, int flags)
 						continue;
 					}
 
-					i = *p_bat;
+					file_ext = p_bat;
+
+					i = 0;
 
 					if (*p_bat == '~')
 					{
 						p_bat++;
+						i |= 1;
+						while (*p_bat)
+						{
+							if (*p_bat == 'x')
+								i |= 2;
+							else if (*p_bat == 'n')
+								i |= 4;
+							else if (*p_bat == 'p')
+								i |= 8;
+							else if (*p_bat == 'd')
+								i |= 16;
+							else
+								break;
+							p_bat++;
+						}
 					}
 
 					if (*p_bat <= '9' && *p_bat >= '0')
@@ -4816,15 +4839,80 @@ static int grub_exec_run(char *program, int flags)
 						p_rep = s[*p_bat - '0'];
 						if (p_rep != NULL)
 						{
-							if ((char)i == '~' && *p_rep == '\"')
+							if ((i & 1) && *p_rep == '\"')
 							{
 								p_rep++;
 							}
 
-							while (*p_rep)
-								*p_cmd++ = *p_rep++;
+							if (i & 16)//get device
+							{
+								if (*p_rep == '(')
+								{
+									while ((*p_cmd++ = *p_rep) && *p_rep++ != ')')
+										;
+								}
+								else
+								{
+									*p_cmd++ = '(';
+									*p_cmd++ = ')';
+								}
+							}
 
-							if ((char)i == '~' && *--p_rep == '\"')
+							if (i & 8)//get path
+							{
+								file_ext = grub_strstr(p_rep,"/");
+								if (file_ext)
+								{
+									p_rep = file_ext;
+									while (file_ext++)
+									{
+										file_name = file_ext;
+										file_ext = grub_strstr(file_ext,"/");
+									}
+									while(p_rep < file_name)
+									{
+										*p_cmd++ = *p_rep++;
+									}
+								}
+								else
+								{
+									*p_cmd++ = '/';
+								}
+							}
+
+							char ch_bak;
+							if (i & 6)//get filename and ext
+							{
+								file_name = p_rep;
+								while(*p_rep)
+								{
+									if (*p_rep == '.')
+										file_ext = p_rep;
+									else if (*p_rep == '/')
+										file_name = &p_rep[1];
+									p_rep++;
+								}
+								if (file_ext < file_name)
+									file_ext = p_rep;
+								p_rep = (i & 4)?file_name:file_ext;
+								if ((i & 2) == 0)
+								{
+									ch_bak = *file_ext;
+									*file_ext = '\0';
+								}
+							}
+
+							if (i <= 7)
+							{
+								while ((*p_cmd++ = *p_rep++))
+								{
+									;
+								}
+								if ((i & 6) == 4)
+									*file_ext = ch_bak;
+							}
+
+							if ((i & 1) && *--p_rep == '\"')
 							{
 								p_cmd--;
 							}
@@ -4832,24 +4920,26 @@ static int grub_exec_run(char *program, int flags)
 					}
 					else
 					{
+						p_bat = file_ext;
 						p_cmd++;
-						if ((char)i == '~')
-							*p_cmd++ = '~';
-						*p_cmd++ = *p_bat;
 					}
 					p_bat++;
 				}
 
 				*p_cmd = '\0';
-				int status = (substring("goto ", cmd_buff, 1) < 0 );
-				if (status || (substring("call ", cmd_buff, 1) < 0))
+				ret = run_line (p_buff,flags);
+
+				if (errnum == ERR_BAT_GOTO || errnum == ERR_BAT_CALL)
 				{
-					cmd_buff = skip_to(0,cmd_buff);
-					if (*cmd_buff == ':')
-						cmd_buff++;
+					int status = (errnum == ERR_BAT_GOTO);
+					p_cmd = (char *)ret;
+					ret = 0;
+					if (*p_cmd == ':')
+						p_cmd++;
+					p_bat = skip_to(SKIP_WITH_TERMINATE,p_cmd);
 					for (i=0;i<i_lab;i++)
 					{
-						if (substring(label_entry[i].label,cmd_buff,1) <= 0)
+						if (substring(label_entry[i].label,p_cmd,1) == 0)
 						{
 							break;
 						}
@@ -4857,27 +4947,27 @@ static int grub_exec_run(char *program, int flags)
 
 					if (i >= i_lab)
 					{
-						errnum = ERR_BAD_ARGUMENT;
-						printf("cannot find the batch label specified - %s\n",cmd_buff);
+						printf("[%d] cannot find the batch label specified - %s\n",p_entry - bat_entry,p_cmd);
 						break;
 					}
 
 					i = label_entry[i].line;
+
+					errnum = ERR_NONE;
 					if (status)
-						p_entry = bat_entry + i;
-					else
 					{
-						ret = bat_script_run(skip_to(0,cmd_buff),i);
+						p_entry = bat_entry + i;
+						continue;
 					}
+					else
+						ret = bat_script_run(p_bat,i);
 				}
-				else
-				{
-					ret = run_line (cmd_buff,flags);
-				}
+
 				if (errnum)
 				{
 					break;
 				}
+				p_entry++;
 			}
 
 			debug = debug_ori;
@@ -4892,7 +4982,7 @@ static int grub_exec_run(char *program, int flags)
 	}
 
 	/* call the new program. */
-	pid = ((int (*)(char *,int))program)(arg, flags);/* pid holds return value. */
+	pid = ((int (*)(char *,int))program)(arg, flags | BUILTIN_USER_PROG);/* pid holds return value. */
 	return pid;
 }
 
@@ -4977,6 +5067,24 @@ command_func (char *arg, int flags)
 			p_exec_pre = p_exec;
 		}
 		return 1;
+	}
+
+	if (substring("goto ",arg,1)<1)
+	{
+		errnum = ERR_BAT_GOTO;
+		arg = skip_to(0, arg);
+		if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
+			return (int)arg;
+		else
+			return fallback_func(arg,flags);//in menu script call fallback_func to jump next menu.
+	}
+	else if (substring("call ",arg,1)<1)
+	{
+		errnum = ERR_BAT_CALL;
+		if (flags & BUILTIN_BAT_SCRIPT)
+			return (int)skip_to(0, arg);
+		else
+			return 0;//call only use in batch script.
 	}
 
   /* open the command file. */
@@ -5088,7 +5196,7 @@ command_func (char *arg, int flags)
 	*(unsigned long *)(program - 4) = psp_len;		/* PSP length in bytes. it is in both the starting dword and the ending dword of the PSP. */
 	*(unsigned long *)(program - 8) = psp_len - 16 - (cmd_arg - arg);	/* args is here. */
 	*(unsigned long *)(program - 12) = flags;		/* flags is here. */
-	*(unsigned long *)(program - 16) = psp_len - 16;/*program file here.*/
+	*(unsigned long *)(program - 16) = psp_len - 16;/*program filename here.*/
 	*(unsigned long *)(program - 20) = prog_len;//program length
 	/* (free_mem_start + pid - 16) is reserved for full pathname of the program file. */
 
@@ -7001,7 +7109,7 @@ install_func (char *arg, int flags)
   /* If LBA is forced?  */
   int is_force_lba = 0;
 #ifndef NO_DECOMPRESSION
-  int no_decompression_bak = no_decompression;
+  int do_decompression_bak = do_decompression;
 #endif
   /* Was the last sector full? */
   blklst_last_length = SECTOR_SIZE;
@@ -7066,7 +7174,7 @@ install_func (char *arg, int flags)
 
 #ifndef NO_DECOMPRESSION
   /* Do not decompress Stage 1 or Stage 2.  */
-  no_decompression = 1;
+  do_decompression = 0;
 #endif
 
   /* Read Stage 1.  */
@@ -7444,7 +7552,7 @@ install_func (char *arg, int flags)
   disk_read_hook = 0;
   
 #ifndef NO_DECOMPRESSION
-  no_decompression = no_decompression_bak;
+  do_decompression = do_decompression_bak;
 #endif
 
 //  if (debug > 0)
@@ -8535,7 +8643,7 @@ map_func (char *arg, int flags)
 	    {
 		char tmp[128];
 #ifndef NO_DECOMPRESSION
-		int no_decompression_bak = no_decompression;
+		int do_decompression_bak = do_decompression;
 		int is64bit_bak = is64bit;
 #endif
 		sprintf (tmp, "--heads=%d --sectors-per-track=%d (md)0x%lX+0x%lX (0x%X)", (hooked_drive_map[i].max_head + 1), ((hooked_drive_map[i].max_sector) & 63), (unsigned long long)hooked_drive_map[i].start_sector, (unsigned long long)hooked_drive_map[i].sector_count, hooked_drive_map[i].from_drive);
@@ -8549,7 +8657,7 @@ map_func (char *arg, int flags)
 #ifndef NO_DECOMPRESSION
 		if (hooked_drive_map[i].from_drive == INITRD_DRIVE)
 		{
-			no_decompression = 1;
+			do_decompression = 0;
 			is64bit = 0;
 		}
 #endif
@@ -8557,7 +8665,7 @@ map_func (char *arg, int flags)
 #ifndef NO_DECOMPRESSION
 		if (hooked_drive_map[i].from_drive == INITRD_DRIVE)
 		{
-			no_decompression = no_decompression_bak;
+			do_decompression = do_decompression_bak;
 			is64bit = is64bit_bak;
 		}
 #endif
@@ -10173,17 +10281,17 @@ modulenounzip_func (char *arg, int flags)
 {
   int ret;
 #ifndef NO_DECOMPRESSION
-  int no_decompression_bak = no_decompression;
+  int do_decompression_bak = do_decompression;
 #endif
 
 #ifndef NO_DECOMPRESSION
-  no_decompression = 1;
+  do_decompression = 0;
 #endif
 
   ret = module_func (arg, flags);
 
 #ifndef NO_DECOMPRESSION
-  no_decompression = no_decompression_bak;
+  do_decompression = do_decompression_bak;
 #endif
 
   return ret;

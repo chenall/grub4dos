@@ -1,4 +1,12 @@
-﻿2010-12-09
+﻿2010-12-10
+	1.改变了以下内存地址的定义(和之前的版本相反)
+		0000:82A4	4 (DWORD)	no_decompression (no auto gunzip)
+		改成了
+		0000:82A4	4 (DWORD)	do_decompression (do auto gunzip)
+	2.0x8284的值的bit2如果为1则显示解压进度,否则不显示,默认不显示.
+	3.完善了goto/call的功能
+
+2010-12-09
 	1.批处理脚本支持标签(类拟BAT批处理).
 	support goto/call and :label in batch script.
 	CALL :label arguments

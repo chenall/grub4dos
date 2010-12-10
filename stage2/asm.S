@@ -185,8 +185,8 @@ VARIABLE(saved_partition)
 
 VARIABLE(saved_drive)
 	.long	0
-VARIABLE(no_decompression)
-	.long	0
+VARIABLE(do_decompression)
+	.long	1
 VARIABLE(part_start)
 	.long	0, 0
 

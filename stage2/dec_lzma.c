@@ -1322,8 +1322,15 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 	    outTx += outTxCur; 
 	    lzmadec.fileu.fpos += outTxCur; 
 	    len -= outTxCur; 
-	    grub_printf(" remaining size %016lX\r",len);
-	    if (len==0) break;
+
+	    if (len==0) 
+	    {
+			if (do_decompression & 2)
+				grub_printf("\t\r");
+			break;
+		}
+		else if (do_decompression & 2)
+	    grub_printf(" -%dK\t\t\t\t\r",len>>9);
 	}
 	/* All existing wanted data from dic have been copied. We will add more data to dic. */
 	/* Read more input if there is no unprocessed input left. */

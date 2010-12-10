@@ -150,6 +150,8 @@ char *err_list[] =
   [ERR_PARTITION_LOOP] = "Too many partitions.",
 //  [ERR_WRITE_TO_NON_MEM_DRIVE] = "Only RAM drives can be written when running in a script",
   [ERR_NOT_ENOUGH_MEMORY] = "Not enough memory",
+  [ERR_BAT_GOTO] = "The syntax of GOTO is incorrect.",
+  [ERR_BAT_CALL] = "The syntax of CALL is incorrect.",
 
 };
 
