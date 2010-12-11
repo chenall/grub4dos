@@ -290,6 +290,41 @@ unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n)
 	utf8[k] = 0;
 }
 
+#define FOUR_CHAR(x0,x1,x2,x3) (((unsigned long)(char)(x0))|((unsigned long)(char)(x1)<<8)|((unsigned long)(char)(x2)<<16)|((unsigned long)(char)(x3)<<24))
+
+static int
+rawdisk_read (int drive, int sector, int nsec, int segment)
+{
+    const unsigned long BADDATA1 = FOUR_CHAR('B','A','D','?');
+    const unsigned long BADDATA2 = FOUR_CHAR('b','a','d','.');
+    unsigned long *plast; /* point to buffer of last sector to be read */
+    int r;
+    /* Write "BAD?" data to last sector buffer */
+    /* No need to fill the whole sector.  Just 16 bytes should be enought to avoid most false-positive case. */
+    plast = (unsigned long *)((segment<<4)+(nsec-1)*buf_geom.sector_size);
+    plast[3] = plast[2] = plast[1] = plast[0] = BADDATA1;
+    r = biosdisk(BIOSDISK_READ, drive, &buf_geom, sector, nsec, segment);
+    if (r) // error
+	return r;
+    /* Check for bad data in last read sector */
+    if (plast[0]!=BADDATA1 || plast[1]!=BADDATA1 || plast[2]!=BADDATA1 || plast[3]!=BADDATA1)
+	return 0; // not "BAD?", success
+    // "BAD?", Suspicious
+    // Write different data to buffer.
+    plast[0] = BADDATA2;
+    // Read last sector again
+    r = biosdisk(BIOSDISK_READ, drive, &buf_geom, sector+(nsec-1), 1, ((unsigned long)plast>>4));
+    if (r) // error
+	return r;
+    // Compare with previous read data
+    if (plast[0] != BADDATA1) 
+    {   // Read data changed, error.
+	grub_printf("\nError: Inconsistent data read from (0x%X)%d+%d\n",drive,sector,nsec);
+	return -1; // error
+    }
+    return 0; // success
+}
+
 /* Read bytes from DRIVE to BUF. The bytes start at BYTE_OFFSET in absolute
  * sector number SECTOR and with BYTE_LEN bytes long.
  */
@@ -390,14 +425,14 @@ rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, u
 	      bufseg = BUFFERSEG + (soff << (sector_size_bits - 4));
 	  }
 
-	  if (biosdisk (BIOSDISK_READ, drive, &buf_geom, read_start, read_len, bufseg))
+	  if (rawdisk_read (drive, read_start, read_len, bufseg))
 	  {
 	      buf_track = -1;		/* invalidate the buffer */
 	      /* On error try again to load only the required sectors. */
 	      if (slen > num_sect || slen == read_len)
 		    return !(errnum = ERR_READ);
 	      bufseg = BUFFERSEG + (soff << (sector_size_bits - 4));
-	      if (biosdisk (BIOSDISK_READ, drive, &buf_geom, sector, slen, bufseg))
+	      if (rawdisk_read (drive, sector, slen, bufseg))
 		    return !(errnum = ERR_READ);
 	      //bufaddr = (char *) BUFFERADDR + byte_offset;
 	      /* slen <= num_sect && slen < sectors_per_vtrack */
@@ -504,8 +539,17 @@ devread (unsigned long sector, unsigned long byte_offset, unsigned long long byt
 int
 rawwrite (unsigned long drive, unsigned long sector, char *buf)
 {
+  /* Reset geometry and invalidate track buffer if the disk is wrong. */
+  if (buf_drive != drive)
+  {
+	if (get_diskinfo (drive, &buf_geom))
+	    return !(errnum = ERR_NO_DISK);
+	buf_drive = drive;
+	buf_track = -1;
+  }
+
   /* skip the write if possible. */
-  if (biosdisk (BIOSDISK_READ, drive, &buf_geom, sector, 1, SCRATCHSEG))
+  if (rawdisk_read(drive, sector, 1, SCRATCHSEG)) /* use buf_geom */
     {
       errnum = ERR_READ;
       return 0;
