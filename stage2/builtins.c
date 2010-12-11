@@ -5052,21 +5052,36 @@ command_func (char *arg, int flags)
 		arg = skip_to(0,arg);
 		if (*arg == '\0')
 			return 0;
+		int list_mod = 1;
+		if (grub_memcmp(arg,"-l",2) == 0)
+		{
+			arg = skip_to(0,arg);
+			list_mod = ((*arg)?6:2);
+		}
 		struct exec_array *p_exec_pre = NULL;
 		for (p_exec = grub_exec; p_exec != NULL; p_exec=p_exec->next)
 		{
-			if (grub_strcmp(arg,p_exec->name) == 0)
+			if (list_mod == 2 || grub_strcmp(arg,p_exec->name) == 0)
 			{
-				if (p_exec_pre == NULL)
-					grub_exec = p_exec->next;
+				if (list_mod > 1)
+				{
+					if (debug)
+						grub_printf(" %s\n",p_exec->name);
+					list_mod |= 1;
+				}
 				else
-					p_exec_pre->next = p_exec->next;
-				grub_free(p_exec);
-				return (debug?grub_printf("%s unloaded.\n",arg):1);
+				{
+					if (p_exec_pre == NULL)
+						grub_exec = p_exec->next;
+					else
+						p_exec_pre->next = p_exec->next;
+					grub_free(p_exec);
+					return (debug?grub_printf("%s unloaded.\n",arg):1);
+				}
 			}
 			p_exec_pre = p_exec;
 		}
-		return 1;
+		return (list_mod & 1);
 	}
 
 	if (substring("goto ",arg,1)<1)
