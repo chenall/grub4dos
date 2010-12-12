@@ -4710,6 +4710,39 @@ static int script_run (char *arg, int flags)
 }
 #endif
 
+static struct exec_array *exec_mod_find(char *filename,char flags)
+{
+	struct exec_array *p_mod;
+	p_exec = NULL;
+	for (p_mod = grub_exec; p_mod != NULL; p_mod=p_mod->next)
+	{
+		if (substring(filename,p_mod->name,1) == 0)
+		{
+			break;
+		}
+		if (flags)
+			p_exec = p_mod;
+	}
+	return p_mod;
+}
+
+static int exec_mod_list(char *arg)
+{
+	struct exec_array *p_mod;
+	int i = 0;
+	for (p_mod = grub_exec; p_mod != NULL; p_mod=p_mod->next)
+	{
+		if (*arg == '\0' || substring(arg,p_mod->name,1) == 0)
+		{
+			grub_printf(" %s\n",p_mod->name);
+			i++;
+			if (*arg)
+				break;
+		}
+	}
+	return i;
+}
+
 static int grub_exec_run(char *program, int flags)
 {
 	int pid;
@@ -4916,6 +4949,8 @@ static int grub_exec_run(char *program, int flags)
 				}
 
 				*p_cmd = '\0';
+				if (debug > 1)
+					printf("cmd:%s\n",p_buff);
 				ret = run_line (p_buff,flags);
 
 				if (errnum == ERR_BAT_GOTO || errnum == ERR_BAT_CALL)
@@ -5025,52 +5060,45 @@ command_func (char *arg, int flags)
 	else if (substring("insmod ",arg,1) < 1)
 	{
 		flags = -1;
-		arg = skip_to(0,arg);
+		arg = skip_to(SKIP_WITH_TERMINATE,arg);
 		if (*arg == '\0')
 			return 0;
-		for (p_exec = grub_exec; p_exec != NULL; p_exec=p_exec->next)
+		char *filename = skip_to(0,arg) - 1;
+
+		while (*filename && *filename !='/')
 		{
-			if (grub_strcmp(arg,p_exec->name) == 0)
-			{
-				return grub_printf("%s already loaded.\n",arg);
-			}
+			filename--;
 		}
+		filename++;
+		if (exec_mod_find(filename,0))
+			return grub_printf("%s already loaded.\n",filename);
 	}
-	else if (substring("delmod ",arg,1) < 1)
+	else if (substring("delmod",arg,1) < 1)
 	{
 		arg = skip_to(0,arg);
+		int list_mod = 0;
 		if (*arg == '\0')
-			return 0;
-		int list_mod = 1;
-		if (grub_memcmp(arg,"-l",2) == 0)
+			list_mod = 1;
+		else if (grub_memcmp(arg,"-l",2) == 0)
 		{
 			arg = skip_to(0,arg);
-			list_mod = ((*arg)?6:2);
+			list_mod = 2;
 		}
-		struct exec_array *p_exec_pre = NULL;
-		for (p_exec = grub_exec; p_exec != NULL; p_exec=p_exec->next)
+
+		if (list_mod)
+			return exec_mod_list(arg);
+
+		struct exec_array *exec_del = exec_mod_find(arg, 1);
+		if (exec_del)
 		{
-			if (list_mod == 2 || grub_strcmp(arg,p_exec->name) == 0)
-			{
-				if (list_mod > 1)
-				{
-					if (debug)
-						grub_printf(" %s\n",p_exec->name);
-					list_mod |= 1;
-				}
-				else
-				{
-					if (p_exec_pre == NULL)
-						grub_exec = p_exec->next;
-					else
-						p_exec_pre->next = p_exec->next;
-					grub_free(p_exec);
-					return (debug?grub_printf("%s unloaded.\n",arg):1);
-				}
-			}
-			p_exec_pre = p_exec;
+			if (p_exec)
+				p_exec->next = exec_del->next;
+			else
+				grub_exec = exec_del->next;
+			grub_free(exec_del);
+			return (debug?grub_printf("%s unloaded.\n",arg):1);
 		}
-		return (list_mod & 1);
+		return !grub_printf("%s does not loaded.\n",arg);
 	}
 
 	if (substring("goto ",arg,1)<1)
@@ -5098,26 +5126,11 @@ command_func (char *arg, int flags)
   char *cmd_arg = skip_to(SKIP_WITH_TERMINATE,arg);/* get argument of command */
 	if (*filename >= '0')
 	{
-		for (p_exec = grub_exec; p_exec != NULL; p_exec = p_exec->next)
-		{
-			if (grub_strcmp(filename,p_exec->name) == 0)
-			{
-				break;
-			}
-		}
+		p_exec = exec_mod_find(filename,0);
 	}
 
   if (p_exec == NULL)
   {
-	char *command_filename;
-//	nul_terminate(filename);
-	if ((command_filename = grub_malloc(128 + grub_strlen(filename))) == NULL)
-	{
-//		errnum = ERR_WONT_FIT;
-		return 0;
-	}
-
-	grub_free(command_filename);//This memory is only temporary use,so we can release now.
 	if (*filename == '(' || *filename == '/')
 	{
 		if (grub_open (filename) == 0)
@@ -5127,6 +5140,14 @@ command_func (char *arg, int flags)
 	}
 	else
 	{
+		char *command_filename;
+		if ((command_filename = grub_malloc(128 + arg_len)) == NULL)
+		{
+			return 0;
+		}
+
+		grub_free(command_filename);//This memory is only temporary use,so we can release now.
+
 		grub_sprintf (command_filename,"%s%s",command_path,filename);
 		filename = command_filename + grub_strlen(command_path) - 1;
 		if (grub_open(command_filename) == 0 && grub_open(filename) == 0)
@@ -5153,10 +5174,9 @@ command_func (char *arg, int flags)
 	prog_len = (p_exec?p_exec->len:filemax);
 	psp_len = ((arg_len + 16) & ~0xF) + 0x10 + 0x20;
 	psp = (char *)grub_malloc(prog_len + psp_len);
-	grub_memset(psp, 0, psp_len);
+
 	if (psp == NULL)
 	{
-//		errnum = ERR_WONT_FIT;
 		goto fail;
 	}
 
@@ -5176,17 +5196,19 @@ command_func (char *arg, int flags)
 
 		if (flags == -1)//load exec to buff
 		{
-			filename = skip_to(0,filename);
-			while (*filename != '/')
-				filename--;
-			filename++;
+			filename = arg;
+			while (*arg)
+			{
+				if (*arg++ == '/')
+					filename = arg;
+			}
 			p_exec = (struct exec_array *)psp;
 			grub_strcpy(psp,filename);
 			p_exec->addr = program;
 			p_exec->len = prog_len;
 			p_exec->next = grub_exec;
 			grub_exec = p_exec;
-			return (debug)?grub_printf("%s loaded\n", arg):1;
+			return (debug)?grub_printf("%s loaded\n", filename):1;
 		}
 	}
 	else
@@ -5195,6 +5217,7 @@ command_func (char *arg, int flags)
 	}
 
 	program[prog_len] = '\0';
+	grub_memset(psp, 0, psp_len);
 	grub_memmove (psp + 16, arg , arg_len + 1);/* copy args into somewhere in PSP. */
 	*(unsigned long *)psp = psp_len;
 	*(unsigned long *)(program - 4) = psp_len;		/* PSP length in bytes. it is in both the starting dword and the ending dword of the PSP. */
