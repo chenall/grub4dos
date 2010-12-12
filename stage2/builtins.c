@@ -4158,7 +4158,7 @@ checktime_func(char *arg, int flags)
   if (! arg[0])
     {
       grub_printf ("%d-%02d-%02d %02d:%02d:%02d %d\n", year, month, day, hour, min, sec, dow);
-      return 1;
+      return time;
     }
 
   for (ii = 0; ii < 5; ii++)
@@ -4713,7 +4713,6 @@ static int script_run (char *arg, int flags)
 static int grub_exec_run(char *program, int flags)
 {
 	int pid;
-	char *filename = program - (*(unsigned long *)(program - 16));
 	char *arg = program - (*(unsigned long *)(program - 8));
 
 		/* kernel image is destroyed, so invalidate the kernel */
@@ -4723,6 +4722,7 @@ static int grub_exec_run(char *program, int flags)
 	/*Is a batch file? */
 	if (*(unsigned long *)program == 0x54414221)//!BAT
 	{
+		char *filename = program - (*(unsigned long *)(program - 16));
 		char *p_bat;
 		struct bat_label
 		{
@@ -4796,21 +4796,11 @@ static int grub_exec_run(char *program, int flags)
 				char *file_name,*file_ext;
 				while(*p_bat)
 				{
-					if (*p_bat != '%')
-					{
+					if (*p_bat != '%' || (file_ext = p_bat++,*p_bat == '%'))
+					{//if *p_bat != '%' or p_bat[1] == '%'(*p_bat == p_bat[1] == '%');
 						*p_cmd++ = *p_bat++;
 						continue;
-					}
-
-					*p_cmd = *p_bat++;
-
-					if (*p_bat == '%')
-					{
-						p_cmd++,p_bat++;
-						continue;
-					}
-
-					file_ext = p_bat;
+					}//file_ext now use for backup p_bat see the loop end.
 
 					i = 0;
 
@@ -4836,7 +4826,7 @@ static int grub_exec_run(char *program, int flags)
 
 					if (*p_bat <= '9' && *p_bat >= '0')
 					{
-						p_rep = s[*p_bat - '0'];
+						p_rep = s[*p_bat++ - '0'];
 						if (p_rep != NULL)
 						{
 							if ((i & 1) && *p_rep == '\"')
@@ -4904,9 +4894,9 @@ static int grub_exec_run(char *program, int flags)
 
 							if (i <= 7)
 							{
-								while ((*p_cmd++ = *p_rep++))
+								while (*p_rep)
 								{
-									;
+									*p_cmd++ = *p_rep++;
 								}
 								if ((i & 6) == 4)
 									*file_ext = ch_bak;
@@ -4921,9 +4911,8 @@ static int grub_exec_run(char *program, int flags)
 					else
 					{
 						p_bat = file_ext;
-						p_cmd++;
+						*p_cmd++ = *p_bat++;
 					}
-					p_bat++;
 				}
 
 				*p_cmd = '\0';
@@ -4937,7 +4926,7 @@ static int grub_exec_run(char *program, int flags)
 					if (*p_cmd == ':')
 						p_cmd++;
 					p_bat = skip_to(SKIP_WITH_TERMINATE,p_cmd);
-					for (i=0;i<i_lab;i++)
+					for (i=0;i<i_lab;i++)//find label for goto/call.
 					{
 						if (substring(label_entry[i].label,p_cmd,1) == 0)
 						{
@@ -4954,12 +4943,12 @@ static int grub_exec_run(char *program, int flags)
 					i = label_entry[i].line;
 
 					errnum = ERR_NONE;
-					if (status)
+					if (status)//batch script goto;
 					{
 						p_entry = bat_entry + i;
 						continue;
 					}
-					else
+					else//batch script call
 						ret = bat_script_run(p_bat,i);
 				}
 
@@ -4976,7 +4965,7 @@ static int grub_exec_run(char *program, int flags)
 			return ret;
 		}
 
-		pid = bat_script_run(arg,0);
+		pid = bat_script_run(arg,0);//run batch script from line 0;
 		grub_free(label_entry);
 		return pid;
 	}
