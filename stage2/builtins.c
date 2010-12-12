@@ -5098,7 +5098,7 @@ command_func (char *arg, int flags)
 			grub_free(exec_del);
 			return (debug?grub_printf("%s unloaded.\n",arg):1);
 		}
-		return !grub_printf("%s does not loaded.\n",arg);
+		return !grub_printf("%s does not load.\n",arg);
 	}
 
 	if (substring("goto ",arg,1)<1)
