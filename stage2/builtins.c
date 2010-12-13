@@ -4716,12 +4716,17 @@ static struct exec_array *exec_mod_find(char *filename,char flags)
 	p_exec = NULL;
 	for (p_mod = grub_exec; p_mod != NULL; p_mod=p_mod->next)
 	{
-		if (substring(filename,p_mod->name,1) == 0)
+		if (flags == 2)
 		{
-			break;
+			grub_free(p_mod);
 		}
-		if (flags)
-			p_exec = p_mod;
+		else 
+		{
+			if (substring(filename,p_mod->name,1) == 0)
+				break;
+			if (flags == 1)
+				p_exec = p_mod;
+		}
 	}
 	return p_mod;
 }
@@ -4996,6 +5001,8 @@ static int grub_exec_run(char *program, int flags)
 
 			debug = debug_ori;
 			/*release memory. */
+			if (errnum == 1000)
+				errnum = 0;
 			grub_free(cmd_buff);
 			return ret;
 		}
@@ -5087,7 +5094,12 @@ command_func (char *arg, int flags)
 
 		if (list_mod)
 			return exec_mod_list(arg);
-
+		if (*arg == '*')
+		{
+			exec_mod_find(arg,2);//delete all loaded module.
+			grub_exec = NULL;
+			return 1;
+		}
 		struct exec_array *exec_del = exec_mod_find(arg, 1);
 		if (exec_del)
 		{
@@ -5100,7 +5112,7 @@ command_func (char *arg, int flags)
 		}
 		return !grub_printf("%s does not load.\n",arg);
 	}
-
+#if 0
 	if (substring("goto ",arg,1)<1)
 	{
 		errnum = ERR_BAT_GOTO;
@@ -5118,7 +5130,7 @@ command_func (char *arg, int flags)
 		else
 			return 0;//call only use in batch script.
 	}
-
+#endif
   /* open the command file. */
   p_exec = NULL;
   char *filename = arg;
@@ -14343,6 +14355,51 @@ static struct builtin builtin_echo =
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
 };
 #endif
+
+
+static int goto_func(char *arg, int flags)
+{
+	errnum = ERR_BAT_GOTO;
+	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
+		return (int)arg;
+	else
+		return fallback_func(arg,flags);//in menu script call fallback_func to jump next menu.
+}
+
+static struct builtin builtin_goto =
+{
+   "goto",
+   goto_func,
+   BUILTIN_SCRIPT | BUILTIN_BAT_SCRIPT,
+};
+
+static int call_func(char *arg,int flags)
+{
+	errnum = ERR_BAT_CALL;
+	return (int)arg;
+}
+
+static struct builtin builtin_call =
+{
+   "call",
+   call_func,
+  BUILTIN_BAT_SCRIPT,
+};
+
+static int exit_func(char *arg, int flags)
+{
+	unsigned long long t = 0;
+	read_val(&arg, &t);
+	errnum = 1000 + t;
+	return t;
+}
+
+static struct builtin builtin_exit =
+{
+   "exit",
+   exit_func,
+  BUILTIN_BAT_SCRIPT,
+};
 
 
 /* The table of builtin commands. Sorted in dictionary order.  */
@@ -14359,6 +14416,7 @@ struct builtin *builtin_table[] =
 #endif /* SUPPORT_NETBOOT */
 #endif /* ! GRUB_UTIL */
   &builtin_calc,
+  &builtin_call,
   &builtin_cat,
 #if ! defined(GRUB_UTIL) && ! defined (STAGE1_5)
   &builtin_cdrom,
@@ -14398,6 +14456,7 @@ struct builtin *builtin_table[] =
 #endif /* GRUB_UTIL */
   &builtin_errnum,
   &builtin_errorcheck,
+  &builtin_exit,
   &builtin_fallback,
   &builtin_find,
 #ifdef SUPPORT_GRAPHICS
@@ -14408,6 +14467,7 @@ struct builtin *builtin_table[] =
 #ifdef SUPPORT_GFX
   &builtin_gfxmenu,
 #endif
+  &builtin_goto,
 #ifndef GRUB_UTIL
   &builtin_graphicsmode,
 #endif /* ! GRUB_UTIL */

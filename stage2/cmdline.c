@@ -205,6 +205,7 @@ int run_line (char *heap,int flags)
 	struct builtin *builtin;
 	int status_t = 0;
 	int stat_bak = putchar_st.flag;
+	int errnum_old = errnum;
 	while (*heap && (arg = heap))
 	{
 		putchar_st.flag = 0;
@@ -272,6 +273,8 @@ int run_line (char *heap,int flags)
 				errnum = ERR_UNRECOGNIZED;
 				break;
 			}
+			if ((builtin->func) == errnum_func || (builtin->func) == checkrange_func)
+				errnum = errnum_old;
 			ret = (builtin->func) (skip_to (1,arg), flags);
 		}
 		else
@@ -287,6 +290,7 @@ int run_line (char *heap,int flags)
 		check_status:
 		if (status == 0 || (status & 12))
 			break;
+		errnum_old = errnum;
 		errnum = 0;
 		status_t = 0;
 		if ((status == 1 && ret == 0) || (status == 2 && ret))

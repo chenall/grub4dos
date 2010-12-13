@@ -514,14 +514,14 @@ run_script (char *script, char *heap)
 /* now command echoing is considered no use for a successful command. */
 //      if (! (builtin->flags & BUILTIN_NO_ECHO))
 //	grub_printf ("%s\n", old_entry);
-
+#if 0
       /* If BUILTIN cannot be run in the command-line, skip it.  */
       if ((int)builtin != -1 && ! (builtin->flags & BUILTIN_CMDLINE))
 	{
 	  errnum = ERR_UNRECOGNIZED;
 	  continue;
 	}
-
+#endif
       /* Invalidate the cache, because the user may exchange removable
 	 disks.  */
       buf_drive = -1;
