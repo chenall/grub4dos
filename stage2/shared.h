@@ -1227,6 +1227,7 @@ char *skip_to (int flags, char *cmdline);
 #define SKIP_NONE		0
 #define SKIP_WITH_TERMINATE	0x200
 
+extern char *pre_cmdline;
 int run_line (char *heap,int flags);
 struct builtin *find_command (char *command);
 void print_cmdline_message (int forever);

@@ -196,6 +196,7 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 
 #define PRINTF_BUFFER ((char *)0x1011000)
 #define CMD_BUFFER ((char *)0x1010000)
+char *pre_cmdline;
 int run_line (char *heap,int flags)
 {
 //	char *p;
@@ -266,6 +267,7 @@ int run_line (char *heap,int flags)
 		}
 
 		builtin = find_command (arg);
+		pre_cmdline = arg;
 		if ((int)builtin != -1)
 		{
 			if (! builtin || ! (builtin->flags & flags))

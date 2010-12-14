@@ -3045,6 +3045,8 @@ static struct builtin builtin_color =
 static int
 configfile_func (char *arg, int flags)
 {
+	if (flags & BUILTIN_BAT_SCRIPT)
+		return (errnum = -1);
   char *new_config = config_file;
 
 #ifndef GRUB_UTIL
@@ -4755,7 +4757,6 @@ static int grub_exec_run(char *program, int flags)
 {
 	int pid;
 	char *arg = program - (*(unsigned long *)(program - 8));
-
 		/* kernel image is destroyed, so invalidate the kernel */
 	if (kernel_type < KERNEL_TYPE_CHAINLOADER)
 		kernel_type = KERNEL_TYPE_NONE;
@@ -4964,7 +4965,7 @@ static int grub_exec_run(char *program, int flags)
 				if (errnum == ERR_BAT_GOTO || errnum == ERR_BAT_CALL)
 				{
 					int status = (errnum == ERR_BAT_GOTO);
-					p_cmd = (char *)ret;
+					p_cmd = pre_cmdline;
 					ret = 0;
 					if (*p_cmd == ':')
 						p_cmd++;
@@ -5230,6 +5231,11 @@ command_func (char *arg, int flags)
 	pid = grub_exec_run(program, flags);
 	/* on exit, release the memory. */
 	grub_free(psp);
+	if (errnum == -1)//errnum = -1 on exit run pre_cmdline.
+	{
+		errnum = 0;
+		pid = run_line(pre_cmdline,flags);
+	}
 	return pid;
 #endif
 #if 0
@@ -14349,7 +14355,7 @@ static int goto_func(char *arg, int flags)
 {
 	errnum = ERR_BAT_GOTO;
 	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
-		return (int)arg;
+		return (int)(pre_cmdline = arg);
 	else
 		return fallback_func(arg,flags);//in menu script call fallback_func to jump next menu.
 }
@@ -14364,7 +14370,7 @@ static struct builtin builtin_goto =
 static int call_func(char *arg,int flags)
 {
 	errnum = ERR_BAT_CALL;
-	return (int)arg;
+	return (int)(pre_cmdline = arg);
 }
 
 static struct builtin builtin_call =
