@@ -1339,13 +1339,15 @@ cat_func (char *arg, int flags)
     }
     else 
     {
+		int do_decompression_bak = do_decompression;
+		do_decompression = 0;
        if (! grub_open (arg))
+       {
+			do_decompression = do_decompression_bak;
             return 0;
-#ifndef NO_DECOMPRESSION
-       filesize = (compressed_file ? gzip_filemax : filemax);
-#else
+       }
        filesize = filemax;
-#endif
+       do_decompression = do_decompression_bak;
     }
 	grub_close();
 	if (debug > 0)
@@ -4682,7 +4684,8 @@ static struct builtin builtin_fallback =
 
 
 /* command */
-char command_path[128]="(bd)/grub/";
+static char command_path[128]="(bd)/grub/";
+static int command_path_len = 10;
 struct exec_array
 {
 	char name[16];
@@ -5047,11 +5050,14 @@ command_func (char *arg, int flags)
 		arg += 11;
 
 		if (! *arg)
+		{
+			command_path_len = 10;
 			return grub_sprintf(command_path,"(bd)/grub/");
+		}
 
 		int j = grub_strlen(arg);
 
-		if (j >= 127)
+		if (j >= 0x60)
 		{
 			if (debug > 0)
 				printf("Set default command path error: PATH is too long \n");
@@ -5062,6 +5068,7 @@ command_func (char *arg, int flags)
 		if (command_path[j-1] != '/')
 			command_path[j++] = '/';
 		command_path[j] = 0;
+		command_path_len = j;
 		return 1;
 	}
 	else if (substring("insmod ",arg,1) < 1)
@@ -5112,25 +5119,6 @@ command_func (char *arg, int flags)
 		}
 		return !grub_printf("%s does not load.\n",arg);
 	}
-#if 0
-	if (substring("goto ",arg,1)<1)
-	{
-		errnum = ERR_BAT_GOTO;
-		arg = skip_to(0, arg);
-		if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
-			return (int)arg;
-		else
-			return fallback_func(arg,flags);//in menu script call fallback_func to jump next menu.
-	}
-	else if (substring("call ",arg,1)<1)
-	{
-		errnum = ERR_BAT_CALL;
-		if (flags & BUILTIN_BAT_SCRIPT)
-			return (int)skip_to(0, arg);
-		else
-			return 0;//call only use in batch script.
-	}
-#endif
   /* open the command file. */
   p_exec = NULL;
   char *filename = arg;
@@ -5152,23 +5140,22 @@ command_func (char *arg, int flags)
 	}
 	else
 	{
-		char *command_filename;
-		if ((command_filename = grub_malloc(128 + arg_len)) == NULL)
+		char *command_filename = command_path + command_path_len;
+		if ((cmd_arg - filename) > 0x20)
 		{
 			return 0;
 		}
-
-		grub_free(command_filename);//This memory is only temporary use,so we can release now.
-
-		grub_sprintf (command_filename,"%s%s",command_path,filename);
-		filename = command_filename + grub_strlen(command_path) - 1;
-		if (grub_open(command_filename) == 0 && grub_open(filename) == 0)
+		grub_sprintf (command_filename,"%s",filename);
+		filename = command_filename - 1;
+		if (grub_open(command_path) == 0 && grub_open(filename) == 0)
 		{
 //			if (debug > 0)
-				grub_printf ("Warning! No such command: %s\n", filename);
+				grub_printf ("Warning! No such command: %s\n", arg);
 			errnum = 0;	/* No error, so that old menus will run smoothly. */
+			*command_filename = '\0';
 			return 0;	/* return 0 indicating a failure or a false case. */
 		}
+		*command_filename = '\0';
 	}
 
 	if (filemax < 9ULL)
