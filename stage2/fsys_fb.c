@@ -74,7 +74,7 @@ struct fbm_file
   char name[0];
 } __attribute__((packed));
 
-static int fb_inited;
+static int fb_inited = FB_DRIVE;
 static int fb_drive;
 static uchar4 fb_ofs;
 static uchar4 fb_pri_size;
