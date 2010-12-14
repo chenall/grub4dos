@@ -12231,6 +12231,8 @@ VARIABLE(system_functions)
 	.long	ABS(EXT_C(get_mmap_entry))
 	.long	ABS(EXT_C(grub_malloc))
 	.long	ABS(EXT_C(grub_free))
+	.long  0             // list_partitions
+	.long  0             // realmode_run
 //	.long	ABS(EXT_C(graphics_init))
 //	.long	ABS(EXT_C(graphics_end))
 //	.long	ABS(EXT_C(graphics_get_font))
@@ -12275,15 +12277,15 @@ VARIABLE(next_partition_buf)
 	.long	0
 VARIABLE(quit_print)
 	.long	0
-VARIABLE(buf_drive)
+//VARIABLE(buf_drive)
 	.long	-1
-VARIABLE(buf_track)
+//VARIABLE(buf_track)
 	.long	-1
 VARIABLE(filesystem_type)
 	.long	0
-VARIABLE(query_block_entries)
+//VARIABLE(query_block_entries)
 	.long	0
-VARIABLE(map_start_sector)
+//VARIABLE(map_start_sector)
 	.long	0
 	.long	ABS(EXT_C(buf_geom))
 	.long	ABS(EXT_C(tmp_geom))
@@ -12291,7 +12293,7 @@ VARIABLE(map_start_sector)
 VARIABLE(current_term)
 	.long	ABS(EXT_C(term_table))
 	.long	ABS(EXT_C(fsys_table))
-VARIABLE(fsys_type)
+//VARIABLE(fsys_type)
 	.long	NUM_FSYS
 	.long	NUM_FSYS
 VARIABLE(graphics_inited)

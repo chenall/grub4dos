@@ -28,6 +28,9 @@
 #define FB_MAGIC	"FBBF"
 #define FB_MAGIC_LONG	0x46424246
 
+#define FB_AR_MAGIC		"FBAR"
+#define FB_AR_MAGIC_LONG	0x52414246
+
 #define FBM_TYPE_FILE	1
 
 #define uchar	unsigned char
@@ -76,69 +79,104 @@ static int fb_drive;
 static uchar4 fb_ofs;
 static uchar4 fb_pri_size;
 static struct fbm_file *cur_file;
+static uchar *fbm_buff = NULL;
+static uchar4 ud_ofs;
+static uchar4 ud_pri_size;
+static int ud_inited;
 
-static void fb_init (void)
+static int fb_init (void)
 {
   struct fb_mbr *m;
   struct fb_data *data;
-  int boot_base, boot_size, list_used, i;
+  int boot_base = 0, boot_size = 0, list_used, i;
   uchar *fb_list, *p1, *p2;
+  uchar4 t_fb_ofs = 0;
+  uchar4 t_fb_pri_size = 0;
 
-  fb_inited++;
+	if ((m = (struct fb_mbr *) grub_malloc(0x200)) == NULL)
+		return 0;
 
-  if (! fb_status)
-    return;
+	if (! rawread (fb_drive, 0, 0, 512, (unsigned long long)(unsigned int)(char *) m, 0xedde0d90))
+		goto fail;
 
-  m = (struct fb_mbr *) FB_MENU_ADDR;
-  fb_drive = (fb_status >> 8) & 0xff;
-
-  grub_printf ("%d\n", fb_drive);
-  if (! rawread (fb_drive, 0, 0, 512, (unsigned long long)(unsigned int)(char *) m, 0xedde0d90))
-    goto fail;
-
-  if ((m->fb_magic != FB_MAGIC_LONG) || (m->end_magic != 0xaa55))
-    goto fail;
-
-  boot_base = m->boot_base;
-  fb_ofs = m->lba;
-
-  data = (struct fb_data *) m;
-  if (! rawread (fb_drive, boot_base + 1 - fb_ofs, 0, 512,
+	data = (struct fb_data *) m;
+	if ((m->fb_magic == FB_MAGIC_LONG) && (m->end_magic == 0xaa55))
+	{
+		boot_base = m->boot_base;
+		t_fb_ofs = m->lba;
+		if (! rawread (fb_drive, boot_base + 1 - t_fb_ofs, 0, 512,
 		 (unsigned long long)(unsigned int)(char *)data, 0xedde0d90))
-    goto fail;
+			goto fail;
+		boot_size = data->boot_size;
+		t_fb_pri_size = data->pri_size;
+	}
+	else if (*(unsigned long *)m != FB_AR_MAGIC_LONG)
+		goto fail;
 
-  if ((data->ver_major != 1) || (data->ver_minor != 6))
-    goto fail;
+	if ((data->ver_major != 1) || (data->ver_minor != 6))
+		goto fail;
 
-  boot_size = data->boot_size;
-  list_used = data->list_used;
-  fb_pri_size = data->pri_size;
+	list_used = data->list_used;
+	grub_free(m);
 
-  fb_list = (uchar *) data;
-  if (! rawread (fb_drive, boot_base + 1 + boot_size - fb_ofs, 0,
+	if (current_drive == FB_DRIVE)
+	{
+		ud_inited++;
+		fb_list = (uchar *) FB_MENU_ADDR;
+		ud_ofs = t_fb_ofs;
+		ud_pri_size = t_fb_pri_size;
+	}
+	else
+	{
+		if (fbm_buff == NULL && (fbm_buff = grub_malloc(0x10000)) == NULL)
+			return 0;
+		fb_list = fbm_buff;
+	}
+
+	if (! rawread (fb_drive, boot_base + 1 + boot_size - t_fb_ofs, 0,
 		 (unsigned long long)list_used << 9, (unsigned long long)(unsigned int)fb_list, 0xedde0d90))
-    goto fail;
+		return 0;
 
-  p1 = p2 = fb_list;
-  for (i = 0; i < list_used - 1; i++)
-  {
-	p1 += 510;
-	p2 += 512;
-	grub_memcpy (p1, p2, 510);
-   }
+	p1 = p2 = fb_list;
 
-  return;
+	for (i = 0; i < list_used - 1; i++)
+	{
+		p1 += 510;
+		p2 += 512;
+		grub_memcpy (p1, p2, 510);
+	}
+	fb_ofs = t_fb_ofs;
+	fb_pri_size = t_fb_pri_size;
+	fb_inited = fb_drive;
+	return 1;
 
  fail:
-  fb_status = 0;
+  grub_free(m);
+  return 0;
 }
 
 int fb_mount (void)
 {
-  if (! fb_inited)
-    fb_init ();
+	if (current_drive == FB_DRIVE)
+	{
+		if (! fb_status)
+			return 0;
+		fb_drive = (fb_status >> 8) & 0xff;
+		fb_ofs = ud_ofs;
+		fb_pri_size = ud_pri_size;
+		if (ud_inited || fb_init())
+			return ud_inited;
+		fb_status = 0;
+		ud_inited = 0;
+		return 0;
+	}
 
-  return (current_drive == FB_DRIVE);
+	if (current_partition != 0xFFFFFF)
+		return 0;
+	if (fb_inited  == current_drive)
+		return 1;
+	fb_drive = current_drive;
+	return fb_init ();
 }
 
 unsigned long long
@@ -206,7 +244,7 @@ int fb_dir (char *dirname)
   while (*dirname == '/')
     dirname++;
 
-  cur_file = (struct fbm_file *) FB_MENU_ADDR;
+  cur_file = (struct fbm_file *)((current_drive == FB_DRIVE)?FB_MENU_ADDR:(int)fbm_buff);
 
   while (cur_file->size)
     {

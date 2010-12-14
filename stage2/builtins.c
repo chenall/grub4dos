@@ -10961,11 +10961,12 @@ pause_func (char *arg, int flags)
 	  /* Check if there is a key-press.  */
 	  if (checkkey () != -1)
 	    {
+	    char get_key = ASCII_CHAR (getkey ());
 		/* Check the special ESC key  */
-		if (ASCII_CHAR (getkey ()) == '\e')
+		if (get_key == '\e')
 			return 0;	/* abort this entry */
 		else
-			return 1;	/* end */
+			return (get_key)?get_key:1;	/* end */
 	    }
 
 	  if (wait != -1
