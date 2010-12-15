@@ -133,7 +133,7 @@
 
 /* so we can disable decompression  */
 #ifdef GRUB_UTIL
-int do_decompression = 1;
+int no_decompression = 0;
 unsigned long long gzip_filemax;
 #endif
 
@@ -1249,11 +1249,8 @@ gunzip_read (unsigned long long buf, unsigned long long len, unsigned long write
       len -= size;
       gzip_filepos += size;
       ret += size;
-      if (do_decompression & 2)
-			grub_printf(" -%dK\t\t\t\t\r",len>>9);
     }
-	if (len==0 && (do_decompression & 2))
-		grub_printf("\t\r");
+
   compressed_file = 1;
   gunzip_swap_values ();
   /*

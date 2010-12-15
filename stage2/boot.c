@@ -829,7 +829,7 @@ load_initrd (char *initrd)
   char *arg = initrd;
 #endif
 #ifndef NO_DECOMPRESSION
-  int do_decompression_bak = do_decompression;
+  int no_decompression_bak = no_decompression;
 #endif
 
   linux_header = (struct linux_kernel_header *) (cur_addr - LINUX_SETUP_MOVE_SIZE);
@@ -862,7 +862,7 @@ load_initrd (char *initrd)
 next_file:
 
 #ifndef NO_DECOMPRESSION
-  do_decompression = 0;
+  no_decompression = 1;
 #endif
   
   if (! grub_open (initrd))
@@ -933,7 +933,7 @@ next_file:
 
 next_file1:
 #ifndef NO_DECOMPRESSION
-	do_decompression = 0;
+	no_decompression = 1;
 #endif
 
 	grub_open (initrd);
@@ -972,7 +972,7 @@ next_file1:
  fail:
 
 #ifndef NO_DECOMPRESSION
-  do_decompression = do_decompression_bak;
+  no_decompression = no_decompression_bak;
 #endif
 
   return ! errnum;

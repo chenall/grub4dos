@@ -2272,11 +2272,7 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
     read_func = fsys_table[fsys_type].read_func;
 
   /* Now, read_func is ready. */
-  if ((!buf) || (len < grub_read_loop_threshold) 
-#ifndef NO_DECOMPRESSION
-      || compressed_file
-#endif /* NO_DECOMPRESSION */
-      )
+  if ((!buf) || (len < grub_read_loop_threshold))
   {
     /* Do whole request at once. */
       return read_func(buf, len, write);
@@ -2290,15 +2286,18 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
     {
 	unsigned long long len1;
 	unsigned long long ret1;
+	grub_printf(" [%ldM/%ldM]\r",byteread>>20,len>>20);
 	len1 = (remaining > grub_read_step)? grub_read_step : remaining;
 	ret1 = read_func(buf, len1, write);
 	if (!ret1 || ret1 > len1) break;/*pxe_read returns 0xffffffff when error.*/
 	byteread += ret1;
 	buf += ret1;		/* Don't do this if buf is 0 */
 	remaining -= ret1;
-	grub_printf("\r[%ldM/%ldM]",byteread>>20,len>>20);
     }
-    grub_printf("\r[%ldM/%ldM]\n",byteread>>20,len>>20);
+    if (remaining)
+		grub_printf("\r[%ldM/%ldM]\n",byteread>>20,len>>20);
+	 else
+		grub_printf("\r\t\t");
     return byteread;
   }
 }

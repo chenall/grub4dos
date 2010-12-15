@@ -341,7 +341,7 @@ blocklist_func (char *arg, int flags)
   char *dummy = NULL;
   int err;
 #ifndef NO_DECOMPRESSION
-  int do_decompression_bak = do_decompression;
+  int no_decompression_bak = no_decompression;
 #endif
   
   blklst_start_sector = 0;
@@ -367,7 +367,7 @@ blocklist_func (char *arg, int flags)
     }
 
     grub_close ();
-    do_decompression = 0;
+    no_decompression = 1;
     if (! grub_open (arg))
 	goto fail_open;
   }
@@ -446,7 +446,7 @@ fail_read:
 fail_open:
 
 #ifndef NO_DECOMPRESSION
-  do_decompression = do_decompression_bak;
+  no_decompression = no_decompression_bak;
 #endif
 
   if (query_block_entries < 0)
@@ -1339,15 +1339,15 @@ cat_func (char *arg, int flags)
     }
     else 
     {
-		int do_decompression_bak = do_decompression;
-		do_decompression = 0;
+		int no_decompression_bak = no_decompression;
+		no_decompression = 1;
        if (! grub_open (arg))
        {
-			do_decompression = do_decompression_bak;
+			no_decompression = no_decompression_bak;
             return 0;
        }
        filesize = filemax;
-       do_decompression = do_decompression_bak;
+       no_decompression = no_decompression_bak;
     }
 	grub_close();
 	if (debug > 0)
@@ -7141,7 +7141,7 @@ install_func (char *arg, int flags)
   /* If LBA is forced?  */
   int is_force_lba = 0;
 #ifndef NO_DECOMPRESSION
-  int do_decompression_bak = do_decompression;
+  int no_decompression_bak = no_decompression;
 #endif
   /* Was the last sector full? */
   blklst_last_length = SECTOR_SIZE;
@@ -7206,7 +7206,7 @@ install_func (char *arg, int flags)
 
 #ifndef NO_DECOMPRESSION
   /* Do not decompress Stage 1 or Stage 2.  */
-  do_decompression = 0;
+  no_decompression = 1;
 #endif
 
   /* Read Stage 1.  */
@@ -7584,7 +7584,7 @@ install_func (char *arg, int flags)
   disk_read_hook = 0;
   
 #ifndef NO_DECOMPRESSION
-  do_decompression = do_decompression_bak;
+  no_decompression = no_decompression_bak;
 #endif
 
 //  if (debug > 0)
@@ -8675,7 +8675,7 @@ map_func (char *arg, int flags)
 	    {
 		char tmp[128];
 #ifndef NO_DECOMPRESSION
-		int do_decompression_bak = do_decompression;
+		int no_decompression_bak = no_decompression;
 		int is64bit_bak = is64bit;
 #endif
 		sprintf (tmp, "--heads=%d --sectors-per-track=%d (md)0x%lX+0x%lX (0x%X)", (hooked_drive_map[i].max_head + 1), ((hooked_drive_map[i].max_sector) & 63), (unsigned long long)hooked_drive_map[i].start_sector, (unsigned long long)hooked_drive_map[i].sector_count, hooked_drive_map[i].from_drive);
@@ -8689,7 +8689,7 @@ map_func (char *arg, int flags)
 #ifndef NO_DECOMPRESSION
 		if (hooked_drive_map[i].from_drive == INITRD_DRIVE)
 		{
-			do_decompression = 0;
+			no_decompression = 1;
 			is64bit = 0;
 		}
 #endif
@@ -8697,7 +8697,7 @@ map_func (char *arg, int flags)
 #ifndef NO_DECOMPRESSION
 		if (hooked_drive_map[i].from_drive == INITRD_DRIVE)
 		{
-			do_decompression = do_decompression_bak;
+			no_decompression = no_decompression_bak;
 			is64bit = is64bit_bak;
 		}
 #endif
@@ -10313,17 +10313,17 @@ modulenounzip_func (char *arg, int flags)
 {
   int ret;
 #ifndef NO_DECOMPRESSION
-  int do_decompression_bak = do_decompression;
+  int no_decompression_bak = no_decompression;
 #endif
 
 #ifndef NO_DECOMPRESSION
-  do_decompression = 0;
+  no_decompression = 1;
 #endif
 
   ret = module_func (arg, flags);
 
 #ifndef NO_DECOMPRESSION
-  do_decompression = do_decompression_bak;
+  no_decompression = no_decompression_bak;
 #endif
 
   return ret;

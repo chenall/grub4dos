@@ -877,8 +877,7 @@ extern int use_pager;
 #endif
 
 #ifndef NO_DECOMPRESSION
-extern int do_decompression;
-#define no_decompression (!do_decompression)
+extern int no_decompression;
 extern int compressed_file;
 #endif
 

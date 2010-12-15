@@ -3776,7 +3776,7 @@ Address		Length		Description
 0000:8298	4 (DWORD)	saved_mem_upper (extended memory size in KB)
 0000:829C	4 (DWORD)	saved_partition (current root partition)
 0000:82A0	4 (DWORD)	saved_drive (current root drive)
-0000:82A4	4 (DWORD)	do_decompression (do auto gunzip)
+0000:82A4	4 (DWORD)	no_decompression (no auto gunzip)
 0000:82A8	8 (QWORD)	part_start (start sector of last partition)
 0000:82B0	8 (QWORD)	part_length (total sectors of last partition)
 
