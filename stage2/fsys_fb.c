@@ -147,7 +147,8 @@ static int fb_init (void)
 	}
 	fb_ofs = t_fb_ofs;
 	fb_pri_size = t_fb_pri_size;
-	fb_inited = fb_drive;
+	if (current_drive != FB_DRIVE)
+		fb_inited = fb_drive;
 	return 1;
 
  fail:
