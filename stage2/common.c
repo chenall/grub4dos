@@ -864,6 +864,9 @@ set_root:
 
 #ifndef GRUB_UTIL
 #ifndef STAGE1_5
+  if (fb_status)//set boot_drive to fb_drive when boot from fbinst.
+     boot_drive = FB_DRIVE;
+
   debug = 1;
   if (! atapi_dev_count)
     min_cdrom_id = (cdrom_drive < 0xE0 && cdrom_drive >= 0xC0) ? 0xE0 : 0xC0;
