@@ -221,7 +221,7 @@ int bsd_evil_hack;
 
 /* filesystem type */
 //#ifdef GRUB_UTIL
-int fsys_type;
+int fsys_type = NUM_FSYS;
 //fsys_type = NUM_FSYS;
 //#endif
 
@@ -233,8 +233,8 @@ unsigned long long part_length;
 
 /* disk buffer parameters */
 
-int buf_drive;
-int buf_track;
+int buf_drive = -1;
+int buf_track = -1;
 
 struct geometry buf_geom;
 struct geometry tmp_geom;	/* tmp variable used in many functions. */
