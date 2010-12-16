@@ -466,7 +466,7 @@ run_script (char *script, char *heap)
   char *cur_entry = script;
   struct builtin *builtin = 0;
 //  char *arg;
-  grub_error_t errnum_old;
+//  grub_error_t errnum_old;//2010-12-16
 
   /* Initialize the data.  */
   //saved_drive = boot_drive;
@@ -484,9 +484,9 @@ run_script (char *script, char *heap)
       if (errnum && errorcheck)
 	break;
 
-      errnum_old = errnum;
+//      errnum_old = errnum; //2010-12-16
       /* Copy the first string in CUR_ENTRY to HEAP.  */
-      errnum = ERR_NONE;
+//      errnum = ERR_NONE;//2010-12-16
       old_entry = cur_entry;
       while (*cur_entry++)
 	;
@@ -514,6 +514,8 @@ run_script (char *script, char *heap)
 /* now command echoing is considered no use for a successful command. */
 //      if (! (builtin->flags & BUILTIN_NO_ECHO))
 //	grub_printf ("%s\n", old_entry);
+
+/*comment by chenall on 2010-12-16,will do it in run_line*/
 #if 0
       /* If BUILTIN cannot be run in the command-line, skip it.  */
       if ((int)builtin != -1 && ! (builtin->flags & BUILTIN_CMDLINE))
@@ -521,7 +523,7 @@ run_script (char *script, char *heap)
 	  errnum = ERR_UNRECOGNIZED;
 	  continue;
 	}
-#endif
+
       /* Invalidate the cache, because the user may exchange removable
 	 disks.  */
       buf_drive = -1;
@@ -531,6 +533,7 @@ run_script (char *script, char *heap)
 	errnum = errnum_old;
 
       /* find && and || */
+#endif
 #if 0
       for (arg = skip_to (0, heap); *arg != 0; arg = skip_to (0, arg))
       {
@@ -2360,7 +2363,7 @@ restart_config:
 	/* Run menu-specific commands before any other menu entry commands.  */
 
 	{
-	    char *old_entry;
+	    char *old_entry = NULL;
 	    char *heap = config_entries + config_len;
 
 #ifndef GRUB_UTIL
@@ -2378,9 +2381,9 @@ restart_config:
 
 	    while (1)
 	    {
-		struct builtin *builtin;
+//		struct builtin *builtin; //2010-12-16 commented by chenall
 //		char *arg;
-		grub_error_t errnum_old;
+//		grub_error_t errnum_old;//2010-12-16 commented by chenall
 
 #ifndef GRUB_UTIL
 		pxe_restart_config = 0;
@@ -2404,8 +2407,8 @@ restart_config:
 #endif /* ! GRUB_UTIL */
 #endif
 
-		errnum_old = errnum;
-		errnum = 0;
+//		errnum_old = errnum;//2010-12-16 commented by chenall
+//		errnum = 0;//2010-12-16 commented by chenall
 
 		/* Copy the first string in CUR_ENTRY to HEAP.  */
 		old_entry = cur_entry;
@@ -2423,7 +2426,8 @@ restart_config:
 		    /* Otherwise, the command boot is run implicitly.  */
 		    grub_memmove (heap, "boot", 5);
 		}
-
+//commented out by chenall, 2010-12-16
+#if 0
 		/* Find a builtin.  */
 		builtin = find_command (heap);
 		if (! builtin)
@@ -2431,7 +2435,7 @@ restart_config:
 		    grub_printf ("%s\n", old_entry);
 		    continue;
 		}
-
+#endif
 #if 0
 #ifndef GRUB_UTIL
 		/* pxe_detect should be done before any other command. */
@@ -2446,6 +2450,8 @@ restart_config:
 #endif /* ! GRUB_UTIL */
 #endif
 
+#if 0
+//commented out by chenall, 2010-12-16,use run_line func.
 		/* If BUILTIN cannot be run in the menu, skip it.  */
 		if ((int)builtin != -1 && ! (builtin->flags & BUILTIN_MENU))
 		{
@@ -2457,7 +2463,7 @@ restart_config:
 		    errnum = errnum_old;
 
 		/* find && and || */
-#if 0
+
 		for (arg = skip_to (0, heap); *arg != 0; arg = skip_to (0, arg))
 		{
 		    struct builtin *builtin1;

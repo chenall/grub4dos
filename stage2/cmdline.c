@@ -206,7 +206,10 @@ int run_line (char *heap,int flags)
 	struct builtin *builtin;
 	int status_t = 0;
 	int stat_bak = putchar_st.flag;
-	int errnum_old = errnum;
+	grub_error_t errnum_old = errnum;
+	errnum = ERR_NONE;
+	/* Invalidate the cache, because the user may exchange removable disks.  */
+	buf_drive = -1;
 	while (*heap && (arg = heap))
 	{
 		putchar_st.flag = 0;
@@ -335,11 +338,13 @@ enter_cmdline (char *heap, int forever)
   
   while (1)
     {
+    /*
       struct builtin *builtin;
 //      char *arg;
       grub_error_t errnum_old;
 
       errnum_old = errnum;
+      */
       *heap = 0;
       if (errnum && errorcheck)
 	print_error ();
@@ -360,7 +365,8 @@ enter_cmdline (char *heap, int forever)
       /* If there was no command, grab a new one. */
       if (! heap[0])
 	continue;
-
+/*commented by chenall 2010-12-16,will do it in run_line*/
+#if 0
       /* Find a builtin.  */
       builtin = find_command (heap);
       if (! builtin)
@@ -376,15 +382,15 @@ enter_cmdline (char *heap, int forever)
       /* Invalidate the cache, because the user may exchange removable
 	 disks.  */
       buf_drive = -1;
-
+#endif
       /* Start to count lines, only if the internal pager is in use.  */
       if (use_pager)
 	count_lines = 0;
-      
+/*commented by chenall 2010-12-16,will do it in run_line
       if ((int)builtin != -1)
       if ((builtin->func) == errnum_func || (builtin->func) == checkrange_func)
 	errnum = errnum_old;
-
+*/
       /* find && and || */
 #if 0
       for (arg = skip_to (0, heap); *arg != 0; arg = skip_to (0, arg))
