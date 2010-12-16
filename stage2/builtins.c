@@ -4695,25 +4695,6 @@ struct exec_array
 	int	len;
 	struct exec_array *next;
 } *p_exec,*grub_exec = NULL;
-#if 0
-static int script_run (char *arg, int flags);
-
-static int script_run (char *arg, int flags)
-{
-	char *P = skip_to(0x100,arg);//skip head
-	while ((arg = P))
-	{
-		errnum = 0;
-		P = skip_to (0x100,arg);
-		run_line (arg,flags);
-		if (errnum)
-		{
-			return 0;
-		}
-	}
-	return 1;
-}
-#endif
 
 static struct exec_array *exec_mod_find(char *filename,char flags)
 {
@@ -4753,6 +4734,267 @@ static int exec_mod_list(char *arg)
 	return i;
 }
 
+struct bat_label
+{
+	char *label;
+	int line;
+};
+
+/*
+bat_pid is current running batch script id.
+it must the same of p_bat_prog->pid.
+the first batch bat_pid is 1,max 10.so we can run 10 of batch script one time.
+when all batch script is exit the bat_pid is 0;
+*/
+struct bat_array
+{
+	int pid;
+	struct bat_label *entry;
+	/*
+	 (char **)(entry + 0x80) is the entry of bat_script to run.
+	*/
+	struct bat_array *next;
+} *p_bat_prog = NULL;
+int bat_pid = 0;
+
+/*
+find a label in current batch script.(p_bat_prog)
+return line of the batch script.
+if not find ,return -1;
+*/
+static int bat_find_label(char *label)
+{
+	struct bat_label *label_entry;
+	if (*label == ':') label++;
+	for (label_entry = p_bat_prog->entry; label_entry->label ; label_entry++)//find label for goto/call.
+	{
+		if (substring(label_entry->label,label,1) == 0)
+		{
+			return label_entry->line;
+		}
+	}
+
+	printf(" cannot find the batch label specified - %s\n",label);
+	return -1;
+}
+
+/*
+bat_run_script
+running batch script.
+if filename is NULL then is a call func.the first word of arg is a label.
+*/
+static int bat_run_script(char *filename,char *arg,int flags)
+{
+	if (bat_pid != p_bat_prog->pid)
+	{
+		errnum = ERR_FUNC_CALL;
+		return 0;
+	}
+
+	char **bat_entry = (char **)(p_bat_prog->entry + 0x80);
+
+	int i = 0;
+
+	if (filename == NULL)
+	{//filename is null is a call func;
+		filename = arg;
+		arg = skip_to(SKIP_WITH_TERMINATE,arg);
+		if ((i = bat_find_label(filename)) == -1)
+			return 0;
+	}
+	char **p_entry = bat_entry + i;
+
+	char *s[11];
+	char *p_cmd;
+	char *p_rep;
+	char *p_buff;//buff for command_line
+	int debug_ori = debug;
+	char *cmd_buff;
+
+	if ((cmd_buff = grub_malloc(0x1000)) == NULL)
+	{
+		return 0;
+	}
+
+	/*copy filename to buff*/
+	i = grub_strlen(filename);
+	grub_memmove(cmd_buff,filename,i+1);
+	p_buff = cmd_buff + ((i+16) & ~0xf);
+	s[0] = cmd_buff;
+	/*copy arg to buff*/
+	i = grub_strlen(arg);
+	grub_memmove(p_buff, arg, i+1);
+	arg = p_buff;
+	p_buff = p_buff + ((i+16) & ~0xf);
+
+	/*build args %1-%9*/
+	for (i = 1;i < 10;i++)
+	{
+		s[i] = arg;
+		if (*arg)
+			arg = skip_to(SKIP_WITH_TERMINATE,arg);
+	}
+
+	int ret = 0;
+	char *p_bat;
+	while ((p_bat = *p_entry))//copy cmd_line to p_buff and then run it;
+	{
+		p_cmd = p_buff;
+		char *file_name,*file_ext;
+		while(*p_bat)
+		{
+			if (*p_bat != '%' || (file_ext = p_bat++,*p_bat == '%'))
+			{//if *p_bat != '%' or p_bat[1] == '%'(*p_bat == p_bat[1] == '%');
+				*p_cmd++ = *p_bat++;
+				continue;
+			}//file_ext now use for backup p_bat see the loop end.
+
+			i = 0;
+
+			if (*p_bat == '~')
+			{
+				p_bat++;
+				i |= 1;
+				while (*p_bat)
+				{
+					if (*p_bat == 'x')
+						i |= 2;
+					else if (*p_bat == 'n')
+						i |= 4;
+					else if (*p_bat == 'p')
+						i |= 8;
+					else if (*p_bat == 'd')
+						i |= 16;
+					else
+						break;
+					p_bat++;
+				}
+			}
+
+			if (*p_bat <= '9' && *p_bat >= '0')
+			{
+				p_rep = s[*p_bat++ - '0'];
+				if (p_rep != NULL)
+				{
+					if ((i & 1) && *p_rep == '\"')
+					{
+						p_rep++;
+					}
+
+					if (i & 16)//get device
+					{
+						if (*p_rep == '(')
+						{
+							while ((*p_cmd++ = *p_rep) && *p_rep++ != ')')
+								;
+						}
+						else
+						{
+							*p_cmd++ = '(';
+							*p_cmd++ = ')';
+						}
+					}
+
+					if (i & 8)//get path
+					{
+						file_ext = grub_strstr(p_rep,"/");
+						if (file_ext)
+						{
+							p_rep = file_ext;
+							while (file_ext++)
+							{
+								file_name = file_ext;
+								file_ext = grub_strstr(file_ext,"/");
+							}
+							while(p_rep < file_name)
+							{
+								*p_cmd++ = *p_rep++;
+							}
+						}
+						else
+						{
+							*p_cmd++ = '/';
+						}
+					}
+
+					char ch_bak;
+					if (i & 6)//get filename and ext
+					{
+						file_name = p_rep;
+						while(*p_rep)
+						{
+							if (*p_rep == '.')
+								file_ext = p_rep;
+							else if (*p_rep == '/')
+								file_name = &p_rep[1];
+							p_rep++;
+						}
+						if (file_ext < file_name)
+							file_ext = p_rep;
+						p_rep = (i & 4)?file_name:file_ext;
+						if ((i & 2) == 0)
+						{
+							ch_bak = *file_ext;
+							*file_ext = '\0';
+						}
+					}
+
+					if (i <= 7)
+					{
+						while (*p_rep)
+						{
+							*p_cmd++ = *p_rep++;
+						}
+						if ((i & 6) == 4)
+							*file_ext = ch_bak;
+					}
+
+					if ((i & 1) && *--p_rep == '\"')
+					{
+						p_cmd--;
+					}
+				}
+			}
+			else
+			{
+				p_bat = file_ext;
+				*p_cmd++ = *p_bat++;
+			}
+		}
+
+		*p_cmd = '\0';
+		if (debug > 1)
+			printf("cmd:%s\n",p_buff);
+		ret = run_line (p_buff,flags);
+
+		if (errnum == ERR_BAT_GOTO)
+		{
+			p_cmd = pre_cmdline;
+			p_bat = skip_to(SKIP_WITH_TERMINATE,p_cmd);
+			i = bat_find_label(p_cmd);
+			ret = 0;
+			if (i == -1)
+				break;
+			errnum = ERR_NONE;
+			p_entry = bat_entry + i;
+			continue;
+		}
+
+		if (errnum)
+		{
+			break;
+		}
+		p_entry++;
+	}
+
+	debug = debug_ori;
+	/*release memory. */
+	if (errnum == 1000)
+		errnum = 0;
+	grub_free(cmd_buff);
+	return ret;
+}
+
 static int grub_exec_run(char *program, int flags)
 {
 	int pid;
@@ -4764,21 +5006,20 @@ static int grub_exec_run(char *program, int flags)
 	/*Is a batch file? */
 	if (*(unsigned long *)program == 0x54414221)//!BAT
 	{
+		if (bat_pid >= 10)
+		{
+			return 0;
+		}
 		char *filename = program - (*(unsigned long *)(program - 16));
 		char *p_bat;
-		struct bat_label
-		{
-			char *label;
-			int line;
-		} *label_entry;
-
+		struct bat_label *label_entry;
+		struct bat_array *p_bat_array = (struct bat_array *)(program - 16);
 		char **bat_entry;
 		int i_bat = 0,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
 		if ((label_entry = (struct bat_label *)grub_malloc(0x2400)) == NULL)
 			return 0;
 		bat_entry = (char **)(label_entry + 0x80);//0x400/sizeof(label_entry)
 		program = skip_to(SKIP_LINE,program);//skip head
-		flags |= BUILTIN_BAT_SCRIPT;
 
 		while ((p_bat = program))//scan batch file and make label and bat entry.
 		{
@@ -4798,220 +5039,21 @@ static int grub_exec_run(char *program, int flags)
 				return 0;
 			}
 		}
+
 		label_entry[i_lab].label = NULL;
 		bat_entry[i_bat] = NULL;
 		label_entry[0].label = "eof";
 		label_entry[0].line = i_bat;
-		auto int bat_script_run(char *arg1,int line);
-		int bat_script_run(char *arg1,int line)//run batch script from bat_entry[line] with arg1.
-		{
-			char *cmd_buff;
-			if ((cmd_buff = grub_malloc(0x1000)) == NULL)
-			{
-				return 0;
-			}
-			char *s[11] = {filename};
-			int i;
-			char *p_cmd;
-			char *p_rep;
-			char *p_buff;//buff for command_line
-			int debug_ori = debug;
-			i = grub_strlen(arg1);
+		p_bat_array->pid = ++bat_pid;
+		p_bat_array->entry = label_entry;
+		p_bat_array->next = p_bat_prog;
+		p_bat_prog = p_bat_array;
 
-			grub_memmove(cmd_buff,arg1,i+1);
-			p_buff = cmd_buff + ((i+16) & ~0xf);
-			arg1 = cmd_buff;
+		flags |= BUILTIN_BAT_SCRIPT;
+		pid = bat_run_script(filename, arg,flags);//run batch script from line 0;
 
-			for (i = 1;i < 10;i++)
-			{
-				s[i] = arg1;
-				if (*arg1)
-					arg1 = skip_to(SKIP_WITH_TERMINATE,arg1);
-			}
-
-			char **p_entry = bat_entry + line;
-			int ret = 0;
-
-			while ((p_bat = *p_entry))//copy cmd_line to p_buff and then run it;
-			{
-				p_cmd = p_buff;
-				char *file_name,*file_ext;
-				while(*p_bat)
-				{
-					if (*p_bat != '%' || (file_ext = p_bat++,*p_bat == '%'))
-					{//if *p_bat != '%' or p_bat[1] == '%'(*p_bat == p_bat[1] == '%');
-						*p_cmd++ = *p_bat++;
-						continue;
-					}//file_ext now use for backup p_bat see the loop end.
-
-					i = 0;
-
-					if (*p_bat == '~')
-					{
-						p_bat++;
-						i |= 1;
-						while (*p_bat)
-						{
-							if (*p_bat == 'x')
-								i |= 2;
-							else if (*p_bat == 'n')
-								i |= 4;
-							else if (*p_bat == 'p')
-								i |= 8;
-							else if (*p_bat == 'd')
-								i |= 16;
-							else
-								break;
-							p_bat++;
-						}
-					}
-
-					if (*p_bat <= '9' && *p_bat >= '0')
-					{
-						p_rep = s[*p_bat++ - '0'];
-						if (p_rep != NULL)
-						{
-							if ((i & 1) && *p_rep == '\"')
-							{
-								p_rep++;
-							}
-
-							if (i & 16)//get device
-							{
-								if (*p_rep == '(')
-								{
-									while ((*p_cmd++ = *p_rep) && *p_rep++ != ')')
-										;
-								}
-								else
-								{
-									*p_cmd++ = '(';
-									*p_cmd++ = ')';
-								}
-							}
-
-							if (i & 8)//get path
-							{
-								file_ext = grub_strstr(p_rep,"/");
-								if (file_ext)
-								{
-									p_rep = file_ext;
-									while (file_ext++)
-									{
-										file_name = file_ext;
-										file_ext = grub_strstr(file_ext,"/");
-									}
-									while(p_rep < file_name)
-									{
-										*p_cmd++ = *p_rep++;
-									}
-								}
-								else
-								{
-									*p_cmd++ = '/';
-								}
-							}
-
-							char ch_bak;
-							if (i & 6)//get filename and ext
-							{
-								file_name = p_rep;
-								while(*p_rep)
-								{
-									if (*p_rep == '.')
-										file_ext = p_rep;
-									else if (*p_rep == '/')
-										file_name = &p_rep[1];
-									p_rep++;
-								}
-								if (file_ext < file_name)
-									file_ext = p_rep;
-								p_rep = (i & 4)?file_name:file_ext;
-								if ((i & 2) == 0)
-								{
-									ch_bak = *file_ext;
-									*file_ext = '\0';
-								}
-							}
-
-							if (i <= 7)
-							{
-								while (*p_rep)
-								{
-									*p_cmd++ = *p_rep++;
-								}
-								if ((i & 6) == 4)
-									*file_ext = ch_bak;
-							}
-
-							if ((i & 1) && *--p_rep == '\"')
-							{
-								p_cmd--;
-							}
-						}
-					}
-					else
-					{
-						p_bat = file_ext;
-						*p_cmd++ = *p_bat++;
-					}
-				}
-
-				*p_cmd = '\0';
-				if (debug > 1)
-					printf("cmd:%s\n",p_buff);
-				ret = run_line (p_buff,flags);
-
-				if (errnum == ERR_BAT_GOTO || errnum == ERR_BAT_CALL)
-				{
-					int status = (errnum == ERR_BAT_GOTO);
-					p_cmd = pre_cmdline;
-					ret = 0;
-					if (*p_cmd == ':')
-						p_cmd++;
-					p_bat = skip_to(SKIP_WITH_TERMINATE,p_cmd);
-					for (i=0;i<i_lab;i++)//find label for goto/call.
-					{
-						if (substring(label_entry[i].label,p_cmd,1) == 0)
-						{
-							break;
-						}
-					}
-
-					if (i >= i_lab)
-					{
-						printf("[%d] cannot find the batch label specified - %s\n",p_entry - bat_entry,p_cmd);
-						break;
-					}
-
-					i = label_entry[i].line;
-
-					errnum = ERR_NONE;
-					if (status)//batch script goto;
-					{
-						p_entry = bat_entry + i;
-						continue;
-					}
-					else//batch script call
-						ret = bat_script_run(p_bat,i);
-				}
-
-				if (errnum)
-				{
-					break;
-				}
-				p_entry++;
-			}
-
-			debug = debug_ori;
-			/*release memory. */
-			if (errnum == 1000)
-				errnum = 0;
-			grub_free(cmd_buff);
-			return ret;
-		}
-
-		pid = bat_script_run(arg,0);//run batch script from line 0;
+		bat_pid--;
+		p_bat_prog = p_bat_prog->next;
 		grub_free(label_entry);
 		return pid;
 	}
@@ -14370,7 +14412,10 @@ static struct builtin builtin_goto =
 static int call_func(char *arg,int flags)
 {
 	errnum = ERR_BAT_CALL;
-	return (int)(pre_cmdline = arg);
+	if (flags & BUILTIN_BAT_SCRIPT)
+		return bat_run_script(NULL, arg, flags);
+	else
+		return 0;
 }
 
 static struct builtin builtin_call =
