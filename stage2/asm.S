@@ -12160,21 +12160,8 @@ ENTRY(get_code_end)
 #define open ((int (*)(char *))((*(int **)0x8300)[26]))
 #define read ((unsigned long (*)(unsigned long long, unsigned long long, unsigned long))((*(int **)0x8300)[27]))
 #define close ((void (*)(void))((*(int **)0x8300)[28]))
-#define unicode_to_utf8 ((void (*)(unsigned short *, unsigned char *, unsigned long))((*(int **)0x8300)[29]))
-#define rawread ((int (*)(unsigned long, unsigned long, unsigned long, unsigned long, unsigned long long, unsigned long))((*(int **)0x8300)[30]))
-#define rawwrite ((int (*)(unsigned long, unsigned long, char *))((*(int **)0x8300)[31]))
-#define devread ((int (*)(unsigned long, unsigned long, unsigned long, unsigned long long, unsigned long))((*(int **)0x8300)[32]))
-#define devwrite ((int (*)(unsigned long, unsigned long, char *))((*(int **)0x8300)[33]))
-#define next_partition ((int (*)(void))((*(int **)0x8300)[34]))
-#define open_device ((int (*)(void))((*(int **)0x8300)[35]))
-#define real_open_partition ((int (*)(int))((*(int **)0x8300)[36]))
-#define set_device ((char *(*)(char *))((*(int **)0x8300)[37]))
-#define dir ((int (*)(char *))((*(int **)0x8300)[38]))
-#define print_a_completion ((void (*)(char *))((*(int **)0x8300)[39]))
-#define print_completions ((int (*)(int, int))((*(int **)0x8300)[40]))
-#define parse_string ((int (*)(char *))((*(int **)0x8300)[41]))
-#define hexdump ((void (*)(unsigned long, char *, int))((*(int **)0x8300)[42]))
 
+http://grubutils.googlecode.com/svn/trunk/src/include/grub4dos.h
  *
  */
 
@@ -12186,7 +12173,7 @@ VARIABLE(system_functions)
 	.long	ABS(EXT_C(getxy))
 	.long	ABS(EXT_C(gotoxy))
 	.long	ABS(EXT_C(cls))
-	.long	ABS(EXT_C(setcursor))
+	.long 0				//reserved
 	.long	ABS(EXT_C(nul_terminate))
 	.long	ABS(EXT_C(safe_parse_maxint_with_suffix))
 	.long	ABS(EXT_C(substring))
@@ -12196,46 +12183,66 @@ VARIABLE(system_functions)
 	.long	ABS(EXT_C(grub_strncat))
 	.long	ABS(EXT_C(grub_strcmp))
 	.long	ABS(EXT_C(grub_strcpy))
-	.long	ABS(EXT_C(grub_tolower))
-	.long	ABS(EXT_C(grub_isspace))
+	.long 0				//reserved
+	.long 0				//reserved
 	.long	ABS(EXT_C(getkey))	/* getchar */
 	.long	ABS(EXT_C(checkkey))
-	.long	ABS(EXT_C(grub_sleep))
+	.long 0				//reserved
 	.long	ABS(EXT_C(grub_memcmp))
 	.long	ABS(EXT_C(grub_memmove))
 	.long	ABS(EXT_C(grub_memset))
-	.long	ABS(EXT_C(mem64))
+	.long 0				//reserved
 	.long	ABS(EXT_C(grub_open))
 	.long	ABS(EXT_C(grub_read))
 	.long	ABS(EXT_C(grub_close))
-	.long	ABS(EXT_C(unicode_to_utf8))
-	.long	ABS(EXT_C(rawread))
-	.long	ABS(EXT_C(rawwrite))
+	.long 0				//reserved
+	.long 0				//reserved
+	.long 0				//reserved
 	.long	ABS(EXT_C(devread))
 	.long	ABS(EXT_C(devwrite))
 	.long	ABS(EXT_C(next_partition))
 	.long	ABS(EXT_C(open_device))
 	.long	ABS(EXT_C(real_open_partition))
 	.long	ABS(EXT_C(set_device))
-	.long	ABS(EXT_C(dir))
-	.long	ABS(EXT_C(print_a_completion))
-	.long	ABS(EXT_C(print_completions))
+	.long 0				//reserved
+	.long 0				//reserved
+	.long 0				//reserved
 	.long	ABS(EXT_C(parse_string))
 	.long	ABS(EXT_C(hexdump))
 	.long	ABS(EXT_C(skip_to))
 	.long	ABS(EXT_C(builtin_cmd))
 	.long	ABS(EXT_C(get_datetime))
+	.long 0				//reserved
+	.long 0				//reserved
+	.long 0				//reserved
+	.long	ABS(EXT_C(get_mmap_entry))
+	.long	ABS(EXT_C(grub_malloc))
+	.long	ABS(EXT_C(grub_free))//51
+	.long  0             // list_partitions
+	.long  0             // realmode_run
+	//reserved for wee
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	////////////////////////////////////////////61
+	.long	ABS(EXT_C(dir))
+	.long	ABS(EXT_C(print_a_completion))
+	.long	ABS(EXT_C(print_completions))
 	.long	ABS(EXT_C(lba_to_chs))
 	.long	ABS(EXT_C(probe_bpb))
 	.long	ABS(EXT_C(probe_mbr))
-	.long	ABS(EXT_C(get_mmap_entry))
-	.long	ABS(EXT_C(grub_malloc))
-	.long	ABS(EXT_C(grub_free))
-	.long  0             // list_partitions
-	.long  0             // realmode_run
-//	.long	ABS(EXT_C(graphics_init))
-//	.long	ABS(EXT_C(graphics_end))
-//	.long	ABS(EXT_C(graphics_get_font))
+	.long	ABS(EXT_C(unicode_to_utf8))
+	.long	ABS(EXT_C(rawread))
+	.long	ABS(EXT_C(rawwrite))
+	.long	ABS(EXT_C(setcursor))
+	.long	ABS(EXT_C(grub_tolower))
+	.long	ABS(EXT_C(grub_isspace))
+	.long	ABS(EXT_C(grub_sleep))
+	.long	ABS(EXT_C(mem64))
 /*
  * The C code for a grub4dos executable may have defines as follows:
  *
@@ -12278,24 +12285,24 @@ VARIABLE(next_partition_buf)
 VARIABLE(quit_print)
 	.long	0
 //VARIABLE(buf_drive)
-	.long	-1
+	.long	-1				//reserved
 //VARIABLE(buf_track)
-	.long	-1
+	.long	-1				//reserved
 VARIABLE(filesystem_type)
 	.long	0
-//VARIABLE(query_block_entries)
-	.long	0
-//VARIABLE(map_start_sector)
-	.long	0
+//VARIABLE(query_block_entries)//reserved
+	.long	0				//reserved
+//VARIABLE(map_start_sector)//reserved
+	.long	0				//reserved
 	.long	ABS(EXT_C(buf_geom))
 	.long	ABS(EXT_C(tmp_geom))
 	.long	ABS(EXT_C(term_table))
 VARIABLE(current_term)
 	.long	ABS(EXT_C(term_table))
 	.long	ABS(EXT_C(fsys_table))
-//VARIABLE(fsys_type)
-	.long	NUM_FSYS
-	.long	NUM_FSYS
+//VARIABLE(fsys_type)//reserved
+	.long	NUM_FSYS		//reserved
+	.long	NUM_FSYS		//reserved
 VARIABLE(graphics_inited)
 	.long	0
 	.long	ABS(EXT_C(VARIABLE_GRAPHICS))
@@ -12311,5 +12318,17 @@ VARIABLE(graphics_CURSOR)
 VARIABLE(gzip_filemax)
 	.long	0
 	.long	0
+	//reserved for wee
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	//////////////////////////////
 #endif /* ! STAGE1_5 */
 
