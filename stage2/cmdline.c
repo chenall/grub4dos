@@ -338,13 +338,13 @@ enter_cmdline (char *heap, int forever)
   
   while (1)
     {
-    /*
-      struct builtin *builtin;
+
+//      struct builtin *builtin;
 //      char *arg;
       grub_error_t errnum_old;
 
       errnum_old = errnum;
-      */
+
       *heap = 0;
       if (errnum && errorcheck)
 	print_error ();
@@ -469,7 +469,7 @@ enter_cmdline (char *heap, int forever)
 	else
 		command_func (heap, BUILTIN_CMDLINE);
 #endif
-	
+	errnum = errnum_old;
 	run_line (heap , BUILTIN_CMDLINE);
       /* Finish the line count.  */
       count_lines = -1;

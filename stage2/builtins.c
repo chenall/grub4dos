@@ -4096,7 +4096,7 @@ checkrange_func(char *arg, int flags)
 	errnum = 0;
   if (errnum)
 	return 0;
-
+	ret &= 0xffffffff;
   return in_range (arg, ret);
 }
 
@@ -4992,7 +4992,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	if (errnum == 1000)
 		errnum = 0;
 	grub_free(cmd_buff);
-	return ret;
+	return errnum?0:ret;
 }
 
 static int grub_exec_run(char *program, int flags)
