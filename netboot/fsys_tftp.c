@@ -315,14 +315,14 @@ tftp_mount (void)
 }
 
 /* Read up to SIZE bytes, returned in ADDR.  */
-unsigned long
-tftp_read (char *addr, unsigned long size)
+unsigned long long
+tftp_read (unsigned long long addr, unsigned long long size, unsigned long write)
 {
   /* How many bytes is read?  */
   int ret = 0;
 
 #ifdef TFTP_DEBUG
-  grub_printf ("tftp_read (0x%x, %d)\n", (int) addr, size);
+  grub_printf ("tftp_read (0x%lx, %ld)\n", addr, size);
 #endif
   
   if (filepos < saved_filepos)

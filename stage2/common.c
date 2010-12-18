@@ -810,9 +810,15 @@ pxe_init_done:
 	err = biosdisk_int13_extensions (0x4800, drive, drp);
 	if (! err && drp->bytes_per_sector == ISO_SECTOR_SIZE)
 	{
-	    /* Assume it is CDROM.  */
-	    cdrom_drive = drive;
-	    break;
+	    /* mount the drive, confirm the media exists. */
+	    current_drive = drive;
+	    current_partition = 0x00FFFFFF;
+	    if (open_device ())
+	    {
+		/* Assume it is CDROM.  */
+		cdrom_drive = drive;
+		break;
+	    }
 	}
       } /* if (drive >= 0x80) */
     

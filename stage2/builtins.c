@@ -1260,35 +1260,32 @@ cat_func (char *arg, int flags)
   unsigned long long len_s;
   unsigned long long len_r = 0;
   unsigned long long ret = 0;
-
+	unsigned long long number = 0;
   quit_print = 0;
 
   for (;;)
   {
 	if (grub_memcmp (arg, "--hex=", 6) == 0)
 	{
-		p = arg + 6;
-		if (! safe_parse_maxint (&p, &Hex))
-			return 0;
+		arg += 6;
+		safe_parse_maxint (&arg, &Hex);
 	}
-    else if (grub_memcmp (arg, "--hex", 5) == 0)
-      {
-	Hex = 1;
-      }
-    else if (grub_memcmp (arg, "--skip=", 7) == 0)
-      {
-	p = arg + 7;
-	if (! safe_parse_maxint_with_suffix (&p, &skip, 0))
-		return 0;
-      }
-    else if (grub_memcmp (arg, "--length=", 9) == 0)
-      {
-	p = arg + 9;
-	if (! safe_parse_maxint_with_suffix (&p, &length, 0))
-		return 0;
-      }
-    else if (grub_memcmp (arg, "--locate=", 9) == 0)
-      {
+	else if (grub_memcmp (arg, "--hex", 5) == 0)
+	{
+		Hex = 1;
+	}
+	else if (grub_memcmp (arg, "--skip=", 7) == 0)
+	{
+		arg += 7;
+		safe_parse_maxint(&arg,&skip);
+	}
+	else if (grub_memcmp (arg, "--length=", 9) == 0)
+	{
+		arg += 9;
+		safe_parse_maxint(&arg, &length);
+	}
+	else if (grub_memcmp (arg, "--locate=", 9) == 0)
+	{
 	p = locate = arg + 9;
 	if (*p == '\"')
 	{
@@ -1296,32 +1293,39 @@ cat_func (char *arg, int flags)
 	  arg = ++p; // or: arg = p;
 	}
       }
-    else if (grub_memcmp (arg, "--replace=", 10) == 0)
-      {
-	p = replace = arg + 10;
-	if (*replace == '*')
+	else if (grub_memcmp (arg, "--replace=", 10) == 0)
 	{
-        replace++;
-        if (! safe_parse_maxint (&replace, &len_r))
-			replace = p;
-	} 
-	if (*p == '\"')
-	{
-	  while (*(++p) != '\"');
-	  arg = ++p;
+		p = replace = arg + 10;
+		if (*replace == '*')
+		{
+			  replace++;
+			  if (! safe_parse_maxint (&replace, &len_r))
+				replace = p;
+		} 
+		if (*p == '\"')
+		{
+			while (*(++p) != '\"');
+			arg = ++p;
+		}
 	}
-      }
-    else if (grub_memcmp (arg, "--locate-align=", 15) == 0)
-      {
-	p = arg + 15;
-	if (! safe_parse_maxint (&p, &locate_align))
+	else if (grub_memcmp (arg, "--locate-align=", 15) == 0)
+	{
+		arg += 15;
+		if (! safe_parse_maxint (&p, &locate_align))
+			return 0;
+		if ((unsigned long)locate_align == 0)
+			return ! (errnum = ERR_BAD_ARGUMENT);
+	}
+	else if (grub_memcmp (arg, "--number=",9) == 0)
+	{
+		arg += 9;
+		safe_parse_maxint (&arg, &number);
+	}
+	else
+		break;
+	if (errnum)
 		return 0;
-	if ((unsigned long)locate_align == 0)
-		return ! (errnum = ERR_BAD_ARGUMENT);
-      }
-    else
-	break;
-    arg = skip_to (0, arg);
+	arg = skip_to (0, arg);
   }
   if (! length)
   {
@@ -1405,7 +1409,7 @@ cat_func (char *arg, int flags)
 
 	if (j != skip)
 	{
-	    for (i = 0; i < 16; i++)
+	    for (i = 0; i < 16;)
 	    {
 		unsigned long long k = j - 16 + i;
 		if (locate_align == 1 || ! ((unsigned long)k % (unsigned long)locate_align))
@@ -1424,21 +1428,30 @@ cat_func (char *arg, int flags)
 				if (Hex)
 				  {
                     grub_read (len_r,(Hex == -1ULL)?8:Hex, 0x900ddeed);
-					i = ((Hex == -1ULL)?8:Hex)+i;
+					i += ((Hex == -1ULL)?8:Hex);
                   }
 				else
 				 {
 	 				/* write len_r bytes at string r to file!! */
                     grub_read ((unsigned long long)(unsigned int)(char *)&r, len_r, 0x900ddeed);
-                    i = i+len_r;
+                    i += len_r;
                   }
-				i--;
+				//i--;
 				filepos = filepos_bak;
 				//if (debug > 0)
 				//	grub_putchar('!');
 			}
+			else
+				i += len_s;
 			ret++;
+			if (number && number <= ret)
+			{
+				len = 0;
+				break;
+			}
 		    }
+		    else
+			i++;
 	    }
 	}
 	if (len == 0)
@@ -2271,6 +2284,7 @@ chainloader_func (char *arg, int flags)
 
 	if (chainloader_load_segment == -1)
 		chainloader_load_segment = 0x0060;
+drdos:
 	if (chainloader_load_offset == -1)
 		chainloader_load_offset = 0;
 	if (chainloader_load_length == -1)
@@ -2309,6 +2323,12 @@ chainloader_func (char *arg, int flags)
 	if (debug > 0)
 	  grub_printf("Will boot FreeDOS from drive=0x%x, partition=0x%x(hidden sectors=0x%lx)\n",
 			current_drive, (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long long)part_start);
+    }
+  else if ((*(long long *)SCRATCHADDR | 0xFFFF02LL) == 0x4F43000000FFFFEBLL && (*(((long long *)SCRATCHADDR)+1) == 0x706D6F435141504DLL))   /* DR-DOS */
+    {
+	if (chainloader_load_segment == -1)
+		chainloader_load_segment = 0x0070;
+	goto drdos;
     }
   else
   if (*(short *)SCRATCHADDR == 0x5A4D && filemax > 0x10000 &&
@@ -4069,7 +4089,7 @@ int
 checkrange_func(char *arg, int flags)
 {
   struct builtin *builtin1;
-  unsigned long long ret;
+  unsigned long ret;
   char *arg1;
 
   arg1 = skip_to (0, arg);	/* the command */
@@ -4096,7 +4116,7 @@ checkrange_func(char *arg, int flags)
 	errnum = 0;
   if (errnum)
 	return 0;
-	ret &= 0xffffffff;
+
   return in_range (arg, ret);
 }
 
