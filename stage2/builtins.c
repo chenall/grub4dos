@@ -1260,7 +1260,7 @@ cat_func (char *arg, int flags)
   unsigned long long len_s;
   unsigned long long len_r = 0;
   unsigned long long ret = 0;
-	unsigned long long number = 0;
+	unsigned long long number = -1ULL;
   quit_print = 0;
 
   for (;;)
@@ -1286,27 +1286,11 @@ cat_func (char *arg, int flags)
 	}
 	else if (grub_memcmp (arg, "--locate=", 9) == 0)
 	{
-	p = locate = arg + 9;
-	if (*p == '\"')
-	{
-	  while (*(++p) != '\"');
-	  arg = ++p; // or: arg = p;
+		locate = arg += 9;
 	}
-      }
 	else if (grub_memcmp (arg, "--replace=", 10) == 0)
 	{
-		p = replace = arg + 10;
-		if (*replace == '*')
-		{
-			  replace++;
-			  if (! safe_parse_maxint (&replace, &len_r))
-				replace = p;
-		} 
-		if (*p == '\"')
-		{
-			while (*(++p) != '\"');
-			arg = ++p;
-		}
+		replace = arg += 10;
 	}
 	else if (grub_memcmp (arg, "--locate-align=", 15) == 0)
 	{
@@ -1360,31 +1344,44 @@ cat_func (char *arg, int flags)
 	//return ret;
 	return filesize;
   }
-  if (! grub_open (arg))
+
+	if (replace)
+	{
+		p = replace;
+		if (*p++ == '*')
+		{
+			safe_parse_maxint (&p, &len_r);
+			errnum = 0;
+		}
+		if (! len_r)
+		{
+			if (*replace == '\"')
+			{
+				for (i = 0; i < 128 && (r[i] = *(++replace)) != '\"'; i++);
+			}else{
+				for (i = 0; i < 128 && (r[i] = *(replace++)) != ' ' && r[i] != '\t'; i++);
+			}
+			r[i] = 0;
+			replace = (char*)r;
+			len_r = parse_string (replace);
+		}
+		else
+		{
+			replace = (char*)(unsigned int)len_r;
+			len_r = Hex?Hex:8;
+		}
+		if (len_r == 0 || len_r > 16)
+		{
+			return ! (errnum = ERR_BAD_ARGUMENT);
+		}
+	}
+  
+    if (! grub_open (arg))
     return 0; 
   if (length > filemax)
       length = filemax;
   filepos = skip;
-  if (replace)
-  {
-	if (! len_r)
-	{
-		Hex = 0;
-        if (*replace == '\"')
-        {
-        for (i = 0; i < 128 && (r[i] = *(++replace)) != '\"'; i++);
-        }else{
-        for (i = 0; i < 128 && (r[i] = *(replace++)) != ' ' && r[i] != '\t'; i++);
-        }
-        r[i] = 0;
-        len_r = parse_string ((char *)r);
-    }
-    else
-      {
-		if (! Hex)
-			Hex = -1ULL;
-      }
-  }
+  
   if (locate)
   {
     if (*locate == '\"')
@@ -1396,68 +1393,59 @@ cat_func (char *arg, int flags)
     s[i] = 0;
     len_s = parse_string ((char *)s);
     if (len_s == 0 || len_s > 16)
-	return ! (errnum = ERR_BAD_ARGUMENT);
+    {
+		grub_close();
+		return ! (errnum = ERR_BAD_ARGUMENT);
+		}
     //j = skip;
     grub_memset ((char *)(SCRATCHADDR), 0, 32);
-    for (j = skip; ; j += 16)
-    {
-	len = 0;
-	if (j - skip < length)
-	    len = grub_read ((unsigned long long)(SCRATCHADDR + 16), 16, 0xedde0d90);
-	if (len < 16)
-	    grub_memset ((char *)(SCRATCHADDR + 16 + (unsigned long)len), 0, 16 - len);
-
-	if (j != skip)
+	for (i = 0,j = skip; ; j += 16)
 	{
-	    for (i = 0; i < 16;)
-	    {
-		unsigned long long k = j - 16 + i;
-		if (locate_align == 1 || ! ((unsigned long)k % (unsigned long)locate_align))
-		    if (! grub_memcmp ((char *)&s, (char *)(SCRATCHADDR + (unsigned long)i), len_s))
-		    {
-			/* print the address */
-			if (debug > 0)
-				grub_printf (" %lX", (unsigned long long)k);
-			/* replace strings */
-			if ((replace) && len_r)
-			{
-				unsigned long long filepos_bak;
+		len = 0;
+		if (j - skip < length)
+			len = grub_read ((unsigned long long)(SCRATCHADDR + 16), 16, 0xedde0d90);
+		if (len < 16)
+			grub_memset ((char *)(SCRATCHADDR + 16 + (unsigned long)len), 0, 16 - len);
 
-				filepos_bak = filepos;
-				filepos = k;
-				if (Hex)
-				  {
-                    grub_read (len_r,(Hex == -1ULL)?8:Hex, 0x900ddeed);
-					i += ((Hex == -1ULL)?8:Hex);
-                  }
-				else
-				 {
-	 				/* write len_r bytes at string r to file!! */
-                    grub_read ((unsigned long long)(unsigned int)(char *)&r, len_r, 0x900ddeed);
-                    i += len_r;
-                  }
-				//i--;
-				filepos = filepos_bak;
-				//if (debug > 0)
-				//	grub_putchar('!');
-			}
-			else
-				i += len_s;
-			ret++;
-			if (number && number <= ret)
+		if (j != skip)
+		{
+			while (i < 16)
 			{
-				len = 0;
-				break;
+					unsigned long long k = j - 16 + i;
+					if ((locate_align == 1 || ! ((unsigned long)k % (unsigned long)locate_align))
+						&& grub_memcmp ((char *)&s, (char *)(SCRATCHADDR + (unsigned long)i), len_s) == 0)
+					{
+						/* print the address */
+						if (debug > 0)
+							grub_printf (" %lX", (unsigned long long)k);
+						/* replace strings */
+						if (replace)
+						{
+							unsigned long long filepos_bak = filepos;
+							filepos = k;
+							/* write len_r bytes at string replace to file!! */
+							grub_read ((unsigned long long)(unsigned int)replace,len_r, 0x900ddeed);
+							i += len_r;
+							filepos = filepos_bak;
+						}
+						else
+							i += len_s;
+						ret++;
+						if (number <= ret)
+						{
+							len = 0;
+							break;
+						}
+					}
+					else
+						i++;
 			}
-		    }
-		    else
-			i++;
-	    }
+			if (len == 0)
+				break;
+			i -= 16;
+		}
+		grub_memmove ((char *)SCRATCHADDR, (char *)(SCRATCHADDR + 16), 16);
 	}
-	if (len == 0)
-	    break;
-	grub_memmove ((char *)SCRATCHADDR, (char *)(SCRATCHADDR + 16), 16);
-    }
   }else if (Hex == (++ret))	/* a trick for (ret = 1, Hex == 1) */
   {
     for (j = skip; j - skip < length && (len = grub_read ((unsigned long long)(unsigned long)&s, 16, 0xedde0d90)); j += 16)
