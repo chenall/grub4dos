@@ -2752,17 +2752,14 @@ init_pic:
 
 	/* Yes, the normal EOI should be used for real mode OS. */
 
-#if 0 //if (auto_eoi)	/* master does Auto EOI */
-	//outb_p(MASTER_ICW4_DEFAULT | PIC_ICW4_AEOI, PIC_MASTER_IMR);
-	movb	$0x03, %al
-	movw	$0x21, %dx
-	call	outb_and_delay
-#else //else		/* master expects normal EOI */
-	//outb_p(MASTER_ICW4_DEFAULT, PIC_MASTER_IMR);
 	movb	$0x01, %al
 	movw	$0x21, %dx
 	call	outb_and_delay
-#endif
+
+	/* cancel special mask mode */
+	movb	$0x4A, %al
+	movw	$0x20, %dx
+	call	outb_and_delay
 
 	/* init 8259a-2 */
 
@@ -2798,15 +2795,14 @@ init_pic:
 	movw	$0xA1, %dx
 	call	outb_and_delay
 
-#if 0 //if (auto_eoi)
-		/*
-		 * in AEOI mode we just have to mask the interrupt
-		 * when acking.
-		 */
-		//i8259A_irq_type.ack = disable_8259A_irq;
-#else //else
-		//i8259A_irq_type.ack = mask_and_ack_8259A;
-#endif
+	/* cancel special mask mode */
+	movb	$0x4A, %al
+	movw	$0xA0, %dx
+	call	outb_and_delay
+
+	/* set IRQ15 and IRQ7 to least privilege */
+	movb	$0xC7, %al
+	call	send_command_to_slave_and_master
 
 	//udelay(100);		/* wait for 8259A to initialize */
 	movl	$100, %ecx		# delay at least 100 microseconds
@@ -2897,6 +2893,17 @@ init_pic:
 	call	outb_and_delay	# write lo byte 00
 	call	outb_and_delay	# write hi byte 00
 #endif
+
+	/* init system timer 2 */
+	inb	$0x61, %al
+	andb	$0xFE, %al
+	movw	$0x61, %dx
+	call	outb_and_delay
+
+	/* enable keyboard */
+	movb	$0xAE, %al
+	movw	$0x64, %dx
+	call	outb_and_delay
 
 #if 0	/* marked off 2008-05-23 */
 	/* disable NMI */

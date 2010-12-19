@@ -2314,6 +2314,7 @@ drdos:
     }
   else if ((*(long long *)SCRATCHADDR | 0xFFFF02LL) == 0x4F43000000FFFFEBLL && (*(((long long *)SCRATCHADDR)+1) == 0x706D6F435141504DLL))   /* DR-DOS */
     {
+	/* contributor: Roy <roytam%gmail%com> */
 	if (chainloader_load_segment == -1)
 		chainloader_load_segment = 0x0070;
 	goto drdos;
@@ -2495,20 +2496,39 @@ drdos:
     }
   else
     {
+
 check_isolinux:
-      if (((*(long long *)SCRATCHADDR) & 0xFFFFFFFFFF00FFFFLL) == 0x909000007C00EAFALL && filemax > 0x2000 && filemax < 0x20000)
+
+	if (filemax < 0x800)
+		goto check_signature;
+
+	/* Read the 2nd, 3rd and 4th sectors. */
+
+	/**********************************************/
+	/**** 4 sectors at SCRATCHADDR are used!!! ****/
+	/**********************************************/
+
+	filepos = 0x200;
+
+	if (grub_read ((unsigned long long) SCRATCHADDR+0x200, 0x600, 0xedde0d90) != 0x600)
+		goto check_signature;
+
+	if ((*(long long *)(SCRATCHADDR + 0x200)) == 0xCB5052C03342CA8CLL && (*(long *)(SCRATCHADDR + 0x208) == 0x5441464B))   /* ROM-DOS */
 	{
-		/* Read the 2nd, 3rd and 4th sectors. */
-
-		/**********************************************/
-		/**** 4 sectors at SCRATCHADDR are used!!! ****/
-		/**********************************************/
-
-	    filepos = 0x200;
-
-	    if (grub_read ((unsigned long long) SCRATCHADDR+0x200, 0x600, 0xedde0d90) != 0x600)
-		goto failure_exec_format;
-
+		/* contributor: Roy <roytam%gmail%com> */
+		if (chainloader_load_segment == -1)
+			chainloader_load_segment = 0x1000;
+		if (chainloader_load_offset == -1)
+			chainloader_load_offset = 0;
+		if (chainloader_load_length == -1)
+			chainloader_load_length = filemax;
+		if (chainloader_skip_length == 0)
+			chainloader_skip_length = 0x0200;
+		*(unsigned long *)0x84 = current_drive | 0xFFFF0000;
+	}
+      else
+      if (((*(long long *)SCRATCHADDR) & 0xFFFFFFFFFF00FFFFLL) == 0x909000007C00EAFALL && filemax > 0x2000 && filemax < 0x20000) /* ISOLINUX */
+	{
 	    for (p = (char *)(SCRATCHADDR + 0x40); p < (char *)(SCRATCHADDR + 0x7F3); p++)
 	    {
 		if (	*(unsigned long *)p == 0xBB0201B8 &&
