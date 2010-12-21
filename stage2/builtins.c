@@ -4716,6 +4716,8 @@ static struct builtin builtin_fallback =
 /* command */
 static char command_path[128]="(bd)/grub/";
 static int command_path_len = 10;
+
+
 struct exec_array
 {
 	char name[16];
@@ -5091,6 +5093,24 @@ static int grub_exec_run(char *program, int flags)
 	return pid;
 }
 
+static int command_open(char *arg,int flags)
+{
+   if (*arg == '(' || *arg == '/')
+      return  grub_open(arg);
+
+   if (skip_to(0,arg) - arg > 120)
+      return -1;
+   if (flags == 0 && (p_exec = exec_mod_find(arg,0)))
+      return 2;
+   char t_path[512];
+   grub_sprintf(t_path,"%s%s",command_path,arg);
+   if (grub_open(t_path) == 0 && grub_open(t_path + command_path_len - 1) == 0)
+   {
+      return -1;
+   }
+   return 1;
+}
+
 int
 command_func (char *arg, int flags)
 {
@@ -5116,7 +5136,22 @@ command_func (char *arg, int flags)
       return 20;
    }
 	
-	if (grub_memcmp (arg, "--set-path=", 11) == 0)
+	if (flags & 0x100000)
+	{
+      char *filename = arg;
+      if (*arg == '(' || *arg == '/')
+      {
+         char *p = arg;
+         while (*p)
+         {
+            if (*p++ == '/')
+               filename = p;
+         }
+      }
+		if (exec_mod_find(filename,0))
+			return debug?grub_printf("%s already loaded.\n",filename):1;
+	}
+	else if (grub_memcmp (arg, "--set-path=", 11) == 0)
 	{
 		arg += 11;
 
@@ -5141,22 +5176,6 @@ command_func (char *arg, int flags)
 		command_path[j] = 0;
 		command_path_len = j;
 		return 1;
-	}
-	else if (substring("insmod ",arg,1) < 1)
-	{
-		flags = -1;
-		arg = skip_to(SKIP_WITH_TERMINATE,arg);
-		if (*arg == '\0')
-			return 0;
-		char *filename = skip_to(0,arg) - 1;
-
-		while (*filename && *filename !='/')
-		{
-			filename--;
-		}
-		filename++;
-		if (exec_mod_find(filename,0))
-			return grub_printf("%s already loaded.\n",filename);
 	}
 	else if (substring("delmod",arg,1) < 1)
 	{
@@ -5192,49 +5211,31 @@ command_func (char *arg, int flags)
 	}
   /* open the command file. */
   p_exec = NULL;
-  char *filename = arg;
+  char *filename = "(rd)+1";
   unsigned long arg_len = grub_strlen(arg);/*get length for build psp */
   char *cmd_arg = skip_to(SKIP_WITH_TERMINATE,arg);/* get argument of command */
-	if (*filename >= '0')
-	{
-		p_exec = exec_mod_find(filename,0);
-	}
 
-  if (p_exec == NULL)
-  {
-	if (*filename == '(' || *filename == '/')
-	{
-		if (grub_open (filename) == 0)
-		{
-			return 0;	/* return 'failure' with errnum set. */
-		}
-	}
-	else
-	{
-		char *command_filename = command_path + command_path_len;
-		if ((cmd_arg - filename) > 0x20)
-		{
-			return 0;
-		}
-		grub_sprintf (command_filename,"%s",filename);
-		filename = command_filename - 1;
-		if (grub_open(command_path) == 0 && grub_open(filename) == 0)
-		{
-//			if (debug > 0)
-				grub_printf ("Warning! No such command: %s\n", arg);
-			errnum = 0;	/* No error, so that old menus will run smoothly. */
-			*command_filename = '\0';
-			return 0;	/* return 0 indicating a failure or a false case. */
-		}
-		*command_filename = '\0';
-	}
+   if (!(flags & 0x200000))
+   {
+      filename = arg;
+   }
 
+   switch(command_open(filename,flags & 0x100000))
+   {
+      case -1:
+         errnum = 0;
+         //return 0;
+      case 0:
+         return 0;
+   }
+#if 0
 	if (filemax < 9ULL)
 	{
 		errnum = ERR_EXEC_FORMAT;
 		goto fail;
 	}
-	}
+#endif
+
 
 #if 1
 	char *psp;
@@ -5264,7 +5265,7 @@ command_func (char *arg, int flags)
 		}
 		grub_close ();
 
-		if (flags == -1)//load exec to buff
+		if (flags & 0x100000)//load exec to buff
 		{
 			filename = arg;
 			while (*arg)
@@ -5431,6 +5432,53 @@ static struct builtin builtin_command =
   "--set-path sets a search PATH for executable files,default is (bd)/grub."
 };
 
+static int insmod_func(char *arg,int flags)
+{
+   if (arg == NULL || *arg == '\0')
+      return 0;
+   if (substring(skip_to(0,arg) - 4,".mod",1) == 0)
+   {
+      if (command_open(arg,0) != 1)
+         return 0;
+      char *buff=grub_malloc(filemax);
+      if (buff == NULL || grub_read((unsigned long long)(unsigned int)buff,-1,GRUB_READ) == 0)
+      {
+         grub_close();
+         return 0;
+      }
+      char *buff_end = buff+filemax;
+      grub_close();
+
+      unsigned long long rd_base_bak = rd_base;
+      unsigned long long rd_size_bak = rd_size;
+      char *filename=buff;
+      flags |= 0x300000;
+      while (filename < buff_end)
+      {
+         buf_drive = -1;
+         rd_size = *(unsigned int *)(filename + 12);
+         rd_base = (unsigned long long)(unsigned int)(filename + 16);
+         if (debug > 1)
+            grub_printf("insmod:%s...\n",filename);
+         command_func(filename,flags);
+         filename += rd_size + 16;
+      }
+      rd_base = rd_base_bak;
+      rd_size = rd_size_bak;
+      grub_free(buff);
+      return 1;
+   }
+   return command_func(arg,flags | 0x100000);
+}
+
+static struct builtin builtin_insmod =
+{
+   "insmod",
+   insmod_func,
+   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,BUILTIN_HELP_LIST,
+   "insmod MODFILE|FILE.MOD",
+   "FILE.MOD is MODFILE package, it has multiple MODFILE".
+};
 
 /* commandline */
 int
@@ -14548,6 +14596,7 @@ struct builtin *builtin_table[] =
 #endif /* SUPPORT_NETBOOT */
 //  &builtin_impsprobe,
   &builtin_initrd,
+  &builtin_insmod,
 #ifndef GRUB_UTIL
   &builtin_initscript,
 #endif
