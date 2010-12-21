@@ -5475,9 +5475,9 @@ static struct builtin builtin_insmod =
 {
    "insmod",
    insmod_func,
-   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,BUILTIN_HELP_LIST,
+   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "insmod MODFILE|FILE.MOD",
-   "FILE.MOD is MODFILE package, it has multiple MODFILE".
+   "FILE.MOD is MODFILE package, it has multiple MODFILE"
 };
 
 /* commandline */

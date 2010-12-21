@@ -2124,7 +2124,7 @@ block_file:
 	return 1;
       int i;
       i = strlen(open_filename);
-      if (i>=5 && strcmp(open_filename+i-5,".lzma")==0)
+      if (i>=5 && substring(open_filename+i-5,".lzma",1)==0)
         dec_lzma_open ();
       else
         gunzip_test_header ();
