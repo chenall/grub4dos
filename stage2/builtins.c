@@ -5223,6 +5223,7 @@ command_func (char *arg, int flags)
    switch(command_open(filename,flags & 0x100000))
    {
       case -1:
+         grub_printf ("Warning! No such command: %s\n", arg);
          errnum = 0;
          //return 0;
       case 0:

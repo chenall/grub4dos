@@ -20,6 +20,7 @@ AM_INIT_AUTOMAKE
 
 dnl Generate stage2/grub4dos_version.h
 echo "#define GRUB4DOS_VERSION \"`cat grub4dos_version` `date -u +%Y-%m-%d`\"" > grub4dos_version.h
+echo "#define GRUB4DOS_INT_VER `date -u +%Y%m%d`" > grub4dos_int_ver.h
 
 AC_CANONICAL_HOST
 
@@ -96,9 +97,9 @@ if test "x$ac_cv_prog_gcc" = xyes; then
       CFLAGS=$saved_CFLAGS
     ])
     if test "x$size_flag" = xyes; then
-      STAGE2_CFLAGS="-Os"
+      STAGE2_CFLAGS="-Os -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer"
     else
-      STAGE2_CFLAGS="-O2 -fno-strength-reduce -fno-unroll-loops"
+      STAGE2_CFLAGS="-O2 -fno-strength-reduce -fno-unroll-loops -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer"
     fi
     # OpenBSD has a GCC extension for protecting applications from
     # stack smashing attacks, but GRUB doesn't want this feature.
@@ -151,6 +152,17 @@ fi
 
 if test "x$undef_flag" = xyes; then
   CPPFLAGS="$CPPFLAGS -Wundef"
+fi
+
+# Check if build ID can be disabled in the linker
+AC_MSG_CHECKING([whether linker accepts `--build-id=none'])
+save_LDFLAGS="$LDFLAGS"
+LDFLAGS="$LDFLAGS -Wl,--build-id=none"
+AC_TRY_LINK(, , build_id_flag=yes, build_id_flag=no)
+AC_MSG_RESULT([$build_id_flag])
+LDFLAGS="$save_LDFLAGS"
+if test "x$build_id_flag" = xyes; then
+  LDFLAGS="$LDFLAGS -Wl,--build-id=none"
 fi
 
 if test "x$with_binutils" != x; then
