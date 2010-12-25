@@ -1,3 +1,4 @@
+2010-12-25 applied Roy's patch(issue:13 fix autoconf and gcc issues in Linux).
 2010-12-11 (r73)applied karyonix's patch(Wrong data read from USB drive > 128GiB ).
 	   http://code.google.com/p/grub4dos-chenall/issues/detail?id=11
 2010-11-30 (r69)applied karyonix's patch(support lzma decompression).

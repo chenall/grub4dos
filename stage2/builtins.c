@@ -4716,52 +4716,94 @@ static struct builtin builtin_fallback =
 /* command */
 static char command_path[128]="(bd)/grub/";
 static int command_path_len = 10;
-
-
+#define GRUB_MOD_ADDR 0x1200000
 struct exec_array
 {
-	char name[16];
-	char	*addr;
-	int	len;
-	struct exec_array *next;
-} *p_exec,*grub_exec = NULL;
+	char name[12];
+	unsigned long len;
+	char data;
+} *p_exec;
 
-static struct exec_array *exec_mod_find(char *filename,char flags)
+unsigned int mod_end = GRUB_MOD_ADDR;
+
+static struct exec_array *grub_mod_find(const char *name)
 {
-	struct exec_array *p_mod;
-	p_exec = NULL;
-	for (p_mod = grub_exec; p_mod != NULL; p_mod=p_mod->next)
+	struct exec_array *p_mod = (struct exec_array *)GRUB_MOD_ADDR;
+	while ((unsigned int)p_mod < mod_end)
 	{
-		if (flags == 2)
-		{
-			grub_free(p_mod);
-		}
-		else 
-		{
-			if (substring(filename,p_mod->name,1) == 0)
-				break;
-			if (flags == 1)
-				p_exec = p_mod;
-		}
+		if (substring(name,p_mod->name,1) == 0)
+			return p_mod;
+		p_mod = (struct exec_array *)((unsigned int)(&p_mod->data + p_mod->len + 0xf) & ~0xf);
 	}
-	return p_mod;
+	return 0;
 }
 
-static int exec_mod_list(char *arg)
+static int grub_mod_add (struct exec_array *mod)
 {
-	struct exec_array *p_mod;
-	int i = 0;
-	for (p_mod = grub_exec; p_mod != NULL; p_mod=p_mod->next)
-	{
-		if (*arg == '\0' || substring(arg,p_mod->name,1) == 0)
-		{
-			grub_printf(" %s\n",p_mod->name);
-			i++;
-			if (*arg)
-				break;
-		}
-	}
-	return i;
+   if (grub_mod_find(mod->name) == NULL)
+   {
+      if (debug > 1)
+         grub_printf("insmod:%s...\n",mod->name);
+      unsigned long long rd_base_bak = rd_base;
+      unsigned long long rd_size_bak = rd_size;
+      rd_base = (unsigned long long)(unsigned int)&mod->data;
+      rd_size = (unsigned long long)mod->len;
+      buf_drive = -1;
+      grub_open("(rd)+1");
+      struct exec_array *p_mod = (struct exec_array *)mod_end;
+      grub_strcpy(p_mod->name,mod->name);
+      p_mod->len = filemax;
+      grub_read((unsigned long long)(unsigned int)&p_mod->data,-1,GRUB_READ);
+      grub_close();
+      rd_base = rd_base_bak;
+      rd_size = rd_size_bak;
+      if (*(unsigned long long *)(int)(&p_mod->data + p_mod->len - 8) != 0xBCBAA7BA03051805ULL && (*(unsigned long *)&p_mod->data != 0x54414221))
+      {
+         if (! errnum)
+            errnum = ERR_EXEC_FORMAT;
+         return 0;
+      }
+      mod_end = ((unsigned int)&p_mod->data + p_mod->len + 0xf) & ~0xf;
+      return debug?grub_printf("%s loaded\n",mod->name):1;
+   }
+   else
+   {
+      grub_printf("%s already loaded\n",mod->name);
+   }
+   return 1;
+}
+
+static int grub_mod_list(const char *name)
+{
+   struct exec_array *p_mod = (struct exec_array *)GRUB_MOD_ADDR;
+   int ret = 0;
+   while ((unsigned int)p_mod < mod_end)
+   {
+      if (*name == '\0' || substring(name,p_mod->name,1) == 0)
+      {
+         if (debug)
+            grub_printf(" %s\n",p_mod->name);
+         ret++;
+      }
+      p_mod = (struct exec_array *)((unsigned int)(&p_mod->data + p_mod->len + 0xf) & ~0xf);
+   }
+   return ret;
+}
+
+static int grub_mod_del(const char *name)
+{
+   struct exec_array *p_mod;
+   for (p_mod = (struct exec_array *)GRUB_MOD_ADDR; (unsigned int)p_mod < mod_end; p_mod = (struct exec_array *)((unsigned int)(&p_mod->data + p_mod->len + 0xf) & ~0xf))
+   {
+      if (substring(name,p_mod->name,1) == 0)
+      {
+         unsigned int next_mod = ((unsigned int)&p_mod->data + p_mod->len + 0xf) & ~0xf;
+         memmove(p_mod,(char *)next_mod,mod_end - next_mod);
+         mod_end -= next_mod - (unsigned int)p_mod;
+         return debug?grub_printf("%s unloaded.\n",name):1;
+      }
+   }
+   return 0;
 }
 
 struct bat_label
@@ -5096,11 +5138,11 @@ static int grub_exec_run(char *program, int flags)
 static int command_open(char *arg,int flags)
 {
    if (*arg == '(' || *arg == '/')
-      return  grub_open(arg);
+      return grub_open(arg);
 
    if (skip_to(0,arg) - arg > 120)
       return -1;
-   if (flags == 0 && (p_exec = exec_mod_find(arg,0)))
+   if (flags == 0 && (p_exec = grub_mod_find(arg)))
       return 2;
    char t_path[512];
    grub_sprintf(t_path,"%s%s",command_path,arg);
@@ -5108,6 +5150,7 @@ static int command_open(char *arg,int flags)
    {
       return -1;
    }
+
    return 1;
 }
 
@@ -5136,22 +5179,7 @@ command_func (char *arg, int flags)
       return 20;
    }
 	
-	if (flags & 0x100000)
-	{
-      char *filename = arg;
-      if (*arg == '(' || *arg == '/')
-      {
-         char *p = arg;
-         while (*p)
-         {
-            if (*p++ == '/')
-               filename = p;
-         }
-      }
-		if (exec_mod_find(filename,0))
-			return debug?grub_printf("%s already loaded.\n",filename):1;
-	}
-	else if (grub_memcmp (arg, "--set-path=", 11) == 0)
+   if (grub_memcmp (arg, "--set-path=", 11) == 0)
 	{
 		arg += 11;
 
@@ -5177,57 +5205,20 @@ command_func (char *arg, int flags)
 		command_path_len = j;
 		return 1;
 	}
-	else if (substring("delmod",arg,1) < 1)
-	{
-		arg = skip_to(0,arg);
-		int list_mod = 0;
-		if (*arg == '\0')
-			list_mod = 1;
-		else if (grub_memcmp(arg,"-l",2) == 0)
-		{
-			arg = skip_to(0,arg);
-			list_mod = 2;
-		}
 
-		if (list_mod)
-			return exec_mod_list(arg);
-		if (*arg == '*')
-		{
-			exec_mod_find(arg,2);//delete all loaded module.
-			grub_exec = NULL;
-			return 1;
-		}
-		struct exec_array *exec_del = exec_mod_find(arg, 1);
-		if (exec_del)
-		{
-			if (p_exec)
-				p_exec->next = exec_del->next;
-			else
-				grub_exec = exec_del->next;
-			grub_free(exec_del);
-			return (debug?grub_printf("%s unloaded.\n",arg):1);
-		}
-		return !grub_printf("%s does not load.\n",arg);
-	}
   /* open the command file. */
-  p_exec = NULL;
-  char *filename = "(rd)+1";
+  char *filename = arg;
   unsigned long arg_len = grub_strlen(arg);/*get length for build psp */
   char *cmd_arg = skip_to(SKIP_WITH_TERMINATE,arg);/* get argument of command */
-
-   if (!(flags & 0x200000))
-   {
-      filename = arg;
-   }
-
-   switch(command_open(filename,flags & 0x100000))
+   p_exec = NULL;
+   switch(command_open(filename,0))
    {
       case -1:
          grub_printf ("Warning! No such command: %s\n", arg);
-         errnum = 0;
+         errnum = 0;	/* No error, so that old menus will run smoothly. */
          //return 0;
       case 0:
-         return 0;
+         return 0;/* return 0 indicating a failure or a false case. */
    }
 #if 0
 	if (filemax < 9ULL)
@@ -5262,30 +5253,14 @@ command_func (char *arg, int flags)
 			if (! errnum)
 				errnum = ERR_EXEC_FORMAT;
 			grub_free(psp);
-			goto fail;
 		}
 		grub_close ();
-
-		if (flags & 0x100000)//load exec to buff
-		{
-			filename = arg;
-			while (*arg)
-			{
-				if (*arg++ == '/')
-					filename = arg;
-			}
-			p_exec = (struct exec_array *)psp;
-			grub_strcpy(psp,filename);
-			p_exec->addr = program;
-			p_exec->len = prog_len;
-			p_exec->next = grub_exec;
-			grub_exec = p_exec;
-			return (debug)?grub_printf("%s loaded\n", filename):1;
-		}
+		if (errnum)
+		   return 0;
 	}
 	else
 	{
-		grub_memmove(program,p_exec->addr,prog_len);
+		grub_memmove(program,&p_exec->data,prog_len);
 	}
 
 	program[prog_len] = '\0';
@@ -5449,27 +5424,47 @@ static int insmod_func(char *arg,int flags)
       }
       char *buff_end = buff+filemax;
       grub_close();
-
-      unsigned long long rd_base_bak = rd_base;
-      unsigned long long rd_size_bak = rd_size;
-      char *filename=buff;
-      flags |= 0x300000;
-      while (filename < buff_end)
+      struct exec_array *p_mod = (struct exec_array *)buff;
+      while ((char *)p_mod < buff_end)
       {
-         buf_drive = -1;
-         rd_size = *(unsigned int *)(filename + 12);
-         rd_base = (unsigned long long)(unsigned int)(filename + 16);
-         if (debug > 1)
-            grub_printf("insmod:%s...\n",filename);
-         command_func(filename,flags);
-         filename += rd_size + 16;
+         grub_mod_add(p_mod);
+         p_mod = (struct exec_array *)(&p_mod->data + p_mod->len);
       }
-      rd_base = rd_base_bak;
-      rd_size = rd_size_bak;
       grub_free(buff);
       return 1;
    }
-   return command_func(arg,flags | 0x100000);
+   else if (command_open(arg,0) == 1)
+   {
+      struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array));
+      char *filename = arg;
+      int ret = 0;
+      if (p_mod == NULL || grub_read((unsigned long long)(unsigned int)&p_mod->data,-1,GRUB_READ) != filemax)
+         goto exit;
+      p_mod->len = filemax;
+      if (*arg == '(' || *arg == '/')
+      {
+         while (*arg)
+         {
+            if (*arg++ == '/')
+               filename = arg;
+         }
+      }
+      if (strlen(filename) > 11)
+      {
+         grub_printf("Err filename\n");
+         goto exit;
+      }
+
+      grub_strcpy(p_mod->name,filename);
+      ret = grub_mod_add(p_mod);
+
+      exit:
+      grub_close();
+      grub_free(p_mod);
+      return ret;
+   }
+   return 0;
+   
 }
 
 static struct builtin builtin_insmod =
@@ -5480,6 +5475,34 @@ static struct builtin builtin_insmod =
    "insmod MODFILE|FILE.MOD",
    "FILE.MOD is MODFILE package, it has multiple MODFILE"
 };
+
+static int delmod_func(char *arg,int flags)
+{
+   if (*arg == '\0')
+      return grub_mod_list(arg);
+   if (grub_memcmp(arg,"-l",2) == 0)
+   {
+      arg = skip_to(0,arg);
+      return grub_mod_list(arg);
+   }
+
+   if (*arg == '*')
+   {
+      mod_end = GRUB_MOD_ADDR;
+      return 1;
+   }
+
+   return grub_mod_del(arg);
+}
+
+static struct builtin builtin_delmod =
+{
+   "delmod",
+   delmod_func,
+   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+   "delmod modname|*",
+};
+
 
 /* commandline */
 int
@@ -14553,6 +14576,7 @@ struct builtin *builtin_table[] =
 #endif
   &builtin_debug,
   &builtin_default,
+  &builtin_delmod,
 #ifdef GRUB_UTIL
   &builtin_device,
 #endif /* GRUB_UTIL */
