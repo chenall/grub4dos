@@ -14202,11 +14202,12 @@ calc_func (char *arg, int flags)
 	 return 0;
       }
       p_result = (unsigned long long *)(int)val1;
+      val1 = *p_result;
       while (*arg == ' ') arg++;
    }
    else
    {
-      if (!read_val(&arg, p_result))
+      if (!read_val(&arg, &val1))
       {
 	 return 0;
       }
@@ -14215,9 +14216,9 @@ calc_func (char *arg, int flags)
    if ((arg[0] == arg[1]) && (arg[0] == '+' || arg[0] == '-'))
    {
       if (arg[0] == '+')
-	 (*p_result)++;
+         (*p_result)++;
       else
-	 (*p_result)--;
+         (*p_result)--;
       arg += 2;
       while (*arg == ' ') arg++;
    }
@@ -14225,12 +14226,11 @@ calc_func (char *arg, int flags)
    if (*arg == '=')
    {
       arg++;
-      if (! read_val(&arg, p_result))
+      if (! read_val(&arg, &val1))
 	 return 0;
    }
    else if (p_result != &val1)
    {
-      val1 = *p_result;
       p_result = &val1;
    }
 
@@ -14253,34 +14253,34 @@ calc_func (char *arg, int flags)
       switch(O)
       {
 	 case '+':
-		 *p_result += val2;
+		 val1 += val2;
 		 break;
 	 case '-':
-		 *p_result -= val2;
+		 val1 -= val2;
 		 break;
 	 case '*':
-		 *p_result *= val2;
+		 val1 *= val2;
 		 break;
 	 case '/':
-		 *p_result = (long)*p_result / (long)val2;
+		 val1 = (long)val1 / (long)val2;
 		 break;
 	 case '%':
-		 *p_result = (long)*p_result % (long)val2;
+		 val1 = (long)val1 % (long)val2;
 		 break;
 	 case '&':
-		 *p_result &= val2;
+		 val1 &= val2;
 		 break;
 	 case '|':
-		 *p_result |= val2;
+		 val1 |= val2;
 		 break;
 	 case '^':
-		 *p_result ^= val2;
+		 val1 ^= val2;
 		 break;
 	 case '<':
-		 *p_result <<= val2;
+		 val1 <<= val2;
 		 break;
 	 case '>':
-		 *p_result >>= val2;
+		 val1 >>= val2;
 		 break;
 	 default:
 		 return 0;
@@ -14288,8 +14288,10 @@ calc_func (char *arg, int flags)
    }
    
    if (debug > 0)
-	  printf(" %ld (HEX:0x%lX)\n",*p_result,*p_result);
-   return *p_result;
+	  printf(" %ld (HEX:0x%lX)\n",val1,val1);
+	if (p_result != &val1)
+	   *p_result = val1;
+   return val1;
 }
 
 static struct builtin builtin_calc =
