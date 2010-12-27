@@ -694,7 +694,9 @@ pxe_init_done:
 
 	if (cdrom_drive == GRUB_INVALID_DRIVE)
 	{
-		/* read the first sector of the drive */
+		/* read sector 16 - ISO9660 Primary Volume Descriptor
+		 *	sector 17 - EL Torito Volume Descriptor
+		 */
 		struct disk_address_packet
 		{
 			unsigned char length;
@@ -710,24 +712,28 @@ pxe_init_done:
 
 		dap->length = 0x10;
 		dap->reserved = 0;
-		dap->blocks = 1;
+		dap->blocks = 2;
 		dap->buffer = 0x5F80/*SCRATCHSEG*/ << 16;
-		dap->block = 0;
+		dap->block = 16;
 
 		/* set a known value */
-		grub_memset ((char *)0x5F800, 0xEC, 0x800);
+		grub_memset ((char *)0x5F800, 0xEC, 0x1000);
 		biosdisk_int13_extensions (0x4200, (unsigned char)boot_drive, dap);
+		/* check ISO9660 Primary Volume Descriptor */
+		if (! memcmp ((char *)0x5F800, "\1CD001\1\0", 8))
+		/* check the EL Torito Volume Descriptor */
+		if (! memcmp ((char *)0x60000, "\0CD001\1EL TORITO SPECIFICATION\0", 31))
 		/* see if it is a big sector */
 		{
-			char *p;
-			for (p = (char *)0x5FA00; p < (char *)0x60000; p++)
-			{
-				if ((*p) != (char)0xEC)
-				{
+			//char *p;
+			//for (p = (char *)0x5FA00; p < (char *)0x60000; p++)
+			//{
+			//	if ((*p) != (char)0xEC)
+			//	{
 					cdrom_drive = boot_drive;
-					break;
-				}
-			}
+			//		break;
+			//	}
+			//}
 		}
 
 	}

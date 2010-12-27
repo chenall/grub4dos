@@ -327,9 +327,10 @@ rawdisk_read (int drive, int sector, int nsec, int segment)
 
 /* Read bytes from DRIVE to BUF. The bytes start at BYTE_OFFSET in absolute
  * sector number SECTOR and with BYTE_LEN bytes long.
+ * FIXME: currently only 32-bit SECTOR number is actually supported.
  */
 int
-rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
+rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
 {
   unsigned long slen, sectors_per_vtrack;
   unsigned long sector_size_bits = log2_tmp (buf_geom.sector_size);
@@ -341,7 +342,11 @@ rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, u
 
   if (write == 0x900ddeed && ! buf)
     return 1;
-  
+
+  /* right now safely disable writing 64-bit sector number */
+  if (write == 0x900ddeed && (sector >> 32))
+	return !(errnum = ERR_WRITE);
+
   /* Reset geometry and invalidate track buffer if the disk is wrong. */
   if (buf_drive != drive)
   {
@@ -395,7 +400,7 @@ rawread (unsigned long drive, unsigned long sector, unsigned long byte_offset, u
 	  sectors_per_vtrack = buf_geom.sectors;
 
       /* Get the first sector number in the track.  */
-      soff = sector % sectors_per_vtrack;
+      soff = ((unsigned long)sector) % sectors_per_vtrack;
 
       /* Get the starting sector number of the track. */
       track = sector - soff;
@@ -497,7 +502,7 @@ next:
 
 
 int
-devread (unsigned long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
+devread (unsigned long long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
 {
   unsigned long sector_size_bits = log2_tmp(buf_geom.sector_size);
 
@@ -508,7 +513,7 @@ devread (unsigned long sector, unsigned long byte_offset, unsigned long long byt
     }
 
   /* Check partition boundaries */
-  if (((unsigned long)(sector + ((byte_offset + byte_len - 1) >> sector_size_bits)) >= (unsigned long)part_length) && part_start)
+  if (((unsigned long long)(sector + ((byte_offset + byte_len - 1) >> sector_size_bits)) >= (unsigned long long)part_length) && part_start)
       return !(errnum = ERR_OUTSIDE_PART);
 
   /* Get the read to the beginning of a partition. */

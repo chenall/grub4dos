@@ -4798,8 +4798,13 @@ static int grub_mod_del(const char *name)
       if (substring(name,p_mod->name,1) == 0)
       {
          unsigned int next_mod = ((unsigned int)&p_mod->data + p_mod->len + 0xf) & ~0xf;
-         memmove(p_mod,(char *)next_mod,mod_end - next_mod);
-         mod_end -= next_mod - (unsigned int)p_mod;
+         if (next_mod == mod_end)
+            mod_end = (unsigned int)p_mod;
+         else
+         {
+            memmove(p_mod,(char *)next_mod,mod_end - next_mod);
+            mod_end -= next_mod - (unsigned int)p_mod;
+         }
          return debug?grub_printf("%s unloaded.\n",name):1;
       }
    }
@@ -4969,14 +4974,20 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 					if (i & 8)//get path
 					{
-						file_ext = grub_strstr(p_rep,"/");
-						if (file_ext)
+					   if (*p_rep == '(')
+					   {
+					      while (*p_rep++ != ')')
+					         continue;
+					   }
+
+						if (*p_rep)
 						{
-							p_rep = file_ext;
-							while (file_ext++)
+						   if (*p_rep != '/')
+						      *p_cmd++ = '/';
+						   file_name = file_ext = p_rep;
+							while ((file_ext = grub_strstr(file_ext,"/")))
 							{
-								file_name = file_ext;
-								file_ext = grub_strstr(file_ext,"/");
+								file_name = ++file_ext;
 							}
 							while(p_rep < file_name)
 							{
@@ -5009,6 +5020,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 							ch_bak = *file_ext;
 							*file_ext = '\0';
 						}
+						i &= 7;
 					}
 
 					if (i <= 7)
@@ -5433,38 +5445,43 @@ static int insmod_func(char *arg,int flags)
       grub_free(buff);
       return 1;
    }
-   else if (command_open(arg,0) == 1)
+   switch(command_open(arg,0))
    {
-      struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array));
-      char *filename = arg;
-      int ret = 0;
-      if (p_mod == NULL || grub_read((unsigned long long)(unsigned int)&p_mod->data,-1,GRUB_READ) != filemax)
-         goto exit;
-      p_mod->len = filemax;
-      if (*arg == '(' || *arg == '/')
-      {
-         while (*arg)
+      case 2:
+         return grub_printf("%s already loaded\n",arg);
+      case 1:
          {
-            if (*arg++ == '/')
-               filename = arg;
+         struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array));
+         char *filename = arg;
+         int ret = 0;
+         if (p_mod == NULL || grub_read((unsigned long long)(unsigned int)&p_mod->data,-1,GRUB_READ) != filemax)
+            goto exit;
+         p_mod->len = filemax;
+         if (*arg == '(' || *arg == '/')
+         {
+            while (*arg)
+            {
+               if (*arg++ == '/')
+                  filename = arg;
+            }
          }
-      }
-      if (strlen(filename) > 11)
-      {
-         grub_printf("Err filename\n");
-         goto exit;
-      }
+         if (strlen(filename) > 11)
+         {
+            grub_printf("Err filename\n");
+            goto exit;
+         }
 
-      grub_strcpy(p_mod->name,filename);
-      ret = grub_mod_add(p_mod);
+         grub_strcpy(p_mod->name,filename);
+         ret = grub_mod_add(p_mod);
 
-      exit:
-      grub_close();
-      grub_free(p_mod);
-      return ret;
+         exit:
+         grub_close();
+         grub_free(p_mod);
+         return ret;
+         }
+      default:
+         return 0;
    }
-   return 0;
-   
 }
 
 static struct builtin builtin_insmod =
