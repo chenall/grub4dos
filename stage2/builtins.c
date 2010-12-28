@@ -5248,7 +5248,7 @@ command_func (char *arg, int flags)
 	char *program;
 	prog_len = (p_exec?p_exec->len:filemax);
 	psp_len = ((arg_len + 16) & ~0xF) + 0x10 + 0x20;
-	psp = (char *)grub_malloc(prog_len + psp_len);
+	psp = (char *)grub_malloc(prog_len * 2 + psp_len);
 
 	if (psp == NULL)
 	{

@@ -45,7 +45,7 @@ skip_to (int flags, char *cmdline)
 				*cmdline++ = 0;
 				while (*cmdline == '\r' || *cmdline == '\n' || *cmdline == ' ' || *cmdline == '\t')
 					cmdline++;
-				if (*cmdline != eol || *(unsigned short *)cmdline != 0x3A3A)
+				if (*cmdline != eol && *(unsigned short *)cmdline != 0x3A3A)
 					break;
 			}
 			cmdline++;

@@ -2302,7 +2302,7 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
     if (remaining)
 		grub_printf("\r[%ldM/%ldM]\n",byteread>>20,len>>20);
 	 else
-		grub_printf("\r\t\t");
+		grub_printf("\r\t\t\r");
     return byteread;
   }
 }
