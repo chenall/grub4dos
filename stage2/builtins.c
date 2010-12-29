@@ -4767,10 +4767,7 @@ static int grub_mod_add (struct exec_array *mod)
       return debug?grub_printf("%s loaded\n",mod->name):1;
    }
    else
-   {
-      grub_printf("%s already loaded\n",mod->name);
-   }
-   return 1;
+      return debug?grub_printf("%s already loaded\n",mod->name):1;
 }
 
 static int grub_mod_list(const char *name)
@@ -5047,7 +5044,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 
 		*p_cmd = '\0';
-		if (debug > 1)
+		if (debug_ori > 1)
 			printf("cmd:%s\n",p_buff);
 		ret = run_line (p_buff,flags);
 
@@ -5448,7 +5445,7 @@ static int insmod_func(char *arg,int flags)
    switch(command_open(arg,0))
    {
       case 2:
-         return grub_printf("%s already loaded\n",arg);
+         return debug?grub_printf("%s already loaded\n",arg):1;
       case 1:
          {
          struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array));
@@ -11085,57 +11082,51 @@ static struct builtin builtin_password =
 static int
 pause_func (char *arg, int flags)
 {
-  char *p;
+//  char *p;
   unsigned long long wait = -1;
   int time1;
   int time2 = -1;
 
-  for (;;)
-  {
+//  for (;;)
+//  {
     if (grub_memcmp (arg, "--wait=", 7) == 0)
       {
-	p = arg + 7;
-	if (! safe_parse_maxint (&p, &wait))
+	arg += 7;
+	if (! safe_parse_maxint (&arg, &wait))
 		return 0;
+		arg = skip_to(0, arg);
       }
-    else
-	break;
-    arg = skip_to (0, arg);
-  }
+//    else
+//	break;
+//    arg = skip_to (0, arg);
+//  }
   
   printf("%s\n", arg);
 
   /* Get current time.  */
+  int ret = 1;
   while ((time2 = getrtsecs ()) == 0xFF);
+   while (wait != 0)
+   {
+      /* Check if there is a key-press.  */
+      if (checkkey () != -1)
+      {
+         ret = ASCII_CHAR (getkey ());
+         /* Check the special ESC key  */
+         if (ret == '\e')
+            return 0;	/* abort this entry */
+         break;
+      }
 
-  for (;;)
-	{
-	  /* Check if there is a key-press.  */
-	  if (checkkey () != -1)
-	    {
-	    char get_key = ASCII_CHAR (getkey ());
-		/* Check the special ESC key  */
-		if (get_key == '\e')
-			return 0;	/* abort this entry */
-		else
-			return (get_key)?get_key:1;	/* end */
-	    }
-
-	  if (wait != -1
-	      && (time1 = getrtsecs ()) != time2
-	      && time1 != 0xFF)
-	    {
-	      if (wait == 0)
-		{
-		  return 1;	/* timed out, return as if a key is pressed */
-		}
-	      
-	      time2 = time1;
-	      wait--;
-	    }
-	}
-  
-  return 1;
+      if (wait != -1 && (time1 = getrtsecs ()) != time2 && time1 != 0xFF)
+      {
+         printf("\t%d\t\r",wait);
+         time2 = time1;
+         wait--;
+      }
+   }
+   printf("\t\t\r");
+   return ret;
 }
 
 static struct builtin builtin_pause =

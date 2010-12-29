@@ -1,3 +1,4 @@
+2010-12-29 applied Roy's patch(fixed build issue).
 2010-12-25 applied Roy's patch(issue:13 fix autoconf and gcc issues in Linux).
 2010-12-11 (r73)applied karyonix's patch(Wrong data read from USB drive > 128GiB ).
 	   http://code.google.com/p/grub4dos-chenall/issues/detail?id=11

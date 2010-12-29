@@ -87,6 +87,11 @@ ${Get_source}and now you may \"cd grub4dos\" and do a \"make\" to compile.\r\n\r
 				\r\n" > grub4dos-temp/Get_Source_of_This_Build.txt
 			fi
 		fi
+	else
+		rm -rf grub4dos-temp
+		files=$(echo *)
+		mkdir grub4dos-temp || exit $?
+		cp -a $files grub4dos-temp || exit $?
 	fi
 else
 	rm -rf grub4dos-temp
