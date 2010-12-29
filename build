@@ -126,7 +126,7 @@ patch -p1 < patch-chinese.diff || exit $?
 make || exit $?
 
 mkdir grub4dos-${VER}/chinese || exit $?
-cp stage2/grldr stage2/grub.exe stage2/badgrub.exe grub4dos-${VER}/chinese || exit $?
+cp README_GRUB4DOS_CN.txt stage2/grldr stage2/grub.exe stage2/badgrub.exe grub4dos-${VER}/chinese || exit $?
 
 #############################################
 #	Create ZIP ball or TAR ball
