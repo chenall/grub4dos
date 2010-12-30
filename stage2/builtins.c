@@ -4750,6 +4750,12 @@ static int grub_mod_add (struct exec_array *mod)
       rd_size = (unsigned long long)mod->len;
       buf_drive = -1;
       grub_open("(rd)+1");
+      if ((mod_end + filemax) >= GRUB_MOD_ADDR + 0xF0000)
+      {
+         grub_close();
+         errnum = ERR_WONT_FIT;
+         return 0;
+      }
       struct exec_array *p_mod = (struct exec_array *)mod_end;
       grub_strcpy(p_mod->name,mod->name);
       p_mod->len = filemax;
@@ -5434,9 +5440,8 @@ static int insmod_func(char *arg,int flags)
       char *buff_end = buff+filemax;
       grub_close();
       struct exec_array *p_mod = (struct exec_array *)buff;
-      while ((char *)p_mod < buff_end)
+      while ((char *)p_mod < buff_end && grub_mod_add(p_mod))
       {
-         grub_mod_add(p_mod);
          p_mod = (struct exec_array *)(&p_mod->data + p_mod->len);
       }
       grub_free(buff);
@@ -5465,11 +5470,12 @@ static int insmod_func(char *arg,int flags)
          if (strlen(filename) > 11)
          {
             grub_printf("Err filename\n");
-            goto exit;
          }
-
-         grub_strcpy(p_mod->name,filename);
-         ret = grub_mod_add(p_mod);
+         else
+         {
+            grub_strcpy(p_mod->name,filename);
+            ret = grub_mod_add(p_mod);
+         }
 
          exit:
          grub_close();
@@ -14132,7 +14138,6 @@ builtin_cmd (char *cmd, char *arg, int flags)
 	{
 		return run_line (arg, flags);
 	}
-
 	if (substring(cmd,"exec",1) == 0)
 		return command_func(arg, flags);
 

@@ -3962,7 +3962,7 @@ variable is defined in asm.S.
 
 More function can use in user programs:
 	http://grubutils.googlecode.com/svn/trunk/src/include/grub4dos.h
-Node: After 2010-11-16 version of grub4dos,you can use like below.
+note: After 2010-11-16 version of grub4dos,you can use like below.
 /////////////////echo.c start///////////////////////////////////////////////
 #define sprintf ((int (*)(char *, const char *, ...))((*(int **)0x8300)[0]))
 
