@@ -1,4 +1,4 @@
-本文档来源:http://bbs.znpc.net/viewthread.php?tid=5587
+﻿本文档来源:http://bbs.znpc.net/viewthread.php?tid=5587
 感谢zw2312914提供
 原版是中英文对照的版本，这里已经经过删改。
 需要看原版的可以从上面的贴子下载.
@@ -9,18 +9,19 @@
 
 其它命令用法请参考
 	http://grub4dos.sourceforge.net/wiki/ 处的 GRUB4DOS 有关文档。
+
 外部命令的用法请参考
 	http://chenall.net/post/tag/grub4dos/
 
 项目主页 
-		http://code.google.com/p/grub4dos-chenall/
+	http://code.google.com/p/grub4dos-chenall/
 
 下载网址:
-		http://code.google.com/p/grub4dos-chenall/downloads/list
-		http://grub4dos.nufans.net/
+	http://code.google.com/p/grub4dos-chenall/downloads/list
+	http://nufans.net/grub4dos/
 
 工具和外部命令:
-		http://code.google.com/p/grubutils/downloads/list
+	http://code.google.com/p/grubutils/downloads/list
 
 通过匿名 svn 服务器获取最新源代码的方法：
 
@@ -38,7 +39,22 @@ GRUB4DOS 邮件列表(未用)：
 论坛（官方技术支持站点）：
 	http://bbs.znpc.net/forumdisplay.php?fid=4
 	http://reboot.pro/forum/66/
-	
+
+---------------------近期更新记录-----------------------------------------------
+2010-12-31 更新:
+	1.pause命令增强，增加了显示按键扫描码的功能。需要debug 为-1.
+	例子：显示一个按键扫描码
+	debug -1 && pause && debug 1
+
+	2.hiddenmenu命令增强。增加一个--chkpass参数
+		功能：	在隐藏菜单的时候按Esc键要输入正确的密码才可以显示菜单。
+		注意：	1.该功能启用之后，如果按了其它按键则直接启动默认菜单。
+			  默认的Esc按键可以自由设置。使用--chkpass=KEY
+			2.菜单初始化有password命令时才需要输入密码。
+			3.按键代码如果不清楚可以使用上面的功能来获取。
+	例子：	hiddenmenu --chkpass=0x8500	按F11键才可以显示菜单。
+		hiddenmenu --chkpass	 	按Esc键才可以显示菜单。
+		hiddenmenu --chkpass=0x2200	按Alt+G显示菜单。
 
 ------------------------------------------------------------------------------
 GRUB.EXE 用法：

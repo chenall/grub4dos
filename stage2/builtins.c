@@ -243,8 +243,21 @@ int checkrange_func (char *arg, int flags);
 /* Check a password for correctness.  Returns 0 if password was
    correct, and a value != 0 for error, similarly to strcmp. */
 int
-check_password (char *entered, char* expected, password_t type)
+check_password (char* expected, password_t type)
 {
+	/* Do password check! */
+	char entered[32];
+
+	/* Wipe out any previously entered password */
+	//   entered[0] = 0;
+	memset(entered,0,sizeof(entered));
+	get_cmdline_str.prompt = "Password: ";
+	get_cmdline_str.maxlen = sizeof (entered) - 1;
+	get_cmdline_str.echo_char = '*';
+	get_cmdline_str.readline = 0;
+	get_cmdline_str.cmdline = entered;
+	get_cmdline (get_cmdline_str);
+	
   switch (type)
     {
     case PASSWORD_PLAIN:
@@ -4721,7 +4734,7 @@ struct exec_array
 {
 	char name[12];
 	unsigned long len;
-	char data;
+	char data[];
 } *p_exec;
 
 unsigned int mod_end = GRUB_MOD_ADDR;
@@ -4733,7 +4746,7 @@ static struct exec_array *grub_mod_find(const char *name)
 	{
 		if (substring(name,p_mod->name,1) == 0)
 			return p_mod;
-		p_mod = (struct exec_array *)((unsigned int)(&p_mod->data + p_mod->len + 0xf) & ~0xf);
+		p_mod = (struct exec_array *)((unsigned int)(p_mod->data + p_mod->len + 0xf) & ~0xf);
 	}
 	return 0;
 }
@@ -4746,7 +4759,7 @@ static int grub_mod_add (struct exec_array *mod)
          grub_printf("insmod:%s...\n",mod->name);
       unsigned long long rd_base_bak = rd_base;
       unsigned long long rd_size_bak = rd_size;
-      rd_base = (unsigned long long)(unsigned int)&mod->data;
+      rd_base = (unsigned long long)(unsigned int)mod->data;
       rd_size = (unsigned long long)mod->len;
       buf_drive = -1;
       grub_open("(rd)+1");
@@ -4759,17 +4772,17 @@ static int grub_mod_add (struct exec_array *mod)
       struct exec_array *p_mod = (struct exec_array *)mod_end;
       grub_strcpy(p_mod->name,mod->name);
       p_mod->len = filemax;
-      grub_read((unsigned long long)(unsigned int)&p_mod->data,-1,GRUB_READ);
+      grub_read((unsigned long long)(unsigned int)p_mod->data,-1,GRUB_READ);
       grub_close();
       rd_base = rd_base_bak;
       rd_size = rd_size_bak;
-      if (*(unsigned long long *)(int)(&p_mod->data + p_mod->len - 8) != 0xBCBAA7BA03051805ULL && (*(unsigned long *)&p_mod->data != 0x54414221))
+      if (*(unsigned long long *)(int)(p_mod->data + p_mod->len - 8) != 0xBCBAA7BA03051805ULL && (*(unsigned long *)p_mod->data != 0x54414221))
       {
          if (! errnum)
             errnum = ERR_EXEC_FORMAT;
          return 0;
       }
-      mod_end = ((unsigned int)&p_mod->data + p_mod->len + 0xf) & ~0xf;
+      mod_end = ((unsigned int)p_mod->data + p_mod->len + 0xf) & ~0xf;
       return debug?grub_printf("%s loaded\n",mod->name):1;
    }
    else
@@ -4788,7 +4801,7 @@ static int grub_mod_list(const char *name)
             grub_printf(" %s\n",p_mod->name);
          ret++;
       }
-      p_mod = (struct exec_array *)((unsigned int)(&p_mod->data + p_mod->len + 0xf) & ~0xf);
+      p_mod = (struct exec_array *)((unsigned int)(p_mod->data + p_mod->len + 0xf) & ~0xf);
    }
    return ret;
 }
@@ -4796,11 +4809,11 @@ static int grub_mod_list(const char *name)
 static int grub_mod_del(const char *name)
 {
    struct exec_array *p_mod;
-   for (p_mod = (struct exec_array *)GRUB_MOD_ADDR; (unsigned int)p_mod < mod_end; p_mod = (struct exec_array *)((unsigned int)(&p_mod->data + p_mod->len + 0xf) & ~0xf))
+   for (p_mod = (struct exec_array *)GRUB_MOD_ADDR; (unsigned int)p_mod < mod_end; p_mod = (struct exec_array *)((unsigned int)(p_mod->data + p_mod->len + 0xf) & ~0xf))
    {
       if (substring(name,p_mod->name,1) == 0)
       {
-         unsigned int next_mod = ((unsigned int)&p_mod->data + p_mod->len + 0xf) & ~0xf;
+         unsigned int next_mod = ((unsigned int)p_mod->data + p_mod->len + 0xf) & ~0xf;
          if (next_mod == mod_end)
             mod_end = (unsigned int)p_mod;
          else
@@ -5275,7 +5288,7 @@ command_func (char *arg, int flags)
 	}
 	else
 	{
-		grub_memmove(program,&p_exec->data,prog_len);
+		grub_memmove(program,p_exec->data,prog_len);
 	}
 
 	program[prog_len] = '\0';
@@ -5442,7 +5455,7 @@ static int insmod_func(char *arg,int flags)
       struct exec_array *p_mod = (struct exec_array *)buff;
       while ((char *)p_mod < buff_end && grub_mod_add(p_mod))
       {
-         p_mod = (struct exec_array *)(&p_mod->data + p_mod->len);
+         p_mod = (struct exec_array *)(p_mod->data + p_mod->len);
       }
       grub_free(buff);
       return 1;
@@ -5456,7 +5469,7 @@ static int insmod_func(char *arg,int flags)
          struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array));
          char *filename = arg;
          int ret = 0;
-         if (p_mod == NULL || grub_read((unsigned long long)(unsigned int)&p_mod->data,-1,GRUB_READ) != filemax)
+         if (p_mod == NULL || grub_read((unsigned long long)(unsigned int)p_mod->data,-1,GRUB_READ) != filemax)
             goto exit;
          p_mod->len = filemax;
          if (*arg == '(' || *arg == '/')
@@ -6991,6 +7004,14 @@ hiddenmenu_func (char *arg, int flags)
 	/* set to the default values. */
 	show_menu = 1;
         silent_hiddenmenu = 0;
+      }
+      else if (grub_memcmp (arg, "--chkpass", 9) == 0)
+      {
+			unsigned long long t = 0x11bLL;
+			arg = skip_to(1,arg);
+			safe_parse_maxint(&arg,&t);
+			errnum = 0;
+      	silent_hiddenmenu = t << 16;
       }
     arg = skip_to (0, arg);
   }
@@ -11027,6 +11048,7 @@ password_func (char *arg, int flags)
 
   if ((flags & (BUILTIN_CMDLINE | BUILTIN_SCRIPT)) != 0)
     {
+    	#if 0
       /* Do password check! */
       char entered[32];
       
@@ -11038,9 +11060,9 @@ password_func (char *arg, int flags)
       get_cmdline_str.readline = 0;
       get_cmdline_str.cmdline = entered;
       get_cmdline (get_cmdline_str);
-
+	#endif
       nul_terminate (arg);
-      if ((len = check_password (entered, arg, type)) != 0)
+      if ((len = check_password (arg, type)) != 0)
 	{
 	  errnum = (len == 0xFFFF ? ERR_MD5_FORMAT : ERR_PRIVILEGED);
 	  return 0;
@@ -11107,7 +11129,8 @@ pause_func (char *arg, int flags)
 //    arg = skip_to (0, arg);
 //  }
   
-  printf("%s\n", arg);
+  if (*arg)
+    printf("%s\n", arg);
 
   /* Get current time.  */
   int ret = 1;
@@ -11117,7 +11140,10 @@ pause_func (char *arg, int flags)
       /* Check if there is a key-press.  */
       if (checkkey () != -1)
       {
-         ret = ASCII_CHAR (getkey ());
+      	ret = getkey ();
+      	if (debug == -1)
+      		printf("%04x ",ret);
+         ret &= 0xFF;
          /* Check the special ESC key  */
          if (ret == '\e')
             return 0;	/* abort this entry */

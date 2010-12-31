@@ -1395,7 +1395,7 @@ kernel_t load_image (char *kernel, char *arg, kernel_t suggested_type,
 int load_module (char *module, char *arg);
 int load_initrd (char *initrd);
 
-int check_password(char *entered, char* expected, password_t type);
+int check_password(char* expected, password_t type);
 #endif
 
 void init_bios_info (void);

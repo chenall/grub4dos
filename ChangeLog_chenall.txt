@@ -1,4 +1,9 @@
-﻿2010-12-28
+﻿2010-12-31
+	1.pause命令增强，增加了显示按键码的功能。
+	2.hiddenmenu命令增强。增加一个--chkpass参数
+	具体用法请参考: README_GRUB4DOS_CN.TXT对应的更新
+
+2010-12-28
 	1.一些BUG修复.
 	2.PAUSE命令增加倒计时显示.
 	3.fsys_fb.sys代码微调.

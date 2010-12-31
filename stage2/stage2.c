@@ -745,7 +745,20 @@ restart:
 	  /* Unhide the menu on any keypress.  */
 	  if (checkkey () != -1 /*&& ASCII_CHAR (getkey ()) == '\e'*/)
 	    {
-	      getkey ();	/* eat the key */
+	    	c = getkey();/* eat the key */
+	      if ((silent_hiddenmenu & 0xFFFF0000))
+	      {
+	         if (c != silent_hiddenmenu >> 16)
+	            goto boot_entry;
+	         else if (password && check_password (password, password_type))
+	      	{
+	      		grub_printf ("\nauth failed! Press any key to continue...");
+		      	getkey ();
+	      		cls();
+	      		grub_timeout = 5;
+	      		continue;
+	      	}
+	      }
 	      grub_timeout = -1;
 	      show_menu = 1;
 	      break;
@@ -1214,14 +1227,14 @@ done_key_handling:
 	      if (((char)c) == 'p')
 		{
 		  /* Do password check here! */
-		  char entered[32];
+		  //char entered[32];
 		  char *pptr = password;
 
 		  if (current_term->flags & TERM_DUMB)
 		    grub_printf ("\r                                    ");
 		  else
 		    gotoxy (MENU_BOX_X - 2, MENU_BOX_H + 6);
-
+		#if 0
 		  /* Wipe out the previously entered password */
 		  grub_memset (entered, 0, sizeof (entered));
 		  get_cmdline_str.prompt = "Password: ";
@@ -1230,14 +1243,14 @@ done_key_handling:
 		  get_cmdline_str.readline = 0;
 		  get_cmdline_str.cmdline = entered;
 		  get_cmdline (get_cmdline_str);
-
+		#endif
 		  while (! isspace (*pptr) && *pptr)
 		    pptr++;
 
 		  /* Make sure that PASSWORD is NUL-terminated.  */
 		  *pptr++ = 0;
 
-		  if (! check_password (entered, password, password_type))
+		  if (! check_password (password, password_type))
 		    {
 		      char *new_file = config_file;
 		      while (isspace (*pptr))
