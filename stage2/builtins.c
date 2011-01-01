@@ -6130,13 +6130,12 @@ static struct builtin builtin_find =
   "Search for the filename FILENAME in all of partitions and print the list of"
   " the devices which contain the file and suffice CONDITION. CONDITION is a"
   " normal grub command, which return non-zero for TRUE and zero for FALSE."
+  " DEVLIST specify the search devices and order,the default DEVLIST is upnhcf."
+  " DEVLIST must be a combination of these letters (u, p, n, h, c, f)."
   " If the option --set-root is used and FILENAME is found on a device, then"
   " stop the find immediately and set the device as new root."
   " If the option --ignore-floppies is present, the search will bypass all"
   " floppies. And --ignore-cd will skip (cd)."
-  " DEVLIST specify the search devices and order,the default DEVLIST is upnhcf."
-  " DEVLIST must be a combination of these letters (u, p, n, h, c, f)."
-
 };
 
 
