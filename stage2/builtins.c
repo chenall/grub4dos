@@ -4897,7 +4897,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	}
 	char **p_entry = bat_entry + i;
 
-	char *s[11];
+	char *s[10];
 	char *p_cmd;
 	char *p_rep;
 	char *p_buff;//buff for command_line
@@ -4921,13 +4921,13 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	p_buff = p_buff + ((i+16) & ~0xf);
 
 	/*build args %1-%9*/
-	for (i = 1;i < 10;i++)
+	for (i = 1;i < 9;i++)
 	{
 		s[i] = arg;
 		if (*arg)
 			arg = skip_to(SKIP_WITH_TERMINATE,arg);
 	}
-
+	s[9] = arg;// %9 for other args.
 	int ret = 0;
 	char *p_bat;
 	while ((p_bat = *p_entry))//copy cmd_line to p_buff and then run it;
@@ -5676,15 +5676,26 @@ static int find_check(char *filename,struct builtin *builtin1,char *arg,int flag
 	if (filename == NULL || (open_device() && grub_open (filename)))
 	{
 		grub_close ();
-		if (builtin1 ? (builtin1->func) (arg, flags) : 1)
+		if (builtin1)
 		{
-			if (debug > 0)
-			{
-				print_root_device();
-				putchar('\n');
-			}
-			return 1;
+			int ret = strlen(arg) + 1;
+			char *_tmp;
+			if ((_tmp = grub_malloc(ret)) == NULL)
+				return 0;
+			memmove(_tmp,arg,ret );
+			buf_drive = -1;
+			ret = (builtin1->func) (_tmp, flags);
+			grub_free(_tmp);
+			if (ret == 0)
+				return 0;
 		}
+
+		if (debug > 0)
+		{
+			print_root_device();
+			putchar('\n');
+		}
+		return 1;
 	}
 
 	errnum = ERR_NONE;
@@ -5918,6 +5929,7 @@ find_func (char *arg, int flags)
 							&& ! IS_PC_SLICE_TYPE_BSD (type)
 							&& ! IS_PC_SLICE_TYPE_EXTENDED (type))
 						{
+							current_drive = drive;
 							current_partition = part;
 
 							if ((tmp_drive != current_drive || tmp_partition != current_partition) && find_check(filename,builtin1,arg,flags) == 1)
@@ -6114,7 +6126,7 @@ static struct builtin builtin_find =
   "find",
   find_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "find [--set-root[=DIR]] [--ignore-floppies] [--ignore-cd] [FILENAME] [CONDITION]",
+  "find [--set-root[=DIR]] [--devices=DEVLIST] [--ignore-floppies] [--ignore-cd] [FILENAME] [CONDITION]",
   "Search for the filename FILENAME in all of partitions and print the list of"
   " the devices which contain the file and suffice CONDITION. CONDITION is a"
   " normal grub command, which return non-zero for TRUE and zero for FALSE."
@@ -6122,6 +6134,9 @@ static struct builtin builtin_find =
   " stop the find immediately and set the device as new root."
   " If the option --ignore-floppies is present, the search will bypass all"
   " floppies. And --ignore-cd will skip (cd)."
+  " DEVLIST specify the search devices and order,the default DEVLIST is upnhcf."
+  " DEVLIST must be a combination of these letters (u, p, n, h, c, f)."
+
 };
 
 

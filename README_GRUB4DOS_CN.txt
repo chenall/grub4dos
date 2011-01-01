@@ -2797,7 +2797,6 @@ Update 2007-12-05:
 	Now the MAP command can handle gzipped (rd) image. One can use this
 	feature with the hmload utility. For example,
         
-
 	step 1. Load the gzipped image under DOS at a relatively low address:
         步骤 1. 在DOS的相对较低的地址处加载gzip压缩映像：
 
@@ -2953,11 +2952,9 @@ SCH在使用时，也可以取0或1之一的值。作为默认，SCH为1 。如�
 
 	map --ram-drive=RD
 
-RD default to 0x7F which is a floppy. If the RAM DRIVE is a hard drive image
-(with partition table in the first sector), you should set RD >= 0x80 and RD
-< 0xFF.
-其中的RD默认是0x7F的软驱号。如果随机内存驱动器是一个硬盘驱动器印象（第一扇区
-含有分区表的），那么你可以将 RD 设置为 大于或等于0x80 或 小于 0xFF 的值 。
+其中RD默认是0x7F的软驱号。如果随机内存驱动器是一个硬盘驱动器镜像（第一扇区
+含有分区表），那么你可以将 RD 设置为大于或等于0x80并且小于0xA0之间的值。
+如果是一个光盘镜像，那需要设置为大于或等0xA0并且小于0xFF之间的值。
 
 	map --rd-base=ADDR
 
@@ -3214,7 +3211,6 @@ http://download.gna.org/grubutil/
 
 注意： 引导文件名必须遵循 8.3 文件名规范。
 
-
 ******************************************************************************
 ***                       GRLDR as PXE boot file                           ***
 ******************************************************************************
@@ -3224,25 +3220,13 @@ GRLDR 可以被用作远程或网络服务器的 PXE 启动文件。(pd) 设备�
 当 GRLDR 已经通过网络启动后，它将使用预设菜单作为配置文件。不过，你可以使用
 一条"pxe detect"命令，它的表现是和pxelinux一样的方式。
 
-    * First, it will search for the config file using the hardware type (using
-      its ARP type code) and address, all in hexadecimal with dash separators;
-      for example, for an Ethernet (ARP type 1) with address 88:99:AA:BB:CC:DD
-      it would search for the filename 01-88-99-AA-BB-CC-DD. 
-      首先，它将使用设备类型（使用它的 ARP 类型码）和地址来搜索配置文件，全部用
+    * 首先，它将使用设备类型（使用它的 ARP 类型码）和地址来搜索配置文件，全部用
       破折号分割的十六进制；例如，对一个以太网（ARP 类型是1）的88:99:AA:BB:CC:DD 
       地址，它会用文件名01-88-99-AA-BB-CC-DD 来搜索。
 
-    * Next, it will search for the config file using its own IP address in
-      upper case hexadecimal, e.g. 192.0.2.91 -> C000025B. If that file is not
-      found, it will remove one hex digit and try again. At last, it will try
-      looking for a file named default (in lower case). As an example, if the
-      boot file name is /mybootdir/grldr, the Ethernet MAC address is
-      88:99:AA:BB:CC:DD and the IP address 192.0.2.91, it will try following
-      files (in that order): 
-      其次，它将使用它本地的大写字母的十六进制格式的IP 地址（即192.0.2.91 转换为
+    * 其次，它将使用它本地的IP 地址大写字母的十六进制格式（即192.0.2.91 转换为
       C000025B。）来搜索配置文件。如果文件没有找到，它将去掉一个十六进制数字后再试一次。
       最后，它会尝试寻找一个名为 default （小写字母）的文件。
-
 
 ******************************************************************************
 ***                          PXE device                                    ***
@@ -3469,15 +3453,10 @@ Usage:		checkrange  RANGE  COMMAND
 ******************************************************************************
                           新命令 TPM
 
-The "tpm --init" uses 512-byte data at 0000:7C00 as buffer to initialise TPM.
 "tpm --init"在地址0000:7c00处使用512字节数据作为初始化TPM（可信赖平台模块）的缓存。
 
-Before you boot VISTA's BOOTMGR, you might have to use the "tpm --init"
-command on some machines. Normally you want to issue the "tpm --init" command
-after a CHAINLOADER command.
-在你引导 VISTA 的 BOOTMGR 前，你可以在一些机器上使用"tpm --init"。通常你应该在
-一条 CHAINLOADR 命令后发出"tpm --init"指令。
-
+在你引导 VISTA 的 BOOTMGR 前，你可能需要在一些机器上使用"tpm --init"。通常你应该在
+一条 CHAINLOADR 命令后执行"tpm --init"指令。
 
 ******************************************************************************
 ***               Delimitors or comments between titles                    ***
@@ -3544,59 +3523,33 @@ after a CHAINLOADER command.
 ******************************************************************************
                               分支式驱动器
 
-Some machines apply different actions to a drive between CHS and LBA mode.
-When you read sectors using standard BIOS call int13/AH=02h, you might find
-out the drive is a floppy. But when you read sectors using extended BIOS
-call(EBIOS) int13/AH=42h, you could know the drive is a cdrom. Such a drive
-is called bifurcate.
-一些机器在 CHS 和 LBA 模式之间对驱动器实施不同的动作。当你使用标准的int13/AH=02h
-BIOS 调用来读取扇区时，你可能发现这个驱动器是一个软盘。但是当你用扩展的 BIOS 调用
-（EBIOS）int13/AH=42h来读取扇区时，你可以知道这个驱动器是一个光盘。这样的驱动器被
-叫做分支式的。
+一些机器在 CHS 和 LBA 模式之间对驱动器实施不同的动作。
+当你使用标准的BIOS调用int13/AH=02h来读取扇区时，你可能会发现这个驱动器是一个软盘
+但是当你用扩展的BIOS调用(EBIOS)int13/AH=42h来读取扇区时，你会发现是一个光盘。
+这样的驱动器被叫做分支式的。
 
-A bifurcate drive can have two drive numbers: one is the normal BIOS drive
-number between 00 and FF in hexa, and this drive uses only CHS mode disk
-access(standard BIOS int13/AH=02h); the other is the normal BIOS drive number
-(Bitwise) OR'ed by 0x100(i.e., 256 in decimal), and this drive uses only
-LBA mode disk access(EBIOS int13/AH=42h). For example, if the drive 0x00
-(i.e., the first floppy) is bifurcate, then the drive (0x00) uses CHS mode
-to access its sectors, and the drive (0x100) uses LBA (meaning EBIOS) mode
-to access its sectors.
-一个分支式的驱动器可以拥有两个驱动器号：一个是标准的 BIOS 驱动器号十六进制
+一个分支式的驱动器拥有两个驱动器号：一个是标准的 BIOS 驱动器号十六进制
 的 00或FF ，并且这个驱动器只使用 CHS 模式的磁盘访问（标准的BIOS int13/AH=02h）；
-另一个是标准的 BIOS 驱动器号（按位）0x100 （即十进制的256），并且这个驱动器只
-使用 LBA 模式的磁盘访问（EBIOS int13/AH=42h）。例如，如果驱动器0x00（即，第一软驱）
-是分支式的，那么驱动器（0x00）使用 CHS 模式来访问它的扇区，而驱动器（0x100）则使用
-LBA 模式（意味着EBIOS）来访问它的扇区。
+另一个是标准的 BIOS 驱动器号（按位与）0x100 （即十进制的256），并且这个驱动器只
+使用 LBA 模式的磁盘访问（EBIOS int13/AH=42h）。
+例如，驱动器0x00（即，第一软驱）是分支式的.
+      那么驱动器（0x00）使用 CHS 模式来访问它的扇区
+      而驱动器（0x100）则使用LBA 模式来访问它的扇区。
 
-The geometry command can report the disk access mode for bifurcate drives as
-BIF instead of the conventional CHS or LBA.
-geometry 命令可以用 BIF 代替常见的 CHS 和 LBA 来报告分支式驱动器的磁盘访问模式。
+geometry 命令会用 BIF 代替常见的 CHS 和 LBA 来报告分支式驱动器的磁盘访问模式。
 
-Known bifurcate drives. Virtual PC and some real machines are found to create
-a bifurcate floppy drive when they boot from a floppy-emulation mode bootable
-cdrom. The "geometry (fd0)" will show
-已知的分子式驱动器。虚拟机Virtual PC和一些真实机器被发现当它们引导一个软盘模拟
-模式的可启动光盘时会建立一个分支式的软驱。命令"geometry (fd0)"将显示：
-
+已知的分支式驱动器。发现虚拟机Virtual PC和一些真实机器当它们引导一个软盘模拟模式
+的可启动光盘时会建立一个分支式的软驱。命令"geometry (fd0)"将显示：
 	drive 0x00(BIF): C/H/S=...Sector Count/Size=.../512
 
-and "geometry (0x100)" will show
 而"geometry (0x100)"将显示
-
 	drive 0x100(BIF): C/H/S=...Sector Count/Size=.../2048
 
-Actually (0x100) can access the whole cdrom, you may "ls (0x100)/" and find
-your files on the cdrom(not the files inside the booted floppy image). Of
-course "ls (fd0)/" will list the files inside the booted floppy image.
-实际上(0x100) 能访问整个光盘，你可以执行"ls (0x100)/" 然后在光盘上发现你的文件
-（不是那个被引导的软盘映像中的文件）。当然 "ls (fd0)/"可以列举那些在被引导的
-软盘映像中的文件。
+实际上(0x100) 可以访问整个光盘。
+你可以执行"ls (0x100)/" 显示光盘上文件（不是那个被引导的软盘映像中的文件）。
+当然 "ls (fd0)/"可以列举那些在被引导的软盘映像中的文件。
 
-Note that only some (real or virtual) machines have this action, others
-will not produce bifurcate drives.
-注意 仅仅是某些（真实的或虚拟的）机器有这样的行为，其他的机器不会产生分支式驱动器。
-
+注意：仅仅是某些（真实的或虚拟的）机器有这样的行为，其他的机器不会产生分支式驱动器。
 
 ******************************************************************************
 ***                       New program badgrub.exe                          ***
@@ -3637,6 +3590,20 @@ will not produce bifurcate drives.
 	示例 5:
 		find --set-root makeactive --status
 	将会把第一个激活的主分区设为当前根。
+
+更新：	新的find 命令语法允许指定要查找和设备和查找的顺序。
+	新的参数	--devices=DEVLIST，用于指定查找的设备和顺序。
+	DEVLIST可以下以下的字母组合。
+	u,p,n,h,c,f -->分别对应 ud,pd,nd,hd,cd,fd,
+	查找时根据DEVLIST指定的设备顺序进行查找。默认是upnhcf.
+	
+	
+	例子:	1.只查找硬盘上的文件
+		find --devices=h /file
+		2.依次查找硬盘、光盘、软盘上的文件
+		find --devices=hcf /file
+
+	注意：新的find命令有一个改变，查找的时候会优先查找当前设备（如果在列表中的话）。
 
 ******************************************************************************
 ***                    How to build grldr boot images                      ***

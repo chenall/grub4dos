@@ -2660,7 +2660,7 @@ RAW default to 1. If RAW=0, `int15/ah=87h' will be used to access memdrives.
 
 RD default to 0x7F which is a floppy. If the RAM DRIVE is a hard drive image
 (with partition table in the first sector), you should set RD >= 0x80 and RD
-< 0xFF.
+< 0xA0.If the RAM DRIVE is a cdrom image, you should set 0xA0<= RD <= 0xff.
 
 	map --rd-base=ADDR
 
