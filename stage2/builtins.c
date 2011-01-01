@@ -3204,8 +3204,11 @@ configfile_func (char *arg, int flags)
   
   saved_entryno = 0;
   //force_cdrom_as_boot_device = 0;
-  boot_drive = (current_drive == 0xFFFF ? saved_drive : current_drive);
-  install_partition = (current_drive == 0xFFFF ? saved_partition : current_partition);
+  if (current_drive != 0xFFFF && current_drive != ram_drive)
+  {
+    boot_drive = current_drive;
+    install_partition = current_partition;
+  }
 #ifdef GRUB_UTIL
   buf_drive = -1;	/* invalidate disk cache. */
   buf_track = -1;	/* invalidate disk cache. */
@@ -12018,12 +12021,10 @@ real_root_func (char *arg, int attempt_mnt)
       if (fsys_type != NUM_FSYS || ! next)
         /* Print the type of the filesystem.  */
       {
-	if (debug > 0)
-	{
 	    if (! next)
-		print_root_device ();
-            print_fsys_type ();
-	}
+			print_root_device ();
+		if (! next || debug )
+        print_fsys_type ();
       }
       else
 	return ! (errnum = ERR_FSYS_MOUNT);
