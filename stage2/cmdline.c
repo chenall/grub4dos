@@ -214,7 +214,7 @@ static int copy_cmd_line(const char *cmdline,char *out)
 		}
 		memset(var_tmp,0,9);
 		p = cmdline + 1;
-		for (i=0;i<8 && *p && *p != '%';i++)
+		for (i=0;i<8 && (unsigned char)*p >= '.';i++)
 		{
 			if (*p == '^')
 			{

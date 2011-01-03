@@ -5067,7 +5067,14 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 		*p_cmd = '\0';
 		if (debug_ori > 1)
-			printf("cmd:%s\n",p_buff);
+		{
+			printf("%s\n",p_buff);
+			if ((getkey() & 0xff00)==0x3100)
+			{
+				errnum = 1001;
+				break;
+			}
+		}
 		ret = run_line (p_buff,flags);
 
 		if (errnum == ERR_BAT_GOTO)
@@ -14762,7 +14769,7 @@ static int set_func(char *arg, int flags)
 {
 	if( strcmp(VAR[_WENV_], "?_WENV") != 0)
 		reset_env_all();
-	if (*arg == 0)
+	if ((unsigned char)*arg < '.')
 		return get_env_all();
 	char *var = arg;
 	arg = skip_to(1,arg);
