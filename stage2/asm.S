@@ -12328,7 +12328,11 @@ VARIABLE(gzip_filemax)
 	.long 0
 	.long 0
 	.long 0
-	.long 0
 	//////////////////////////////
+VARIABLE(buf_drive)
+	.long	-1
+VARIABLE(buf_track)
+	.long	-1
+	.long	0
 #endif /* ! STAGE1_5 */
 

@@ -232,9 +232,8 @@ unsigned long long part_length;
 #endif
 
 /* disk buffer parameters */
-
-int buf_drive = -1;
-int buf_track = -1;
+int buf_drive;
+int buf_track;
 
 struct geometry buf_geom;
 struct geometry tmp_geom;	/* tmp variable used in many functions. */

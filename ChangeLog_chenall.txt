@@ -1,4 +1,22 @@
-﻿2011-01-01
+﻿2011-01-03
+	1.pager命令即实生效。
+	2.添加简易的if判断命令类似的MSDOS.目前支持的判断如下：
+	  added a new command if.
+	if [/I] [NOT] STRING1==STRING2 [COMMAND]
+	注：判断符号==前后不允许有空格或制表符否则比较会失败。
+	2.添加SET命令可以设置、修改、删除变量。
+	  added a new command set to modify the variable.
+	3.从现在开始支持变量。用法和MS-DOS一样。
+	  From now supports variable.
+	注：使用了和WENV同样的方案。所以这个功能可以看成是简化版的WENV
+
+2011-01-02
+	1.pause命令添加一个参数--test-key，可以显示按键扫描码。
+	  added --test-key option for pause to display the key scan code.
+	2.grub_sprintf函数支持字符串精度控制符。
+	  
+
+2011-01-01
 	1.修复find命令的bug。当然使用条件查询时可能会出错。
 	2.批处理参数修改,为了方便使用，%9改成剩余的所有参数。
 	比如参数: 1 2 3 4 5 6 7 8 9 0 a b c
@@ -7,7 +25,7 @@
 2010-12-31
 	1.pause命令增强，增加了显示按键码的功能。
 	2.hiddenmenu命令增强。增加一个--chkpass参数
-	具体用法请参考: README_GRUB4DOS_CN.TXT对应的更新
+	具体用法请参考: README_GRUB4DOS.TXT对应的更新
 
 2010-12-28
 	1.一些BUG修复.

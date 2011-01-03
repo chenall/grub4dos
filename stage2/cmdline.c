@@ -54,7 +54,7 @@ skip_to (int flags, char *cmdline)
 	}
   /* Skip until we hit whitespace, or maybe an equal sign. */
   while (*cmdline && *cmdline != ' ' && *cmdline != '\t' &&
-	 ! (flags == 1 && *cmdline == '='))
+	 ! ((flags & 1) && *cmdline == '='))
   {
 		if (*cmdline == '\"')
 		{
@@ -75,7 +75,7 @@ skip_to (int flags, char *cmdline)
 
   /* Skip whitespace, and maybe equal signs. */
   while (*cmdline == ' ' || *cmdline == '\t' ||
-	 (flags == 1  && *cmdline == '='))
+	 ((flags & 1)  && *cmdline == '='))
     cmdline ++;
 
   return cmdline;
@@ -197,6 +197,51 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 #define PRINTF_BUFFER ((char *)0x1011000)
 #define CMD_BUFFER ((char *)0x1010000)
 char *pre_cmdline;
+
+static int copy_cmd_line(const char *cmdline,char *out)
+{
+	char var_tmp[9];
+	const char *p;
+	int i;
+	char *out_start = out;
+	char *out_end = out + 0x1000;
+	while (*cmdline && out < out_end)
+	{
+		if (*cmdline != '%' || cmdline[1] < '?')
+		{
+			*out++=*cmdline++;
+			continue;
+		}
+		memset(var_tmp,0,9);
+		p = cmdline + 1;
+		for (i=0;i<8 && *p && *p != '%';i++)
+		{
+			if (*p == '^')
+			{
+				break;
+			}
+			var_tmp[i] = *p++;
+		}
+		i++;
+		if (*p != '%')
+		{
+			memmove(out,cmdline,i);
+			out += i;
+			if (*p == '^')
+				i++;
+		}
+		else
+		{
+			i++;
+			if (out + 0x200 < out_end)
+				out += envi_cmd(var_tmp,out,1);
+		}
+		cmdline += i;
+	}
+	*out = '\0';
+	return out - out_start;
+}
+
 int run_line (char *heap,int flags)
 {
 //	char *p;
@@ -207,6 +252,12 @@ int run_line (char *heap,int flags)
 	int status_t = 0;
 	int stat_bak = putchar_st.flag;
 	grub_error_t errnum_old = errnum;
+	char *cmdline_buf = grub_malloc(0x1000);
+	if (cmdline_buf)
+	{
+		copy_cmd_line(heap,cmdline_buf);
+		heap = cmdline_buf;
+	}
 	errnum = ERR_NONE;
 	/* Invalidate the cache, because the user may exchange removable disks.  */
 	buf_drive = -1;
@@ -303,7 +354,7 @@ int run_line (char *heap,int flags)
 			heap = skip_to_next_cmd(heap,&status,4);
 		}
 	}
-
+	grub_free(cmdline_buf);
 	putchar_st.flag = stat_bak;
 	putchar_st.addr = PRINTF_BUFFER;
 	return ret;

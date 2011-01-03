@@ -4012,4 +4012,61 @@ To return to 640x480 mode, follow this way:
 2. Set graphics mode to 0x12 by using command: "graphicsmode 0x12".
 3. Enter graphics mode. You may execute command "terminal graphics".
 
+************************************************** *************************** 
+*****			GRUB4DOS variable support			 *****
+************************************************** *************************** 
+
+From now we supports variables, the same usage of MSDOS. 
+
+commands: 
+	SET [variable = [string]]
+	variable specifies the variable name (up to 8 characters). 
+	string Specifies a string assigned to the variable (up to 512 characters.) 
+
+SET command without parameters will display the current variables. 
+
+with "=",if the string is empty.
+	set myvar= 
+Will delete the variable myvar
+
+Show the name has been used for all variable. For example: 
+	set ex_ 
+Will display all variables beginning with ex_, returns 0 if no match. 
+
+Note:	1. the same of MSDOS.
+	   a full line of command will be conducted before the implementation of variable substitution. 
+	2. Variable names must beginning with letter or "_".
+	   Otherwise you will not be able to access your variables.
+	3. See the previous description for length limit. 
+
+the new command if
+	if [/ I] [NOT] STRING1==STRING2 [COMMAND]
+
+	STRING1==STRING2
+	   Specifies a true condition if the specified text strings match.
+	COMMAND
+	   Specifies the command to carry out if the condition is met.
+	/I
+	   if specified, says to do case insensitive string compares.
+	NOT
+	   Specifies that should carry out the command only if the condition is false.
+
+Example: 
+	1. To determine whether strings are equal, and not case sensitive. 
+		if / i test==%myvar% echo this is a test
+	2. To determine the character is empty.
+		if %myvar%#==# echo variable myvar not defined.
+Usage example: 
+	1. Displays a string including the variable. 
+		echo myvar=%myvar% 
+	2. Using a variable instead of command. 
+		set print = echo 
+		%print% This a test.
+	3. You can use a "^" to stop extended, example 
+		echo %myvar^% 
+	  Or 
+		echo %my^var% 
+	  Will be displayed %myvar% rather than the extended character after myvar. 
+Note: We only deal the ^ between the symbols %%. 
+
 

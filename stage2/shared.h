@@ -787,6 +787,7 @@ extern int map_func (char *arg, int flags);
 
 extern void hexdump(unsigned long,char*,int);
 extern int builtin_cmd (char *cmd, char *arg, int flags);
+extern int envi_cmd(const char *var,char * const env,int flags);
 
 #ifndef STAGE1_5
 /* GUI interface variables. */

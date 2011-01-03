@@ -3204,7 +3204,7 @@ configfile_func (char *arg, int flags)
   
   saved_entryno = 0;
   //force_cdrom_as_boot_device = 0;
-  if (current_drive != 0xFFFF && current_drive != ram_drive)
+  if (current_drive != 0xFFFF)
   {
     boot_drive = current_drive;
     install_partition = current_partition;
@@ -10594,7 +10594,10 @@ pager_func (char *arg, int flags)
   }
   else
       errnum = ERR_BAD_ARGUMENT;
-
+  if (use_pager == 0)
+    count_lines = -1;
+  else if (count_lines == -1)
+    count_lines = 0;
   return use_pager;
 }
 
@@ -11131,20 +11134,24 @@ pause_func (char *arg, int flags)
   unsigned long long wait = -1;
   int time1;
   int time2 = -1;
+  int testkey = 0;
 
-//  for (;;)
-//  {
-    if (grub_memcmp (arg, "--wait=", 7) == 0)
-      {
-	arg += 7;
-	if (! safe_parse_maxint (&arg, &wait))
-		return 0;
-		arg = skip_to(0, arg);
-      }
-//    else
-//	break;
-//    arg = skip_to (0, arg);
-//  }
+	for (;;)
+	{
+		if (grub_memcmp (arg, "--test-key", 10) == 0)
+		{
+			testkey = 1;
+		}
+		else if (grub_memcmp (arg, "--wait=", 7) == 0)
+		{
+			arg += 7;
+			if (! safe_parse_maxint (&arg, &wait))
+				return 0;
+		}
+		else
+			break;
+		arg = skip_to (0, arg);
+	}
   
   if (*arg)
     printf("%s\n", arg);
@@ -11158,8 +11165,8 @@ pause_func (char *arg, int flags)
       if (checkkey () != -1)
       {
       	ret = getkey ();
-      	if (debug == -1)
-      		printf("%04x ",ret);
+      	if (testkey)
+      		printf("%04x",ret);
          ret &= 0xFF;
          /* Check the special ESC key  */
          if (ret == '\e')
@@ -14595,6 +14602,185 @@ static struct builtin builtin_exit =
    exit_func,
   BUILTIN_BAT_SCRIPT,
 };
+
+static int if_func(char *arg,int flags)
+{
+	char *str1,*str2;
+	int cmp_flag = 0;
+	while(*arg)
+	{
+		if (substring("/i ", arg, 1) == -1)
+			cmp_flag |= 1;
+		else if(substring("not ", arg, 1) == -1)
+			cmp_flag |= 2;
+		else
+			break;
+		arg = skip_to (0, arg);
+	}
+	if (*arg == '\0')
+		return 0;
+	str1 = arg;
+	str2 = arg = skip_to(1,arg);
+	arg -= 2;
+	if (*(unsigned short *)arg != 0x3D3D)
+	{
+		errnum = ERR_BAD_ARGUMENT;
+		return 0;
+	}
+	skip_to (SKIP_WITH_TERMINATE | 1,str1);
+	arg = skip_to (SKIP_WITH_TERMINATE,str2);
+	if ((substring(str1,str2,cmp_flag & 1) == 0) ^ (cmp_flag >> 1))
+	{
+		return *arg?run_line(arg,flags):1;
+	}
+	return 0;
+}
+
+static struct builtin builtin_if =
+{
+   "if",
+   if_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
+};
+
+#define MAX_USER_VARS 60
+#define MAX_VARS 64
+#define MAX_VAR_LEN	8
+#define MAX_ENV_LEN	512
+#define MAX_BUFFER	(MAX_VARS * (MAX_VAR_LEN + MAX_ENV_LEN))
+#define BASE_ADDR 0x45000
+#define VAR ((char (*)[MAX_VAR_LEN])BASE_ADDR)
+#define ENVI ((char (*)[MAX_ENV_LEN])(BASE_ADDR + MAX_VARS * MAX_VAR_LEN))
+#define _WENV_ 60
+#define WENV_RANDOM (*(unsigned long *)(ENVI[_WENV_]+0x20))
+#define QUOTE_CHAR (*(unsigned long *)(ENVI[_WENV_]+0x30))
+#define set_envi(var, val)			envi_cmd(var, val, 0)
+#define get_env(var, val)			envi_cmd(var, val, 1)
+#define get_env_all()				envi_cmd(NULL, NULL, 2)
+#define reset_env_all()				envi_cmd(NULL, NULL, 3)
+/*
+flags:
+0 add or set
+1 read
+2 show
+3 reset
+*/
+int envi_cmd(const char *var,char * const env,int flags)
+{
+	if(flags == 3)
+	{
+		memset( (char *)BASE_ADDR, 0, MAX_BUFFER );
+		sprintf(VAR[_WENV_], "?_WENV");
+		QUOTE_CHAR = '\"';
+		return 1;
+	}
+	int i, j;
+	char ch[MAX_VAR_LEN +1] = "\0\0\0\0\0\0\0\0";
+	sprintf(ch,"%.8s",var);
+	if (flags == 2)
+	{
+		int count=0;
+		for(i=0; i < MAX_USER_VARS && VAR[i][0]; ++i)
+		{
+			if (VAR[i][0] < 'A')
+				continue;
+			if (var == NULL || substring(ch,VAR[i],0) < 1 )
+			{
+				++count;
+				printf("%.8s=%.60s\n",VAR[i],ENVI[i]);
+			}
+		}
+		return count;
+	}
+
+	j = 0xFF;
+	/*
+	i >= 60  system variables.
+	'@' 	 Built-in variables or deleted.
+	*/
+	if (ch[0]=='@')
+	{
+		if (flags != 1)
+			return 0;
+		#ifndef GRUB_UTIL
+		unsigned long date,time;
+		get_datetime(&date, &time);
+		if (substring(ch,"@DATE",1) == 0)
+		{
+			return sprintf(env,"%04X-%02X-%02X",(date >> 16),(char)(date >> 8),(char)date);
+		}
+		else if (substring(ch,"@TIME",1) == 0)
+		{
+			return sprintf(env,"%02X:%02X:%02X",(char)(time >> 24),(char)(time >> 16),(char)(time>>8));
+		}
+		else if (substring(ch,"@RANDOM",1) == 0)
+		{
+			WENV_RANDOM   =   (((WENV_RANDOM * time + date ) >> 16) & 0x7fff);
+			return sprintf(env,"%d",WENV_RANDOM);
+		}
+		else
+			return 0;
+		#endif
+	}
+	for(i=(ch[0]=='?')?60:0;i < MAX_VARS && VAR[i][0];i++)
+	{
+		if (memcmp(VAR[i], ch, MAX_VAR_LEN) == 0)
+		{
+			j = i;
+			break;
+		}
+		if (j == 0xFF && VAR[i][0] == '@') j = i;
+	}
+
+	if (flags == 1)
+	{
+		return (j==i ) ? sprintf(env,"%.512s",ENVI[i]):0;
+	}
+	//flags = 0 set/del variables 
+	if (j == 0xFF && i >= MAX_VARS)//not variable space
+	{
+		return 0;
+	}
+	if (env == NULL || env[0] == '\0')//del
+	{
+		if(j == i)
+		{
+			VAR[i][0] = '@';
+		}
+		return 1;
+	}
+
+	if (j != i)
+	{
+		i = (j<i?j:i);
+		memmove(VAR[i] ,ch ,MAX_VAR_LEN);
+	}
+	return sprintf(ENVI[i],"%.512s",env);
+}
+
+static int set_func(char *arg, int flags)
+{
+	if( strcmp(VAR[_WENV_], "?_WENV") != 0)
+		reset_env_all();
+	if (*arg == 0)
+		return get_env_all();
+	char *var = arg;
+	arg = skip_to(1,arg);
+	if (*(arg - 1) == '=')
+		flags = 0;
+	else
+		flags = 2;
+	skip_to(SKIP_WITH_TERMINATE | 1,var);
+	return envi_cmd(var,arg,flags);
+}
+
+static struct builtin builtin_set =
+{
+   "set",
+   set_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
+};
+
 
 
 /* The table of builtin commands. Sorted in dictionary order.  */
@@ -14672,6 +14858,7 @@ struct builtin *builtin_table[] =
   &builtin_hiddenflag,
   &builtin_hiddenmenu,
   &builtin_hide,
+  &builtin_if,
 #ifdef SUPPORT_NETBOOT
   &builtin_ifconfig,
 #endif /* SUPPORT_NETBOOT */
@@ -14727,6 +14914,7 @@ struct builtin *builtin_table[] =
 #ifdef SUPPORT_SERIAL
   &builtin_serial,
 #endif /* SUPPORT_SERIAL */
+  &builtin_set,
   &builtin_setkey,
 #ifdef GRUB_UTIL
   &builtin_setup,

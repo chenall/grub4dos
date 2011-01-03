@@ -282,6 +282,7 @@ grub_sprintf (char *buffer, const char *format, ...)
   char pad;
   int width;
   int length;
+  unsigned int accuracy;
 
   //dataptr++;
   //dataptr++;
@@ -303,6 +304,7 @@ grub_sprintf (char *buffer, const char *format, ...)
 	pad = ' ';
 	width = 0;
 	length = 0;
+	accuracy = -1;
 
 get_next_c:
 	c = *(format++);
@@ -317,6 +319,11 @@ find_specifier:
 				grub_putchar(c);
 			bp++;
 			break;
+		case '.':
+			accuracy = 0;
+			while ((c = *(format++)) >= '0' && c <= '9')
+				accuracy = accuracy * 10 + c - '0';
+			goto find_specifier;
 	  case 'd': case 'x':	case 'X':  case 'u':
 	    {
 		unsigned int lo, hi;
@@ -393,16 +400,13 @@ find_specifier:
 	      }
 	    ptr = (char *)(unsigned int) (*(dataptr++));
 	    //dataptr++;
-	    if (buffer)
+	    while ((c = *(ptr++)) && accuracy--)
 	    {
-		while ((c = *(ptr++)) != 0)
-			*bp++ = c; /* putchar(c); */
-	    } else {
-		while ((c = *(ptr++)) != 0)
-		{
-			grub_putchar (c);
-			bp++;
-		}
+	    	if (buffer)
+	    		*bp = c;
+	    	else
+	    		grub_putchar (c);
+	    	bp++;
 	    }
 	    break;
 	  case 'l':
