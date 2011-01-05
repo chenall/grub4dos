@@ -14193,6 +14193,7 @@ builtin_cmd (char *cmd, char *arg, int flags)
 	{
 		return run_line (arg, flags);
 	}
+
 	if (substring(cmd,"exec",1) == 0)
 		return command_func(arg, flags);
 
@@ -14210,8 +14211,8 @@ builtin_cmd (char *cmd, char *arg, int flags)
 			return (builtin1->func) (arg, flags);
 		}
 	}
-
-	return 0;
+	else
+		return command_func (cmd, flags);
 }
 
 static int read_val(char **str_ptr,unsigned long long *val)
@@ -14638,7 +14639,7 @@ static int if_func(char *arg,int flags)
 	arg = skip_to (SKIP_WITH_TERMINATE,str2);
 	if ((substring(str1,str2,cmp_flag & 1) == 0) ^ (cmp_flag >> 1))
 	{
-		return *arg?run_line(arg,flags):1;
+		return *arg?builtin_cmd(arg,skip_to(0,arg),flags):1;
 	}
 	return 0;
 }
