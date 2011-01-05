@@ -1,4 +1,7 @@
-﻿2011-01-03
+﻿2011-01-05
+	1.修正run_line的一个逻辑错误。
+	2.外部命令command默认的目录改为(bd)/BOOT/GRUB/
+2011-01-03
 	1.pager命令即实生效。
 	2.添加简易的if判断命令类似的MSDOS.目前支持的判断如下：
 	  added a new command if.

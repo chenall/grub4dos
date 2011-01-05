@@ -4730,8 +4730,8 @@ static struct builtin builtin_fallback =
 
 
 /* command */
-static char command_path[128]="(bd)/grub/";
-static int command_path_len = 10;
+static char command_path[128]="(bd)/BOOT/GRUB/";
+static int command_path_len = 15;
 #define GRUB_MOD_ADDR 0x1200000
 struct exec_array
 {
@@ -5223,8 +5223,8 @@ command_func (char *arg, int flags)
 
 		if (! *arg)
 		{
-			command_path_len = 10;
-			return grub_sprintf(command_path,"(bd)/grub/");
+			command_path_len = 15;
+			return grub_sprintf(command_path,"(bd)/BOOT/GRUB/");
 		}
 
 		int j = grub_strlen(arg);
