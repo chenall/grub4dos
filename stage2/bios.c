@@ -233,6 +233,8 @@ static unsigned long flags;
 static unsigned long cylinders;
 static unsigned long heads;
 static unsigned long sectors;
+static unsigned long heads_ok;
+static unsigned long sectors_ok;
 #ifndef GRUB_UTIL
 unsigned long force_geometry_tune = 0;
 #endif
@@ -324,6 +326,8 @@ get_diskinfo (int drive, struct geometry *geometry)
 
   /* Clear the flags.  */
   flags = 0;
+  heads_ok = 0;
+  sectors_ok = 0;
 
 #ifdef GRUB_UTIL
 #define FIND_DRIVES 8
@@ -338,7 +342,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 	}
       
 #if (! defined(GRUB_UTIL)) && (! defined(STAGE1_5))
-    if (! force_geometry_tune)
+    //if (! force_geometry_tune)
     {
 	unsigned long j;
 	unsigned long d;
@@ -392,8 +396,13 @@ get_diskinfo (int drive, struct geometry *geometry)
 	    if (d >= 0x80 && d < 0x88)
 	    {
 		d -= 0x80;
+		flags = (hd_geom[d].flags & BIOSDISK_FLAG_GEOMETRY_OK);
+		heads_ok = hd_geom[d].heads;
+		sectors_ok = hd_geom[d].sectors;
 		if (hd_geom[d].sector_size == 512 && hd_geom[d].sectors > 0 && hd_geom[d].sectors <= 63 && hd_geom[d].heads <= 256)
 		{
+		    if ((! force_geometry_tune) || flags)
+		    {
 			geometry->flags = hd_geom[d].flags;
 			if ((geometry->flags & BIOSDISK_FLAG_BIFURCATE) && (drive & 0xFFFFFF00) == 0x100)
 			{
@@ -413,10 +422,16 @@ get_diskinfo (int drive, struct geometry *geometry)
 			geometry->sectors = hd_geom[d].sectors;
 			geometry->cylinders = hd_geom[d].cylinders;
 			return 0;
+		    }
 		}
 	    } else if (d < 4) {
+		flags = (fd_geom[d].flags & BIOSDISK_FLAG_GEOMETRY_OK);
+		heads_ok = fd_geom[d].heads;
+		sectors_ok = fd_geom[d].sectors;
 		if (fd_geom[d].sector_size == 512 && fd_geom[d].sectors > 0 && fd_geom[d].sectors <= 63 && fd_geom[d].heads <= 256)
 		{
+		    if ((! force_geometry_tune) || flags)
+		    {
 			geometry->flags = fd_geom[d].flags;
 			if ((geometry->flags & BIOSDISK_FLAG_BIFURCATE) && (drive & 0xFFFFFF00) == 0x100)
 			{
@@ -436,6 +451,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 			geometry->sectors = fd_geom[d].sectors;
 			geometry->cylinders = fd_geom[d].cylinders;
 			return 0;
+		    }
 		}
 	    }
 	}
@@ -455,7 +471,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 	/* Set the LBA flag.  */
 	if (version & 1) /* support functions 42h-44h, 47h-48h */
 	{
-		flags = BIOSDISK_FLAG_LBA_EXTENSION;
+		flags |= BIOSDISK_FLAG_LBA_EXTENSION;
 	}
 	total_sectors = 0;
 
@@ -632,7 +648,23 @@ failure_probe_boot_sector:
 	
 #ifndef GRUB_UTIL
 #if 1
-	if (force_geometry_tune==1 || (!(geometry->flags & BIOSDISK_FLAG_LBA_EXTENSION) && ! ((*(char *)0x8205) & 0x08)))
+	if (flags & BIOSDISK_FLAG_GEOMETRY_OK)
+	{
+		err = geometry->heads;
+		version = geometry->sectors;
+
+		geometry->heads = heads_ok;
+		geometry->sectors = sectors_ok;
+
+		if (debug > 0)
+		{
+		    if (err != geometry->heads)
+			grub_printf ("\n!! number of heads for drive %X restored from %d to %d.\n", drive, err, geometry->heads);
+		    if (version != geometry->sectors)
+			grub_printf ("\n!! sectors-per-track for drive %X restored from %d to %d.\n", drive, version, geometry->sectors);
+		}
+	}
+	else if (force_geometry_tune==1 || (!(flags & BIOSDISK_FLAG_LBA_EXTENSION) && ! ((*(char *)0x8205) & 0x08)))
 	{
 		err = geometry->heads;
 		version = geometry->sectors;
@@ -735,7 +767,8 @@ failure_probe_boot_sector:
 		d -= 0x80;
 		if (force_geometry_tune || hd_geom[d].sector_size != 512 || hd_geom[d].sectors <= 0 || hd_geom[d].sectors > 63 || hd_geom[d].heads > 256)
 		{
-			hd_geom[d].flags		= geometry->flags;
+			hd_geom[d].flags		&= BIOSDISK_FLAG_GEOMETRY_OK;
+			hd_geom[d].flags		|= geometry->flags;
 			hd_geom[d].sector_size		= geometry->sector_size;
 			hd_geom[d].total_sectors	= geometry->total_sectors;
 			hd_geom[d].heads		= geometry->heads;
@@ -745,7 +778,8 @@ failure_probe_boot_sector:
 	    } else if (d < 4) {
 		if (force_geometry_tune || fd_geom[d].sector_size != 512 || fd_geom[d].sectors <= 0 || fd_geom[d].sectors > 63 || fd_geom[d].heads > 256)
 		{
-			fd_geom[d].flags		= geometry->flags;
+			fd_geom[d].flags		&= BIOSDISK_FLAG_GEOMETRY_OK;
+			fd_geom[d].flags		|= geometry->flags;
 			fd_geom[d].sector_size		= geometry->sector_size;
 			fd_geom[d].total_sectors	= geometry->total_sectors;
 			fd_geom[d].heads		= geometry->heads;

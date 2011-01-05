@@ -675,6 +675,47 @@ pxe_init_done:
 #endif /* ! GRUB_UTIL */
 
 #if !defined(STAGE1_5) && !defined(GRUB_UTIL)
+
+    /* setup boot_drive and install_partition for dos boot drive */
+    if (dos_drive_geometry)
+    {
+	int j = -1;
+	if (dos_part_start)
+	{
+		/* find the partition starting at dos_part_start. */
+		/* only primary partitions can be a DOS boot drive. */
+		/* So we read the MBR and check the partition table. */
+		/* At this moment we cannot use geometry. */
+		/* So we safely call BIOS, read at 5000:0000 */
+		if (biosdisk_standard (0x02, (unsigned char)dos_drive_geometry, 0, 0, 1, 1, 0x5000))
+			goto failed_dos_boot_drive;
+		for (j = 0; j < 4; j++)
+		{
+			if (*(unsigned long *)(j*16+0x501C6) == dos_part_start)
+				goto succeeded_dos_boot_drive;
+		}
+		goto failed_dos_boot_drive;
+	}
+succeeded_dos_boot_drive:
+	((char *)&install_partition)[2] = (char)j;
+	boot_drive = (unsigned char)dos_drive_geometry;
+
+	/* set geometry_ok flag for dos boot drive */
+	if (boot_drive == 0)
+	{
+		fd_geom[0].flags |= BIOSDISK_FLAG_GEOMETRY_OK;
+		fd_geom[0].heads = ((unsigned char *)&dos_drive_geometry)[1]+1;
+		fd_geom[0].sectors = ((unsigned char *)&dos_drive_geometry)[2];
+	}
+	else if (boot_drive == 0x80)
+	{
+		hd_geom[0].flags |= BIOSDISK_FLAG_GEOMETRY_OK;
+		hd_geom[0].heads = ((unsigned char *)&dos_drive_geometry)[1]+1;
+		hd_geom[0].sectors = ((unsigned char *)&dos_drive_geometry)[2];
+	}
+    }
+failed_dos_boot_drive:
+
   /* Set cdrom drive.  */
     
 #ifdef GRUB_UTIL

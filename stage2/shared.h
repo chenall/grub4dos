@@ -90,6 +90,7 @@ extern char *grub_scratch_mem;
 #define BIOSDISK_FLAG_LBA_EXTENSION	0x1
 #define BIOSDISK_FLAG_CDROM		0x2
 #define BIOSDISK_FLAG_BIFURCATE		0x4	/* accessibility acts differently between chs and lba */
+#define BIOSDISK_FLAG_GEOMETRY_OK	0x8
 
 /*
  *  This is the filesystem (not raw device) buffer.
@@ -922,6 +923,8 @@ extern unsigned long long part_start;
 extern unsigned long long part_length;
 
 extern unsigned long current_slice;
+extern unsigned long dos_drive_geometry;
+extern unsigned long dos_part_start;
 
 #ifndef GRUB_UTIL
 extern unsigned long force_geometry_tune;

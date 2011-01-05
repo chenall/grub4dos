@@ -4199,6 +4199,51 @@ put_config_file_name:
 	/* pre_stage2_start+0xB holds our temp boot_drive */
 	movb	$0x80, -7(%di)	/* temp storage for boot_drive */
 
+	pushal
+	/* get boot drive, AX = 3305h, Return: DL = boot drive (1=A:,...) */
+	xorw	%dx, %dx	/* set DL to a known value */
+	movw	$0x3305, %ax
+	int	$0x21
+	cmpb	$1, %dl		# drive A:
+	je	1f
+	cmpb	$3, %dl		# drive C:
+	jne	2f		# failed
+1:
+	/* boot drive is valid */
+	pushw	%dx		# drive number(1=A:,...)
+	movw	$0x440D, %ax	# IOCTL - generic block device request
+	movb	%dl, %bl	# drive (0=default, 1=A:, etc)
+	movw	$0x0860, %cx	# get disk parameters
+	movw	$ABS_START(dos_stack), %dx	# temp use this space
+	pushw	%dx
+	int	$0x21
+	popw	%bx		# point to parameter block
+	popw	%dx		# drive number(1=A:,...)
+	jc	2f		# failed
+	movw	$ABS_PSP(pre_stage2_start+0x138), %di	# dos_drive_geometry
+	movw	0x14(%bx),%cx	# sectors per track
+	jcxz	2f		# failed
+	cmpw	$63, %cx
+	ja	2f		# failed
+	movw	0x16(%bx),%ax	# heads
+	decw	%ax
+	js	2f		# failed
+	testb	%ah, %ah
+	jnz	2f		# failed
+	addb	$0x7E, %dl	# DL=0x7F(A:) or 0x81(C:)
+	andb	$0x80, %dl	# DL=0(A:) or 0x80(C:)
+	movb	%al, %ah
+	movb	%dl, %al
+	//cld			# already done priviously
+	stosw
+	xchgw	%ax, %cx	# movw	%cx, %ax
+	stosw
+	/* DI now points to dos_part_start */
+	movl	0x18(%bx),%eax	# hidden sectors
+	stosl
+2:
+	popal
+
 	jcxz	6f		/* CX=0 means raw commands are embedded. */
 
 	/* pre_stage2_start+0xC holds the address of preset_menu.

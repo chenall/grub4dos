@@ -307,6 +307,17 @@ VARIABLE(debug)
 VARIABLE(current_slice)
 	.long	0
 
+VARIABLE(dos_drive_geometry)
+	# byte 0=DOS boot drive: 0 for floppy, 0x80 for harddrive.
+	# byte 1=max head number for DOS boot drive=(number of heads - 1).
+	# byte 2=sectors per track for DOS boot drive.
+	# byte 3=0(reserved).
+	.long	0
+
+VARIABLE(dos_part_start)
+	# partition start sector number(or hidden sectors) for DOS boot drive.
+	.long	0
+
 	. = EXT_C(main) + 0x140
 
 real_codestart:

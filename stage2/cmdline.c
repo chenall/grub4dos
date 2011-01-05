@@ -258,11 +258,11 @@ int run_line (char *heap,int flags)
 		copy_cmd_line(heap,cmdline_buf);
 		heap = cmdline_buf;
 	}
-	errnum = ERR_NONE;
 	/* Invalidate the cache, because the user may exchange removable disks.  */
 	buf_drive = -1;
 	while (*heap && (arg = heap))
 	{
+		errnum = ERR_NONE;
 		putchar_st.flag = 0;
 		heap = skip_to_next_cmd(heap,&status,0);//next cmd
 		switch(status_t)
@@ -274,14 +274,17 @@ int run_line (char *heap,int flags)
 				if (*arg == 0)
 					CMD_BUFFER[status_t++] = ' ';
 				if (putchar_st.addr >= PRINTF_BUFFER + 0xC00)
-					return !(errnum = ERR_WONT_FIT);
+				{
+					errnum = ERR_WONT_FIT;
+					goto quit;
+				}
 				grub_memmove(CMD_BUFFER + status_t,PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER);
 				arg = CMD_BUFFER;
 				break;
 			case 2:// operator ">"
 			case 3:// operator ">>"
 					if (! grub_open (arg))
-						return 0;
+						goto quit;
 					if (status_t & 1)//>> append
 					{
 						char *f_buf = CMD_BUFFER;
@@ -306,7 +309,7 @@ int run_line (char *heap,int flags)
 					if (grub_read ((unsigned long long)(int)PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER,GRUB_WRITE) == 0)
 					{
 						grub_close();
-						return 0;
+						goto quit;
 					}
 					grub_close();
 					goto check_status;
@@ -338,6 +341,8 @@ int run_line (char *heap,int flags)
 
 		if (status & 8)
 		{
+			if (errnum)
+				break;
 			status_t = status & 3;
 			*putchar_st.addr++ = 0;
 			continue;
@@ -347,17 +352,17 @@ int run_line (char *heap,int flags)
 		if (status == 0 || (status & 12))
 			break;
 		errnum_old = errnum;
-		errnum = 0;
 		status_t = 0;
 		if ((status == 1 && ret == 0) || (status == 2 && ret))
 		{
 			heap = skip_to_next_cmd(heap,&status,4);
 		}
 	}
+	quit:
 	grub_free(cmdline_buf);
 	putchar_st.flag = stat_bak;
 	putchar_st.addr = PRINTF_BUFFER;
-	return ret;
+	return errnum?0:ret;
 }
 #undef PRINTF_BUFFER 
 
