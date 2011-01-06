@@ -4928,7 +4928,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	{
 		s[i] = arg;
 		if (*arg)
-			arg = skip_to(SKIP_WITH_TERMINATE,arg);
+			arg = skip_to(SKIP_WITH_TERMINATE | 1,arg);
 	}
 	s[9] = arg;// %9 for other args.
 	int ret = 0;
@@ -5080,7 +5080,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			for (i=0;i<9 && s[i];i++)
 				s[i] = s[i+1];
 			if (s[8])
-				s[9] = skip_to(SKIP_WITH_TERMINATE,s[8]);
+				s[9] = skip_to(SKIP_WITH_TERMINATE | 1,s[8]);
 		}
 		else
 		{
@@ -14689,6 +14689,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 	{
 		memset( (char *)BASE_ADDR, 0, MAX_BUFFER );
 		sprintf(VAR[_WENV_], "?_WENV");
+		sprintf(VAR[63], "?_WENV");
 		QUOTE_CHAR = '\"';
 		return 1;
 	}
@@ -14778,11 +14779,11 @@ int envi_cmd(const char *var,char * const env,int flags)
 
 static int set_func(char *arg, int flags)
 {
-	if( *arg == '*' || strcmp(VAR[_WENV_], "?_WENV") != 0)
+	if( *arg == '*' || (strcmp(VAR[_WENV_], "?_WENV") != 0 && strcmp(VAR[63], "?_WENV") != 0))
 		reset_env_all();
 	if ((unsigned char)*arg < '.')
 		return get_env_all();
-	char *var = arg++;
+	char *var = arg;
 	int i;
 	flags = 2;
 	for (i=0;i<9 && *arg++;i++)
