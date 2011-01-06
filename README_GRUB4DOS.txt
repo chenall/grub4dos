@@ -4012,9 +4012,9 @@ To return to 640x480 mode, follow this way:
 2. Set graphics mode to 0x12 by using command: "graphicsmode 0x12".
 3. Enter graphics mode. You may execute command "terminal graphics".
 
-************************************************** *************************** 
+****************************************************************************** 
 *****			GRUB4DOS variable support			 *****
-************************************************** *************************** 
+****************************************************************************** 
 
 From now we supports variables, the same usage of MSDOS. 
 
@@ -4038,9 +4038,10 @@ Note:	1. the same of MSDOS.
 	2. Variable names must beginning with letter or "_".
 	   Otherwise you will not be able to access your variables.
 	3. See the previous description for length limit. 
+	3. To reset all used variable enter command "set *"
 
 the new command if
-	if [/ I] [NOT] STRING1==STRING2 [COMMAND]
+	if [/I] [NOT] STRING1==STRING2 [COMMAND]
 
 	STRING1==STRING2
 	   Specifies a true condition if the specified text strings match.
@@ -4053,7 +4054,7 @@ the new command if
 
 Example: 
 	1. To determine whether strings are equal, and not case sensitive. 
-		if / i test==%myvar% echo this is a test
+		if /i test==%myvar% echo this is a test
 	2. To determine the character is empty.
 		if %myvar%#==# echo variable myvar not defined.
 Usage example: 
@@ -4069,4 +4070,35 @@ Usage example:
 	  Will be displayed %myvar% rather than the extended character after myvar. 
 Note: We only deal the ^ between the symbols %%. 
 
+****************************************************************************** 
+*****			GRUB4DOS batch scripting support		 ***** 
+****************************************************************************** 
 
+The new version supports running a batch script,It very like MS-DOS batch.
+Yes!you needn't to learn a new language.
+
+Example of a simple script: 
+	========= GRUB4DOS BATCH SCRIPT START =============================== 
+	!BAT #Note: The file header !BAT is necessary to identify this is a batch
+	echo %0 
+	echo Your type:%1 %2 %3 %4 %5 %6 %7 %8 %9 
+	call :echo This is a test string 
+	goto :label2 
+	:Label1 
+	echo %1 %2 %3 %4 %5 %6 %7 %8 %9 
+	goto :eof 
+	:Label2 
+	echo end of batch script. 
+	========= GRUB4DOS BATCH SCRIPT END =============================== 
+
+Some differences: 
+	1. Batch will stop when an error occurs. 
+	2. Use command "exit 1",if you need to stop a running batch script.
+	3. %9 refers to all the remaining parameters. 
+	5. extensions
+		%~d0	expands %0 to a drive letter.e.g: (hd0,0) ,()
+		%~p0	expands %0 to a path only
+		%~n0	expands %0 to a file name only
+		%~xI	expands %0 to a file extension only
+	6.In below site you can find some script.
+	  http://chenall.net/post/tag/grub4dos/

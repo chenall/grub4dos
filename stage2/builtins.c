@@ -1469,7 +1469,7 @@ cat_func (char *arg, int flags)
 		break;
     }
   }else
-    for (j = 0; j < length && grub_read ((unsigned long long)(unsigned long)&c, 1, 0xedde0d90); j++)
+    for (j = 0; j < length && grub_read ((unsigned long long)(unsigned long)&c, 1, 0xedde0d90) && c; j++)
     {
 #if 1
 //	if (debug > 0)//chenall 2010-11-12 changed.always show.
@@ -5075,17 +5075,27 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				break;
 			}
 		}
-		ret = run_line (p_buff,flags);
+		if (substring(p_buff,"shift",1) == 0)
+		{
+			for (i=0;i<9 && s[i];i++)
+				s[i] = s[i+1];
+			if (s[8])
+				s[9] = skip_to(SKIP_WITH_TERMINATE,s[8]);
+		}
+		else
+		{
+			ret = run_line (p_buff,flags);
+		}
 
 		if (errnum == ERR_BAT_GOTO)
 		{
 			p_cmd = pre_cmdline;
 			p_bat = skip_to(SKIP_WITH_TERMINATE,p_cmd);
 			i = bat_find_label(p_cmd);
-			ret = 0;
 			if (i == -1)
 				break;
 			errnum = ERR_NONE;
+			ret = 1;
 			p_entry = bat_entry + i;
 			continue;
 		}
@@ -14768,17 +14778,22 @@ int envi_cmd(const char *var,char * const env,int flags)
 
 static int set_func(char *arg, int flags)
 {
-	if( strcmp(VAR[_WENV_], "?_WENV") != 0)
+	if( *arg == '*' || strcmp(VAR[_WENV_], "?_WENV") != 0)
 		reset_env_all();
 	if ((unsigned char)*arg < '.')
 		return get_env_all();
-	char *var = arg;
-	arg = skip_to(1,arg);
-	if (*(arg - 1) == '=')
-		flags = 0;
-	else
-		flags = 2;
-	skip_to(SKIP_WITH_TERMINATE | 1,var);
+	char *var = arg++;
+	int i;
+	flags = 2;
+	for (i=0;i<9 && *arg++;i++)
+	{
+		if (*arg == '=')
+		{
+			flags = 0;
+			break;
+		}
+	}
+	arg = skip_to(SKIP_WITH_TERMINATE | 1,var);
 	return envi_cmd(var,arg,flags);
 }
 

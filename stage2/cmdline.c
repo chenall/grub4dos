@@ -53,7 +53,7 @@ skip_to (int flags, char *cmdline)
 		return *cmdline?cmdline:0;
 	}
   /* Skip until we hit whitespace, or maybe an equal sign. */
-  while (*cmdline && *cmdline != ' ' && *cmdline != '\t' &&
+  while (*cmdline && !grub_isspace(*cmdline) &&
 	 ! ((flags & 1) && *cmdline == '='))
   {
 		if (*cmdline == '\"')
@@ -74,7 +74,7 @@ skip_to (int flags, char *cmdline)
 		*cmdline++ ='\0';
 
   /* Skip whitespace, and maybe equal signs. */
-  while (*cmdline == ' ' || *cmdline == '\t' ||
+  while (grub_isspace(*cmdline) ||
 	 ((flags & 1)  && *cmdline == '='))
     cmdline ++;
 
@@ -371,7 +371,7 @@ int run_line (char *heap,int flags)
 	grub_free(cmdline_buf);
 	putchar_st.flag = stat_bak;
 	putchar_st.addr = PRINTF_BUFFER;
-	return errnum?0:ret;
+	return errnum<MAX_ERR_NUM?0:ret;
 }
 #undef PRINTF_BUFFER 
 
