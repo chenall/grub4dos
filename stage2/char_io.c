@@ -1138,13 +1138,23 @@ safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, in
    *  0x8000000000000000(the minimal long long) to 0x7fffffffffffffff(the maximal long long).
    *  The hex numbers are not checked.
    */
-
+#if 0
   if (*ptr == '-') /* check whether or not the negative sign exists */
     {
       ptr++;
       negative = 1;
     }
-
+#else
+  switch(*ptr)
+  {
+    case '-':
+    case '~':
+    case '!':
+      negative = *ptr++;
+    default:
+      break;
+  }
+#endif
   /*
    *  Is this a hex number?
    */
@@ -1260,7 +1270,22 @@ safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, in
 	errnum = ERR_NUMBER_OVERFLOW;
 	return 0;
     }
-    *myint_ptr = negative? -myint2: myint2;
+//    *myint_ptr = negative? -myint2: myint2;
+     switch(negative)
+    {
+      case '-':
+        *myint_ptr = -myint2;
+        break;
+      case '!':
+        *myint_ptr = !myint2;
+        break;
+      case '~':
+        *myint_ptr = ~myint2;
+         break;
+      default:
+        *myint_ptr = myint2;
+        break;
+    }
     *str_ptr = ptr;
     return 1;
   }

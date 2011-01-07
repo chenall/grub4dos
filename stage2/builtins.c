@@ -14781,6 +14781,12 @@ static int set_func(char *arg, int flags)
 {
 	if( *arg == '*' || (strcmp(VAR[_WENV_], "?_WENV") != 0 && strcmp(VAR[63], "?_WENV") != 0))
 		reset_env_all();
+	char value[16]="\0";
+	if (substring("/a ",arg,1) < 1)
+	{
+		arg = skip_to(0, arg);
+		value[0] = *arg;
+	}
 	if ((unsigned char)*arg < '.')
 		return get_env_all();
 	char *var = arg;
@@ -14795,6 +14801,11 @@ static int set_func(char *arg, int flags)
 		}
 	}
 	arg = skip_to(SKIP_WITH_TERMINATE | 1,var);
+	if (value[0])
+	{
+		sprintf(value,"%d",calc_func(arg,flags));
+		arg = value;
+	}
 	return envi_cmd(var,arg,flags);
 }
 
