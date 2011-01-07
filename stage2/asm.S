@@ -320,6 +320,15 @@ VARIABLE(dos_part_start)
 
 	. = EXT_C(main) + 0x140
 
+VARIABLE(buf_track)
+	.long	-1
+	.long	0	/* buf_track will grow to 64-bit */
+VARIABLE(buf_drive)
+	.long	-1
+	.long	0	/* padding */
+
+	. = EXT_C(main) + 0x150
+
 real_codestart:
 	cli
 	cld
@@ -7052,18 +7061,25 @@ realmode_printf:
 	cmpb	$'%', %al
 	jne	2f
 
-	#; %d, %x, %X
-
+	#; %d, %u, %x, %X, %4x, %4X
+	xorw	%cx, %cx
+7:
 	cs lodsb
 	testb	%al, %al
 	jz	1f
-	cmpb	$'d', %al
 	movw	$10, %bx		# base 10
+	cmpb	$'d', %al
+	jz	4f
+	cmpb	$'u', %al
 	jz	4f
 	cmpb	$'x', %al
 	jz	3f
 	cmpb	$'X', %al
+	jz	3f
+	cmpb	$'4', %al
 	jne	1b			# unkown directive, continue
+	movw	$4, %cx
+	jmp	7b
 3:
 	/* print hexa number */
 	movw	$16, %bx		# base 16
@@ -7071,23 +7087,25 @@ realmode_printf:
 	/* print decimal or hexa number */
 	pushl	%edi
 
-	xorl	%edi, %edi
-	xorw	%cx, %cx		# count the digits
+	movl	$1, %edi
 	movw	(%bp), %ax
 5:
 	xorw	%dx, %dx
 	divw	%bx			# AX=quo, DX=rem
-	movw	%dx, %di
-	rorl	$4, %edi
-	incw	%cx
+	shll	$4, %edi
+	orw	%dx, %di
+	jcxz	7f
+	loop	5b
+7:
 	testw	%ax, %ax		# end?
 	jnz	5b
 
 	/* print the digits in EDI */
 	xorw	%bx, %bx	/* video page 0 */
 5:
-	roll	$4, %edi
 	movw	%di, %ax		# get digit in AL
+	shrl	$4, %edi
+	jz	7f
 	andb	$0x0f, %al
 	cmpb	$9, %al
 	jbe	6f
@@ -7096,8 +7114,8 @@ realmode_printf:
 	addb	$0x30, %al
 	movb	$0x0e, %ah	/* print it */
 	int	$0x10		/* via TTY mode */
-	loop	5b
-
+	jmp	5b
+7:
 	popl	%edi
 
 	addw	$2, %bp			# (%bp) is the next variable
@@ -8522,6 +8540,7 @@ ENTRY(get_diskinfo_standard)
 
 	pushl	%ebx
 	pushl	%edi
+	pushl	%esi
 
 	/* Heads */
 	movl	0x10(%ebp), %edi
@@ -8583,7 +8602,7 @@ ENTRY(get_diskinfo_standard)
 	jnz	1f		/* failure */
 
 	/* restore %ebp */
-	leal	0x8(%esp), %ebp
+	leal	12(%esp), %ebp
 
 	/* heads */
 	xorl	%eax, %eax
@@ -8617,11 +8636,89 @@ ENTRY(get_diskinfo_standard)
 1:
 	movzbl	%bl, %eax	/* return value in %eax */
 
+	popl	%esi
 	popl	%edi
 	popl	%ebx
 	popl	%ebp
 
 	ret
+
+#if !defined(STAGE1_5) && defined(USE_DEBUG_DUMP)
+	.code16
+debug_dump_regs_format:
+	.ascii "di%4X si%4X bp%4X sp%4X bx%4X dx%4X cx%4X ax%4X f%4X ip%4X ln%u\r\n\0"
+	/* debug_dump_regs_ln */
+debug_dump_regs: 
+	pushfw
+	pushaw
+	pushw	$ABS(debug_dump_regs_format)
+	call	realmode_printf
+	popw	%ax
+	popaw
+	popfw
+	ret	$2
+debug_pause:
+	pushfw
+	pushw	%ax
+	movb	$0, %ah
+	int	$0x16
+	popw	%ax
+	popfw
+	ret
+#define DEBUG_DUMP	pushw $__ ## LINE ## __ ; call debug_dump_regs
+#define DEBUG_DUMP_P	pushw $__ ## LINE ## __ ; call debug_dump_regs ; call debug_pause
+#else
+#define DEBUG_DUMP
+#define DEBUG_DUMP_P
+#endif
+
+
+#define GEOMTUNE_SEG 0x2000
+	/* geometry_tune uses 64KiB buffer at this segment */
+#define GEOMTUNE_BUFFERSEG BUFFERSEG
+	/* geometry_tune uses 31.5KiB buffer at this segment */
+
+	/* offset of variables in GEOM_TUNE_SEG */
+#define GEOMTUNE_Smax_tuned    0x0000
+#define GEOMTUNE_Hmax_tuned    0x0002
+#define GEOMTUNE_Smax_readable 0x0004
+	/* upperbound of Smax, cannot read past this sector number */
+#define GEOMTUNE_Hmax_readable 0x0006
+	/* upperbound of Hmax, cannot read past this head */
+#define GEOMTUNE_read_ax       0x0008
+	/* byte0 = number of sectors to read */
+	/* byte1 = 2                         */
+#define GEOMTUNE_cmps_cx       0x000A
+	/* (tune Hmax) number of DWORD to compare      */
+#define GEOMTUNE_next_read     0x000C
+	/* (tune Hmax) boolean : 1 = next cylinder head 0 is read successfully */
+	/* (tune Smax) boolean : 1 = next track sector 1 is read successfully  */
+#define GEOMTUNE_equal 0x0100
+	/* (tune Hmax) 
+	 *   [0]     nonzero = There exist at least 1 track that have data equal to head 0. 
+	 *   [1...254] 
+	 *     bit0: 0=data from this head differ from data in head 0 same cylinder  1=no difference encountered
+	 *     bit1: 0=data from this head differ from data in head 0 next cylinder  1=no difference encountered
+	 *   [255]   padding
+	 * (tune Smax)
+	 *   [0]     nonzero = There exist at least 1 sector that have data equal to sector 1. 
+	 *   [1...62] 
+	 *     bit0: 0=data from sector i+1 differ from data in sector 1 same track  1=no difference encountered
+	 *     bit1: 0=data from sector i+1 differ from data in sector 1 next track  1=no difference encountered
+	 *   [63]    padding
+	 */
+#define GEOMTUNE_H_buf_cch0   0x0200
+	/* 0200 - 7FFF buffer current cylinder head0 (upto 63 sectors) */
+#define GEOMTUNE_H_buf_nch0   0x8000
+	/* 8000 - FDFF buffer next    cylinder head0 (upto 63 sectors) */
+#define GEOMTUNE_S_buf_ct     0x0200
+	/* 0200 - 7FFF buffer current track */
+#define GEOMTUNE_S_buf_nt     0x8000
+	/* 8000 - FDFF buffer next track */
+
+	/* offset of variables in BUFFERSEG */
+#define GEOMTUNE_H_buf_ct     0x0000
+	/* 0000 - 7DFF buffer current track          (upto 63 sectors) */
 
 	.code16
 
@@ -8636,9 +8733,12 @@ geometry_tune:
 	 *		DH	max head number
 	 *		DS	changed
 	 *		ES	changed
-	 *		AX	changed
+	 *		EAX	changed
 	 *		BX	changed
 	 *		CX	changed
+	 *		DX	changed
+	 *		SI	changed
+	 *		DI	changed
 	 */
 	
 	/* check for fb status  */
@@ -8652,7 +8752,7 @@ geometry_tune:
 	xorb	%ah, %ah
 	ret
 no_fb:
-
+#ifdef USE_OLD_GEOMETRY_TUNE
 //////////////////////////////////////////////////////////////////////////////
 
 	/* find Max sector by reading each sector on the first track. */
@@ -9208,6 +9308,325 @@ cmp_sector:
 	popw	%cx
 	ret
 
+#else /* ndef USE_OLD_GEOMETRY_TUNE */
+
+	//////////////////////////////////////////////////////////////////////////////
+	/* find Max sector by reading each sector on the first track. */
+
+	movw	$GEOMTUNE_SEG, %ax	/* Don't use SCRATCHSEG */
+	movw	%ax, %es
+	movw	%ax, %ds
+
+	/* try the passed-in value first */
+	movw	%cs:ABS(Sectors_passed_in), %cx	/* cylinder=0 */
+	xorw	%ax, %ax
+	cmpw	$63, %cx
+	ja	1f
+	call	check_sector_readable
+	sbbw	%ax, %ax
+	notw	%ax
+1:
+	andw	%ax, %cx	/* if read failure, cx=0 */
+1:
+	cmpb	$63, %cl
+	jnb	2f		/* this is the maximum value */
+	incw	%cx
+	call	check_sector_readable
+	jnc	1b
+
+	/* Max Sector = CX - 1 */
+	decw	%cx
+	cmpb	$2, %cl
+	jnb	2f		/* CX=Max Sector */
+	movb	$1, %ah		/* failure */
+	ret
+
+check_sector_readable:
+	xorw	%bx, %bx
+	movw	$0x201, %ax	/* read 1 sector */
+	movb	$0, %dh		/* head=0 */
+	pushaw
+	//movw	%bx, %si
+	//movw	%bx, %di
+	int	$0x13
+	jc	1f
+	decb	%al
+	addb	$255, %al	/* set CF if returned AL != 1 */
+1:
+	popaw
+	ret
+2:
+	/* CX=Max Sector */
+	movw	%cx, GEOMTUNE_Smax_readable
+
+	//////////////////////////////////////////////////////////////////////////////
+	/* tune Hmax */
+
+	/* invalidate disk cache */
+	movl	$(-1),%cs:ABS(EXT_C(buf_track))
+
+	movw	$GEOMTUNE_SEG, %bx
+	movw	%bx, %ds
+	movw	%bx, %es
+	movw	$254, GEOMTUNE_Hmax_readable
+
+	movb	$2,  %ch
+	movw	%cx, GEOMTUNE_read_ax	/* number of readable sectors per track */
+	shlw	$7,  %cx		/* x128 DWORDs per sector               */
+	movw	%cx, GEOMTUNE_cmps_cx	/* number of DWORDs to compare          */
+	/* fill array */
+	cld
+	movw	$GEOMTUNE_equal, %di
+	movl	$0x03030303, %eax
+	movw	$0x40, %cx	/* 0x100/4 = 0x40 */
+	rep stosl
+	
+	/* cx is now 0 */	/* start with cylinder 0*/
+
+10:	/* cylinder loop */
+	movb	$1, %cl		/* sector 1 */
+	xorb	%dh, %dh	/* head 0 */
+	movw	GEOMTUNE_read_ax, %ax
+	movw	%ds, %bx
+	movw	%bx, %es	/* GEOMTUNE_SEG */
+
+	/* read next cylinder, head 0 */
+	pushaw
+	incb	%ch	/* next cylinder */
+	movw	$GEOMTUNE_H_buf_nch0, %bx
+	int	$0x13
+	setnc	%ah
+	cmpb	GEOMTUNE_read_ax, %al
+	sete	%al
+	andb	%ah, %al	/* 1=no error and read all required sectors */
+	movb	%al, GEOMTUNE_next_read	/* save boolean value for later use */
+	popaw
+
+	/* read current cylinder, head 0 */
+	pushaw
+	movw	$GEOMTUNE_H_buf_cch0, %bx
+	int	$0x13
+	setnc	%ah
+	cmpb	GEOMTUNE_read_ax, %al
+	sete	%al
+	andb	%ah, %al	/* 1=no error and read all required sectors */
+	popaw
+	jz	14f	/* error, end cylinder loop */
+
+	/* read current cylinder, head 1-254 */
+	movw	$GEOMTUNE_BUFFERSEG, %bx
+	movw	%bx, %es
+	/* DH is now 0 */
+	movb	%dh, GEOMTUNE_equal	/* GEOMTUNE_equal[0] = 0 */
+
+11:	/* head loop */
+	addb	$1,  %dh
+	cmp	GEOMTUNE_Hmax_readable, %dh
+	ja	13f	/* end head loop */
+
+	movb	$(GEOMTUNE_equal >> 8),  %bh
+	movb	%dh, %bl	
+	/* DS:BX = address of GEOMTUNE_equal[DH] */
+	movb	(%bx), %al
+	testb	%al,  %al	/* 0=this head has already returned different data from head 0, no need to compare again */
+	jz	11b		/* head loop */
+
+	pushaw
+	xorw	%bx, %bx	/* offset GEOMTUNE_H_buf_ct is 0 */
+	movw	GEOMTUNE_read_ax, %ax
+	int	$0x13
+	setnc	%ah
+	cmpb	GEOMTUNE_read_ax, %al
+	sete	%al
+	andb	%ah, %al	/* no error and read all required sectors */
+	popaw
+	jz	12f	/* read error head 1-254 */
+
+	pushaw
+	testb	$1,  %al
+	jz	1f
+	/* compare with same cylinder head 0 */
+	movw	GEOMTUNE_cmps_cx, %cx
+	movw	$GEOMTUNE_H_buf_cch0, %si
+	xorw	%di, %di	/* offset GEOMTUNE_H_buf_ct is 0 */ /* ES is BUF_SEG */
+	repe cmpsl
+	je	1f
+	/* different data */
+	andb	$(0xFF-1), %al
+1:
+	testb	$2,  %al
+	jz	1f
+	/* compare with next cylinder head 0 */
+	testb	$1, GEOMTUNE_next_read	/* skip if next cylinder head 0 has not been read successfully */
+	jz	1f		
+	movw	GEOMTUNE_cmps_cx, %cx
+	movw	$GEOMTUNE_H_buf_nch0, %si
+	xorw	%di, %di	/* offset GEOMTUNE_H_buf_ct is 0 */ /* ES is BUF_SEG */
+	repe cmpsl
+	je	1f
+	/* different data */
+	andb	$(0xFF-2), %al
+1:
+	movb	%al, (%bx)
+	orb	%al, GEOMTUNE_equal	/* GEOMTUNE_equal[0] */
+	popaw
+
+	/* continue, next head */
+	jmp	11b	/* head loop */
+
+12:	/* read error head 1-254 */
+	test	%ch, %ch /* Is this cylinder 0 ? */
+	    		 /* If error on cylinder >0, end. */
+	jnz	14f	/* end cylinder loop */
+	decb	%dh		/* Error on cylinder 0 = end of cylinder. Adjust readable head number */
+	movb	%dh, GEOMTUNE_Hmax_readable
+
+13:	/* end head loop */
+	movb	GEOMTUNE_equal, %al
+	test	%al, %al	/* 0: all readable heads(>0) differ from head0 */
+	jz	14f	/* end cylinder loop */
+
+	/* next cylinder */
+	incb	%ch
+	cmpb	$5,  %ch	/* max number of cylinders to read */
+	jb	10b	/* cylinder loop */
+
+14:	/* end cylinder loop */
+	movw	%ds, %bx
+	movw	%bx, %es	/* GEOMTUNE_SEG */
+	movw	%cx, %bx
+	movw	$(GEOMTUNE_equal +1), %di
+	movw	GEOMTUNE_Hmax_readable, %cx
+	incw	%cx
+	xorw	%ax, %ax
+	repz	scasb		/* skip heads that have different data from head0 */
+	DEBUG_DUMP
+	subw	$(GEOMTUNE_equal +2), %di
+	movw	%di, GEOMTUNE_Hmax_tuned
+
+	//////////////////////////////////////////////////////////////////////////////
+	/* tune Smax */
+
+	/* DS = ES = GEOMTUNE_SEG */
+
+	movw	$GEOMTUNE_equal, %di
+	movl	$0x03030303, %eax
+	movw	$(64/4), %cx
+	rep stosl
+
+	/* read first track */
+	movw	$1, %cx 	/* cyl 0 sector 1 */
+	xorb	%dh, %dh	/* head 0 */
+	movw	GEOMTUNE_read_ax, %ax
+	movw	$GEOMTUNE_S_buf_ct, %bx
+	pushaw
+	int	$0x13
+	popaw
+	jc	2f
+	/* save data in disk cache */
+	movw	%bx, %si
+	xorw	%di, %di
+	movw	$GEOMTUNE_BUFFERSEG, %bx
+	movw	%bx, %es
+	movw	$(63*512/4), %cx
+	rep movsl
+	movw	%ds, %bx
+	movw	%bx, %es
+	/* update buf_track variable */
+	movl	$0, %cs:ABS(EXT_C(buf_track))
+	movw	$1, %cx 	/* cyl 0 sector 1 */
+
+20:	/* track loop */
+	/* compare sector 1 with sectors 2-63 */
+	/* AL = number of sectors read */
+
+	pushw	%cx
+	pushw	%dx
+	xorb	%ah, %ah
+	movw	$GEOMTUNE_equal, %bx
+	movw	$GEOMTUNE_S_buf_ct, %dx
+21:	/* sector loop */
+	incw	%bx
+	cmpb	%al, %bl
+	jae	22f /* end sector loop */
+	addw	$512, %dx
+	movw	%dx, %di
+	movw	$GEOMTUNE_S_buf_ct, %si
+	movw	$(512/4), %cx
+	repe cmpsl
+	setne	%cl		/* eq:0   dif:1     */
+	notb	%cl		/* eq:255 dif:255-1 */
+	andb	%cl, (%bx)	/* clear bit0 if dif */
+	setnz	%cl		/* dif:0  eq:1      */
+	orb	%cl, %ah	/* AH=1 if there is some sector that has equal data to sector 1 */
+	jmp	21b /* sector loop */
+22:	/* end sector loop */
+	popw	%dx
+	popw	%cx
+
+	testb	$0xFF, %ah	/* AH=1 if there is sector that has equal data to sector 1 */
+	jz	25f /* end track loop */ /* no more equal sector */
+	/* next track */
+	incb	%dh
+	cmpb	GEOMTUNE_Hmax_tuned, %dh
+	jna	1f
+	/* next cylinder */
+	xorb	%dh, %dh
+	incb	%ch
+	cmpb	$7, %ch		/* max cylinder number to read and compare */
+	ja	25f /* end track loop */
+1:	/* read new track */
+	movw	GEOMTUNE_read_ax, %ax
+	movw	$GEOMTUNE_S_buf_nt, %bx
+	pushaw
+	int	$0x13
+	popaw
+	jc	2f
+	/* compare sector 1 with sectors 2-63 from previous track */
+	/* AL = number of sectors read */
+	pushaw
+	movw	$GEOMTUNE_equal, %bx
+	movw	$GEOMTUNE_S_buf_ct, %dx
+23:	/* sector loop */
+	incw	%bx
+	cmpb	%al, %bl
+	jae	24f /* end sector loop */
+	addw	$512, %dx
+	movw	%dx, %di
+	movw	$GEOMTUNE_S_buf_nt, %si
+	movw	$(512/4), %cx
+	repe cmpsl
+	setne	%cl		/* eq=>0   dif=>1     */
+	addb	%cl, %cl	/* eq=>0   dif=>2     */
+	notb	%cl		/* eq=>255 dif=>255-2 */
+	andb	%cl, (%bx)	/* clear bit1 if dif */
+	jmp	23b /* sector loop */
+24:	/* end sector loop */
+	/* copy next track buffer to current track buffer */
+	movw	$GEOMTUNE_S_buf_nt, %si
+	movw	$GEOMTUNE_S_buf_ct, %di
+	movw	$(63*512/4), %cx
+	rep movsl
+	popaw
+	jmp	20b /* track loop */
+25:	/* end track loop */
+	movw	$(GEOMTUNE_equal +1), %di
+	movw	GEOMTUNE_Smax_readable, %cx
+	xorw	%ax, %ax	/* AL = 0 */
+	repe	scasb		/* skip 0 */
+	DEBUG_DUMP
+	subw	$(GEOMTUNE_equal +1), %di
+	movw	%di, GEOMTUNE_Smax_tuned
+
+	movw	%di, %cx
+	movb	GEOMTUNE_Hmax_tuned, %dh
+	movb	$0, %ah		/* success */
+	ret
+2:
+	movb	$1, %ah		/* failure */
+	ret
+#endif /* ndef USE_OLD_GEOMETRY_TUNE */
+
 //////////////////////////////////////////////////////////////////////////////
 
 	.align	4
@@ -9216,6 +9635,7 @@ Sectors_passed_in:
 	.long	0
 Heads_passed_in:
 	.long	0
+#ifdef USE_OLD_GEOMETRY_TUNE
 Smax_tuned:
 	.word	0
 Hmax_tuned:
@@ -9224,6 +9644,7 @@ Smax_count:
 	.word	0
 cross_track:
 	.byte	0
+#endif
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -12340,10 +12761,5 @@ VARIABLE(gzip_filemax)
 	.long 0
 	.long 0
 	//////////////////////////////
-VARIABLE(buf_drive)
-	.long	-1
-VARIABLE(buf_track)
-	.long	-1
-	.long	0
 #endif /* ! STAGE1_5 */
 
