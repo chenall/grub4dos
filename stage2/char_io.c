@@ -277,16 +277,145 @@ grub_sprintf (char *buffer, const char *format, ...)
      ugly hack -- should unify with printf() */
   unsigned long *dataptr = (unsigned long *)(((int *)(void *) &format) + 1);
   //unsigned long *dataptr = (unsigned long *)(((unsigned int *)(void *) &buffer));
-  char c, *ptr, str[32];
-  char *bp = buffer;
+//  char c, *ptr, str[32];
+  char str[32];
   char pad;
+  const char *ptr;
+  char *bp = buffer;
   int width;
-  int length;
+  unsigned int length;
+  int align;
   unsigned int accuracy;
 
   //dataptr++;
   //dataptr++;
+#if 1
+  while (*format)
+  {
+    if (*format == '%')
+    {
+	pad = ' ';
+	width = 0;
+	length = 0;
+	accuracy = -1;
+	align = 0;
+	ptr = format++;
+	if (*format == '-')
+	{
+		++align,++format;
+	}
+	if (*format == '0')
+	{
+		pad = *format++;
+	}
+	if (*format == '*')
+	{
+		++format;
+		width=*(dataptr++);
+	}
+	else
+	{
+		while (*format >= '0' && *format <= '9')
+			width = width * 10 + *(format++) - '0';
+	}
+	if (*format == '.')
+	{
+		++format;
+		if (*format == '*')
+		{
+			++format;
+			accuracy = *(dataptr++);
+		}
+		else
+		{
+			accuracy = 0;
+			while (*format >= '0' && *format <= '9')
+				accuracy = accuracy * 10 + *(format++) - '0';
+		}
+	}
 
+	if (*format == 'l')
+	{
+		++length,++format;
+	}
+
+	switch(*format)
+	{
+		case '%':
+			ptr = format;
+			accuracy = 1;
+			--width;
+			break;
+		case 'c':
+			accuracy = 1;
+			--width;
+			ptr = (char *)dataptr++;
+			break;
+		case 's':
+			ptr = (char *)(unsigned int) (*(dataptr++));
+			length = grub_strlen(ptr);
+			width -= (length > accuracy)?accuracy:length;
+			break;
+		case 'd': case 'x':	case 'X':  case 'u':
+			{
+				unsigned int lo, hi;
+
+				lo = *(dataptr++);
+				hi = (length ? (*(dataptr++)) : 0);
+				*convert_to_ascii (str, *format, lo, hi) = 0;
+			}
+			accuracy = grub_strlen (str);
+			width -= accuracy;
+			ptr = str;
+			break;
+		default:
+			format = ptr;
+			goto next_c;
+	}
+
+	if (align == 0 && width > 0)
+	{
+		while(width--)
+		{
+			if (buffer)
+				*bp = pad; /* putchar(pad); */
+			else
+				grub_putchar (pad);
+			++bp;
+		}
+	}
+	while (*ptr && accuracy--)
+	{
+		if (buffer)
+			*bp = *ptr;
+		else
+			grub_putchar (*ptr);
+		++bp,++ptr;
+	}
+	if (align && width > 0)
+	{
+		while(width--)
+		{
+			if (buffer)
+				*bp = pad; /* putchar(pad); */
+			else
+				grub_putchar (pad);
+			++bp;
+		}
+	}
+    }
+    else
+    {
+    next_c:
+	if (buffer)
+		*bp = *format;
+	else
+		grub_putchar(*format);
+	++bp;
+    } /* if */
+    ++format;
+  } /* while */
+#else
   while ((c = *(format++)) != 0)
     {
       if (c != '%')
@@ -429,7 +558,7 @@ find_specifier:
 	  } /* switch */
        } /* if */
     } /* while */
-
+#endif
   if (buffer)
 	*bp = 0;
   return bp - buffer;

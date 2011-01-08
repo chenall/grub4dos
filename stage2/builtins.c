@@ -14787,23 +14787,21 @@ static int set_func(char *arg, int flags)
 		arg = skip_to(0, arg);
 		value[0] = *arg;
 	}
+
 	if ((unsigned char)*arg < '.')
 		return get_env_all();
 	char *var = arg;
-	int i;
-	flags = 2;
-	for (i=0;i<9 && *arg++;i++)
-	{
-		if (*arg == '=')
-		{
-			flags = 0;
-			break;
-		}
-	}
-	arg = skip_to(SKIP_WITH_TERMINATE | 1,var);
+	arg = strstr(arg,"=");
+	if (! (flags = arg?0:2))
+		arg = skip_to(SKIP_WITH_TERMINATE | 1,var);
+	else
+		arg = var;
 	if (value[0])
 	{
 		sprintf(value,"%d",calc_func(arg,flags));
+		if (flags)
+			return 1;
+		errnum = 0;
 		arg = value;
 	}
 	return envi_cmd(var,arg,flags);

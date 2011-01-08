@@ -198,22 +198,22 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 #define CMD_BUFFER ((char *)0x1010000)
 char *pre_cmdline;
 
-static int copy_cmd_line(const char *cmdline,char *out)
+int expan_var(const char *str,char *out,const unsigned int maxlen)
 {
 	char var_tmp[9];
 	const char *p;
 	int i;
 	char *out_start = out;
-	char *out_end = out + 0x1000;
-	while (*cmdline && out < out_end)
+	char *out_end = out + maxlen;
+	while (*str && out < out_end)
 	{
-		if (*cmdline != '%' || cmdline[1] < '?')
+		if (*str != '%' || str[1] < '?')
 		{
-			*out++=*cmdline++;
+			*out++=*str++;
 			continue;
 		}
 		memset(var_tmp,0,9);
-		p = cmdline + 1;
+		p = str + 1;
 		for (i=0;i<8 && (unsigned char)*p >= '.';i++)
 		{
 			if (*p == '^')
@@ -225,7 +225,7 @@ static int copy_cmd_line(const char *cmdline,char *out)
 		i++;
 		if (*p != '%')
 		{
-			memmove(out,cmdline,i);
+			memmove(out,str,i);
 			out += i;
 			if (*p == '^')
 				i++;
@@ -236,7 +236,7 @@ static int copy_cmd_line(const char *cmdline,char *out)
 			if (out + 0x200 < out_end)
 				out += envi_cmd(var_tmp,out,1);
 		}
-		cmdline += i;
+		str += i;
 	}
 	*out = '\0';
 	return out - out_start;
@@ -255,7 +255,7 @@ int run_line (char *heap,int flags)
 	char *cmdline_buf = grub_malloc(0x1000);
 	if (cmdline_buf)
 	{
-		copy_cmd_line(heap,cmdline_buf);
+		expan_var(heap,cmdline_buf,0x1000);
 		heap = cmdline_buf;
 	}
 	errnum = ERR_NONE;
