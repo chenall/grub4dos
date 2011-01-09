@@ -14681,7 +14681,7 @@ static struct builtin builtin_if =
 #define QUOTE_CHAR (*(ENVI[_WENV_]+0x30))
 #define WENV_TMP (ENVI[_WENV_]+0x40)
 #define set_envi(var, val)			envi_cmd(var, val, 0)
-#define get_env(var, val)			envi_cmd(var, val, 1)
+//#define get_env(var, val)			envi_cmd(var, val, 1)
 #define get_env_all()				envi_cmd(NULL, NULL, 2)
 #define reset_env_all()				envi_cmd(NULL, NULL, 3)
 /*
@@ -14701,9 +14701,27 @@ int envi_cmd(const char *var,char * const env,int flags)
 		QUOTE_CHAR = '\"';
 		return 1;
 	}
+
 	int i, j;
+
+	if (flags == 2)
+	{
+		int count=0;
+		for(i=0; i < MAX_USER_VARS && VAR[i][0]; ++i)
+		{
+			if (VAR[i][0] < 'A')
+				continue;
+			if (var == NULL || substring(var,VAR[i],0) < 1 )
+			{
+				++count;
+				printf("%.8s=%.60s\n",VAR[i],ENVI[i]);
+			}
+		}
+		return count;
+	}
+
 	char ch[MAX_VAR_LEN +1] = "\0\0\0\0\0\0\0\0";
-	const char *p = var;
+	char *p = (char *)var;
 	int ou_start = 0;
 	int ou_len = 0x200;
 	if (*p == '%')
@@ -14716,11 +14734,11 @@ int envi_cmd(const char *var,char * const env,int flags)
 		{
 			unsigned long long t;
 			p += 2;
-			ou_start = safe_parse_maxint((char **)&p,&t)?(int)t:0;
+			ou_start = safe_parse_maxint(&p,&t)?(int)t:0;
 			if (*p == ',')
 			{
 				++p;
-				ou_len = safe_parse_maxint((char **)&p,&t)?(int)t:0;
+				ou_len = safe_parse_maxint(&p,&t)?(int)t:0;
 			}
 			break;
 		}
@@ -14730,25 +14748,9 @@ int envi_cmd(const char *var,char * const env,int flags)
 	{
 		return (*p == '^' || *p== '%')?p-var:0;
 	}
-	if (*p && *p != '%')
+	if (*p && (flags != 1 || *p != '%'))
 		return 0;
-	if (flags == 2)
-	{
-		int count=0;
-		for(i=0; i < MAX_USER_VARS && VAR[i][0]; ++i)
-		{
-			if (VAR[i][0] < 'A')
-				continue;
-			if (var == NULL || substring(ch,VAR[i],0) < 1 )
-			{
-				++count;
-				printf("%.8s=%.60s\n",VAR[i],ENVI[i]);
-			}
-		}
-		return count;
-	}
 
-	
 	/*
 	i >= 60  system variables.
 	'@' 	 Built-in variables or deleted.
@@ -14757,10 +14759,11 @@ int envi_cmd(const char *var,char * const env,int flags)
 	{
 		if (flags != 1)
 			return 0;
+		p = WENV_TMP;
 		#ifndef GRUB_UTIL
 		unsigned long date,time;
 		get_datetime(&date, &time);
-		p = WENV_TMP;
+
 		if (substring(ch,"@DATE",1) == 0)
 		{
 			sprintf(p,"%04X-%02X-%02X",(date >> 16),(char)(date >> 8),(char)date);

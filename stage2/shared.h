@@ -1402,7 +1402,9 @@ int load_initrd (char *initrd);
 
 int check_password(char* expected, password_t type);
 #endif
-
+extern int biosdisk_standard (int ah, int drive,
+			      int coff, int hoff, int soff,
+			      int nsec, int segment);
 void init_bios_info (void);
 
 struct master_and_dos_boot_sector {
