@@ -217,8 +217,11 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
   int x;
   unsigned long c = 0;
   if (entry)
-	entry += utf8_unicode((unsigned char *)entry,&c);
-
+  {
+      expan_var(entry,(char *)SCRATCHADDR,0x400);
+      entry = (char *)SCRATCHADDR;
+      entry += utf8_unicode((unsigned char *)entry,&c);
+  }
   if (current_term->setcolorstate)
     current_term->setcolorstate (highlight ? COLOR_STATE_HIGHLIGHT : COLOR_STATE_NORMAL);
   
@@ -327,7 +330,6 @@ space_no_highlight:
 		gotoxy (MENU_BOX_E, y);
 	}
   }
-
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
 }

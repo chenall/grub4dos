@@ -6928,9 +6928,10 @@ help_func (char *arg, int flags)
 	     is not specified, skip this.  */
 	  if (! all && ! ((*builtin)->flags & BUILTIN_HELP_LIST))
 	    continue;
-
+#if 0
 	  len = grub_strlen ((*builtin)->short_doc);
 	  /* If the length of SHORT_DOC is too long, truncate it.  */
+	  
 	  if (len > MAX_SHORT_DOC_LEN - 1)
 	    len = MAX_SHORT_DOC_LEN - 1;
 
@@ -6939,7 +6940,9 @@ help_func (char *arg, int flags)
 
 	  for (; i < MAX_SHORT_DOC_LEN; i++)
 	    grub_putchar (' ');
-
+#else
+	    printf("%-*.*s",MAX_SHORT_DOC_LEN,MAX_SHORT_DOC_LEN-1,(*builtin)->short_doc);
+#endif
 	  if (! left)
 	    grub_putchar ('\n');
 
@@ -6993,11 +6996,15 @@ help_func (char *arg, int flags)
 			    if (doc[len - 1] == ' ')
 			      break;
 			}
-
+			#if 0
 		      grub_printf ("    ");
 		      for (i = 0; i < len; i++)
 			grub_putchar (*doc++);
 		      grub_putchar ('\n');
+		  #else
+				grub_printf("    %.*s\n",len,doc);
+				doc += len;
+		  #endif
 		    }
 		}
 	    }
@@ -14671,7 +14678,8 @@ static struct builtin builtin_if =
 #define ENVI ((char (*)[MAX_ENV_LEN])(BASE_ADDR + MAX_VARS * MAX_VAR_LEN))
 #define _WENV_ 60
 #define WENV_RANDOM (*(unsigned long *)(ENVI[_WENV_]+0x20))
-#define QUOTE_CHAR (*(unsigned long *)(ENVI[_WENV_]+0x30))
+#define QUOTE_CHAR (*(ENVI[_WENV_]+0x30))
+#define WENV_TMP (ENVI[_WENV_]+0x40)
 #define set_envi(var, val)			envi_cmd(var, val, 0)
 #define get_env(var, val)			envi_cmd(var, val, 1)
 #define get_env_all()				envi_cmd(NULL, NULL, 2)
@@ -14695,7 +14703,35 @@ int envi_cmd(const char *var,char * const env,int flags)
 	}
 	int i, j;
 	char ch[MAX_VAR_LEN +1] = "\0\0\0\0\0\0\0\0";
-	sprintf(ch,"%.8s",var);
+	const char *p = var;
+	int ou_start = 0;
+	int ou_len = 0x200;
+	if (*p == '%')
+		p++;
+	for (i=0;i<=MAX_VAR_LEN && (unsigned char)*p >='.';i++)
+	{
+		if (*p == '^')
+			break;
+		if (*(short*)p == 0x7E3A)//:~
+		{
+			unsigned long long t;
+			p += 2;
+			ou_start = safe_parse_maxint((char **)&p,&t)?(int)t:0;
+			if (*p == ',')
+			{
+				++p;
+				ou_len = safe_parse_maxint((char **)&p,&t)?(int)t:0;
+			}
+			break;
+		}
+		ch[i] = *p++;
+	}
+	if (flags == 4)
+	{
+		return (*p == '^' || *p== '%')?p-var:0;
+	}
+	if (*p && *p != '%')
+		return 0;
 	if (flags == 2)
 	{
 		int count=0;
@@ -14712,7 +14748,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 		return count;
 	}
 
-	j = 0xFF;
+	
 	/*
 	i >= 60  system variables.
 	'@' 	 Built-in variables or deleted.
@@ -14724,36 +14760,68 @@ int envi_cmd(const char *var,char * const env,int flags)
 		#ifndef GRUB_UTIL
 		unsigned long date,time;
 		get_datetime(&date, &time);
+		p = WENV_TMP;
 		if (substring(ch,"@DATE",1) == 0)
 		{
-			return sprintf(env,"%04X-%02X-%02X",(date >> 16),(char)(date >> 8),(char)date);
+			sprintf(p,"%04X-%02X-%02X",(date >> 16),(char)(date >> 8),(char)date);
 		}
 		else if (substring(ch,"@TIME",1) == 0)
 		{
-			return sprintf(env,"%02X:%02X:%02X",(char)(time >> 24),(char)(time >> 16),(char)(time>>8));
+			sprintf(p,"%02X:%02X:%02X",(char)(time >> 24),(char)(time >> 16),(char)(time>>8));
 		}
 		else if (substring(ch,"@RANDOM",1) == 0)
 		{
 			WENV_RANDOM   =   (((WENV_RANDOM * time + date ) >> 16) & 0x7fff);
-			return sprintf(env,"%d",WENV_RANDOM);
+			sprintf(p,"%d",WENV_RANDOM);
 		}
 		else
 			return 0;
+		j = i;
 		#endif
 	}
-	for(i=(ch[0]=='?')?60:0;i < MAX_VARS && VAR[i][0];i++)
+	else
 	{
-		if (memcmp(VAR[i], ch, MAX_VAR_LEN) == 0)
+		j = 0xFF;
+		for(i=(ch[0]=='?')?60:0;i < MAX_VARS && VAR[i][0];i++)
 		{
-			j = i;
-			break;
+			if (memcmp(VAR[i], ch, MAX_VAR_LEN) == 0)
+			{
+				j = i;
+				break;
+			}
+			if (j == 0xFF && VAR[i][0] == '@') j = i;
 		}
-		if (j == 0xFF && VAR[i][0] == '@') j = i;
+		p = ENVI[i];
 	}
-
 	if (flags == 1)
 	{
-		return (j==i ) ? sprintf(env,"%.512s",ENVI[i]):0;
+		if (j!=i)
+			return 0;
+		for(j=0;j<512 && p[j];j++)
+		{
+			;
+		}
+		if (ou_start < 0)
+		{
+			if (-ou_start < j)
+			{
+				ou_start += j;
+				 j -= ou_start;
+			}
+			else
+			{
+				ou_start = 0;
+			}
+		}
+
+		if (ou_len < 0)
+		{
+			if (-ou_len <j)
+				ou_len += j;
+			else
+				ou_len=0;
+		}
+		return sprintf(env,"%.*s",ou_len,p + ou_start);
 	}
 	//flags = 0 set/del variables 
 	if (j == 0xFF && i >= MAX_VARS)//not variable space

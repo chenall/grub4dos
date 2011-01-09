@@ -198,43 +198,33 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 #define CMD_BUFFER ((char *)0x1010000)
 char *pre_cmdline;
 
-int expan_var(const char *str,char *out,const unsigned int maxlen)
+int expan_var(const char *str,char *out,const unsigned int len_max)
 {
-	char var_tmp[9];
 	const char *p;
 	int i;
 	char *out_start = out;
-	char *out_end = out + maxlen;
+	char *out_end = out + len_max;
 	while (*str && out < out_end)
 	{
-		if (*str != '%' || str[1] < '?')
+		if (*str != '%' || str[1] < '?' || !(i=envi_cmd(str,NULL,4)))
 		{
 			*out++=*str++;
 			continue;
 		}
-		memset(var_tmp,0,9);
-		p = str + 1;
-		for (i=0;i<8 && (unsigned char)*p >= '.';i++)
-		{
-			if (*p == '^')
-			{
-				break;
-			}
-			var_tmp[i] = *p++;
-		}
-		i++;
+		p = str + i++;
 		if (*p != '%')
 		{
 			memmove(out,str,i);
 			out += i;
-			if (*p == '^')
-				i++;
+			if (*p=='^')
+			{
+				--out,++i;
+				*out++=p[1];
+			}
 		}
-		else
+		else if (out + 0x200 < out_end)
 		{
-			i++;
-			if (out + 0x200 < out_end)
-				out += envi_cmd(var_tmp,out,1);
+				out += envi_cmd(str,out,1);
 		}
 		str += i;
 	}
