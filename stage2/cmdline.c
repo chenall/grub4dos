@@ -242,8 +242,8 @@ int run_line (char *heap,int flags)
 	int status_t = 0;
 	int stat_bak = putchar_st.flag;
 	grub_error_t errnum_old = errnum;
-	char cmdline_buf[0x1000];
-	expan_var(heap,cmdline_buf,0x1000);
+	char cmdline_buf[1500];
+	expan_var(heap,cmdline_buf,1500);
 	heap = cmdline_buf;
 	errnum = ERR_NONE;
 	/* Invalidate the cache, because the user may exchange removable disks.  */
@@ -325,6 +325,8 @@ int run_line (char *heap,int flags)
 		}
 		else
 			ret = command_func (arg,flags);
+
+		*(int*)0x4CB00=ret;
 
 		if (status_t == 1 && errnum_old)
 		{

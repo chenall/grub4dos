@@ -189,24 +189,33 @@ get_entry (char *list, int num)
 
 static int utf8_unicode(unsigned char *ch,unsigned long *unicode)
 {
-#ifdef SUPPORT_GRAPHICS
 	*unicode = (*ch & 0xff);
-	if ( !graphics_inited || (! (*ch & 0x80)) || menu_file_encode != UTF8_BOM)
+#ifdef SUPPORT_GRAPHICS
+	if ( (*ch&0x80)==0 || !graphics_inited || menu_file_encode == -1 )
 		return 1;
-	*unicode &= 0x3f;
-	*unicode <<= 6;
-	int i;
-	for (i=1;i<6;i++)
+	int i,j;
+	unsigned char c=*ch<<1;
+	for (j=1;j<7 && (c&0x80);++j)
 	{
-		*unicode |= (ch[i] & 0x3f);
-		if (! ((*ch) & (1<<(6-i)))) break;
-		*unicode ^= (1 << (6-i +6*i));
-		*unicode <<= 6;
+		if (ch[j]>>6 != 2)
+		{
+			menu_file_encode = -1;
+			return 1;
+		}
+		c<<=1;
 	}
-	i++;
-	return i;
+	if (j==7)
+		return 1;
+	*unicode = c>>j;
+
+	for (i=1;i<j;++i)
+	{
+		*unicode <<= 6;
+		*unicode |= ch[i] & 0x3f;
+	}
+	return j;
 #else
-	return (*unicode = (*ch & 0xff));
+	return 1;
 #endif
 }
 
