@@ -6916,8 +6916,8 @@ help_func (char *arg, int flags)
 
       for (builtin = builtin_table; *builtin != 0; builtin++)
 	{
-	  int len;
-	  int i;
+	//  int len;
+	//  int i;
 
 	  /* If this cannot be used in the command-line interface,
 	     skip this.  */
@@ -6986,7 +6986,7 @@ help_func (char *arg, int flags)
 		  while (*doc)
 		    {
 		      int len = grub_strlen (doc);
-		      int i;
+//		      int i;
 
 		      /* If LEN is too long, fold DOC.  */
 		      if (len > MAX_LONG_DOC_LEN)
@@ -8132,9 +8132,9 @@ unsigned long probed_heads;
 unsigned long probed_sectors_per_track;
 unsigned long probed_cylinders;
 unsigned long sectors_per_cylinder;
-
-int filesystem_type;
-
+#ifdef GRUB_UTIL
+int filesystem_type = 0;
+#endif
     /* matrix of coefficients of linear equations
      * 
      *   C[n] * (H_count * S_count) + H[n] * S_count = LBA[n] - S[n] + 1
@@ -14780,6 +14780,8 @@ int envi_cmd(const char *var,char * const env,int flags)
 		else
 			return 0;
 		j = i;
+		#else
+		j = 0xff;
 		#endif
 	}
 	else
@@ -14809,14 +14811,13 @@ int envi_cmd(const char *var,char * const env,int flags)
 			if (-ou_start < j)
 			{
 				ou_start += j;
-				 j -= ou_start;
 			}
 			else
 			{
 				ou_start = 0;
 			}
 		}
-
+		j -= ou_start;
 		if (ou_len < 0)
 		{
 			if (-ou_len <j)
@@ -14852,13 +14853,21 @@ static int set_func(char *arg, int flags)
 {
 	if( *arg == '*' || (strcmp(VAR[_WENV_], "?_WENV") != 0 && strcmp(VAR[63], "?_WENV") != 0))
 		reset_env_all();
-	char value[16]="\0";
-	if (substring("/a ",arg,1) < 1)
+	char value[512];
+	switch(*(short *)arg)
 	{
-		arg = skip_to(0, arg);
-		value[0] = *arg;
+		case 0x612F:/* set /a */
+			arg = skip_to(0, arg);
+			value[0] = *arg;
+			break;
+		case 0x702f:/* set /p */
+			arg = skip_to(0, arg);
+			value[0] = '\xff';
+			break;
+		default:
+			value[0]='\0';
+			break;
 	}
-
 	if ((unsigned char)*arg < '.')
 		return get_env_all();
 	char *var = arg;
@@ -14869,7 +14878,20 @@ static int set_func(char *arg, int flags)
 		arg = var;
 	if (value[0])
 	{
-		sprintf(value,"%d",calc_func(arg,flags));
+		if (value[0] == '\xff')
+		{
+			value[0] = 0;
+			get_cmdline_str.prompt = arg;
+			get_cmdline_str.maxlen = sizeof (value) - 1;
+			get_cmdline_str.echo_char = 0;
+			get_cmdline_str.readline = 0;
+			get_cmdline_str.cmdline = value;
+			get_cmdline (get_cmdline_str);
+		}
+		else
+		{
+			sprintf(value,"%d",calc_func(arg,flags));
+		}
 		if (flags)
 			return 1;
 		errnum = 0;

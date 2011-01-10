@@ -110,16 +110,15 @@ struct term_entry term_table[] =
     { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
   };
 
-/* This must be console.  */
-struct term_entry *current_term;
-
 int max_lines = 25;
 int count_lines = -1;
 int use_pager = 1;
 #endif
-
+#ifdef GRUB_UTIL
+/* This must be console.  */
+struct term_entry *current_term = term_table;
 int quit_print;
-
+#endif
 void
 print_error (void)
 {

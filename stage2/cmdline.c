@@ -242,12 +242,9 @@ int run_line (char *heap,int flags)
 	int status_t = 0;
 	int stat_bak = putchar_st.flag;
 	grub_error_t errnum_old = errnum;
-	char *cmdline_buf = grub_malloc(0x1000);
-	if (cmdline_buf)
-	{
-		expan_var(heap,cmdline_buf,0x1000);
-		heap = cmdline_buf;
-	}
+	char cmdline_buf[0x1000];
+	expan_var(heap,cmdline_buf,0x1000);
+	heap = cmdline_buf;
 	errnum = ERR_NONE;
 	/* Invalidate the cache, because the user may exchange removable disks.  */
 	buf_drive = -1;
@@ -358,7 +355,6 @@ int run_line (char *heap,int flags)
 		}
 	}
 	quit:
-	grub_free(cmdline_buf);
 	putchar_st.flag = stat_bak;
 	putchar_st.addr = PRINTF_BUFFER;
 	return errnum<MAX_ERR_NUM?0:ret;
