@@ -203,7 +203,7 @@ int expan_var(const char *str,char *out,const unsigned int len_max)
 	const char *p;
 	int i;
 	char *out_start = out;
-	char *out_end = out + len_max;
+	char *out_end = out + len_max - 1;
 	while (*str && out < out_end)
 	{
 		if (*str != '%' || str[1] < '?' || !(i=envi_cmd(str,NULL,4)))

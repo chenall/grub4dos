@@ -14489,7 +14489,7 @@ static int echo_func (char *arg,int flags)
       else if (grub_memcmp(arg,"-h",2) == 0 )
       {
 	 int i,j;
-	 printf("01234567  -Light-  01234567");
+	 printf(" 0 1 2 3 4 5 6 7-L-0 1 2 3 4 5 6 7");
 	 for (i=0;i<8;i++)
 	 {
 	    if (y < current_term->max_lines-1)
@@ -14499,20 +14499,16 @@ static int echo_func (char *arg,int flags)
 
 	    gotoxy(x,y);
 
-	    for (j=0;j<8;j++)
+	    for (j=0;j<16;j++)
 	    {
-	       console_current_color = (i << 4) | j;
-	       putchar(65);
+	       if (j==8)
+	       {
+	         console_current_color = A_NORMAL;
+	         printf(" L ");
+	       }
+       	       console_current_color = (i << 4) | j;
+      	       printf("%02X",console_current_color);
 	    }
-
-	    console_current_color = A_NORMAL;
-	    printf(" [%d]Light- ",i);
-	    for (j=0;j<8;j++)
-	    {
-	       console_current_color = (i << 4) | j | 8;
-	       putchar(65);
-	    }
-	    console_current_color = A_NORMAL;
 	 }
 	 console_current_color = A_NORMAL;
 	 if (saved_xy) gotoxy((saved_xy >> 8) & 0xff,saved_xy & 0xff);//restor cursor
@@ -14990,10 +14986,10 @@ struct builtin *builtin_table[] =
 #endif /* SUPPORT_NETBOOT */
 //  &builtin_impsprobe,
   &builtin_initrd,
-  &builtin_insmod,
 #ifndef GRUB_UTIL
   &builtin_initscript,
 #endif
+  &builtin_insmod,
 #ifdef GRUB_UTIL
   &builtin_install,
 #endif /* GRUB_UTIL */
