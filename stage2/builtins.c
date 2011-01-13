@@ -4914,9 +4914,20 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 	/*copy filename to buff*/
 	i = grub_strlen(filename);
-	grub_memmove(cmd_buff,filename,i+1);
-	p_buff = cmd_buff + ((i+16) & ~0xf);
-	s[0] = cmd_buff;
+	p_cmd = cmd_buff;
+	p_cmd += sprintf(p_cmd,"(0x%X",saved_drive&0xff);
+	if ((saved_partition>>16) != 0xff)
+	{
+		sprintf(p_cmd,",0x%X)",saved_partition>>16);
+	}
+	else
+	{
+		sprintf(p_cmd,")");
+	}
+	p_cmd = cmd_buff + 0x10;
+	grub_memmove(p_cmd,filename,i+1);
+	p_buff = p_cmd + ((i+16) & ~0xf);
+	s[0] = p_cmd;
 	/*copy arg to buff*/
 	i = grub_strlen(arg);
 	grub_memmove(p_buff, arg, i+1);
@@ -4986,8 +4997,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 						}
 						else
 						{
-							*p_cmd++ = '(';
-							*p_cmd++ = ')';
+							p_cmd += sprintf(p_cmd,cmd_buff);
 						}
 					}
 
@@ -6974,7 +6984,7 @@ help_func (char *arg, int flags)
 	      if (! ((*builtin)->flags & BUILTIN_CMDLINE))
 		continue;
 
-	      if (substring (arg, (*builtin)->name, 0) < 1)
+	      if (substring (arg, (*builtin)->name, 0) < 1 && (*builtin)->short_doc)
 		{
 		  char *doc = (*builtin)->long_doc;
 
@@ -14490,7 +14500,7 @@ static int echo_func (char *arg,int flags)
       {
 	 int i,j;
 	 printf(" 0 1 2 3 4 5 6 7-L-0 1 2 3 4 5 6 7");
-	 for (i=0;i<8;i++)
+	 for (i=0;i<16;i++)
 	 {
 	    if (y < current_term->max_lines-1)
 	       y++;

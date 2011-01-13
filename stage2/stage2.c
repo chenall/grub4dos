@@ -186,28 +186,53 @@ get_entry (char *list, int num)
 
   return list;
 }
-
+static int utf8_check(unsigned char *ch)
+{
+	int j;
+	unsigned char c=*ch;
+	while((c=*ch++))
+	{
+		if ((c>>7) == 0)
+		{
+			continue;
+		}
+		if ((c>>6)!=3)
+		{
+			return 0;
+		}
+		c <<= 1;
+		for (j=1;j<7 && (c&0x80);++j)
+		{
+			if (*ch++>>6 != 2)
+			{
+				return 0;
+			}
+			c<<=1;
+		}
+		if (j==7)
+			return 0;
+	}
+	return 1;
+}
 static int utf8_unicode(unsigned char *ch,unsigned long *unicode)
 {
 	*unicode = (*ch & 0xff);
 #ifdef SUPPORT_GRAPHICS
-	if ( (*ch&0x80)==0 || !graphics_inited || menu_file_encode == -1 )
+	if ( (*ch&0x80)==0 || menu_file_encode == -1 )
 		return 1;
 	int i,j;
 	unsigned char c=*ch<<1;
 	for (j=1;j<7 && (c&0x80);++j)
 	{
+		#if 0
 		if (ch[j]>>6 != 2)
 		{
-			menu_file_encode = -1;
 			return 1;
 		}
+		#endif
 		c<<=1;
 	}
-	if (j==7)
-		return 1;
 	*unicode = c>>j;
-
 	for (i=1;i<j;++i)
 	{
 		*unicode <<= 6;
@@ -2090,7 +2115,10 @@ get_line_from_config (char *cmdline, int max_len, int preset)
     }
 
     cmdline[pos] = 0;
-
+    if (menu_file_encode == 0 && utf8_check((unsigned char *)cmdline)==0)
+    {
+      menu_file_encode = -1;
+    }
     return pos;
 }
 
