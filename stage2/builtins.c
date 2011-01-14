@@ -14855,53 +14855,77 @@ int envi_cmd(const char *var,char * const env,int flags)
 	return sprintf(ENVI[i],"%.512s",env);
 }
 
+static void case_convert(char *ch,int flag)
+{
+	if (flag != 'a' && flag != 'A')
+		return;
+	while (*ch)
+	{
+		if ((unsigned char)(*ch-flag) < 26)
+		{
+			*ch ^= 0x20;
+		}
+		++ch;
+	}
+}
+
 static int set_func(char *arg, int flags)
 {
 	if( *arg == '*' || (strcmp(VAR[_WENV_], "?_WENV") != 0 && strcmp(VAR[63], "?_WENV") != 0))
 		reset_env_all();
 	char value[512];
-	switch(*(short *)arg)
+	int convert_flag=0;
+	while (*arg)
 	{
-		case 0x612F:/* set /a */
-			arg = skip_to(0, arg);
-			value[0] = *arg;
+		flags = *(short *)arg;
+		if (flags == 0x612F) // set /a
+		{
+			convert_flag |= 0x100;
+		}
+		else if (flags == 0x702F) /* set /p */
+		{
+			convert_flag |= 0x200;
+		}
+		else if (flags == 0x6C2F) /* set /l */
+		{
+			convert_flag |= 'A';
+		}
+		else if (flags == 0x752F) /* set /u */
+		{
+			convert_flag |= 'a';
+		}
+		else
 			break;
-		case 0x702f:/* set /p */
-			arg = skip_to(0, arg);
-			value[0] = '\xff';
-			break;
-		default:
-			value[0]='\0';
-			break;
+		arg = skip_to(0, arg);
 	}
+
 	if ((unsigned char)*arg < '.')
 		return get_env_all();
 	char *var = arg;
-	arg = strstr(arg,"=");
-	if (! (flags = arg?0:2))
-		arg = skip_to(SKIP_WITH_TERMINATE | 1,var);
-	else
-		arg = var;
-	if (value[0])
+	flags = strstr(var,"=")?0:2;
+	arg = skip_to(SKIP_WITH_TERMINATE | 1,var);
+	if (convert_flag & 0x200)
 	{
-		if (value[0] == '\xff')
-		{
-			value[0] = 0;
-			get_cmdline_str.prompt = arg;
-			get_cmdline_str.maxlen = sizeof (value) - 1;
-			get_cmdline_str.echo_char = 0;
-			get_cmdline_str.readline = 0;
-			get_cmdline_str.cmdline = value;
-			get_cmdline (get_cmdline_str);
-		}
-		else
-		{
-			sprintf(value,"%d",calc_func(arg,flags));
-		}
-		if (flags)
-			return 1;
+		value[0] = 0;
+		get_cmdline_str.prompt = arg;
+		get_cmdline_str.maxlen = sizeof (value) - 1;
+		get_cmdline_str.echo_char = 0;
+		get_cmdline_str.readline = 0;
+		get_cmdline_str.cmdline = value;
+		get_cmdline (get_cmdline_str);
+		arg = value;
+	}
+	if (convert_flag & 0x100)
+	{
+		sprintf(value,"%d",calc_func(arg,flags));
 		errnum = 0;
 		arg = value;
+	}
+
+	if (*arg)
+	{
+		case_convert(arg,convert_flag&0xff);
+		flags = 0;
 	}
 	return envi_cmd(var,arg,flags);
 }
