@@ -1429,7 +1429,7 @@ cat_func (char *arg, int flags)
 						&& grub_memcmp ((char *)&s, (char *)(SCRATCHADDR + (unsigned long)i), len_s) == 0)
 					{
 						/* print the address */
-						if (debug > 0)
+						//if (debug > 0)
 							grub_printf (" %lX", (unsigned long long)k);
 						/* replace strings */
 						if (replace)
@@ -4870,7 +4870,8 @@ static int bat_find_label(char *label)
 		}
 	}
 
-	printf(" cannot find the batch label specified - %s\n",label);
+	if (debug)
+		printf(" cannot find the batch label specified - %s\n",label);
 	return -1;
 }
 

@@ -28,7 +28,14 @@
 
 unsigned long cur_addr;
 entry_func entry_addr;
-static struct mod_list mll[99];
+
+/*
+ * module list is a variable in the BSS area, so it is in between physical
+ * address 3M and 4M, conflict with multi_boot(). This is why we have
+ * fixed the multi_boot() function.
+ * sizeof(mod_list) == 16. So mll[99] occupies less than 2K.
+ */
+struct mod_list mll[99];
 static unsigned long long linux_mem_size;
 
 /*
@@ -684,7 +691,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
       filepos = pu.elf->e_shoff;
       if (grub_read ((unsigned long long) RAW_ADDR (cur_addr), tab_size, 0xedde0d90) == tab_size)
 	{
-	  mbi.syms.e.addr = cur_addr;
+	  mbi.syms.e.addr = cur_addr - 0x1000000;
 	  shdr = (Elf32_Shdr *) mbi.syms.e.addr;
 	  cur_addr += tab_size;
 
@@ -717,7 +724,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 		  break;
 		}
 
-	      shdr[i].sh_addr = cur_addr;
+	      shdr[i].sh_addr = cur_addr - 0x1000000;
 	      cur_addr += sec_size;
 	    }
 	}
@@ -801,7 +808,7 @@ load_module (char *module, char *arg)
 
   /* these two simply need to be set if any modules are loaded at all */
   mbi.flags |= MB_INFO_MODS;
-  mbi.mods_addr = (int) mll;
+  mbi.mods_addr = 0x20000; /* yes, multi_boot() will move mll here. */
 
   mll[mbi.mods_count].cmdline = (int) arg;
   mll[mbi.mods_count].mod_start = cur_addr - 0x1000000;

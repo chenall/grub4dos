@@ -2171,7 +2171,7 @@ restart:
     if (! use_config_file)
 	goto done_config_file;
 	/*comment by chenall on 2010-04-17,I think these are not necessary*/
-#if 0
+#if 1	/* uncomment by tinybit on 2011-01-16 since it is required. */
     /* Get a saved default entry if possible.  */
     saved_entryno = 0;
     if (*config_file && boot_drive != cdrom_drive)
@@ -2741,6 +2741,8 @@ original_config:
     }
 
 done_config_file:
+
+	preset_menu = 0;	/* Disable the preset menu.  */
 
 #ifndef GRUB_UTIL
 	pxe_restart_config = 1;	/* pxe_detect will use configfile to run menu */

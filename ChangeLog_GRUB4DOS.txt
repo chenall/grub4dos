@@ -1,11 +1,12 @@
-2011-01-07 applied karyonix's patch (issue:9 fix geometry_tune functio)
+2011-01-16 clear preset_menu before enter_cmdline. uncomment the required "default entry number" resolving code(stage2.c).
+2011-01-15 trying to fix ELF executable loading problem(issue 14).
+2011-01-07 applied karyonix's patch (issue 9: fix geometry_tune function)
 2011-01-07 applied Roy's patch(supported packed DR-DOS).
 2010-12-29 applied Roy's patch(fixed build issue).
-2010-12-25 applied Roy's patch(issue:13 fix autoconf and gcc issues in Linux).
-2010-12-11 (r73)applied karyonix's patch(Wrong data read from USB drive > 128GiB ).
-	   http://code.google.com/p/grub4dos-chenall/issues/detail?id=11
+2010-12-25 applied Roy's patch(issue 13: fix autoconf and gcc issues in Linux).
+2010-12-11 (r73)applied karyonix's patch(issue 11: Wrong data read USB)
 2010-11-30 (r69)applied karyonix's patch(support lzma decompression).
-2010-12-07 (r68)applied karyonix's patch(http://code.google.com/p/grub4dos-chenall/issues/detail?id=9).
+2010-12-07 (r68)applied karyonix's patch(issue 9).
 2010-11-15 improved ACPI halt code(patched by zw2312914,Thanks for MR.rockrock99 and MR.xianglang reports their different and special hardware response mechanism ).
 2010-11-04 finally fixed the ACPI halt failure on AMI netbook(by commenting out ACPI-enable code).
 2010-11-03 partially go back to ACPI halt code of 2010-10-29.

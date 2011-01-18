@@ -11908,6 +11908,14 @@ ENTRY(multi_boot)
 
 	.code32
 
+	/* before moving kernel, move module list(mll) down to 0x20000. */
+
+	movl	$ABS(EXT_C(mll)), %esi
+	movl	$0x20000, %edi	/* at physical address 128K. */
+	movl	$0x200, %ecx	/* (0x200*4=)2K is enough for mll[99]. */
+	cld
+	repz movsl
+
 	/* move image down 16M. This will destroy code at above 1M. So this
 	 * function must be at below 1M, together with real-mode functions.
 	 */
