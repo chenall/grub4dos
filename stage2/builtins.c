@@ -4895,7 +4895,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	if (filename == NULL)
 	{//filename is null is a call func;
 		filename = arg;
-		arg = skip_to(SKIP_WITH_TERMINATE,arg);
+		arg = skip_to(SKIP_WITH_TERMINATE | 1,arg);
 		if ((i = bat_find_label(filename)) == -1)
 			return 0;
 	}
@@ -14928,6 +14928,7 @@ static int set_func(char *arg, int flags)
 		case_convert(arg,convert_flag&0xff);
 		flags = 0;
 	}
+	skip_to(SKIP_LINE,arg);
 	return envi_cmd(var,arg,flags);
 }
 
