@@ -166,9 +166,11 @@ int fb_mount (void)
 
 	if (current_partition != 0xFFFFFF)
 		return 0;
-	if (fb_inited  == current_drive)
-		return 1;
 	fb_drive = current_drive;
+	if (fb_inited  == current_drive)
+	{
+		return 1;
+	}
 	return fb_init ();
 }
 

@@ -5080,10 +5080,16 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		if (debug_ori > 1)
 		{
 			printf("%s\n",p_buff);
-			if ((getkey() & 0xff00)==0x3100)
+			int key=getkey() & 0xff00;
+			if (key == 0x3100)
 			{
 				errnum = 1001;
 				break;
+			}
+			else if (key == 0x2e00)
+			{
+				char cmd_buf[2049];
+				commandline_func(cmd_buf,0);
 			}
 		}
 		if (substring(p_buff,"shift",1) == 0)
