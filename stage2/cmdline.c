@@ -326,15 +326,16 @@ int run_line (char *heap,int flags)
 		else
 			ret = command_func (arg,flags);
 
-		*(int*)0x4CB00=ret;
-
-		if (status_t == 1 && errnum_old)
+		if (status_t)
 		{
 			errnum = errnum_old;
-			ret = 0;
+			ret = *(int*)0x4CB00;
 		}
 		else
+		{
 			errnum_old = errnum;
+			*(int*)0x4CB00=ret;
+		}
 
 		if (status & 8)
 		{

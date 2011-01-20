@@ -3059,7 +3059,7 @@ PARTNEW 将自动修正 BPB 中的“隐藏扇区数”并且这个修改是永�
 		find --set-root /file.ext
 	在菜单中使用时可能会返回文件未找到的错误并停止执行.必要的话我们可以使用
 		find --set-root /file.ext || echo file not found.
-	这个命令在菜单中使用会显示find not found,但不停执行.
+	这个命令在菜单中使用会显示find not found,但不停止执行.
 
 更新1:	最新版本可以使用嵌套,例子:
 	find --set-root /file1 || find --set-root /file2 || find --set-root /file3

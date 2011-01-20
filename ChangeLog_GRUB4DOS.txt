@@ -1,5 +1,6 @@
+2011-01-18 set "APM BIOS call" as default halt method(see http://reboot.pro/13632/).
 2011-01-16 clear preset_menu before enter_cmdline. uncomment the required "default entry number" resolving code(stage2.c).
-2011-01-15 trying to fix ELF executable loading problem(issue 14).
+2011-01-15 trying to fix ELF executable loading problem(issue 14). (confirmed by the reporter).
 2011-01-07 applied karyonix's patch (issue 9: fix geometry_tune function)
 2011-01-07 applied Roy's patch(supported packed DR-DOS).
 2010-12-29 applied Roy's patch(fixed build issue).

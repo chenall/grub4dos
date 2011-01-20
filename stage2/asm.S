@@ -1153,14 +1153,17 @@ ENTRY(grub_halt)
 	movl	%esp, %ebp
 	movl	8(%ebp), %eax		/* get the argument: skip_flags */
 
-	testl	$2, %eax		/* bit 1=1 for --no-acpi */
-	jnz	1f
-	call 	acpi_soft_off
-1:
+	/* first, try APM BIOS call. */
 	testl	$1, %eax		/* bit 0=1 for --no-apm */
 	jnz	1f
 	call	try_apm
 1:
+	/* second, try ACPI. */
+	testl	$2, %eax		/* bit 1=1 for --no-acpi */
+	jnz	1f
+	call 	acpi_soft_off
+1:
+	/* halt failed. */
 	xorl	%eax, %eax		/* return 0 for false */
 
 	pushl	%eax			/* EAX=0 */
@@ -1170,7 +1173,7 @@ ENTRY(grub_halt)
 	popl	%ebp
 	ret
 
-acpi_soft_off:
+acpi_soft_off:		/* contributor: zw2312914(bbs.znpc.net) */
 
 	.code32
 
