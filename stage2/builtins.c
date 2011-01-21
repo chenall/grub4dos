@@ -5088,8 +5088,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			}
 			else if (key == 0x2e00)
 			{
-				char cmd_buf[2049];
-				commandline_func(cmd_buf,0);
+				commandline_func((char *)0x1000000,0);
 			}
 		}
 		if (substring(p_buff,"shift",1) == 0)
