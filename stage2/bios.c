@@ -361,7 +361,24 @@ get_diskinfo (int drive, struct geometry *geometry)
 
 		if (((unsigned char)drive) != hooked_drive_map[j].from_drive)
 			continue;
+
 		/* this is a mapped drive */
+		/* check cdrom emulation first */
+		if (hooked_drive_map[j].to_cylinder & 0x2000) /* drive is cdrom */
+		{
+			geometry->flags = BIOSDISK_FLAG_CDROM | BIOSDISK_FLAG_LBA_EXTENSION;
+			geometry->heads = 255;
+			geometry->sectors = 15;
+			geometry->sector_size = 2048;
+			geometry->total_sectors = hooked_drive_map[j].sector_count >> 2;
+			geometry->cylinders = (geometry->total_sectors > (0xFFFFFFFFULL - 255 * 15 + 1) ? 0xFFFFFFFFUL / (255UL * 15UL):((unsigned long)geometry->total_sectors + 255 * 15 -1) / (255 * 15));
+			if (! geometry->cylinders)
+			{
+				geometry->cylinders = 65536;
+				geometry->total_sectors = 65536 * 255 * 15;
+			}
+			return 0;
+		}
 		if ((hooked_drive_map[j].max_sector & 0x3E) == 0 && hooked_drive_map[j].start_sector == 0 && hooked_drive_map[j].sector_count <= 1)
 		{
 			/* this is a map for the whole drive. */
@@ -371,16 +388,6 @@ get_diskinfo (int drive, struct geometry *geometry)
 		}
 		//break;
 		/* this is a drive emulation, get the geometry from the drive map table */
-		if (hooked_drive_map[j].to_cylinder & 0x2000)
-		{
-			geometry->flags = BIOSDISK_FLAG_CDROM | BIOSDISK_FLAG_LBA_EXTENSION;
-			geometry->heads = 255;
-			geometry->sectors = 15;
-			geometry->sector_size = 2048;
-			geometry->total_sectors = hooked_drive_map[j].sector_count >> 2;
-			geometry->cylinders = (geometry->total_sectors > (0xFFFFFFFFULL - 255 * 15 + 1) ? 0xFFFFFFFFUL / (255UL * 15UL):((unsigned long)geometry->total_sectors + 255 * 15 -1) / (255 * 15));
-			return 0;
-		}
 		geometry->flags = BIOSDISK_FLAG_LBA_EXTENSION;
 		geometry->heads = hooked_drive_map[j].max_head + 1;
 		geometry->sectors = hooked_drive_map[j].max_sector & 0x3F;
@@ -751,6 +758,8 @@ failure_probe_boot_sector:
 
 		if (((unsigned char)drive) != hooked_drive_map[j].from_drive)
 			continue;
+		if (hooked_drive_map[j].to_cylinder & 0x2000) /* drive is cdrom */
+			break;
 		if ((hooked_drive_map[j].max_sector & 0x3E) == 0 && hooked_drive_map[j].start_sector == 0 && hooked_drive_map[j].sector_count <= 1)
 		{
 			/* this is a map for the whole drive. */

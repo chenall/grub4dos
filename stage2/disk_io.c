@@ -320,7 +320,7 @@ rawdisk_read (int drive, int sector, int nsec, int segment)
     // Compare with previous read data
     if (plast[0] != BADDATA1) 
     {   // Read data changed, error.
-	grub_printf("\nError: Inconsistent data read from (0x%X)%d+%d\n",drive,sector,nsec);
+	grub_printf("\nFatal! Inconsistent data read from (0x%X)%d+%d\n",drive,sector,nsec);
 	return -1; // error
     }
     return 0; // success
@@ -996,9 +996,13 @@ static void
 attempt_mount (void)
 {
 #ifndef STAGE1_5
+  int cdrom = (current_drive != NETWORK_DRIVE && current_drive != PXE_DRIVE && current_drive != FB_DRIVE && buf_geom.sector_size == 2048);
+
   for (fsys_type = 0; fsys_type < NUM_FSYS; fsys_type++)
   {
 //    if (fsys_type >= 4) continue;
+    if (cdrom && fsys_table[fsys_type].mount_func != iso9660_mount)
+	continue;
     if (errnum = 0, ((fsys_table[fsys_type].mount_func) ()))
       break;
   }
@@ -1025,7 +1029,7 @@ int
 open_device (void)
 {
   if (open_partition ())
-    attempt_mount ();
+    attempt_mount (); /* device could be pd, nd or ud */
 
   if (errnum != ERR_NONE)
     return 0;
@@ -1061,6 +1065,7 @@ next_part (void)
 static void
 check_and_print_mount (void)
 {
+  /* at this point, device has normal partition table. */
   attempt_mount ();
   if (errnum == ERR_FSYS_MOUNT)
     errnum = ERR_NONE;
@@ -1116,6 +1121,9 @@ real_open_partition (int flags)
       buf_track = -1;
     }
   part_length = buf_geom.total_sectors;
+
+  if (buf_geom.sector_size == 2048)
+    return 1;
 
   /* If this is the whole disk, return here.  */
   if (! flags && current_partition == 0xFFFFFF)

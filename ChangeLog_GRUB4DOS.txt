@@ -1,3 +1,4 @@
+2011-01-22 fixed "map (hd1) (0xFF)" issue of failed cdrom emulation.
 2011-01-18 set "APM BIOS call" as default halt method(see http://reboot.pro/13632/).
 2011-01-16 clear preset_menu before enter_cmdline. uncomment the required "default entry number" resolving code(stage2.c).
 2011-01-15 trying to fix ELF executable loading problem(issue 14). (confirmed by the reporter).

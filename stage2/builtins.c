@@ -6687,6 +6687,19 @@ geometry_func (char *arg, int flags)
 	       tmp_geom.cylinders, tmp_geom.heads, tmp_geom.sectors,
 	       (unsigned long long)tmp_geom.total_sectors, tmp_geom.sector_size);
 
+  if (tmp_geom.sector_size != 512)
+  {
+#ifndef GRUB_UTIL
+	if (sync)
+	{
+		grub_printf ("Cannot sync CD-ROM.\n");
+		errnum = ERR_BAD_ARGUMENT;
+		return 0; /* failure */
+	}
+#endif
+	return 1; /* success */
+  }
+
 #ifndef GRUB_UTIL
   if (sync)
   {
@@ -6704,12 +6717,12 @@ geometry_func (char *arg, int flags)
     if (! rawread (current_drive, 0, 0, SECTOR_SIZE, (unsigned long long)(unsigned long)mbr, 0xedde0d90))
 	return 0;
 
-    if (current_drive == cdrom_drive || (current_drive >= (unsigned char)min_cdrom_id && current_drive < (unsigned char)(min_cdrom_id + atapi_dev_count)))
-    {
-	grub_printf ("Cannot sync CD-ROM.\n");
-	errnum = ERR_BAD_ARGUMENT;
-	return 0;
-    }
+//    if (current_drive == cdrom_drive || (current_drive >= (unsigned char)min_cdrom_id && current_drive < (unsigned char)(min_cdrom_id + atapi_dev_count)))
+//    {
+//	grub_printf ("Cannot sync CD-ROM.\n");
+//	errnum = ERR_BAD_ARGUMENT;
+//	return 0;
+//    }
 
     if (current_drive & 0x80)
     {
@@ -6827,11 +6840,11 @@ geometry_func (char *arg, int flags)
   }
 #endif
 
-#ifdef GRUB_UTIL
-  if (current_drive != cdrom_drive)
-#else
-  if (current_drive != cdrom_drive && (current_drive < (unsigned char)min_cdrom_id || current_drive >= (unsigned char)(min_cdrom_id + atapi_dev_count)))
-#endif /* GRUB_UTIL */
+//#ifdef GRUB_UTIL
+//  if (current_drive != cdrom_drive)
+//#else
+//  if (current_drive != cdrom_drive && (current_drive < (unsigned char)min_cdrom_id || current_drive >= (unsigned char)(min_cdrom_id + atapi_dev_count)))
+//#endif /* GRUB_UTIL */
     if (current_drive & 0x80)
       real_open_partition (1);
 
@@ -10282,6 +10295,8 @@ map_whole_drive:
   /* if CHS disabled, let MAX_HEAD != 0 to ensure a non-empty slot */
   bios_drive_map[i].max_head = disable_chs_mode | (heads_per_cylinder - 1);
   bios_drive_map[i].max_sector = (disable_chs_mode ? 0 : in_situ ? 1 : sectors_per_track) | ((read_Only | fake_write) << 7) | (disable_lba_mode << 6);
+  if (from >= 0xA0 && tmp_geom.sector_size != 2048) /* FROM is cdrom and TO is not cdrom. */
+	bios_drive_map[i].max_sector |= 0x0F; /* can be any value > 1, indicating an emulation. */
 
   /* bit 12 is for "TO drive is bifurcate" */
 
