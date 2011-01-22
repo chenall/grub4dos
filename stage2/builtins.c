@@ -11206,7 +11206,10 @@ pause_func (char *arg, int flags)
       {
       	ret = getkey ();
       	if (testkey)
+      	{
       		printf("%04x",ret);
+      		return ret;
+      	}
          ret &= 0xFF;
          /* Check the special ESC key  */
          if (ret == '\e')

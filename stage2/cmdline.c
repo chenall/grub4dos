@@ -270,8 +270,11 @@ int run_line (char *heap,int flags)
 				break;
 			case 2:// operator ">"
 			case 3:// operator ">>"
+					ret = no_decompression;
+					no_decompression = 1;
 					if (! grub_open (arg))
 						goto quit;
+					no_decompression = ret;
 					if (status_t & 1)//>> append
 					{
 						char *f_buf = CMD_BUFFER;
