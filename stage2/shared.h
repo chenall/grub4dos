@@ -692,10 +692,10 @@ typedef enum
   ERR_HALT,
   ERR_PARTITION_LOOP,
   ERR_NOT_ENOUGH_MEMORY,
+  MAX_ERR_NUM,
   ERR_BAT_GOTO,
-  ERR_BAT_CALL,
+  ERR_BAT_CALL
 
-  MAX_ERR_NUM
 } grub_error_t;
 
 struct broder {

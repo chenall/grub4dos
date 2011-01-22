@@ -4872,7 +4872,7 @@ static int bat_find_label(char *label)
 
 	if (debug)
 		printf(" cannot find the batch label specified - %s\n",label);
-	return -1;
+	return 0;
 }
 
 /*
@@ -4890,13 +4890,13 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 	char **bat_entry = (char **)(p_bat_prog->entry + 0x80);
 
-	int i = 0;
+	int i = 1;
 
 	if (filename == NULL)
 	{//filename is null is a call func;
 		filename = arg;
 		arg = skip_to(SKIP_WITH_TERMINATE | 1,arg);
-		if ((i = bat_find_label(filename)) == -1)
+		if ((i = bat_find_label(filename)) == 0)
 			return 0;
 	}
 	char **p_entry = bat_entry + i;
@@ -5105,14 +5105,10 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 		if (errnum == ERR_BAT_GOTO)
 		{
-			p_cmd = pre_cmdline;
-			p_bat = skip_to(SKIP_WITH_TERMINATE,p_cmd);
-			i = bat_find_label(p_cmd);
-			if (i == -1)
+			if (ret == 0)
 				break;
+			p_entry = bat_entry + ret;
 			errnum = ERR_NONE;
-			ret = 1;
-			p_entry = bat_entry + i;
 			continue;
 		}
 
@@ -5151,7 +5147,7 @@ static int grub_exec_run(char *program, int flags)
 		struct bat_label *label_entry;
 		struct bat_array *p_bat_array = (struct bat_array *)(program - 16);
 		char **bat_entry;
-		int i_bat = 0,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
+		int i_bat = 1,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
 		if ((label_entry = (struct bat_label *)grub_malloc(0x2400)) == NULL)
 			return 0;
 		bat_entry = (char **)(label_entry + 0x80);//0x400/sizeof(label_entry)
@@ -14615,7 +14611,9 @@ static int goto_func(char *arg, int flags)
 {
 	errnum = ERR_BAT_GOTO;
 	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
-		return (int)(pre_cmdline = arg);
+	{
+		return bat_find_label(arg);
+	}
 	else
 		return fallback_func(arg,flags);//in menu script call fallback_func to jump next menu.
 }
@@ -14906,6 +14904,10 @@ static int set_func(char *arg, int flags)
 		{
 			convert_flag |= 0x100;
 		}
+		else if (flags == 0x412F) // set /A
+		{
+			convert_flag |= 0x500;
+		}
 		else if (flags == 0x702F) /* set /p */
 		{
 			convert_flag |= 0x200;
@@ -14927,7 +14929,7 @@ static int set_func(char *arg, int flags)
 		return get_env_all();
 	char *var = arg;
 	flags = strstr(var,"=")?0:2;
-	arg = skip_to(SKIP_WITH_TERMINATE | 1,var);
+	arg = skip_to(SKIP_WITH_TERMINATE | 1,arg);
 	if (convert_flag & 0x200)
 	{
 		value[0] = 0;
@@ -14941,7 +14943,10 @@ static int set_func(char *arg, int flags)
 	}
 	if (convert_flag & 0x100)
 	{
-		sprintf(value,"%d",calc_func(arg,flags));
+		if (convert_flag & 0x400)
+			sprintf(value,"0x%X",calc_func(arg,flags));
+		else
+			sprintf(value,"%d",calc_func(arg,flags));
 		errnum = 0;
 		arg = value;
 	}

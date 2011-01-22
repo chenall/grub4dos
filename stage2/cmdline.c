@@ -302,6 +302,8 @@ int run_line (char *heap,int flags)
 						goto quit;
 					}
 					grub_close();
+					errnum = errnum_old;
+					ret = *(int*)0x4CB00;
 					goto check_status;
 			default:
 				break;
@@ -329,16 +331,8 @@ int run_line (char *heap,int flags)
 		else
 			ret = command_func (arg,flags);
 
-		if (status_t)
-		{
-			errnum = errnum_old;
-			ret = *(int*)0x4CB00;
-		}
-		else
-		{
-			errnum_old = errnum;
-			*(int*)0x4CB00=ret;
-		}
+		errnum_old = errnum;
+		*(int*)0x4CB00=ret;
 
 		if (status & 8)
 		{
@@ -350,7 +344,10 @@ int run_line (char *heap,int flags)
 		check_status:
 		if (status == 0 || (status & 12))
 		{
-			errnum = errnum_old;
+			break;
+		}
+		if (errnum == ERR_BAT_GOTO && ret)
+		{
 			break;
 		}
 		status_t = 0;
