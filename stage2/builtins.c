@@ -11218,7 +11218,8 @@ pause_func (char *arg, int flags)
       	ret = getkey ();
       	if (testkey)
       	{
-      		printf("%04x",ret);
+      		if (debug > 0)
+      			printf("%04x",ret);
       		return ret;
       	}
          ret &= 0xFF;
@@ -11230,12 +11231,12 @@ pause_func (char *arg, int flags)
 
       if (wait != -1 && (time1 = getrtsecs ()) != time2 && time1 != 0xFF)
       {
-         printf("\t%d\t\r",wait);
+         if (debug >= 0)
+         	printf("\t%d\t\r",wait);
          time2 = time1;
          wait--;
       }
    }
-   printf("\t\t\r");
    return ret;
 }
 
@@ -14459,7 +14460,7 @@ static struct builtin builtin_graphicsmode =
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
   "graphicsmode [0x12 | 0x6A]",
   "Display/set the graphics mode number for the next graphics init."
-  "\nReturn the current graphics mode setting."
+  "Return the current graphics mode setting."
 };
 #endif /* ! GRUB_UTIL */
 
@@ -14660,11 +14661,14 @@ static int if_func(char *arg,int flags)
 {
 	char *str1,*str2;
 	int cmp_flag = 0;
+	int ret = 0;
 	while(*arg)
 	{
 		if (substring("/i ", arg, 1) == -1)
 			cmp_flag |= 1;
 		else if(substring("not ", arg, 1) == -1)
+			cmp_flag |= 4;
+		else if (substring("exist ", arg, 1) == -1)
 			cmp_flag |= 2;
 		else
 			break;
@@ -14672,19 +14676,39 @@ static int if_func(char *arg,int flags)
 	}
 	if (*arg == '\0')
 		return 0;
-	str1 = arg;
-	str2 = arg = skip_to(1,arg);
-	arg -= 2;
-	if (*(unsigned short *)arg != 0x3D3D)
+	if (cmp_flag & 2)
 	{
-		errnum = ERR_BAD_ARGUMENT;
-		return 0;
+		if (*arg < '@')
+		{
+			int no_decompression_bak = no_decompression;
+			no_decompression = 1;
+			ret = grub_open(arg);
+			grub_close();
+			errnum = 0;
+			no_decompression = no_decompression_bak;
+		}
+		else
+			ret = envi_cmd(arg,NULL,1);
+		arg = skip_to(0,arg);
 	}
-	skip_to (SKIP_WITH_TERMINATE | 1,str1);
-	arg = skip_to (SKIP_WITH_TERMINATE,str2);
-	if ((substring(str1,str2,cmp_flag & 1) == 0) ^ (cmp_flag >> 1))
+	else
 	{
-		return *arg?builtin_cmd(arg,skip_to(0,arg),flags):1;
+		str1 = arg;
+		str2 = arg = skip_to(1,arg);
+		arg -= 2;
+		if (*(unsigned short *)arg != 0x3D3D)
+		{
+			errnum = ERR_BAD_ARGUMENT;
+			return 0;
+		}
+		skip_to (SKIP_WITH_TERMINATE | 1,str1);
+		arg = skip_to (SKIP_WITH_TERMINATE,str2);
+		ret = (substring(str1,str2,cmp_flag & 1) == 0);
+	}
+
+	if (ret ^ (cmp_flag >> 2))
+	{
+		return *arg?run_line(arg,flags):1;
 	}
 	return 0;
 }
@@ -14693,7 +14717,9 @@ static struct builtin builtin_if =
 {
    "if",
    if_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  "if [/i] [not] STRING1==STRING2 [COMMAND]",
+  "if [NOT] exist VARIABLE|FILENAME [COMMAND]"
 };
 
 #define MAX_USER_VARS 60
@@ -14715,7 +14741,7 @@ static struct builtin builtin_if =
 /*
 flags:
 0 add or set
-1 read
+1 read	if env is NULL,return true when the variable var is exist.
 2 show
 3 reset
 */
@@ -14776,7 +14802,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 	{
 		return (*p == '^' || *p== '%')?p-var:0;
 	}
-	if (*p && (flags != 1 || *p != '%'))
+	if (*p && (flags != 1 || (*var == '%' && *p != '%')))
 		return 0;
 
 	/*
@@ -14830,6 +14856,8 @@ int envi_cmd(const char *var,char * const env,int flags)
 	{
 		if (j!=i)
 			return 0;
+		if (env == NULL)
+			return 1;
 		for(j=0;j<512 && p[j];j++)
 		{
 			;
@@ -14964,7 +14992,10 @@ static struct builtin builtin_set =
 {
    "set",
    set_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  "set [/p] [/a|/A] [/l|/u] [VARIABLE=[STRING]]",
+  "/p,Get a line of input;l|/u,lower/upper case;/a|/A,numerical expression that is evaluated(use calc)."
+  "/a,set value to a Decimal;/A  to a HEX."
 };
 
 

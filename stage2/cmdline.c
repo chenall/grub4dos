@@ -360,7 +360,7 @@ int run_line (char *heap,int flags)
 	quit:
 	putchar_st.flag = stat_bak;
 	putchar_st.addr = PRINTF_BUFFER;
-	return errnum<MAX_ERR_NUM?0:ret;
+	return (errnum > 0 && errnum<MAX_ERR_NUM)?0:ret;
 }
 #undef PRINTF_BUFFER 
 

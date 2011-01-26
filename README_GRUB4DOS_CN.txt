@@ -4175,7 +4175,7 @@ read 1m
 
 新的版本支持变量，用法和MSDOS一样。
 关键命令：
-	SET [variable=[string]]
+	set [/p] [/a|/A] [/l|/u] [VARIABLE=[STRING]]
 
 	variable  指定环境变量名（最长8个字符）。
 	string    指定要指派给变量的一系列字符串（最长512个字符）。
@@ -4190,17 +4190,24 @@ read 1m
 		set ex_
 	会显示所有以ex_开头的变量，如果没有任何匹配返回0.
 
-注：1.使用和MSDOS一样的处理方法，一整行的命令会在执行前先进行变量替换。
-    2.变量名不允许使用非字母或_开头。否则你将无法访问你的变量。
+注：1.使用和MSDOS一样的处理方用户法，一整行的命令会在执行前先进行变量替换。
+    2.变量名必须使用字母或_开头。否则你将无法访问你的变量。
     3.长度限制请看前面说明。
     4.输入"set *"可以清除所有已设置的变量。
+    5./a  后面的STRING是一个表达式，将调用CALC进行计算，保存结果为10进制数。
+    6./A  同上，但保存结果为16进制数。
+    7./l|/u 大小写转换。
+    8./p  显示一个提示STRING并获取用户的输入内容并设置为变量VARIABLE的值。
+
 
 新增的命令if
 	if [/I] [NOT] STRING1==STRING2 [COMMAND]
+	if [NOT] exist VARIABLE|FILENAME [COMMAND]
 	1.如果STRING1==STRING2 字符串匹配，执行后面的COMMAND(如果有指定的话）。
 	  否则返回TRUE。
 	2./I 参数指写不区分大小写匹配。
 	3.[NOT] 相反，如果STRING1==STRING2不匹配。
+	4.exist 用于判断变量VARIABLE或文件FILENAME是否存在（filename必须以"/"或"("开头）.
 
 	例子：
 		1.判断字符串是否相等，并且不区分大小写。

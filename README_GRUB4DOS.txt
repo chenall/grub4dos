@@ -4019,7 +4019,7 @@ To return to 640x480 mode, follow this way:
 From now we supports variables, the same usage of MSDOS. 
 
 commands: 
-	SET [variable = [string]]
+	set [/p] [/a|/A] [/l|/u] [VARIABLE=[STRING]]
 	variable specifies the variable name (up to 8 characters). 
 	string Specifies a string assigned to the variable (up to 512 characters.) 
 
@@ -4042,6 +4042,7 @@ Note:	1. the same of MSDOS.
 
 the new command if
 	if [/I] [NOT] STRING1==STRING2 [COMMAND]
+	if [NOT] exist VARIABLE|FILENAME [COMMAND]
 
 	STRING1==STRING2
 	   Specifies a true condition if the specified text strings match.
