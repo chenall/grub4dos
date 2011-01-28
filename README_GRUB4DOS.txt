@@ -4083,7 +4083,7 @@ Example of a simple script:
 	!BAT #Note: The file header !BAT is necessary to identify this is a batch
 	echo %0 
 	echo Your type:%1 %2 %3 %4 %5 %6 %7 %8 %9 
-	call :echo This is a test string 
+	call :Label1 This is a test string 
 	goto :label2 
 	:Label1 
 	echo %1 %2 %3 %4 %5 %6 %7 %8 %9 

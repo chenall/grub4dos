@@ -47,6 +47,7 @@ void (*disk_read_func) (unsigned long, unsigned long, unsigned long) = NULL;
 /* Forward declarations.  */
 static int next_bsd_partition (void);
 static int next_pc_slice (void);
+static int next_gpt_slice(void);
 static char open_filename[512];
 static unsigned long relative_path;
 
@@ -766,6 +767,33 @@ next_bsd_partition (/*unsigned long drive, unsigned long *partition, int *type, 
 
 static char primary_partition_table[64];
 
+static int next_gpt_slice(void)
+{
+	if (++pc_slice_no >= *next_partition_entry)
+	{
+		errnum = ERR_PARTITION_LOOP;
+		return 0;
+	}
+	*next_partition_offset += pc_slice_no >> 2;
+	if (! rawread (next_partition_drive, *next_partition_offset, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
+		return 0;
+	unsigned long long *tmp_start = (unsigned long long *)(next_partition_buf + 0x80 * (pc_slice_no%4) + 0x20);
+	if (*tmp_start == 0LL || *tmp_start > 0xFFFFFFFFL)
+	{
+		errnum = ERR_NO_PART;
+		return 0;
+	}
+	/*
+		tmp_start      First LBA (little-endian) .
+		tmp_start + 1  Last LBA.
+	*/
+	*next_partition_start = (unsigned long)*tmp_start;
+	*next_partition_len = (unsigned long)(*(tmp_start + 1) - *tmp_start);
+	*next_partition_partition = (pc_slice_no << 16) | 0xFFFF;
+	*next_partition_type = 0xEE;
+	return 1;
+}
+
 static int
 next_pc_slice (void)
 {
@@ -786,7 +814,17 @@ redo:
 	  *next_partition_entry = -1;
 	  pc_slice_no = -1;
 	}
-
+      if (! rawread (next_partition_drive, 1, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
+	return 0;
+	if (*(unsigned long long *)next_partition_buf == 0X5452415020494645LL)
+	{
+		*next_partition_offset = *(unsigned long *)(next_partition_buf + 72);/* Partition entries starting LBA */
+		*next_partition_entry = *(unsigned long *)(next_partition_buf + 80);/* Number of partition entries */
+		*next_partition_ext_offset = *(unsigned long *)(next_partition_buf + 84);/* Size of a partition entry (usually 128) */
+		if (*next_partition_ext_offset != 0x80)
+			return 0;
+		return next_gpt_slice();
+	}
       /* Read the MBR or the boot sector of the extended partition.  */
       if (! rawread (next_partition_drive, *next_partition_offset, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
 	return 0;

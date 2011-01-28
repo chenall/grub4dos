@@ -44,7 +44,7 @@ biosdisk (int read, int drive, struct geometry *geometry,
 	  int sector, int nsec, int segment)
 {
   int err;
-  int max_sec, start, count, seg;
+  unsigned long max_sec, start, count, seg;
 
   if ((fb_status) && (drive == ((fb_status >> 8) & 0xff)))
     max_sec = fb_status & 0xff;

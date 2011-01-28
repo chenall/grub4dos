@@ -4244,7 +4244,7 @@ read 1m
 	!BAT #注：文件头!BAT是必须的用于识别这是一个GRUB4DOS批处理脚本
 	echo %0
 	echo Your type: %1 %2 %3 %4 %5 %6 %7 %8 %9
-	call :echo This is a test string
+	call :label1 This is a test string
 	goto :label2
 	:label1
 	echo %1 %2 %3 %4 %5 %6 %7 %8 %9
