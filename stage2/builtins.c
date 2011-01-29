@@ -11117,7 +11117,7 @@ password_func (char *arg, int flags)
       arg = skip_to (0, arg);
     }
 
-  if ((flags & (BUILTIN_CMDLINE | BUILTIN_SCRIPT)) != 0)
+  if ((flags & (BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_BAT_SCRIPT)) != 0)
     {
     	#if 0
       /* Do password check! */
