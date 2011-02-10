@@ -45,8 +45,6 @@ const char *preset_menu = 0;
 #endif /* GRUB_UTIL */
 
 static unsigned long preset_menu_offset;
-static unsigned long menu_file_encode;
-#define UTF8_BOM 0xBFBBEF
 
 static int
 open_preset_menu (void)
@@ -186,76 +184,20 @@ get_entry (char *list, int num)
 
   return list;
 }
-static int utf8_check(unsigned char *ch)
-{
-	int j;
-	unsigned char c=*ch;
-	while((c=*ch++))
-	{
-		if ((c>>7) == 0)
-		{
-			continue;
-		}
-		if ((c>>6)!=3)
-		{
-			return 0;
-		}
-		c <<= 1;
-		for (j=1;j<7 && (c&0x80);++j)
-		{
-			if (*ch++>>6 != 2)
-			{
-				return 0;
-			}
-			c<<=1;
-		}
-		if (j==7)
-			return 0;
-	}
-	return 1;
-}
-static int utf8_unicode(unsigned char *ch,unsigned long *unicode)
-{
-	*unicode = (*ch & 0xff);
-#ifdef SUPPORT_GRAPHICS
-	if ( (*ch&0x80)==0 || menu_file_encode == -1 )
-		return 1;
-	int i,j;
-	unsigned char c=*ch<<1;
-	for (j=1;j<7 && (c&0x80);++j)
-	{
-		#if 0
-		if (ch[j]>>6 != 2)
-		{
-			return 1;
-		}
-		#endif
-		c<<=1;
-	}
-	*unicode = c>>j;
-	for (i=1;i<j;++i)
-	{
-		*unicode <<= 6;
-		*unicode |= ch[i] & 0x3f;
-	}
-	return j;
-#else
-	return 1;
-#endif
-}
 
 /* Print an entry in a line of the menu box.  */
 static void
 print_entry (int y, int highlight, char *entry, char *config_entries)
 {
   int x;
-  unsigned long c = 0;
+  unsigned char c = 0;
   if (entry)
   {
       expan_var(entry,(char *)SCRATCHADDR,0x400);
       entry = (char *)SCRATCHADDR;
-      entry += utf8_unicode((unsigned char *)entry,&c);
+      c = *entry++;;
   }
+
   if (current_term->setcolorstate)
     current_term->setcolorstate (highlight ? COLOR_STATE_HIGHLIGHT : COLOR_STATE_NORMAL);
   
@@ -264,46 +206,39 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 
   gotoxy (MENU_BOX_X - 1, y);
 #ifdef SUPPORT_GRAPHICS
-  disable_space_highlight = 1;
+//  disable_space_highlight = 1;
 #endif /* SUPPORT_GRAPHICS */
 	if (highlight)
 		grub_putchar(30);
 	else
 		grub_putchar (' ');
 #ifdef SUPPORT_GRAPHICS
-  disable_space_highlight = 0;
+//  disable_space_highlight = 0;
 #endif /* SUPPORT_GRAPHICS */
 
-  for (x = MENU_BOX_X; x < MENU_BOX_E; x++)
+  for (x = MENU_BOX_X; x < MENU_BOX_E; x = getxy() >> 8)
     {
       if (c && c != '\n' /* && x <= MENU_BOX_W*/)
 	{
 	  if (x >= (MENU_BOX_E - 1))
-	    grub_putchar (DISP_RIGHT | (highlight <<16));
+	    grub_putchar (DISP_RIGHT);
 	  else
 	  {
 	  	while (c == 8 || c == 9)//(c && (c <= 0x0F))
-			entry += utf8_unicode((unsigned char *)entry,&c);
+			c = *entry++;;
 		if (! c || c == '\n')
 			goto space_no_highlight;
-		if (c & 0xff00) 
-		{
-			if (x >= (MENU_BOX_E - 2))
-			{
-				grub_putchar (' ' | (highlight <<16));
-				continue;
-			}
-			x++;
-		}
 		grub_putchar (c | (highlight <<16) );
-		entry += utf8_unicode((unsigned char *)entry,&c);
+		c = *entry++;
+		//if (!c || c == '\n')
+		//	x = (getxy() >> 8) + 1;
 	  }
 	}
       else
       {
 space_no_highlight:
 #ifdef SUPPORT_GRAPHICS
-	if (! disable_space_highlight)
+//	if (! disable_space_highlight)
 	      disable_space_highlight = 1;
 #endif /* SUPPORT_GRAPHICS */
 		grub_putchar (' ');
@@ -329,7 +264,7 @@ space_no_highlight:
 		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
 		{
 			if (c == '\n')
-				entry += utf8_unicode((unsigned char *)entry,&c);
+				c = *entry++;;
 			gotoxy (0, j);
 			for (x = 0; x < MENU_BOX_X - 2; x++) grub_putchar (' ');
 			for (x = 0; x <= MENU_BOX_W + 2; x++)
@@ -339,8 +274,7 @@ space_no_highlight:
 					if (c == '\r')
 						x = 0;
 					grub_putchar (c);
-					if (c & 0xff00) x++;
-					entry += utf8_unicode((unsigned char *)entry,&c);
+					c = *entry++;;
 				}
 				else
 					grub_putchar (' ');
@@ -1470,14 +1404,14 @@ done_key_handling:
 	if (config_entries)
 	{
 		char *p;
-		unsigned long ch;
+		unsigned char ch;
 
 		p = get_entry (menu_entries, first_entry + entryno);
 		//printf ("  Booting \'%s\'\n\n", (((*p) & 0xF0) ? p : ++p));
 		if (! ((*p) & 0xF0))
 			p++;
 		grub_putstr ("  Booting ");
-		while ((*p) && (p += utf8_unicode((unsigned char *)p,&ch)) && ch != '\n') grub_putchar (ch);
+		while ((*p) && (ch = *p++) && ch != '\n') grub_putchar (ch);
 		grub_putchar ('\n');
 		grub_putchar ('\n');
 	}
@@ -2115,10 +2049,6 @@ get_line_from_config (char *cmdline, int max_len, int preset)
     }
 
     cmdline[pos] = 0;
-    if (menu_file_encode == 0 && utf8_check((unsigned char *)cmdline)==0)
-    {
-      menu_file_encode = -1;
-    }
     return pos;
 }
 
@@ -2276,23 +2206,6 @@ restart_config:
 
 	    if (! is_opened)
 		goto done_config_file;
-	}
-	
-	if (is_preset)
-	{
-		read_from_preset_menu((char *)&menu_file_encode, 3);
-	}
-	else
-	{
-		grub_read ((unsigned long long)(unsigned int)&menu_file_encode, 3, GRUB_READ);
-	}
-	
-	menu_file_encode &= 0xffffff;
-	
-	if (menu_file_encode != UTF8_BOM)
-	{
-		menu_file_encode = 0;
-		preset_menu_offset = filepos = 0;
 	}
 	
 	/* This is necessary, because the menu must be overrided.  */

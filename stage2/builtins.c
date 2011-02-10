@@ -14873,6 +14873,8 @@ int envi_cmd(const char *var,char * const env,int flags)
 				ou_start = 0;
 			}
 		}
+		else if (j - ou_start < 0)
+			ou_start = j;
 		j -= ou_start;
 		if (ou_len < 0)
 		{

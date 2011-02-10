@@ -1,4 +1,14 @@
-﻿2011-01-28
+﻿2011-02-10
+  1.清理UTF8转换UNICODE的代码,不再需要(请同时更新UNIFONT).
+  2.修复变量字符串截取BUG.Fixed Bug in envi_cmd func.(thanks sratlf@wuyou report).
+    http://bbs.wuyou.com/viewthread.php?tid=180142&page=52#pid2154655
+注意:从2011-02-10开始,必须使用最新版的UNIFONT才可以正常显示UNICODE字符.
+
+Note: You must also update unifont to the latest version.new unifont can show unicode char anywhere.
+Download the latest version of unifont:
+http://code.google.com/p/grubutils/downloads/list
+
+2011-01-28
 	1.支持读取GPT分区表。
 	  为了区别MBR分区表和方便编程，所有的GPT分区类型全部使用0xEE表示。
 
