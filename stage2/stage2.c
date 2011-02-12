@@ -279,7 +279,7 @@ space_no_highlight:
 				else
 					grub_putchar (' ');
 			}
-			for (; x < current_term->chars_per_line - 1; x++) grub_putchar (' ');
+			for (x = getxy() >> 8; x < current_term->chars_per_line - 1; x++) grub_putchar (' ');
 		}
 		//gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
 		//grub_putstr (++entry);
