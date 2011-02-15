@@ -10958,6 +10958,277 @@ ENTRY(gateA20)
 1:
 	popl	%ebp
 	ret
+chain_stage1_esp:
+	.long	0
+
+/****************************************************************************/
+
+/*
+ * long realmode_run(long regs_ptr)
+ *
+ *  This starts another stage1 loader, at segment_offset.
+ */
+
+ENTRY(realmode_run)
+
+	.code32
+
+	pushl	%ebp
+	movl	%esp, %ebp
+
+	pushl	%ebx
+	movl	8(%ebp), %ebx		/* EBX=regs_ptr */
+
+	/* check sanity */
+
+	xorl	%eax, %eax		/* EAX=0 for failure */
+
+	movl	0x20(%ebx), %ecx	/* GS */
+	incl	%ecx
+	jz	1f
+	decl	%ecx
+	shrl	$16, %ecx
+	jnz	2f			/* failure */
+1:
+
+	movl	0x24(%ebx), %ecx	/* FS */
+	incl	%ecx
+	jz	1f
+	decl	%ecx
+	shrl	$16, %ecx
+	jnz	2f			/* failure */
+1:
+
+	movl	0x28(%ebx), %ecx	/* ES */
+	incl	%ecx
+	jz	1f
+	decl	%ecx
+	shrl	$16, %ecx
+	jnz	2f			/* failure */
+1:
+
+	movl	0x2C(%ebx), %ecx	/* DS */
+	incl	%ecx
+	jz	1f
+	decl	%ecx
+	shrl	$16, %ecx
+	jnz	2f			/* failure */
+1:
+
+	movl	0x30(%ebx), %ecx	/* SS */
+	movl	0x0C(%ebx), %edx	/* ESP */
+	incl	%ecx
+	jz	1f
+	decl	%ecx
+	orl	%edx, %ecx
+	shrl	$16, %ecx
+	jnz	2f			/* failure */
+	jmp	3f
+1:
+	incl	%edx
+	jnz	2f			/* failure */
+3:
+
+	movl	0x38(%ebx), %ecx	/* CS */
+	movl	0x34(%ebx), %edx	/* EIP */
+	incl	%ecx
+	jz	1f
+	decl	%ecx
+	orl	%edx, %ecx
+	shrl	$16, %ecx
+	jnz	2f			/* failure */
+	jmp	3f
+1:
+	cmpb	$0xCD, %dl
+	jnz	2f			/* failure */
+	shrl	$16, %edx
+	incw	%dx
+	jnz	2f			/* failure */
+3:
+	/* sanity check ok, run it! */
+
+	pushal
+	pushal
+	pushal
+	pushal
+	movl	%esp, ABS(chain_stage1_esp)
+
+	/* mov the struct to stack */
+	subl	$64, %esp
+	movl	%esp, %edi
+	movl	%ebx, %esi
+	movl	$16, %ecx
+	cld
+	repz movsl
+
+	movl	%esp, %ebp	/* EBP point to struct on stack */
+
+	call	prot_to_real
+
+	.code16
+
+	sti
+
+	movl	%ebp, %esp
+
+	/* check CS:EIP */
+
+	movl	0x38(%bp), %ecx		/* CS */
+	movl	0x34(%bp), %edx		/* EIP */
+	incl	%ecx
+	jz	3f
+
+	/* run user defined code */
+	decl	%ecx
+	movw	%dx, ABS(1f)
+	movw	%cx, ABS(1f + 2)
+
+	/* set return address for user code to return */
+	movl	$ABS(4f), %ecx
+	movl	%ecx, 0x8201
+	jmp	6f
+3:
+	/* run int xx */
+	movw	%dx, ABS(1f - 1)	/* int XX */
+	movb	$0xE9, ABS(1f + 1)	/* jmp */
+	movw	$(4f - 1f - 4), ABS(1f + 2)
+6:
+	movw	%sp, ABS(8f)		/* initial SP */
+	movw	%ss, ABS(7f)		/* initial SS */
+
+	/* set DS, ES, FS, GS */
+	movl	0x20(%bp), %ecx		/* GS */
+	incl	%ecx
+	jz	5f
+	decl	%ecx
+	movw	%cx, %gs
+5:
+
+	movl	0x24(%bp), %ecx		/* FS */
+	incl	%ecx
+	jz	5f
+	decl	%ecx
+	movw	%cx, %fs
+5:
+
+	movl	0x28(%bp), %ecx		/* ES */
+	incl	%ecx
+	jz	5f
+	decl	%ecx
+	movw	%cx, %es
+5:
+
+	movl	0x2C(%bp), %ecx		/* DS */
+	incl	%ecx
+	jz	5f
+	decl	%ecx
+	movw	%cx, %ds
+5:
+
+	movl	0x30(%bp), %ecx		/* SS */
+	incl	%ecx
+	jz	5f
+	decl	%ecx
+	movw	%cx, ABS(7f)
+	movw	0x0C(%bp), %dx		/* SP */
+	movw	%dx, ABS(8f)
+5:
+	movl	0x3C(%bp), %ecx		/* EFLAGS */
+	incl	%ecx
+	jz	5f
+	decl	%ecx
+	pushl	%ecx
+	popfl
+5:
+	popal				/* setup general registers */
+
+	/* move SS and SP */
+	.byte	0xBC			/* MOV SP */
+7:
+	.word	0			/* SS */
+	movw	%sp, %ss
+	.byte	0xBC			/* MOV SP */
+8:
+	.word	0			/* SP */
+
+	/* far jump to user code */
+	.byte	0xEA			/* ljmp */
+1:
+	.word	0			/* IP */
+	.word	0			/* CS */
+
+4:	/* return from user code */
+
+	/* CS:IP need not care */
+
+	/* use the stack already built by the user */
+
+	pushal
+	pushfl
+	pushl	%cs
+	pushl	$0
+	pushl	%ss
+	pushl	%ds
+	pushl	%es
+	pushl	%fs
+	pushl	%gs
+
+	movl	%ss, %ebp
+	shll	$4, %ebp
+	xorl	%eax, %eax
+	movw	%ax, %ds
+	movw	%ax, %es
+	movw	%sp, %ax
+	addl	%eax, %ebp		/* physical address of stack */
+
+	call	real_to_prot
+
+	.code32
+
+	cld
+	movl	%ebp, %esi
+
+	movl	ABS(chain_stage1_esp), %esp
+	movl	16(%esp), %ebx		/* EBX=regs_ptr */
+
+	leal	32(%ebx), %edi
+	movl	$8, %ecx
+	repz movsl
+
+	leal	32(%ebp), %esi
+	movl	%ebx, %edi
+	movl	$8, %ecx
+	repz movsl
+
+	/* the stack should not change! */
+	movl	%esp, %esi
+	leal	32(%esp), %edi
+	movl	$8, %ecx
+	repz cmpsl
+	jnz	1f
+	movl	%esp, %esi
+	leal	64(%esp), %edi
+	movl	$16, %ecx
+	repz cmpsl
+	jnz	1f
+	popal
+	popal
+	popal
+	popal
+	movl	$1, %eax		/* success */
+	popl	%ebx
+	popl	%ebp
+	ret
+1:
+	popal
+	popal
+	popal
+	popal
+	xorl	%eax, %eax		/* failure */
+2:
+	popl	%ebx
+	popl	%ebp
+	ret
 
 
 /*
@@ -12662,7 +12933,7 @@ VARIABLE(system_functions)
 	.long	ABS(EXT_C(grub_malloc))
 	.long	ABS(EXT_C(grub_free))//51
 	.long  0             // list_partitions
-	.long  0             // realmode_run
+	.long  ABS(EXT_C(realmode_run))             // realmode_run
 	//reserved for wee
 	.long 0
 	.long 0

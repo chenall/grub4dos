@@ -769,15 +769,17 @@ static char primary_partition_table[64];
 
 static int next_gpt_slice(void)
 {
-	if (++pc_slice_no >= *next_partition_entry)
+	pc_slice_no = (*next_partition_partition & 0xFF0000) >> 16;
+	if (pc_slice_no == 0xff)
+		pc_slice_no = 0;
+	else if (++pc_slice_no >= *next_partition_entry)
 	{
 		errnum = ERR_PARTITION_LOOP;
 		return 0;
 	}
-	*next_partition_offset += pc_slice_no >> 2;
-	if (! rawread (next_partition_drive, *next_partition_offset, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
+	if (! rawread (next_partition_drive, *next_partition_offset + (pc_slice_no >> 2), 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
 		return 0;
-	unsigned long long *tmp_start = (unsigned long long *)(next_partition_buf + 0x80 * (pc_slice_no%4) + 0x20);
+	unsigned long long *tmp_start = (unsigned long long *)(next_partition_buf + 0x80 * (pc_slice_no & 3) + 0x20);
 	if (*tmp_start == 0LL || *tmp_start > 0xFFFFFFFFL)
 	{
 		errnum = ERR_NO_PART;
@@ -796,19 +798,24 @@ static int next_gpt_slice(void)
 
 static int is_gpt_part(void)
 {
-	if (! rawread (next_partition_drive, 1, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
+	unsigned char tmp_buf[0x5c];
+	if (! rawread (next_partition_drive, 1, 0, 0x5C, (unsigned long long)(unsigned int)tmp_buf, 0xedde0d90))
 		return 0;
-	if (*(unsigned long long *)next_partition_buf != 0X5452415020494645LL)
+	if (*(unsigned long long *)tmp_buf != 0X5452415020494645LL) /* Signature ("EFI PART") */
 		return 0;
-	if (*(unsigned long *)(next_partition_buf+12) != 0x5C)/*Header size (in bytes, usually 5C 00 00 00 meaning 92 bytes)*/
+	if (*(unsigned long *)&tmp_buf[12] != 0x5C)/*Header size (in bytes, usually 5C 00 00 00 meaning 92 bytes)*/
 		return 0;
-	if (*(unsigned long long *)(next_partition_buf+24) != 1LL) /*Current LBA (location of this header copy),must be 1*/
+	if (*(unsigned long long *)&tmp_buf[24] != 1LL) /*Current LBA (location of this header copy),must be 1*/
 		return 0;
-	*next_partition_ext_offset = *(unsigned long *)(next_partition_buf + 84);/* Size of a partition entry (usually 128) */
+	*next_partition_ext_offset = *(unsigned long *)&tmp_buf[84];/* Size of a partition entry (usually 128) */
 	if (*next_partition_ext_offset != 0x80)
-			return 0;
-	*next_partition_offset = *(unsigned long *)(next_partition_buf + 72);/* Partition entries starting LBA */
-	*next_partition_entry = *(unsigned long *)(next_partition_buf + 80);/* Number of partition entries */
+	{
+		*next_partition_ext_offset = 0;
+		return 0;
+	}
+	*next_partition_offset = *(unsigned long *)&tmp_buf[72];/* Partition entries starting LBA */
+	*next_partition_entry = *(unsigned long *)&tmp_buf[80];/* Number of partition entries */
+	*next_partition_type = 0xEE;
 	return 1;
 }
 
@@ -832,13 +839,15 @@ redo:
 	  *next_partition_entry = -1;
 	  pc_slice_no = -1;
 	}
-	
-	if (is_gpt_part())
-		return next_gpt_slice();
 
       /* Read the MBR or the boot sector of the extended partition.  */
       if (! rawread (next_partition_drive, *next_partition_offset, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
 	return 0;
+	if (pc_slice_no == -1 && next_partition_buf[0x1C2] == '\xEE' && is_gpt_part())
+	{
+		return next_gpt_slice();
+	}
+
 
       /* Check if it is valid.  */
       if (! PC_MBR_CHECK_SIG (next_partition_buf))
@@ -1037,8 +1046,7 @@ next_partition (/*unsigned long drive, unsigned long dest,
       /* Ignore the error.  */
       errnum = ERR_NONE;
     }
-
-  return next_pc_slice ();
+  return (*next_partition_type == 0xEE)?next_gpt_slice():next_pc_slice ();
 }
 
 static void
