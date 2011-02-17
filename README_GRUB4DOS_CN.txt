@@ -2390,7 +2390,7 @@ FAT12/16/32 partition and place the same copy of GRLDR and MENU.LST there.
 	Thus, C:\GRLDR must exist(here C: can be NTFS), since it is used for
 	BOOT.INI and NTLDR. If C: is NTFS, X:\GRLDR should exist as well,
 	where X: stands for a certain FAT partition.
-        因此，自从它用于 BOOT.INT 和 NTLDR 以来 ，C 盘根目录下必须存在有GRLDR 
+        因此，自从它用于 BOOT.INI 和 NTLDR 以来 ，C 盘根目录下必须存在有GRLDR 
        （这里的C盘可以是 NTFS 文件系统）。
 
 

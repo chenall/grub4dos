@@ -807,15 +807,13 @@ static int is_gpt_part(void)
 		return 0;
 	if (*(unsigned long long *)&tmp_buf[24] != 1LL) /*Current LBA (location of this header copy),must be 1*/
 		return 0;
-	*next_partition_ext_offset = *(unsigned long *)&tmp_buf[84];/* Size of a partition entry (usually 128) */
-	if (*next_partition_ext_offset != 0x80)
+	if (*(unsigned long *)&tmp_buf[84] != 0x80) /* Size of a partition entry (usually 128) */
 	{
-		*next_partition_ext_offset = 0;
 		return 0;
 	}
+	*next_partition_ext_offset = 0x494645;//EFI
 	*next_partition_offset = *(unsigned long *)&tmp_buf[72];/* Partition entries starting LBA */
 	*next_partition_entry = *(unsigned long *)&tmp_buf[80];/* Number of partition entries */
-	*next_partition_type = 0xEE;
 	return 1;
 }
 
@@ -1046,7 +1044,7 @@ next_partition (/*unsigned long drive, unsigned long dest,
       /* Ignore the error.  */
       errnum = ERR_NONE;
     }
-  return (*next_partition_type == 0xEE)?next_gpt_slice():next_pc_slice ();
+  return (*next_partition_ext_offset == 0x494645)?next_gpt_slice():next_pc_slice ();
 }
 
 static void

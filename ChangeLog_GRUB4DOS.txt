@@ -1,3 +1,6 @@
+2011-02-17 fixed a bug of "0xEA not properly restored" in realmode_run(asm.S).
+2011-02-16 fixed a bug on stack checking in realmode_run(asm.S).
+2011-02-16 changed real_to_prot(asm.S) and related calls according to WEE.
 2011-01-22 fixed "map (hd1) (0xFF)" issue of failed cdrom emulation.
 2011-01-18 set "APM BIOS call" as default halt method(see http://reboot.pro/13632/).
 2011-01-16 clear preset_menu before enter_cmdline. uncomment the required "default entry number" resolving code(stage2.c).

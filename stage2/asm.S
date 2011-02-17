@@ -574,7 +574,7 @@ bootup_a20_failure:
 #endif /* !STAGE1_5 */
 
 	/* transition to protected mode */
-	DATA32	call EXT_C(real_to_prot)
+	call EXT_C(real_to_prot)
 
 	.code32
 
@@ -836,7 +836,7 @@ ENTRY(pxe_scan)
 	addl	%ebx, %ecx
 1:
 
-	DATA32  call EXT_C(real_to_prot)
+	call EXT_C(real_to_prot)
 	.code32
 
 	/* EAX=0 */
@@ -963,7 +963,7 @@ ENTRY(pxe_call)
 	addw	$10, %sp
 	movw	%ax, %cx
 
-	DATA32  call EXT_C(real_to_prot)
+	call EXT_C(real_to_prot)
 	.code32
 
 	movzwl	%cx, %eax
@@ -1080,7 +1080,7 @@ ENTRY(pxe_fast_read)
 	//addw	$10, %sp
 	movw	%ax, %cx
 
-	DATA32  call EXT_C(real_to_prot)
+	call EXT_C(real_to_prot)
 	.code32
 
 	movzwl	%cx, %eax
@@ -1113,7 +1113,7 @@ ENTRY(stop_floppy)
 #else
 	call	safe_int13
 #endif
-	DATA32  call EXT_C(real_to_prot)
+	call EXT_C(real_to_prot)
 	.code32
 	popal
 	ret
@@ -1486,7 +1486,7 @@ try_apm:
 	popw	%es
 	popw	%ds
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 
 	.code32
 	ret			/* APM code end */
@@ -1534,7 +1534,7 @@ ENTRY(tpm_init)
 1:
 	setz	%dl
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movzbl	%dl, %eax
@@ -7327,7 +7327,7 @@ ENTRY(init_atapi)
 	ljmp	$0, $ABS(1f)
 1:
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movzwl	%bx, %eax
@@ -7830,16 +7830,16 @@ ENTRY(real_to_prot)
 	/* load the GDT register */
 	xorw	%ax, %ax
 	movw	%ax, %ds
-	DATA32	ADDR32	lgdt	gdtdesc
+	lgdt	gdtdesc
 
 	/* turn on protected mode */
 	movl	%cr0, %eax
 	andl	$0x0000FFFF, %eax
-	orl	$CR0_PE_ON, %eax
+	orb	$1, %al
 	movl	%eax, %cr0
 
 	/* jump to relocation, flush prefetch queue, and reload %cs */
-	DATA32	ljmp	$PROT_MODE_CSEG, $protcseg
+	ljmp	$PROT_MODE_CSEG, $protcseg
 
 	/*
 	 *  The ".code32" directive only works in GAS, the GNU assembler!
@@ -7874,6 +7874,7 @@ protcseg:
 	xorl	%eax, %eax
 
 	/* return on the old (or initialized) stack! */
+	.byte	0x66	# data32	/* YES!! only a 16-bit RET!! */
 	ret
 
 
@@ -7918,7 +7919,7 @@ tmpcseg:
 	movl	%eax, %cr0
 
 	/* flush prefetch queue, reload %cs */
-	DATA32	ljmp	$0, $realcseg
+	ljmp	$0, $realcseg
 
 realcseg:
 	/* we are in real mode now
@@ -7938,7 +7939,7 @@ realcseg:
 	//sti
 
 	/* return on new stack! */
-	DATA32	ret
+	DATA32	ret		/* 32-bit RET!! */
 
 
 #ifndef STAGE1_5
@@ -8302,7 +8303,7 @@ ENTRY(biosdisk_int13_extensions)
 1:
 #endif /* ! STAGE1_5 */
 	/* back to protected mode */
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movzbl	%dl, %eax	/* return value in %eax */
@@ -8433,7 +8434,7 @@ ENTRY(biosdisk_standard)
 	popal
 #endif /* ! STAGE1_5 */
 	/* back to protected mode */
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movzbl	%bl, %eax	/* return value in %eax */
@@ -8514,7 +8515,7 @@ ENTRY(check_int13_extensions)
 	popw	%cx
 
 	/* back to protected mode */
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	xchgl	%eax, %ebx	/* return value in %eax */
@@ -8597,7 +8598,7 @@ ENTRY(get_diskinfo_standard)
 1:
 	movb	%ah, %bl	/* save return value in %bl */
 	/* back to protected mode */
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 
 	.code32
 
@@ -9700,7 +9701,7 @@ ENTRY(get_memsize)
 2:
 	movw	%ax, %bx
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movw	%bx, %ax
@@ -9775,7 +9776,7 @@ ENTRY(get_eisamemsize)
 	movw	%ax, %ds
 	movw	%ax, %es
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movl	%ebx, %eax
@@ -9876,7 +9877,7 @@ ENTRY(get_mmap_entry)
 	movw	%ax, %ds
 	movw	%ax, %es
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	popl	%eax		/* OLD ECX */
@@ -9940,7 +9941,7 @@ found_rom_table:
 	movw	%ax, %ds
 	movw	%ax, %es
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	/* compute the linear address */
@@ -10001,7 +10002,7 @@ ENTRY(get_vbe_controller_info)
 	movw	%ax, %ds
 	movw	%ax, %es
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movzwl	%bx, %eax
@@ -10051,7 +10052,7 @@ ENTRY(get_vbe_mode_info)
 	int	$0x10
 
 	movw	%ax, %bx
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movzwl	%bx, %eax
@@ -10093,7 +10094,7 @@ ENTRY(set_vbe_mode)
 	int	$0x10
 
 	movw	%ax, %bx
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movzwl	%bx, %eax
@@ -10168,7 +10169,7 @@ gfx_init_50_v1:
 
 	popw	%ds
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	popl	%ebp
@@ -10226,7 +10227,7 @@ ENTRY(gfx_done_v1)
 
 	popw	%ds
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	popl	%ebp
@@ -10294,7 +10295,7 @@ ENTRY(gfx_input_v1)
 
 	popw	%ds
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	popl	%ebp
@@ -10391,7 +10392,7 @@ ENTRY(gfx_setup_menu_v1)
 
 	popw	%ds
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	xorl	%eax,%eax
@@ -10447,7 +10448,7 @@ ENTRY(gfx_init_v2)
 
 	popw	%ds
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	popl	%ebp
@@ -10504,7 +10505,7 @@ ENTRY(gfx_done_v2)
 
 	popw	%ds
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	popl	%ebp
@@ -10571,7 +10572,7 @@ ENTRY(gfx_input_v2)
 
 	popw	%ds
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	popl	%ebp
@@ -10668,7 +10669,7 @@ ENTRY(gfx_setup_menu_v2)
 
 	popw	%ds
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	xorl	%eax,%eax
@@ -10727,7 +10728,7 @@ gate_a20_try_bios:
 	incw	%ax
 1:	int	$0x15
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	popl	%ebp
@@ -10949,7 +10950,7 @@ ENTRY(gateA20)
 	popal
 #endif
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 
 	.code32
 
@@ -11063,7 +11064,7 @@ ENTRY(realmode_run)
 
 	movl	%esp, %ebp	/* EBP point to struct on stack */
 
-	call	prot_to_real
+	call	EXT_C(prot_to_real)
 
 	.code16
 
@@ -11075,13 +11076,17 @@ ENTRY(realmode_run)
 
 	movl	0x38(%bp), %ecx		/* CS */
 	movl	0x34(%bp), %edx		/* EIP */
-	incl	%ecx
-	jz	3f
+	incl	%ecx			/* CS = -1? */
+	jz	3f			/* yes, jump to INTxx code */
 
 	/* run user defined code */
-	decl	%ecx
-	movw	%dx, ABS(1f)
-	movw	%cx, ABS(1f + 2)
+	decl	%ecx			/* CS */
+	/* 0xEA might have been changed to 0xCD previously, so we must restore
+	 * it back to 0xEA.
+	 */
+	movb	$0xEA, ABS(1f-1)	/* opcode for "far jump" */
+	movw	%dx, ABS(1f)		/* IP in the far jump instruction */
+	movw	%cx, ABS(1f + 2)	/* CS in the far jump instruction */
 
 	/* set return address for user code to return */
 	movl	$ABS(4f), %ecx
@@ -11181,7 +11186,7 @@ ENTRY(realmode_run)
 	movw	%sp, %ax
 	addl	%eax, %ebp		/* physical address of stack */
 
-	call	real_to_prot
+	call	EXT_C(real_to_prot)
 
 	.code32
 
@@ -11201,6 +11206,15 @@ ENTRY(realmode_run)
 	repz movsl
 
 	/* the stack should not change! */
+
+	/* fix the pushed ESPs before checking */
+	movl	$32, %ecx
+	subl	%ecx, (32 + 12)(%esp)
+	movl	$64, %ecx
+	subl	%ecx, (64 + 12)(%esp)
+	movl	$96, %ecx
+	subl	%ecx, (96 + 12)(%esp)
+
 	movl	%esp, %esi
 	leal	32(%esp), %edi
 	movl	$8, %ecx
@@ -11366,7 +11380,7 @@ ENTRY(toggle_blinking)
 	movw	$0x1003, %ax
 	int	$0x10
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	pop	%ebx
@@ -11465,7 +11479,7 @@ ENTRY(console_putchar)
 1:	movb	$0x0e, %ah
 	int	$0x10
 
-3:	DATA32	call	EXT_C(real_to_prot)
+3:	call	EXT_C(real_to_prot)
 	.code32
 
 	popa
@@ -11585,7 +11599,7 @@ ENTRY(console_getkey)
 	//call	translate_keycode
 	call	remap_ascii_char
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movw	%dx, %ax
@@ -11634,7 +11648,7 @@ notpending:
 	movl	$0xFFFFFFFF, %edx
 
 pending:
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	mov	%edx, %eax
@@ -11673,7 +11687,7 @@ ENTRY(console_getxy)
 	movb	$0x3, %ah
 	int	$0x10			/* get cursor position */
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movb	%dl, %ah
@@ -11715,7 +11729,7 @@ ENTRY(console_gotoxy)
 	movb	$0x2, %ah
 	int	$0x10			/* set cursor position */
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	pop	%ebx
@@ -11764,7 +11778,7 @@ ENTRY(console_cls)
 	movb	$0x02, %ah
 	int	$0x10
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	pop	%ebx
@@ -11808,7 +11822,7 @@ ENTRY(console_setcursor)
 	xorb	%bh, %bh
 	int	$0x10
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movw	%cx, console_cursor_shape
@@ -11830,7 +11844,7 @@ ENTRY(console_setcursor)
 	movb    $0x1, %ah
 	int     $0x10
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movzbl	console_cursor_state, %eax
@@ -11885,7 +11899,7 @@ ENTRY(set_videomode)
 	movb	%cl, %al
 	int	$0x10			/* Set Video mode */
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	xorb	%ah, %ah
@@ -11924,7 +11938,7 @@ ENTRY(graphics_get_font)
 	movw	%bp, %dx
 	movw	%es, %cx
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	xorl	%eax, %eax
@@ -12000,7 +12014,7 @@ l2b:	inb	%dx, %al	/* wait vertical retrace */
 	movw	$0x1000, %ax
 	int	$0x10
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	pop	%edx
@@ -12078,7 +12092,7 @@ gottime:
 	popl	%ecx
 
 #endif
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movb	%dh, %al
@@ -12127,7 +12141,7 @@ ENTRY(get_datetime)
 	xorl	%edx, %edx
 
 1:
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movl	%esp, %ebp
@@ -12161,7 +12175,7 @@ ENTRY(currticks)
 	/* %ax is already zero */
         int	$0x1a
 
-	DATA32	call	EXT_C(real_to_prot)
+	call	EXT_C(real_to_prot)
 	.code32
 
 	movl	%ecx, %eax
