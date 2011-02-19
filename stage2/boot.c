@@ -168,7 +168,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 
       /* If the load end address is zero, load the whole contents.  */
       if (! pu.mb->load_end_addr)
-	pu.mb->load_end_addr = cur_addr + filemax;
+	pu.mb->load_end_addr = cur_addr + filemax - filepos;
       
       text_len = pu.mb->load_end_addr - cur_addr;
       data_len = 0;

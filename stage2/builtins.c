@@ -5308,15 +5308,96 @@ command_func (char *arg, int flags)
 	if (p_exec == NULL)
 	{
 			/* read file to buff and check exec signature. */
-		if ((grub_read ((unsigned long long)(int)program, -1ULL, 0xedde0d90) != filemax) || (*(unsigned long long *)(int)(program + prog_len - 8) != 0xBCBAA7BA03051805ULL && (*(unsigned long *)program != 0x54414221)))
+		unsigned long long *end_signature = (unsigned long long *)(program + (unsigned long)filemax - 8);
+		if ((grub_read ((unsigned long long)(int)program, -1ULL, 0xedde0d90) != filemax))
 		{
 			if (! errnum)
 				errnum = ERR_EXEC_FORMAT;
-			grub_free(psp);
+		}
+		#ifndef GRUB_UTIL
+		else if (*end_signature == 0x85848F8D0C010512ULL)
+		{
+			if (filemax < 512 || filemax > 0x80000)
+				errnum = ERR_EXEC_FORMAT;
+			else if (filemax + 0x10100 > ((*(unsigned short *)0x413) << 10))
+				errnum = ERR_WONT_FIT;
+			else
+			{
+				unsigned long ret;
+				struct realmode_regs {
+					unsigned long edi; // input and output
+					unsigned long esi; // input and output
+					unsigned long ebp; // input and output
+					unsigned long esp; //stack pointer, input
+					unsigned long ebx; // input and output
+					unsigned long edx; // input and output
+					unsigned long ecx; // input and output
+					unsigned long eax;// input and output
+					unsigned long gs; // input and output
+					unsigned long fs; // input and output
+					unsigned long es; // input and output
+					unsigned long ds; // input and output
+					unsigned long ss; //stack segment, input
+					unsigned long eip; //instruction pointer, input
+					unsigned long cs; //code segment, input
+					unsigned long eflags; // input and output
+				};
+
+				struct realmode_regs regs;
+				ret = grub_strlen (cmd_arg);
+				/* first, backup low 640K memory to address 2M */
+				grub_memmove ((char *)0x200000, 0, 0xA0000);
+				/* copy command-tail */
+				if (ret > 126)
+					ret = 126;
+				if (ret)
+					grub_memmove ((char *)0x10081, cmd_arg, ret);
+				/* setup offset 0x80 for command-tail count */
+				*(char *)0x10080 = ret;
+				/* end the command-tail with CR */
+				*(char *)(0x10081 + ret) = 0x0D;
+
+				/* clear the beginning word of DOS PSP. the program
+				 * check it and see it is running under grub4dos.
+				 * a normal DOS PSP should begin with "CD 20".
+				 */
+				*(short *)0x10000 = 0;
+
+				/* copy program to 1000:0100 */
+				grub_memmove ((char *)0x10100, (char *)program, filemax);
+
+				/* setup DS, ES, CS:IP */
+				regs.cs = regs.ds = regs.es = 0x1000;
+				regs.eip = 0x100;
+
+				/* setup FS, GS, EFLAGS and stack */
+				regs.ss = regs.esp = regs.fs = regs.gs = regs.eflags = -1;
+
+				/* for 64K .com style command, setup stack */
+				if (filemax < 0xFF00)
+				{
+					regs.ss = 0x1000;
+					regs.esp = 0xFFFE;
+				}
+				grub_free(psp);
+				grub_close();
+				ret = realmode_run ((unsigned long)&regs);
+				/* restore memory 0x10000 - 0xA0000 */
+				grub_memmove ((char *)0x10000, (char *)0x210000, ((*(unsigned short *)0x413) << 10) - 0x10000);
+				return ret;
+			}
+		}
+		#endif
+		else if (*end_signature != 0xBCBAA7BA03051805ULL && (*(unsigned long *)program != 0x54414221))
+		{
+			errnum = ERR_EXEC_FORMAT;
 		}
 		grub_close ();
 		if (errnum)
+		{
+		   grub_free(psp);
 		   return 0;
+		}
 	}
 	else
 	{
