@@ -879,11 +879,12 @@ boot_func (char *arg, int flags)
 #ifdef FSYS_PXE
                 pxe_unload();
 #endif
-
-		/* WinMe support by bean. Thanks! */
+		if (is_io)
+		{
+		  /* WinMe support by bean. Thanks! */
 		
-		// Not a very neat way to test WinME, works anyway
-		if ((*(unsigned short*)0x200000==0x4D43) &&
+		  // Not a very neat way to test WinME, works anyway
+		  if ((*(unsigned short*)0x200000==0x4D43) &&
 		    // ((*(char*)0x110002==0) || (*(unsigned short*)0x110000==0x4D43)) &&
 		    (chainloader_skip_length==0x800))
 		  {
@@ -898,6 +899,32 @@ boot_func (char *arg, int flags)
 		    grub_memmove((char*)0x200000,(char*)0x2A0000,len);
 		    chainloader_load_length=read_length=len;
 		  }
+
+		  /* import from WEE, to prevent MS from wiping int32-3F. */
+		  /* search these 12 bytes ... */
+		  /* 83 C7 08	add di,08	*/
+		  /* B9 0E 00	mov cx,0E	*/
+		  /* AB		stosw		*/
+		  /* 83 C7 02	add di,02	*/
+		  /* E2 FA	loop (-6)	*/
+		  /* ... replace with NOPs */
+		  {
+		    unsigned long p = 0x200000;
+		    unsigned long q = 0x200000 - 16 + read_length;
+		    while (p < q)
+		    {
+			if ((*(long *)p == 0xB908C783) &&
+			    (*(long long*)(p+4)==0xFAE202C783AB000ELL))
+			{
+				((long *)p)[2]=((long *)p)[1]=
+					*(long *)p = 0x90909090;
+				p += 12;
+				continue; /* would occur 3 times */
+			}
+			p++;
+		    }
+		  }
+		}
 
 		/* create boot info table for isolinux */
 		if (is_isolinux)
