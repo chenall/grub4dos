@@ -3369,6 +3369,21 @@ The new find syntax allows to find a device conditionally.
 
 CONDITION is a normal grub command which returns TRUE or FALSE.
 
+OPTIONS:
+	--set-root		set the current root device.
+	--set-root=DIR		set current root device and working directory to DIR.
+			please also see "Notation For The Current Root Device".
+	--ignore-cd		skip search on (cd).
+	--ignore-floppies	bypass all floppies.
+	--devices=DEVLIST	specify the search devices and order.
+		  DEVLIST	u->(ud)
+				n->(nd)
+				p->(pd)
+				h->(hdx)
+				c->(cd)
+				f->(fdx)
+				default: upnhcf
+
 	Example 1:
 
 		find
@@ -3393,7 +3408,17 @@ CONDITION is a normal grub command which returns TRUE or FALSE.
 
 	This will list all partitions with ID=0x07 and existing /ntldr.
 
+	Example 5:
+		find --set-root /ntldr
+	This will set the first device it finds to current root device.
 
+	Example 6:
+		find --set-root --devices=h /bootmgr
+	Same of Example 5.but search on hard disk only.
+
+	Example 7:
+		find --set-root --devices=h makeactive --status
+	This will set current root device to first active partition.
 
 ******************************************************************************
 ***                    How to build grldr boot images                      ***

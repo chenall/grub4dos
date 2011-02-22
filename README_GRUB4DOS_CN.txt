@@ -3578,26 +3578,51 @@ geometry 命令会用 BIF 代替常见的 CHS 和 LBA 来报告分支式驱动�
 	find [OPTIONS] [FILENAME] [CONDITION]
               选项      文件名     条件
 
+OPTIONS:
+	--set-root		set the current root device.
+	--set-root=DIR		set current root device and working directory to DIR.
+			please also see "Notation For The Current Root Device".
+	--ignore-cd		skip search on (cd).
+	--ignore-floppies	bypass all floppies.
+	--devices=DEVLIST	specify the search devices and order.
+		  DEVLIST	u->(ud)
+				n->(nd)
+				p->(pd)
+				h->(hdx)
+				c->(cd)
+				f->(fdx)
+				default: upnhcf
+
+
 其中的 CONDITION 是一个返回值是 TRUE 或者 FALSE 的标准 grub 命令。
 
-        示例 1:
+	示例 1: 列举所有的分区，所有的软驱和 (cd) 。
+
 		find
-        这会列举所有的分区，所有的软驱和 (cd) 。
 
-        示例 2：
+	示例 2：列举文件系统已知的所有设备。
+
 		find +1
-        这会列举文件系统已知的所有设备。
 
-	示例 3:
+	示例 3: 列举分区类型为0xAF的所有分区。
+
 		find checkrange 0xAF parttype
-        这会列举分区类型为0xAF的所有分区。
 
-        示例 4：
+	示例 4：列举分区类型为 0x07 且根目录存在 ntldr 的所有分区。
+
 		find /ntldr checkrange 0x07 parttype
-        这会列举分区类型为 0x07 且根目录存在 ntldr 的所有分区。
-	示例 5:
-		find --set-root makeactive --status
-	将会把第一个激活的主分区设为当前根。
+
+	示例 5: 设置当前根设备到第一个根目录有存在ntldr的分区。
+
+		find --set-root /ntldr
+
+	示例 6: 同例5，但是以下命令只查在硬盘上查找bootmgr
+
+		find --set-root --devices=h /bootmgr
+
+	示例 7: 设置当前根设备为第一激活的主分区。
+
+		find --set-root --devices=h makeactive --status
 
 更新：	新的find 命令语法允许指定要查找和设备和查找的顺序。
 	新的参数	--devices=DEVLIST，用于指定查找的设备和顺序。
