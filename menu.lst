@@ -17,13 +17,14 @@ find --set-root --ignore-floppies --ignore-cd /ntldr
 chainloader /ntldr
 savedefault --wait=2
 
-title find and load BOOTMGR of Windows VISTA
+title find and load BOOTMGR of Windows VISTA/WIN7/WIN2008
 fallback 2
-find --set-root --ignore-floppies --ignore-cd /bootmgr
-map () (hd0)
-map (hd0) ()
-map --rehook
-find --set-root --ignore-floppies --ignore-cd /bootmgr
+find --set-root --devices=h /bootmgr
+# did not need swap device
+#map () (hd0)
+#map (hd0) ()
+#map --rehook
+#find --set-root --devices=h /bootmgr
 chainloader /bootmgr
 savedefault --wait=2
 
@@ -39,9 +40,15 @@ chainloader /cmldr
 # write string "cmdcons" to memory 0000:7C03 in 2 steps:
 #####################################################################
 # step 1. Write 4 chars "cmdc" at 0000:7C03
-write 0x7C03 0x63646D63
+#write 0x7C03 0x63646D63
 # step 2. Write 3 chars "ons" and an ending null at 0000:7C07
-write 0x7C07 0x00736E6F
+#write 0x7C07 0x00736E6F
+
+#	or.
+#write --offset=3 (md)0x3e+1 cmdcons
+#	or
+calc *0x7c03=0x00736E6F63646D63
+
 savedefault --wait=2
 
 title find and load IO.SYS of Windows 9x/Me
@@ -49,6 +56,11 @@ fallback 4
 find --set-root /io.sys
 chainloader /io.sys
 savedefault --wait=2
+# you can also use below commands.
+# find --set-root chainloader /io.sys
+# boot
+# the boot is necessary,
+# please see "Delimitors or comments between titles" in grub4dos_readme.txt.
 
 title find and boot 0PE.ISO
 fallback 5
@@ -88,6 +100,9 @@ commandline
 title floppy (fd0)
 chainloader (fd0)+1
 rootnoverify (fd0)
+# or use below commands.
+# rootnoverify (fd0)
+# chainloader +1
 
 title back to dos
 quit

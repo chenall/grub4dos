@@ -162,7 +162,7 @@ VARIABLE(boot_drive)
 #ifdef SUPPORT_DISKLESS
 	.long	NETWORK_DRIVE
 #else
-	.long	0
+	.long	0xFFFFFFFF	/* can be setup by external programs. */
 #endif
 
 VARIABLE(pxe_yip)
@@ -521,7 +521,8 @@ real_codestart:
 	popw	%dx		/* DL=boot drive */
 
 #ifndef SUPPORT_DISKLESS
-	ADDR32	movb	%dl, ABS(EXT_C(boot_drive))
+	movzbl	%dl, %eax
+	movl	%eax, ABS(EXT_C(boot_drive))
 #endif
 
 	xorw	%ax, %ax

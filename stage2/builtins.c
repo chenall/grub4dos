@@ -718,8 +718,6 @@ boot_func (char *arg, int flags)
     case KERNEL_TYPE_BIG_LINUX:
       /* Big Linux */
 
-#ifdef FSYS_PXE
-      if (pxe_entry == 0)
       {
 	unsigned int p;
 	/* check grub.exe */
@@ -728,12 +726,19 @@ boot_func (char *arg, int flags)
 		if (((*(long long *)(void *)p & 0xFFFF00FFFFFFFFFFLL) == 0x02030000008270EALL) &&
 			((*(long long *)(void *)(p + 0x12) & 0xFFFFFFFFFFLL) == 0x0037392E30LL))
 		{
-			*(char *)(void *)(p + 5) |= 0x01;	/* disable pxe */
+#ifdef FSYS_PXE
+		    if (pxe_entry == 0)
+			*(char *)(void *)(p + 5) |= 0x01;	// disable pxe
+#endif
+		    if (*(long *)(void *)(p + 0x80) == 0xFFFFFFFF)//boot_drive
+		    {
+			*(long *)(void *)(p + 0x80) = saved_drive;
+			*(long *)(void *)(p + 0x08) = saved_partition;
+		    }
 			break;
 		}
 	}
       }
-#endif
 
       map_func ("(0x22) (0x22)", flags);	/* delete mapping for INITRD_DRIVE */
       map_func ("--rehook", flags);
@@ -4904,7 +4909,7 @@ static int bat_find_label(char *label)
 
 /*
 bat_run_script
-running batch script.
+run batch script.
 if filename is NULL then is a call func.the first word of arg is a label.
 */
 static int bat_run_script(char *filename,char *arg,int flags)

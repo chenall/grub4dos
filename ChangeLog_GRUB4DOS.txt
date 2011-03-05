@@ -1,3 +1,8 @@
+2011-03-05 setup a byte at offset 0x1F0 of GRUB.EXE to indicate number of
+	   sectors used by the DOSSTART.S; change boot_drive to -1 so that
+	   external programs can set it up before transfer control to grub4dos;
+	   when grub.exe is loaded as a kernel, the default boot device of
+	   grub.exe will be set to the current root device of current grub4dos.
 2011-02-20 prevent IO.SYS from wiping out int32-3F.
 2011-02-17 fixed a bug of "0xEA not properly restored" in realmode_run(asm.S).
 2011-02-16 fixed a bug on stack checking in realmode_run(asm.S).

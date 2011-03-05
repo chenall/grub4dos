@@ -955,6 +955,13 @@ bugger_off_msg:
 setup_sects:	.byte SETUPSECTS
 
 #else
+	. = _start + 0x1f0
+
+/* not used by grub.exe itself, but external programs can use this to locate
+ * pre_stage2_start.
+ */
+dosstart_sects:	.byte ((pre_stage2_start - _start) >> 9)
+
 	. = _start + 0x1f1
 
 setup_sects:	.byte ((startup_32 - _start) >> 9) - 1
@@ -2116,6 +2123,11 @@ startup_32:
 	movl	%ebp, %esi		# EBP=linear address of startup_32
 	addl    $(pre_stage2_start - startup_32), %esi
 					# ESI points to pre_stage2_start
+	cmpl	$0xFFFFFFFF, 0x80(%esi)
+	je	1f
+	movb	0x80(%esi), %dl		# DL=default drive number
+	movb	0x0A(%esi), %dh		# DH=default partition number
+1:
 	cmpl	$0x00008200, %esi
 	jb	1f
 
