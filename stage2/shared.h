@@ -961,7 +961,7 @@ extern unsigned long lba_cd_boot;	/* LBA of no-emulation boot image, in 2048-byt
 extern unsigned long safe_mbr_hook;	/* safe mbr hook flags used by Win9x */
 extern unsigned long int13_scheme;	/* controls disk access methods in emulation */
 extern unsigned char atapi_dev_count;	/* ATAPI CDROM DRIVE COUNT */
-extern unsigned long *reg_base_addr_append;
+extern unsigned long reg_base_addr_append;
 extern unsigned long init_atapi(void);
 extern unsigned char min_cdrom_id;	/* MINIMUM ATAPI CDROM DRIVE NUMBER */
 extern unsigned long cdrom_drive;

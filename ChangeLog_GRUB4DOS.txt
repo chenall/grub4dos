@@ -1,4 +1,5 @@
-2011-03-05 setup a byte at offset 0x1F0 of GRUB.EXE to indicate number of
+2011-03-05 fixed a bug on "cdrom --add-io-ports=...".
+2011-03-04 setup a byte at offset 0x1F0 of GRUB.EXE to indicate number of
 	   sectors used by the DOSSTART.S; change boot_drive to -1 so that
 	   external programs can set it up before transfer control to grub4dos;
 	   when grub.exe is loaded as a kernel, the default boot device of

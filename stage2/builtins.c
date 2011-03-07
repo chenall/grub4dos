@@ -1548,7 +1548,7 @@ cdrom_func (char *arg, int flags)
 	p = arg + 15;
 	if (! safe_parse_maxint (&p, &tmp))
 		return 0;
-	*reg_base_addr_append = tmp;
+	reg_base_addr_append = tmp;
 	return 1;
       }
     else if (grub_memcmp (arg, "--init", 6) == 0)

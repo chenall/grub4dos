@@ -7201,7 +7201,8 @@ reg_base_addr:
 			.word	0x6b00, 0x6f00
 			.word	0x7300, 0x7700
 ENTRY(reg_base_addr_append)
-			.word	0, 0, 0, 0
+			.word	0, 0
+			.word	0, 0		// ending null
 
 /* EBIOS_disk_address_packet should be at the end of the handler because some
  * buggy BIOSes could destroy the memory that immediately follows.
