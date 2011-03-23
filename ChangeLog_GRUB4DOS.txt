@@ -1,3 +1,5 @@
+2011-03-22 fixed a bug on case sensitivity in filename completion. added a new parameter "case_insensitive" to print_a_completion().
+2011-03-19 fixed a bug on NTFS unicode filename handling. let unicode_to_utf8() return string length after convertion.
 2011-03-05 fixed a bug on "cdrom --add-io-ports=...".
 2011-03-04 setup a byte at offset 0x1F0 of GRUB.EXE to indicate number of
 	   sectors used by the DOSSTART.S; change boot_drive to -1 so that

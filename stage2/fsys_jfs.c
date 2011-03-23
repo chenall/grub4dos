@@ -398,7 +398,7 @@ jfs_dir (char *dirname)
 			    && cmp <= 0) {
 				if (print_possibilities > 0)
 					print_possibilities = -print_possibilities;
-				print_a_completion (namebuf);
+				print_a_completion (namebuf, 0);
 			} else
 #endif
 			if (cmp == 0) {

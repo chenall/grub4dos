@@ -658,7 +658,7 @@ xfs_dir (char *dirname)
 			if (print_possibilities && ch != '/' && cmp <= 0) {
 				if (print_possibilities > 0)
 					print_possibilities = -print_possibilities;
-				print_a_completion (name);
+				print_a_completion (name, 0);
 			} else
 #endif
 			if (cmp == 0) {

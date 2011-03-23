@@ -407,7 +407,7 @@ iso9660_dir (char *dirname)
 		      }
 		      tmp_name[k] = 0;
 
-		      print_a_completion (tmp_name);
+		      print_a_completion (tmp_name, 0);
 #endif
 		    }
 		}

@@ -180,7 +180,7 @@ vstafs_dir (char *dirname)
 	      if (print_possibilities > 0)
 		print_possibilities = -print_possibilities;
 	      
-	      print_a_completion (tmp_name);
+	      print_a_completion (tmp_name, 0);
 	    }
 #endif
 	  if (! grub_strcmp (dirname, tmp_name))

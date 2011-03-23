@@ -899,7 +899,7 @@ extern unsigned long current_partition;
 extern int fsys_type;
 
 //extern inline unsigned long log2_tmp (unsigned long word);
-extern void unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n);
+extern unsigned long unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n);
 
 /* The information for a disk geometry. The CHS information is only for
    DOS/Partition table compatibility, and the real number of sectors is
@@ -1381,7 +1381,7 @@ int set_bootdev (int hdbias);
 void print_fsys_type (void);
 
 /* Display device and filename completions. */
-void print_a_completion (char *filename);
+void print_a_completion (char *filename, int case_insensitive);
 int print_completions (int is_filename, int is_completion);
 
 /* Copies the current partition data to the desired address. */

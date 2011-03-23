@@ -673,7 +673,7 @@ int pxe_dir (char *dirname)
 					if (*dirname == 0 || substring (dirname, p, 1) < 1)
 					{
 						found = 1;
-						print_a_completion(p);
+						print_a_completion(p, 1);
 					}
 				}
 				*p_dir = ch;

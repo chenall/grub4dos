@@ -1237,7 +1237,7 @@ reiserfs_dir (char *dirname)
 			  if (print_possibilities > 0)
 			    print_possibilities = -print_possibilities;
 			  //*name_end = 0;
-			  print_a_completion (tmp_name);
+			  print_a_completion (tmp_name, 0);
 			  //*name_end = tmp;
 			}
 		    }

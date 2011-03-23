@@ -158,7 +158,11 @@ int fb_mount (void)
 		fb_ofs = ud_ofs;
 		fb_pri_size = ud_pri_size;
 		if (ud_inited || fb_init())
+		{
+			if (ud_inited)
+				goto return_true;
 			return ud_inited;
+		}
 		fb_status = 0;
 		ud_inited = 0;
 		return 0;
@@ -168,10 +172,15 @@ int fb_mount (void)
 		return 0;
 	fb_drive = current_drive;
 	if (fb_inited  == current_drive)
-	{
-		return 1;
-	}
-	return fb_init ();
+		goto return_true;
+	if (! fb_init ())
+		return 0;
+
+return_true:
+
+	//fsys_flags &= ~1; /* bit 0=0 for case sensitive filenames */
+	return 1;
+  
 }
 
 unsigned long long
@@ -249,7 +258,7 @@ int fb_dir (char *dirname)
 	  if (substring (dirname, cur_file->name, 1) <= 0)
 	    {
 	      found = 1;
-	      print_a_completion (cur_file->name + i);
+	      print_a_completion (cur_file->name + i, 1);
 	    }
 	}
       else

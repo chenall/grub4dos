@@ -254,11 +254,11 @@ unsigned long long filesize;
 
 unsigned long emu_iso_sector_size_2048 = 0;
 
-/* Convert unicode filename to UTF-8 filename. N is the max characters to be
- * converted. The caller should asure there is enough room in the UTF8 buffer.
- *
+/* Convert unicode filename to UTF-8 filename. N is the max UTF-16 characters
+ * to be converted. The caller should asure there is enough room in the UTF8
+ * buffer. Return the length of the converted UTF8 string.
  */
-void
+unsigned long
 unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n)
 {
 	unsigned short uni;
@@ -290,6 +290,7 @@ unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n)
 		}
 	}
 	utf8[k] = 0;
+	return k;
 }
 
 #define FOUR_CHAR(x0,x1,x2,x3) (((unsigned long)(char)(x0))|((unsigned long)(char)(x1)<<8)|((unsigned long)(char)(x2)<<16)|((unsigned long)(char)(x3)<<24))
@@ -1265,14 +1266,14 @@ real_open_partition (int flags)
 		      else
 			grub_sprintf (str, "%d,%c)",
 				      pc_slice_no, (bsd_part_no + 'a'));
-		      print_a_completion (str);
+		      print_a_completion (str, 0);
 		    }
 		  else if (! IS_PC_SLICE_TYPE_BSD (current_slice))
 		    {
 		      char str[8];
 
 		      grub_sprintf (str, "%d)", pc_slice_no);
-		      print_a_completion (str);
+		      print_a_completion (str, 0);
 		    }
 		}
 	    }
@@ -1711,7 +1712,7 @@ dir (char *dirname)
 /* If DO_COMPLETION is true, just print NAME. Otherwise save the unique
    part into UNIQUE_STRING.  */
 void
-print_a_completion (char *name)
+print_a_completion (char *name, int case_insensitive)
 {
   /* If NAME is "." or "..", do not count it.  */
   if (grub_strcmp (name, ".") == 0 || grub_strcmp (name, "..") == 0)
@@ -1722,11 +1723,11 @@ print_a_completion (char *name)
       char *buf = unique_string;
 
       if (! unique)
-	while ((*buf++ = *name++))
+	while ((*buf++ = (case_insensitive ? tolower(*name++): (*name++))))
 	  ;
       else
 	{
-	  while (*buf && (*buf == *name))
+	  while (*buf && (*buf == (case_insensitive ? tolower(*name) : *name)))
 	    {
 	      buf++;
 	      name++;
@@ -1772,7 +1773,7 @@ print_completions (int is_filename, int is_completion)
 	    continue;
 
 	  if (substring (buf, (*builtin)->name, 0) <= 0)
-	    print_a_completion ((*builtin)->name);
+	    print_a_completion ((*builtin)->name, 0);
 	}
 
       if (is_completion && *unique_string)
@@ -1846,7 +1847,7 @@ print_completions (int is_filename, int is_completion)
 			      char dev_name[8];
 
 			      grub_sprintf (dev_name, "%cd%d", (k ? 'h':'f'), (unsigned long)j);
-			      print_a_completion (dev_name);
+			      print_a_completion (dev_name, 0);
 			    }
 			}
 		    }
@@ -1857,14 +1858,14 @@ print_completions (int is_filename, int is_completion)
 		  && (!ptr
 		      || *(ptr-1) == '('
 		      || (*(ptr-1) == 'd' && *(ptr-2) == 'r')))
-		print_a_completion ("rd");
+		print_a_completion ("rd", 0);
 
 	      if (cdrom_drive != GRUB_INVALID_DRIVE
 		  && (disk_choice || cdrom_drive == current_drive)
 		  && (!ptr
 		      || *(ptr-1) == '('
 		      || (*(ptr-1) == 'd' && *(ptr-2) == 'c')))
-		print_a_completion ("cd");
+		print_a_completion ("cd", 0);
 
 #ifndef GRUB_UTIL
 	      if (atapi_dev_count  && (!ptr || *(ptr-1) == '(' || (*(ptr-1) == 'd' && *(ptr-2) == 'c')))
@@ -1875,7 +1876,7 @@ print_completions (int is_filename, int is_completion)
 			char dev_name[8];
 
 			grub_sprintf (dev_name, "cd%d", (unsigned long)j);
-			print_a_completion (dev_name);
+			print_a_completion (dev_name, 0);
 		    }
 	      }
 #endif
@@ -1886,7 +1887,7 @@ print_completions (int is_filename, int is_completion)
 		  && (!ptr
 		      || *(ptr-1) == '('
 		      || (*(ptr-1) == 'd' && *(ptr-2) == 'n')))
-		print_a_completion ("nd");
+		print_a_completion ("nd", 0);
 # endif /* SUPPORT_NETBOOT */
 
 # ifdef FSYS_PXE
@@ -1895,7 +1896,7 @@ print_completions (int is_filename, int is_completion)
 		  && (!ptr
 		      || *(ptr-1) == '('
 		      || (*(ptr-1) == 'd' && *(ptr-2) == 'p')))
-		print_a_completion ("pd");
+		print_a_completion ("pd", 0);
 # endif /* FSYS_PXE */
 
 # ifdef FSYS_FB
@@ -1904,7 +1905,7 @@ print_completions (int is_filename, int is_completion)
 		  && (!ptr
 		      || *(ptr-1) == '('
 		      || (*(ptr-1) == 'd' && *(ptr-2) == 'u')))
-		print_a_completion ("ud");
+		print_a_completion ("ud", 0);
 #endif /* FSYS_FB */
 
 	      if (is_completion && *unique_string)
