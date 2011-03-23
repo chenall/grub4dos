@@ -1,4 +1,9 @@
-﻿2011-02-19
+﻿2011-03-23
+	1.为了方便使用,修改shift命令为内部命令.并且shift支持参数
+	shift n 或 shift /n
+	具体用法,可以参数CMD/linux下的shift命令帮助.
+
+2011-02-19
 	1.修复kernel加载grub2 loader的问题.
 	  fixed a bug when load multiboot-image(boot.c).
 	2.现在可以运行16位程序，和wee的机制一样（直接移植了wee里面的代码）

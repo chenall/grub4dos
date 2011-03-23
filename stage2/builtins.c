@@ -4885,6 +4885,7 @@ struct bat_array
 } *p_bat_prog = NULL;
 int bat_pid = 0;
 
+static char **batch_args;
 /*
 find a label in current batch script.(p_bat_prog)
 return line of the batch script.
@@ -4977,6 +4978,8 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	s[9] = arg;// %9 for other args.
 	int ret = 0;
 	char *p_bat;
+	char **backup_args = batch_args;
+	batch_args = s;
 	while ((p_bat = *p_entry))//copy cmd_line to p_buff and then run it;
 	{
 		p_cmd = p_buff;
@@ -5123,6 +5126,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				commandline_func((char *)0x1000000,0);
 			}
 		}
+		#if 0
 		if (substring(p_buff,"shift",1) == 0)
 		{
 			for (i=0;i<9 && s[i];i++)
@@ -5131,6 +5135,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				s[9] = skip_to(SKIP_WITH_TERMINATE | 1,s[8]);
 		}
 		else
+		#endif
 		{
 			ret = run_line (p_buff,flags);
 		}
@@ -5151,6 +5156,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		p_entry++;
 	}
 
+	batch_args = backup_args;
 	debug = debug_ori;
 	/*release memory. */
 	if (errnum == 1000)
@@ -7056,12 +7062,12 @@ help_func (char *arg, int flags)
 	{
 	//  int len;
 	//  int i;
-
+	  #if 0
 	  /* If this cannot be used in the command-line interface,
 	     skip this.  */
 	  if (! ((*builtin)->flags & BUILTIN_CMDLINE))
 	    continue;
-	  
+	  #endif
 	  /* If this doesn't need to be listed automatically and "--all"
 	     is not specified, skip this.  */
 	  if (! all && ! ((*builtin)->flags & BUILTIN_HELP_LIST))
@@ -7108,10 +7114,11 @@ help_func (char *arg, int flags)
 
 	  for (builtin = builtin_table; *builtin; builtin++)
 	    {
+	      #if 0
 	      /* Skip this if this is only for the configuration file.  */
 	      if (! ((*builtin)->flags & BUILTIN_CMDLINE))
 		continue;
-
+		#endif
 	      if (substring (arg, (*builtin)->name, 0) < 1 && (*builtin)->short_doc)
 		{
 		  char *doc = (*builtin)->long_doc;
@@ -14765,9 +14772,39 @@ static int exit_func(char *arg, int flags)
 
 static struct builtin builtin_exit =
 {
-   "exit",
-   exit_func,
+  "exit",
+  exit_func,
   BUILTIN_BAT_SCRIPT,
+  "exit [n]",
+  "Exit batch script with a status of N."
+};
+
+static int shift_func(char *arg, int flags)
+{
+	char **s = batch_args;
+	if (*arg == '/')
+		++arg;
+	unsigned int i = *arg - '0';
+	if (i > 8)
+		i = 0;
+	while (i < 9 && s[i])
+	{
+		s[i] = s[i+1];
+		++i;
+	}
+	if (s[8])
+		s[9] = skip_to(SKIP_WITH_TERMINATE | 1,s[8]);
+	return 1;
+}
+
+static struct builtin builtin_shift =
+{
+  "shift",
+  shift_func,
+  BUILTIN_BAT_SCRIPT,
+  "shift [[/]n]",
+  "The positional parameters from %n+1 ... are renamed to %1 ...  If N is"
+  " not given, it is assumed to be 0."
 };
 
 static int if_func(char *arg,int flags)
@@ -15252,6 +15289,7 @@ struct builtin *builtin_table[] =
   &builtin_setup,
 #endif /* GRUB_UTIL */
   &builtin_setvbe,
+  &builtin_shift,
 #ifdef SUPPORT_GRAPHICS
   &builtin_splashimage,
 #endif /* SUPPORT_GRAPHICS */
