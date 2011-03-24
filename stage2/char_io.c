@@ -951,6 +951,26 @@ real_get_cmdline (char *cmdline)
   grub_strcpy (buf, cmdline);
 
   cl_init ();
+  if (p_getcmdline_arg->readline > 1)
+  {
+	int t1;
+	int t2 = -1;
+	int wait_t = p_getcmdline_arg->readline >> 8;
+	while ((t2 = getrtsecs ()) == 0xFF);
+	while (wait_t)
+	{
+		if (checkkey () != -1)
+			break;
+		if ((t1 = getrtsecs ()) != t2 && t1 != 0xFF)
+		{
+			t2 = t1;
+			wait_t--;
+		}
+	}
+	if (wait_t == 0)
+		return 1;
+  }
+  p_getcmdline_arg->readline &= 1;
 
   while ((char)(c = /*ASCII_CHAR*/ (getkey ())) != '\n' && (char)c != '\r')
     {

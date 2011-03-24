@@ -15077,6 +15077,7 @@ static int set_func(char *arg, int flags)
 		reset_env_all();
 	char value[512];
 	int convert_flag=0;
+	unsigned long long wait_t = 0xffffff00;
 	while (*arg)
 	{
 		flags = *(short *)arg;
@@ -15091,6 +15092,13 @@ static int set_func(char *arg, int flags)
 		else if (flags == 0x702F) /* set /p */
 		{
 			convert_flag |= 0x200;
+			if (arg[2] == ':')
+			{
+				char *p = arg + 3;
+				safe_parse_maxint(&p,&wait_t);
+				errnum = 0;
+				wait_t <<= 8;
+			}
 		}
 		else if (flags == 0x6C2F) /* set /l */
 		{
@@ -15116,9 +15124,10 @@ static int set_func(char *arg, int flags)
 		get_cmdline_str.prompt = arg;
 		get_cmdline_str.maxlen = sizeof (value) - 1;
 		get_cmdline_str.echo_char = 0;
-		get_cmdline_str.readline = 0;
+		get_cmdline_str.readline = 1 | wait_t;
 		get_cmdline_str.cmdline = value;
-		get_cmdline (get_cmdline_str);
+		if (get_cmdline (get_cmdline_str) || !value[0])
+			return 0;
 		arg = value;
 	}
 	if (convert_flag & 0x100)
