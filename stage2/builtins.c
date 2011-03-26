@@ -1461,7 +1461,7 @@ cat_func (char *arg, int flags)
 						&& grub_memcmp ((char *)&s, (char *)(SCRATCHADDR + (unsigned long)i), len_s) == 0)
 					{
 						/* print the address */
-						//if (debug > 0)
+						if (!replace || debug > 1)
 							grub_printf (" %lX", (unsigned long long)k);
 						/* replace strings */
 						if (replace)
@@ -5017,7 +5017,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			if (*p_bat <= '9' && *p_bat >= '0')
 			{
 				p_rep = s[*p_bat++ - '0'];
-				if (p_rep != NULL)
+				if (*p_rep)
 				{
 					if ((i & 1) && *p_rep == '\"')
 					{
@@ -5102,6 +5102,17 @@ static int bat_run_script(char *filename,char *arg,int flags)
 					{
 						p_cmd--;
 					}
+				}
+			}
+			else if (*p_bat == '*')
+			{
+				++p_bat;
+				for (i = 1;i< 10;++i)
+				{
+					if (s[i][0])
+						p_cmd += sprintf(p_cmd,"%s ",s[i]);
+					else
+						break;
 				}
 			}
 			else
@@ -14787,13 +14798,15 @@ static int shift_func(char *arg, int flags)
 	unsigned int i = *arg - '0';
 	if (i > 8)
 		i = 0;
-	while (i < 9 && s[i])
+	while (i < 9 && s[i][0])
 	{
 		s[i] = s[i+1];
 		++i;
 	}
-	if (s[8])
+	if (i == 9)
+	{
 		s[9] = skip_to(SKIP_WITH_TERMINATE | 1,s[8]);
+	}
 	return 1;
 }
 
