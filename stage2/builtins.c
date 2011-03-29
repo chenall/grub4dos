@@ -5056,7 +5056,10 @@ static int bat_run_script(char *filename,char *arg,int flags)
 							}
 							while(p_rep < file_name)
 							{
-								*p_cmd++ = *p_rep++;
+								if (*p_rep == ' ')
+									*p_cmd++ = '\\';
+								if ((*p_cmd++ = *p_rep++) == '\\')
+									*p_cmd++ = *p_rep++;
 							}
 						}
 						else
@@ -5065,7 +5068,6 @@ static int bat_run_script(char *filename,char *arg,int flags)
 						}
 					}
 
-					char ch_bak;
 					if (i & 6)//get filename and ext
 					{
 						file_name = p_rep;
@@ -5080,22 +5082,27 @@ static int bat_run_script(char *filename,char *arg,int flags)
 						if (file_ext < file_name)
 							file_ext = p_rep;
 						p_rep = (i & 4)?file_name:file_ext;
+						char ch_bak = *file_ext;
 						if ((i & 2) == 0)
 						{
-							ch_bak = *file_ext;
 							*file_ext = '\0';
 						}
-						i &= 7;
+						while(*p_rep)
+						{
+							if (*p_rep == ' ')
+								*p_cmd++ = '\\';
+							if ((*p_cmd++ = *p_rep++) == '\\')
+								*p_cmd++ = *p_rep++;
+						}
+						*file_ext = ch_bak;
 					}
 
-					if (i <= 7)
+					if (i < 2)
 					{
 						while (*p_rep)
 						{
 							*p_cmd++ = *p_rep++;
 						}
-						if ((i & 6) == 4)
-							*file_ext = ch_bak;
 					}
 
 					if ((i & 1) && *--p_rep == '\"')
@@ -5607,14 +5614,35 @@ static int insmod_func(char *arg,int flags)
       if (command_open(arg,0) != 1)
          return 0;
       char *buff=grub_malloc(filemax);
-      if (buff == NULL || grub_read((unsigned long long)(unsigned int)buff,-1,GRUB_READ) == 0)
+      if (!buff)
+      {
+        grub_close();
+        return 0;
+      }
+      #if 0
+      if (grub_read((unsigned long long)(unsigned int)buff,16,GRUB_READ) != 16
+        || *(unsigned long long *)(unsigned int)buff != 0xBCBAA7BA03051805LL
+        || grub_read((unsigned long long)(unsigned int)buff,-1,GRUB_READ) == 0 )
       {
          grub_close();
+         grub_free(buff);
+         errnum = ERR_EXEC_FORMAT;
          return 0;
       }
-      char *buff_end = buff+filemax;
+      #else
+      if (grub_read((unsigned long long)(unsigned int)buff,-1,GRUB_READ) != filemax)
+      {
+        grub_close();
+        grub_free(buff);
+        return 0;
+      }
+      #endif
       grub_close();
+      char *buff_end = buff+filemax;
       struct exec_array *p_mod = (struct exec_array *)buff;
+      //skip grub4dos moduld head.
+      if (strcmp(p_mod->name,"\x05\x18\x05\x03\xBA\xA7\xBA\xBC") == 0)
+        ++p_mod;
       while ((char *)p_mod < buff_end && grub_mod_add(p_mod))
       {
          p_mod = (struct exec_array *)(p_mod->data + p_mod->len);
