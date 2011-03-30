@@ -2342,7 +2342,11 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
     read_func = fsys_table[fsys_type].read_func;
 
   /* Now, read_func is ready. */
-  if ((!buf) || (len < grub_read_loop_threshold))
+  if ((!buf) || (len < grub_read_loop_threshold)
+#ifndef NO_DECOMPRESSION
+      || (compressed_file && decomp_type == 1)
+#endif /* NO_DECOMPRESSION */
+  )
   {
     /* Do whole request at once. */
       return read_func(buf, len, write);

@@ -6370,6 +6370,7 @@ uuid_func (char *arg, int flags)
 			saved_drive = tmp_drive;
 			saved_partition = tmp_partition;
 			errnum = ERR_NONE;
+			envi_cmd("?_UUID",uuid_found,0);
 			return (*uuid_found);
 		}
 		saved_drive = tmp_drive;
