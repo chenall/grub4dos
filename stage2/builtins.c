@@ -14570,6 +14570,7 @@ static struct builtin builtin_calc =
 static int
 graphicsmode_func (char *arg, int flags)
 {
+#ifdef SUPPORT_GRAPHICS
   extern unsigned long graphics_mode;
   unsigned long long tmp_graphicsmode;
   int old_graphics_mode = graphics_mode;
@@ -14611,6 +14612,9 @@ graphicsmode_func (char *arg, int flags)
   }
 
   return old_graphics_mode;
+#else
+  return 0x12;
+#endif
 }
 
 static struct builtin builtin_graphicsmode =

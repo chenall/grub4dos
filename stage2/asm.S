@@ -13035,7 +13035,11 @@ VARIABLE(current_term)
 	.long	NUM_FSYS		//reserved
 VARIABLE(graphics_inited)
 	.long	0
+#ifdef SUPPORT_GRAPHICS
 	.long	ABS(EXT_C(VARIABLE_GRAPHICS))
+#else
+	.long	0
+#endif
 VARIABLE(font8x16)
 	.long	0
 VARIABLE(fontx)
