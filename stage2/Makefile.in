@@ -3796,6 +3796,7 @@ pxegrub: pxeloader diskless
 	$(OBJCOPY) -O binary $< $@
 	if [ $@ = pre_stage2 ]; then dd if=pre_stage2 of=pre_stage2_fullsize bs=65536 skip=48 ;fi
 	if [ $@ = pre_stage2 ]; then sed -e "1s/^\x00*//" pre_stage2_fullsize > pre_stage2_tail ;fi
+	if [ $@ = pre_stage2 ]; then set dummy `ls -l pre_stage2_fullsize`; set $$6 `ls -l pre_stage2_tail`; if [ $$1 -le $$6 ]; then set `cmp pre_stage2_fullsize /dev/zero` ; while [ "$$1" != "" ]; do t1="$${1%%[^0-9]*}"; if [ "$$t1" != "" ]; then if [ "$$t1" -gt 2000 ]; then t1=`expr $$t1 - 1`; dd if=pre_stage2_fullsize of=pre_stage2_tail bs=1 skip=$$t1 ; break; fi; fi; shift; done; fi; fi
 	if [ $@ = pre_stage2 ]; then set dummy `ls -l pre_stage2_fullsize`; set $$6 `ls -l pre_stage2_tail`; dd if=pre_stage2 of=pre_stage2_head bs=`expr $$1 - $$6` count=1 ; cat pre_stage2_head pre_stage2_tail > pre_stage2 ;fi
 	if [ $@ = pre_stage2 ]; then echo -n -e "\0260\002\032\0316" >> $@ ;fi
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

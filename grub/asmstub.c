@@ -109,6 +109,7 @@ grub_stage2 (void)
 {
   /* These need to be static, because they survive our stack transitions. */
   static int status = 0;
+#if 0
   static char *realstack;
   char *scratch, *simstack;
   int i;
@@ -225,6 +226,7 @@ grub_stage2 (void)
     free (serial_device);
   serial_device = 0;
   
+#endif
   /* Ahh... at last we're ready to return to caller. */
   return status;
 }
@@ -649,6 +651,7 @@ console_translate_key (int c)
 int
 console_checkkey (void)
 {
+#if 0
 #ifdef HAVE_LIBCURSES
   if (use_curses)
     {
@@ -671,7 +674,7 @@ console_checkkey (void)
       return c;	//console_translate_key (c);
     }
 #endif
-
+#endif
   /* Just pretend they hit the space bar, then read the real key when
      they call getkey. */
   return ' ';
@@ -683,6 +686,7 @@ console_getkey (void)
 {
   int c;
 
+#if 0
 #ifdef HAVE_LIBCURSES
   if (use_curses)
     {
@@ -700,6 +704,7 @@ console_getkey (void)
     }
   else
 #endif
+#endif
     c = getchar ();
 
   /* Quit if we get EOF. */
@@ -714,10 +719,12 @@ int
 console_getxy (void)
 {
   int y, x;
+#if 0
 #ifdef HAVE_LIBCURSES
   if (use_curses)
     getyx (stdscr, y, x);
   else
+#endif
 #endif
   y = x = 0;
   return (x << 8) | (y & 0xff);

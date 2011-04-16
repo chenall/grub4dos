@@ -368,6 +368,17 @@ extern char *grub_scratch_mem;
 # include <ncurses.h>
 #elif defined(HAVE_CURSES_H)
 # include <curses.h>
+#else
+#define KEY_HOME        0x0106 /*0x4700*/
+#define KEY_END         0x0168 /*0x4F00*/
+#define KEY_LEFT        0x0104 /*0x4B00*/
+#define KEY_RIGHT       0x0105 /*0x4D00*/
+#define KEY_UP          0x0153 /*0x4800*/
+#define KEY_DOWN        0x0152 /*0x5000*/
+#define KEY_DC          0x014A /*0x5300*/
+#define KEY_BACKSPACE   0x0107 /*0x0E08*/
+#define KEY_PPAGE       0x4900
+#define KEY_NPAGE       0x5100
 #endif
 
 /* In old BSD curses, A_NORMAL and A_REVERSE are not defined, so we
