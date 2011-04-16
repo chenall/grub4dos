@@ -94,6 +94,12 @@ map --hook
 chainloader (0xff)
 savedefault --wait=2
 
+title SliTaz ISO
+find --set-root /slitaz.iso
+map /slitaz.iso (0xff) || map --mem /slitaz.iso (0xff)
+map --hook
+chainloader (0xff)
+
 title commandline
 commandline
 

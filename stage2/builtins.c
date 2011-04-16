@@ -5277,7 +5277,7 @@ command_func (char *arg, int flags)
 
   if (! flags)	/* check syntax only */
   {
-    if (*arg == '/' || *arg == '(' || *arg == '+')
+    if (*arg == '/' || *arg == '(' || *arg == '+' || *arg=='%')
 	return 1;
     if (*arg >= '0' && *arg <= '9')
 	return 1;
@@ -10642,16 +10642,19 @@ md5crypt_func (char *arg, int flags)
 #ifdef DEBUG_MD5CRYPT
   grub_printf ("salt = %s\n", crypted);
 #endif
-  
-  /* Get a password.  */
-  grub_memset (key, 0, sizeof (key));
-  get_cmdline_str.prompt = "Password: ";
-  get_cmdline_str.maxlen = sizeof (key) - 1;
-  get_cmdline_str.echo_char = '*';
-  get_cmdline_str.readline = 0;
-  get_cmdline_str.cmdline = key;
-  get_cmdline (get_cmdline_str);
-
+  if (*arg)
+	sprintf(key,"%.30s",arg);
+  else
+  {
+	  /* Get a password.  */
+	  grub_memset (key, 0, sizeof (key));
+	  get_cmdline_str.prompt = "Password: ";
+	  get_cmdline_str.maxlen = sizeof (key) - 1;
+	  get_cmdline_str.echo_char = '*';
+	  get_cmdline_str.readline = 0;
+	  get_cmdline_str.cmdline = key;
+	  get_cmdline (get_cmdline_str);
+  }
   /* Crypt the key.  */
   make_md5_password (key, crypted);
 
