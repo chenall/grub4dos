@@ -109,7 +109,6 @@ grub_stage2 (void)
 {
   /* These need to be static, because they survive our stack transitions. */
   static int status = 0;
-#if 0
   static char *realstack;
   char *scratch, *simstack;
   int i;
@@ -167,6 +166,7 @@ grub_stage2 (void)
   assert (FSYS_BUF % 16 == 0);
   assert (FSYS_BUF + FSYS_BUFLEN == BUFFERADDR);
 
+#if 0
 #ifdef HAVE_LIBCURSES
   /* Get into char-at-a-time mode. */
   if (use_curses)
@@ -180,6 +180,7 @@ grub_stage2 (void)
       wtimeout (stdscr, 100);
       signal (SIGWINCH, SIG_IGN);
     }
+#endif
 #endif
 
   /* Make sure that actual writing is done.  */
@@ -226,7 +227,6 @@ grub_stage2 (void)
     free (serial_device);
   serial_device = 0;
   
-#endif
   /* Ahh... at last we're ready to return to caller. */
   return status;
 }
@@ -556,10 +556,10 @@ console_putchar (int c)
     }
 #endif
 
+#if 0
 #ifdef HAVE_LIBCURSES
   if (use_curses)
     {
-#if 0
       /* In ncurses, a newline is treated badly, so we emulate it in our
 	 own way.  */
       /*if (((unsigned char)c) == '\n')
@@ -587,7 +587,6 @@ console_putchar (int c)
 	  addch (((unsigned char)c) | console_current_color);
 	}
       else
-#endif
 	{
 		if (c != '\r')
 			addch ((unsigned char)c | console_current_color);
@@ -598,6 +597,7 @@ console_putchar (int c)
 #endif
     }
   else
+#endif
 #endif
     {
 	/* CR is not used in Unix.  */

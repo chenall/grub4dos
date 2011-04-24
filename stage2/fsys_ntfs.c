@@ -1092,20 +1092,21 @@ static int list_file(char* cur_mft,char *fn,char *pos)
   len=strlen(fn);
   while (1)
     {
+      int is_print=(print_possibilities && ch != '/');
       if (pos[0xC] & 2)			// end signature
         break;
       np=pos+0x52;
       ns=valueat(np,-2,unsigned char);
       ns=unicode_to_utf8((unsigned short *)np, utf8, ns);
-      if (((print_possibilities) && (ns>=len)) ||
-          ((! print_possibilities) && (ns==len)))
+      if (((is_print) && (ns>=len)) ||
+          ((! is_print) && (ns==len)))
         {
           for (i=0;i<len;i++)
             if (tolower(((unsigned char*)fn)[i])!=tolower(utf8[i]/*np[i*2]*/))
               break;
           if (i>=len)
             {
-              if (print_possibilities && ch != '/')
+              if (is_print)
                 {
                   //if ((i) || ((utf8[0]!='$') && ((utf8[0]!='.') || (ns!=1))))
                     {

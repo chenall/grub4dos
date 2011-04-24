@@ -9435,9 +9435,9 @@ map_func (char *arg, int flags)
 	{
 		if (! *(((char *)SCRATCHADDR) + 0x1C2 + i * 16))
 			break;	/* consider partition type 00 as empty */
-		if (! *(((char *)SCRATCHADDR) + 0x1C0 + i * 16) & 63)
+		if (! (*(((char *)SCRATCHADDR) + 0x1C0 + i * 16) & 63))
 			break;	/* invalid start sector number of 0 */
-		if (! *(((char *)SCRATCHADDR) + 0x1C4 + i * 16) & 63)
+		if (! (*(((char *)SCRATCHADDR) + 0x1C4 + i * 16) & 63))
 			break;	/* invalid end sector number of 0 */
 		if (! *(unsigned long *)(((char *)SCRATCHADDR) + 0x1C6 + i * 16))
 			break;	/* invalid start LBA of 0 */
