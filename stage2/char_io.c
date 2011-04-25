@@ -1620,7 +1620,7 @@ checkkey (void)
 #endif /* ! STAGE1_5 */
 
 /* Display an ASCII character.  */
-struct output_status putchar_st = {0,0};
+union output_status putchar_st = {{0LL}};
 void
 grub_putchar (int c)
 {

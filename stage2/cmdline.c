@@ -196,7 +196,7 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 
 #define PRINTF_BUFFER ((char *)0x1011000)
 #define CMD_BUFFER ((char *)0x1010000)
-char *pre_cmdline;
+char *pre_cmdline = (char *)0x4CB08;
 
 int expan_var(const char *str,char *out,const unsigned int len_max)
 {
@@ -316,7 +316,7 @@ int run_line (char *heap,int flags)
 		}
 
 		builtin = find_command (arg);
-		pre_cmdline = arg;
+
 		if ((int)builtin != -1)
 		{
 			if (! builtin || ! (builtin->flags & flags))
@@ -331,6 +331,7 @@ int run_line (char *heap,int flags)
 		else
 			ret = command_func (arg,flags);
 
+		sprintf(pre_cmdline,"%.230s",arg);
 		errnum_old = errnum;
 		*(int*)0x4CB00=ret;
 

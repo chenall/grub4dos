@@ -1252,12 +1252,15 @@ void enter_cmdline (char *heap, int forever);
 
 /* C library replacement functions with identical semantics. */
 //void grub_printf (const char *format,...);
-struct output_status
+union output_status
 {
-	int flag;
-	char *addr;
+	struct {
+		int flag;
+		char *addr;
+	};
+	unsigned long long status;
 };
-extern struct output_status putchar_st;
+extern union output_status putchar_st;
 #define grub_printf(...) grub_sprintf(NULL, __VA_ARGS__)
 int grub_sprintf (char *buffer, const char *format, ...);
 int grub_tolower (int c);
@@ -1390,6 +1393,9 @@ int set_bootdev (int hdbias);
 
 /* Display statistics on the current active device. */
 void print_fsys_type (void);
+
+/* Print the root device information.*/
+void print_root_device (char *buffer);
 
 /* Display device and filename completions. */
 void print_a_completion (char *filename, int case_insensitive);
