@@ -1242,7 +1242,8 @@ char *skip_to (int flags, char *cmdline);
 #define SKIP_NONE		0
 #define SKIP_WITH_TERMINATE	0x200
 
-extern char *pre_cmdline;
+//extern char *pre_cmdline;
+#define CMD_RUN_ON_EXIT ((char *)0x4CB08)
 extern int expan_var(const char *str,char *out,const unsigned int len_max);
 int run_line (char *heap,int flags);
 struct builtin *find_command (char *command);

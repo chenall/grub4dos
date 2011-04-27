@@ -3119,7 +3119,12 @@ static int
 configfile_func (char *arg, int flags)
 {
 	if (flags & BUILTIN_BAT_SCRIPT)
-		return (errnum = -1);
+	{
+		if (! grub_open (arg))
+				return 0;
+		grub_close();
+		return (errnum = -2);
+	}
   char *new_config = config_file;
 
 #ifndef GRUB_UTIL
@@ -5237,11 +5242,15 @@ static int grub_exec_run(char *program, int flags)
 		saved_drive = i_bat;
 		saved_partition = i_lab;
 
-		if (*filename == '(' || *filename == '/')
+		if (*filename == '(')
 			p_bat = strstr(filename,"/");
+		else if (*filename == '/')
+			p_bat = saved_dir;
 		else
 			p_bat = strstr(command_path,"/");
 		i_bat = sprintf(p_bat_array->path,"%.480s",p_bat);
+		if (*filename == '/')
+			i_bat += sprintf(p_bat_array->path + i_bat,"%.220s",filename);
 		p_bat = p_bat_array->path + i_bat;
 		while (*p_bat != '/')
 			--p_bat;
@@ -5486,10 +5495,10 @@ command_func (char *arg, int flags)
 	pid = grub_exec_run(program, flags);
 	/* on exit, release the memory. */
 	grub_free(psp);
-	if (errnum == -1)//errnum = -1 on exit run pre_cmdline.
+	if (errnum == -1)//errnum = -1 on exit run.
 	{
 		errnum = 0;
-		pid = run_line(pre_cmdline,flags);
+		pid = run_line(CMD_RUN_ON_EXIT,flags);
 	}
 	return pid;
 #endif
