@@ -5022,7 +5022,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 					if (i & 16)//get device
 					{
-						if (*p_rep == '(')
+						if (*p_rep == '(' && p_rep[1] != 'b')//no (bd)
 						{
 							while ((*p_cmd++ = *p_rep) && *p_rep++ != ')')
 								;
@@ -6015,7 +6015,7 @@ find_func (char *arg, int flags)
 		switch(*devtype)
 		{
 			case 'h':
-				if (tmp_drive >= 0x80 && tmp_drive < 0xA0)
+				if (tmp_drive >= 0x80 && tmp_drive < 0xA0 && tmp_partition != 0xFFFFFF)
 					FIND_DRIVES = 1;
 				break;
 			case 'u':
@@ -6151,6 +6151,7 @@ find_func (char *arg, int flags)
 						} /*end if*/
 					} /*while next_partition*/
 
+					#if 0
 					saved_drive = current_drive = drive;
 					saved_partition = current_partition = 0xFFFFFF;
 					if ((*devtype == 'h') && open_device()) //if is a partition 
@@ -6163,6 +6164,7 @@ find_func (char *arg, int flags)
 						}
 						//continue;
 					}
+					#endif
 
 				/* next_partition always sets ERRNUM in the last call, so clear it.  */
 					errnum = ERR_NONE;
@@ -8187,6 +8189,12 @@ ls_func (char *arg, int flags)
   if (! *arg || *arg == ' ' || *arg == '\t')
   {
 	return dir ("/");
+  }
+  else if (substring(arg,"dev",1) == 0)
+  {
+  	buf_drive = -1;
+	sprintf((char *)COMPLETION_BUF,"(");
+	return print_completions(1,0);
   }
 
   return dir (arg);
@@ -12079,38 +12087,40 @@ print_root_device (char *buffer)
 	unsigned long long st_bak = putchar_st.status;
 	if (buffer)
 		putchar_st.status = ((unsigned long long)(int)buffer << 32) | 1;
+	else
+		putchar(' ');
 	switch(saved_drive)
 	{
 	#ifdef FSYS_FB
 		case FB_DRIVE:
-			grub_printf(" (ud)");
+			grub_printf("(ud)");
 			break;
 	#endif /* FSYS_FB */
 	#ifdef FSYS_PXE
 		case PXE_DRIVE:
-			grub_printf(" (pd)");
+			grub_printf("(pd)");
 			break;
 	#endif /* PXE drive. */
 	#ifdef SUPPORT_NETBOOT
 		case NETWORK_DRIVE:
-			grub_printf (" (nd)");
+			grub_printf ("(nd)");
 			break;
 	#endif /* SUPPORT_NETBOOT */
 		default:
 			if (saved_drive == cdrom_drive)
 			{
-				grub_printf(" (cd)");
+				grub_printf("(cd)");
 				break;
 			}
 			if (saved_drive & 0x80)
 			{
 				/* Hard disk drive.  */
-				grub_printf (" (hd%d", (saved_drive - 0x80));
+				grub_printf ("(hd%d", (saved_drive - 0x80));
 			}
 			else
 			{
 				/* Floppy disk drive.  */
-				grub_printf (" (fd%d", saved_drive);
+				grub_printf ("(fd%d", saved_drive);
 			}
 
 			if ((saved_partition & 0xFF0000) != 0xFF0000)
