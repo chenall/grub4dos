@@ -239,23 +239,42 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
 
 int fb_dir (char *dirname)
 {
-  int found = 0;
-	char *dirpath = dirname;
-	dirpath += grub_strlen(dirname);
-	while (dirpath != dirname && *dirpath != '/')
-		dirpath--;
-	int i = dirpath - dirname;
+  unsigned long found = 0;
+  unsigned long i;
+  char *dirpath;
   while (*dirname == '/')
     dirname++;
+  dirpath = dirname;
+  dirpath += grub_strlen(dirname);
+  while (dirpath != dirname && *dirpath != '/')
+	dirpath--;
+  i = dirpath - dirname;
+  if (*dirpath == '/')
+	i++;
 
   cur_file = (struct fbm_file *)((current_drive == FB_DRIVE)?FB_MENU_ADDR:(int)fbm_buff);
 
   while (cur_file->size)
     {
+      char tmp_name[512];/* max name len=255, so 512 byte buffer is needed. */
+      unsigned long j, k;
+      char ch1;
+
+      /* copy cur_file->name to tmp_name, and quote spaces with '\\' */
+      for (j = 0, k = 0; j < cur_file->size - 12; j++)
+	{
+	  if (! (ch1 = cur_file->name[j]))
+		break;
+	  if (ch1 == ' ')
+		tmp_name[k++] = '\\';
+	  tmp_name[k++] = ch1;
+	}
+	tmp_name[k] = 0;
+
 #ifndef STAGE1_5
       if (print_possibilities)
 	{
-	  if (substring (dirname, cur_file->name, 1) <= 0)
+	  if (substring (dirname, tmp_name/*cur_file->name*/, 1) <= 0)
 	    {
 	      found = 1;
 	      print_a_completion (cur_file->name + i, 1);
@@ -263,7 +282,7 @@ int fb_dir (char *dirname)
 	}
       else
 #endif
-	if (substring (dirname, cur_file->name, 1) == 0)
+	if (substring (dirname, tmp_name/*cur_file->name*/, 1) == 0)
 	  {
 	    found = 1;
 	    filemax = cur_file->data_size;

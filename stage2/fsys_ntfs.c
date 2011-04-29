@@ -1089,14 +1089,16 @@ static int list_file(char* cur_mft,char *fn,char *pos)
   unsigned char *utf8 = (unsigned char *)(NAME_BUF);
   unsigned long i,ns,len;
 
-  len=strlen(fn);
-  while (1)
+  //len=strlen(fn);
+  for (len=strlen(fn); ! (pos[0xC] & 2); pos+=valueat(pos,8,unsigned short))
     {
       int is_print=(print_possibilities && ch != '/');
       if (pos[0xC] & 2)			// end signature
         break;
       np=pos+0x52;
       ns=valueat(np,-2,unsigned char);
+      if (is_print && ns <= 12 && pos[0x51] == 2)		// exclude short names
+         continue;
       ns=unicode_to_utf8((unsigned short *)np, utf8, ns);
       if (((is_print) && (ns>=len)) ||
           ((! is_print) && (ns==len)))
@@ -1135,7 +1137,7 @@ static int list_file(char* cur_mft,char *fn,char *pos)
                 }
             }
         }
-      pos+=valueat(pos,8,unsigned short);
+      //pos+=valueat(pos,8,unsigned short);
     }
   return -1;
 }

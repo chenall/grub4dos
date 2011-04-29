@@ -479,7 +479,7 @@ fat_dir (char *dirname)
       
       if (!FAT_DIRENTRY_VALID (dir_buf))
 	continue;
-      
+
       if (alias_checksum != -1 && slot == 0)
 	{
 	  int i;
@@ -501,7 +501,7 @@ fat_dir (char *dirname)
 //		break;
 	    }
 	}
-      
+short_name:
       /* XXX convert to 8.3 filename format here */
       {
 	int i, j, c;
@@ -538,6 +538,11 @@ valid_filename:
       
       if (substring (dirname, (char *)utf8, 1) == 0)
 	break;
+	 if (alias_checksum != -1)
+	  {
+ 		alias_checksum = -1;
+		goto short_name;
+	  }
     }
   
   *(dirname = rest) = ch;
