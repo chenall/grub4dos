@@ -4918,16 +4918,6 @@ static int bat_get_args(char *arg,char *buff,int flags)
 {
 	char *p = arg;
 	char *s1 = buff;
-	if (flags & 0x10)
-	{
-		if (grub_open(arg))
-		{
-			buff += sprintf(buff,"0x%lx",filemax);
-			grub_close();
-		}
-		errnum = 0;
-		flags &= 0xf;
-	}
 
 	if (*arg != '(')
 	{
@@ -4941,6 +4931,17 @@ static int bat_get_args(char *arg,char *buff,int flags)
 			goto quit;
 		sprintf(p,"%s",arg);
 		p = ((char *)0x4CB08);
+	}
+
+	if (flags & 0x10)
+	{
+		if (grub_open(p))
+		{
+			buff += sprintf(buff,"0x%lx",filemax);
+			grub_close();
+		}
+		errnum = 0;
+		flags &= 0xf;
 	}
 
 	if (flags == 0xf)
