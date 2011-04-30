@@ -4914,6 +4914,80 @@ static int bat_find_label(char *label)
 	return 0;
 }
 
+static int bat_get_args(char *arg,char *buff,int flags)
+{
+	char *p = arg;
+	char *s1 = buff;
+	if (flags & 0x10)
+	{
+		if (grub_open(arg))
+		{
+			buff += sprintf(buff,"0x%lx",filemax);
+			grub_close();
+		}
+		errnum = 0;
+		flags &= 0xf;
+	}
+
+	if (*arg != '(')
+	{
+		p = ((char *)0x4CB08);
+		print_root_device(p);
+		p += strlen(p);
+		p += sprintf(p,saved_dir);
+		if (*arg != '/')
+			*p++ = '/';
+		if (p + strlen(arg) >= (char *)0x4CC00)
+			goto quit;
+		sprintf(p,"%s",arg);
+		p = ((char *)0x4CB08);
+	}
+
+	if (flags == 0xf)
+	{
+		buff += sprintf(buff, p);
+		goto quit;
+	}
+
+	if (flags & 1)
+	{
+		while ((*buff++ = *p++) && *p != '/')
+			;
+	}
+
+	p = strstr(p,"/");
+	char *p0,*p1,*p2 = NULL;
+	p0 = p1 = p;
+
+	while (*p)
+	{
+		if (*p++ == '/')
+			p1 = p;
+		if (*p == '.')
+			p2 = p;
+	}
+
+	if (p2 < p1)
+		p2 = p;
+
+	if (flags & 2)
+	{
+		buff += sprintf(buff, "%.*s",p1 - p0,p0);
+	}
+
+	if (flags & 4)
+	{
+		buff += sprintf(buff,"%.*s",p2 - p1,p1);
+	}
+
+	if (flags & 8)
+	{
+		buff += sprintf(buff,p2);
+	}
+
+quit:
+	return buff-s1;
+}
 /*
 bat_run_script
 run batch script.
@@ -4979,7 +5053,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	while ((p_bat = *p_entry))//copy cmd_line to p_buff and then run it;
 	{
 		p_cmd = p_buff;
-		char *file_name,*file_ext;
+		char *file_ext;
 		while(*p_bat)
 		{
 			if (*p_bat != '%' || (file_ext = p_bat++,*p_bat == '%'))
@@ -4993,17 +5067,21 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			if (*p_bat == '~')
 			{
 				p_bat++;
-				i |= 1;
+				i |= 0x20;
 				while (*p_bat)
 				{
-					if (*p_bat == 'x')
+					if (*p_bat == 'd')
+						i |= 1;
+					else if (*p_bat == 'p')
 						i |= 2;
 					else if (*p_bat == 'n')
 						i |= 4;
-					else if (*p_bat == 'p')
+					else if (*p_bat == 'x')
 						i |= 8;
-					else if (*p_bat == 'd')
-						i |= 16;
+					else if (*p_bat == 'f')
+						i |= 0xf;
+					else if (*p_bat == 'z')
+						i |= 0x10;
 					else
 						break;
 					p_bat++;
@@ -5012,104 +5090,27 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 			if (*p_bat <= '9' && *p_bat >= '0')
 			{
-				p_rep = s[*p_bat++ - '0'];
+				p_rep = s[*p_bat - '0'];
 				if (*p_rep)
 				{
-					if ((i & 1) && *p_rep == '\"')
+					if ((i & 0x20) && *p_rep == '\"')
 					{
 						p_rep++;
 					}
-
-					if (i & 16)//get device
+					if (i & 0x1f)
 					{
-						if (*p_rep == '(' && p_rep[1] != 'b')//no (bd)
-						{
-							while ((*p_cmd++ = *p_rep) && *p_rep++ != ')')
-								;
-						}
-						else
-						{
-							p_cmd += sprintf(p_cmd,p_bat_prog->device);
-						}
+						p_cmd += bat_get_args(p_rep,p_cmd,i);
 					}
-
-					if (i & 8)//get path
+					else
 					{
-					   if (*p_rep == '(')
-					   {
-					      while (*p_rep++ != ')')
-					         continue;
-					   }
-
-						if (*p_rep)
-						{
-						   if (*p_rep != '/')
-						      p_cmd += sprintf(p_cmd,p_bat_prog->path);
-						   file_name = file_ext = p_rep;
-							while ((file_ext = grub_strstr(file_ext,"/")))
-							{
-								file_name = ++file_ext;
-							}
-							while(p_rep < file_name)
-							{
-								if (*p_rep == ' ')
-									*p_cmd++ = '\\';
-								if ((*p_cmd++ = *p_rep++) == '\\')
-									*p_cmd++ = *p_rep++;
-							}
-						}
-						else
-						{
-							*p_cmd++ = '/';
-						}
+						p_cmd += sprintf(p_cmd,p_rep);
 					}
-
-					if (i & 6)//get filename and ext
-					{
-						file_name = p_rep;
-						while(*p_rep)
-						{
-							if (*p_rep == '.')
-								file_ext = p_rep;
-							else if (*p_rep == '/')
-								file_name = &p_rep[1];
-							p_rep++;
-						}
-						if (file_ext < file_name)
-							file_ext = p_rep;
-						p_rep = (i & 4)?file_name:file_ext;
-						char ch_bak = *file_ext;
-						if ((i & 2) == 0)
-						{
-							*file_ext = '\0';
-						}
-						while(*p_rep)
-						{
-							if (*p_rep == ' ')
-								*p_cmd++ = '\\';
-							if ((*p_cmd++ = *p_rep++) == '\\')
-								*p_cmd++ = *p_rep++;
-						}
-						*file_ext = ch_bak;
-					}
-
-					if (i < 2)
-					{
-						while (*p_rep)
-						{
-							*p_cmd++ = *p_rep++;
-						}
-					}
-
-					if ((i & 1) && *--p_rep == '\"')
-					{
-						p_cmd--;
-					}
+					if ((i & 0x20) && *(p_cmd - 1) == '\"')
+						*--p_cmd = 0;
 				}
 			}
 			else if (*p_bat == '*')
 			{
-				++p_bat;
 				for (i = 1;i< 10;++i)
 				{
 					if (s[i][0])
@@ -5121,8 +5122,9 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			else
 			{
 				p_bat = file_ext;
-				*p_cmd++ = *p_bat++;
+				*p_cmd++ = *p_bat;
 			}
+			++p_bat;
 		}
 
 		*p_cmd = '\0';
@@ -5163,7 +5165,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			continue;
 		}
 
-		if (errnum)
+		if ((unsigned int)errnum >= 1000 || (errorcheck && errnum))
 		{
 			break;
 		}
@@ -5232,7 +5234,7 @@ static int grub_exec_run(char *program, int flags)
 		label_entry[0].line = i_bat;
 		p_bat_array->pid = ++bat_pid;
 		p_bat_array->entry = label_entry;
-
+		#if 0
 		/*save device/partition of the batch file*/
 		i_bat = saved_drive;
 		i_lab = saved_partition;
@@ -5255,7 +5257,7 @@ static int grub_exec_run(char *program, int flags)
 		while (*p_bat != '/')
 			--p_bat;
 		p_bat[1] = 0;
-
+		#endif
 		p_bat_prog = p_bat_array;
 		flags |= BUILTIN_BAT_SCRIPT;
 		pid = bat_run_script(filename, arg,flags);//run batch script from line 0;
@@ -12132,8 +12134,11 @@ print_root_device (char *buffer)
 			grub_printf (")");
 			break;
 	}
-	*putchar_st.addr = 0;
-	putchar_st.status = st_bak;
+	if (buffer)
+	{
+		*putchar_st.addr = 0;
+		putchar_st.status = st_bak;
+	}
 	return;
 }
 
