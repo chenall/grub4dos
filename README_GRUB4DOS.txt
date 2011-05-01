@@ -4125,6 +4125,8 @@ Some differences:
 		%~d0	expands %0 to a drive letter.e.g: (hd0,0) ,()
 		%~p0	expands %0 to a path only
 		%~n0	expands %0 to a file name only
-		%~xI	expands %0 to a file extension only
-	6.In below site you can find some script.
+		%~x0	expands %0 to a file extension only
+		%~f0	expands %0 to a fully qualified path name
+		%~z0	expands %0 to size of file
+	6.You can find some script in below site.
 	  http://chenall.net/post/tag/grub4dos/

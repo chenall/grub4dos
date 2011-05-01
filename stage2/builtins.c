@@ -5094,20 +5094,26 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				p_rep = s[*p_bat - '0'];
 				if (*p_rep)
 				{
+					int len_c = 0;
 					if ((i & 0x20) && *p_rep == '\"')
 					{
 						p_rep++;
 					}
 					if (i & 0x1f)
 					{
-						p_cmd += bat_get_args(p_rep,p_cmd,i);
+						len_c = bat_get_args(p_rep,p_cmd,i);
 					}
 					else
 					{
-						p_cmd += sprintf(p_cmd,p_rep);
+						len_c = sprintf(p_cmd,p_rep);
 					}
-					if ((i & 0x20) && *(p_cmd - 1) == '\"')
-						*--p_cmd = 0;
+
+					if (len_c)
+					{
+						if ((i & 0x20) && p_cmd[len_c-1] == '\"')
+						--len_c;
+						p_cmd += len_c;
+					}
 				}
 			}
 			else if (*p_bat == '*')
