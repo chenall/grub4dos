@@ -6038,7 +6038,7 @@ find_func (char *arg, int flags)
 			case 'c':
 				if (ignore_cd)
 					*devtype = ' ';
-				else if (tmp_drive >= 0xa0 && tmp_drive <= 0xff)
+				else if (current_drive == cdrom_drive || (tmp_drive >= 0xa0 && tmp_drive <= 0xff))
 					FIND_DRIVES = 1;
 				break;
 			case 'f':
