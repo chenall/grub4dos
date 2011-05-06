@@ -2365,6 +2365,32 @@ drdos:
 	goto drdos;
     }
   else
+  if (filemax >= 0x40000 && *((unsigned short *) (SCRATCHADDR)) == 0x5A4D && // MZ header
+  	  *((unsigned short *) (SCRATCHADDR + 0x80)) == 0x4550 && // PE header
+  	  *((unsigned short *) (SCRATCHADDR + 0xDC)) == 0x1 //&& // PE subsystem
+//  	  (*((unsigned long *) (SCRATCHADDR + 0xA8))) == 0x1000 && // Entry address
+//  	  (*((unsigned long *) (SCRATCHADDR + 0xB4))) == 0x8000 // Base address
+  	 )
+    {
+	if (chainloader_load_segment == -1)
+		chainloader_load_segment = 0;
+	if (chainloader_load_offset == -1)
+		chainloader_load_offset = (*((unsigned long *) (SCRATCHADDR + 0xB4)));
+	if (chainloader_load_length == -1)
+		chainloader_load_length = filemax;
+	if (chainloader_boot_IP == -1)
+		chainloader_boot_IP = (*((unsigned long *) (SCRATCHADDR + 0xB4))) + (*((unsigned long *) (SCRATCHADDR + 0xA8)));
+	if (! chainloader_edx_set)
+	{
+		chainloader_edx = current_drive | ((current_partition >> 8) & 0xFF00);
+		chainloader_edx_set = 1;
+	}
+	grub_close ();
+	
+	if (debug > 0)
+	  grub_printf("Will boot FreeLDR from drive=0x%x, partition=0x%x(hidden sectors=0x%lx)\n", current_drive, (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long long)part_start);
+    }
+  else
   if (*(short *)SCRATCHADDR == 0x5A4D && filemax > 0x10000 &&
        *((unsigned short *) (SCRATCHADDR + BOOTSEC_SIG_OFFSET)) == 0
       	/* && (*(long *)(SCRATCHADDR + 0xA2)) == 0 */ )
