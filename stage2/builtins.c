@@ -2357,7 +2357,9 @@ drdos:
 	  grub_printf("Will boot FreeDOS from drive=0x%x, partition=0x%x(hidden sectors=0x%lx)\n",
 			current_drive, (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long long)part_start);
     }
-  else if ((*((long long *)SCRATCHADDR) == 0x501E0100122E802ELL) /* packed with pack101 */ || ((*(long long *)SCRATCHADDR | 0xFFFF02LL) == 0x4F43000000FFFFEBLL && (*(((long long *)SCRATCHADDR)+1) == 0x706D6F435141504DLL)))   /* DR-DOS */
+  else if ((*((long long *)SCRATCHADDR) == 0x501E0100122E802ELL) /* packed with pack101 */ || 
+  	  (*((long long *)(SCRATCHADDR+6)) == 0x646F4D206C616552LL) /* DRMK */ || 
+  	  ((*(long long *)SCRATCHADDR | 0xFFFF02LL) == 0x4F43000000FFFFEBLL && (*(((long long *)SCRATCHADDR)+1) == 0x706D6F435141504DLL)))   /* DR-DOS */
     {
 	/* contributor: Roy <roytam%gmail%com> */
 	if (chainloader_load_segment == -1)

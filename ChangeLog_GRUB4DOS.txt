@@ -1,3 +1,4 @@
+2011-05-07 applied Roy's patch(Issue 25: Add chainloading DELL DRMK DELLBIO.BIN support).
 2011-05-06 applied Roy's patch(issue 24: Add ReactOS freeldr chainloading support).
 2011-04-29 (tinybit)exclude ntfs short filename.allow space in fb_filename.
 2011-03-22 fixed a bug on case sensitivity in filename completion. added a new parameter "case_insensitive" to print_a_completion().

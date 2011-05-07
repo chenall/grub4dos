@@ -12418,6 +12418,8 @@ gdtdescHMA:
 	movl	$0x200, %esp	/* points to end of interrupt vector table */
 				/* SS base=0x200, so SS:SP=physical 0x400 */
 
+	movl	$0x7c00, %ebp
+
 	/* jump to a 16 bit segment, this might be an extra step:
 	 * set up CS limit, also clear high word of EIP
 	 */
