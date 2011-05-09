@@ -23,7 +23,7 @@
 #ifdef SUPPORT_GRAPHICS
 extern int disable_space_highlight;
 #endif /* SUPPORT_GRAPHICS */
-
+  
 #ifdef GRUB_UTIL
 
 grub_jmp_buf restart_env;
@@ -169,6 +169,9 @@ print_default_help_message (char *config_entries)
       default_help_message_destoyed = 0;
 }
 
+
+// ADDED By STEVE6375
+
 static char *
 get_entry (char *list, int num)
 {
@@ -184,6 +187,60 @@ get_entry (char *list, int num)
 
   return list;
 }
+
+static
+char * clean_entry ( char *text) {
+   int i;
+   char ntext[255];
+   (void) strcpy (ntext,text);
+   for (i = 0; ntext[i] != '\0'; ++i) if (ntext[i] < 32 || ntext[i] > 127)  ntext[i]=32;
+	 return ntext;
+}
+
+static
+int checkvalue ( char *text) {
+   int i, value;
+   char *cleantext;
+// Converts a string of ASCII numbers in a string to an integer
+// leading spaces are allowed
+// followed by a number of digits terminated by any non-digit character or EOS nul character
+// return value is number of valid numeric characters found  (0 = no valid number found)
+   cleantext = clean_entry(text);
+   for (i = 0, value = 0; cleantext[i] != '\0'; ++i)
+   {
+    if ( (cleantext[i] - '0' >= 0) && (cleantext[i] - '0' <= 9) ) value = value + 1;
+    if ( (value == 0)  && (cleantext[i] != 32) && (cleantext[i] - '0' < 0 || cleantext[i] - '0' > 9) ) return 0;
+   }
+    return value;
+}
+
+
+static
+int myatoi ( char *text) {
+   int i, value, j;
+   char *cleantext;
+   cleantext = clean_entry(text);
+
+   cleantext = clean_entry(text);
+   for (i = 0, j=0, value = 0; cleantext[i] != '\0'; ++i)
+   {
+    if ( (cleantext[i] - '0' >= 0) && (cleantext[i] - '0' <= 9) ) 
+     {
+     value *= 10;
+     value += cleantext[i] - '0';
+     j=1;
+     }
+     else 
+     { if ( cleantext[i] != 32 || j > 0 ) return value;}
+   }
+ //  printf ("Mv%dMv",value);
+    return value;
+
+}
+
+// END OF STEVE6375 ADDED CODE
+
+
 
 /* Print an entry in a line of the menu box.  */
 static void
@@ -1048,13 +1105,27 @@ restart:
 //		  temp_entryno = num_entries - 1;
 	      if (temp_entryno >= num_entries)	/* too big an entryno */
 	      {
-		if ((char)c - '0' >= num_entries)
-		  temp_entryno = 0;
+		     if ((char)c - '0' >= num_entries)
+		     temp_entryno = 0;
 	        else
-		  temp_entryno = (char)c - '0';
+		     temp_entryno = (char)c - '0';
 	      }
 	      if (temp_entryno != 0 || (char)c == '0')
 	      {
+	      
+	      
+
+// temp_entryno has users number - check if it matches a title number
+// If menu items are numbered then there must be no unnumbered items in the first few entries
+// e.g. if you have 35 menu items, then menu entries 0 - 3 must all numbered - otherwise double-digit user entry will not work - e.g. 34 will not work
+   int j;
+   for (j=0; j < num_entries; ++j)
+  {
+ //  grub_printf("TE%d C%dC A%dATE%s ",temp_entryno,checkvalue (get_entry (menu_entries,j) ),myatoi (get_entry (menu_entries,j)),get_entry(menu_entries,j));
+   if (  ( checkvalue (get_entry (menu_entries,j) ) > 0)  &&   ( myatoi (get_entry (menu_entries,j)) == temp_entryno)  )  {temp_entryno=j; j=num_entries;}
+  }
+
+
 check_update:
 		  if (temp_entryno != first_entry + entryno)
 		  {
@@ -1095,8 +1166,10 @@ check_update:
 
 done_key_handling:
 
+
 	  if (current_term->setcolorstate)
 	      current_term->setcolorstate (COLOR_STATE_HEADING);
+
 
 	  gotoxy (MENU_BOX_E - 4, MENU_BOX_Y - 2);
 	  grub_printf ("%3d ", (first_entry + entryno));
