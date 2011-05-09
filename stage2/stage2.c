@@ -208,7 +208,7 @@ int checkvalue ( char *text) {
    cleantext = clean_entry(text);
    for (i = 0, value = 0; cleantext[i] != '\0'; ++i)
    {
-    if ( (cleantext[i] - '0' >= 0) && (cleantext[i] - '0' <= 9) ) value = value + 1;
+    if ( (cleantext[i] - '0' >= 0) && (cleantext[i] - '0' <= 9) ) ++value;
     if ( (value == 0)  && (cleantext[i] != 32) && (cleantext[i] - '0' < 0 || cleantext[i] - '0' > 9) ) return 0;
    }
     return value;
@@ -221,8 +221,7 @@ int myatoi ( char *text) {
    char *cleantext;
    cleantext = clean_entry(text);
 
-   cleantext = clean_entry(text);
-   for (i = 0, j=0, value = 0; cleantext[i] != '\0'; ++i)
+   for (i = 0, j = 0, value = 0; cleantext[i] != '\0'; ++i)
    {
     if ( (cleantext[i] - '0' >= 0) && (cleantext[i] - '0' <= 9) ) 
      {
@@ -231,7 +230,7 @@ int myatoi ( char *text) {
      j=1;
      }
      else 
-     { if ( cleantext[i] != 32 || j > 0 ) return value;}
+     { if ( cleantext[i] != ' ' || j ) return value;}
    }
  //  printf ("Mv%dMv",value);
     return value;
@@ -252,7 +251,7 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
   {
       expan_var(entry,(char *)SCRATCHADDR,0x400);
       entry = (char *)SCRATCHADDR;
-      c = *entry++;;
+      c = *entry++;
   }
 
   if (current_term->setcolorstate)
