@@ -1,3 +1,4 @@
+2011-05-14 (tinybit)use HLT command in key detection
 2011-05-09 applied steve6375's patch( Issue 23:	Improve grub4dos menu item numbering).
 2011-05-07 applied Roy's patch(Issue 25: Add chainloading DELL DRMK DELLBIO.BIN support).
 2011-05-06 applied Roy's patch(issue 24: Add ReactOS freeldr chainloading support).

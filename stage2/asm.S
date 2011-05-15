@@ -11585,11 +11585,13 @@ ENTRY(console_getkey)
 
 	.code16
 
+1:
 	sti		/* getkey needs interrupt on */
+	hlt
 
 	#; work around for Apple BIOS getkey bug
 	#; check the keyboard buffer, until there is a keypress.
-1:
+
 	movb	$0x01, %ah		#; check key
 	int	$0x16
 	jz	1b			#; no keypress
@@ -11634,7 +11636,17 @@ ENTRY(console_checkkey)
 
 	.code16
 
+	movl	$500, %ecx
+1:
+	movl	0x46c, %eax	/* get old timer counter */
+
 	sti		/* checkkey needs interrupt on */
+	hlt
+
+	cmpl	0x46c, %eax	/* timer counter changed by int 8? */
+	loopz	1b		/* no change, wait a timer interrupt */
+
+	/* counter changed or timed out. */
 
 	movb	$0x1, %ah
 	int	$0x16
