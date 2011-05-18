@@ -12416,6 +12416,19 @@ gdtdescHMA:
 
 	/* switch to real mode */
 
+	/* check if the --cx option is given. */
+	movl	(EXT_C(chain_cx_set) - EXT_C(HMA_start) + HMA_ADDR), %eax
+	testl	%eax, %eax
+	jz	1f
+	movw	(EXT_C(chain_cx) - EXT_C(HMA_start) + HMA_ADDR), %cx
+1:
+	/* check if the --bx option is given. */
+	movl	(EXT_C(chain_bx_set) - EXT_C(HMA_start) + HMA_ADDR), %eax
+	testl	%eax, %eax
+	jz	1f
+	movw	(EXT_C(chain_bx) - EXT_C(HMA_start) + HMA_ADDR), %bx
+1:
+
 	/* set new GDT */
 	lgdt	(gdtdescHMA - EXT_C(HMA_start) + HMA_ADDR)
 
@@ -12479,6 +12492,14 @@ VARIABLE(chain_edx)
 VARIABLE(chain_edx_set)
 	.long	0
 VARIABLE(chain_enable_gateA20)
+	.long	0
+VARIABLE(chain_bx)
+	.word	0
+VARIABLE(chain_bx_set)
+	.long	0
+VARIABLE(chain_cx)
+	.word	0
+VARIABLE(chain_cx_set)
 	.long	0
 
 	/* max length of code is 1 sector */

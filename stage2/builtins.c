@@ -150,6 +150,10 @@ extern unsigned long chain_ebx_set;
 extern unsigned long chain_edx;
 extern unsigned long chain_edx_set;
 extern unsigned long chain_enable_gateA20;
+extern unsigned long chain_bx;
+extern unsigned long chain_bx_set;
+extern unsigned long chain_cx;
+extern unsigned long chain_cx_set;
 extern char HMA_start[];
 #endif /* ! GRUB_UTIL */
 
@@ -173,6 +177,14 @@ static long chainloader_edx = 0;
 static long chainloader_edx_orig = 0;
 static int chainloader_edx_set = 0;
 static int chainloader_edx_set_orig = 0;
+static long chainloader_bx = 0;
+static long chainloader_bx_orig = 0;
+static int chainloader_bx_set = 0;
+static int chainloader_bx_set_orig = 0;
+static long chainloader_cx = 0;
+static long chainloader_cx_orig = 0;
+static int chainloader_cx_set = 0;
+static int chainloader_cx_set_orig = 0;
 static int chainloader_disable_A20 = 0;
 static int chainloader_disable_A20_orig = 0;
 static int is_sdi = 0;
@@ -765,6 +777,8 @@ boot_func (char *arg, int flags)
 		chainloader_skip_length ||
 		chainloader_ebx_set ||
 		chainloader_edx_set ||
+		chainloader_bx_set ||
+		chainloader_cx_set ||
 		is_sdi || is_raw || //chainloader_disable_A20 ||
 		(chainloader_boot_IP >= 0 && chainloader_boot_IP != 0x7c00) ||
 		(((chainloader_load_segment >= 0)? chainloader_load_segment : 0) << 4) +
@@ -1026,6 +1040,10 @@ boot_func (char *arg, int flags)
 		chain_ebx_set = chainloader_ebx_set;
 		chain_edx = chainloader_edx;
 		chain_edx_set = chainloader_edx_set;
+		chain_bx = chainloader_bx;
+		chain_bx_set = chainloader_bx_set;
+		chain_cx = chainloader_cx;
+		chain_cx_set = chainloader_cx_set;
 		chain_enable_gateA20 = ! chainloader_disable_A20;
 		
 		/* Check if we should set the int13 handler.  */
@@ -1600,6 +1618,12 @@ chainloader_func (char *arg, int flags)
   int force = 0;
   char *filename;
 
+  int is_pcdos = 0;
+  int is_msdos = 0;
+  int is_drmk = 0;
+  int is_romdos = 0;
+  int is_drdos = 0;
+
   chainloader_load_segment_orig = chainloader_load_segment;
   chainloader_load_offset_orig = chainloader_load_offset;
   chainloader_load_length_orig = chainloader_load_length;
@@ -1610,6 +1634,10 @@ chainloader_func (char *arg, int flags)
   chainloader_ebx_set_orig = chainloader_ebx_set;
   chainloader_edx_orig = chainloader_edx;
   chainloader_edx_set_orig = chainloader_edx_set;
+  chainloader_bx_orig = chainloader_bx;
+  chainloader_bx_set_orig = chainloader_bx_set;
+  chainloader_cx_orig = chainloader_cx;
+  chainloader_cx_set_orig = chainloader_cx_set;
   chainloader_disable_A20_orig = chainloader_disable_A20;
   is_sdi_orig = is_sdi;
   is_raw_orig = is_raw;
@@ -1629,6 +1657,10 @@ chainloader_func (char *arg, int flags)
   chainloader_ebx_set = 0;
   chainloader_edx = 0;
   chainloader_edx_set = 0;
+  chainloader_bx = 0;
+  chainloader_bx_set = 0;
+  chainloader_cx = 0;
+  chainloader_cx_set = 0;
   chainloader_disable_A20 = 0;
   is_sdi = is_raw = 0;
   is_isolinux = 0;
@@ -1641,6 +1673,14 @@ chainloader_func (char *arg, int flags)
     if (grub_memcmp (arg, "--force", 7) == 0)
       {
 	force = 1;
+      }
+    else if (grub_memcmp (arg, "--pcdos", 7) == 0)
+      {
+	is_pcdos = 1;
+      }
+    else if (grub_memcmp (arg, "--msdos", 7) == 0)
+      {
+	is_msdos = 1;
       }
     else if (grub_memcmp (arg, "--load-segment=", 15) == 0)
       {
@@ -2275,6 +2315,8 @@ chainloader_func (char *arg, int flags)
 	//chainloader_ebx = 0;
 	chainloader_ebx_set = 0;
 	chainloader_edx_set = 0;
+	chainloader_bx_set = 0;
+	chainloader_cx_set = 0;
 	//chainloader_disable_A20 = 0;
 	saved_drive = ((tmp1 == 4) ? 0x80 : 0x00);
 	chainloader_edx = saved_drive;
@@ -2327,19 +2369,19 @@ drdos:
 		chainloader_ebx = current_drive | ((current_partition >> 8) & 0xFF00);
 		chainloader_ebx_set = 1;
 	}
-	    
+
 	grub_close ();
-	
+
 	/* FIXME: Where should the BPB be placed for FreeDOS's KERNEL.SYS?
 	 *	  In the current implementation it is placed at 0000:7C00
 	 *	  but has no effect, since the KERNEL.SYS body will later
 	 *	  overwrite 0000:7C00 on issuing the `boot' command.
 	 */
-	
-	if ((chainloader_ebx & 0xFF00) == 0xFF00) /* check if partition number == 0xFF */
-		grub_sprintf ((char *)SCRATCHADDR, "(%d)+1", (unsigned long)(unsigned char)chainloader_ebx);
+
+	if (((current_partition >> 8) & 0xFF00) == 0xFF00) /* check if partition number == 0xFF */
+		grub_sprintf ((char *)SCRATCHADDR, "(%d)+1", (unsigned long)(unsigned char)current_drive);
 	else
-		grub_sprintf ((char *)SCRATCHADDR, "(%d,%d)+1", (unsigned long)(unsigned char)chainloader_ebx, (unsigned long)(unsigned char)(chainloader_ebx >> 8));
+		grub_sprintf ((char *)SCRATCHADDR, "(%d,%d)+1", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16));
 
 	if (! grub_open ((char *)SCRATCHADDR))
 		goto failure;
@@ -2353,17 +2395,89 @@ drdos:
 	
 	if (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_HIDDEN_SECTORS)))
 	    *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_HIDDEN_SECTORS)) = (unsigned long)part_start;
+
+	if (is_pcdos||is_msdos) {
+		/* Set data area location to *0x7BFC, root directory entry address to *0x7BF8 */
+		if (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT_NAME)) == 0x31544146) { /* FAT1(2|6) */
+			*(unsigned long *)0x7BFC = (unsigned long)part_start
+									+ *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS))
+	    							+ *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_SECTORS_PRE_FAT)) * 2
+	    							+ *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_MAX_ROOT_ENTRIES)) * 32 / *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PRE_SECTOR));
+
+			*(unsigned long *)0x7BF8 = *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS))
+	    								+ *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_SECTORS_PRE_FAT)) * 2; // seek to root directory entry
+		}
+		else if (*((unsigned long *)(SCRATCHADDR + BOOTSEC_BPB_FAT32_NAME)) == 0x33544146) { /* FAT32 */
+			*(unsigned long *)0x7BF8 = *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS))
+	    								+ *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PRE_FAT)) * 2
+	    								+ (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_ROOT)) - 2) * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_SECTORS_PRE_CLUSTER)); // seek to root directory entry
+	    	*(unsigned long *)0x7BFC = (unsigned long)part_start + *(unsigned long *)0x7BF8; // root directory entry is in cluster 2 !!
+		}
+		else {
+			grub_printf("Error: Not FAT partition.");
+			goto failure_exec_format;
+		}
+
+		/* copy directory entry of boot files to 0x500 */
+		grub_close ();
+		if (((current_partition >> 8) & 0xFF00) == 0xFF00) /* check if partition number == 0xFF */
+			grub_sprintf ((char *)(HMA_ADDR - 0x400), "(%d)%d+2", (unsigned long)(unsigned char)current_drive, *(unsigned long *)0x7BF8);
+		else
+			grub_sprintf ((char *)(HMA_ADDR - 0x400), "(%d,%d)%d+2", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16), *(unsigned long *)0x7BF8);
+
+		grub_open ((char *)(HMA_ADDR - 0x400));
+		grub_read ((char *)(HMA_ADDR - 0x400), 1024, 0xedde0d90);
+
+		for ( *(unsigned long *)0x7BF4 = HMA_ADDR - 0x400, *(unsigned long *)0x7BF0 = 0x500; *(unsigned long *)0x7BF0 < 0x520 && *(unsigned long *)0x7BF4 < HMA_ADDR; *(unsigned long *)0x7BF4 += 32) {
+			if (*(long long *)(*(unsigned long *)0x7BF4) == *(long long *)0x7BE0) { /* BIO */
+				grub_memmove(*(unsigned long *)0x7BF0, *(unsigned long *)0x7BF4, 32);
+				*(unsigned long *)0x7BF0 += 32;
+			}
+		}
+		for ( *(unsigned long *)0x7BF4 = HMA_ADDR - 0x400, *(unsigned long *)0x7BF0 = 0x520; *(unsigned long *)0x7BF0 < 0x540 && *(unsigned long *)0x7BF4 < HMA_ADDR; *(unsigned long *)0x7BF4 += 32) {
+			if (*(long long *)(*(unsigned long *)0x7BF4) == *(long long *)0x7BE8) { /* DOS */
+				grub_memmove(*(unsigned long *)0x7BF0, *(unsigned long *)0x7BF4, 32);
+				*(unsigned long *)0x7BF0 += 32;
+			}
+		}
+		if (! chainloader_bx_set)
+		{
+			chainloader_bx = *(unsigned long *)0x7BFC;
+			chainloader_bx_set = 1;
+		}
+		if (! chainloader_cx_set)
+		{
+			chainloader_cx = *((unsigned char *) (SCRATCHADDR + BOOTSEC_BPB_MEDIA_DESCRIPTOR)) << 8;
+			chainloader_cx_set = 1;
+		}
+	}
+
 	if (debug > 0)
-	  grub_printf("Will boot FreeDOS from drive=0x%x, partition=0x%x(hidden sectors=0x%lx)\n",
-			current_drive, (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long long)part_start);
+	  grub_printf("Will boot %s from drive=0x%x, partition=0x%x(hidden sectors=0x%lx)\n",
+			(is_pcdos ? "PC DOS" : (is_msdos ? "MS-DOS" : (is_drdos ? "DR-DOS" : (is_romdos ? "ROM-DOS" : (is_drmk ? "DRMK" : "FreeDOS"))))), current_drive, (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long long)part_start);
     }
-  else if ((*((long long *)SCRATCHADDR) == 0x501E0100122E802ELL) /* packed with pack101 */ || 
-  	  (*((long long *)(SCRATCHADDR+6)) == 0x646F4D206C616552LL) /* DRMK */ || 
-  	  ((*(long long *)SCRATCHADDR | 0xFFFF02LL) == 0x4F43000000FFFFEBLL && (*(((long long *)SCRATCHADDR)+1) == 0x706D6F435141504DLL)))   /* DR-DOS */
+  else if ((*((long long *)SCRATCHADDR) == 0x501E0100122E802ELL && (is_drdos = 1)) /* packed with pack101 */ || 
+  	  is_pcdos || is_msdos ||
+  	  (*((long long *)(SCRATCHADDR)) == 0x0A079047EBLL && (is_pcdos = 1)) /* PC-DOS 7.1 */ || 
+  	  (*((long long *)(SCRATCHADDR)) == 0x070135E9LL && (is_pcdos = 1)) /* PC-DOS 2000 */ || 
+  	  (*((unsigned long *)(SCRATCHADDR)) == 0x060135E9 && (is_msdos = 1)) /* MS-DOS 6.x */ || 
+  	  (*((long long *)(SCRATCHADDR+6)) == 0x646F4D206C616552LL && (is_drmk = 1)) /* DRMK */ || 
+  	  ((*(long long *)SCRATCHADDR | 0xFFFF02LL) == 0x4F43000000FFFFEBLL && (*(((long long *)SCRATCHADDR)+1) == 0x706D6F435141504DLL) && (is_drdos = 1)))   /* DR-DOS */
     {
 	/* contributor: Roy <roytam%gmail%com> */
 	if (chainloader_load_segment == -1)
 		chainloader_load_segment = 0x0070;
+	if ((is_pcdos || is_drmk || is_msdos) && chainloader_load_length == -1)
+		chainloader_load_length = filemax < 0x7400 ? filemax : 0x7400;
+	if (is_pcdos) {
+		*(long long *)0x7BE0 = 0x20204F49424D4249LL; /* IBMBIO.COM */
+		*(long long *)0x7BE8 = 0x2020534F444D4249LL; /* IBMDOS.COM */
+	}
+	else if (is_msdos) {
+		*(long long *)0x7BE0 = 0x2020202020204F49LL; /* IO.SYS */
+		*(long long *)0x7BE8 = 0x202020534F44534DLL; /* MSDOS.SYS */
+	}
+
 	goto drdos;
     }
   else
@@ -2598,6 +2712,8 @@ check_isolinux:
 		if (chainloader_skip_length == 0)
 			chainloader_skip_length = 0x0200;
 		*(unsigned long *)0x84 = current_drive | 0xFFFF0000;
+		is_romdos = 1;
+		goto drdos;
 	}
       else
       if (((*(long long *)SCRATCHADDR) & 0xFFFFFFFFFF00FFFFLL) == 0x909000007C00EAFALL && filemax > 0x2000 && filemax < 0x20000) /* ISOLINUX */
@@ -2712,7 +2828,7 @@ static struct builtin builtin_chainloader =
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
   "chainloader [--force] [--load-segment=LS] [--load-offset=LO]"
   "\n[--load-length=LL] [--skip-length=SL] [--boot-cs=CS] [--boot-ip=IP]"
-  "\n[--ebx=EBX] [--edx=EDX] [--sdi] [--disable-a20] FILE",
+  "\n[--ebx=EBX] [--edx=EDX] [--sdi] [--disable-a20] [--pcdos] [--msdos] FILE",
   "Load the chain-loader FILE. If --force is specified, then load it"
   " forcibly, whether the boot loader signature is present or not."
   " LS:LO specifies the load address other than 0000:7C00. LL specifies"
@@ -11554,6 +11670,10 @@ quit_func (char *arg, int flags)
   chain_ebx_set = 0;
   chain_edx = 0;
   chain_edx_set = 0;
+  chain_bx = 0;
+  chain_bx_set = 0;
+  chain_cx = 0;
+  chain_cx_set = 0;
   chain_enable_gateA20 = ((*(short *)(0x2A0000 + 4)) != 0);
   if (chainloader_disable_A20)
 	chain_enable_gateA20 = 0;
