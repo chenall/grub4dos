@@ -2421,12 +2421,41 @@ drdos:
 		/* copy directory entry of boot files to 0x500 */
 		grub_close ();
 		if (((current_partition >> 8) & 0xFF00) == 0xFF00) /* check if partition number == 0xFF */
-			grub_sprintf ((char *)(HMA_ADDR - 0x10000), "(%d)%d+%d", (unsigned long)(unsigned char)current_drive, *(unsigned long *)0x7BF8, *(unsigned short *)0x7BDE * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)) / 512);
+			grub_sprintf ((char *)(HMA_ADDR - 0x20), "(%d)%d+%d", (unsigned long)(unsigned char)current_drive, *(unsigned long *)0x7BF8, *(unsigned short *)0x7BDE * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)) / 512);
 		else
-			grub_sprintf ((char *)(HMA_ADDR - 0x10000), "(%d,%d)%d+%d", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16), *(unsigned long *)0x7BF8, *(unsigned short *)0x7BDE * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)) / 512);
+			grub_sprintf ((char *)(HMA_ADDR - 0x20), "(%d,%d)%d+%d", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16), *(unsigned long *)0x7BF8, *(unsigned short *)0x7BDE * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)) / 512);
 
-		grub_open ((char *)(HMA_ADDR - 0x10000));
-		grub_read ((char *)(HMA_ADDR - 0x10000), *(unsigned short *)0x7BDE * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)), 0xedde0d90);
+		grub_open ((char *)(HMA_ADDR - 0x20));
+		grub_read ((char *)(HMA_ADDR - 0x10000), (*(unsigned short *)0x7BD8 = *(unsigned short *)0x7BDE * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR))), 0xedde0d90);
+
+		/* read 1st FAT(first 32K) to HMA_ADDR - 0x8000 */
+		if (*((unsigned long *)(SCRATCHADDR + BOOTSEC_BPB_FAT32_NAME)) == 0x33544146) { /* FAT32 */
+			*(unsigned short *)0x7BDC = 0; // read root directory cluster count
+			*(unsigned long *)0x7BD0 = *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_ROOT)); // last read root directory cluster
+			if (((current_partition >> 8) & 0xFF00) == 0xFF00) /* check if partition number == 0xFF */
+				grub_sprintf ((char *)(HMA_ADDR - 0x20), "(%d)%d+%d", (unsigned long)(unsigned char)current_drive, *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS)), *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)));
+			else
+				grub_sprintf ((char *)(HMA_ADDR - 0x20), "(%d,%d)%d+%d", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16), *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS)), *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)));
+
+			grub_open ((char *)(HMA_ADDR - 0x20)); /* read 1st FAT table¡@(first 0x8000 bytes only) */
+			grub_read ((char *)(HMA_ADDR - 0x8000), (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)) > 40 ? 40 : *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT))) * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)), 0xedde0d90);
+readroot:
+			if ( (HMA_ADDR - 0x10000 + (1+*(unsigned short *)0x7BDC) * *(unsigned short *)0x7BD8) < HMA_ADDR && /* don't overrun */
+				*(unsigned long *)0x7BD0 * sizeof(unsigned long) < 0x8000 /* &&
+				(*(unsigned long *)0x7BD0 = *(unsigned long *)(HMA_ADDR - 0x8000 + *(unsigned long *)0x7BD0 * sizeof(unsigned long))) != 0xFFFFFFFF*/ ) { /* root cluster count > 1 */
+				*(unsigned long *)0x7BF8 = *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS))
+		    								+ *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)) * 2
+		    								+ (*(unsigned long *)0x7BD0 - 2) * *((unsigned char *) (SCRATCHADDR + BOOTSEC_BPB_SECTORS_PER_CLUSTER)); // root directory entry address
+				if (((current_partition >> 8) & 0xFF00) == 0xFF00) /* check if partition number == 0xFF */
+					grub_sprintf ((char *)(HMA_ADDR - 0x20), "(%d)%d+%d", (unsigned long)(unsigned char)current_drive, *(unsigned long *)0x7BF8, *(unsigned short *)0x7BDE);
+				else
+					grub_sprintf ((char *)(HMA_ADDR - 0x20), "(%d,%d)%d+%d", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16), *(unsigned long *)0x7BF8, *(unsigned short *)0x7BDE);
+				grub_open ((char *)(HMA_ADDR - 0x20));
+				grub_read ((char *)(HMA_ADDR - 0x10000 + (1+*(unsigned short *)0x7BDC) * *(unsigned short *)0x7BD8), *(unsigned short *)0x7BD8, 0xedde0d90);
+				++(*(unsigned short *)0x7BDC);
+				goto readroot;
+			}
+		}
 
 		for ( *(unsigned long *)0x7BF4 = HMA_ADDR - 0x10000, *(unsigned long *)0x7BF0 = 0x500; *(char *)(*(unsigned long *)0x7BF4) && *(unsigned long *)0x7BF4 < HMA_ADDR; *(unsigned long *)0x7BF4 += 32) {
 			if (*(long long *)(*(unsigned long *)0x7BF4) == *(long long *)0x7BE0) { /* BIO */
