@@ -2397,20 +2397,20 @@ drdos:
 	    *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_HIDDEN_SECTORS)) = (unsigned long)part_start;
 
 	if (is_pcdos||is_msdos) {
-		/* Set data area location to *0x7BFC, root directory entry address to *0x7BF8 */
+		/* Set data area location to *0x7BFC, root directory entry address to *0x7BF8, root directory entry size to *0x7BDE */
 		if (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT_NAME)) == 0x31544146) { /* FAT1(2|6) */
-			*(unsigned long *)0x7BFC = (unsigned long)part_start
-									+ *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS))
-	    							+ *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_SECTORS_PRE_FAT)) * 2
-	    							+ *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_MAX_ROOT_ENTRIES)) * 32 / *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PRE_SECTOR));
-
 			*(unsigned long *)0x7BF8 = *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS))
-	    								+ *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_SECTORS_PRE_FAT)) * 2; // seek to root directory entry
+	    								+ *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_SECTORS_PER_FAT)) * 2; // root directory entry address
+			*(unsigned short *)0x7BDE = *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_MAX_ROOT_ENTRIES)) * 32 / *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)); // root directory entry size
+			*(unsigned long *)0x7BFC = (unsigned long)part_start
+									+ *(unsigned long *)0x7BF8
+	    							+ *(unsigned short *)0x7BDE;
 		}
 		else if (*((unsigned long *)(SCRATCHADDR + BOOTSEC_BPB_FAT32_NAME)) == 0x33544146) { /* FAT32 */
 			*(unsigned long *)0x7BF8 = *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS))
-	    								+ *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PRE_FAT)) * 2
-	    								+ (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_ROOT)) - 2) * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_SECTORS_PRE_CLUSTER)); // seek to root directory entry
+	    								+ *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)) * 2
+	    								+ (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_ROOT)) - 2) * *((unsigned char *) (SCRATCHADDR + BOOTSEC_BPB_SECTORS_PER_CLUSTER)); // root directory entry address
+			*(unsigned short *)0x7BDE = *((unsigned char *) (SCRATCHADDR + BOOTSEC_BPB_SECTORS_PER_CLUSTER)); // root directory entry size = 1 cluster
 	    	*(unsigned long *)0x7BFC = (unsigned long)part_start + *(unsigned long *)0x7BF8; // root directory entry is in cluster 2 !!
 		}
 		else {
@@ -2421,20 +2421,20 @@ drdos:
 		/* copy directory entry of boot files to 0x500 */
 		grub_close ();
 		if (((current_partition >> 8) & 0xFF00) == 0xFF00) /* check if partition number == 0xFF */
-			grub_sprintf ((char *)(HMA_ADDR - 0x400), "(%d)%d+2", (unsigned long)(unsigned char)current_drive, *(unsigned long *)0x7BF8);
+			grub_sprintf ((char *)(HMA_ADDR - 0x10000), "(%d)%d+%d", (unsigned long)(unsigned char)current_drive, *(unsigned long *)0x7BF8, *(unsigned short *)0x7BDE * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)) / 512);
 		else
-			grub_sprintf ((char *)(HMA_ADDR - 0x400), "(%d,%d)%d+2", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16), *(unsigned long *)0x7BF8);
+			grub_sprintf ((char *)(HMA_ADDR - 0x10000), "(%d,%d)%d+%d", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16), *(unsigned long *)0x7BF8, *(unsigned short *)0x7BDE * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)) / 512);
 
-		grub_open ((char *)(HMA_ADDR - 0x400));
-		grub_read ((char *)(HMA_ADDR - 0x400), 1024, 0xedde0d90);
+		grub_open ((char *)(HMA_ADDR - 0x10000));
+		grub_read ((char *)(HMA_ADDR - 0x10000), *(unsigned short *)0x7BDE * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)), 0xedde0d90);
 
-		for ( *(unsigned long *)0x7BF4 = HMA_ADDR - 0x400, *(unsigned long *)0x7BF0 = 0x500; *(unsigned long *)0x7BF0 < 0x520 && *(unsigned long *)0x7BF4 < HMA_ADDR; *(unsigned long *)0x7BF4 += 32) {
+		for ( *(unsigned long *)0x7BF4 = HMA_ADDR - 0x10000, *(unsigned long *)0x7BF0 = 0x500; *(char *)(*(unsigned long *)0x7BF4) && *(unsigned long *)0x7BF4 < HMA_ADDR; *(unsigned long *)0x7BF4 += 32) {
 			if (*(long long *)(*(unsigned long *)0x7BF4) == *(long long *)0x7BE0) { /* BIO */
 				grub_memmove(*(unsigned long *)0x7BF0, *(unsigned long *)0x7BF4, 32);
 				*(unsigned long *)0x7BF0 += 32;
 			}
 		}
-		for ( *(unsigned long *)0x7BF4 = HMA_ADDR - 0x400, *(unsigned long *)0x7BF0 = 0x520; *(unsigned long *)0x7BF0 < 0x540 && *(unsigned long *)0x7BF4 < HMA_ADDR; *(unsigned long *)0x7BF4 += 32) {
+		for ( *(unsigned long *)0x7BF4 = HMA_ADDR - 0x10000; *(char *)(*(unsigned long *)0x7BF4) && *(unsigned long *)0x7BF4 < HMA_ADDR; *(unsigned long *)0x7BF4 += 32) {
 			if (*(long long *)(*(unsigned long *)0x7BF4) == *(long long *)0x7BE8) { /* DOS */
 				grub_memmove(*(unsigned long *)0x7BF0, *(unsigned long *)0x7BF4, 32);
 				*(unsigned long *)0x7BF0 += 32;
