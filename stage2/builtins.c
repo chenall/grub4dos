@@ -2441,8 +2441,8 @@ drdos:
 			grub_read ((char *)(HMA_ADDR - 0x8000), (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)) > 40 ? 40 : *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT))) * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)), 0xedde0d90);
 readroot:
 			if ( (HMA_ADDR - 0x10000 + (1+*(unsigned short *)0x7BDC) * *(unsigned short *)0x7BD8) < HMA_ADDR && /* don't overrun */
-				*(unsigned long *)0x7BD0 * sizeof(unsigned long) < 0x8000 /* &&
-				(*(unsigned long *)0x7BD0 = *(unsigned long *)(HMA_ADDR - 0x8000 + *(unsigned long *)0x7BD0 * sizeof(unsigned long))) != 0xFFFFFFFF*/ ) { /* root cluster count > 1 */
+				*(unsigned long *)0x7BD0 * sizeof(unsigned long) < 0x8000 &&
+				(*(unsigned long *)0x7BD0 = *(unsigned long *)(HMA_ADDR - 0x8000 + *(unsigned long *)0x7BD0 * sizeof(unsigned long))) != 0xFFFFFFFF ) { /* root cluster count > 1 */
 				*(unsigned long *)0x7BF8 = *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS))
 		    								+ *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)) * 2
 		    								+ (*(unsigned long *)0x7BD0 - 2) * *((unsigned char *) (SCRATCHADDR + BOOTSEC_BPB_SECTORS_PER_CLUSTER)); // root directory entry address
