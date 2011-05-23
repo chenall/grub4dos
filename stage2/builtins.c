@@ -5308,7 +5308,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 
 		*p_cmd = '\0';
-		if (debug_ori > 1)
+		if (debug_ori > 1 || debug == 3)
 		{
 			printf("%s\n",p_buff);
 			int key=getkey() & 0xff00;
