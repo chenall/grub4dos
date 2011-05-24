@@ -1746,6 +1746,7 @@ loadseg_off_32:
 #else
 	movb	0x40(%bp), %bl	/* FreeDOS kernel uses BL, not DL, for drive */
 #endif
+	pushw	%dx		/* for loading grub.exe */
 	ljmp	*(loadseg_off_32 - Entry_32)(%bp)
 
 1:
@@ -2625,6 +2626,7 @@ loadseg_seg_12_16:	.word	LOADSEG_12_16
 #else
 	movb	0x24(%bp), %bl	/* FreeDOS kernel uses BL, not DL, for drive */
 #endif
+	pushw	%dx		/* for loading grub.exe */
 	ljmp	*(loadseg_off_12_16 - Entry_12_16)(%bp)	/* boot it! */
 
 /****************************************************************************/
@@ -3442,6 +3444,7 @@ msg_DiskReadError_ext2:
 
 	/* boot it now! */
 
+	pushw	%dx		/* for loading grub.exe */
 	pushw	%di		/* 0x1000 */
 	pushw	%ss		/* 0x0000 */
 	lret
@@ -4320,6 +4323,7 @@ ntfs_final:
 	//call	pause
 
 	movw	nt_boot_drive, %dx
+	pushw	%dx		/* for loading grub.exe */
 	ljmp	*(nt_loadseg_off - Entry_nt)(%bp)
 
 NTFS_No_Data_Error:

@@ -84,7 +84,8 @@ _start:
 	.byte	0x4d, 0x5a	/* 'MZ', the EXE magic number.  */
 
 	/* EXE file last sector in bytes */
-	.word	((STAGE2_SIZE + 0x1010 + pre_stage2_start - _start) % 512)
+	//.word	((STAGE2_SIZE + 0x1010 + pre_stage2_start - _start) % 512)
+	.byte	0xEB, 0x18	/* jmp 1f */
 
 #define exe_sectors ((STAGE2_SIZE + 0x1010 + pre_stage2_start - _start + 511) / 512 )
 
@@ -112,6 +113,11 @@ _start:
 	.word 0x001E			/* initial CS, relative to START segment */
 	.word 0x001C		/* displacement of the relocation table */
 	.word 0			/* overlay serial number. 0 for main program */
+
+1:
+	.byte	0xE9		/* jmp grldr_real_start */
+	.word	(grldr_real_start - 1f)
+1:
 
 	/* DOS program begins at _dos_start. CS==SS==START, DS==ES==PSP */
 
@@ -1166,9 +1172,199 @@ ramdisk_max:	.long (-__PAGE_OFFSET-(512 << 20)-1) & 0x7fffffff
 
 trampoline:	call	start_of_setup
 		.align 16
-					# The offset at this point is 0x240
-		.space	(0xeff-0x240+1)	# E820 & EDD space (ending at 0xeff)
+	//				# The offset at this point is 0x240
+	//	.space (0xeff-0x240+1)	# E820 & EDD space (ending at 0xeff)
+
+	/* Use this room to simulate the grldr startup procedure. */
+
+grldr_real_start:
+
+	cli
+	xorw	%bx, %bx
+	movw	%bx, %ss
+	movw	$0x0580, %sp	/* temp safe stack */
+	movw	%cs, %bp	/* save CS to BP */
+	call	1f
+1:
+	popw	%bx		/* BX=Instruction Pointer of 1b */
+	subw	$(1b - _start), %bx	/* CS:BX = _start */
+	movw	%bx, %cx
+	shrw	$4, %bx
+	addw	%bp, %bx	/* BX:0000 = _start */
+	pushw	%bx		/* new CS */
+	andw	$0x000f, %cx
+	addw	$(1f - _start), %cx
+	pushw	%cx		/* new IP */
+	lret
+1:
+	pushw	%cs
+	popw	%ds
+	movw	%bx, %bp
+	movw	%ds, %cx	/* CX==BP==0x7C0 for pxe enabled */
+
+	/* CS=DS=BX, CS:0000 = _start */
+
+	addw	$((pre_stage2_start - _start) >> 4), %bx
+
+	/* BX:0000 = pre_stage2_start */
+
+	cmpw	$0x7C0, %bp
+	jne	1f
+	cmpw	%bp, %cx
+	je	2f
+1:
+	/* disable pxe */
+	orb	$0x01, (pre_stage2_start - _start + 5)
+2:
+	cmpw	$0x820, %bx
+	jb	2f
+
+	movw	$((0x8200 - (pre_stage2_start - _start) - 0x400) >> 4), %cx
+
+	/* Now CS(=DS) >= CX+0x40 */
+
+	movw	%cx, %es
+	xorw	%di, %di
+	xorw	%si, %si
+
+	/////////////////////////////////////////////////////////////
+	//
+	//                    CS
+	//                    DS          0x820     BX
+	//                    _start----------------pre_stage2_start
+	//          CX+0x40---------------0x820
+	//   CX
+	//   ES
+	//
+	/////////////////////////////////////////////////////////////
+
+	movw	$0x200, %cx	/* move 2 sectors */
+	cld
+	repz movsw
+
+	pushw	%es		/* ES:0000 = _start */
+	pushw	$(1f - _start)
+	lret			/* CS=ES, CS:0000 = _start */
+1:
+
+	/* move BX:0000 to 0820:0000 upward since BX >= 0x820 */
+
+	cld
+
+	movw	%bx, %ds
+	movw	$0x820, %bx
+	movw	%bx, %es
+
+	xorw	%si, %si
+	xorw	%di, %di
+
+	movw	$6, %bx		/* 64K pages: 0x20000 - 0x7ffff */
+1:
+	movw	$0x8000, %cx
+	repz movsw
+	movw	%ds, %ax
+	addw	$0x1000, %ax
+	movw	%ax, %ds
+	movw	%es, %ax
+	addw	$0x1000, %ax
+	movw	%ax, %es
+	decw	%bx
+	jnz	1b
+
+	jmp	3f
+2:
+
+	/* move BX:0000 to 0820:0000 downward since BX < 0x820 */
+
+	std
+
+	addw	$0x7000, %bx
+	movw	%bx, %ds
+	movw	$0x7820, %bx
+	movw	%bx, %es
+
+	movw	$0xfffe, %si
+	movw	%si, %di
+
+	movw	$8, %bx		/* 64K pages: 0x08200 - 0x881ff */
+1:
+	movw	$0x8000, %cx
+	repz movsw
+	movw	%ds, %ax
+	subw	$0x1000, %ax
+	movw	%ax, %ds
+	movw	%es, %ax
+	subw	$0x1000, %ax
+	movw	%ax, %es
+	decw	%bx
+	jnz	1b
+
+	cld
+
+3:
+
+	/* put the config file name */
+	xorw	%ax, %ax
+	movw	%ax, %es
+	movw	%ax, %ds
+
+	xorl	%ebp, %ebp
+	
+	movb	%dh, 0x820A	/* this is the boot partition number */
+
+	#; clear saved_entryno so that force_cdrom_as_boot_device be cleared
+	#; later in common.c
+
+	movl	%ebp, 0x820C	/* EBP=0, clear saved_entryno */
+
+	movw    $0x0010, %cx	/* set max length of grub version string */
+	movw    $0x8212, %di	/* version string */
+	cld
+	/* AL is already 0. Locate the end of version string */
+	repnz scasb	/* find the location of the default config file name */
+
+	jcxz	1f	/* failed, will not use the default config file name */
+
+	movw    $0x4e, %cx	/* max length of config file name */
+
+	movw	%cs, %si	/* CS:0000 = _start */
+	shlw	$4, %si		/* 0000:SI = _start */
+
+	addw	$(default_config_file_grldr - _start), %si
+
+	//movw	$(default_config_file + 0x8200 - pre_stage2_start), %si
+	cld
+	repz movsb	/* move file name to the config-file field of stage2 */
+1:
+
+	xorw	%ax, %ax
+	movw	%ax, %ss
+	movw	$0x2000, %sp
+
+	movw	$0x0003, %ax	/* set display mode: 80*25 color text */
+	int	$0x10
+
+	//xorw	%bx, %bx
+	//movw	$(launch_pre_stage2 - _start1), %si
+	//call	print_message	/* CS:SI points to message string */
+
+	//sti
+
+	ljmp	$0, $0x8200
+
+//launch_pre_stage2:
+//	.ascii	"\r\nBooting GRLDR...\r\n"
+
+//	.byte	0		/* mark the end of ascii zero string */
+
+default_config_file_grldr:
+	.ascii	"/menu.lst"
+
+	.byte	0		/* mark the end of ascii zero string */
+
 # End of setup header #####################################################
+
+	. = _start + 0xF00
 
 start_of_setup:
 # Bootlin depends on this being done early
