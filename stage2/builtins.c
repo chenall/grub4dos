@@ -1462,6 +1462,7 @@ cat_func (char *arg, int flags)
 		}
     //j = skip;
     grub_memset ((char *)(SCRATCHADDR), 0, 32);
+	c = (unsigned char)(length&0xf);
 	for (i = 0,j = skip; ; j += 16)
 	{
 		len = 0;
@@ -1472,7 +1473,7 @@ cat_func (char *arg, int flags)
 
 		if (j != skip)
 		{
-			while (i < 16)
+			while (i < 16 && (len !=0 || !c || i + len_s <= c))
 			{
 					unsigned long long k = j - 16 + i;
 					if ((locate_align == 1 || ! ((unsigned long)k % (unsigned long)locate_align))
@@ -2426,7 +2427,7 @@ drdos:
 			grub_sprintf ((char *)(HMA_ADDR - 0x20), "(%d,%d)%d+%d", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16), *(unsigned long *)0x7BF8, *(unsigned short *)0x7BDE * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)) / 512);
 
 		grub_open ((char *)(HMA_ADDR - 0x20));
-		grub_read ((char *)(HMA_ADDR - 0x10000), (*(unsigned short *)0x7BD8 = *(unsigned short *)0x7BDE * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR))), 0xedde0d90);
+		grub_read ((unsigned long long)(HMA_ADDR - 0x10000), (*(unsigned short *)0x7BD8 = *(unsigned short *)0x7BDE * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR))), 0xedde0d90);
 
 		/* read 1st FAT(first 32K) to HMA_ADDR - 0x8000 */
 		if (*((unsigned long *)(SCRATCHADDR + BOOTSEC_BPB_FAT32_NAME)) == 0x33544146) { /* FAT32 */
@@ -2438,7 +2439,7 @@ drdos:
 				grub_sprintf ((char *)(HMA_ADDR - 0x20), "(%d,%d)%d+%d", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16), *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS)), *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)));
 
 			grub_open ((char *)(HMA_ADDR - 0x20)); /* read 1st FAT table¡@(first 0x8000 bytes only) */
-			grub_read ((char *)(HMA_ADDR - 0x8000), (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)) > 40 ? 40 : *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT))) * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)), 0xedde0d90);
+			grub_read ((unsigned long long)(HMA_ADDR - 0x8000), (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)) > 40 ? 40 : *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT))) * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)), 0xedde0d90);
 readroot:
 			if ( (HMA_ADDR - 0x10000 + (1+*(unsigned short *)0x7BDC) * *(unsigned short *)0x7BD8) < HMA_ADDR && /* don't overrun */
 				*(unsigned long *)0x7BD0 * sizeof(unsigned long) < 0x8000 &&
@@ -2451,7 +2452,7 @@ readroot:
 				else
 					grub_sprintf ((char *)(HMA_ADDR - 0x20), "(%d,%d)%d+%d", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16), *(unsigned long *)0x7BF8, *(unsigned short *)0x7BDE);
 				grub_open ((char *)(HMA_ADDR - 0x20));
-				grub_read ((char *)(HMA_ADDR - 0x10000 + (1+*(unsigned short *)0x7BDC) * *(unsigned short *)0x7BD8), *(unsigned short *)0x7BD8, 0xedde0d90);
+				grub_read ((unsigned long long)(HMA_ADDR - 0x10000 + (1+*(unsigned short *)0x7BDC) * *(unsigned short *)0x7BD8), *(unsigned short *)0x7BD8, 0xedde0d90);
 				++(*(unsigned short *)0x7BDC);
 				goto readroot;
 			}
@@ -2459,13 +2460,13 @@ readroot:
 
 		for ( *(unsigned long *)0x7BF4 = HMA_ADDR - 0x10000, *(unsigned long *)0x7BF0 = 0x500; *(char *)(*(unsigned long *)0x7BF4) && *(unsigned long *)0x7BF4 < HMA_ADDR; *(unsigned long *)0x7BF4 += 32) {
 			if (*(long long *)(*(unsigned long *)0x7BF4) == *(long long *)0x7BE0) { /* BIO */
-				grub_memmove(*(unsigned long *)0x7BF0, *(unsigned long *)0x7BF4, 32);
+				grub_memmove((void *)*(unsigned long *)0x7BF0, (void *)*(unsigned long *)0x7BF4, 32);
 				*(unsigned long *)0x7BF0 += 32;
 			}
 		}
 		for ( *(unsigned long *)0x7BF4 = HMA_ADDR - 0x10000; *(char *)(*(unsigned long *)0x7BF4) && *(unsigned long *)0x7BF4 < HMA_ADDR; *(unsigned long *)0x7BF4 += 32) {
 			if (*(long long *)(*(unsigned long *)0x7BF4) == *(long long *)0x7BE8) { /* DOS */
-				grub_memmove(*(unsigned long *)0x7BF0, *(unsigned long *)0x7BF4, 32);
+				grub_memmove((void *)*(unsigned long *)0x7BF0, (void *)*(unsigned long *)0x7BF4, 32);
 				*(unsigned long *)0x7BF0 += 32;
 			}
 		}
@@ -5308,7 +5309,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 
 		*p_cmd = '\0';
-		if (debug_ori > 1 || debug == 3)
+		if (debug != 4 && (debug_ori == 3 || debug == 3))
 		{
 			printf("%s\n",p_buff);
 			int key=getkey() & 0xff00;
