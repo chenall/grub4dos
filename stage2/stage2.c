@@ -249,7 +249,7 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
   unsigned char c = 0;
   if (entry)
   {
-      expan_var(entry,(char *)SCRATCHADDR,0x400);
+      expand_var(entry,(char *)SCRATCHADDR,0x400);
       entry = (char *)SCRATCHADDR;
       c = *entry++;
   }
@@ -1169,9 +1169,11 @@ done_key_handling:
 	  if (current_term->setcolorstate)
 	      current_term->setcolorstate (COLOR_STATE_HEADING);
 
-
-	  gotoxy (MENU_BOX_E - 4, MENU_BOX_Y - 2);
-	  grub_printf ("%3d ", (first_entry + entryno));
+	  if (debug > 0)
+	  {
+		gotoxy (MENU_BOX_E - 4, MENU_BOX_Y - 2);
+		grub_printf ("%3d ", (first_entry + entryno));
+	  }
 	  gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
 
 	  if (current_term->setcolorstate)

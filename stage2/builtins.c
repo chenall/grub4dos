@@ -1875,14 +1875,25 @@ chainloader_func (char *arg, int flags)
   
   if (filename == 0)
 	filename = arg;
-  if (current_drive == 0xFFFF || current_drive == ram_drive)
-  {
+	
 	if (! chainloader_edx_set)
-	  {
-		chainloader_edx = saved_drive | ((saved_partition >> 8) & 0xFF00);
-		chainloader_edx_set=1;
-	  }
-  }
+	{
+	  if (current_drive == 0xFFFF || current_drive == ram_drive)
+		{
+			chainloader_edx = (saved_drive == FB_DRIVE ? fb_status >> 8 & 0xff :
+								saved_drive | ((saved_partition >> 8) & 0xFF00));
+			chainloader_edx_set=1;
+		}
+		#ifdef FSYS_FB
+		else if (current_drive == FB_DRIVE)
+		{
+			chainloader_edx = fb_status >> 8 & 0xff;
+			chainloader_edx_set=1;
+		}
+		#endif
+	}
+
+
 #ifndef GRUB_UTIL
   /* check bootable cdrom */
   if (*filename == 0 || *filename == ' ' || *filename == '\t')

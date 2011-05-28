@@ -629,6 +629,12 @@ pxe_read (unsigned long long buf, unsigned long long len, unsigned long write)
 
 /* Check if the file DIRNAME really exists. Get the size and save it in
    FILEMAX. return 1 if succeed, 0 if fail.  */
+struct pxe_dir_info
+{
+	char path[512];
+	char *dir[512];
+	char data[];
+} *P_DIR_INFO = NULL;
 int pxe_dir (char *dirname)
 {
   int ret;
@@ -642,7 +648,7 @@ int pxe_dir (char *dirname)
 		char *p_dir;
 		ret = grub_strlen(dirname);
 		p_dir = &dirname[ret];
-		*p_dir = ch;
+
 		if (ret && ret <=120)
 		{
 			while (ret && dirname[ret] != '/') 
@@ -654,37 +660,45 @@ int pxe_dir (char *dirname)
 		else
 			ret = 0;
 
-		grub_sprintf(&dir_tmp[ret],"/dir.txt");
-		if (pxe_open(dir_tmp))
+		grub_strcpy(&dir_tmp[ret],"/dir.txt");
+		if (P_DIR_INFO || (P_DIR_INFO = (struct pxe_dir_info*)grub_malloc(16384)))
 		{
-			char *dir_buff=grub_malloc(filemax+1);
-			int found = 0;
-			if (dir_buff && pxe_read((unsigned long long)(int)dir_buff,-1,GRUB_READ))
+			int i;
+			char *p = P_DIR_INFO->data;
+			if (substring(dir_tmp,P_DIR_INFO->path,1) != 0)
 			{
-				dir_buff[filemax] = '\0';
-				char *p,*p1;
-				p1 = dir_buff;
-				*p_dir = '\0';
-				dirname += ret + 1;
-				while ((p = p1))
+				memset(P_DIR_INFO,0,16384);
+				grub_strcpy(P_DIR_INFO->path,dir_tmp);
+				if (pxe_open(dir_tmp))
 				{
-					p1 = skip_to(0x100,p);
-					nul_terminate(p);
-					if (*dirname == 0 || substring (dirname, p, 1) < 1)
+					if (pxe_read((unsigned long long)(int)P_DIR_INFO->data,13312,GRUB_READ))
 					{
-						found = 1;
-						print_a_completion(p, 1);
+						P_DIR_INFO->dir[0] = P_DIR_INFO->data;
+						for (i = 1;i < 512 && (p = skip_to(0x100,p));++i)
+						{
+							P_DIR_INFO->dir[i] = p;
+						}
 					}
+					pxe_close();
 				}
-				*p_dir = ch;
-				grub_free(dir_buff);
 			}
-			pxe_close();
-			if (found)
-				return 1;
+			dirname += ret + 1;
+			ret = 0;
+			for (i = 0; i < 512 && (p = P_DIR_INFO->dir[i]);++i)
+			{
+				if (*dirname == 0 || substring (dirname, p, 1) < 1)
+				{
+					ret = 1;
+					print_a_completion(p, 1);
+				}
+			}
 		}
-		errnum = ERR_FILE_NOT_FOUND;
-		return 0;
+		else
+			ret = 0;
+		if (!ret)
+			errnum = ERR_FILE_NOT_FOUND;
+		*p_dir = ch;
+		return ret;
   }
   pxe_close ();
   if (! pxe_open (dirname))

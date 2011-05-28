@@ -198,7 +198,7 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 #define CMD_BUFFER ((char *)0x1010000)
 //char *pre_cmdline = (char *)0x4CB08;
 
-int expan_var(const char *str,char *out,const unsigned int len_max)
+int expand_var(const char *str,char *out,const unsigned int len_max)
 {
 	const char *p;
 	int i;
@@ -243,7 +243,7 @@ int run_line (char *heap,int flags)
 	int stat_bak = putchar_st.flag;
 	grub_error_t errnum_old = errnum;
 	char cmdline_buf[1500];
-	expan_var(heap,cmdline_buf,1500);
+	expand_var(heap,cmdline_buf,1500);
 	heap = cmdline_buf;
 	errnum = ERR_NONE;
 	/* Invalidate the cache, because the user may exchange removable disks.  */

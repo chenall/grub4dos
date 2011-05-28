@@ -496,12 +496,16 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
   mbi.cmdline = (int) arg;
   mbi.mods_count = 0;
   mbi.mods_addr = 0;
-  mbi.boot_device = current_drive == ram_drive ?(saved_drive << 24) | saved_partition :(current_drive << 24) | current_partition;
+  mbi.boot_device = (current_drive == ram_drive ? (saved_drive << 24) | saved_partition :(current_drive << 24) | current_partition);
   mbi.flags &= ~(MB_INFO_MODS | MB_INFO_AOUT_SYMS | MB_INFO_ELF_SHDR);
   mbi.syms.a.tabsize = 0;
   mbi.syms.a.strsize = 0;
   mbi.syms.a.addr = 0;
   mbi.syms.a.pad = 0;
+#ifdef FSYS_FB
+	if (mbi.boot_device>>24 == FB_DRIVE)
+		mbi.boot_device = fb_status << 16 | 0xFFFFFF;
+#endif
 
   if (debug > 0)
       printf ("   [%s-%s", str2, str);

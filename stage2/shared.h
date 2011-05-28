@@ -1254,7 +1254,7 @@ char *skip_to (int flags, char *cmdline);
 
 //extern char *pre_cmdline;
 #define CMD_RUN_ON_EXIT ((char *)0x4CB08)
-extern int expan_var(const char *str,char *out,const unsigned int len_max);
+extern int expand_var(const char *str,char *out,const unsigned int len_max);
 int run_line (char *heap,int flags);
 struct builtin *find_command (char *command);
 void print_cmdline_message (int forever);
