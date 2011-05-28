@@ -1878,16 +1878,22 @@ chainloader_func (char *arg, int flags)
 	
 	if (! chainloader_edx_set)
 	{
+		#ifdef FSYS_FB
 	  if (current_drive == 0xFFFF || current_drive == ram_drive)
 		{
 			chainloader_edx = (saved_drive == FB_DRIVE ? fb_status >> 8 & 0xff :
 								saved_drive | ((saved_partition >> 8) & 0xFF00));
 			chainloader_edx_set=1;
 		}
-		#ifdef FSYS_FB
 		else if (current_drive == FB_DRIVE)
 		{
 			chainloader_edx = fb_status >> 8 & 0xff;
+			chainloader_edx_set=1;
+		}
+		#else
+		if (current_drive == 0xFFFF || current_drive == ram_drive)
+		{
+			chainloader_edx = saved_drive | ((saved_partition >> 8) & 0xFF00);
 			chainloader_edx_set=1;
 		}
 		#endif
