@@ -2747,6 +2747,32 @@ check_isolinux:
 	if (grub_read ((unsigned long long) SCRATCHADDR+0x200, 0x600, 0xedde0d90) != 0x600)
 		goto check_signature;
 
+	if (filemax >= 0x4000 && ((*(long *)SCRATCHADDR) & 0x80FFFFFF)== 0xEB5A4D && (*(long *)(SCRATCHADDR + 0x202)) == 0x53726448 &&
+	       (*((unsigned short *) (SCRATCHADDR + BOOTSEC_SIG_OFFSET)) == BOOTSEC_SIGNATURE) &&
+		(*(unsigned char *)(SCRATCHADDR + 0x200)) == 0xEB)	/* GRUB.EXE */
+	{
+		if (chainloader_load_segment == -1)
+			chainloader_load_segment = 0x1000;	/* use address != 0x7C00, so that PXE is automatically disabled. */
+		if (chainloader_load_offset == -1)
+			chainloader_load_offset = 0;
+		if (chainloader_boot_CS == -1)
+			chainloader_boot_CS = chainloader_load_segment;
+		if (chainloader_boot_IP == -1)
+			chainloader_boot_IP = chainloader_load_offset + 2;	/* skip "MZ" */
+		if (chainloader_load_length == -1)
+			chainloader_load_length = filemax;
+		if (! chainloader_edx_set)
+		{
+			chainloader_edx = current_drive | ((current_partition >> 8) & 0xFF00);
+			chainloader_edx_set = 1;
+		}
+	    
+		grub_close ();
+	
+		if (debug > 0)
+		  grub_printf("Will boot GRUB.EXE from drive=0x%x, partition=0x%x(hidden sectors=0x%lx)\n", current_drive, (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long long)part_start);
+	}
+	else
 	if ((*(long long *)(SCRATCHADDR + 0x200)) == 0xCB5052C03342CA8CLL && (*(long *)(SCRATCHADDR + 0x208) == 0x5441464B))   /* ROM-DOS */
 	{
 		/* contributor: Roy <roytam%gmail%com> */

@@ -12,4 +12,4 @@ stage1_exec_SOURCES = stage1.S stage1.h
 
 SUFFIXES = .exec
 %: %.exec$(EXEEXT)
-	$(OBJCOPY) -O binary $< $@
+	$(OBJCOPY) -O binary -R .comment -R .note -R .note.gnu.build-id $< $@

@@ -1,3 +1,5 @@
+2011-05-31 (tinybit)fix chainloading grub.exe from Grub4DOS
+2011-05-31 (tinybit)make grub.exe loadable by NTLDR
 2011-05-24 (tinybit)make grub.exe chainloadable
 2011-05-19 applied Roy's patch(Issue 27: adding PC-DOS/MS-DOS chainloading support).
 2011-05-14 (tinybit)use HLT command in key detection
