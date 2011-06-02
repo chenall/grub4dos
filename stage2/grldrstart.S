@@ -5526,7 +5526,7 @@ helper_start:
 	cmpw	$0xFFFF, 0x08	/* geometry determined? */
 	jne	3f		/* yes, skip */
 
-	movw	$0x3FFE, 0x08	/* use a default of H=255, S=63 */
+	movw	$0xFE3F, 0x08	/* use a default of H=255, S=63 */
 
 	movb	$8, %ah		/* read drive parameters changes DX,ES,DI,BX */
 
