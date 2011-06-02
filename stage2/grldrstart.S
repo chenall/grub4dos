@@ -5526,7 +5526,8 @@ helper_start:
 	cmpw	$0xFFFF, 0x08	/* geometry determined? */
 	jne	3f		/* yes, skip */
 
-	/* get CHS total number of sectors */
+	movw	$0x3FFE, 0x08	/* use a default of H=255, S=63 */
+
 	movb	$8, %ah		/* read drive parameters changes DX,ES,DI,BX */
 
 	/* should not use "call int13", because "int13" will restore DX,
@@ -5538,17 +5539,16 @@ helper_start:
 	popw	%es
 	popw	%ds
 	jc	3f		/* failed */
-	testb	$63, %cl
+	andb	$63, %cl	/* sectors per track */
 	jz	3f		/* failed */
 
-	movb	%dh, 0x09	/* Hmax */
-	andb	$63, %cl	/* sectors per track */
-	movb	%cl, 0x08	/* Smax */
+	movb	%dh, %ch	/* DH=Hmax */
+	movw	%cx, 0x08	/* CL=Smax, CH=Hmax */
 
 3:
 	popaw		/* <------ at least DL,SI need to be restored */
-	//xorl	%ebx, %ebx
-	movl	$32, %ebx
+	xorl	%ebx, %ebx
+	//movl	$32, %ebx
 	testb	%dl, %dl
 	jns	3f			/* floppy */
 
@@ -5557,6 +5557,7 @@ helper_start:
 	addl	8(%si), %ebx	/* EBX=start_LBA */
 
 	testl	%ebx, %ebx
+	stc
 	je	1f
 3:
 	cmpb	$0x42, 0x00	/* EBIOS present? */
@@ -5565,6 +5566,8 @@ helper_start:
 	/******************************************************************/
 	/* read the boot sectors once again using CHS translated from LBA */
 	/******************************************************************/
+
+	//addl	$32, %ebx	/* read sector 32 past the boot sector */
 
 	movw	$0, %bp
 	movw	0x08, %ax
@@ -5590,12 +5593,13 @@ helper_start:
 
 	pushl	%ebx		/* LBA */
 	xorw	%bx, %bx	/* buffer in ES:BX=FS_BOOT:0 */
-	movw	$4, %cx		/* number of sectors to read in CX */
-	testb	%al, %al
-	js	2f		/* hard drive */
-	movw	$1, %cx		/* read 1 sector of sector 32  */
-	movw	$0x4000, %bx
-2:
+//	movw	$4, %cx		/* number of sectors to read in CX */
+	movw	$33, %cx		/* number of sectors to read in CX */
+//	testb	%al, %al
+//	js	2f		/* hard drive */
+//	movw	$1, %cx		/* read 1 sector of sector 32  */
+//	movw	$0x4000, %bx
+//2:
 	popw	%ax
 	popw	%dx		/* DX:AX=LBA */
 
@@ -5610,8 +5614,9 @@ helper_start:
 	/* load partition boot track to FS_BOOT using LBA mode */
 	/*******************************************************/
 
-	cmpb	$0x42, 0x00	/* EBIOS present? */
-	jne	1f		/* no, skip the LBA mode int13 call */
+	//cmpb	$0x42, 0x00	/* EBIOS present? */
+	//jne	1f		/* no, skip the LBA mode int13 call */
+	jmp	1f
 3:
 	popw	%ax		/* AX=orig DX which holds drive number DL */
 	pushw	%ax
@@ -5631,22 +5636,18 @@ helper_start:
 //	int	$0x13		/* ignore the read failure */
 	call	int13
 	popaw			/* adjust the stack */
-	jc	1f
-	popw	%dx
-	popaw
-
-	//popw	%ax		/* discard flags in the stack */
-	popfw
-	clc
-
-	pushfw			/* push new flags with CF=0 */
-	pushaw
-	pushw	%dx
 1:
 	popw	%dx
 	popaw
+//	jc	1f
+//	popfw
+//	clc
+//	pushfw			/* push new flags with CF=0 */
+//1:
+	popw	%ax		/* discard flags */
+//	pushfw			/* setup new flags */
 
-	popfw
+//	popfw
 	popal
 	popw	%es
 	popw	%ds
