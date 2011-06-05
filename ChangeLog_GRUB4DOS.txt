@@ -1,3 +1,4 @@
+2011-06-04 (namiltd<>poczta.onet.pl)added exFAT filesystem accessibility.
 2011-06-02 (tinybit)better handling loading grub.exe from NTLDR in floppy
 2011-05-31 (tinybit)fix chainloading grub.exe from Grub4DOS
 2011-05-31 (tinybit)make grub.exe loadable by NTLDR

@@ -123,6 +123,7 @@
 #define PC_SLICE_TYPE_EXTENDED     	5
 #define PC_SLICE_TYPE_EXTENDED_HIDDEN  	0x15
 #define PC_SLICE_TYPE_FAT16_GT32M  	6
+#define PC_SLICE_TYPE_EXFAT  		7
 #define PC_SLICE_TYPE_FAT32		0xb
 #define PC_SLICE_TYPE_FAT32_LBA		0xc
 #define PC_SLICE_TYPE_FAT16_LBA		0xe
@@ -149,6 +150,7 @@
      || _type == PC_SLICE_TYPE_FAT16_LBA \
      || _type == PC_SLICE_TYPE_FAT32 \
      || _type == PC_SLICE_TYPE_FAT32_LBA \
+     || _type == PC_SLICE_TYPE_EXFAT \
      || _type == PC_SLICE_TYPE_DELL_UTIL; })
 
 #if 1

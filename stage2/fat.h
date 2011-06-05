@@ -29,6 +29,8 @@ typedef __signed__ short __s16;
 typedef unsigned short __u16;
 typedef __signed__ int __s32;
 typedef unsigned int __u32;
+typedef __signed__ long long __s64;
+typedef unsigned long long __u64;
 
 /* Note that some shorts are not aligned, and must therefore
  * be declared as array of two bytes.
@@ -58,7 +60,27 @@ struct fat_bpb {
 	__u16	info_sector;	/* filesystem info sector */
 	__u16	backup_boot;	/* backup boot sector */
 	__u16	reserved2[6];	/* Unused */
-};
+
+	/* The following fields are only used by exFAT */
+	__u64	sector_start;		/* 0x40 partition first sector */
+	__u64	sector_count;		/* 0x48 partition sectors count */
+	__u32	fat_sector_start;	/* 0x50 FAT first sector */
+	__u32	fat_sector_count;	/* 0x54 FAT sectors count */
+	__u32	cluster_sector_start;	/* 0x58 first cluster sector */
+	__u32	cluster_count;		/* 0x5C total clusters count */
+	__u32	rootdir_cluster;	/* 0x60 first cluster of root dir */
+	__u32	volume_serial;		/* 0x64 volume serial number */
+	__u8	fs_version[2];		/* 0x68 FS version */
+	__u16	volume_state;		/* 0x6A volume state flags */
+	__u8	sector_bits;		/* 0x6C sector size as (1 << n) */
+	__u8	spc_bits;	/* 0x6D sectors per cluster as (1 << n) */
+	__u8 	fat_count;	/* 0x6E nearly always 1, 2 for TexFAT */
+
+//	__u8 drive_no;		/* 0x6F always 0x80 */
+//	__u8 allocated_percent;	/* 0x70 percentage of allocated space */
+//	__u8 __unused2[397];	/* 0x71 always 0 */
+//	__u16 boot_signature;	/* 0x1FE the value of 0xAA55 */ 
+} __attribute__ ((packed));
 
 #define FAT_CVT_U16(bytarr) (* (__u16*)(bytarr))
 
@@ -94,3 +116,26 @@ struct fat_bpb {
 
 #define FAT_LONGDIR_ID(entry)	(*(unsigned char *)(entry))
 #define FAT_LONGDIR_ALIASCHECKSUM(entry)	(*(unsigned char *)(entry+13))
+
+//#define EXFAT_FIRST_DATA_CLUSTER 2
+//#define EXFAT_CLUSTER_FREE         0 /* free cluster */
+//#define EXFAT_CLUSTER_BAD 0xfffffff7 /* cluster contains bad sector */
+#define EXFAT_CLUSTER_END 0xffffffff /* final cluster of file or directory */
+
+
+#define EXFAT_DIRENTRY_ATTRIB(entry)	(*(unsigned char *)(entry))
+
+#define EXFAT_ENTRY_VALID     0x80
+#define EXFAT_ENTRY_CONTINUED 0x40
+
+#define EXFAT_ENTRY_EOD       (0)
+#define EXFAT_ENTRY_BITMAP    (1 | EXFAT_ENTRY_VALID)
+#define EXFAT_ENTRY_UPCASE    (2 | EXFAT_ENTRY_VALID)
+#define EXFAT_ENTRY_LABEL     (3 | EXFAT_ENTRY_VALID)
+#define EXFAT_ENTRY_FILE      (5 | EXFAT_ENTRY_VALID)
+#define EXFAT_ENTRY_FILE_INFO (0 | EXFAT_ENTRY_VALID | EXFAT_ENTRY_CONTINUED)
+#define EXFAT_ENTRY_FILE_NAME (1 | EXFAT_ENTRY_VALID | EXFAT_ENTRY_CONTINUED)
+
+#define EXFAT_FLAG_ALWAYS1	(1u << 0)
+#define EXFAT_FLAG_CONTIGUOUS	(1u << 1)
+
