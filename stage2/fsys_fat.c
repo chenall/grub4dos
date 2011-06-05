@@ -302,8 +302,8 @@ label_exfat:
     FAT_SUPER->root_max = 0;
   
     /* Test data offset */
-    if (FAT_SUPER->data_offset != FAT_SUPER->fat_offset + bpb.fat_count * FAT_SUPER->fat_length)
-      return 0;
+//    if (FAT_SUPER->data_offset != FAT_SUPER->fat_offset + bpb.fat_count * FAT_SUPER->fat_length)
+//      return 0;
 
     FAT_SUPER->num_clust = bpb.cluster_count;
     
