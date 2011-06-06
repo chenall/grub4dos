@@ -5161,7 +5161,7 @@ static int bat_get_args(char *arg,char *buff,int flags)
 		flags &= 0xf;
 	}
 
-	if (flags == 0xf)
+	if (flags == 0x2f)
 	{
 		buff += sprintf(buff, p);
 		goto quit;
@@ -5169,11 +5169,12 @@ static int bat_get_args(char *arg,char *buff,int flags)
 
 	if (flags & 1)
 	{
-		while ((*buff++ = *p++) && *p != '/')
-			;
+		while ( *p && *p != '/')
+			*buff++ = *p++;
 	}
 
-	p = strstr(p,"/");
+	if (! (p = strstr(p,"/")))
+		goto quit;
 	char *p0,*p1,*p2 = NULL;
 	p0 = p1 = p;
 
@@ -5690,9 +5691,18 @@ command_func (char *arg, int flags)
 			}
 		}
 		#endif
-		else if (*end_signature != 0xBCBAA7BA03051805ULL && (*(unsigned long *)program != 0x54414221))
+		else if (*end_signature != 0xBCBAA7BA03051805ULL)
 		{
-			errnum = ERR_EXEC_FORMAT;
+			if (memcmp(program,"\xEF\xBB\xBF!BAT",7) == 0)
+			{
+				program += 3;
+				prog_len -= 3;
+				psp_len += 3;
+			}
+			else if (*(unsigned long *)program != 0x54414221)
+			{
+				errnum = ERR_EXEC_FORMAT;
+			}
 		}
 		grub_close ();
 		if (errnum)
