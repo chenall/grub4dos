@@ -5640,6 +5640,12 @@ a20_control_fail_string:
 # true for the Voyager Quad CPU card which will not boot without
 # This directive.  16 byte aligment is recommended by intel.
 #
+
+/* this gdt is only used by linux code. it will be reused/overwritten by
+ * DOS code to place temp boot sector of the floppy. The boot sector will
+ * also overwrite some code after real_helper_start.
+ */
+
 	.align 16
 gdt:
 	.fill 2 /* GDT_ENTRY_BOOT_CS */,8,0
@@ -5793,22 +5799,23 @@ real_helper_start:
 
 
 	testb	%dl, %dl		/* floppy? */
-	jns	1f			/* yes, continue to tune. */
-
+	js	3f			/* no, continue with hard drive */
+	/* floppy */
+	xorl	%ebx, %ebx
+	movb	%es:0x18(%bx), %al	/* sectors per track */
+	andb	$0x3F, %al
+	stc
+	jz	1f
+	movb	%es:0x1a(%bx), %ah	/* number of heads in 0x1a(%bp) */
+	decb	%ah
+	movw	%ax, 0x08
+	jmp	4f
+3:
+	/* hard drive */
 	cmpw	$0x1c2, %si		/* first run on this hard drive? */
 	jne	2f			/* no, avoid tuning again. */
-1:
 	movw	$0xffff, 0x08
 2:
-//	ret
-//
-//	popw	%es
-//	popw	%ds
-
-	testb	%dl, %dl
-	//jns	1f			/* floppy, use normal CHS mode */
-	jns	2f			/* floppy, use normal CHS mode */
-
 	cmpw	$0x1f2, %si		/* is it a primary partition? */
 	ja	2f			/* no, it is an extended partition */
 	movl	4(%si), %eax
@@ -5845,10 +5852,6 @@ real_helper_start:
 
 3:
 	popaw		/* <------ at least DL,SI need to be restored */
-	xorl	%ebx, %ebx
-	//movl	$32, %ebx
-	testb	%dl, %dl
-	jns	3f			/* floppy */
 
 	/* check the partition's starting LBA */
 	movl	4(%si), %ebx
@@ -5860,7 +5863,7 @@ real_helper_start:
 3:
 	cmpb	$0x42, 0x00	/* EBIOS present? */
 	je	3f		/* yes, skip the CHS mode int13 fix */
-
+4:
 	/******************************************************************/
 	/* read the boot sectors once again using CHS translated from LBA */
 	/******************************************************************/
@@ -9453,10 +9456,47 @@ put_config_file_name:
 	movw	$0x3305, %ax
 	int	$0x21
 	cmpb	$1, %dl		# drive A:
-	je	1f
+//;;	je	1f
+	jne	3f
+	/* drive A: */
+	/* read boot sector */
+	movw	$0x201, %ax
+	movw	$ABS_START(gdt), %bx	# temp use this sector
+	movw	$1, %cx
+	movw	$0, %dx
+	pushw	%ds
+	pushw	%es
+	pushaw
+	stc
+	int	$0x13
+	popaw
+	popw	%es
+	popw	%ds
+	jc	2f		# failed
+	movw	$ABS_PSP(pre_stage2_start+0x138), %di	# dos_drive_geometry
+	movw	0x18(%bx),%cx	# sectors per track
+	jcxz	2f		# failed
+	cmpw	$63, %cx
+	ja	2f		# failed
+	movw	0x1a(%bx),%ax	# heads
+	decw	%ax
+	js	2f		# failed
+	testb	%ah, %ah
+	jnz	2f		# failed
+	xchgb	%al, %ah	# AL=0(floppy drive), AH=Hmax
+	//cld			# already done priviously
+	stosw
+	xchgw	%ax, %cx	# movw	%cx, %ax
+	stosw
+	/* DI now points to dos_part_start */
+	//movl	0x1C(%bx),%eax	# hidden sectors
+	xorl	%eax, %eax	# hidden sectors should be 0 for floppy!!
+	stosl
+	jmp	2f		/* done */
+3:
 	cmpb	$3, %dl		# drive C:
 	jne	2f		# failed
-1:
+//;;1:
 	/* boot drive is valid */
 	pushw	%dx		# drive number(1=A:,...)
 	movw	$0x440D, %ax	# IOCTL - generic block device request
