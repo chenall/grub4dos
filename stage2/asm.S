@@ -2118,8 +2118,9 @@ int13_new_ss:		.word	0
 	movw	%ds, %cs:(int13_old_ds - int13_handler)
 	movw	%es, %cs:(int13_old_es - int13_handler)
 
-	cmpb	$0x1a, %ah	/* PS/2 low level format ESDI drive!!!! */
-	je	error_01_disable	/* disabled in any case */
+//	# this check is not too useful, so comment out to save space
+//	cmpb	$0x1a, %ah	/* PS/2 low level format ESDI drive!!!! */
+//	je	error_01_disable	/* disabled in any case */
 
 	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
 	jz	1f		/* no cdrom */
@@ -2404,12 +2405,13 @@ restricted_map:
 	cmpb	$0x02, %ah	/* read sectors */
 	je	2f
 	cmpb	$0x04, %ah	/* verify sectors, also a read operation */
-	je	2f
-	cmpb	$0x0a, %ah	/* read long sectors */
-	je	2f
-	cmpb	$0x0c, %ah	/* seek to cylinder */
-	je	2f
-	cmpb	$0x21, %ah	/* PS/1 and newer PS/2 - read multiple disk sectors */
+//	# these checks are not too useful, so comment out to save space
+//	je	2f
+//	cmpb	$0x0a, %ah	/* read long sectors */
+//	je	2f
+//	cmpb	$0x0c, %ah	/* seek to cylinder */
+//	je	2f
+//	cmpb	$0x21, %ah	/* PS/1 PS/2 - read multiple disk sectors */
 	jne	1f
 2:
 	movb	%cs:3(%bp), %ah	/* AH=Smax */
@@ -2421,16 +2423,17 @@ restricted_map:
 	cmpb	$0x03, %ah	/* CHS write sectors */
 	je	2f
 	cmpb	$0x05, %ah	/* PC/XT/AT/EISA format tracks */
-	je	2f
-	cmpb	$0x06, %ah	/* PC/XT format tracks with bad sectors */
-	je	2f
-	cmpb	$0x07, %ah	/* PC/XT format multiple cylinders */
-	je	2f
-	cmpb	$0x0b, %ah	/* PC/XT/AT/EISA write sectors with ECC */
-	je	2f
-	cmpb	$0x0f, %ah	/* PC/XT/PS/1 write sector buffer */
-	je	2f
-	cmpb	$0x22, %ah	/* PS/1 and newer PS/2 - write multiple disk sectors */
+//	# these checks are not too useful, so comment out to save space
+//	je	2f
+//	cmpb	$0x06, %ah	/* PC/XT format tracks with bad sectors */
+//	je	2f
+//	cmpb	$0x07, %ah	/* PC/XT format multiple cylinders */
+//	je	2f
+//	cmpb	$0x0b, %ah	/* PC/XT/AT/EISA write sectors with ECC */
+//	je	2f
+//	cmpb	$0x0f, %ah	/* PC/XT/PS/1 write sector buffer */
+//	je	2f
+//	cmpb	$0x22, %ah	/* PS/1 PS/2 - write multiple disk sectors */
 	jne	1f
 2:
 	movb	%cs:3(%bp), %ah	/* AH=Smax */
@@ -2447,25 +2450,27 @@ restricted_map:
 	je	2f
 	cmpb	$0x44, %ah	/* Extensions - verify sectors */
 	je	2f
-	cmpb	$0x45, %ah	/* Extensions - LOCK/UNLOCK DRIVE */
-	je	2f
-	cmpb	$0x46, %ah	/* Extensions - EJECT MEDIA */
-	je	2f
-	cmpb	$0x47, %ah	/* Extensions - EXTENDED SEEK */
-	je	2f
+//	# these checks are not too useful, so comment out to save space
+//	cmpb	$0x45, %ah	/* Extensions - LOCK/UNLOCK DRIVE */
+//	je	2f
+//	cmpb	$0x46, %ah	/* Extensions - EJECT MEDIA */
+//	je	2f
+//	cmpb	$0x47, %ah	/* Extensions - EXTENDED SEEK */
+//	je	2f
 	cmpb	$0x48, %ah	/* Extensions - GET DRIVE PARAMETERS */
-	je	2f
-	cmpb	$0x49, %ah	/* Extensions - detect media change */
-	je	2f
-	cmpb	$0x4a, %ah	/* Bootable CDROM - INITIATE DISK EMULATION */
-	je	2f
-	cmpb	$0x4b, %ah	/* Bootable CDROM - TERMINATE DISK EMULATION */
-	je	2f
-	cmpb	$0x4c, %ah	/* Bootable CDROM - INITIATE DISK EMULATION AND BOOT */
-	je	2f
-	cmpb	$0x4d, %ah	/* Bootable CDROM - RETURN BOOT CATALOG */
-	je	2f
-	cmpb	$0x4e, %ah	/* Extensions v2.1 - SET HARDWARE CONFIGURATION */
+//	# these checks are not too useful, so comment out to save space
+//	je	2f
+//	cmpb	$0x49, %ah	/* Extensions - detect media change */
+//	je	2f
+//	cmpb	$0x4a, %ah	/* CDROM - INITIATE DISK EMULATION */
+//	je	2f
+//	cmpb	$0x4b, %ah	/* CDROM - TERMINATE DISK EMULATION */
+//	je	2f
+//	cmpb	$0x4c, %ah	/* CDROM - INITIATE DISK EMULATION AND BOOT */
+//	je	2f
+//	cmpb	$0x4d, %ah	/* CDROM - RETURN BOOT CATALOG */
+//	je	2f
+//	cmpb	$0x4e, %ah	/* Extensions - SET HARDWARE CONFIGURATION */
 	jne	1f
 2:
 	movb	%cs:3(%bp), %ah	/* AH=Smax */
@@ -2542,53 +2547,59 @@ drive_emulation:
 	xorb	%ah, %ah
 	jmp	int13_return
 /****************************************************************************/
-1:
-	cmpb	$0x09, %ah /* INITIALIZE CONTROLLER WITH DRIVE PARAMETERS */
-	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
-	jnz	error_01_invalid	/* CDROM */
-	xorb	%ah, %ah
-	jmp	int13_return
+//	# this check is not too useful, so comment out to save space
+//1:
+//	cmpb	$0x09, %ah /* INITIALIZE CONTROLLER WITH DRIVE PARAMETERS */
+//	jnz	1f
+//	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
+//	jnz	error_01_invalid	/* CDROM */
+//	xorb	%ah, %ah
+//	jmp	int13_return
 /****************************************************************************/
-1:
-	cmpb	$0x0c, %ah	/* SEEK TO CYLINDER */
-	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
-	jnz	error_01_invalid	/* CDROM */
-	xorb	%ah, %ah
-	jmp	int13_return
+//	# this check is not too useful, so comment out to save space
+//1:
+//	cmpb	$0x0c, %ah	/* SEEK TO CYLINDER */
+//	jnz	1f
+//	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
+//	jnz	error_01_invalid	/* CDROM */
+//	xorb	%ah, %ah
+//	jmp	int13_return
 /****************************************************************************/
-1:
-	cmpb	$0x0d, %ah	/* reset hard disks */
-	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
-	jnz	error_01_invalid	/* CDROM */
-	xorb	%ah, %ah
-	jmp	int13_return
+//	# this check is not too useful, so comment out to save space
+//1:
+//	cmpb	$0x0d, %ah	/* reset hard disks */
+//	jnz	1f
+//	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
+//	jnz	error_01_invalid	/* CDROM */
+//	xorb	%ah, %ah
+//	jmp	int13_return
 /****************************************************************************/
-1:
-	cmpb	$0x10, %ah	/* check if drive ready */
-	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
-	jnz	error_01_invalid	/* CDROM */
-	xorb	%ah, %ah
-	jmp	int13_return
+//	# this check is not too useful, so comment out to save space
+//1:
+//	cmpb	$0x10, %ah	/* check if drive ready */
+//	jnz	1f
+//	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
+//	jnz	error_01_invalid	/* CDROM */
+//	xorb	%ah, %ah
+//	jmp	int13_return
 /****************************************************************************/
-1:
-	cmpb	$0x11, %ah	/* recalibrate drive */
-	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
-	jnz	error_01_invalid	/* CDROM */
-	xorb	%ah, %ah
-	jmp	int13_return
+//	# this check is not too useful, so comment out to save space
+//1:
+//	cmpb	$0x11, %ah	/* recalibrate drive */
+//	jnz	1f
+//	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
+//	jnz	error_01_invalid	/* CDROM */
+//	xorb	%ah, %ah
+//	jmp	int13_return
 /****************************************************************************/
-1:
-	cmpb	$0x14, %ah	/* CONTROLLER INTERNAL DIAGNOSTIC */
-	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
-	jnz	error_01_invalid	/* CDROM */
-	xorb	%ah, %ah
-	jmp	int13_return
+//	# this check is not too useful, so comment out to save space
+//1:
+//	cmpb	$0x14, %ah	/* CONTROLLER INTERNAL DIAGNOSTIC */
+//	jnz	1f
+//	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
+//	jnz	error_01_invalid	/* CDROM */
+//	xorb	%ah, %ah
+//	jmp	int13_return
 /****************************************************************************/
 1:
 	cmpb	$0x05, %ah	/* format track */
@@ -2685,41 +2696,44 @@ drive_emulation:
 	clc
 	jmp	int13_return
 /****************************************************************************/
-1:
-	cmpb	$0x16, %ah
-	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
-	jnz	error_01_invalid	/* CDROM */
-	xorb	%ah, %ah	/* AH=0 means disk not changed */
-	jmp	int13_return
+//	# this check is not too useful, so comment out to save space
+//1:
+//	cmpb	$0x16, %ah
+//	jnz	1f
+//	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
+//	jnz	error_01_invalid	/* CDROM */
+//	xorb	%ah, %ah	/* AH=0 means disk not changed */
+//	jmp	int13_return
 /****************************************************************************/
-1:
-	cmpb	$0x17, %ah	/* set floppy type for format */
-	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
-	jnz	error_01_invalid	/* CDROM */
-	movb	$0x03, %al	/* 1.44M drive, 1.44M floppy */
-	xorb	%ah, %ah
-	jmp	int13_return
+//	# this check is not too useful, so comment out to save space
+//1:
+//	cmpb	$0x17, %ah	/* set floppy type for format */
+//	jnz	1f
+//	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
+//	jnz	error_01_invalid	/* CDROM */
+//	movb	$0x03, %al	/* 1.44M drive, 1.44M floppy */
+//	xorb	%ah, %ah
+//	jmp	int13_return
 /****************************************************************************/
-1:
-	cmpb	$0x18, %ah	/* set media type for format */
-	jnz	1f
-	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
-	jnz	error_01_invalid	/* CDROM */
-	testb	%dl, %dl	/* hard drive? */
-	js	error_01_invalid
-	pushw	%ax
-	xorw	%ax, %ax
-	movw	%ax, %es
-	movw	$0x0078, %di
-	movl	%es:(%di), %eax
-	movw	%ax, %di
-	shrl	$0x10, %eax
-	movw	%ax, %es
-	popw	%ax
-	xorb	%ah, %ah
-	jmp	int13_return
+//	# this check is not too useful, so comment out to save space
+//1:
+//	cmpb	$0x18, %ah	/* set media type for format */
+//	jnz	1f
+//	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
+//	jnz	error_01_invalid	/* CDROM */
+//	testb	%dl, %dl	/* hard drive? */
+//	js	error_01_invalid
+//	pushw	%ax
+//	xorw	%ax, %ax
+//	movw	%ax, %es
+//	movw	$0x0078, %di
+//	movl	%es:(%di), %eax
+//	movw	%ax, %di
+//	shrl	$0x10, %eax
+//	movw	%ax, %es
+//	popw	%ax
+//	xorb	%ah, %ah
+//	jmp	int13_return
 /****************************************************************************/
 1:
 	/* Now AH is neither 0 nor 1 */
@@ -3003,12 +3017,13 @@ disk_address_packet_ready:
 	clc
 	jmp	int13_return
 /****************************************************************************/
-1:
-	cmpb	$0x47, %ah	/* EBIOS seek */
-	jnz	1f
-	xorb	%ah, %ah
-	clc
-	jmp	int13_return
+//	# this check is not too useful, so comment out to save space
+//1:
+//	cmpb	$0x47, %ah	/* EBIOS seek */
+//	jnz	1f
+//	xorb	%ah, %ah
+//	clc
+//	jmp	int13_return
 /****************************************************************************/
 1:
 	cmpb	$0x48, %ah	/* EBIOS GET DRIVE PARAMETERS */
@@ -5081,6 +5096,15 @@ minimum_mem_lo_in_map:
 minimum_mem_hi_in_map:
 	.long	0	/* min ram drive base above 16M */
 
+int15_e820_saved_ebx:
+	.long	0
+int15_e820_range0_addr:
+	.long	0, 0
+int15_e820_range0_length:
+	.long	((int13_handler_end - int13_handler + 0x3ff)&(-0x400)), 0
+int15_e820_range0_type:
+	.long	2
+
 /****************************************************************************/
 int15_e820_handler:
 
@@ -5145,12 +5169,21 @@ int15_e820_handler:
 	cmpl	$20, %ecx
 	jb	2f
 
+	cmpl	$1, %ebx
+	jb	8f	/* EBX = 0 : start at beginning */
+	ja	3f	/* input EBX > 1 : invalid */
+	/* input EBX = 1 : continue */
+	movl	%cs:(int15_e820_saved_ebx - int13_handler), %ebx
+	test	%ebx, %ebx
+	jz	9f	/* BIOS ranges ended */
+8:
 	pushfw
 	lcall	%cs:*(EXT_C(ROM_int15) - int13_handler)
-
 	jc	3f
 	cmpl	$0x534D4150, %eax	/* "SMAP" */
 	jne	2f
+	movl	%ebx, %cs:(int15_e820_saved_ebx - int13_handler)
+	movl	$1, %ebx
 	pushal
 	//movl	%es:4(%di), %eax	/* BaseAddrHigh */
 	//testl	%eax, %eax
@@ -5158,9 +5191,17 @@ int15_e820_handler:
 	movl	%es:16(%di), %eax	/* Type */
 	decl	%eax /* 1=usable memory, available to the operating system */
 	jnz	4f
-	/* set %si to the drive map */
-	movw	$(EXT_C(hooked_drive_map) - int13_handler), %si
-	movw	$(DRIVE_MAP_SIZE), %cx
+	///* set %si to the drive map */
+	//movw	$(EXT_C(hooked_drive_map) - int13_handler), %si
+	//movw	$(DRIVE_MAP_SIZE), %cx
+	/* First check for overlapping with int13_handler, then check all mem drives. */
+	/* set %si to the drive map - DRIVE_MAP_SLOT_SIZE */
+	movw	$(EXT_C(hooked_drive_map) - int13_handler - DRIVE_MAP_SLOT_SIZE), %si
+	movw	$(DRIVE_MAP_SIZE +1), %cx
+	xorl	%edx, %edx
+	movl	%cs:(int15_e820_range0_addr - int13_handler), %eax
+					/* EDX:EAX=start_address of int13_handler */
+	jmp	7f
 6:
 	/* the code should not change SI, DI and CX! */
 	cmpb	$0xff, %cs:1(%si)
@@ -5170,7 +5211,8 @@ int15_e820_handler:
 	movl	%cs:12(%si), %edx	/* start_sector hi */
 	movl	%cs:8(%si), %eax	/* start_sector lo */
 	shldl	$9, %eax, %edx
-	shll	$9, %eax		/* EDX:EAX=start_address */
+	shll	$9, %eax		/* EDX:EAX=start_address of mem drive*/
+7:
 	//movl	%es:4(%di), %eax	/* BaseAddrHigh */
 	//testl	%eax, %eax
 	//jnz	5f
@@ -5207,7 +5249,22 @@ int15_e820_handler:
 	popal
 	clc
 	lret	$2
-
+9:
+	pushfw
+	pushw	%si
+	pushw	%di
+	cld
+	movw	$(int15_e820_range0_addr - int13_handler), %si
+	movw	$(20/2), %cx
+	rep movsw %cs:(%si), %es:(%di)
+	movl	$20, %ecx	/* number of byte */
+	xorl	%ebx, %ebx	/* no continuation */
+	movl	%edx, %eax	/* "SMAP" */
+	popw	%di
+	popw	%si
+	popfw
+	clc
+	lret	$2
 2:
 	movb	$0x86, %ah	/* function not supported */
 3:
@@ -7229,6 +7286,9 @@ int13_handler_end:
 	/* Total size of int13_handler should better not exceed 12KB. */
 
 	. = . - (int13_handler_end - int13_handler)/0x3001
+
+	// this is used to check the current size of the handler code
+	//. = . - (int13_handler_end - int13_handler)/0x2F01
 
 #;============================================================================
 
@@ -12529,6 +12589,7 @@ VARIABLE(end_of_low_16bit_code)
 
 	.space	0x300000	/* !!!! insert 3M !!!! */
 
+#if 0
 /*
  * int check_64bit (void)
  *
@@ -12597,6 +12658,7 @@ is_32bit:
 	popl	%ebx
 	popl	%ebp
 	ret
+#endif
 
 /*
  * set_int15_handler(void)
@@ -12733,6 +12795,7 @@ ENTRY(set_int13_handler)
 	///* save size (KBytes) of int13_handler in its header */
 	//movb	%dl, (%edi)
 
+	movl	%eax, (int15_e820_range0_addr - int13_handler)(%edi)
 	/* linear address of int13_handler (below 0x100000). yes, use 'orl'
 	 * because we only write the lower 24 bits of the linear addess.
 	 * The higher byte(8 bits) is on the highest byte of the gdt entry. 
