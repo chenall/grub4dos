@@ -8584,6 +8584,8 @@ unsigned long sectors_per_cylinder;
 #ifdef GRUB_UTIL
 int filesystem_type = 0;
 #endif
+
+#if 0
     /* matrix of coefficients of linear equations
      * 
      *   C[n] * (H_count * S_count) + H[n] * S_count = LBA[n] - S[n] + 1
@@ -8600,6 +8602,7 @@ short Cmax;
 long Hmax;
 short Smax;
 unsigned long Z;
+#endif
 
 /*  
  * return:
@@ -8716,6 +8719,7 @@ failed_ext2_grldr:
 
 }
 
+#if 0
 /* on call:
  * 		BS		points to the bootsector
  * 		start_sector1	is the start_sector of the bootimage in the real disk, if unsure, set it to 0
@@ -9066,6 +9070,394 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
   
   /* partition table probe success */
   return 0;
+}
+#endif
+
+static unsigned long long L[8];
+static unsigned long S[8];
+static unsigned long H[8];
+static unsigned long C[8];
+static unsigned long X;
+static unsigned long Y;
+static unsigned long Cmax;
+static unsigned long Hmax;
+static unsigned long Smax;
+static unsigned long Lmax;
+
+/* on call:
+ * 		BS		points to the bootsector
+ * 		start_sector1	is the start_sector of the bootimage in the
+ *				real disk, if unsure, set it to 0
+ * 		sector_count1	is the sector_count of the bootimage in the
+ *				real disk, if unsure, set it to 1
+ * 		part_start1	is the part_start of the partition in which
+ *				the bootimage resides, if unsure, set it to 0
+ *  
+ * on return:
+ * 		0		success
+ *		otherwise	failure
+ *
+ */
+int
+probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, unsigned long sector_count1, unsigned long part_start1)
+{
+  unsigned long i, j;
+  unsigned long lba_total_sectors = 0;
+  unsigned long non_empty_entries;
+  unsigned long HPC;
+  unsigned long SPT;
+  unsigned long solutions = 0;
+  unsigned long ret_val;
+  unsigned long active_partitions = 0;
+  unsigned long best_HPC = 0;
+  unsigned long best_SPT = 0;
+  unsigned long best_bad_things = 0xFFFFFFFF;
+  
+  /* probe the partition table */
+  
+  Cmax = 0; Hmax = 0; Smax = 0; Lmax = 0;
+
+#if 0
+  if (filemax < 512)
+  {
+	if (debug > 1)
+		printf ("Error: filesize(=%d) less than 512.\n"
+			, (unsigned long)filemax);
+	return 1;
+  }
+#endif
+
+#if 0
+  /* check signature */
+  if (BS->boot_signature != 0xAA55)
+  {
+	if (debug > 1)
+		printf ("Warning!!! No boot signature 55 AA.\n");
+  }
+#endif
+
+  /* check boot indicator (0x80 or 0) */
+  non_empty_entries = 0; /* count non-empty entries */
+  for (i = 0; i < 4; i++)
+    {
+      int *part_entry;
+      /* the boot indicator must be 0x80 (bootable) or 0 (non-bootable) */
+      if ((unsigned char)(BS->P[i].boot_indicator << 1))/* if neither 0x80 nor 0 */
+      {
+	if (debug > 1)
+		printf ("Error: invalid boot indicator(0x%X) for entry %d.\n"
+			, (unsigned char)(BS->P[i].boot_indicator), i);
+	ret_val = 2;
+	goto err_print_hex;
+      }
+      if ((unsigned char)(BS->P[i].boot_indicator) == 0x80)
+	active_partitions++;
+      if (active_partitions > 1)
+      {
+	if (debug > 1)
+		printf ("Error: duplicate active flag at entry %d.\n", i);
+	ret_val = 3;
+	goto err_print_hex;
+      }
+      /* check if the entry is empty, i.e., all the 16 bytes are 0 */
+      part_entry = (int *)&(BS->P[i].boot_indicator);
+      if (*part_entry++ || *part_entry++ || *part_entry++ || *part_entry)
+      {
+	  non_empty_entries++;
+	  /* valid partitions never start at 0, because this is where the MBR
+	   * lives; and more, the number of total sectors should be non-zero.
+	   */
+	  if (! BS->P[i].start_lba)
+	  {
+		if (debug > 1)
+			printf ("Error: partition %d should not start at sector 0(the MBR sector).\n", i);
+		ret_val = 4;
+		goto err_print_hex;
+	  }
+	  if (! BS->P[i].total_sectors)
+	  {
+		if (debug > 1)
+			printf ("Error: number of total sectors in partition %d should not be 0.\n", i);
+		ret_val = 5;
+		goto err_print_hex;
+	  }
+	  if (lba_total_sectors < BS->P[i].start_lba+BS->P[i].total_sectors)
+	      lba_total_sectors = BS->P[i].start_lba+BS->P[i].total_sectors;
+	  /* the partitions should not overlap each other */
+	  for (j = 0; j < i; j++)
+	  {
+	    if ((BS->P[j].start_lba <= BS->P[i].start_lba) && (BS->P[j].start_lba + BS->P[j].total_sectors >= BS->P[i].start_lba + BS->P[i].total_sectors))
+		continue;
+	    if ((BS->P[j].start_lba >= BS->P[i].start_lba) && (BS->P[j].start_lba + BS->P[j].total_sectors <= BS->P[i].start_lba + BS->P[i].total_sectors))
+		continue;
+	    if ((BS->P[j].start_lba < BS->P[i].start_lba) ?
+		(BS->P[i].start_lba - BS->P[j].start_lba < BS->P[j].total_sectors) :
+		(BS->P[j].start_lba - BS->P[i].start_lba < BS->P[i].total_sectors))
+	    {
+		if (debug > 1)
+			printf ("Error: overlapped partitions %d and %d.\n", j, i);
+		ret_val = 6;
+		goto err_print_hex;
+	    }
+	  }
+	  /* the starting cylinder number */
+	  C[i] = (BS->P[i].start_sector_cylinder >> 8) | ((BS->P[i].start_sector_cylinder & 0xc0) << 2);
+	  if (Cmax < C[i])
+	      Cmax = C[i];
+	  /* the starting head number */
+	  H[i] = BS->P[i].start_head;
+	  if (Hmax < H[i])
+	      Hmax = H[i];
+	  /* the starting sector number */
+	  X = ((BS->P[i].start_sector_cylinder) & 0x3f);
+	  if (Smax < X)
+	      Smax = X;
+	  /* the sector number should not be 0. */
+	  ///* partitions should not start at the first track, the MBR-track */
+	  if (! X /* || BS->P[i].start_lba < Smax */)
+	  {
+		if (debug > 1)
+			printf ("Error: starting S of entry %d should not be 0.\n", i);
+		ret_val = 7;
+		goto err_print_hex;
+	  }
+	  S[i] = X;
+	  L[i] = BS->P[i].start_lba;// - X + 1;
+	  if (start_sector1 == part_start1)/* extended partition is pretending to be a whole drive */
+		L[i] +=(unsigned long) part_start1;
+	  if (Lmax < L[i])
+	      Lmax = L[i];
+	
+	  /* the ending cylinder number */
+	  C[i+4] = (BS->P[i].end_sector_cylinder >> 8) | ((BS->P[i].end_sector_cylinder & 0xc0) << 2);
+	  if (Cmax < C[i+4])
+	      Cmax = C[i+4];
+	  /* the ending head number */
+	  H[i+4] = BS->P[i].end_head;
+	  if (Hmax < H[i+4])
+	      Hmax = H[i+4];
+	  /* the ending sector number */
+	  Y = ((BS->P[i].end_sector_cylinder) & 0x3f);
+	  if (Smax < Y)
+	      Smax = Y;
+	  if (! Y)
+	  {
+		if (debug > 1)
+			printf ("Error: ending S of entry %d should not be 0.\n", i);
+		ret_val = 8;
+		goto err_print_hex;
+	  }
+	  S[i+4] = Y;
+	  L[i+4] = BS->P[i].start_lba + BS->P[i].total_sectors;
+	  if (start_sector1 == part_start1)/* extended partition is pretending to be a whole drive */
+		L[i+4] +=(unsigned long) part_start1;
+	  if (L[i+4] < Y)
+	  {
+		if (debug > 1)
+			printf ("Error: partition %d ended too near.\n", i);
+		ret_val = 9;
+		goto err_print_hex;
+	  }
+	  if (L[i+4] > 0x100000000ULL)
+	  {
+		if (debug > 1)
+			printf ("Error: partition %d ended too far.\n", i);
+		ret_val = 10;
+		goto err_print_hex;
+	  }
+	  //L[i+4] -= Y;
+	  //L[i+4] ++;
+	  L[i+4] --;
+	  if (Lmax < L[i+4])
+	      Lmax = L[i+4];
+      }
+      else
+      {
+	  /* empty entry, zero out all the coefficients */
+	  C[i] = 0;
+	  H[i] = 0;
+	  S[i] = 0;
+	  L[i] = 0;
+	  C[i+4] = 0;
+	  H[i+4] = 0;
+	  S[i+4] = 0;
+	  L[i+4] = 0;
+      }
+    }	/* end for */
+  if (non_empty_entries == 0)
+  {
+	if (debug > 1)
+		printf ("Error: partition table is empty.\n");
+	ret_val = 11;
+	goto err_print_hex;
+  }
+
+  /* This can serve as a solution if there would be no solution. */
+  if (debug > 1)
+	printf ("Initial estimation: Cmax=%d, Hmax=%d, Smax=%d\n", Cmax, Hmax, Smax);
+
+  /* Try each HPC in Hmax+1 .. 256 and each SPT in Smax .. 63 */
+
+  for (SPT = Smax; SPT <= 63; SPT++)
+  {
+    for (HPC = (Hmax == 255) ? Hmax : Hmax + 1; HPC <= 256; HPC++)
+    {
+      unsigned long bad_things = 0;
+
+      /* Check if this combination of HPC and SPT is OK */
+      for (i = 0; i < 8; i++)
+      {
+	if (L[i])
+	{
+	  unsigned long C1, H1, S1;
+
+	  /* Calculate C/H/S from LBA */
+	  S1 = (((unsigned long)L[i]) % SPT) + 1;
+	  H1 = (((unsigned long)L[i]) / SPT) % HPC;
+	  C1 = ((unsigned long)L[i]) / (SPT * HPC);
+	  /* check sanity */
+#if 1
+	  if (C1 <= 1023)
+	  {
+		if (C1 == C[i] && H1 == H[i] && S1 == S[i])
+		{
+			continue; /* this is OK */
+		}
+		if (/*C1 > C[i]*/ C1 == C[i]+1 && C[i] == Cmax && L[i] == Lmax && (H1 != HPC-1 || S1 != SPT) && (((H[i] == HPC-1 || (HPC == 255 && H[i] == 255)) && S[i] == SPT) || (H[i] == H1 && S[i] == S1)))
+		{
+			/* HP USB Disk Storage Format Tool. Bad!! */
+			bad_things++;
+			continue; /* accept it. */
+		}
+	  }
+	  else
+	  {
+		if ((((C1 & 1023) == C[i] || 1023 == C[i]) && (S1 == S[i] || SPT == S[i]) && (H1 == H[i] || (HPC-1) == H[i])) || (1023 == C[i] && 255 == H[i] && 63 == S[i]))
+		continue; /* this is OK */
+	  }
+#else
+	  if ((C1 <= 1023) ?
+		((C1 == C[i] && H1 == H[i] && S1 == S[i]) || (/*C1 > C[i]*/ C1 == C[i]+1 && C[i] == Cmax && (((H[i] == HPC-1 || (HPC == 255 && H[i] == 255)) && S[i] == SPT) || (H[i] == H1 && S[i] == S1))) )
+		:
+		((((C1 & 1023) == C[i] || 1023 == C[i]) && (S1 == S[i] || SPT == S[i]) && (H1 == H[i] || (HPC-1) == H[i])) || (1023 == C[i] && 255 == H[i] && 63 == S[i])))
+		continue; /* this is OK */
+#endif
+	  /* failed, try next combination */
+	  break;
+	}
+      }
+      if (i >= 8) /* passed */
+      {
+	solutions++;
+	if (HPC == 256)
+		bad_things += 16;	/* not a good solution. */
+	if (debug > 1)
+		printf ("Solution %d(bad_things=%d): H=%d, S=%d.\n", solutions, bad_things, HPC, SPT);
+	if (bad_things <= best_bad_things)
+	{
+		best_HPC = HPC;
+		best_SPT = SPT;
+		best_bad_things = bad_things;
+	}
+      }
+    }
+  }
+  if (solutions == 0)
+  {
+    if ((Hmax == 254 || Hmax == 255) && Smax == 63)
+    {
+      if (debug > 1)
+	printf ("Partition table is NOT GOOD and there is no solution.\n"
+		"But there is a fuzzy solution: H=255, S=63.\n");
+      best_HPC = 255;
+      best_SPT = 63;
+      ret_val = 0;	/* partition table probe success */
+    }
+    else
+    {
+      if (debug > 1)
+	printf ("Sorry! No solution. Bad! Please report it.\n");
+      ret_val = -1;
+      goto err_print_decimal;	/* will not touch filesystem_type */
+    }
+  }
+  else if (solutions == 1)
+  {
+    if (best_bad_things == 0)
+    {
+      if (debug > 1)
+	printf ("Perfectly Good!\n");
+      filesystem_type = 0;	/* MBR device */
+      return 0;	/* partition table probe success */
+    }
+    else
+    {
+      if (debug > 1)
+	printf ("Found 1 solution, but the partition table has problems.\n");
+      ret_val = 0;	/* partition table probe success */
+    }
+  }
+  else
+  {
+    if (best_bad_things == 0)
+    {
+      if (debug > 1)
+	printf ("Total solutions: %d (too many). Found a good one:\n"
+		, solutions);
+    }
+    else
+    {
+      if (debug > 1)
+	printf ("Total solutions: %d (too many). The best one is:\n"
+		, solutions);
+    }
+    if (debug > 1)
+	printf ("H=%d, S=%d.\n", best_HPC, best_SPT);
+    ret_val = 0;
+  }
+
+  probed_sectors_per_track = best_SPT;
+  probed_heads = best_HPC;
+  sectors_per_cylinder = probed_heads * probed_sectors_per_track;
+  probed_cylinders = (Lmax / sectors_per_cylinder) + 1;
+  if (probed_cylinders < Cmax + 1)
+      probed_cylinders = Cmax + 1;
+  probed_total_sectors_round = sectors_per_cylinder * probed_cylinders;
+  probed_total_sectors = Lmax + 1;
+
+  filesystem_type = 0;	/* MBR device */
+
+err_print_decimal:
+
+  /* print the partition table in calculated decimal LBA C H S */
+  for (i = 0; i < 4; i++)
+  {
+    if (debug > 1)
+	printf ("%10ld %4d %3d %2d    %10ld %4d %3d %2d\n"
+		, (unsigned long long)L[i], C[i], H[i], S[i]
+		, (unsigned long long)L[i+4], C[i+4], H[i+4], S[i+4]);
+  }
+
+err_print_hex:
+
+  /* print the partition table in Hex */
+  for (i = 0; i < 4; i++)
+  {
+    if (debug > 1)
+	printf ("%02X, %02X %02X %02X   %02X, %02X %02X %02X   %08X   %08X\n"
+		, (unsigned char)(BS->P[i].boot_indicator)
+		, BS->P[i].start_head
+		, (unsigned char)(BS->P[i].start_sector_cylinder)
+		, (unsigned char)(BS->P[i].start_sector_cylinder >> 8)
+		, (unsigned char)(BS->P[i].system_indicator)
+		, BS->P[i].end_head
+		, (unsigned char)(BS->P[i].end_sector_cylinder)
+		, (unsigned char)(BS->P[i].end_sector_cylinder >> 8)
+		, BS->P[i].start_lba
+		, BS->P[i].total_sectors);
+  }
+
+  return ret_val;
 }
 
 //#include "fat.h"
@@ -9915,6 +10307,8 @@ map_func (char *arg, int flags)
 	  return ! (errnum = ERR_SPECIFY_GEOM);
 
 	goto failed_probe_BPB;
+	//if (probe_mbr (BS, start_sector, sector_count, (unsigned long)part_start) > 0)
+	//	goto geometry_probe_failed;
   }
   //if (probed_cylinders * sectors_per_cylinder == probed_total_sectors)
 	goto geometry_probe_ok;
@@ -10190,6 +10584,8 @@ geometry_probe_ok:
   if (BPB_H || BPB_S)
 	if (BPB_H != probed_heads || BPB_S != probed_sectors_per_track)
 	{
+		//if (debug > 0)
+		//	grub_printf ("\nWarning!!! geometry (H/S=%d/%d) from the (extended) partition table\nconflict with geometry (H/S=%d/%d) in the BPB. The boot could fail!\n", probed_heads, probed_sectors_per_track, BPB_H, BPB_S);
 		if (mem != -1ULL)
 			grub_close ();
 		return ! (errnum = ERR_EXTENDED_PARTITION);
