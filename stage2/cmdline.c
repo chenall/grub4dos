@@ -27,6 +27,12 @@
 
 //grub_jmp_buf restart_cmdline_env;
 
+char *
+wee_skip_to (char *cmdline, int flags)
+{
+	return skip_to (flags, cmdline);
+}
+
 /* Find the next word from CMDLINE and return the pointer. If
    AFTER_EQUAL is non-zero, assume that the character `=' is treated as
    a space. Caution: this assumption is for backward compatibility.  */

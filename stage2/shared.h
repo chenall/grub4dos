@@ -1247,6 +1247,7 @@ extern char *mbr;
 #endif
 extern int grub_timeout;
 
+char *wee_skip_to (char *cmdline, int flags);
 char *skip_to (int flags, char *cmdline);
 #define SKIP_LINE		0x100
 #define SKIP_NONE		0

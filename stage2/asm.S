@@ -13001,7 +13001,7 @@ VARIABLE(system_functions)
 	.long	ABS(EXT_C(getxy))
 	.long	ABS(EXT_C(gotoxy))
 	.long	ABS(EXT_C(cls))
-	.long 0				//reserved
+	.long	ABS(EXT_C(wee_skip_to))	//was obsolete setcursor
 	.long	ABS(EXT_C(nul_terminate))
 	.long	ABS(EXT_C(safe_parse_maxint_with_suffix))
 	.long	ABS(EXT_C(substring))

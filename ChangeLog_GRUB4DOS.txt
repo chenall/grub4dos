@@ -1,3 +1,4 @@
+2011-06-27 (tinybit)added wee_skip_to as a replacement for skip_to.
 2011-06-22 (tinybit)better probe_mbr handling abnormal partition tables.
 2011-06-19 (karyonix)int15 fix. (tinybit)remove code to save handler room.
 2011-06-10 (tinybit)trust CHS in floppy BPB for GRUB.EXE to run under DOS.
