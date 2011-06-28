@@ -9362,6 +9362,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
       }
     }
   }
+  ret_val = 0;	/* initial value: partition table probe success */
   if (solutions == 0)
   {
     if ((Hmax == 254 || Hmax == 255) && Smax == 63)
@@ -9371,49 +9372,36 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 		"But there is a fuzzy solution: H=255, S=63.\n");
       best_HPC = 255;
       best_SPT = 63;
-      ret_val = 0;	/* partition table probe success */
     }
     else
     {
       if (debug > 1)
 	printf ("Sorry! No solution. Bad! Please report it.\n");
-      ret_val = -1;
+      ret_val = -1;	/* non-zero: partition table probe failure */
       goto err_print_decimal;	/* will not touch filesystem_type */
     }
   }
   else if (solutions == 1)
   {
-    if (best_bad_things == 0)
+    if (debug > 1)
     {
-      if (debug > 1)
+      if (best_bad_things == 0)
+      {
 	printf ("Perfectly Good!\n");
-      filesystem_type = 0;	/* MBR device */
-      return 0;	/* partition table probe success */
-    }
-    else
-    {
-      if (debug > 1)
+      //filesystem_type = 0;	/* MBR device */
+      //return 0;	/* partition table probe success */
+      }
+      else
+      {
 	printf ("Found 1 solution, but the partition table has problems.\n");
-      ret_val = 0;	/* partition table probe success */
+      }
     }
   }
   else
   {
-    if (best_bad_things == 0)
-    {
-      if (debug > 1)
-	printf ("Total solutions: %d (too many). Found a good one:\n"
-		, solutions);
-    }
-    else
-    {
-      if (debug > 1)
-	printf ("Total solutions: %d (too many). The best one is:\n"
-		, solutions);
-    }
     if (debug > 1)
-	printf ("H=%d, S=%d.\n", best_HPC, best_SPT);
-    ret_val = 0;
+	printf ("Total solutions: %d (too many). The best one is:\n"
+		"H=%d, S=%d.\n", solutions, best_HPC, best_SPT);
   }
 
   probed_sectors_per_track = best_SPT;
@@ -9426,24 +9414,26 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
   probed_total_sectors = Lmax + 1;
 
   filesystem_type = 0;	/* MBR device */
+  if (solutions == 1 && best_bad_things == 0)
+	return 0;	/* partition table probe success */
 
 err_print_decimal:
 
   /* print the partition table in calculated decimal LBA C H S */
-  for (i = 0; i < 4; i++)
-  {
-    if (debug > 1)
+  if (debug > 1)
+    for (i = 0; i < 4; i++)
+    {
 	printf ("%10ld %4d %3d %2d    %10ld %4d %3d %2d\n"
 		, (unsigned long long)L[i], C[i], H[i], S[i]
 		, (unsigned long long)L[i+4], C[i+4], H[i+4], S[i+4]);
-  }
+    }
 
 err_print_hex:
 
   /* print the partition table in Hex */
-  for (i = 0; i < 4; i++)
-  {
-    if (debug > 1)
+  if (debug > 1)
+    for (i = 0; i < 4; i++)
+    {
 	printf ("%02X, %02X %02X %02X   %02X, %02X %02X %02X   %08X   %08X\n"
 		, (unsigned char)(BS->P[i].boot_indicator)
 		, BS->P[i].start_head
@@ -9455,7 +9445,7 @@ err_print_hex:
 		, (unsigned char)(BS->P[i].end_sector_cylinder >> 8)
 		, BS->P[i].start_lba
 		, BS->P[i].total_sectors);
-  }
+    }
 
   return ret_val;
 }

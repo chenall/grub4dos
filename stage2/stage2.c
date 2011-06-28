@@ -188,53 +188,65 @@ get_entry (char *list, int num)
   return list;
 }
 
-static
-char * clean_entry ( char *text) {
-   int i;
-   char ntext[255];
-   (void) strcpy (ntext,text);
-   for (i = 0; ntext[i] != '\0'; ++i) if (ntext[i] < 32 || ntext[i] > 127)  ntext[i]=32;
-	 return ntext;
+static char ntext[256];
+
+static void
+clean_entry (char *text)
+{
+  int i;
+  //(void) strcpy (ntext, text);
+  for (i = 0; i < 255 && text[i]; ++i)
+  {
+	if (ntext[i] < 32 || ntext[i] > 127)
+		ntext[i] = 32;
+	else
+		ntext[i] = text[i];
+  }
+  ntext[i] = 0;
+  return;
 }
 
-static
-int checkvalue ( char *text) {
-   int i, value;
-   char *cleantext;
+static int
+checkvalue (void)
+{
+  int i, value;
 // Converts a string of ASCII numbers in a string to an integer
 // leading spaces are allowed
 // followed by a number of digits terminated by any non-digit character or EOS nul character
 // return value is number of valid numeric characters found  (0 = no valid number found)
-   cleantext = clean_entry(text);
-   for (i = 0, value = 0; cleantext[i] != '\0'; ++i)
-   {
-    if ( (cleantext[i] - '0' >= 0) && (cleantext[i] - '0' <= 9) ) ++value;
-    if ( (value == 0)  && (cleantext[i] != 32) && (cleantext[i] - '0' < 0 || cleantext[i] - '0' > 9) ) return 0;
-   }
-    return value;
+  for (i = 0, value = 0; ntext[i] != '\0'; ++i)
+  {
+    if ( (ntext[i] - '0' >= 0) && (ntext[i] - '0' <= 9) )
+	++value;
+    if ( (value == 0)  && (ntext[i] != 32)
+		&& (ntext[i] - '0' < 0 || ntext[i] - '0' > 9) )
+	return 0;
+  }
+  return value;
 }
 
 
-static
-int myatoi ( char *text) {
-   int i, value, j;
-   char *cleantext;
-   cleantext = clean_entry(text);
+static int
+myatoi (void)
+{
+  int i, value, j;
 
-   for (i = 0, j = 0, value = 0; cleantext[i] != '\0'; ++i)
-   {
-    if ( (cleantext[i] - '0' >= 0) && (cleantext[i] - '0' <= 9) ) 
+  for (i = 0, j = 0, value = 0; ntext[i] != '\0'; ++i)
+  {
+    if ( (ntext[i] - '0' >= 0) && (ntext[i] - '0' <= 9) ) 
      {
-     value *= 10;
-     value += cleantext[i] - '0';
-     j=1;
+	value *= 10;
+	value += ntext[i] - '0';
+	j = 1;
      }
      else 
-     { if ( cleantext[i] != ' ' || j ) return value;}
-   }
- //  printf ("Mv%dMv",value);
-    return value;
-
+     {
+	if ( ntext[i] != ' ' || j )
+		return value;
+     }
+  }
+  //  printf ("Mv%dMv",value);
+  return value;
 }
 
 // END OF STEVE6375 ADDED CODE
@@ -1117,11 +1129,16 @@ restart:
 // temp_entryno has users number - check if it matches a title number
 // If menu items are numbered then there must be no unnumbered items in the first few entries
 // e.g. if you have 35 menu items, then menu entries 0 - 3 must all numbered - otherwise double-digit user entry will not work - e.g. 34 will not work
-   int j;
-   for (j=0; j < num_entries; ++j)
+  int j;
+  for (j = 0; j < num_entries; ++j)
   {
  //  grub_printf("TE%d C%dC A%dATE%s ",temp_entryno,checkvalue (get_entry (menu_entries,j) ),myatoi (get_entry (menu_entries,j)),get_entry(menu_entries,j));
-   if (  ( checkvalue (get_entry (menu_entries,j) ) > 0)  &&   ( myatoi (get_entry (menu_entries,j)) == temp_entryno)  )  {temp_entryno=j; j=num_entries;}
+    clean_entry (get_entry (menu_entries, j));
+    if (checkvalue () > 0 && myatoi () == temp_entryno)
+    {
+	temp_entryno = j;
+	j = num_entries;
+    }
   }
 
 
