@@ -1407,7 +1407,7 @@ int set_bootdev (int hdbias);
 void print_fsys_type (void);
 
 /* Print the root device information.*/
-void print_root_device (char *buffer);
+void print_root_device (char *buffer,int flag);
 
 /* Display device and filename completions. */
 void print_a_completion (char *filename, int case_insensitive);

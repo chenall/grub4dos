@@ -4003,6 +4003,7 @@ static struct builtin builtin_dd =
 
 #endif	/* ! GRUB_UTIL */
 /* debug */
+static int bat_script_debug = 0;
 static int
 debug_func (char *arg, int flags)
 {
@@ -4022,7 +4023,18 @@ debug_func (char *arg, int flags)
   else if (grub_memcmp (arg, "status", 6) == 0)
     grub_printf (" Debug is now %d\n", (unsigned long)debug);
   else if (safe_parse_maxint (&arg, &tmp_debug))
+  {
     debug = tmp_debug;
+    switch (debug)
+    {
+		case 3:
+			bat_script_debug = 1;
+			break;
+		case 4:
+			bat_script_debug = 0;
+			break;
+    }
+  }
   else
   {
     if (errnum == 0)
@@ -4987,6 +4999,8 @@ static struct builtin builtin_fallback =
 static char command_path[128]="(bd)/BOOT/GRUB/";
 static int command_path_len = 15;
 #define GRUB_MOD_ADDR 0x1200000
+#define UTF8_BAT_SIGN 0x54414221BFBBEFULL
+#define BAT_SIGN 0x54414221UL
 struct exec_array
 {
 	char name[12];
@@ -5033,10 +5047,11 @@ static int grub_mod_add (struct exec_array *mod)
       grub_close();
       rd_base = rd_base_bak;
       rd_size = rd_size_bak;
-      if (*(unsigned long long *)(int)(p_mod->data + p_mod->len - 8) != 0xBCBAA7BA03051805ULL && (*(unsigned long *)p_mod->data != 0x54414221))
+      if (*(unsigned long long *)(int)(p_mod->data + p_mod->len - 8) != 0xBCBAA7BA03051805ULL
+         && *(unsigned long *)(int)p_mod->data != BAT_SIGN
+         && (*(unsigned long long *)(int)p_mod->data & 0xFFFFFFFFFFFFFFULL) != UTF8_BAT_SIGN) //!BAT with utf-8 BOM 0xBFBBEF
       {
-         if (! errnum)
-            errnum = ERR_EXEC_FORMAT;
+         errnum = ERR_EXEC_FORMAT;
          return 0;
       }
       mod_end = ((unsigned int)p_mod->data + p_mod->len + 0xf) & ~0xf;
@@ -5103,11 +5118,9 @@ struct bat_array
 	/*
 	 (char **)(entry + 0x80) is the entry of bat_script to run.
 	*/
-	char device[16];
-	char path[];
+	char *path;
 } *p_bat_prog = NULL;
 int bat_pid = 0;
-
 static char **batch_args;
 /*
 find a label in current batch script.(p_bat_prog)
@@ -5118,6 +5131,7 @@ static int bat_find_label(char *label)
 {
 	struct bat_label *label_entry;
 	if (*label == ':') label++;
+	nul_terminate(label);
 	for (label_entry = p_bat_prog->entry; label_entry->label ; label_entry++)//find label for goto/call.
 	{
 		if (substring(label_entry->label,label,1) == 0)
@@ -5133,23 +5147,36 @@ static int bat_find_label(char *label)
 
 static int bat_get_args(char *arg,char *buff,int flags)
 {
-	char *p = arg;
+	char *p = ((char *)0x4CB08);
 	char *s1 = buff;
 
-	if (*arg != '(')
+	if (*arg == '(')
 	{
-		p = ((char *)0x4CB08);
-		print_root_device(p);
+		unsigned long tmp_partition = current_partition;
+		unsigned long tmp_drive = current_drive;
+		arg = set_device (arg);
+		print_root_device(p,1);
+		current_partition = tmp_partition;
+		current_drive = tmp_drive;
+		p += strlen(p);
+	}
+	else if (flags & 0xff) // if is Param 0
+	{
+		p += sprintf(p,"%s",p_bat_prog->path) - 1;//use program run dir
+	}
+	else
+	{
+		print_root_device(p,0);
 		p += strlen(p);
 		p += sprintf(p,saved_dir);
-		if (*arg != '/')
-			*p++ = '/';
-		if (p + strlen(arg) >= (char *)0x4CC00)
-			goto quit;
-		sprintf(p,"%s",arg);
-		p = ((char *)0x4CB08);
 	}
-
+	if (*arg != '/')
+		*p++ = '/';
+	if (p + strlen(arg) >= (char *)0x4CC00)
+		goto quit;
+	sprintf(p,"%s",arg);
+	p = ((char *)0x4CB08);
+	flags >>= 8;
 	if (flags & 0x10)
 	{
 		if (grub_open(p))
@@ -5319,7 +5346,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 					}
 					if (i & 0x1f)
 					{
-						len_c = bat_get_args(p_rep,p_cmd,i);
+						len_c = bat_get_args(p_rep,p_cmd,i << 8 | (s[*p_bat - '0'] == cmd_buff));
 					}
 					else
 					{
@@ -5353,7 +5380,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 
 		*p_cmd = '\0';
-		if (debug != 4 && (debug_ori == 3 || debug == 3))
+		if (bat_script_debug)
 		{
 			printf("%s\n",p_buff);
 			int key=getkey() & 0xff00;
@@ -5415,16 +5442,16 @@ static int grub_exec_run(char *program, int flags)
 		kernel_type = KERNEL_TYPE_NONE;
 
 	/*Is a batch file? */
-	if (*(unsigned long *)program == 0x54414221)//!BAT
+	if (*(unsigned long *)program == BAT_SIGN || *(unsigned long *)program == 0x21BFBBEF)//!BAT
 	{
 		if (bat_pid >= 10)
 		{
 			return 0;
 		}
-
 		struct bat_array *p_bat_array = (struct bat_array *)grub_malloc(0x2600);
 		if (p_bat_array == NULL)
 			return 0;
+		p_bat_array->path = program - (*(unsigned long *)(program - 24));
 		struct bat_array *p_bat_array_orig = p_bat_prog;
 
 		char *filename = program - (*(unsigned long *)(program - 16));
@@ -5459,30 +5486,6 @@ static int grub_exec_run(char *program, int flags)
 		label_entry[0].line = i_bat;
 		p_bat_array->pid = ++bat_pid;
 		p_bat_array->entry = label_entry;
-		#if 0
-		/*save device/partition of the batch file*/
-		i_bat = saved_drive;
-		i_lab = saved_partition;
-		saved_drive = current_drive;
-		saved_partition = current_partition;
-		print_root_device(p_bat_array->device);
-		saved_drive = i_bat;
-		saved_partition = i_lab;
-
-		if (*filename == '(')
-			p_bat = strstr(filename,"/");
-		else if (*filename == '/')
-			p_bat = saved_dir;
-		else
-			p_bat = strstr(command_path,"/");
-		i_bat = sprintf(p_bat_array->path,"%.480s",p_bat);
-		if (*filename == '/')
-			i_bat += sprintf(p_bat_array->path + i_bat,"%.220s",filename);
-		p_bat = p_bat_array->path + i_bat;
-		while (*p_bat != '/')
-			--p_bat;
-		p_bat[1] = 0;
-		#endif
 		p_bat_prog = p_bat_array;
 		flags |= BUILTIN_BAT_SCRIPT;
 		pid = bat_run_script(filename, arg,flags);//run batch script from line 0;
@@ -5509,12 +5512,9 @@ static int command_open(char *arg,int flags)
       return 2;
    char t_path[512];
    grub_sprintf(t_path,"%s%s",command_path,arg);
-   if (grub_open(t_path) == 0 && grub_open(t_path + command_path_len - 1) == 0)
-   {
-      return -1;
-   }
-
-   return 1;
+   if (grub_open(t_path))
+      return 3;
+   return grub_open(t_path + command_path_len - 1);
 }
 
 int
@@ -5571,19 +5571,45 @@ command_func (char *arg, int flags)
 
   /* open the command file. */
   char *filename = arg;
+  char file_path[512];
   unsigned long arg_len = grub_strlen(arg);/*get length for build psp */
   char *cmd_arg = skip_to(SKIP_WITH_TERMINATE,arg);/* get argument of command */
-   p_exec = NULL;
-   switch(command_open(filename,0))
-   {
-      case -1:
-         grub_printf ("Warning! No such command: %s\n", arg);
-         errnum = 0;	/* No error, so that old menus will run smoothly. */
-         //return 0;
-      case 0:
-         return 0;/* return 0 indicating a failure or a false case. */
-   }
-#if 0
+  p_exec = NULL;
+  switch(command_open(filename,0))
+  {
+     case 2:
+        sprintf(file_path,"(md)/");
+        filemax = p_exec->len;
+		break;
+	 case 3:
+		{
+		char *p=command_path;
+		print_root_device(file_path,1);
+		while (*p != '/')
+			++p;
+		sprintf(file_path+strlen(file_path),"%s",p);
+	    break;
+		}
+	 case 1:
+	 	if (*filename != '(')
+		{
+			print_root_device(file_path,0);
+			sprintf(file_path+strlen(file_path),"%s/",saved_dir);
+		}
+		else
+		{
+			file_path[0] = '/';
+			file_path[1] = 0;
+		}
+	    break;
+     case -1:
+        grub_printf ("Warning! No such command: %s\n", arg);
+        errnum = 0;	/* No error, so that old menus will run smoothly. */
+        //return 0;
+     case 0:
+        return 0;/* return 0 indicating a failure or a false case. */
+  }
+#if 1
 	if (filemax < 9ULL)
 	{
 		errnum = ERR_EXEC_FORMAT;
@@ -5597,8 +5623,8 @@ command_func (char *arg, int flags)
 	unsigned long psp_len;
 	unsigned long prog_len;
 	char *program;
-	prog_len = (p_exec?p_exec->len:filemax);
-	psp_len = ((arg_len + 16) & ~0xF) + 0x10 + 0x20;
+	prog_len = filemax;
+	psp_len = ((arg_len + strlen(file_path)+ 16) & ~0xF) + 0x10 + 0x20;
 	psp = (char *)grub_malloc(prog_len * 2 + psp_len);
 
 	if (psp == NULL)
@@ -5691,18 +5717,11 @@ command_func (char *arg, int flags)
 			}
 		}
 		#endif
-		else if (*end_signature != 0xBCBAA7BA03051805ULL)
+		else if (*end_signature != 0xBCBAA7BA03051805ULL && 
+				  *(unsigned long *)program != BAT_SIGN &&
+				  (*(unsigned long long *)program & 0xFFFFFFFFFFFFFFULL) != UTF8_BAT_SIGN)
 		{
-			if (memcmp(program,"\xEF\xBB\xBF!BAT",7) == 0)
-			{
-				program += 3;
-				prog_len -= 3;
-				psp_len += 3;
-			}
-			else if (*(unsigned long *)program != 0x54414221)
-			{
-				errnum = ERR_EXEC_FORMAT;
-			}
+			errnum = ERR_EXEC_FORMAT;
 		}
 		grub_close ();
 		if (errnum)
@@ -5719,14 +5738,16 @@ command_func (char *arg, int flags)
 	program[prog_len] = '\0';
 	grub_memset(psp, 0, psp_len);
 	grub_memmove (psp + 16, arg , arg_len + 1);/* copy args into somewhere in PSP. */
+	filename = psp + 16 + arg_len + 1;
+	grub_strcpy(filename,file_path);
 	*(unsigned long *)psp = psp_len;
 	*(unsigned long *)(program - 4) = psp_len;		/* PSP length in bytes. it is in both the starting dword and the ending dword of the PSP. */
 	*(unsigned long *)(program - 8) = psp_len - 16 - (cmd_arg - arg);	/* args is here. */
 	*(unsigned long *)(program - 12) = flags;		/* flags is here. */
 	*(unsigned long *)(program - 16) = psp_len - 16;/*program filename here.*/
 	*(unsigned long *)(program - 20) = prog_len;//program length
+	*(unsigned long *)(program - 24) = program - filename; 
 	/* (free_mem_start + pid - 16) is reserved for full pathname of the program file. */
-
 	int pid;
 	pid = grub_exec_run(program, flags);
 	/* on exit, release the memory. */
@@ -5801,7 +5822,7 @@ command_func (char *arg, int flags)
 	grub_close ();
 
 	/*Is a batch file? */
-	if (*(unsigned long *)(free_mem_start + psp_len) == 0x54414221)//!BAT
+	if (*(unsigned long *)(free_mem_start + psp_len) == BAT_SIGN)//!BAT
 	{
 		mem_alloc_array_start[j].addr |= 0x01;
 		mem_alloc_array_start[j].pid = pid;
@@ -5858,7 +5879,7 @@ static struct builtin builtin_command =
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
   "command [--set-path=PATH] FILE [ARGS]",
   "Run executable file FILE with arguments ARGS."
-  "--set-path sets a search PATH for executable files,default is (bd)/grub."
+  "--set-path sets a search PATH for executable files,default is (bd)/boot/grub."
 };
 
 static int insmod_func(char *arg,int flags)
@@ -5867,7 +5888,7 @@ static int insmod_func(char *arg,int flags)
       return 0;
    if (substring(skip_to(0,arg) - 4,".mod",1) == 0)
    {
-      if (command_open(arg,0) != 1)
+      if (command_open(arg,1) != 1)
          return 0;
       char *buff=grub_malloc(filemax);
       if (!buff)
@@ -5910,39 +5931,40 @@ static int insmod_func(char *arg,int flags)
    {
       case 2:
          return debug?grub_printf("%s already loaded\n",arg):1;
-      case 1:
-         {
-         struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array));
-         char *filename = arg;
-         int ret = 0;
-         if (p_mod == NULL || grub_read((unsigned long long)(unsigned int)p_mod->data,-1,GRUB_READ) != filemax)
-            goto exit;
-         p_mod->len = filemax;
-         if (*arg == '(' || *arg == '/')
-         {
-            while (*arg)
-            {
-               if (*arg++ == '/')
-                  filename = arg;
-            }
-         }
-         if (strlen(filename) > 11)
-         {
-            grub_printf("Err filename\n");
-         }
-         else
-         {
-            grub_strcpy(p_mod->name,filename);
-            ret = grub_mod_add(p_mod);
-         }
-
-         exit:
-         grub_close();
-         grub_free(p_mod);
-         return ret;
-         }
-      default:
+      case 0:
+      case -1:
          return 0;
+      default:
+         {
+			 struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array));
+			 char *filename = arg;
+			 int ret = 0;
+			 if (p_mod == NULL || grub_read((unsigned long long)(unsigned int)p_mod->data,-1,GRUB_READ) != filemax)
+				goto exit;
+			 p_mod->len = filemax;
+			 if (*arg == '(' || *arg == '/')
+			 {
+				while (*arg)
+				{
+				   if (*arg++ == '/')
+					  filename = arg;
+				}
+			 }
+			 if (strlen(filename) > 11)
+			 {
+				grub_printf("Err filename\n");
+			 }
+			 else
+			 {
+				grub_strcpy(p_mod->name,filename);
+				ret = grub_mod_add(p_mod);
+			 }
+
+			 exit:
+			 grub_close();
+			 grub_free(p_mod);
+			 return ret;
+         }
    }
 }
 
@@ -6138,7 +6160,7 @@ static int find_check(char *filename,struct builtin *builtin1,char *arg,int flag
 
 		if (debug > 0)
 		{
-			print_root_device(NULL);
+			print_root_device(NULL,0);
 			putchar('\n');
 		}
 		return 1;
@@ -6598,8 +6620,8 @@ static int
 uuid_func (char *arg, int flags)
 {
   unsigned long drive;
-  unsigned long tmp_drive = saved_drive;
-  unsigned long tmp_partition = saved_partition;
+//  unsigned long tmp_drive = saved_drive;
+//  unsigned long tmp_partition = saved_partition;
   char root_found[16] = "";
   char uuid_found[100];
 
@@ -6610,8 +6632,8 @@ uuid_func (char *arg, int flags)
 			return 0;
 		if (! open_device ())
 			return 0;
-		saved_drive = current_drive;
-		saved_partition = current_partition;
+//		saved_drive = current_drive;
+//		saved_partition = current_partition;
 		grub_memset (uuid_found, 0, 100);
                 if (errnum != ERR_FSYS_MOUNT && fsys_type < NUM_FSYS)
 			get_uuid (uuid_found);
@@ -6621,18 +6643,18 @@ uuid_func (char *arg, int flags)
 			/* Print the type of the filesystem.  */
 			if (debug > 0)
 			{
-				print_root_device (NULL);
+				print_root_device (NULL,1);
 				grub_printf (": UUID is %s\n\t", ((*uuid_found) ? uuid_found : "(unsupported)"));
 				print_fsys_type ();
 			}
-			saved_drive = tmp_drive;
-			saved_partition = tmp_partition;
+//			saved_drive = tmp_drive;
+//			saved_partition = tmp_partition;
 			errnum = ERR_NONE;
 			envi_cmd("?_UUID",uuid_found,0);
 			return (*uuid_found);
 		}
-		saved_drive = tmp_drive;
-		saved_partition = tmp_partition;
+//		saved_drive = tmp_drive;
+//		saved_partition = tmp_partition;
 		errnum = ERR_NONE;
 		return ! grub_strcmp ((char*)uuid_found, arg);
 	}
@@ -6680,8 +6702,8 @@ uuid_func (char *arg, int flags)
 		{
 		  int bsd_part = (part >> 8) & 0xFF;
 		  int pc_slice = part >> 16;
-		  saved_drive = current_drive;
-		  saved_partition = current_partition;
+//		  saved_drive = current_drive;
+//		  saved_partition = current_partition;
 		  grub_memset(uuid_found, 0, 100);
                   if (errnum != ERR_FSYS_MOUNT && fsys_type < NUM_FSYS)
                     get_uuid(uuid_found);
@@ -6739,8 +6761,8 @@ uuid_func (char *arg, int flags)
       current_partition = 0xFFFFFF;
       if (open_device ())
 	{
-	  saved_drive = current_drive;
-	  saved_partition = current_partition;
+//	  saved_drive = current_drive;
+//	  saved_partition = current_partition;
           grub_memset(uuid_found, 0, 100);
           if (errnum != ERR_FSYS_MOUNT && fsys_type < NUM_FSYS)
             get_uuid(uuid_found);
@@ -6767,8 +6789,8 @@ uuid_func (char *arg, int flags)
   }
 
 found:
-  saved_drive = tmp_drive;
-  saved_partition = tmp_partition;
+//  saved_drive = tmp_drive;
+//  saved_partition = tmp_partition;
   errnum = ERR_NONE;
   if (! *arg)
     return 1;
@@ -12706,16 +12728,21 @@ static struct builtin builtin_reboot =
 #endif /* ! GRUB_UTIL */
 
 
-/* Print the root device information.  */
+/* Print the root device information to buffer.
+   flag 0	saved device.
+   flag 1  current device.
+*/
 void
-print_root_device (char *buffer)
+print_root_device (char *buffer,int flag)
 {
 	unsigned long long st_bak = putchar_st.status;
+	unsigned long tmp_drive = flag?current_drive:saved_drive;
+	unsigned long tmp_partition = flag?current_partition:saved_partition;
 	if (buffer)
 		putchar_st.status = ((unsigned long long)(int)buffer << 32) | 1;
 	else
 		putchar(' ');
-	switch(saved_drive)
+	switch(tmp_drive)
 	{
 	#ifdef FSYS_FB
 		case FB_DRIVE:
@@ -12733,27 +12760,27 @@ print_root_device (char *buffer)
 			break;
 	#endif /* SUPPORT_NETBOOT */
 		default:
-			if (saved_drive == cdrom_drive)
+			if (tmp_drive == cdrom_drive)
 			{
 				grub_printf("(cd)");
 				break;
 			}
-			if (saved_drive & 0x80)
+			if (tmp_drive & 0x80)
 			{
 				/* Hard disk drive.  */
-				grub_printf ("(hd%d", (saved_drive - 0x80));
+				grub_printf ("(hd%d", (tmp_drive - 0x80));
 			}
 			else
 			{
 				/* Floppy disk drive.  */
-				grub_printf ("(fd%d", saved_drive);
+				grub_printf ("(fd%d", tmp_drive);
 			}
 
-			if ((saved_partition & 0xFF0000) != 0xFF0000)
-				grub_printf (",%d", (unsigned long)(unsigned char)(saved_partition >> 16));
+			if ((tmp_partition & 0xFF0000) != 0xFF0000)
+				grub_printf (",%d", (unsigned long)(unsigned char)(tmp_partition >> 16));
 
-			if ((saved_partition & 0x00FF00) != 0x00FF00)
-				grub_printf (",%c", (unsigned long)(unsigned char)((saved_partition >> 8) + 'a'));
+			if ((tmp_partition & 0x00FF00) != 0x00FF00)
+				grub_printf (",%c", (unsigned long)(unsigned char)((tmp_partition >> 8) + 'a'));
 
 			grub_printf (")");
 			break;
@@ -12911,7 +12938,7 @@ real_root_func (char *arg, int attempt_mnt)
         /* Print the type of the filesystem.  */
       {
 	    if (! next)
-			print_root_device (NULL);
+			print_root_device (NULL,0);
 		if (! next || debug )
         print_fsys_type ();
       }
@@ -15571,7 +15598,7 @@ static int if_func(char *arg,int flags)
 
 	if (ret ^ (cmp_flag >> 2))
 	{
-		return *arg?run_line(arg,flags):1;
+		return *arg?builtin_cmd(arg,skip_to(0,arg),flags):1;
 	}
 	return 0;
 }
@@ -15696,7 +15723,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 		}
 		else if (substring(ch,"@root",1) == 0)
 		{
-			print_root_device(p);
+			print_root_device(p,0);
 			sprintf(p+strlen(p),saved_dir);
 		}
 		else if (substring(ch,"@path",1) == 0)
@@ -15795,7 +15822,9 @@ static void case_convert(char *ch,int flag)
 
 static int set_func(char *arg, int flags)
 {
-	if( *arg == '*' || (strcmp(VAR[_WENV_], "?_WENV") != 0 && strcmp(VAR[63], "?_WENV") != 0))
+	if( *arg == '*' )
+		return reset_env_all();
+	else if ((strcmp(VAR[_WENV_], "?_WENV") != 0 && strcmp(VAR[63], "?_WENV") != 0))
 		reset_env_all();
 	char value[512];
 	int convert_flag=0;
