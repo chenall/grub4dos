@@ -5507,7 +5507,7 @@ static int command_open(char *arg,int flags)
       return grub_open(arg);
 
    if (skip_to(0,arg) - arg > 120)
-      return -1;
+      return 0;
    if (flags == 0 && (p_exec = grub_mod_find(arg)))
       return 2;
    char t_path[512];
@@ -5602,11 +5602,10 @@ command_func (char *arg, int flags)
 			file_path[1] = 0;
 		}
 	    break;
-     case -1:
+     default:
         grub_printf ("Warning! No such command: %s\n", arg);
         errnum = 0;	/* No error, so that old menus will run smoothly. */
         //return 0;
-     case 0:
         return 0;/* return 0 indicating a failure or a false case. */
   }
 #if 1
