@@ -10203,7 +10203,7 @@ map_func (char *arg, int flags)
 
     to_filesize = gzip_filemax;
     sector_count = (filemax + 0x1ff) >> SECTOR_BITS; /* in small 512-byte sectors */
-    if (start_sector == part_start /* && part_start */ && sector_count == 1)
+    if (part_length && start_sector == part_start /* && part_start */ && sector_count == 1)
     {
       if (mem != -1ULL)
       {

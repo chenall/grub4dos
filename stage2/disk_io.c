@@ -1147,13 +1147,17 @@ real_open_partition (int flags)
   cur_part_offset = 0;
   /* network drive */
   if ((current_drive == NETWORK_DRIVE) || (current_drive==PXE_DRIVE))
+  {
+		part_length = 0;
     return 1;
+	}
 
   if (current_drive == FB_DRIVE)
     {
       bsd_evil_hack = 0;
       current_slice = 0;
       part_start = 0;
+      part_length = 0;
       return 1;
     }
 
