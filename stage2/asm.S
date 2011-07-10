@@ -2696,14 +2696,16 @@ drive_emulation:
 	clc
 	jmp	int13_return
 /****************************************************************************/
-//	# this check is not too useful, so comment out to save space
-//1:
-//	cmpb	$0x16, %ah
-//	jnz	1f
+	# lbacache requires this. See http://reboot.pro/14924/
+1:
+	# FLOPPY DISK - DETECT DISK CHANGE (XT 1986/1/10 or later,XT286,AT,PS)
+
+	cmpb	$0x16, %ah
+	jnz	1f
 //	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 //	jnz	error_01_invalid	/* CDROM */
-//	xorb	%ah, %ah	/* AH=0 means disk not changed */
-//	jmp	int13_return
+	xorb	%ah, %ah	/* AH=0 means disk not changed */
+	jmp	int13_return
 /****************************************************************************/
 //	# this check is not too useful, so comment out to save space
 //1:
