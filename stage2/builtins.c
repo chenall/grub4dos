@@ -15235,7 +15235,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 		}
 		else if (substring(ch,"@random",1) == 0)
 		{
-			WENV_RANDOM   =   (((WENV_RANDOM * time + date ) >> 16) & 0x7fff);
+			WENV_RANDOM   =  ((WENV_RANDOM + date)*(*(int *)0x46c)) & 0x7fff;
 			sprintf(p,"%d",WENV_RANDOM);
 		}
 		else if (substring(ch,"@root",1) == 0)
