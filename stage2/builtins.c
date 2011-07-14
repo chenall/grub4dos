@@ -2455,7 +2455,7 @@ drdos:
 			else
 				grub_sprintf ((char *)(HMA_ADDR - 0x20), "(%d,%d)%d+%d", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16), *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS)), *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)));
 
-			grub_open ((char *)(HMA_ADDR - 0x20)); /* read 1st FAT table�@(first 0x8000 bytes only) */
+			grub_open ((char *)(HMA_ADDR - 0x20)); /* read 1st FAT table(first 0x8000 bytes only) */
 			grub_read ((unsigned long long)(HMA_ADDR - 0x8000), (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)) > 40 ? 40 : *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT))) * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)), 0xedde0d90);
 readroot:
 			if ( (HMA_ADDR - 0x10000 + (1+*(unsigned short *)0x7BDC) * *(unsigned short *)0x7BD8) < HMA_ADDR && /* don't overrun */
@@ -4565,7 +4565,8 @@ clear_func()
 {
   if (current_term->cls)
     current_term->cls();
-
+  if (use_pager)
+    count_lines = 0;
   return 1;
 }
 
@@ -5099,408 +5100,7 @@ static int grub_mod_del(const char *name)
    return 0;
 }
 
-struct bat_label
-{
-	char *label;
-	int line;
-};
-
-/*
-bat_pid is current running batch script id.
-it must the same of p_bat_prog->pid.
-the first batch bat_pid is 1,max 10.so we can run 10 of batch script one time.
-when all batch script is exit the bat_pid is 0;
-*/
-struct bat_array
-{
-	int pid;
-	struct bat_label *entry;
-	/*
-	 (char **)(entry + 0x80) is the entry of bat_script to run.
-	*/
-	char *path;
-} *p_bat_prog = NULL;
-int bat_pid = 0;
-static char **batch_args;
-/*
-find a label in current batch script.(p_bat_prog)
-return line of the batch script.
-if not find ,return -1;
-*/
-static int bat_find_label(char *label)
-{
-	struct bat_label *label_entry;
-	if (*label == ':') label++;
-	nul_terminate(label);
-	for (label_entry = p_bat_prog->entry; label_entry->label ; label_entry++)//find label for goto/call.
-	{
-		if (substring(label_entry->label,label,1) == 0)
-		{
-			return label_entry->line;
-		}
-	}
-
-	if (debug)
-		printf(" cannot find the batch label specified - %s\n",label);
-	return 0;
-}
-
-static int bat_get_args(char *arg,char *buff,int flags)
-{
-	char *p = ((char *)0x4CB08);
-	char *s1 = buff;
-
-	if (*arg == '(')
-	{
-		unsigned long tmp_partition = current_partition;
-		unsigned long tmp_drive = current_drive;
-		arg = set_device (arg);
-		print_root_device(p,1);
-		current_partition = tmp_partition;
-		current_drive = tmp_drive;
-		p += strlen(p);
-	}
-	else if (flags & 0xff) // if is Param 0
-	{
-		p += sprintf(p,"%s",p_bat_prog->path) - 1;//use program run dir
-	}
-	else
-	{
-		print_root_device(p,0);
-		p += strlen(p);
-		p += sprintf(p,saved_dir);
-	}
-	if (*arg != '/')
-		*p++ = '/';
-	if (p + strlen(arg) >= (char *)0x4CC00)
-		goto quit;
-	sprintf(p,"%s",arg);
-	p = ((char *)0x4CB08);
-	flags >>= 8;
-	if (flags & 0x10)
-	{
-		if (grub_open(p))
-		{
-			buff += sprintf(buff,"0x%lx",filemax);
-			grub_close();
-		}
-		errnum = 0;
-		flags &= 0xf;
-	}
-
-	if (flags == 0x2f)
-	{
-		buff += sprintf(buff, p);
-		goto quit;
-	}
-
-	if (flags & 1)
-	{
-		while ( *p && *p != '/')
-			*buff++ = *p++;
-	}
-
-	if (! (p = strstr(p,"/")))
-		goto quit;
-	char *p0,*p1,*p2 = NULL;
-	p0 = p1 = p;
-
-	while (*p)
-	{
-		if (*p++ == '/')
-			p1 = p;
-		if (*p == '.')
-			p2 = p;
-	}
-
-	if (p2 < p1)
-		p2 = p;
-
-	if (flags & 2)
-	{
-		buff += sprintf(buff, "%.*s",p1 - p0,p0);
-	}
-
-	if (flags & 4)
-	{
-		buff += sprintf(buff,"%.*s",p2 - p1,p1);
-	}
-
-	if (flags & 8)
-	{
-		buff += sprintf(buff,p2);
-	}
-
-quit:
-	return buff-s1;
-}
-/*
-bat_run_script
-run batch script.
-if filename is NULL then is a call func.the first word of arg is a label.
-*/
-static int bat_run_script(char *filename,char *arg,int flags)
-{
-	if (bat_pid != p_bat_prog->pid)
-	{
-		errnum = ERR_FUNC_CALL;
-		return 0;
-	}
-
-	char **bat_entry = (char **)(p_bat_prog->entry + 0x80);
-
-	int i = 1;
-
-	if (filename == NULL)
-	{//filename is null is a call func;
-		filename = arg;
-		arg = skip_to(SKIP_WITH_TERMINATE | 1,arg);
-		if ((i = bat_find_label(filename)) == 0)
-			return 0;
-	}
-
-	char **p_entry = bat_entry + i;
-
-	char *s[10];
-	char *p_cmd;
-	char *p_rep;
-	char *p_buff;//buff for command_line
-	int debug_ori = debug;
-	char *cmd_buff;
-
-	if ((cmd_buff = grub_malloc(0x1000)) == NULL)
-	{
-		return 0;
-	}
-
-	/*copy filename to buff*/
-	i = grub_strlen(filename);
-	grub_memmove(cmd_buff,filename,i+1);
-	p_buff = cmd_buff + ((i+16) & ~0xf);
-	s[0] = cmd_buff;
-	/*copy arg to buff*/
-	i = grub_strlen(arg);
-	grub_memmove(p_buff, arg, i+1);
-	arg = p_buff;
-	p_buff = p_buff + ((i+16) & ~0xf);
-
-	/*build args %1-%9*/
-	for (i = 1;i < 9;i++)
-	{
-		s[i] = arg;
-		if (*arg)
-			arg = skip_to(SKIP_WITH_TERMINATE | 1,arg);
-	}
-	s[9] = arg;// %9 for other args.
-	int ret = 0;
-	char *p_bat;
-	char **backup_args = batch_args;
-	batch_args = s;
-	while ((p_bat = *p_entry))//copy cmd_line to p_buff and then run it;
-	{
-		p_cmd = p_buff;
-		char *file_ext;
-		while(*p_bat)
-		{
-			if (*p_bat != '%' || (file_ext = p_bat++,*p_bat == '%'))
-			{//if *p_bat != '%' or p_bat[1] == '%'(*p_bat == p_bat[1] == '%');
-				*p_cmd++ = *p_bat++;
-				continue;
-			}//file_ext now use for backup p_bat see the loop end.
-
-			i = 0;
-
-			if (*p_bat == '~')
-			{
-				p_bat++;
-				i |= 0x20;
-				while (*p_bat)
-				{
-					if (*p_bat == 'd')
-						i |= 1;
-					else if (*p_bat == 'p')
-						i |= 2;
-					else if (*p_bat == 'n')
-						i |= 4;
-					else if (*p_bat == 'x')
-						i |= 8;
-					else if (*p_bat == 'f')
-						i |= 0xf;
-					else if (*p_bat == 'z')
-						i |= 0x10;
-					else
-						break;
-					p_bat++;
-				}
-			}
-
-			if (*p_bat <= '9' && *p_bat >= '0')
-			{
-				p_rep = s[*p_bat - '0'];
-				if (*p_rep)
-				{
-					int len_c = 0;
-					if ((i & 0x20) && *p_rep == '\"')
-					{
-						p_rep++;
-					}
-					if (i & 0x1f)
-					{
-						len_c = bat_get_args(p_rep,p_cmd,i << 8 | (s[*p_bat - '0'] == cmd_buff));
-					}
-					else
-					{
-						len_c = sprintf(p_cmd,p_rep);
-					}
-
-					if (len_c)
-					{
-						if ((i & 0x20) && p_cmd[len_c-1] == '\"')
-						--len_c;
-						p_cmd += len_c;
-					}
-				}
-			}
-			else if (*p_bat == '*')
-			{
-				for (i = 1;i< 10;++i)
-				{
-					if (s[i][0])
-						p_cmd += sprintf(p_cmd,"%s ",s[i]);
-					else
-						break;
-				}
-			}
-			else
-			{
-				p_bat = file_ext;
-				*p_cmd++ = *p_bat;
-			}
-			++p_bat;
-		}
-
-		*p_cmd = '\0';
-		if (bat_script_debug)
-		{
-			printf("%s\n",p_buff);
-			int key=getkey() & 0xff00;
-			if (key == 0x3100)
-			{
-				errnum = 1001;
-				break;
-			}
-			else if (key == 0x2e00)
-			{
-				commandline_func((char *)0x1000000,0);
-			}
-		}
-		#if 0
-		if (substring(p_buff,"shift",1) == 0)
-		{
-			for (i=0;i<9 && s[i];i++)
-				s[i] = s[i+1];
-			if (s[8])
-				s[9] = skip_to(SKIP_WITH_TERMINATE | 1,s[8]);
-		}
-		else
-		#endif
-		{
-			ret = run_line (p_buff,flags);
-		}
-
-		if (errnum == ERR_BAT_GOTO)
-		{
-			if (ret == 0)
-				break;
-			p_entry = bat_entry + ret;
-			errnum = ERR_NONE;
-			continue;
-		}
-
-		if ((unsigned int)errnum >= 1000 || (errorcheck && errnum))
-		{
-			break;
-		}
-		p_entry++;
-	}
-
-	batch_args = backup_args;
-	debug = debug_ori;
-	/*release memory. */
-	if (errnum == 1000)
-		errnum = 0;
-	grub_free(cmd_buff);
-	return errnum?0:ret;
-}
-
-static int grub_exec_run(char *program, int flags)
-{
-	int pid;
-	char *arg = program - (*(unsigned long *)(program - 8));
-		/* kernel image is destroyed, so invalidate the kernel */
-	if (kernel_type < KERNEL_TYPE_CHAINLOADER)
-		kernel_type = KERNEL_TYPE_NONE;
-
-	/*Is a batch file? */
-	if (*(unsigned long *)program == BAT_SIGN || *(unsigned long *)program == 0x21BFBBEF)//!BAT
-	{
-		if (bat_pid >= 10)
-		{
-			return 0;
-		}
-		struct bat_array *p_bat_array = (struct bat_array *)grub_malloc(0x2600);
-		if (p_bat_array == NULL)
-			return 0;
-		p_bat_array->path = program - (*(unsigned long *)(program - 24));
-		struct bat_array *p_bat_array_orig = p_bat_prog;
-
-		char *filename = program - (*(unsigned long *)(program - 16));
-		char *p_bat;
-		struct bat_label *label_entry =(struct bat_label *)((char *)p_bat_array + 0x200);
-		char **bat_entry = (char **)(label_entry + 0x80);//0x400/sizeof(label_entry)
-		unsigned long i_bat = 1,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
-
-		program = skip_to(SKIP_LINE,program);//skip head
-		while ((p_bat = program))//scan batch file and make label and bat entry.
-		{
-			program = skip_to(SKIP_LINE,program);
-			if (*p_bat == ':')
-			{
-				nul_terminate(p_bat);
-				label_entry[i_lab].label = p_bat + 1;
-				label_entry[i_lab].line = i_bat;
-				i_lab++;
-			}
-			else
-				bat_entry[i_bat++] = p_bat;
-			if ((i_lab & 0x80) || (i_bat & 0x800))//max label 128,max script line 2048.
-			{
-				grub_free(p_bat_array);
-				return 0;
-			}
-		}
-
-		label_entry[i_lab].label = NULL;
-		bat_entry[i_bat] = NULL;
-		label_entry[0].label = "eof";
-		label_entry[0].line = i_bat;
-		p_bat_array->pid = ++bat_pid;
-		p_bat_array->entry = label_entry;
-		p_bat_prog = p_bat_array;
-		flags |= BUILTIN_BAT_SCRIPT;
-		pid = bat_run_script(filename, arg,flags);//run batch script from line 0;
-
-		bat_pid--;
-		p_bat_prog = p_bat_array_orig;
-		grub_free(p_bat_array);
-		return pid;
-	}
-
-	/* call the new program. */
-	pid = ((int (*)(char *,int))program)(arg, flags | BUILTIN_USER_PROG);/* pid holds return value. */
-	return pid;
-}
-
+static int grub_exec_run(char *program, int flags);
 static int command_open(char *arg,int flags)
 {
    if (*arg == '(' || *arg == '/')
@@ -15464,88 +15064,6 @@ static struct builtin builtin_echo =
 };
 #endif
 
-
-static int goto_func(char *arg, int flags)
-{
-	errnum = ERR_BAT_GOTO;
-	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
-	{
-		return bat_find_label(arg);
-	}
-	else
-		return fallback_func(arg,flags);//in menu script call fallback_func to jump next menu.
-}
-
-static struct builtin builtin_goto =
-{
-   "goto",
-   goto_func,
-   BUILTIN_SCRIPT | BUILTIN_BAT_SCRIPT,
-};
-
-static int call_func(char *arg,int flags)
-{
-	errnum = ERR_BAT_CALL;
-	if (flags & BUILTIN_BAT_SCRIPT)
-		return bat_run_script(NULL, arg, flags);
-	else
-		return 0;
-}
-
-static struct builtin builtin_call =
-{
-   "call",
-   call_func,
-  BUILTIN_BAT_SCRIPT,
-};
-
-static int exit_func(char *arg, int flags)
-{
-	unsigned long long t = 0;
-	read_val(&arg, &t);
-	errnum = 1000 + t;
-	return t;
-}
-
-static struct builtin builtin_exit =
-{
-  "exit",
-  exit_func,
-  BUILTIN_BAT_SCRIPT,
-  "exit [n]",
-  "Exit batch script with a status of N."
-};
-
-static int shift_func(char *arg, int flags)
-{
-	char **s = batch_args;
-	if (*arg == '/')
-		++arg;
-	unsigned int i = *arg - '0';
-	if (i > 8)
-		i = 0;
-	while (i < 9 && s[i][0])
-	{
-		s[i] = s[i+1];
-		++i;
-	}
-	if (i == 9)
-	{
-		s[9] = skip_to(SKIP_WITH_TERMINATE | 1,s[8]);
-	}
-	return 1;
-}
-
-static struct builtin builtin_shift =
-{
-  "shift",
-  shift_func,
-  BUILTIN_BAT_SCRIPT,
-  "shift [[/]n]",
-  "The positional parameters from %n+1 ... are renamed to %1 ...  If N is"
-  " not given, it is assumed to be 0."
-};
-
 static int if_func(char *arg,int flags)
 {
 	char *str1,*str2;
@@ -15729,6 +15247,8 @@ int envi_cmd(const char *var,char * const env,int flags)
 		{
 			p = command_path;
 		}
+		else if (substring(ch,"@retval",1) == 0)
+			sprintf(p,"%d",*(int*)0x4CB00);
 		else
 			return 0;
 		j = i;
@@ -15825,6 +15345,8 @@ static int set_func(char *arg, int flags)
 		return reset_env_all();
 	else if ((strcmp(VAR[_WENV_], "?_WENV") != 0 && strcmp(VAR[63], "?_WENV") != 0))
 		reset_env_all();
+	if (*arg == '@')
+		return 0;
 	char value[512];
 	int convert_flag=0;
 	unsigned long long wait_t = 0xffffff00;
@@ -15909,8 +15431,590 @@ static struct builtin builtin_set =
   "/a,set value to a Decimal;/A  to a HEX."
 };
 
+typedef struct _SETLOCAL {
+	char var_name[480];//user var_names.
+	struct _SETLOCAL *prev;
+	unsigned long saved_drive;
+	unsigned long saved_partition;
+	unsigned long boot_drive;
+	unsigned long install_partition;
+	int debug;
+	char reserved[8];//预留位置，同时也是为了凑足512字节。
+	char var_str[MAX_USER_VARS<<9];//user vars only
+	char saved_dir[256];
+	char command_path[128];
+} SETLOCAL;
+static SETLOCAL *bc = NULL;
+static SETLOCAL *cc = NULL;
+static SETLOCAL *sc = NULL;
+
+static int setlocal_func(char *arg, int flags)
+{
+	SETLOCAL *saved;
+	if (*arg == '0')
+		return printf("0x%X\n",cc);
+	if ((saved=grub_malloc(sizeof(SETLOCAL)))== NULL)
+		return 0;
+	/* Create a copy of the current user environment */
+	memmove(saved->var_name,(char *)BASE_ADDR,(MAX_USER_VARS + 1)<<9);
+	sprintf(saved->saved_dir,saved_dir);
+	sprintf(saved->command_path,command_path);
+	saved->prev = cc;
+	saved->saved_drive = saved_drive;
+	saved->saved_partition = saved_partition;
+	saved->boot_drive = boot_drive;
+	saved->install_partition = install_partition;
+	saved->debug = debug;
+	cc = saved;
+	if (*arg == '@')
+	{
+		if (flags & BUILTIN_BAT_SCRIPT)
+		{
+			saved = saved->prev;
+			while (saved != bc)
+			{
+				sc = saved;
+				saved = saved->prev;
+				grub_free(sc);
+			}
+			cc->prev = bc;
+			bc = cc;
+		}
+		sc = cc;
+	}
+	return 1;
+}
+static struct builtin builtin_setlocal =
+{
+   "setlocal",
+   setlocal_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
+  "setlocal",
+};
 
 
+static int endlocal_func(char *arg, int flags)
+{
+	SETLOCAL *saved = cc;
+	if (*arg == '@')
+	{
+		sc = NULL;
+	}
+	if (cc == bc || cc == sc)
+	{
+		return 0;
+	}
+
+	/* Restore variables from the copy saved by setlocal_func */
+	memmove(VAR[0],saved->var_name,MAX_USER_VARS<<3);
+	memmove(ENVI[0],saved->var_str,MAX_USER_VARS<<9);
+	sprintf(saved_dir,saved->saved_dir);
+	sprintf(command_path,saved->command_path);
+	saved_drive = saved->saved_drive;
+	saved_partition = saved->saved_partition;
+	boot_drive = saved->boot_drive;
+	install_partition = saved->install_partition;
+	debug = saved->debug;
+	cc = cc->prev;
+	grub_free(saved);
+	return 1;
+}
+static struct builtin builtin_endlocal =
+{
+   "endlocal",
+   endlocal_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
+  "endlocal",
+};
+
+struct bat_label
+{
+	char *label;
+	int line;
+};
+
+/*
+bat_pid is current running batch script id.
+it must the same of p_bat_prog->pid.
+the first batch bat_pid is 1,max 10.so we can run 10 of batch script one time.
+when all batch script is exit the bat_pid is 0;
+*/
+struct bat_array
+{
+	int pid;
+	struct bat_label *entry;
+	/*
+	 (char **)(entry + 0x80) is the entry of bat_script to run.
+	*/
+	char *path;
+} *p_bat_prog = NULL;
+int bat_pid = 0;
+static char **batch_args;
+/*
+find a label in current batch script.(p_bat_prog)
+return line of the batch script.
+if not find ,return -1;
+*/
+static int bat_find_label(char *label)
+{
+	struct bat_label *label_entry;
+	if (*label == ':') label++;
+	nul_terminate(label);
+	for (label_entry = p_bat_prog->entry; label_entry->label ; label_entry++)//find label for goto/call.
+	{
+		if (substring(label_entry->label,label,1) == 0)
+		{
+			return label_entry->line;
+		}
+	}
+
+	if (debug)
+		printf(" cannot find the batch label specified - %s\n",label);
+	return 0;
+}
+
+static int bat_get_args(char *arg,char *buff,int flags)
+{
+	char *p = ((char *)0x4CB08);
+	char *s1 = buff;
+
+	if (*arg == '(')
+	{
+		unsigned long tmp_partition = current_partition;
+		unsigned long tmp_drive = current_drive;
+		arg = set_device (arg);
+		print_root_device(p,1);
+		current_partition = tmp_partition;
+		current_drive = tmp_drive;
+		p += strlen(p);
+	}
+	else if (flags & 0xff) // if is Param 0
+	{
+		p += sprintf(p,"%s",p_bat_prog->path) - 1;//use program run dir
+	}
+	else
+	{
+		print_root_device(p,0);
+		p += strlen(p);
+		p += sprintf(p,saved_dir);
+	}
+	if (*arg != '/')
+		*p++ = '/';
+	if (p + strlen(arg) >= (char *)0x4CC00)
+		goto quit;
+	sprintf(p,"%s",arg);
+	p = ((char *)0x4CB08);
+	flags >>= 8;
+	if (flags & 0x10)
+	{
+		if (grub_open(p))
+		{
+			buff += sprintf(buff,"0x%lx",filemax);
+			grub_close();
+		}
+		errnum = 0;
+		flags &= 0xf;
+	}
+
+	if (flags == 0x2f)
+	{
+		buff += sprintf(buff, p);
+		goto quit;
+	}
+
+	if (flags & 1)
+	{
+		while ( *p && *p != '/')
+			*buff++ = *p++;
+	}
+
+	if (! (p = strstr(p,"/")))
+		goto quit;
+	char *p0,*p1,*p2 = NULL;
+	p0 = p1 = p;
+
+	while (*p)
+	{
+		if (*p++ == '/')
+			p1 = p;
+		if (*p == '.')
+			p2 = p;
+	}
+
+	if (p2 < p1)
+		p2 = p;
+
+	if (flags & 2)
+	{
+		buff += sprintf(buff, "%.*s",p1 - p0,p0);
+	}
+
+	if (flags & 4)
+	{
+		buff += sprintf(buff,"%.*s",p2 - p1,p1);
+	}
+
+	if (flags & 8)
+	{
+		buff += sprintf(buff,p2);
+	}
+
+quit:
+	return buff-s1;
+}
+/*
+bat_run_script
+run batch script.
+if filename is NULL then is a call func.the first word of arg is a label.
+*/
+static int bat_run_script(char *filename,char *arg,int flags)
+{
+	if (bat_pid != p_bat_prog->pid)
+	{
+		errnum = ERR_FUNC_CALL;
+		return 0;
+	}
+
+	char **bat_entry = (char **)(p_bat_prog->entry + 0x80);
+
+	int i = 1;
+
+	if (filename == NULL)
+	{//filename is null is a call func;
+		filename = arg;
+		arg = skip_to(SKIP_WITH_TERMINATE | 1,arg);
+		if ((i = bat_find_label(filename)) == 0)
+			return 0;
+	}
+
+	char **p_entry = bat_entry + i;
+
+	char *s[10];
+	char *p_cmd;
+	char *p_rep;
+	char *p_buff;//buff for command_line
+	char *cmd_buff;
+	if ((cmd_buff = grub_malloc(0x1000)) == NULL)
+	{
+		return 0;
+	}
+
+	/*copy filename to buff*/
+	i = grub_strlen(filename);
+	grub_memmove(cmd_buff,filename,i+1);
+	p_buff = cmd_buff + ((i+16) & ~0xf);
+	s[0] = cmd_buff;
+	/*copy arg to buff*/
+	i = grub_strlen(arg);
+	grub_memmove(p_buff, arg, i+1);
+	arg = p_buff;
+	p_buff = p_buff + ((i+16) & ~0xf);
+
+	/*build args %1-%9*/
+	for (i = 1;i < 9;i++)
+	{
+		s[i] = arg;
+		if (*arg)
+			arg = skip_to(SKIP_WITH_TERMINATE | 1,arg);
+	}
+	s[9] = arg;// %9 for other args.
+	int ret = 0;
+	char *p_bat;
+	char **backup_args = batch_args;
+	SETLOCAL *saved_bc = bc;
+	batch_args = s;
+	bc = cc; //saved for batch
+	while ((p_bat = *p_entry))//copy cmd_line to p_buff and then run it;
+	{
+		p_cmd = p_buff;
+		char *file_ext;
+		while(*p_bat)
+		{
+			if (*p_bat != '%' || (file_ext = p_bat++,*p_bat == '%'))
+			{//if *p_bat != '%' or p_bat[1] == '%'(*p_bat == p_bat[1] == '%');
+				*p_cmd++ = *p_bat++;
+				continue;
+			}//file_ext now use for backup p_bat see the loop end.
+
+			i = 0;
+
+			if (*p_bat == '~')
+			{
+				p_bat++;
+				i |= 0x20;
+				while (*p_bat)
+				{
+					if (*p_bat == 'd')
+						i |= 1;
+					else if (*p_bat == 'p')
+						i |= 2;
+					else if (*p_bat == 'n')
+						i |= 4;
+					else if (*p_bat == 'x')
+						i |= 8;
+					else if (*p_bat == 'f')
+						i |= 0xf;
+					else if (*p_bat == 'z')
+						i |= 0x10;
+					else
+						break;
+					p_bat++;
+				}
+			}
+
+			if (*p_bat <= '9' && *p_bat >= '0')
+			{
+				p_rep = s[*p_bat - '0'];
+				if (*p_rep)
+				{
+					int len_c = 0;
+					if ((i & 0x20) && *p_rep == '\"')
+					{
+						p_rep++;
+					}
+					if (i & 0x1f)
+					{
+						len_c = bat_get_args(p_rep,p_cmd,i << 8 | (s[*p_bat - '0'] == cmd_buff));
+					}
+					else
+					{
+						len_c = sprintf(p_cmd,p_rep);
+					}
+
+					if (len_c)
+					{
+						if ((i & 0x20) && p_cmd[len_c-1] == '\"')
+						--len_c;
+						p_cmd += len_c;
+					}
+				}
+			}
+			else if (*p_bat == '*')
+			{
+				for (i = 1;i< 10;++i)
+				{
+					if (s[i][0])
+						p_cmd += sprintf(p_cmd,"%s ",s[i]);
+					else
+						break;
+				}
+			}
+			else
+			{
+				p_bat = file_ext;
+				*p_cmd++ = *p_bat;
+			}
+			++p_bat;
+		}
+
+		*p_cmd = '\0';
+		if (bat_script_debug)
+		{
+			printf("%s\n",p_buff);
+			int key=getkey() & 0xff00;
+			if (key == 0x3100)
+			{
+				errnum = 1001;
+				break;
+			}
+			else if (key == 0x2e00)
+			{
+				commandline_func((char *)0x1000000,0);
+			}
+		}
+		#if 0
+		if (substring(p_buff,"shift",1) == 0)
+		{
+			for (i=0;i<9 && s[i];i++)
+				s[i] = s[i+1];
+			if (s[8])
+				s[9] = skip_to(SKIP_WITH_TERMINATE | 1,s[8]);
+		}
+		else
+		#endif
+		{
+			ret = run_line (p_buff,flags);
+		}
+
+		if (errnum == ERR_BAT_GOTO)
+		{
+			if (ret == 0)
+				break;
+			p_entry = bat_entry + ret;
+			errnum = ERR_NONE;
+			continue;
+		}
+		if ((unsigned int)errnum >= 1000 || (errorcheck && errnum))
+		{
+			break;
+		}
+		p_entry++;
+	}
+	i = errnum; //save errnum.
+	/*release memory. */
+	while (bc != cc) //restore SETLOCAL
+		endlocal_func(NULL,1);
+	bc = saved_bc;
+	batch_args = backup_args;
+	grub_free(cmd_buff);
+	errnum = i;
+	if ((int)errnum >= 1000)
+	{
+		errnum = 0;
+	}
+	return errnum?0:ret;
+}
+
+
+static int goto_func(char *arg, int flags)
+{
+	errnum = ERR_BAT_GOTO;
+	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
+	{
+		return bat_find_label(arg);
+	}
+	else
+		return fallback_func(arg,flags);//in menu script call fallback_func to jump next menu.
+}
+
+static struct builtin builtin_goto =
+{
+   "goto",
+   goto_func,
+   BUILTIN_SCRIPT | BUILTIN_BAT_SCRIPT,
+};
+
+static int call_func(char *arg,int flags)
+{
+	errnum = ERR_BAT_CALL;
+	if (flags & BUILTIN_BAT_SCRIPT)
+		return bat_run_script(NULL, arg, flags);
+	else
+		return 0;
+}
+
+static struct builtin builtin_call =
+{
+   "call",
+   call_func,
+  BUILTIN_BAT_SCRIPT,
+};
+
+static int exit_func(char *arg, int flags)
+{
+	unsigned long long t = 0;
+	read_val(&arg, &t);
+	errnum = 1000 + t;
+	return t;
+}
+
+static struct builtin builtin_exit =
+{
+  "exit",
+  exit_func,
+  BUILTIN_BAT_SCRIPT,
+  "exit [n]",
+  "Exit batch script with a status of N."
+};
+
+static int shift_func(char *arg, int flags)
+{
+	char **s = batch_args;
+	if (*arg == '/')
+		++arg;
+	unsigned int i = *arg - '0';
+	if (i > 8)
+		i = 0;
+	while (i < 9 && s[i][0])
+	{
+		s[i] = s[i+1];
+		++i;
+	}
+	if (i == 9)
+	{
+		s[9] = skip_to(SKIP_WITH_TERMINATE | 1,s[8]);
+	}
+	return 1;
+}
+
+static struct builtin builtin_shift =
+{
+  "shift",
+  shift_func,
+  BUILTIN_BAT_SCRIPT,
+  "shift [[/]n]",
+  "The positional parameters from %n+1 ... are renamed to %1 ...  If N is"
+  " not given, it is assumed to be 0."
+};
+
+static int grub_exec_run(char *program, int flags)
+{
+	int pid;
+	char *arg = program - (*(unsigned long *)(program - 8));
+		/* kernel image is destroyed, so invalidate the kernel */
+	if (kernel_type < KERNEL_TYPE_CHAINLOADER)
+		kernel_type = KERNEL_TYPE_NONE;
+
+	/*Is a batch file? */
+	if (*(unsigned long *)program == BAT_SIGN || *(unsigned long *)program == 0x21BFBBEF)//!BAT
+	{
+		if (bat_pid >= 10)
+		{
+			return 0;
+		}
+		struct bat_array *p_bat_array = (struct bat_array *)grub_malloc(0x2600);
+		if (p_bat_array == NULL)
+			return 0;
+		p_bat_array->path = program - (*(unsigned long *)(program - 24));
+		struct bat_array *p_bat_array_orig = p_bat_prog;
+
+		char *filename = program - (*(unsigned long *)(program - 16));
+		char *p_bat;
+		struct bat_label *label_entry =(struct bat_label *)((char *)p_bat_array + 0x200);
+		char **bat_entry = (char **)(label_entry + 0x80);//0x400/sizeof(label_entry)
+		unsigned long i_bat = 1,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
+
+		program = skip_to(SKIP_LINE,program);//skip head
+		while ((p_bat = program))//scan batch file and make label and bat entry.
+		{
+			program = skip_to(SKIP_LINE,program);
+			if (*p_bat == ':')
+			{
+				nul_terminate(p_bat);
+				label_entry[i_lab].label = p_bat + 1;
+				label_entry[i_lab].line = i_bat;
+				i_lab++;
+			}
+			else
+				bat_entry[i_bat++] = p_bat;
+			if ((i_lab & 0x80) || (i_bat & 0x800))//max label 128,max script line 2048.
+			{
+				grub_free(p_bat_array);
+				return 0;
+			}
+		}
+
+		label_entry[i_lab].label = NULL;
+		bat_entry[i_bat] = NULL;
+		label_entry[0].label = "eof";
+		label_entry[0].line = i_bat;
+		p_bat_array->pid = ++bat_pid;
+		p_bat_array->entry = label_entry;
+		p_bat_prog = p_bat_array;
+		flags |= BUILTIN_BAT_SCRIPT;
+		pid = bat_run_script(filename, arg,flags);//run batch script from line 0;
+
+		bat_pid--;
+		p_bat_prog = p_bat_array_orig;
+		grub_free(p_bat_array);
+		return pid;
+	}
+
+	/* call the new program. */
+	pid = ((int (*)(char *,int))program)(arg, flags | BUILTIN_USER_PROG);/* pid holds return value. */
+	return pid;
+}
+
 /* The table of builtin commands. Sorted in dictionary order.  */
 struct builtin *builtin_table[] =
 {
@@ -15964,6 +16068,7 @@ struct builtin *builtin_table[] =
 #ifdef GRUB_UTIL
   &builtin_embed,
 #endif /* GRUB_UTIL */
+  &builtin_endlocal,
   &builtin_errnum,
   &builtin_errorcheck,
   &builtin_exit,
@@ -16044,6 +16149,7 @@ struct builtin *builtin_table[] =
 #endif /* SUPPORT_SERIAL */
   &builtin_set,
   &builtin_setkey,
+  &builtin_setlocal,
 #ifdef GRUB_UTIL
   &builtin_setup,
 #endif /* GRUB_UTIL */

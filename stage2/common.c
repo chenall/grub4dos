@@ -952,6 +952,8 @@ set_root:
 	    }
 	}
   }
+  grub_printf("Initialize variable space...\n");
+  builtin_cmd("set","@",1);/*Initialize variable space*/
 #endif /* ! STAGE1_5 */
 #endif /* ! GRUB_UTIL */
 
