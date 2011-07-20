@@ -1495,6 +1495,7 @@ cat_func (char *arg, int flags)
 						else
 							i += len_s;
 						ret++;
+						Hex = k;
 						if (number <= ret)
 						{
 							len = 0;
@@ -1505,7 +1506,10 @@ cat_func (char *arg, int flags)
 						i++;
 			}
 			if (len == 0)
+			{
+				sprintf(ADDR_RET_STR,"0x%x",Hex);
 				break;
+			}
 			i -= 16;
 		}
 		grub_memmove ((char *)SCRATCHADDR, (char *)(SCRATCHADDR + 16), 16);
@@ -6249,7 +6253,7 @@ uuid_func (char *arg, int flags)
 //			saved_drive = tmp_drive;
 //			saved_partition = tmp_partition;
 			errnum = ERR_NONE;
-			envi_cmd("?_UUID",uuid_found,0);
+			sprintf(ADDR_RET_STR,uuid_found);
 			return (*uuid_found);
 		}
 //		saved_drive = tmp_drive;
@@ -15235,7 +15239,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 		}
 		else if (substring(ch,"@random",1) == 0)
 		{
-			WENV_RANDOM   =  ((WENV_RANDOM + date)*(*(int *)0x46c)) & 0x7fff;
+			WENV_RANDOM   =  (WENV_RANDOM * date + (*(int *)0x46c)) & 0x7fff;
 			sprintf(p,"%d",WENV_RANDOM);
 		}
 		else if (substring(ch,"@root",1) == 0)
@@ -15256,20 +15260,26 @@ int envi_cmd(const char *var,char * const env,int flags)
 		j = 0xff;
 		#endif
 	}
-	else
+	else 
 	{
-		j = 0xFF;
-		for(i=(ch[0]=='?')?60:0;i < MAX_VARS && VAR[i][0];i++)
+		if (ch[0] == '?' && (ch[1] == 0 || memcmp(ch,"?_UUID",7) == 0))
+			j = i = _WENV_;
+		else
 		{
-			if (memcmp(VAR[i], ch, MAX_VAR_LEN) == 0)
+			j = 0xFF;
+			for(i=(ch[0]=='?')?60:0;i < MAX_VARS && VAR[i][0];i++)
 			{
-				j = i;
-				break;
+				if (memcmp(VAR[i], ch, MAX_VAR_LEN) == 0)
+				{
+					j = i;
+					break;
+				}
+				if (j == 0xFF && VAR[i][0] == '@') j = i;
 			}
-			if (j == 0xFF && VAR[i][0] == '@') j = i;
 		}
 		p = ENVI[i];
 	}
+	
 	if (flags == 1)
 	{
 		if (j!=i)

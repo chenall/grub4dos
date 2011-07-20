@@ -1252,6 +1252,7 @@ char *skip_to (int flags, char *cmdline);
 #define SKIP_LINE		0x100
 #define SKIP_NONE		0
 #define SKIP_WITH_TERMINATE	0x200
+#define ADDR_RET_STR ((char*)0x4CA00)
 
 //extern char *pre_cmdline;
 #define CMD_RUN_ON_EXIT ((char *)0x4CB08)
