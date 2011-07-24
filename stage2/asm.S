@@ -5089,6 +5089,7 @@ lba_to_chs:
 max_cdrom_id:		.byte	0xE0
 
 	.align	4
+ENTRY(int15nolow)	.long	0	/* set to 1 if int15 will not handle low memory */
 ENTRY(memdisk_raw)	.long	1	/* set to 0 if accessing memdrives using int15/AH=87h */
 ENTRY(a20_keep_on)	.long	1	/* set to 0 if a20 should be auto-off */
 ENTRY(lba_cd_boot)	.long	0	/* LBA of no-emulation boot image, in 2048-byte sectors */
@@ -5098,8 +5099,10 @@ minimum_mem_lo_in_map:
 minimum_mem_hi_in_map:
 	.long	0	/* min ram drive base above 16M */
 
+#if 0
 int15_e820_saved_ebx:
 	.long	0
+#endif
 int15_e820_range0_addr:
 	.long	0, 0
 int15_e820_range0_length:
@@ -5171,6 +5174,7 @@ int15_e820_handler:
 	cmpl	$20, %ecx
 	jb	2f
 
+#if 0
 	cmpl	$1, %ebx
 	jb	8f	/* EBX = 0 : start at beginning */
 	ja	3f	/* input EBX > 1 : invalid */
@@ -5179,13 +5183,16 @@ int15_e820_handler:
 	test	%ebx, %ebx
 	jz	9f	/* BIOS ranges ended */
 8:
+#endif
 	pushfw
 	lcall	%cs:*(EXT_C(ROM_int15) - int13_handler)
 	jc	3f
 	cmpl	$0x534D4150, %eax	/* "SMAP" */
 	jne	2f
+#if 0
 	movl	%ebx, %cs:(int15_e820_saved_ebx - int13_handler)
 	movl	$1, %ebx
+#endif
 	pushal
 	//movl	%es:4(%di), %eax	/* BaseAddrHigh */
 	//testl	%eax, %eax
@@ -5200,10 +5207,18 @@ int15_e820_handler:
 	/* set %si to the drive map - DRIVE_MAP_SLOT_SIZE */
 	movw	$(EXT_C(hooked_drive_map) - int13_handler - DRIVE_MAP_SLOT_SIZE), %si
 	movw	$(DRIVE_MAP_SIZE +1), %cx
-	xorl	%edx, %edx
+	/* EAX=0 */
+	cdq				/* let EDX=0 */
+#if 0
 	movl	%cs:(int15_e820_range0_addr - int13_handler), %eax
-					/* EDX:EAX=start_address of int13_handler */
-	jmp	7f
+#else
+	movw	%cs, %ax
+	shll	$4, %eax
+#endif
+	/* EDX:EAX=linear address of int13_handler */
+	cmpl	%edx, %cs:(EXT_C(int15nolow) - int13_handler) /* EDX=0 */
+	jz	7f	/* int15 will handle low mem */
+	//jmp	5f	/* this "jmp" instruction can be omitted. */
 6:
 	/* the code should not change SI, DI and CX! */
 	cmpb	$0xff, %cs:1(%si)
@@ -5251,6 +5266,7 @@ int15_e820_handler:
 	popal
 	clc
 	lret	$2
+#if 0
 9:
 	pushfw
 	pushw	%si
@@ -5267,6 +5283,7 @@ int15_e820_handler:
 	popfw
 	clc
 	lret	$2
+#endif
 2:
 	movb	$0x86, %ah	/* function not supported */
 3:
@@ -12797,7 +12814,9 @@ ENTRY(set_int13_handler)
 	///* save size (KBytes) of int13_handler in its header */
 	//movb	%dl, (%edi)
 
+#if 0
 	movl	%eax, (int15_e820_range0_addr - int13_handler)(%edi)
+#endif
 	/* linear address of int13_handler (below 0x100000). yes, use 'orl'
 	 * because we only write the lower 24 bits of the linear addess.
 	 * The higher byte(8 bits) is on the highest byte of the gdt entry. 
@@ -12824,6 +12843,7 @@ ENTRY(set_int13_handler)
 	movw	$(int13_handler_entry - int13_handler), %ax	# AX=0x100
 	movl	%eax, 0x004C	# save the new int13 handler
 	
+#if 0	/* comment out so that int15 always hooks. */
 	/* set ESI to the drive map */
 	movl	$ABS(EXT_C(hooked_drive_map)), %esi
 	movl	$(DRIVE_MAP_SIZE), %ecx
@@ -12838,6 +12858,7 @@ ENTRY(set_int13_handler)
 	loop	1b
 	jmp	2f			/* no memdrives, don't hook int15 */
 1:
+#endif
 	/* save the new int15 handler. segment still in high word of EAX. */
 	movw	$(int15_e820_handler - int13_handler), %ax	# offset
 	movl	%eax, 0x54

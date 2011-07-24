@@ -9478,6 +9478,15 @@ map_func (char *arg, int flags)
 	
 	return 1;
       }
+    else if (grub_memcmp (arg, "--int15nolow=", 13) == 0)
+      {
+	unsigned long long tmp;
+	p = arg + 13;
+	if (! safe_parse_maxint (&p, &tmp))
+		return 0;
+	int15nolow = tmp;
+	return 1;
+      }
     else if (grub_memcmp (arg, "--memdisk-raw=", 14) == 0)
       {
 	unsigned long long tmp;

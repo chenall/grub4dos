@@ -1,3 +1,4 @@
+2011-07-21 (tinybit)added a map option --int15nolow. Some changes on handler.
 2011-07-10 (tinybit)re-enabled int13/ah=16h floppy detection in int13_handler.
 2011-06-28 (tinybit)fixed a careless mistake in probe_mbr(missing evaluation on C/H/S). fixed a bug in clean_entry() which return the address of a local variable.
 2011-06-27 (tinybit)added wee_skip_to as a replacement for skip_to.

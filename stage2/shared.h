@@ -976,6 +976,7 @@ extern struct multiboot_info mbi;
 extern unsigned long saved_drive;
 extern unsigned long saved_partition;
 extern char saved_dir[256];
+extern unsigned long int15nolow;	/* unprotect int13_handler code with int15 */
 extern unsigned long memdisk_raw;	/* raw mode as in memdisk */
 extern unsigned long a20_keep_on;	/* keep a20 on after RAM drive sector access */
 extern unsigned long lba_cd_boot;	/* LBA of no-emulation boot image, in 2048-byte sectors */
