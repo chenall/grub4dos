@@ -197,7 +197,7 @@ clean_entry (char *text)
   //(void) strcpy (ntext, text);
   for (i = 0; i < 255 && text[i]; ++i)
   {
-	if (ntext[i] < 32 || ntext[i] > 127)
+	if (text[i] < 32 || text[i] > 127)
 		ntext[i] = 32;
 	else
 		ntext[i] = text[i];

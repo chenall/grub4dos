@@ -15601,11 +15601,13 @@ static int bat_get_args(char *arg,char *buff,int flags)
 	{
 		unsigned long tmp_partition = current_partition;
 		unsigned long tmp_drive = current_drive;
-		arg = set_device (arg);
+		set_device (arg);
 		print_root_device(p,1);
 		current_partition = tmp_partition;
 		current_drive = tmp_drive;
 		p += strlen(p);
+		while (*arg++ != ')')
+			;
 	}
 	else if (flags & 0xff) // if is Param 0
 	{
