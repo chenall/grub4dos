@@ -5491,7 +5491,7 @@ static int insmod_func(char *arg,int flags)
       return 0;
    if (substring(skip_to(0,arg) - 4,".mod",1) == 0)
    {
-      if (command_open(arg,1) != 1)
+      if (!command_open(arg,1))
          return 0;
       char *buff=grub_malloc(filemax);
       if (!buff)
