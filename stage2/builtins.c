@@ -5116,9 +5116,9 @@ static int command_open(char *arg,int flags)
       return 2;
    char t_path[512];
    grub_sprintf(t_path,"%s%s",command_path,arg);
-   if (grub_open(t_path))
-      return 3;
-   return grub_open(t_path + command_path_len - 1);
+   if (grub_open(t_path + command_path_len - 1))
+      return 1;
+   return grub_open(t_path)?3:0;
 }
 
 int
@@ -15832,30 +15832,32 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		if (bat_script_debug)
 		{
 			printf("%s\n",p_buff);
-			int key=getkey() & 0xff00;
-			if (key == 0x3100)
+			char key=getkey() & 0xdf;
+			if (key == 'Q')
 			{
 				errnum = 1001;
 				break;
 			}
-			else if (key == 0x2e00)
+			else if (key == 'C')
 			{
 				commandline_func((char *)0x1000000,0);
 			}
 		}
-		#if 0
-		if (substring(p_buff,"shift",1) == 0)
+		else if (checkkey() == 0x2E03)
 		{
-			for (i=0;i<9 && s[i];i++)
-				s[i] = s[i+1];
-			if (s[8])
-				s[9] = skip_to(SKIP_WITH_TERMINATE | 1,s[8]);
+			getkey();
+			char k;
+			loop_yn:
+			grub_printf("\nTerminate batch job (Y/N)? ");
+			k = getkey() & 0xDF;
+			putchar(k);
+			if (k == 'Y')
+					break;
+			if (k != 'N')
+				goto loop_yn;
 		}
-		else
-		#endif
-		{
-			ret = run_line (p_buff,flags);
-		}
+		
+		ret = run_line (p_buff,flags);
 
 		if (errnum == ERR_BAT_GOTO)
 		{
@@ -15872,6 +15874,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		p_entry++;
 	}
 	i = errnum; //save errnum.
+	sprintf(ADDR_RET_STR,"%d",i);
 	/*release memory. */
 	while (bc != cc) //restore SETLOCAL
 		endlocal_func(NULL,1);
@@ -15879,11 +15882,12 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	batch_args = backup_args;
 	grub_free(cmd_buff);
 	errnum = i;
-	if ((int)errnum >= 1000)
+	if (i >= 1000)
 	{
 		errnum = 0;
+		return !(i - 1000);
 	}
-	return errnum?0:ret;
+	return errnum?0:1;
 }
 
 
