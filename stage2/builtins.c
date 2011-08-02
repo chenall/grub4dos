@@ -15843,7 +15843,10 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				commandline_func((char *)0x1000000,0);
 			}
 		}
-		else if (checkkey() == 0x2E03)
+
+		ret = run_line (p_buff,flags);
+
+		if ((*(short *)0x417 & 0x104) && checkkey() == 0x2E03)
 		{
 			getkey();
 			char k;
@@ -15852,12 +15855,13 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			k = getkey() & 0xDF;
 			putchar(k);
 			if (k == 'Y')
+			{
+					errnum = 1255;
 					break;
+			}
 			if (k != 'N')
 				goto loop_yn;
 		}
-		
-		ret = run_line (p_buff,flags);
 
 		if (errnum == ERR_BAT_GOTO)
 		{
@@ -15881,12 +15885,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	bc = saved_bc;
 	batch_args = backup_args;
 	grub_free(cmd_buff);
-	errnum = i;
-	if (i >= 1000)
-	{
-		errnum = 0;
-		return !(i - 1000);
-	}
+	errnum = (i == 1000) ? 0 : i;
 	return errnum?0:1;
 }
 
@@ -15930,7 +15929,7 @@ static int exit_func(char *arg, int flags)
 	unsigned long long t = 0;
 	read_val(&arg, &t);
 	errnum = 1000 + t;
-	return t;
+	return errnum;
 }
 
 static struct builtin builtin_exit =
