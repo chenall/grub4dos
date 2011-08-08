@@ -253,6 +253,8 @@ int run_line (char *heap,int flags)
 	heap = cmdline_buf;
 	errnum = ERR_NONE;
 	/* Invalidate the cache, because the user may exchange removable disks.  */
+	while (*heap == 0x20 || *heap == '\t')
+		++heap;
 	buf_drive = -1;
 	while (*heap && (arg = heap))
 	{
@@ -268,8 +270,7 @@ int run_line (char *heap,int flags)
 					CMD_BUFFER[ret++] = ' ';
 				if (putchar_st.addr >= PRINTF_BUFFER + 0xC00)
 				{
-					errnum = ERR_WONT_FIT;
-					goto quit;
+					putchar_st.addr = PRINTF_BUFFER + 0xC00;
 				}
 				grub_memmove(CMD_BUFFER + ret,PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER);
 				arg = CMD_BUFFER;
@@ -353,7 +354,7 @@ int run_line (char *heap,int flags)
 		}
 
 		check_status:
-		if (status == 0 || (status & 12))
+		if ((unsigned int)errnum > MAX_ERR_NUM || status == 0 || (status & 12))
 		{
 			break;
 		}
