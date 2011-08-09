@@ -354,7 +354,7 @@ int run_line (char *heap,int flags)
 		}
 
 		check_status:
-		if ((unsigned int)errnum > MAX_ERR_NUM || status == 0 || (status & 12))
+		if (errnum >= 1255 || status == 0 || (status & 12))
 		{
 			break;
 		}

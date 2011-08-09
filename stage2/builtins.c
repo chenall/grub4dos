@@ -15910,18 +15910,18 @@ static struct builtin builtin_goto =
 
 static int call_func(char *arg,int flags)
 {
-	errnum = ERR_BAT_CALL;
-	if (flags & BUILTIN_BAT_SCRIPT)
+//	errnum = ERR_BAT_CALL;
+	if (*arg==':')
 		return bat_run_script(NULL, arg, flags);
 	else
-		return 0;
+		return run_line(arg,flags);
 }
 
 static struct builtin builtin_call =
 {
    "call",
    call_func,
-  BUILTIN_BAT_SCRIPT,
+  BUILTIN_BAT_SCRIPT | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
 };
 
 static int exit_func(char *arg, int flags)
