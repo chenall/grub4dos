@@ -5089,6 +5089,7 @@ lba_to_chs:
 max_cdrom_id:		.byte	0xE0
 
 	.align	4
+ENTRY(e820cycles)	.long	-1	/* no limit. set to 0 if int15 will unhook */
 ENTRY(int15nolow)	.long	0	/* set to 1 if int15 will not handle low memory */
 ENTRY(memdisk_raw)	.long	1	/* set to 0 if accessing memdrives using int15/AH=87h */
 ENTRY(a20_keep_on)	.long	1	/* set to 0 if a20 should be auto-off */
@@ -5102,13 +5103,13 @@ minimum_mem_hi_in_map:
 #if 0
 int15_e820_saved_ebx:
 	.long	0
-#endif
 int15_e820_range0_addr:
 	.long	0, 0
 int15_e820_range0_length:
 	.long	((int13_handler_end - int13_handler + 0x3ff)&(-0x400)), 0
 int15_e820_range0_type:
 	.long	2
+#endif
 
 /****************************************************************************/
 int15_e820_handler:
@@ -5184,8 +5185,10 @@ int15_e820_handler:
 	jz	9f	/* BIOS ranges ended */
 8:
 #endif
-	pushfw
-	lcall	%cs:*(EXT_C(ROM_int15) - int13_handler)
+	//pushfw
+	//lcall	%cs:*(EXT_C(ROM_int15) - int13_handler)
+	call	safe_ROM_int15
+
 	jc	3f
 	cmpl	$0x534D4150, %eax	/* "SMAP" */
 	jne	2f
@@ -5264,6 +5267,10 @@ int15_e820_handler:
 	//memory block length update done
 4:
 	popal
+	testl	%ebx, %ebx
+	jnz	5f
+	call	dec_e820cycles
+5:
 	clc
 	lret	$2
 #if 0
@@ -5287,6 +5294,7 @@ int15_e820_handler:
 2:
 	movb	$0x86, %ah	/* function not supported */
 3:
+	call	dec_e820cycles
 	stc
 	lret	$2
 #;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -5297,8 +5305,8 @@ int15_e820_handler:
 	je	1f
 	cmpw	$0xda88, %ax
 	je	1f
-	cmpb	$0xc7, %ah
-	je	1f
+//	cmpb	$0xc7, %ah
+//	je	1f
 	cmpb	$0x8a, %ah
 	je	1f
 	cmpb	$0x88, %ah
@@ -5385,8 +5393,9 @@ int15_e820_handler:
 4:
 	pushfw
 
-	pushfw
-	lcall	%cs:*(EXT_C(ROM_int15) - int13_handler)
+	//pushfw
+	//lcall	%cs:*(EXT_C(ROM_int15) - int13_handler)
+	call	safe_ROM_int15
 
 	jc	3f
 
@@ -5514,6 +5523,10 @@ int15_e820_handler:
 #;	lret	$2
 
 #;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+#if 0
+	/* comment out this function because it uses DS register on call and
+	 * thus it cannot call safe_ROM_int15
+	 */
 1:
 	cmpb	$0xC7, %ah
 	jne	1f
@@ -5594,7 +5607,7 @@ int15_e820_handler:
 3:
 	stc
 	lret	$2
-
+#endif
 #;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 1:
 	cmpb	$0x8a, %ah
@@ -5684,6 +5697,44 @@ int15_e820_handler:
 
 1:
 	ljmp	%cs:*(EXT_C(ROM_int15) - int13_handler)
+
+safe_ROM_int15:
+
+	pushw	%ds
+	pushw	$0
+	popw	%ds		/* DS = 0 */
+	pushl	0x54		/* backup original int 15 vector */
+	pushl	%cs:(EXT_C(ROM_int15) - int13_handler)
+	popl	0x54		/* install ROM_int15 */
+	pushw	%ds		/* DS = 0 */
+	int	$0x15
+	popw	%ds		/* DS = 0 */
+	popl	0x54		/* restore original int 15 vector */
+	popw	%ds
+	ret
+
+dec_e820cycles:
+	/* if e820cycles = -1, do nothing, else decrement */
+	pushal
+	movl	%cs:(EXT_C(e820cycles) - int13_handler), %ecx
+	incl	%ecx
+	jz	1f
+	decl	%ecx
+	jz	2f
+	decl	%ecx
+	jnz	3f
+2:
+	/* unhook int15 */
+	pushw	%ds
+	movw	%cx, %ds	/* DS = 0 */
+	pushl	%cs:(EXT_C(ROM_int15) - int13_handler)
+	popl	0x54		/* install ROM_int15 */
+	popw	%ds
+3:
+	movl	%ecx, %cs:(EXT_C(e820cycles) - int13_handler)
+1:
+	popal
+	ret
 
 /****************************************************************************/
 
@@ -12859,6 +12910,9 @@ ENTRY(set_int13_handler)
 	jmp	2f			/* no memdrives, don't hook int15 */
 1:
 #endif
+	movl	(e820cycles - int13_handler)(%edi), %ecx
+	jecxz	2f
+
 	/* save the new int15 handler. segment still in high word of EAX. */
 	movw	$(int15_e820_handler - int13_handler), %ax	# offset
 	movl	%eax, 0x54

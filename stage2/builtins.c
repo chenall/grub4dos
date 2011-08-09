@@ -9478,6 +9478,15 @@ map_func (char *arg, int flags)
 	
 	return 1;
       }
+    else if (grub_memcmp (arg, "--e820cycles=", 13) == 0)
+      {
+	unsigned long long tmp;
+	p = arg + 13;
+	if (! safe_parse_maxint (&p, &tmp))
+		return 0;
+	e820cycles = tmp;
+	return 1;
+      }
     else if (grub_memcmp (arg, "--int15nolow=", 13) == 0)
       {
 	unsigned long long tmp;
