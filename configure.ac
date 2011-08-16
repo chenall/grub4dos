@@ -172,16 +172,15 @@ else
   AC_CHECK_TOOL(OBJCOPY, objcopy)
 fi
 
-LDFLAGS_SAVED="${LDFLAGS} -Wl,--build-id=none"
+LDFLAGS_SAVED="${LDFLAGS}"
 case "$host_os" in
   mingw32 | cygwin)
-    BIN_LDFLAGS="-Wl,-T"'$(top_srcdir)'"/ldscript -Wl,--build-id=none"
-    LDFLAGS="${LDFLAGS} -Wl,-T${srcdir}/ldscript -Wl,--build-id=none"
+    BIN_LDFLAGS="-Wl,-T"'$(top_srcdir)'"/ldscript"
+    LDFLAGS="${LDFLAGS} -Wl,-T${srcdir}/ldscript"
     BUILD_DIRS="netboot stage2 stage1"
     ;;
   *)
-    BIN_LDFLAGS="-Wl,-N -Wl,--build-id=none"
-    LDFLAGS="${LDFLAGS} -Wl,--build-id=none"
+    BIN_LDFLAGS="-Wl,-N"
     BUILD_DIRS="netboot stage2 stage1 lib grub util"
     ;;
 esac
@@ -227,7 +226,7 @@ if test "x$grub_cv_check_end_symbol" != "xyes" \
   AC_MSG_ERROR([Neither end nor _end is defined])
 fi
 
-LDFLAGS="${LDFLAGS_SAVED} -Wl,--build-id=none"
+LDFLAGS=${LDFLAGS_SAVED}
 
 # Check for curses libraries.
 AC_ARG_WITH(curses,
