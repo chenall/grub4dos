@@ -12910,7 +12910,7 @@ ENTRY(set_int13_handler)
 	jmp	2f			/* no memdrives, don't hook int15 */
 1:
 #endif
-	movl	(e820cycles - int13_handler)(%edi), %ecx
+	movl	(EXT_C(e820cycles) - int13_handler)(%edi), %ecx
 	jecxz	2f
 
 	/* save the new int15 handler. segment still in high word of EAX. */
