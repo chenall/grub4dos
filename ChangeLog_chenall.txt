@@ -1,4 +1,19 @@
-﻿2011-08-09
+﻿2011-08-23
+	1.添加echo/cat命令的帮助信息.(issue: 38,40)
+	  add help text for command echo/cat.
+	2.修复help --all显示的问题(issue: 39)
+	  fixed "help --all" issue.
+	3.添加一个实验性功能,直接在命令行调用GRUB4DOS提供的函数.
+	  call #n argn ...
+	eg: sprintf
+	  call #0 "test string: %s." "my test"
+	  call #0 "0x1000=%d." 0x1000
+	  putchar
+	  call #2 65 
+	  cls
+	  call #6
+	 for more func please read grub4dos.h
+2011-08-09
 	1.批处理call/gotoBUG修复.
 	2.新的call可以直接call一个命令.
 

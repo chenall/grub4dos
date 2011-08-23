@@ -36,13 +36,12 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
  };
  #endif /* ! GRUB_UTIL */
  #endif /* SUPPORT_NETBOOT */
-@@ -1529,7 +1537,9 @@
-   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-   "cat [--hex] [--skip=S] [--length=L] [--locate=STRING] [--locate-align=A] FILE",
-   "Print the contents of the file FILE, or print the locations "
--  "of the string STRING in FILE."
-+  "of the string STRING in FILE.",
-+  "cat [--hex] [--skip=S] [--length=L] [--locate=STRING] [--locate-align=A] FILE",
+@@ -1556,6 +1564,9 @@
+   "Or print the locations of the string STRING in FILE,"
+   "--replace replaces STRING with REPLACE in FILE."
+   "--number  use with --locate,the max number for locate",
++  "cat [--hex] [--skip=S] [--length=L] [--locate=STRING] [--replace=REPLACE]\n"
++  "\t [--locate-align=A] [--number=n] FILE",
 +  "\t显示指定文件的内容，或者显示文件中指定字符串的位置。"
  };
  

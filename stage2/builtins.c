@@ -1550,9 +1550,12 @@ static struct builtin builtin_cat =
   "cat",
   cat_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "cat [--hex] [--skip=S] [--length=L] [--locate=STRING] [--locate-align=A] FILE",
-  "Print the contents of the file FILE, or print the locations "
-  "of the string STRING in FILE."
+  "cat [--hex] [--skip=S] [--length=L] [--locate=STRING] [--replace=REPLACE]\n"
+  "\t [--locate-align=A] [--number=n] FILE",
+  "Print the contents of the file FILE,"
+  "Or print the locations of the string STRING in FILE,"
+  "--replace replaces STRING with REPLACE in FILE."
+  "--number  use with --locate,the max number for locate",
 };
 
 
@@ -5604,7 +5607,8 @@ static struct builtin builtin_delmod =
    "delmod",
    delmod_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-   "delmod modname|*",
+   "delmod [modname|*]",
+   "delete the module loaded by insmod."
 };
 
 
@@ -6985,12 +6989,10 @@ help_func (char *arg, int flags)
 	{
 	//  int len;
 	//  int i;
-	  #if 0
 	  /* If this cannot be used in the command-line interface,
 	     skip this.  */
 	  if (! ((*builtin)->flags & BUILTIN_CMDLINE))
 	    continue;
-	  #endif
 	  /* If this doesn't need to be listed automatically and "--all"
 	     is not specified, skip this.  */
 	  if (! all && ! ((*builtin)->flags & BUILTIN_HELP_LIST))
@@ -7008,7 +7010,7 @@ help_func (char *arg, int flags)
 	  for (; i < MAX_SHORT_DOC_LEN; i++)
 	    grub_putchar (' ');
 #else
-	    printf("%-*.*s",MAX_SHORT_DOC_LEN,MAX_SHORT_DOC_LEN-1,(*builtin)->short_doc);
+	    printf("%-*.*s",MAX_SHORT_DOC_LEN,MAX_SHORT_DOC_LEN-1,(*builtin)->short_doc?(*builtin)->short_doc:(*builtin)->name);
 #endif
 	  if (! left)
 	    grub_putchar ('\n');
@@ -15083,6 +15085,11 @@ static struct builtin builtin_echo =
    "echo",
    echo_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
+   "echo [-P:XXYY] [-h] [[$[ABCD]]MESSAGE ...] ",
+   "-P:XXYY position control line(XX) and column(YY). "
+   "-h      show a color panel. "
+   "$[ABCD] the color for MESSAGE.(console only). "
+   "A blink-, B light-, C BG, D FG."
 };
 #endif
 
@@ -15517,7 +15524,6 @@ static struct builtin builtin_setlocal =
    "setlocal",
    setlocal_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
-  "setlocal",
 };
 
 
@@ -15552,7 +15558,6 @@ static struct builtin builtin_endlocal =
    "endlocal",
    endlocal_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
-  "endlocal",
 };
 
 struct bat_label
@@ -15610,13 +15615,21 @@ static int bat_get_args(char *arg,char *buff,int flags)
 	{
 		unsigned long tmp_partition = current_partition;
 		unsigned long tmp_drive = current_drive;
-		set_device (arg);
-		print_root_device(p,1);
-		current_partition = tmp_partition;
-		current_drive = tmp_drive;
-		p += strlen(p);
-		while (*arg++ != ')')
-			;
+		char *cd = set_device (arg);
+		if (cd)
+		{
+			print_root_device(p,1);
+			current_partition = tmp_partition;
+			current_drive = tmp_drive;
+			p += strlen(p);
+			arg = cd;
+		}
+		else
+		{
+			while ((*p++ = *arg++) != ')')
+				;
+			case_convert((char*)0x4cb08,'A');
+		}
 	}
 	else if (flags & 0xff) // if is Param 0
 	{
@@ -15922,6 +15935,34 @@ static int call_func(char *arg,int flags)
 //	errnum = ERR_BAT_CALL;
 	if (*arg==':')
 		return bat_run_script(NULL, arg, flags);
+	if (*arg == '#')
+	{
+		int func;
+		unsigned long long ull;
+		int i;
+		char *ch[10]={0};
+		++arg;
+		if (! read_val(&arg,&ull))
+			return 0;
+		func=(int)ull;
+		for (i=0;i<10;++i)
+		{
+			if (*arg=='\"')
+			{
+				ch[i] = &arg[1];
+				arg = skip_to(SKIP_WITH_TERMINATE,arg);
+				ch[i][strlen(ch[i])-1] = 0;
+			}
+			else
+			{
+				if (! read_val(&arg,&ull))
+					break;
+				ch[i] = (char *)(int)ull;
+			}
+		}
+		errnum = 0;
+		return ((int (*)(char *, const char *, ...))((*(int **)0x8300)[func]))(ch[0],ch[1],ch[2],ch[3],ch[4],ch[5],ch[6],ch[7],ch[8],ch[9]);
+	}
 	else
 		return run_line(arg,flags);
 }
