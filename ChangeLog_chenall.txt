@@ -1,4 +1,7 @@
-﻿2011-08-23
+﻿2011-08-25
+	1.修正cat命令的一个BUG,使用cat --locate-align参数时会出错.
+	 fixed a bug in cat_func.
+2011-08-23
 	1.添加echo/cat命令的帮助信息.(issue: 38,40)
 	  add help text for command echo/cat.
 	2.修复help --all显示的问题(issue: 39)

@@ -1358,7 +1358,7 @@ cat_func (char *arg, int flags)
 	else if (grub_memcmp (arg, "--locate-align=", 15) == 0)
 	{
 		arg += 15;
-		if (! safe_parse_maxint (&p, &locate_align))
+		if (! safe_parse_maxint (&arg, &locate_align))
 			return 0;
 		if ((unsigned long)locate_align == 0)
 			return ! (errnum = ERR_BAD_ARGUMENT);
@@ -1462,48 +1462,54 @@ cat_func (char *arg, int flags)
 		}
     //j = skip;
     grub_memset ((char *)(SCRATCHADDR), 0, 32);
-	c = (unsigned char)(length&0xf);
+	length += skip;
+	unsigned long long k;
 	for (i = 0,j = skip; ; j += 16)
 	{
 		len = 0;
-		if (j - skip < length)
+		if (j < length)
+		{
 			len = grub_read ((unsigned long long)(SCRATCHADDR + 16), 16, 0xedde0d90);
+		}
 		if (len < 16)
-			grub_memset ((char *)(SCRATCHADDR + 16 + (unsigned long)len), 0, 16 - len);
+		{
+			k = j > length ? 16 - (j - length):16 + len;
+			grub_memset ((char *)(SCRATCHADDR + (int)k), 0, 32 - (int)k);
+		}
 
 		if (j != skip)
 		{
-			while (i < 16 && (len !=0 || !c || i + len_s <= c))
+			while (i < 16)
 			{
-					unsigned long long k = j - 16 + i;
-					if ((locate_align == 1 || ! ((unsigned long)k % (unsigned long)locate_align))
-						&& grub_memcmp ((char *)&s, (char *)(SCRATCHADDR + (unsigned long)i), len_s) == 0)
+				k = j - 16 + i;
+				if ((locate_align == 1 || ! ((unsigned long)k % (unsigned long)locate_align))
+					&& grub_memcmp ((char *)&s, (char *)(SCRATCHADDR + (unsigned long)i), len_s) == 0)
+				{
+					/* print the address */
+					if (!replace || debug > 1)
+						grub_printf (" %lX", (unsigned long long)k);
+					/* replace strings */
+					if (replace)
 					{
-						/* print the address */
-						if (!replace || debug > 1)
-							grub_printf (" %lX", (unsigned long long)k);
-						/* replace strings */
-						if (replace)
-						{
-							unsigned long long filepos_bak = filepos;
-							filepos = k;
-							/* write len_r bytes at string replace to file!! */
-							grub_read ((unsigned long long)(unsigned int)replace,len_r, 0x900ddeed);
-							i += len_r;
-							filepos = filepos_bak;
-						}
-						else
-							i += len_s;
-						ret++;
-						Hex = k;
-						if (number <= ret)
-						{
-							len = 0;
-							break;
-						}
+						unsigned long long filepos_bak = filepos;
+						filepos = k;
+						/* write len_r bytes at string replace to file!! */
+						grub_read ((unsigned long long)(unsigned int)replace,len_r, 0x900ddeed);
+						i += len_r;
+						filepos = filepos_bak;
 					}
 					else
-						i++;
+						i += len_s;
+					ret++;
+					Hex = k;
+					if (number <= ret)
+					{
+						len = 0;
+						break;
+					}
+				}
+				else
+					i++;
 			}
 			if (len == 0)
 			{
