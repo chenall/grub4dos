@@ -15509,18 +15509,6 @@ static int setlocal_func(char *arg, int flags)
 	cc = saved;
 	if (*arg == '@')
 	{
-		if (flags & BUILTIN_BAT_SCRIPT)
-		{
-			saved = saved->prev;
-			while (saved != bc)
-			{
-				sc = saved;
-				saved = saved->prev;
-				grub_free(sc);
-			}
-			cc->prev = bc;
-			bc = cc;
-		}
 		sc = cc;
 	}
 	return 1;
@@ -15908,7 +15896,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	i = errnum; //save errnum.
 	sprintf(ADDR_RET_STR,"%d",i);
 	/*release memory. */
-	while (bc != cc) //restore SETLOCAL
+	while (bc != cc && cc != sc) //restore SETLOCAL
 		endlocal_func(NULL,1);
 	bc = saved_bc;
 	batch_args = backup_args;
@@ -15941,13 +15929,13 @@ static int call_func(char *arg,int flags)
 //	errnum = ERR_BAT_CALL;
 	if (*arg==':')
 		return bat_run_script(NULL, arg, flags);
-	if (*arg == '#')
+	if (*(char *)arg == 0x6E46)
 	{
 		int func;
 		unsigned long long ull;
 		int i;
 		char *ch[10]={0};
-		++arg;
+		arg += 3;
 		if (! read_val(&arg,&ull))
 			return 0;
 		func=(int)ull;
