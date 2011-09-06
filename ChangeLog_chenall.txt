@@ -1,4 +1,8 @@
-﻿2011-09-02
+﻿2011-09-05
+	1.insmod支持指定名字,比如insmod fat.gz fat.
+	  Support specified name when insmod a module.
+
+2011-09-02
 	1.fixed a bug in setloca/endlocal.
 2011-08-25
 	1.修正cat命令的一个BUG,使用cat --locate-align参数时会出错.

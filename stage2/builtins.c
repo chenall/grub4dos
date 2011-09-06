@@ -5508,24 +5508,12 @@ static int insmod_func(char *arg,int flags)
         grub_close();
         return 0;
       }
-      #if 0
-      if (grub_read((unsigned long long)(unsigned int)buff,16,GRUB_READ) != 16
-        || *(unsigned long long *)(unsigned int)buff != 0xBCBAA7BA03051805LL
-        || grub_read((unsigned long long)(unsigned int)buff,-1,GRUB_READ) == 0 )
-      {
-         grub_close();
-         grub_free(buff);
-         errnum = ERR_EXEC_FORMAT;
-         return 0;
-      }
-      #else
       if (grub_read((unsigned long long)(unsigned int)buff,-1,GRUB_READ) != filemax)
       {
         grub_close();
         grub_free(buff);
         return 0;
       }
-      #endif
       grub_close();
       char *buff_end = buff+filemax;
       struct exec_array *p_mod = (struct exec_array *)buff;
@@ -5543,40 +5531,42 @@ static int insmod_func(char *arg,int flags)
    {
       case 2:
          return debug?grub_printf("%s already loaded\n",arg):1;
-      case 0:
-      case -1:
-         return 0;
-      default:
+      case 1:
          {
-			 struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array));
-			 char *filename = arg;
-			 int ret = 0;
-			 if (p_mod == NULL || grub_read((unsigned long long)(unsigned int)p_mod->data,-1,GRUB_READ) != filemax)
-				goto exit;
-			 p_mod->len = filemax;
-			 if (*arg == '(' || *arg == '/')
-			 {
-				while (*arg)
-				{
-				   if (*arg++ == '/')
-					  filename = arg;
-				}
-			 }
-			 if (strlen(filename) > 11)
-			 {
-				grub_printf("Err filename\n");
-			 }
-			 else
-			 {
-				grub_strcpy(p_mod->name,filename);
-				ret = grub_mod_add(p_mod);
-			 }
+            struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array));
+            char *filename = skip_to(1,arg);
+            int ret = 0;
+            if (p_mod == NULL || grub_read((unsigned long long)(unsigned int)p_mod->data,-1,GRUB_READ) != filemax)
+               goto exit;
+            p_mod->len = filemax;
+            if (!*filename)
+            {
+               if (*arg == '(' || *arg == '/')
+               {
+                  while (*arg)
+                  {
+                     if (*arg++ == '/')
+                        filename = arg;
+                  }
+               }
+            }
+            if (strlen(filename) > 11)
+            {
+               grub_printf("Err filename\n");
+            }
+            else
+            {
+               grub_strcpy(p_mod->name,filename);
+               ret = grub_mod_add(p_mod);
+            }
 
-			 exit:
-			 grub_close();
-			 grub_free(p_mod);
-			 return ret;
+            exit:
+            grub_close();
+            grub_free(p_mod);
+            return ret;
          }
+      default:
+         return 0;
    }
 }
 
@@ -5585,7 +5575,7 @@ static struct builtin builtin_insmod =
    "insmod",
    insmod_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-   "insmod MODFILE|FILE.MOD",
+   "insmod MODFILE|FILE.MOD [name]",
    "FILE.MOD is MODFILE package, it has multiple MODFILE"
 };
 
@@ -15929,7 +15919,7 @@ static int call_func(char *arg,int flags)
 //	errnum = ERR_BAT_CALL;
 	if (*arg==':')
 		return bat_run_script(NULL, arg, flags);
-	if (*(char *)arg == 0x6E46)
+	if (*(short *)arg == 0x6E46)
 	{
 		int func;
 		unsigned long long ull;
@@ -15939,19 +15929,20 @@ static int call_func(char *arg,int flags)
 		if (! read_val(&arg,&ull))
 			return 0;
 		func=(int)ull;
+		arg[parse_string(arg)] = 0;
 		for (i=0;i<10;++i)
 		{
-			if (*arg=='\"')
-			{
-				ch[i] = &arg[1];
-				arg = skip_to(SKIP_WITH_TERMINATE,arg);
-				ch[i][strlen(ch[i])-1] = 0;
-			}
+			if (read_val(&arg,&ull))
+				ch[i] = (char *)(int)ull;
 			else
 			{
-				if (! read_val(&arg,&ull))
-					break;
-				ch[i] = (char *)(int)ull;
+				ch[i] = arg;
+				arg = skip_to(SKIP_WITH_TERMINATE,arg);
+				if (ch[i][0] == '\"')
+				{
+					++ch[i];
+					ch[i][strlen(ch[i])-1] = 0;
+				}
 			}
 		}
 		errnum = 0;
