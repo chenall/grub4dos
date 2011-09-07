@@ -149,15 +149,31 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 	int n;
 
 	grub_printf ("\nbootfile is %s\n", discover_reply->bootfile);
-	n = grub_strlen ((char*)discover_reply->bootfile) - 1;
-	grub_strcpy ((char*)&pxe_tftp_open.FileName, (char*)discover_reply->bootfile);
+	n = grub_strlen ((char*)discover_reply->bootfile);
+	if (n > 126)
+	{
+		grub_printf ("Warning! bootfile name(%d chars) too long (> 126 chars).\n", n);
+		n = 126;
+		((char*)discover_reply->bootfile)[n] = 0;
+	}
+	if (((char*)discover_reply->bootfile)[0] != '/')
+	{
+		pxe_tftp_open.FileName[0] = '/'; /* have to add a slash */
+		grub_strcpy (((char*)&pxe_tftp_open.FileName) + 1, (char*)discover_reply->bootfile);
+		n++;
+	}
+	else
+		grub_strcpy ((char*)&pxe_tftp_open.FileName, (char*)discover_reply->bootfile);
+	n--;
 	while ((n >= 0) && (pxe_tftp_open.FileName[n] != '/')) n--;
+#if 0
 	if (n < 0)	/* need to add a slash */
 	{
 		pxe_tftp_open.FileName[0] = '/';
 		grub_strcpy (((char*)&pxe_tftp_open.FileName) + 1, (char*)discover_reply->bootfile);
 		n = 0;
 	}
+#endif
 	pxe_tftp_name = (char*)&pxe_tftp_open.FileName[n];
 
 	/* read the boot file to determine the block size. */
@@ -167,7 +183,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 	else if (try_blksize (1408) && try_blksize (512))
 	{
 		pxe_blksize = 512;	/* default to 512 */
-		grub_printf ("\nCannot open %s, pxe_blksize set to %d\n", pxe_tftp_name, pxe_blksize);
+		grub_printf ("Warning! Cannot open bootfile. pxe_blksize set to default 512.\n");
 	}
 
       //grub_strcpy (pxe_tftp_name, "/menu.lst/");

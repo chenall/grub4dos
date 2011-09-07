@@ -277,7 +277,7 @@ int fb_dir (char *dirname)
 	  if (substring (dirname, tmp_name/*cur_file->name*/, 1) <= 0)
 	    {
 	      found = 1;
-	      print_a_completion (cur_file->name + i, 1);
+	      print_a_completion (tmp_name + i, 1);
 	    }
 	}
       else
