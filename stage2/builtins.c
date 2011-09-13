@@ -5531,7 +5531,9 @@ static int insmod_func(char *arg,int flags)
    {
       case 2:
          return debug?grub_printf("%s already loaded\n",arg):1;
-      case 1:
+      case 0:
+         return 0;
+      default:
          {
             struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array));
             char *filename = skip_to(1,arg);
@@ -5541,6 +5543,7 @@ static int insmod_func(char *arg,int flags)
             p_mod->len = filemax;
             if (!*filename)
             {
+               filename = arg;
                if (*arg == '(' || *arg == '/')
                {
                   while (*arg)
@@ -5565,8 +5568,6 @@ static int insmod_func(char *arg,int flags)
             grub_free(p_mod);
             return ret;
          }
-      default:
-         return 0;
    }
 }
 

@@ -13148,6 +13148,7 @@ VARIABLE(system_functions)
 	.long	ABS(EXT_C(grub_isspace))
 	.long	ABS(EXT_C(grub_sleep))
 	.long	ABS(EXT_C(mem64))
+	.long ABS(EXT_C(envi_cmd))
 /*
  * The C code for a grub4dos executable may have defines as follows:
  *

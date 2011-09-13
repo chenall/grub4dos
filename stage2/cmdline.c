@@ -246,7 +246,7 @@ int run_line (char *heap,int flags)
 	int status = 0;
 	struct builtin *builtin;
 	int status_t = 0;
-	int stat_bak = putchar_st.flag;
+//	int stat_bak = putchar_st.flag;
 	grub_error_t errnum_old = errnum;
 	char cmdline_buf[1500];
 	expand_var(heap,cmdline_buf,1500);
@@ -258,7 +258,6 @@ int run_line (char *heap,int flags)
 	buf_drive = -1;
 	while (*heap && (arg = heap))
 	{
-		putchar_st.flag = 0;
 		heap = skip_to_next_cmd(heap,&status,0);//next cmd
 		switch(status_t)
 		{
@@ -277,41 +276,44 @@ int run_line (char *heap,int flags)
 				break;
 			case 2:// operator ">"
 			case 3:// operator ">>"
-					ret = no_decompression;
-					no_decompression = 1;
-					if (! grub_open (arg))
-						goto quit;
+				if (substring(arg,"nul",1) == 0)
+					goto restart_st;
+				ret = no_decompression;
+				no_decompression = 1;
+				if (! grub_open (arg))
+				{
 					no_decompression = ret;
-					if (status_t & 1)//>> append
+					goto check_status;
+				}
+				no_decompression = ret;
+				if (status_t & 1)//>> append
+				{
+					char *f_buf = CMD_BUFFER;
+					int t_read,t_len;
+					while ((t_read = grub_read ((unsigned long long)(int)f_buf,0x400,GRUB_READ)))
 					{
-						char *f_buf = CMD_BUFFER;
-						int t_read,t_len;
-						while ((t_read = grub_read ((unsigned long long)(int)f_buf,0x400,GRUB_READ)))
+						f_buf[t_read] = 0;
+						t_len = grub_strlen(f_buf);
+						if (t_len < t_read)
 						{
-							f_buf[t_read] = 0;
-							t_len = grub_strlen(f_buf);
-							if (t_len < t_read)
-							{
-								filepos -= t_read - t_len;
-								break;
-							}
+							filepos -= t_read - t_len;
+							break;
 						}
 					}
-					else if (filemax < 0x40000)
-					{
-						grub_memset((char *)putchar_st.addr,0,filemax);
-						putchar_st.addr = PRINTF_BUFFER + filemax;
-					}
+				}
+				else if (filemax < 0x40000)
+				{
+					grub_memset((char *)putchar_st.addr,0,filemax);
+					putchar_st.addr = PRINTF_BUFFER + filemax;
+				}
 
-					if (grub_read ((unsigned long long)(int)PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER,GRUB_WRITE) == 0)
-					{
-						grub_close();
-						goto quit;
-					}
-					grub_close();
-					errnum = errnum_old;
-					ret = *(int*)0x4CB00;
-					goto check_status;
+				grub_read ((unsigned long long)(int)PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER,GRUB_WRITE);
+				grub_close();
+
+				restart_st:
+				errnum = errnum_old;
+				ret = *(int*)0x4CB00;
+				goto check_status;
 			default:
 				break;
 		}
@@ -340,20 +342,22 @@ int run_line (char *heap,int flags)
 
 		errnum_old = errnum;
 		*(int*)0x4CB00=ret;
+
+		if (status & 8)
+		{
+			status_t = status & 3;
+			*putchar_st.addr++ = 0;
+			putchar_st.flag = 0;
+			continue;
+		}
+
+		check_status:
 		if (errnum == -2)
 		{
 			sprintf(CMD_RUN_ON_EXIT,"%.230s",arg);
 			errnum = -1;
 			break;
 		}
-		if (status & 8)
-		{
-			status_t = status & 3;
-			*putchar_st.addr++ = 0;
-			continue;
-		}
-
-		check_status:
 		if (errnum >= 1255 || status == 0 || (status & 12))
 		{
 			break;
@@ -369,9 +373,9 @@ int run_line (char *heap,int flags)
 			heap = skip_to_next_cmd(heap,&status,4);
 		}
 	}
-	quit:
-	putchar_st.flag = stat_bak;
-	putchar_st.addr = PRINTF_BUFFER;
+//	quit:
+//	putchar_st.flag = stat_bak;
+//	putchar_st.addr = PRINTF_BUFFER;
 	return (errnum > 0 && errnum<MAX_ERR_NUM)?0:ret;
 }
 #undef PRINTF_BUFFER 

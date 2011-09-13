@@ -1,4 +1,8 @@
-﻿2011-09-05
+﻿2011-09-13
+	1.修正insmod的一个bug(不能直接insmod默认路径下的文件)
+	  fixed a bug in insmod_func.
+
+2011-09-05
 	1.insmod支持指定名字,比如insmod fat.gz fat.
 	  Support specified name when insmod a module.
 
