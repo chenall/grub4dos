@@ -8079,7 +8079,15 @@ init_pic:
 	/* end initialize PIC. */
 
 	/* FIXME: init edge-level-control-registers(IO ports 0x4D0, 0x4D1) for EISA */
-#if 1	/* added 2010-03-13, disabled 2010-10-07, enabled 2010-10-09 */
+#if 0	/* disabled 2011-09-16. */
+
+	/* This must be disabled, because with this code ASUS eee PC 1215B
+	 * boots extremely slow and fails to access SATA hard drive.
+	 * With this book, value at port 0x4D0 is 0x80, and 0x4D1 holds 0x0C.
+	 *				- tinybit, 2011-09-16
+	 */
+
+	/* added 2010-03-13, disabled 2010-10-07, enabled 2010-10-09 */
 
 	/* WinPE (on a HP model) requires this. Confirmed by in8ape at
 	 *	http://www.boot-land.net/forums/index.php?showtopic=12620

@@ -1,3 +1,4 @@
+2011-09-16 (tinybit)disabled ELCR code for ASUS eee PC 1215B.
 2011-09-06 (tinybit)fixed pxe_detect to handle long bootfile name.
 2011-08-05 (tinybit)added a map option --e820cycles for Dell Laptop N4030.
 2011-07-27 (tinybit)fixed a careless mistake in clean_entry().
