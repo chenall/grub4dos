@@ -1,8 +1,10 @@
 Please refer to http://grub4dos.sourceforge.net/wiki/ for DOCs on GRUB4DOS.
 
-Main project page:	https://gna.org/projects/grub4dos/
+Main project page:	http://grub4dos-chenall.googlecode.com/
 
-Download site:		http://download.gna.org/grub4dos/
+Download site:		http://code.google.com/p/grub4dos-chenall/downloads/list
+
+Unused:
 Download site:		http://grub4dos.sourceforge.net/
 Download site:		http://sarovar.org/projects/grub4dos/
 Download site:		http://grub4dos.nufans.net/
@@ -11,15 +13,15 @@ Download site:		ftp://grub4dos.sarovar.org/pub/grub4dos/
 
 Get the latest source code by using anonymous svn in this way:
 
-	svn co svn://svn.gna.org/svn/grub4dos/trunk grub4dos
+	svn co http://grub4dos-chenall.googlecode.com/svn/trunk/ grub4dos
 
 or in this way:
 
-	svn co http://svn.gna.org/svn/grub4dos/trunk grub4dos
+	git clone git://github.com/chenall/GRUB4DOS.git
 
 View the source code online with your web browser at:
 
-	http://svn.gna.org/viewcvs/grub4dos/trunk/
+	http://code.google.com/p/grub4dos-chenall/source/browse/
 
 GRUB4DOS mailing list:
 
@@ -31,7 +33,11 @@ Subscription page:
 
 Discussion forum(Official technical support site):
 
-	http://www.boot-land.net/forums/index.php?showforum=66
+	Chinese:
+	http://bbs.wuyou.com/forumdisplay.php?fid=60
+	http://bbs.znpc.net/forumdisplay.php?fid=4
+	English:
+	http://reboot.pro/forum/66/
 
 ------------------------------------------------------------------------------
 

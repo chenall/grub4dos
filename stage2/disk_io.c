@@ -767,13 +767,11 @@ next_bsd_partition (/*unsigned long drive, unsigned long *partition, int *type, 
      an empty PC slice (i.e. a partition whose type is zero) as well.  */
 
 static char primary_partition_table[64];
-
+static int partition_table_type = 0;
 static int next_gpt_slice(void)
 {
-	pc_slice_no = (*next_partition_partition & 0xFF0000) >> 16;
-	if (pc_slice_no == 0xff)
-		pc_slice_no = 0;
-	else if (++pc_slice_no >= *next_partition_entry)
+redo:
+	if (++pc_slice_no >= *next_partition_entry)
 	{
 		errnum = ERR_PARTITION_LOOP;
 		return 0;
@@ -786,6 +784,9 @@ static int next_gpt_slice(void)
 		errnum = ERR_NO_PART;
 		return 0;
 	}
+	//skip MS_Reserved Partition
+	if (memcmp(next_partition_buf + 0x80 * (pc_slice_no & 3),"\x16\xE3\xC9\xE3\x5C\x0B\xB8\x4D\x81\x7D\xF9\x2D\xF0\x02\x15\xAE",16) == 0)
+	goto redo;
 	/*
 		tmp_start      First LBA (little-endian) .
 		tmp_start + 1  Last LBA.
@@ -812,9 +813,9 @@ static int is_gpt_part(void)
 	{
 		return 0;
 	}
-	*next_partition_ext_offset = 0x494645;//EFI
 	*next_partition_offset = *(unsigned long *)&tmp_buf[72];/* Partition entries starting LBA */
 	*next_partition_entry = *(unsigned long *)&tmp_buf[80];/* Number of partition entries */
+	partition_table_type = 0xEE;
 	return 1;
 }
 
@@ -833,10 +834,15 @@ redo:
       /* If this is the first time...  */
       if (pc_slice_no == 0xFF)
 	{
+	  partition_table_type = 0;
 	  *next_partition_offset = 0;
 	  *next_partition_ext_offset = 0;
 	  *next_partition_entry = -1;
 	  pc_slice_no = -1;
+	}
+	else if (partition_table_type == 0xEE)
+	{
+		return next_gpt_slice();
 	}
 
       /* Read the MBR or the boot sector of the extended partition.  */
@@ -1045,7 +1051,7 @@ next_partition (/*unsigned long drive, unsigned long dest,
       /* Ignore the error.  */
       errnum = ERR_NONE;
     }
-  return (*next_partition_ext_offset == 0x494645)?next_gpt_slice():next_pc_slice ();
+  return next_pc_slice ();
 }
 
 static void
