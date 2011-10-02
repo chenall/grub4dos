@@ -2674,7 +2674,18 @@ restart_config:
 #ifdef SUPPORT_GFX
 		if (num_entries && ! errnum && *graphics_file && !password && show_menu && grub_timeout)
 		{
+		  unsigned long pxe_restart_config_bak = pxe_restart_config;
+
+#ifndef GRUB_UTIL
+		  pxe_restart_config = 1;	/* for configfile to work with gfxmenu. */
+#endif /* ! GRUB_UTIL */
+
 		  run_graphics_menu((char *)titles, cur_entry, num_entries, config_entries + config_len, default_entry);
+
+#ifndef GRUB_UTIL
+		  pxe_restart_config = pxe_restart_config_bak;	/* restore the original value. */
+#endif /* ! GRUB_UTIL */
+
 		}
 #endif
 		DEBUG_SLEEP
