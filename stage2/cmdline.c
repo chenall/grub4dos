@@ -240,13 +240,13 @@ int expand_var(const char *str,char *out,const unsigned int len_max)
 
 int run_line (char *heap,int flags)
 {
-//	char *p;
 	char *arg = heap;
-	int ret = 0;
+#define ret *(int*)0x4cb00
+//	int ret = 0;
 	int status = 0;
 	struct builtin *builtin;
 	int status_t = 0;
-//	int stat_bak = putchar_st.flag;
+	int i;
 	grub_error_t errnum_old = errnum;
 	char cmdline_buf[1500];
 	expand_var(heap,cmdline_buf,1500);
@@ -262,30 +262,30 @@ int run_line (char *heap,int flags)
 		switch(status_t)
 		{
 			case 1:// operator "|"
-				ret = grub_strlen(arg);
-				grub_memmove(CMD_BUFFER,arg,ret);
+				i = grub_strlen(arg);
+				grub_memmove(CMD_BUFFER,arg,i);
 				arg = skip_to (0, arg);
 				if (*arg == 0)
-					CMD_BUFFER[ret++] = ' ';
+					CMD_BUFFER[i++] = ' ';
 				if (putchar_st.addr >= PRINTF_BUFFER + 0xC00)
 				{
 					putchar_st.addr = PRINTF_BUFFER + 0xC00;
 				}
-				grub_memmove(CMD_BUFFER + ret,PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER);
+				grub_memmove(CMD_BUFFER + i,PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER);
 				arg = CMD_BUFFER;
 				break;
 			case 2:// operator ">"
 			case 3:// operator ">>"
 				if (substring(arg,"nul",1) == 0)
 					goto restart_st;
-				ret = no_decompression;
+				i = no_decompression;
 				no_decompression = 1;
 				if (! grub_open (arg))
 				{
-					no_decompression = ret;
+					no_decompression = i;
 					goto check_status;
 				}
-				no_decompression = ret;
+				no_decompression = i;
 				if (status_t & 1)//>> append
 				{
 					char *f_buf = CMD_BUFFER;
@@ -312,7 +312,6 @@ int run_line (char *heap,int flags)
 
 				restart_st:
 				errnum = errnum_old;
-				ret = *(int*)0x4CB00;
 				goto check_status;
 			default:
 				break;
@@ -341,7 +340,6 @@ int run_line (char *heap,int flags)
 			ret = command_func (arg,flags);
 
 		errnum_old = errnum;
-		*(int*)0x4CB00=ret;
 
 		if (status & 8)
 		{
@@ -352,10 +350,10 @@ int run_line (char *heap,int flags)
 		}
 
 		check_status:
-		if (errnum == -2)
+		if (*CMD_RUN_ON_EXIT == '\xEB')
 		{
-			sprintf(CMD_RUN_ON_EXIT,"%.230s",arg);
 			errnum = -1;
+			sprintf(CMD_RUN_ON_EXIT+1,"%.224s",arg);
 			break;
 		}
 		if (errnum >= 1255 || status == 0 || (status & 12))
@@ -368,15 +366,13 @@ int run_line (char *heap,int flags)
 		}
 		status_t = 0;
 		errnum = ERR_NONE;
-		if ((status == 1 && ret == 0) || (status == 2 && ret))
+		if ((status == 1 && !ret) || (status == 2 && ret))
 		{
 			heap = skip_to_next_cmd(heap,&status,4);
 		}
 	}
-//	quit:
-//	putchar_st.flag = stat_bak;
-//	putchar_st.addr = PRINTF_BUFFER;
 	return (errnum > 0 && errnum<MAX_ERR_NUM)?0:ret;
+#undef ret
 }
 #undef PRINTF_BUFFER 
 

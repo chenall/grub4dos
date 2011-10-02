@@ -3348,12 +3348,12 @@ static struct builtin builtin_color =
 static int
 configfile_func (char *arg, int flags)
 {
-	if (flags & BUILTIN_BAT_SCRIPT)
+	if (flags & BUILTIN_USER_PROG)
 	{
 		if (! grub_open (arg))
 				return 0;
 		grub_close();
-		return (errnum = -2);
+		return (*CMD_RUN_ON_EXIT= '\xEB');
 	}
   char *new_config = config_file;
 
@@ -5364,10 +5364,11 @@ command_func (char *arg, int flags)
 	pid = grub_exec_run(program, flags);
 	/* on exit, release the memory. */
 	grub_free(psp);
-	if (errnum == -1)//errnum = -1 on exit run.
+	if (*CMD_RUN_ON_EXIT)//errnum = -1 on exit run.
 	{
 		errnum = 0;
-		pid = run_line(CMD_RUN_ON_EXIT,flags);
+		*CMD_RUN_ON_EXIT = 0;
+		pid = run_line(CMD_RUN_ON_EXIT+1,flags);
 	}
 	return pid;
 #endif
@@ -15593,7 +15594,7 @@ static int bat_find_label(char *label)
 
 static int bat_get_args(char *arg,char *buff,int flags)
 {
-	char *p = ((char *)0x4CB08);
+	char *p = ((char *)0x4CA40);
 	char *s1 = buff;
 
 	if (*arg == '(')
@@ -15613,7 +15614,8 @@ static int bat_get_args(char *arg,char *buff,int flags)
 		{
 			while ((*p++ = *arg++) != ')')
 				;
-			case_convert((char*)0x4cb08,'A');
+			*p = 0;
+			case_convert((char*)0x4CA40,'A');
 		}
 	}
 	else if (flags & 0xff) // if is Param 0
@@ -15628,10 +15630,10 @@ static int bat_get_args(char *arg,char *buff,int flags)
 	}
 	if (*arg != '/')
 		*p++ = '/';
-	if (p + strlen(arg) >= (char *)0x4CC00)
+	if (p + strlen(arg) >= (char *)0x4CA40 + 0xA0)
 		goto quit;
 	sprintf(p,"%s",arg);
-	p = ((char *)0x4CB08);
+	p = ((char *)0x4CA40);
 	flags >>= 8;
 	if (flags & 0x10)
 	{
@@ -15712,7 +15714,10 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		filename = arg;
 		arg = skip_to(SKIP_WITH_TERMINATE | 1,arg);
 		if ((i = bat_find_label(filename)) == 0)
+		{
+			errnum = ERR_BAT_CALL;
 			return 0;
+		}
 	}
 
 	char **p_entry = bat_entry + i;
@@ -15885,7 +15890,6 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		p_entry++;
 	}
 	i = errnum; //save errnum.
-	sprintf(ADDR_RET_STR,"%d",i);
 	/*release memory. */
 	while (bc != cc && cc != sc) //restore SETLOCAL
 		endlocal_func(NULL,1);
@@ -15893,15 +15897,15 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	batch_args = backup_args;
 	grub_free(cmd_buff);
 	errnum = (i == 1000) ? 0 : i;
-	return errnum?0:1;
+	return errnum?0:ret;
 }
 
 
 static int goto_func(char *arg, int flags)
 {
-	errnum = ERR_BAT_GOTO;
 	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
 	{
+		errnum = ERR_BAT_GOTO;
 		return bat_find_label(arg);
 	}
 	else
@@ -15917,9 +15921,10 @@ static struct builtin builtin_goto =
 
 static int call_func(char *arg,int flags)
 {
-//	errnum = ERR_BAT_CALL;
 	if (*arg==':')
+	{
 		return bat_run_script(NULL, arg, flags);
+	}
 	if (*(short *)arg == 0x6E46)
 	{
 		int func;
@@ -16014,7 +16019,6 @@ static int grub_exec_run(char *program, int flags)
 		/* kernel image is destroyed, so invalidate the kernel */
 	if (kernel_type < KERNEL_TYPE_CHAINLOADER)
 		kernel_type = KERNEL_TYPE_NONE;
-
 	/*Is a batch file? */
 	if (*(unsigned long *)program == BAT_SIGN || *(unsigned long *)program == 0x21BFBBEF)//!BAT
 	{
@@ -16061,8 +16065,7 @@ static int grub_exec_run(char *program, int flags)
 		p_bat_array->pid = ++bat_pid;
 		p_bat_array->entry = label_entry;
 		p_bat_prog = p_bat_array;
-		flags |= BUILTIN_BAT_SCRIPT;
-		pid = bat_run_script(filename, arg,flags);//run batch script from line 0;
+		pid = bat_run_script(filename, arg,flags | BUILTIN_BAT_SCRIPT | BUILTIN_USER_PROG);//run batch script from line 0;
 
 		bat_pid--;
 		p_bat_prog = p_bat_array_orig;

@@ -1,4 +1,8 @@
-﻿2011-09-28
+﻿2011-10-02
+	1.取消对fb启动盘的修正,恢复原样.
+	2.其它批处理相关代码微调.
+
+2011-09-28
 	1.修正访问磁盘分区的BUG(disk_io.c),感谢Yonsm的报告和测试.
 	  fixed a bug in disk_io.c
 	  http://bbs.wuyou.com/viewthread.php?tid=200520&extra=page%3D1

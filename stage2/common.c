@@ -917,8 +917,8 @@ set_root:
 
 #ifndef GRUB_UTIL
 #ifndef STAGE1_5
-  if (fb_status)//set boot_drive to fb_drive when boot from fbinst.
-     boot_drive = FB_DRIVE;
+//  if (fb_status)//set boot_drive to fb_drive when boot from fbinst.
+//     boot_drive = FB_DRIVE;
 
   debug = 1;
   if (! atapi_dev_count)
