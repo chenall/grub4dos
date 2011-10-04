@@ -499,8 +499,8 @@ get_diskinfo (int drive, struct geometry *geometry)
 		grub_printf (" int13/02(%X),", drive);
 #endif
 
-	/* read the boot sector: int 13, AX=0x201, CX=1, DH=0 */
-	err = biosdisk_standard (0x02, (unsigned char)drive, 0, 0, 1, 1, 0x5F00/*SCRATCHSEG*/);
+	/* read the boot sector: int 13, AX=0x201, CX=1, DH=0. Use buffer 0x20000 - 0x2FFFF */
+	err = biosdisk_standard (0x02, (unsigned char)drive, 0, 0, 1, 1, 0x2F00/*SCRATCHSEG*/);
 
 #ifndef STAGE1_5
 	if (debug > 1)
@@ -528,16 +528,16 @@ get_diskinfo (int drive, struct geometry *geometry)
 		dap->length = 0x10;
 		dap->reserved = 0;
 		dap->blocks = 1;
-		dap->buffer = 0x5F80/*SCRATCHSEG*/ << 16;
+		dap->buffer = 0x2F80/*SCRATCHSEG*/ << 16;
 		dap->block = 0;
 
 		/* set a known value */
-		grub_memset ((char *)0x5F800, 0xEC, 0x800);
+		grub_memset ((char *)0x2F800, 0xEC, 0x800);
 		version = biosdisk_int13_extensions (0x4200, (unsigned char)drive, dap);
 		/* see if it is a big sector */
 		{
 			char *p;
-			for (p = (char *)0x5FA00; p < (char *)0x60000; p++)
+			for (p = (char *)0x2FA00; p < (char *)0x30000; p++)
 			{
 				if ((*p) != (char)0xEC)
 				{
@@ -550,14 +550,14 @@ get_diskinfo (int drive, struct geometry *geometry)
 		}
 		if ((! version) && (! err))
 		{
-			if (grub_memcmp ((char *)0x5F000, (char *)0x5F800, 0x200))
+			if (grub_memcmp ((char *)0x2F060, (char *)0x2F860, 0x150)) /* ignore BPB and partition table */
 			{
 				flags |= BIOSDISK_FLAG_BIFURCATE;
 			}
 		}
 		if (err && ! (flags & BIOSDISK_FLAG_BIFURCATE) && !(flags & BIOSDISK_FLAG_CDROM))
 		{
-			grub_memmove ((char *)0x5F000, (char *)0x5F800, 0x200);
+			grub_memmove ((char *)0x2F000, (char *)0x2F800, 0x200);
 		}
 
 	} /* if (geometry->flags & BIOSDISK_FLAG_LBA_EXTENSION) */
@@ -601,7 +601,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 	    if (drive & 0x80)
 	    {
 		    /* hard disk */
-		    if ((err = probe_mbr((struct master_and_dos_boot_sector *)0x5F000/*SCRATCHADDR*/, 0, total_sectors, 0)))
+		    if ((err = probe_mbr((struct master_and_dos_boot_sector *)0x2F000/*SCRATCHADDR*/, 0, total_sectors, 0)))
 		    {
 			    if (debug > 1)
 				    grub_printf ("\nWarning: Unrecognized partition table for drive %X. Please rebuild it using\na Microsoft-compatible FDISK tool(err=%d). Current C/H/S=%d/%d/%d\n", drive, err, geometry->cylinders, geometry->heads, geometry->sectors);
@@ -610,7 +610,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 		    err = (int)"MBR";
 	    }else{
 		    /* floppy */
-		    if (probe_bpb((struct master_and_dos_boot_sector *)0x5F000/*SCRATCHADDR*/))
+		    if (probe_bpb((struct master_and_dos_boot_sector *)0x2F000/*SCRATCHADDR*/))
 		    {
 			    goto failure_probe_boot_sector;
 		    }

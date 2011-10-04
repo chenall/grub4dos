@@ -3538,7 +3538,7 @@ dd_func (char *arg, int flags)
   unsigned long long in_filemax;
   unsigned long long out_filepos;
   unsigned long long out_filemax;
-  unsigned long long buf_addr = 0x20000ULL;
+  unsigned long long buf_addr = 0x100000ULL; /* 1M */
   unsigned long long buf_size = 0x10000ULL;
   char tmp_in_file[16];
   char tmp_out_file[16];

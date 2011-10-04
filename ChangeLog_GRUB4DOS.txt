@@ -1,3 +1,4 @@
+2011-10-03 (tinybit)changed buf_addr from 0x20000 to 0x100000 to avoid possible conflict between dd_func and get_diskinfo.
 2011-10-01 (tinybit)resolved conflicts between gfxmenu and configfile.
 2011-09-28 (chenall)fixed partition enumeration problem(important!)(disk_io.c).
 2011-09-16 (tinybit)disabled ELCR code for ASUS eee PC 1215B.
