@@ -3471,7 +3471,7 @@ configfile_func (char *arg, int flags)
   
   saved_entryno = 0;
   //force_cdrom_as_boot_device = 0;
-  if (current_drive != 0xFFFF)
+  if (current_drive != 0xFFFF && (current_drive != ram_drive || filemax != rd_size))
   {
     boot_drive = current_drive;
     install_partition = current_partition;
@@ -5083,7 +5083,7 @@ static int grub_mod_list(const char *name)
    {
       if (*name == '\0' || substring(name,p_mod->name,1) == 0)
       {
-         if (debug)
+         if (debug > 0)
             grub_printf(" %s\n",p_mod->name);
          ret++;
       }
@@ -5229,8 +5229,6 @@ command_func (char *arg, int flags)
 	}
 #endif
 
-
-#if 1
 	char *psp;
 	unsigned long psp_len;
 	unsigned long prog_len;
@@ -5361,126 +5359,19 @@ command_func (char *arg, int flags)
 	*(unsigned long *)(program - 24) = program - filename; 
 	/* (free_mem_start + pid - 16) is reserved for full pathname of the program file. */
 	int pid;
+	++prog_pid;
 	pid = grub_exec_run(program, flags);
 	/* on exit, release the memory. */
 	grub_free(psp);
-	if (*CMD_RUN_ON_EXIT)//errnum = -1 on exit run.
+	if (!(--prog_pid) && *CMD_RUN_ON_EXIT)//errnum = -1 on exit run.
 	{
 		errnum = 0;
 		*CMD_RUN_ON_EXIT = 0;
 		pid = run_line(CMD_RUN_ON_EXIT+1,flags);
 	}
 	return pid;
-#endif
-#if 0
-	/* check if we have enough memory. */
-  {
-	unsigned long long memory_needed;
-
-	arg = skip_to (0, arg);		/* get argument of command */
-	memory_needed = filemax + ((grub_strlen (arg) + 16) & ~0xF) + 16 + 16;
-
-	/* The amount of free memory is (free_mem_end - free_mem_start) */
-
-	if (memory_needed > (free_mem_end - free_mem_start))
-	{
-		errnum = ERR_WONT_FIT;
-		goto fail;
-	}
-  }
-
-  /* Where is the free memory? build PSP, load the executable image. */
-  {
-	unsigned long pid = 255;
-	unsigned long j;
-	unsigned long psp_len;
-	for (j = 1; &mem_alloc_array_start[j] < mem_alloc_array_end && mem_alloc_array_start[j].addr; j++)
-	    if (pid < mem_alloc_array_start[j].pid)
-		pid = mem_alloc_array_start[j].pid;
-	pid++;	/* new pid. */
-
-	/* j - 1 is possibly for free memory start */
-	--j;
-
-	if ((mem_alloc_array_start[j].addr & 0x01))	/* no free memory. */
-	{
-		errnum = ERR_WONT_FIT;
-		goto fail;
-	}
-
-	/* check sanity */
-	if ((mem_alloc_array_start[j].addr & 0xFFFFFFF0) != free_mem_start)
-	{
-		errnum = ERR_INTERNAL_CHECK;
-		goto fail;
-	}
-
-	((unsigned long *)free_mem_start)[0] = psp_len = ((grub_strlen (arg) + 16) & ~0xF) + 16 + 16;
-	grub_memmove ((char *)(free_mem_start + 16), arg, grub_strlen (arg) + 1);	/* copy args into somewhere in PSP. */
-	*(unsigned long *)(free_mem_start + psp_len - 4) = psp_len;		/* PSP length in bytes. it is in both the starting dword and the ending dword of the PSP. */
-	*(unsigned long *)(free_mem_start + psp_len - 8) = psp_len - 16;	/* args is here. */
-	*(unsigned long *)(free_mem_start + psp_len - 12) = flags;		/* flags is here. */
-	/* (free_mem_start + pid - 16) is reserved for full pathname of the program file. */
-
-	/* kernel image is destroyed, so invalidate the kernel */
-	if (kernel_type < KERNEL_TYPE_CHAINLOADER)
-	    kernel_type = KERNEL_TYPE_NONE;
-
-	if (grub_read ((unsigned long long)(free_mem_start + psp_len), -1ULL, 0xedde0d90) != filemax)
-	{
-		if (! errnum)
-			errnum = ERR_EXEC_FORMAT;
-		goto fail;
-	}
-	grub_close ();
-
-	/*Is a batch file? */
-	if (*(unsigned long *)(free_mem_start + psp_len) == BAT_SIGN)//!BAT
-	{
-		mem_alloc_array_start[j].addr |= 0x01;
-		mem_alloc_array_start[j].pid = pid;
-		psp_len += free_mem_start;
-		free_mem_start = psp_len + filemax + 0x1f;
-		*(int *)(int)(psp_len + filemax) = 0;
-		free_mem_start &= 0xFFFFFFF0;
-		mem_alloc_array_start[j+1].addr = free_mem_start;/*next mem_alloc_array_start*/
-		mem_alloc_array_start[j+2].addr = 0;/* end the mem_alloc_array */
-		/*run batch script*/
-		pid = script_run((char *)(int)psp_len, flags);
-		/*release memory. */
-		mem_alloc_array_start[j].pid = 0;
-		mem_alloc_array_start[j+1].addr = 0;
-		free_mem_start = (mem_alloc_array_start[j].addr &= 0xFFFFFFF0);
-		return pid;
-	}
-
-	/* check exec signature. */
-	if (*(unsigned long long *)(int)(free_mem_start + psp_len + filemax - 8) != 0xBCBAA7BA03051805ULL)
-		return ! (errnum = ERR_EXEC_FORMAT);
-
-	/* allocate all memory to the program. */
-	mem_alloc_array_start[j].addr |= 0x01;	/* the memory is now in use. */
-	mem_alloc_array_start[j].pid = pid;	/* with this pid. */
-
-	psp_len += free_mem_start;
-	free_mem_start = free_mem_end;		/* no free memory for other programs. */
-
-	/* call the new program.  (free_mem_start + psp_len) = entry point of program. */
-	pid = ((int (*)(void))(psp_len))();	/* pid holds return value. */
-
-	/* on exit, release the memory. */
-	for (j = 1; &mem_alloc_array_start[j] < mem_alloc_array_end && mem_alloc_array_start[j].addr; j++)
-		;
-	--j;
-	mem_alloc_array_start[j].pid = 0;
-	free_mem_start = (mem_alloc_array_start[j].addr &= 0xFFFFFFF0);
-	return pid;
-  }
-#endif
-  //return 1;
 
 fail:
-
   grub_close ();
   return 0;
 }
@@ -15553,10 +15444,10 @@ struct bat_label
 };
 
 /*
-bat_pid is current running batch script id.
+prog_pid is current running batch script id.
 it must the same of p_bat_prog->pid.
-the first batch bat_pid is 1,max 10.so we can run 10 of batch script one time.
-when all batch script is exit the bat_pid is 0;
+the first batch prog_pid is 1,max 10.so we can run 10 of batch script one time.
+when all batch script is exit the prog_pid is 0;
 */
 struct bat_array
 {
@@ -15567,7 +15458,7 @@ struct bat_array
 	*/
 	char *path;
 } *p_bat_prog = NULL;
-int bat_pid = 0;
+
 static char **batch_args;
 /*
 find a label in current batch script.(p_bat_prog)
@@ -15587,7 +15478,7 @@ static int bat_find_label(char *label)
 		}
 	}
 
-	if (debug)
+	if (debug > 0)
 		printf(" cannot find the batch label specified - %s\n",label);
 	return 0;
 }
@@ -15699,7 +15590,7 @@ if filename is NULL then is a call func.the first word of arg is a label.
 */
 static int bat_run_script(char *filename,char *arg,int flags)
 {
-	if (bat_pid != p_bat_prog->pid)
+	if (prog_pid != p_bat_prog->pid)
 	{
 		errnum = ERR_FUNC_CALL;
 		return 0;
@@ -15719,6 +15610,8 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			return 0;
 		}
 	}
+	else if (bat_script_debug)
+		printf("%s [%d]\n",filename,prog_pid);
 
 	char **p_entry = bat_entry + i;
 
@@ -15757,6 +15650,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	SETLOCAL *saved_bc = bc;
 	batch_args = s;
 	bc = cc; //saved for batch
+
 	while ((p_bat = *p_entry))//copy cmd_line to p_buff and then run it;
 	{
 		p_cmd = p_buff;
@@ -15883,10 +15777,17 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			errnum = ERR_NONE;
 			continue;
 		}
-		if ((unsigned int)errnum >= 1000 || (errorcheck && errnum))
+		else if ((unsigned int)errnum >= 1000 )
 		{
 			break;
 		}
+		else if (errorcheck && errnum)
+		{
+			if (debug > 0)
+				printf("%s\n",p_buff);
+			break;
+		}
+
 		p_entry++;
 	}
 	i = errnum; //save errnum.
@@ -15903,9 +15804,9 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 static int goto_func(char *arg, int flags)
 {
+	errnum = ERR_BAT_GOTO;
 	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
 	{
-		errnum = ERR_BAT_GOTO;
 		return bat_find_label(arg);
 	}
 	else
@@ -16022,7 +15923,7 @@ static int grub_exec_run(char *program, int flags)
 	/*Is a batch file? */
 	if (*(unsigned long *)program == BAT_SIGN || *(unsigned long *)program == 0x21BFBBEF)//!BAT
 	{
-		if (bat_pid >= 10)
+		if (prog_pid >= 10)
 		{
 			return 0;
 		}
@@ -16062,12 +15963,11 @@ static int grub_exec_run(char *program, int flags)
 		bat_entry[i_bat] = NULL;
 		label_entry[0].label = "eof";
 		label_entry[0].line = i_bat;
-		p_bat_array->pid = ++bat_pid;
+		p_bat_array->pid = prog_pid;
 		p_bat_array->entry = label_entry;
 		p_bat_prog = p_bat_array;
 		pid = bat_run_script(filename, arg,flags | BUILTIN_BAT_SCRIPT | BUILTIN_USER_PROG);//run batch script from line 0;
 
-		bat_pid--;
 		p_bat_prog = p_bat_array_orig;
 		grub_free(p_bat_array);
 		return pid;

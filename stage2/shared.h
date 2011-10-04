@@ -761,7 +761,7 @@ struct mem_alloc_array
 
 struct mem_alloc_array *mem_alloc_array_start;
 struct mem_alloc_array *mem_alloc_array_end;
-
+extern unsigned int prog_pid;
 struct malloc_array
 {
   unsigned long addr;

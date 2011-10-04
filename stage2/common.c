@@ -271,7 +271,7 @@ int check_64bit_and_PAE ()
 
 #endif /* ! STAGE1_5 */
 #endif /* ! GRUB_UTIL */
-
+unsigned int prog_pid = 0;
 void *grub_malloc(unsigned long size)
 {
 	struct malloc_array *p_memalloc_array = malloc_array_start;
