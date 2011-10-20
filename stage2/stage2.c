@@ -140,7 +140,7 @@ print_default_help_message (char *config_entries)
       grub_printf ("\n Use the %c and %c keys to highlight an entry.",
 		   (unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
       
-      if (! auth && password)
+      if (! auth && password_buf)
 	{
 #if 0
 #ifdef SUPPORT_GFX
@@ -296,7 +296,7 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 			c = *entry++;;
 		if (! c || c == '\n')
 			goto space_no_highlight;
-		grub_putchar (c | (highlight <<16) );
+		grub_putchar (((unsigned char)c) | (unsigned)(highlight<<16));
 		c = *entry++;
 		//if (!c || c == '\n')
 		//	x = (getxy() >> 8) + 1;
@@ -788,7 +788,7 @@ restart:
 	      {
 	         if (c != silent_hiddenmenu >> 16)
 	            goto boot_entry;
-	         else if (password && check_password (password, password_type))
+	         else if (password_buf && check_password (password_buf, password_type))
 	      	{
 	      		grub_printf ("\nauth failed! Press any key to continue...");
 		      	getkey ();
@@ -907,7 +907,7 @@ restart:
 	      {
 		if (ch)
 			ch = tmp_buf[i];
-		grub_putchar (ch ? ch : ' ');
+		grub_putchar ((unsigned char)(ch ? ch : ' '));
 	      }
 //#ifdef SUPPORT_GRAPHICS
 //	      if (! graphics_inited)
@@ -1283,13 +1283,13 @@ done_key_handling:
 		break;
 	    }
 
-	  if (! auth && password)
+	  if (! auth && password_buf)
 	    {
 	      if (((char)c) == 'p')
 		{
 		  /* Do password check here! */
 		  //char entered[32];
-		  char *pptr = password;
+		  char *pptr = password_buf;
 
 		  if (current_term->flags & TERM_DUMB)
 		    grub_printf ("\r                                    ");
@@ -1311,7 +1311,7 @@ done_key_handling:
 		  /* Make sure that PASSWORD is NUL-terminated.  */
 		  *pptr++ = 0;
 
-		  if (! check_password (password, password_type))
+		  if (! check_password (password_buf, password_type))
 		    {
 		      char *new_file = config_file;
 		      while (isspace (*pptr))
@@ -2159,7 +2159,7 @@ reset (void)
 
   /* Initialize the data for the configuration file.  */
   default_entry = 0;
-  password = 0;
+  password_buf = 0;
   fallback_entryno = -1;
   fallback_entries[0] = -1;
   grub_timeout = -1;
@@ -2197,17 +2197,17 @@ restart:
     saved_entryno = 0;
     if (*config_file && boot_drive != cdrom_drive)
     {
-	char *default_file = (char *) DEFAULT_FILE_BUF;
+	//char *default_file = (char *) DEFAULT_FILE_BUF;
 
 	*default_file = 0;	/* initialise default_file */
-	grub_strncat (default_file, config_file, DEFAULT_FILE_BUFLEN);
+	grub_strncat (default_file, config_file, sizeof (default_file) /* DEFAULT_FILE_BUFLEN */);
 	{
 	    int i;
 	    for (i = grub_strlen (default_file); i >= 0; i--)
 		if (default_file[i] == '/')
 			break;
 	    default_file[++i] = 0;
-	    grub_strncat (default_file + i, "default", DEFAULT_FILE_BUFLEN - i);
+	    grub_strncat (default_file + i, "default", sizeof (default_file) /* DEFAULT_FILE_BUFLEN */ - i);
 	}
 	if (debug > 1)
 	    grub_printf("Open %s ... ", default_file);
@@ -2672,7 +2672,7 @@ restart_config:
 #endif /* ! GRUB_UTIL */
 
 #ifdef SUPPORT_GFX
-		if (num_entries && ! errnum && *graphics_file && !password && show_menu && grub_timeout)
+		if (num_entries && ! errnum && *graphics_file && !password_buf && show_menu && grub_timeout)
 		{
 		  unsigned long pxe_restart_config_bak = pxe_restart_config;
 

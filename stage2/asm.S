@@ -250,7 +250,7 @@ VARIABLE(page_map_end)
 	. = EXT_C(main) + 0xF0
 
 VARIABLE(free_mem_start)	/* unused mem starting address. */
-	.long	0x1000000	/* initially at 16M, but may increase later. */
+	.long	SYSTEM_RESERVED_MEMORY	/* may increase later. */
 
 VARIABLE(free_mem_end)		/* unused mem ending address */
 	.long	0		/* 0 for 4G(i.e., unlimited) */
@@ -11394,7 +11394,7 @@ VARIABLE(linux_data_real_addr)
 	.long	0
 
 VARIABLE(linux_bzimage_tmp_addr)
-	.long	0x1000000		/* at 16M */
+	.long	SYSTEM_RESERVED_MEMORY
 
 ENTRY(linux_boot)
 
@@ -11407,7 +11407,7 @@ ENTRY(linux_boot)
 	movl	EXT_C(linux_text_len), %ecx
 	addl	$3, %ecx
 	shrl	$2, %ecx
-	movl	EXT_C(linux_bzimage_tmp_addr), %esi	# 0x1000000
+	movl	EXT_C(linux_bzimage_tmp_addr), %esi	# SYSTEM_RESERVED_MEMORY
 	movl	$LINUX_ZIMAGE_ADDR, %edi		# 0x10000
 
 	rep movsl
@@ -11424,7 +11424,7 @@ ENTRY(big_linux_boot)
 	movl	EXT_C(linux_text_len), %ecx
 	addl	$3, %ecx
 	shrl	$2, %ecx
-	movl	EXT_C(linux_bzimage_tmp_addr), %esi	# 0x1000000
+	movl	EXT_C(linux_bzimage_tmp_addr), %esi	# SYSTEM_RESERVED_MEMORY
 	movl	$LINUX_BZIMAGE_ADDR, %edi		# 0x100000
 
 	rep movsl
@@ -11545,7 +11545,7 @@ ENTRY(console_putchar)
 #ifdef STAGE1_5
 	movb	$0x07, %bl
 #else
-	movl	EXT_C(console_current_color), %ebx
+	movl	EXT_C(current_color), %ebx
 #endif
 
 	call	EXT_C(prot_to_real)
@@ -13239,5 +13239,7 @@ VARIABLE(gzip_filemax)
 	.long 0
 	.long 0
 	//////////////////////////////
+VARIABLE(current_color)
+	.long A_NORMAL
 #endif /* ! STAGE1_5 */
 

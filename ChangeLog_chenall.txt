@@ -1,4 +1,13 @@
-﻿2011-10-02
+﻿2011-10-07
+	1.新增?_BOOT变量，访问启动GRUB4DOS的Boot_drive
+	  add new Variable ?_BOOT to access grub4dos Boot_drive.
+	2.为了节省代码GRUB4DOS内部不再处理外部命令WENV的兼容性(WENV tuxw版)
+	解决办法如下：
+	  如果需要使用该版本WENV则自己在菜单或批处理中添加以下命令
+	  write --offset=0x1f8 (md)0x228+1 ?_WENV\0
+	3.uuid 命令对于uuid字符的判断不区分大小写。
+
+2011-10-02
 	1.取消对fb启动盘的修正,恢复原样.
 	2.其它批处理相关代码微调.
 

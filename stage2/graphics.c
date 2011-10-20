@@ -71,13 +71,7 @@ extern int fonty;
 static int no_scroll = 0;
 
 /* color state */
-static int graphics_standard_color = A_NORMAL;
-static int graphics_normal_color = A_NORMAL;
-static int graphics_highlight_color = A_REVERSE;
-static int graphics_helptext_color = A_NORMAL;
-static int graphics_heading_color = A_NORMAL;
-static int graphics_current_color = A_NORMAL;
-static color_state graphics_color_state = COLOR_STATE_STANDARD;
+extern int current_color;
 
 
 /* graphics local functions */
@@ -158,10 +152,6 @@ graphics_init (void)
 
     graphics_inited = 1;
 
-    /* make sure that the highlight color is set correctly */
-    graphics_highlight_color = ((graphics_normal_color >> 4) | 
-				((graphics_normal_color & 0xf) << 4));
-
     return 1;
 }
 
@@ -178,13 +168,13 @@ graphics_end (void)
 
 /* Print ch on the screen.  Handle any needed scrolling or the like */
 void
-graphics_putchar (int ch)
+graphics_putchar (unsigned int ch)
 {
-    ch &= 0xff;
+    //ch &= 0xff;
 
     //graphics_CURSOR(0);
 
-    if (ch == '\n') {
+    if ((char)ch == '\n') {
         if (fonty + 1 < y1)
             graphics_gotoxy(fontx, fonty + 1);
         else
@@ -195,7 +185,7 @@ graphics_putchar (int ch)
 	}
         //graphics_CURSOR(1);
         return;
-    } else if (ch == '\r') {
+    } else if ((char)ch == '\r') {
         graphics_gotoxy(x0, fonty);
         //graphics_CURSOR(1);
         return;
@@ -204,13 +194,13 @@ graphics_putchar (int ch)
     //graphics_CURSOR(0);
 
     text[fonty * x1 + fontx] = ch;
-    text[fonty * x1 + fontx] &= 0x00ff;
-    if (graphics_current_color & 0xf0)
-        text[fonty * x1 + fontx] |= 0x10000;//0x100;
+    //text[fonty * x1 + fontx] &= 0x00ff;
+    //if (current_color & 0xf0)
+    //    text[fonty * x1 + fontx] |= 0x10000;//0x100;
 
     graphics_CURSOR(0);
 
-    if ((fontx + 1) >= x1)
+    if (fontx + 1 >= x1)
     {
         if (fonty + 1 < y1)
             graphics_setxy(x0, fonty + 1);
@@ -282,45 +272,6 @@ graphics_cls (void)
 
     MapMask(15);
  
-}
-
-void
-graphics_setcolorstate (color_state state)
-{
-    switch (state)
-    {
-	case COLOR_STATE_STANDARD:
-		graphics_current_color = graphics_standard_color;
-		break;
-	case COLOR_STATE_NORMAL:
-		graphics_current_color = graphics_normal_color;
-		break;
-	case COLOR_STATE_HIGHLIGHT:
-		graphics_current_color = graphics_highlight_color;
-		break;
-	case COLOR_STATE_HELPTEXT:
-		graphics_current_color = graphics_helptext_color;
-		break;
-	case COLOR_STATE_HEADING:
-		graphics_current_color = graphics_heading_color;
-		break;
-	default:
-		graphics_current_color = graphics_standard_color;
-		break;
-    }
-
-    graphics_color_state = state;
-}
-
-void
-graphics_setcolor (int normal_color, int highlight_color, int helptext_color, int heading_color)
-{
-    graphics_normal_color = normal_color;
-    graphics_highlight_color = highlight_color;
-    graphics_helptext_color = helptext_color;
-    graphics_heading_color = heading_color;
-
-    graphics_setcolorstate (graphics_color_state);
 }
 
 int
@@ -565,10 +516,10 @@ graphics_cursor (int set)
         return;
 
     offset = cursorY * x1 + fontx;
-    ch = text[fonty * x1 + fontx] & 0xff;
-    if (ch != ' ' || ! disable_space_highlight)
+    ch = text[fonty * x1 + fontx];
+    if ((char)ch != ' ' || ! disable_space_highlight)
 	invert = (text[fonty * x1 + fontx] & /*0xff00*/ 0xffff0000) != 0;
-    pat = font8x16 + (ch << 4);
+    pat = font8x16 + (((unsigned long)((unsigned char)ch)) << 4);
 
     mem = (unsigned char*)VIDEOMEM + offset;
 

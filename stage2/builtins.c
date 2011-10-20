@@ -86,7 +86,8 @@ char graphics_file[64];
 static char *mb_cmdline;// = (char *) MB_CMDLINE_BUF;
 static char kernel_option_video[64] = {0};/* initialize the first byte to 0 */
 /* The password.  */
-char *password;
+char *password_buf;
+static char password_str[128];
 /* The password type.  */
 password_t password_type;
 /* The flag for indicating that the user is authoritative.  */
@@ -263,11 +264,11 @@ check_password (char* expected, password_t type)
 	/* Wipe out any previously entered password */
 	//   entered[0] = 0;
 	memset(entered,0,sizeof(entered));
-	get_cmdline_str.prompt = "Password: ";
+	get_cmdline_str.prompt = (unsigned char*)"Password: ";
 	get_cmdline_str.maxlen = sizeof (entered) - 1;
 	get_cmdline_str.echo_char = '*';
 	get_cmdline_str.readline = 0;
-	get_cmdline_str.cmdline = entered;
+	get_cmdline_str.cmdline = (unsigned char*)entered;
 	get_cmdline (get_cmdline_str);
 	
   switch (type)
@@ -2979,8 +2980,9 @@ cmp_func (char *arg, int flags)
   nul_terminate (file2);
 
   /* Read the whole data from FILE1.  */
-  #define CMP_BUF_SIZE 0x100000ULL
-  addr1 = (char *) RAW_ADDR (0x600000);
+  // At 6M it will be unifont. Use 64K at 1M instead.
+  #define CMP_BUF_SIZE 0x8000ULL
+  addr1 = (char *) RAW_ADDR (0x100000);
   addr2 = addr1 + CMP_BUF_SIZE;
   if (! grub_open (file1))
     return 0;
@@ -4078,7 +4080,7 @@ default_func (char *arg, int flags)
 #if defined(STAGE1_5) || defined(GRUB_UTIL)
 //  char mbr[SECTOR_SIZE];
 #endif
-  char *default_file = (char *) DEFAULT_FILE_BUF;
+  //char *default_file = (char *) DEFAULT_FILE_BUF;
 
 #ifndef SUPPORT_DISKLESS
   if (grub_memcmp (arg, "saved", 5) == 0)
@@ -4127,7 +4129,7 @@ default_func (char *arg, int flags)
 
 //printf("default_func errnum=%d\n", errnum);
   len = grub_strlen (arg);
-  if (len >= DEFAULT_FILE_BUFLEN)
+  if (len >= sizeof (default_file) /* DEFAULT_FILE_BUFLEN */)
     return ! (errnum = ERR_WONT_FIT);
   
 //printf("default_func errnum=%d\n", errnum);
@@ -6152,7 +6154,7 @@ uuid_func (char *arg, int flags)
 //		saved_drive = tmp_drive;
 //		saved_partition = tmp_partition;
 		errnum = ERR_NONE;
-		return ! grub_strcmp ((char*)uuid_found, arg);
+		return ! substring ((char*)uuid_found, arg,1);
 	}
 
 //  if (! *arg && (flags & (BUILTIN_MENU | BUILTIN_SCRIPT)))
@@ -6214,7 +6216,7 @@ uuid_func (char *arg, int flags)
                                           (drive - 0x80), pc_slice, (bsd_part + 'a'), uuid_found);
                           print_fsys_type();
 		        }
-                      else if (grub_strcmp((char*)uuid_found,arg) == 0)
+                      else if (substring((char*)uuid_found,arg,1) == 0)
                         {
 		          if (bsd_part == 0xFF)
                             grub_sprintf(root_found,"(hd%d,%d)", (drive - 0x80), (unsigned long)(unsigned char)(part >> 16));
@@ -7913,7 +7915,7 @@ static struct builtin builtin_kernel =
 static int
 lock_func (char *arg, int flags)
 {
-  if (! auth && password)
+  if (! auth && password_buf)
     {
       errnum = ERR_PRIVILEGED;
       return 0;
@@ -10832,11 +10834,11 @@ md5crypt_func (char *arg, int flags)
   {
 	  /* Get a password.  */
 	  grub_memset (key, 0, sizeof (key));
-	  get_cmdline_str.prompt = "Password: ";
+	  get_cmdline_str.prompt = (unsigned char*)"Password: ";
 	  get_cmdline_str.maxlen = sizeof (key) - 1;
 	  get_cmdline_str.echo_char = '*';
 	  get_cmdline_str.readline = 0;
-	  get_cmdline_str.cmdline = key;
+	  get_cmdline_str.cmdline = (unsigned char*)key;
 	  get_cmdline (get_cmdline_str);
   }
   /* Crypt the key.  */
@@ -11491,16 +11493,16 @@ password_func (char *arg, int flags)
       len = grub_strlen (arg);
       
       /* PASSWORD NUL NUL ... */
-      if (len + 2 > PASSWORD_BUFLEN)
+      if (len + 2 > sizeof (password_str)/* PASSWORD_BUFLEN */)
 	{
 	  errnum = ERR_WONT_FIT;
 	  return 0;
 	}
       
       /* Copy the password and clear the rest of the buffer.  */
-      password = (char *) PASSWORD_BUF;
-      grub_memmove (password, arg, len);
-      grub_memset (password + len, 0, PASSWORD_BUFLEN - len);
+      password_buf = password_str;//(char *) PASSWORD_BUF;
+      grub_memmove (password_buf, arg, len);
+      grub_memset (password_buf + len, 0, sizeof (password_str)/* PASSWORD_BUFLEN */ - len);
       password_type = type;
     }
   return 1;
@@ -12592,13 +12594,14 @@ static struct builtin builtin_rootnoverify =
 static int time1;
 static int time2;
 
+char default_file[60];
+
 #if !defined(SUPPORT_DISKLESS) && !defined(GRUB_UTIL)
 static unsigned long saved_sectors[2];
 static unsigned long saved_offsets[2];
 static unsigned long saved_lengths[2];
 static unsigned long long wait;
 static unsigned long long entryno;
-static char *default_file;
 //static int c;
 static int deny_write;
 
@@ -12688,7 +12691,7 @@ savedefault_func (char *arg, int flags)
 
   blklst_num_sectors = 0;
   wait = 0;
-  default_file = (char *) DEFAULT_FILE_BUF;
+  //default_file = (char *) DEFAULT_FILE_BUF;
   time2 = -1;
   deny_write = 0;
   
@@ -14904,14 +14907,14 @@ static int echo_func (char *arg,int flags)
 	    {
 	       if (j==8)
 	       {
-	         console_current_color = A_NORMAL;
+	         current_color = A_NORMAL;
 	         printf(" L ");
 	       }
-       	       console_current_color = (i << 4) | j;
-      	       printf("%02X",console_current_color);
+       	       current_color = (i << 4) | j;
+      	       printf("%02X",current_color);
 	    }
 	 }
-	 console_current_color = A_NORMAL;
+	 current_color = A_NORMAL;
 	 if (saved_xy) gotoxy((saved_xy >> 8) & 0xff,saved_xy & 0xff);//restor cursor
 	 return 1;
       }
@@ -14935,28 +14938,39 @@ static int echo_func (char *arg,int flags)
 
    for(;*arg;arg++)
    {
-      if (*arg == '$' && arg[1] == '[' && (arg[2] == ']' || arg[6] == ']'))
+      if (*(unsigned short*)arg == 0x5B24)//$[
       {
-	 if (arg[2] == ']')
-	 {
-	    if (current_term->setcolorstate)
-	       current_term->setcolorstate (COLOR_STATE_STANDARD);
-	 }
-	 else
-	 {
-	    int char_attr = 0;
-	    char_attr |= (arg[2] == '0')?0:0x80;
-	    char_attr |= (arg[3] == '0')?0:8;
-	    char_attr |= ((arg[4] - '0') & 7) << 4;
-	    char_attr |= ((arg[5] - '0') & 7);
-	    console_current_color = char_attr;
-	    arg += 6;
-	 }
+         if (arg[2] == ']')
+         {
+            if (current_term->setcolorstate)
+                current_term->setcolorstate (COLOR_STATE_STANDARD);
+            else
+               current_color = A_NORMAL;
+            arg += 3;
+         }
+         else if (arg[3] == 'x')
+         {
+            unsigned long long ull;
+            char *p = arg + 2;
+            if (safe_parse_maxint(&p,&ull) && *p == ']')
+            {
+               current_color = (unsigned long)ull;
+               arg = p + 1;
+            }
+            errnum = 0;
+         }
+         else if (arg[6] == ']')
+         {
+            int char_attr = 0;
+            char_attr |= (arg[2] == '0')?0:0x80;
+            char_attr |= (arg[3] == '0')?0:8;
+            char_attr |= ((arg[4] - '0') & 7) << 4;
+            char_attr |= ((arg[5] - '0') & 7);
+            current_color = char_attr;
+            arg += 7;
+         }
       }
-      else
-      {
-	    grub_putchar(*arg);
-      }
+      grub_putchar((unsigned char)*arg);
    }
 
 	if ((echo_ec & 1) == 0)
@@ -15074,9 +15088,9 @@ int envi_cmd(const char *var,char * const env,int flags)
 {
 	if(flags == 3)
 	{
-		memset( (char *)BASE_ADDR, 0, MAX_BUFFER );
+		memset( (char *)BASE_ADDR, 0, 512 );
 		sprintf(VAR[_WENV_], "?_WENV");
-		sprintf(VAR[63], "?_WENV");
+		sprintf(VAR[_WENV_+1], "?_BOOT");
 		QUOTE_CHAR = '\"';
 		return 1;
 	}
@@ -15267,7 +15281,7 @@ static int set_func(char *arg, int flags)
 {
 	if( *arg == '*' )
 		return reset_env_all();
-	else if ((strcmp(VAR[_WENV_], "?_WENV") != 0 && strcmp(VAR[63], "?_WENV") != 0))
+	else if (strcmp(VAR[_WENV_], "?_WENV") != 0)
 		reset_env_all();
 	if (*arg == '@')
 		return 0;
@@ -15317,11 +15331,11 @@ static int set_func(char *arg, int flags)
 	if (convert_flag & 0x200)
 	{
 		value[0] = 0;
-		get_cmdline_str.prompt = arg;
+		get_cmdline_str.prompt = (unsigned char*)arg;
 		get_cmdline_str.maxlen = sizeof (value) - 1;
 		get_cmdline_str.echo_char = 0;
 		get_cmdline_str.readline = 1 | wait_t;
-		get_cmdline_str.cmdline = value;
+		get_cmdline_str.cmdline = (unsigned char*)value;
 		if (get_cmdline (get_cmdline_str) || !value[0])
 			return 0;
 		arg = value;
@@ -15746,7 +15760,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			}
 			else if (key == 'C')
 			{
-				commandline_func((char *)0x1000000,0);
+				commandline_func((char *)SYSTEM_RESERVED_MEMORY,0);
 			}
 		}
 
@@ -15755,7 +15769,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		if ((*(short *)0x417 & 0x104) && checkkey() == 0x2E03)
 		{
 			getkey();
-			char k;
+			unsigned char k;
 			loop_yn:
 			grub_printf("\nTerminate batch job (Y/N)? ");
 			k = getkey() & 0xDF;

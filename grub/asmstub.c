@@ -515,7 +515,7 @@ currticks (void)
 /* displays an ASCII character.  IBM displays will translate some
    characters to special graphical ones */
 void
-console_putchar (int c)
+console_putchar (unsigned int c)
 {
 #if 0
   /* Curses doesn't have VGA fonts.  */
@@ -1254,7 +1254,7 @@ serial_set_device (const char *device)
 
 /* There is no difference between console and hercules in the grub shell.  */
 void
-hercules_putchar (int c)
+hercules_putchar (unsigned int c)
 {
   console_putchar (c);
 }
@@ -1275,18 +1275,6 @@ void
 hercules_cls (void)
 {
   console_cls ();
-}
-
-void
-hercules_setcolorstate (color_state state)
-{
-  console_setcolorstate (state);
-}
-
-void
-hercules_setcolor (int normal_color, int highlight_color, int helptext_color, int heading_color)
-{
-  console_setcolor (normal_color, highlight_color, helptext_color, heading_color);
 }
 
 int

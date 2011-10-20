@@ -81,8 +81,8 @@ struct term_entry term_table[] =
       hercules_getxy,
       hercules_gotoxy,
       hercules_cls,
-      hercules_setcolorstate,
-      hercules_setcolor,
+      console_setcolorstate,
+      console_setcolor,
       hercules_setcursor,
       0,
       0
@@ -99,8 +99,8 @@ struct term_entry term_table[] =
       graphics_getxy, /* getxy */
       graphics_gotoxy, /* gotoxy */
       graphics_cls, /* cls */
-      graphics_setcolorstate, /* setcolorstate */
-      graphics_setcolor, /* setcolor */
+      console_setcolorstate, // graphics_setcolorstate, /* setcolorstate */
+      console_setcolor, // graphics_setcolor, /* setcolor */
       graphics_setcursor, /* nocursor */
       graphics_init, /* initialize */
       graphics_end /* shutdown */
@@ -220,7 +220,7 @@ void
 grub_putstr (const char *str)
 {
   while (*str)
-    grub_putchar (*str++);
+    grub_putchar ((unsigned char)*str++);
 }
 
 #if 0
@@ -277,10 +277,10 @@ grub_sprintf (char *buffer, const char *format, ...)
   unsigned long *dataptr = (unsigned long *)(((int *)(void *) &format) + 1);
   //unsigned long *dataptr = (unsigned long *)(((unsigned int *)(void *) &buffer));
 //  char c, *ptr, str[32];
-  char str[32];
-  char pad;
-  const char *ptr;
-  char *bp = buffer;
+  unsigned char str[32];
+  unsigned char pad;
+  const unsigned char *ptr;
+  unsigned char *bp = (unsigned char *)buffer;
   int width;
   unsigned int length;
   int align;
@@ -298,7 +298,7 @@ grub_sprintf (char *buffer, const char *format, ...)
 	length = 0;
 	accuracy = -1;
 	align = 0;
-	ptr = format++;
+	ptr = (const unsigned char *)format++;
 	if (*format == '-')
 	{
 		++align,++format;
@@ -341,18 +341,18 @@ grub_sprintf (char *buffer, const char *format, ...)
 	switch(*format)
 	{
 		case '%':
-			ptr = format;
+			ptr = (const unsigned char *)format;
 			accuracy = 1;
 			--width;
 			break;
 		case 'c':
 			accuracy = 1;
 			--width;
-			ptr = (char *)dataptr++;
+			ptr = (unsigned char *)dataptr++;
 			break;
 		case 's':
-			ptr = (char *)(unsigned int) (*(dataptr++));
-			length = grub_strlen(ptr);
+			ptr = (unsigned char *)(unsigned int) (*(dataptr++));
+			length = grub_strlen((char *)ptr);
 			width -= (length > accuracy)?accuracy:length;
 			break;
 		case 'd': case 'x':	case 'X':  case 'u':
@@ -361,14 +361,14 @@ grub_sprintf (char *buffer, const char *format, ...)
 
 				lo = *(dataptr++);
 				hi = (length ? (*(dataptr++)) : 0);
-				*convert_to_ascii (str, *format, lo, hi) = 0;
+				*convert_to_ascii ((char *)str, *format, lo, hi) = 0;
 			}
-			accuracy = grub_strlen (str);
+			accuracy = grub_strlen ((char *)str);
 			width -= accuracy;
 			ptr = str;
 			break;
 		default:
-			format = ptr;
+			format = (char *)ptr;
 			goto next_c;
 	}
 
@@ -409,7 +409,7 @@ grub_sprintf (char *buffer, const char *format, ...)
 	if (buffer)
 		*bp = *format;
 	else
-		grub_putchar(*format);
+		grub_putchar((unsigned char)*format);
 	++bp;
     } /* if */
     ++format;
@@ -560,7 +560,7 @@ find_specifier:
 #endif
   if (buffer)
 	*bp = 0;
-  return bp - buffer;
+  return bp - (unsigned char *)buffer;
 }
 
 
@@ -573,15 +573,15 @@ void
 init_page (void)
 {
   int i;
-  char tmp_buf[128];
-  char ch = ' ';
+  unsigned char tmp_buf[128];
+  unsigned char ch = ' ';
 
   cls ();
 
   if (current_term->setcolorstate)
       current_term->setcolorstate (COLOR_STATE_HEADING);
 
-  grub_sprintf (tmp_buf,
+  grub_sprintf ((char *)tmp_buf,
 		" GRUB4DOS " GRUB4DOS_VERSION ", Mem: %dK/%dM/%ldM, End: %X",
 		(unsigned long)saved_mem_lower,
 		(unsigned long)(saved_mem_upper >> 10),
@@ -591,7 +591,7 @@ init_page (void)
   {
 	if (ch)
 		ch = tmp_buf[i];
-	grub_putchar (ch ? ch : ' ');
+	grub_putchar ((unsigned char)(ch ? ch : ' '));
   }
 
   if (current_term->setcolorstate)
@@ -678,7 +678,7 @@ static int plen;
 /* The length of the command-line.  */
 static int llen;
 /* The working buffer for the command-line.  */
-static char *buf;
+static unsigned char *buf;
 
 static void cl_refresh (int full, int len);
 static void cl_backward (int count);
@@ -1217,8 +1217,8 @@ get_cmdline (struct get_cmdline_arg p_cmdline)
      implies TERM_NO_EDIT.  */
   if (current_term->flags & (TERM_NO_ECHO | TERM_NO_EDIT))
     {
-      char *p = p_cmdline.cmdline;
-      int c;
+      unsigned char *p = p_cmdline.cmdline;
+      unsigned int c;
       
       /* Make sure that MAXLEN is not too large.  */
       if (p_getcmdline_arg->maxlen > MAX_CMDLINE)
@@ -1622,7 +1622,7 @@ checkkey (void)
 /* Display an ASCII character.  */
 union output_status putchar_st = {{0,((char *)0x1011000)}};
 void
-grub_putchar (int c)
+grub_putchar (unsigned int c)
 {
   /* if it is a Line Feed, we insert a Carriage Return. */
 
@@ -1674,8 +1674,8 @@ grub_putchar (int c)
 	      
 		//grub_printf ("[Hit return to continue]");	/* recursive, bad!! */
 		c = (int)"[Hit Q to quit, any other key to continue]";
-		while (*(char *)c)
-		  current_term->putchar (*(char *)c++);
+		while (*(unsigned char *)c)
+		  current_term->putchar (*(unsigned char *)c++);
 
 		if ((getkey () & 0xDF) == 0x51)	/* 0x51 == 'Q' */
 			quit_print = 1;

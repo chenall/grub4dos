@@ -26,7 +26,7 @@
    console_gotoxy, console_cls, and console_nocursor.  */
 
 extern void toggle_blinking (void);
-int console_current_color = A_NORMAL;
+extern int current_color;
 static int console_standard_color = A_NORMAL;
 static int console_normal_color = A_NORMAL;
 static int console_highlight_color = A_REVERSE;
@@ -39,22 +39,22 @@ console_setcolorstate (color_state state)
 {
   switch (state) {
     case COLOR_STATE_STANDARD:
-      console_current_color = console_standard_color;
+      current_color = console_standard_color;
       break;
     case COLOR_STATE_NORMAL:
-      console_current_color = console_normal_color;
+      current_color = console_normal_color;
       break;
     case COLOR_STATE_HIGHLIGHT:
-      console_current_color = console_highlight_color;
+      current_color = console_highlight_color;
       break;
     case COLOR_STATE_HELPTEXT:
-      console_current_color = console_helptext_color;
+      current_color = console_helptext_color;
       break;
     case COLOR_STATE_HEADING:
-      console_current_color = console_heading_color;
+      current_color = console_heading_color;
       break;
     default:
-      console_current_color = console_standard_color;
+      current_color = console_standard_color;
       break;
   }
 
@@ -70,5 +70,6 @@ console_setcolor (int normal_color, int highlight_color, int helptext_color, int
   console_heading_color = heading_color;
 
   console_setcolorstate (console_color_state);
-  toggle_blinking ();
+  if (current_term == term_table)	/* console */
+	toggle_blinking ();
 }

@@ -28,13 +28,7 @@
 static int herc_x;
 static int herc_y;
 
-static int herc_standard_color = A_NORMAL;
-static int herc_normal_color = A_NORMAL;
-static int herc_highlight_color = A_REVERSE;
-static int herc_helptext_color = A_NORMAL;
-static int herc_heading_color = A_NORMAL;
-static int herc_current_color = A_NORMAL;
-static color_state herc_color_state = COLOR_STATE_STANDARD;
+extern int current_color;
 static int herc_cursor_state = 1;
 
 /* Write a byte to a port.  */
@@ -61,7 +55,7 @@ herc_set_cursor (void)
 }
 
 void
-hercules_putchar (int c)
+hercules_putchar (unsigned int c)
 {
   switch (c)
     {
@@ -87,7 +81,7 @@ hercules_putchar (int c)
 	  = (unsigned short *) HERCULES_VIDEO_ADDR;
 	
 	video[herc_y * HERCULES_WIDTH + herc_x]
-	  = (herc_current_color << 8) | c;
+	  = (current_color << 8) | c;
 	herc_x++;
 	if (herc_x >= HERCULES_WIDTH)
 	  {
@@ -139,44 +133,6 @@ hercules_gotoxy (int x, int y)
   herc_x = x;
   herc_y = y;
   herc_set_cursor ();
-}
-
-void
-hercules_setcolorstate (color_state state)
-{
-  switch (state) {
-    case COLOR_STATE_STANDARD:
-      herc_current_color = herc_standard_color;
-      break;
-    case COLOR_STATE_NORMAL:
-      herc_current_color = herc_normal_color;
-      break;
-    case COLOR_STATE_HIGHLIGHT:
-      herc_current_color = herc_highlight_color;
-      break;
-    case COLOR_STATE_HELPTEXT:
-      herc_current_color = herc_helptext_color;
-      break;
-    case COLOR_STATE_HEADING:
-      herc_current_color = herc_heading_color;
-      break;
-    default:
-      herc_current_color = herc_standard_color;
-      break;
-  }
-
-  herc_color_state = state;
-}
-
-void
-hercules_setcolor (int normal_color, int highlight_color, int helptext_color, int heading_color)
-{
-  herc_normal_color = normal_color;
-  herc_highlight_color = highlight_color;
-  herc_helptext_color = helptext_color;
-  herc_heading_color = heading_color;
-  
-  hercules_setcolorstate (herc_color_state);
 }
 
 int

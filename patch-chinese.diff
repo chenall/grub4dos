@@ -1302,15 +1302,6 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
      }
  
      font8x16 = (unsigned char *) graphics_get_font (); /* code in asm.S */
-@@ -162,7 +192,7 @@
-     graphics_highlight_color = ((graphics_normal_color >> 4) | 
- 				((graphics_normal_color & 0xf) << 4));
- 
--    return 1;
-+    return 1;	/* graphics_init success */
- }
- 
- /* Leave graphics mode */
 @@ -173,9 +203,12 @@
      {
          set_videomode (saved_videomode);
@@ -1323,22 +1314,7 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
 +
  /* Print ch on the screen.  Handle any needed scrolling or the like */
  void
- graphics_putchar (int ch)
-@@ -205,12 +238,12 @@
- 
-     text[fonty * x1 + fontx] = ch;
-     text[fonty * x1 + fontx] &= 0x00ff;
--    if (graphics_current_color & 0xf0)
-+    if (graphics_current_color == graphics_highlight_color)//if (graphics_current_color & 0xf0)
-         text[fonty * x1 + fontx] |= 0x10000;//0x100;
- 
-     graphics_CURSOR(0);
- 
--    if ((fontx + 1) >= x1)
-+    if (fontx + 1 >= x1)
-     {
-         if (fonty + 1 < y1)
-             graphics_setxy(x0, fonty + 1);
+ graphics_putchar (unsigned int ch)
 @@ -554,24 +587,100 @@
  static unsigned char chr[16 << 2];
  static unsigned char mask[16];
@@ -1363,22 +1339,22 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
  
      offset = cursorY * x1 + fontx;
 +
-     ch = text[fonty * x1 + fontx] & 0xff;
-     if (ch != ' ' || ! disable_space_highlight)
+     ch = text[fonty * x1 + fontx];
+     if ((char)ch != ' ' || ! disable_space_highlight)
  	invert = (text[fonty * x1 + fontx] & /*0xff00*/ 0xffff0000) != 0;
 +
-     pat = font8x16 + (ch << 4);
+     pat = font8x16 + (((unsigned long)((unsigned char)ch)) << 4);
  
 +    dbcs_ending_byte = 0;
 +
-+    if (ushFontReaded && ch >= 0xa1 &&
++    if (ushFontReaded && (unsigned char)ch >= 0xa1 &&
 +	   (! stg2_ptborder ||
-+		(ch != DISP_VERT &&
-+		 ch != DISP_UR &&
-+		 ch != DISP_LL &&
-+		 ch != DISP_HORIZ &&
-+		 ch != DISP_LR &&
-+		 ch != DISP_UL
++		((unsigned char)ch != DISP_VERT &&
++		 (unsigned char)ch != DISP_UR &&
++		 (unsigned char)ch != DISP_LL &&
++		 (unsigned char)ch != DISP_HORIZ &&
++		 (unsigned char)ch != DISP_LR &&
++		 (unsigned char)ch != DISP_UL
 +		)
 +	   )
 +       )
@@ -1419,9 +1395,9 @@ diff -Naur grub-0.97_splash/stage2/graphics.c grub-0.97_chinese/stage2/graphics.
 +		{
 +			graphics_putchar (' ');
 +			text[fonty * x1 + fontx] = ch;
-+			text[fonty * x1 + fontx] &= 0x00ff;
-+			if (graphics_current_color == graphics_highlight_color)//if (graphics_current_color & 0xf0)
-+				text[fonty * x1 + fontx] |= 0x10000;//0x100;
++			//text[fonty * x1 + fontx] &= 0x00ff;
++			//if (current_color == console_highlight_color)//if (current_color & 0xf0)
++			//	text[fonty * x1 + fontx] |= 0x10000;//0x100;
 +		}
 +		return;
 +	}

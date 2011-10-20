@@ -1495,7 +1495,7 @@ static void print_name(char* s,int len)
   int i;
 
   for (i=0;i<len;i++)
-    putchar(s[i*2]);
+    putchar((unsigned char)(s[i*2]));
 }
 
 void print_runlist(char *run)

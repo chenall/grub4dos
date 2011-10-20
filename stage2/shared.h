@@ -50,6 +50,12 @@ extern char *grub_scratch_mem;
 
 #define MAXINT     0xFFFFFFFF
 
+/*
+ *  Reserved memory by grub4dos system kernel
+ */
+
+#define SYSTEM_RESERVED_MEMORY     0x2000000
+
 /* Maximum command line size. Before you blindly increase this value,
    see the comment in char_io.c (get_cmdline).  */
 #define MAX_CMDLINE 1600
@@ -126,43 +132,43 @@ extern char *grub_scratch_mem;
 #define MB_CMDLINE_BUFLEN	0x6000
 #endif
 
-/* The buffer for the password.  */
-#ifdef GRUB_UTIL
-#define PASSWORD_BUF		RAW_ADDR (0x78000)
-#else
-#define PASSWORD_BUF		RAW_ADDR (0x3E8000)
-#endif
-#define PASSWORD_BUFLEN		0x200
+//#define FSYS_BUF		0x3E0000
+//#define FSYS_BUFLEN		0x008000
 
-/* THe buffer for the filename of "/boot/grub/default".  */
-#define DEFAULT_FILE_BUF	(PASSWORD_BUF + PASSWORD_BUFLEN)
-#define DEFAULT_FILE_BUFLEN	0x60
+//#define PART_TABLE_BUF	0x3E8000
+#define PART_TABLE_BUF		(FSYS_BUF + FSYS_BUFLEN)
+#define PART_TABLE_BUFLEN	0x001000
 
-/* The buffer for the command-line.  */
-#define CMDLINE_BUF		(DEFAULT_FILE_BUF + DEFAULT_FILE_BUFLEN)
-#define CMDLINE_BUFLEN		MAX_CMDLINE
+//#define PART_TABLE_TMPBUF	0x3E9000
+#define PART_TABLE_TMPBUF	(PART_TABLE_BUF + PART_TABLE_BUFLEN)
+#define PART_TABLE_TMPBUFLEN	0x000200
 
-///* The kill buffer for the command-line.  */
-//#define KILL_BUF		(CMDLINE_BUF + CMDLINE_BUFLEN)
-//#define KILL_BUFLEN		MAX_CMDLINE
-
-/* The history buffer for the command-line.  */
-//#define HISTORY_BUF		(KILL_BUF + KILL_BUFLEN)
-#define HISTORY_BUF		(CMDLINE_BUF + CMDLINE_BUFLEN)
-#define HISTORY_SIZE		5
-#define HISTORY_BUFLEN		(MAX_CMDLINE * HISTORY_SIZE)
+//#define CMDLINE_BUF		0x3E9200
+#define CMDLINE_BUF		(PART_TABLE_TMPBUF + PART_TABLE_TMPBUFLEN)
+#define CMDLINE_BUFLEN		0x000640
 
 /* The buffer for the completion.  */
-#define COMPLETION_BUF		(HISTORY_BUF + HISTORY_BUFLEN)
-#define COMPLETION_BUFLEN	MAX_CMDLINE
+//#define COMPLETION_BUF	0x3E9840
+#define COMPLETION_BUF		(CMDLINE_BUF + CMDLINE_BUFLEN)
+#define COMPLETION_BUFLEN	0x000640
 
 /* The buffer for the unique string.  */
+//#define UNIQUE_BUF		0x3E9E80
 #define UNIQUE_BUF		(COMPLETION_BUF + COMPLETION_BUFLEN)
-#define UNIQUE_BUFLEN		MAX_CMDLINE
+#define UNIQUE_BUFLEN		0x000640
 
-/* The buffer for the menu entries.  */
-//#define MENU_BUF		(UNIQUE_BUF + UNIQUE_BUFLEN)
-//#define MENU_BUFLEN		(0x8000 + PASSWORD_BUF - MENU_BUF)
+/* The history buffer for the command-line.  */
+//#define HISTORY_BUF		0x3EA4C0
+#define HISTORY_BUF		(UNIQUE_BUF + UNIQUE_BUFLEN)
+#define HISTORY_SIZE		5
+//#define HISTORY_BUFLEN	0x001F40
+#define HISTORY_BUFLEN		(MAX_CMDLINE * HISTORY_SIZE)
+
+///* THe buffer for the filename of "/boot/grub/default".  */
+//#define DEFAULT_FILE_BUF	(PASSWORD_BUF + PASSWORD_BUFLEN)
+//#define DEFAULT_FILE_BUFLEN	0x60
+
+/* graphics.c uses 0x3A0000 - 0x3DA980 and 0x3FC000 - 0x3FF9D0 */
 
 /* The size of the drive map.  */
 #define DRIVE_MAP_SIZE		8
@@ -889,7 +895,7 @@ typedef enum
 }
 password_t;
 
-extern char *password;
+extern char *password_buf;
 extern password_t password_type;
 extern int auth;
 extern char commands[];
@@ -1025,6 +1031,7 @@ extern entry_func entry_addr;
 
 /* Enter the stage1.5/stage2 C code after the stack is set up. */
 void cmain (void);
+extern char default_file[60];
 
 /* Halt the processor (called after an unrecoverable error). */
 void stop (void) __attribute__ ((noreturn));
@@ -1176,7 +1183,7 @@ void gotoxy (int x, int y);
 
 /* Displays an ASCII character.  IBM displays will translate some
    characters to special graphical ones (see the DISP_* constants). */
-void grub_putchar (int c);
+void grub_putchar (unsigned int c);
 
 /* Wait for a keypress, and return its packed BIOS/ASCII key code.
    Use ASCII_CHAR(ret) to extract the ASCII code. */
@@ -1332,11 +1339,11 @@ extern int echo_char;
 extern int readline;
 struct get_cmdline_arg
 {
-	char *cmdline;
-	char *prompt;
-	int maxlen;
-	int echo_char;
-	int readline;
+	unsigned char *cmdline;
+	unsigned char *prompt;
+	unsigned int maxlen;
+	unsigned int echo_char;
+	unsigned int readline;
 } __attribute__ ((packed));
 extern struct get_cmdline_arg get_cmdline_str;
 int get_cmdline (struct get_cmdline_arg p_cmdline);

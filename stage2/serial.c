@@ -353,7 +353,7 @@ serial_checkkey (void)
 
 /* The serial version of grub_putchar.  */
 void
-serial_putchar (int c)
+serial_putchar (unsigned int c)
 {
   /* Keep track of the cursor.  */
   if (keep_track)

@@ -953,7 +953,8 @@ set_root:
 	}
   }
   grub_printf("Initialize variable space...\n");
-  builtin_cmd("set","@",1);/*Initialize variable space*/
+  run_line("set ?_BOOT=%@root%",1);
+//  builtin_cmd("set","?_Boot=",1);/*Initialize variable space*/
 #endif /* ! STAGE1_5 */
 #endif /* ! GRUB_UTIL */
 

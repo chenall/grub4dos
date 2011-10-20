@@ -598,7 +598,7 @@ static unsigned long pxe_read_len (unsigned long long buf, unsigned long long le
    return 0. */
 int pxe_mount (void)
 {
-  if (current_drive != PXE_DRIVE)
+  if (current_drive != PXE_DRIVE || ! pxe_entry)
     return 0;
 
   return 1;
