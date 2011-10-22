@@ -954,6 +954,7 @@ set_root:
   }
   grub_printf("Initialize variable space...\n");
   run_line("set ?_BOOT=%@root%",1);
+  memset(ADDR_RET_STR,0,0x200);
 //  builtin_cmd("set","?_Boot=",1);/*Initialize variable space*/
 #endif /* ! STAGE1_5 */
 #endif /* ! GRUB_UTIL */

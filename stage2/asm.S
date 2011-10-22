@@ -12348,12 +12348,12 @@ ENTRY(multi_boot)
 	cld
 	repz movsl
 
-	/* move image down 16M. This will destroy code at above 1M. So this
+	/* move image down to 1M. This will destroy code at above 1M. So this
 	 * function must be at below 1M, together with real-mode functions.
 	 */
 
-	movl	$0x1100000, %esi	/* 17M */
-	movl	$0x0100000, %edi	/* 01M */
+	movl	$(SYSTEM_RESERVED_MEMORY + 0x0100000), %esi
+	movl	$0x0100000, %edi				/* 1M */
 	movl	ABS(EXT_C(cur_addr)), %ecx
 	subl	%esi, %ecx
 	addl	$3, %ecx
