@@ -12016,7 +12016,8 @@ VARIABLE(cursorBuf)
  * BIOS call "INT 10H Function 0h" to set video mode
  *	Call with	%ah = 0x0
  *			%al = video mode
- *      Returns old videomode.
+ *      //Returns old videomode.
+ *	Return the current mode value stored at 0040:0049 in BIOS Data Area
  */
 ENTRY(set_videomode)
 
@@ -12024,32 +12025,53 @@ ENTRY(set_videomode)
 
 	push	%ebp
 	push	%ebx
-	push	%ecx
+	push	%esi
+	push	%edi
 
-	movb	0x10(%esp), %cl
+	movb	0x14(%esp), %cl
 
 	call	EXT_C(prot_to_real)
 
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
-	xorw	%bx, %bx
-	movb	$0xf, %ah
-	int	$0x10			/* Get Current Video mode */
-	movb	%al, %ch
+	//xorw	%bx, %bx
+	//movb	$0xf, %ah
+	//int	$0x10			/* Get Current Video mode */
+	//movb	%al, %ch
 	xorb	%ah, %ah
 	movb	%cl, %al
+	pushw	%cx
+	pushw	%ds			// DS = 0
+	pushw	%es			// ES = 0
 	int	$0x10			/* Set Video mode */
+	popw	%es			// ES = 0
+	popw	%ds			// DS = 0
+	popw	%cx
 
+	cmpb	0x449, %cl		// DS = 0
+	jne	1f
+	movw	$0x8000, %di		// use 64-byte buffer at 0000:8000
+	xorl	%eax, %eax
+	movw	$0x10, %cx		// clear the buffer
+	cld
+	rep stosl
+	movw	$0x8000, %di		// use 64-byte buffer at 0000:8000
+	movw	$0x1B00, %ax		// get current mode infomation
+	xorw	%bx, %bx		// BX=0 for return state infomation
+	int	$0x10
+	// FIXME: should confirm AL=0x1B for a successful return.
+1:
 	call	EXT_C(real_to_prot)
 	.code32
 
-	xorb	%ah, %ah
-	movb	%ch, %al
+	//xorb	%ah, %ah
+	//movb	%ch, %al
+	movb	0x449, %al
 
-	pop	%ecx
+	pop	%edi
+	pop	%esi
 	pop	%ebx
 	pop	%ebp
 	ret

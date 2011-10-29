@@ -20,10 +20,9 @@
 #include <shared.h>
 #include <term.h>
 
-#ifdef SUPPORT_GRAPHICS
-extern int disable_space_highlight;
-#endif /* SUPPORT_GRAPHICS */
-  
+/* indicates whether or not the next char printed will be highlighted */
+unsigned long is_highlight = 0;
+
 #ifdef GRUB_UTIL
 
 grub_jmp_buf restart_env;
@@ -259,63 +258,39 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 {
   int x;
   unsigned char c = 0;
-  if (entry)
-  {
-      expand_var(entry,(char *)SCRATCHADDR,0x400);
-      entry = (char *)SCRATCHADDR;
-      c = *entry++;
-  }
 
   if (current_term->setcolorstate)
     current_term->setcolorstate (highlight ? COLOR_STATE_HIGHLIGHT : COLOR_STATE_NORMAL);
   
-//  if (highlight && current_term->setcolorstate)
-//    current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+  is_highlight = 0;
 
   gotoxy (MENU_BOX_X - 1, y);
-#ifdef SUPPORT_GRAPHICS
-//  disable_space_highlight = 1;
-#endif /* SUPPORT_GRAPHICS */
-	if (highlight)
-		grub_putchar(30);
-	else
-		grub_putchar (' ');
-#ifdef SUPPORT_GRAPHICS
-//  disable_space_highlight = 0;
-#endif /* SUPPORT_GRAPHICS */
+  grub_putchar(highlight ? 30 : ' ');
 
+  if (entry)
+  {
+	expand_var (entry, (char *)SCRATCHADDR, 0x400);
+	entry = (char *)SCRATCHADDR;
+	c = *entry;
+	if (c == 8 || c == 9)
+		c = *(++entry);
+  }
   for (x = MENU_BOX_X; x < MENU_BOX_E; x = getxy() >> 8)
     {
       if (c && c != '\n' /* && x <= MENU_BOX_W*/)
 	{
-	  if (x >= (MENU_BOX_E - 1))
-	    grub_putchar (DISP_RIGHT);
-	  else
-	  {
-	  	while (c == 8 || c == 9)//(c && (c <= 0x0F))
-			c = *entry++;;
-		if (! c || c == '\n')
-			goto space_no_highlight;
-		grub_putchar (((unsigned char)c) | (unsigned)(highlight<<16));
-		c = *entry++;
-		//if (!c || c == '\n')
-		//	x = (getxy() >> 8) + 1;
-	  }
+		is_highlight = highlight;
+		grub_putchar (((unsigned char)c) /*| (unsigned)(highlight<<16)*/);
+		is_highlight = 0;
+		c = *(++entry);
 	}
       else
-      {
-space_no_highlight:
-#ifdef SUPPORT_GRAPHICS
-//	if (! disable_space_highlight)
-	      disable_space_highlight = 1;
-#endif /* SUPPORT_GRAPHICS */
+	{
 		grub_putchar (' ');
-      }
+	}
     }
-#ifdef SUPPORT_GRAPHICS
-  disable_space_highlight = 0;
-#endif /* SUPPORT_GRAPHICS */
-  //gotoxy (MENU_BOX_E - 1, y);		/* XXX: Why? */
+
+  is_highlight = 0;
 
   if (highlight && config_entries)
   {
@@ -324,6 +299,8 @@ space_no_highlight:
 	if (current_term->setcolorstate)
 	    current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 	
+	while (c && c != '\n')
+		c = *(++entry);
 
 	if (c == '\n')
 	{
@@ -332,9 +309,10 @@ space_no_highlight:
 		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
 		{
 			if (c == '\n')
-				c = *entry++;;
+				c = *(++entry);
 			gotoxy (0, j);
-			for (x = 0; x < MENU_BOX_X - 2; x++) grub_putchar (' ');
+			for (x = 0; x < MENU_BOX_X - 2; x++)
+				grub_putchar (' ');
 			for (x = 0; x <= MENU_BOX_W + 2; x++)
 			{
 				if (c && c != '\n')
@@ -342,12 +320,13 @@ space_no_highlight:
 					if (c == '\r')
 						x = 0;
 					grub_putchar (c);
-					c = *entry++;;
+					c = *(++entry);
 				}
 				else
 					grub_putchar (' ');
 			}
-			for (x = getxy() >> 8; x < current_term->chars_per_line - 1; x++) grub_putchar (' ');
+			for (x = getxy() >> 8; x < current_term->chars_per_line - 1; x++)
+				grub_putchar (' ');
 		}
 		//gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
 		//grub_putstr (++entry);

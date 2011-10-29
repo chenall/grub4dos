@@ -136,7 +136,7 @@ int hercules_setcursor (int on);
 #endif
 
 #ifdef SUPPORT_GRAPHICS
-extern int foreground, background, border, graphics_inited;
+extern unsigned long foreground, background, border, graphics_inited;
 
 void graphics_set_splash(char *splashfile);
 int set_videomode (int mode);

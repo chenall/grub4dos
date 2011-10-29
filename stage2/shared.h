@@ -54,7 +54,12 @@ extern char *grub_scratch_mem;
  *  Reserved memory by grub4dos system kernel
  */
 
-#define SYSTEM_RESERVED_MEMORY     0x2000000
+#define SYSTEM_RESERVED_MEMORY	0x2000000
+
+/* unifont start at 24M */
+#define UNIFONT_START		0x1800000
+
+#define narrow_char_indicator	(*(unsigned long *)(UNIFONT_START + ('A' << 5)))
 
 /* Maximum command line size. Before you blindly increase this value,
    see the comment in char_io.c (get_cmdline).  */
@@ -719,10 +724,19 @@ typedef enum
   ERR_HALT,
   ERR_PARTITION_LOOP,
   ERR_NOT_ENOUGH_MEMORY,
-  MAX_ERR_NUM,
-  ERR_BAT_GOTO,
-  ERR_BAT_CALL
+  ERR_NO_VBE_BIOS,
+  ERR_BAD_VBE_SIGNATURE,
+  ERR_LOW_VBE_VERSION,
+  ERR_NO_VBE_MODES,
+  ERR_SET_VBE_MODE,
+  ERR_SET_VGA_MODE,
+  ERR_LOAD_SPLASHIMAGE,
 
+  MAX_ERR_NUM,
+
+  /* these are for batch scripts and must be > MAX_ERR_NUM */
+  ERR_BAT_GOTO,
+  ERR_BAT_CALL,
 } grub_error_t;
 
 struct broder {

@@ -10166,10 +10166,9 @@ map_whole_drive:
 
   /* check whether TO is being mapped */
   //if (mem == -1)
-  for (j = 0; j < DRIVE_MAP_SIZE; j++)
+  if (! unset_int13_handler (1)) /* hooked */
+    for (j = 0; j < DRIVE_MAP_SIZE; j++)
     {
-      if (unset_int13_handler (1))
-	  continue;	/* not hooked */
       if (to != hooked_drive_map[j].from_drive)
 	  continue;
 #if 0
@@ -14200,12 +14199,12 @@ static struct builtin builtin_testvbe =
   "Test the VBE mode MODE. Hit any key to return."
 };
 
-static inline unsigned long vbe_far_ptr_to_linear (unsigned long ptr)
+static inline unsigned short * vbe_far_ptr_to_linear (unsigned long ptr)
 {
-    unsigned short seg = (ptr >> 16);
-    unsigned short off = (ptr & 0xFFFF);
+    unsigned long seg = (ptr >> 16);
+    unsigned short off = (unsigned short)(ptr /* & 0xFFFF */);
 
-    return (seg << 4) + off;
+    return (unsigned short *)((seg << 4) + off);
 }
   
 
@@ -14547,8 +14546,7 @@ vbeprobe_func (char *arg, int flags)
 	       (unsigned long)(unsigned char) (controller->version));
 
   /* Iterate probing modes.  */
-  for (mode_list
-	 = (unsigned short *) vbe_far_ptr_to_linear (controller->video_mode);
+  for (mode_list = vbe_far_ptr_to_linear (controller->video_mode);
        *mode_list != 0xFFFF;
        mode_list++)
     {
@@ -14557,10 +14555,12 @@ vbeprobe_func (char *arg, int flags)
       if (get_vbe_mode_info (*mode_list, mode) != 0x004F)
 	continue;
 
+#if 0
       /* Skip this, if this is not supported or linear frame buffer
 	 mode is not support.  */
       if ((mode->mode_attributes & 0x0081) != 0x0081)
 	continue;
+#endif
 
       if (mode_number == -1 || mode_number == *mode_list)
 	{
@@ -14579,12 +14579,13 @@ vbeprobe_func (char *arg, int flags)
 	    }
 	  
 	  if (debug > 0)
-	    grub_printf ("  0x%x: %s, %ux%ux%u\n",
+	    grub_printf ("  %X: %X, %ux%ux%u, %s\n",
 		       (unsigned long) *mode_list,
-		       model,
+		       (unsigned long) mode->mode_attributes,
 		       (unsigned long) mode->x_resolution,
 		       (unsigned long) mode->y_resolution,
-		       (unsigned long) mode->bits_per_pixel);
+		       (unsigned long) mode->bits_per_pixel,
+		       model);
 	  
 	  if (mode_number != -1)
 	    break;
@@ -14789,6 +14790,9 @@ graphicsmode_func (char *arg, int flags)
 {
 #ifdef SUPPORT_GRAPHICS
   extern unsigned long graphics_mode;
+  extern unsigned long current_x_resolution;
+  extern unsigned long current_y_resolution;
+  extern unsigned long current_bits_per_pixel;
   unsigned long long tmp_graphicsmode;
   int old_graphics_mode = graphics_mode;
 
@@ -14799,15 +14803,96 @@ graphicsmode_func (char *arg, int flags)
   }
   else if (safe_parse_maxint (&arg, &tmp_graphicsmode))
   {
-    if (tmp_graphicsmode != 0x12 && tmp_graphicsmode != 0x6A)
+    if (tmp_graphicsmode > 0xFF) /* VBE */
     {
-      errnum = ERR_BAD_ARGUMENT;
-      return 0;
+	unsigned short *mode_list;
+	unsigned long mode_found = 0;
+	unsigned long x = 0; /* x_resolution */
+	unsigned long y = 0; /* y_resolution */
+	unsigned long z = 0; /* bits_per_pixel */
+#define _X_ ((unsigned long)mode->x_resolution)
+#define _Y_ ((unsigned long)mode->y_resolution)
+#define _Z_ ((unsigned long)mode->bits_per_pixel)
+
+	/* Preset `VBE2'.  */
+	grub_memmove (controller->signature, "VBE2", 4);
+
+	/* Detect VBE BIOS.  */
+	if (get_vbe_controller_info (controller) != 0x004F)
+		return !(errnum = ERR_NO_VBE_BIOS);
+
+	if (memcmp (controller->signature, "VESA", 4) != 0)
+		return !(errnum = ERR_BAD_VBE_SIGNATURE);
+
+	if (controller->version < 0x0200)
+		return !(errnum = ERR_LOW_VBE_VERSION);
+
+    	//if ((unsigned long)tmp_graphicsmode == -1) /* mode auto detect */
+	
+	  /* Iterate probing modes.  */
+	mode_list = vbe_far_ptr_to_linear (controller->video_mode);
+	for (; *mode_list != 0xFFFF; mode_list++)
+	{
+	    if (get_vbe_mode_info (*mode_list, mode) != 0x004F)
+		continue;
+
+	    if (*mode_list <= 0xFF)
+		continue;
+
+	    if (*mode_list != 0x102)
+	    {
+	    /* Skip this, if this is not supported or linear frame buffer
+		 mode is not support. or not a graphics mode */
+	    if ((mode->mode_attributes & 0x0091) != 0x0091)
+		continue;
+
+	    if (mode->phys_base == 0)
+		continue;
+	      
+	    if (mode->memory_model != 6) /* Direct Color */
+		continue;
+	      
+	    if (mode->bits_per_pixel != 24 && mode->bits_per_pixel != 32)
+		continue;
+	    }
+	    /* ok, find out one valid mode. */
+	    if (tmp_graphicsmode == *mode_list) /* the specified mode */
+	    {
+		x = _X_;
+		y = _Y_;
+		z = _Z_;
+		mode_found = *mode_list;
+		break; /* done. */
+	    }
+	    if ((unsigned long)tmp_graphicsmode == -1 /* mode auto detect */
+		&& x * y * z <  _X_ * _Y_ * _Z_)
+	    {
+		x = _X_;
+		y = _Y_;
+		z = _Z_;
+		mode_found = *mode_list;
+	    }
+	} /* for */
+	if (mode_found <= 0xFF)
+		return !(errnum = ERR_NO_VBE_MODES);
+
+	tmp_graphicsmode = mode_found;
+	current_x_resolution = x;
+	current_y_resolution = y;
+	current_bits_per_pixel = z;
+#undef _X_
+#undef _Y_
+#undef _Z_
     }
+//    else if (tmp_graphicsmode != 0x12 && tmp_graphicsmode != 0x6A)
+//    {
+//      errnum = ERR_BAD_ARGUMENT;
+//      return 0;
+//    }
     if (graphics_mode != (unsigned long)tmp_graphicsmode)
     {
       graphics_mode = tmp_graphicsmode;
-       if (graphics_inited)
+      if (graphics_inited)
       {
 	 current_term->shutdown();
 	 current_term->startup();

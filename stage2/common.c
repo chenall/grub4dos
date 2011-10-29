@@ -152,6 +152,13 @@ char *err_list[] =
   [ERR_NOT_ENOUGH_MEMORY] = "Not enough memory",
   [ERR_BAT_GOTO] = "The syntax of GOTO is incorrect.",
   [ERR_BAT_CALL] = "The syntax of CALL is incorrect.",
+  [ERR_NO_VBE_BIOS] = "VBE not detected.",
+  [ERR_BAD_VBE_SIGNATURE] = "VESA signature not present.",
+  [ERR_LOW_VBE_VERSION] = "VBE version too old. Must be 2.0+.",
+  [ERR_NO_VBE_MODES] = "No modes detected for 24/32 bits per pixel.",
+  [ERR_SET_VBE_MODE] = "Set VBE mode failed.",
+  [ERR_SET_VGA_MODE] = "Set VGA mode failed.",
+  [ERR_LOAD_SPLASHIMAGE] = "Failed loading splashimage.",
 
 };
 
@@ -958,6 +965,9 @@ set_root:
 //  builtin_cmd("set","?_Boot=",1);/*Initialize variable space*/
 #endif /* ! STAGE1_5 */
 #endif /* ! GRUB_UTIL */
+
+  /* clear it so that the unifont looks like not yet initialized */
+  narrow_char_indicator = 0;
 
   /* Start main routine here.  */
   

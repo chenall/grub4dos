@@ -30,12 +30,12 @@
 #include <shared.h>
 #include <graphics.h>
 
-static int saved_videomode = 0;
+//static int saved_videomode = 0;
 extern unsigned char *font8x16;
 
 int outline = 0;
-int disable_space_highlight = 0;
-extern int graphics_inited;
+extern unsigned long is_highlight;
+extern unsigned long graphics_inited;
 char splashimage[64];
 
 #define VSHADOW VSHADOW1
@@ -59,9 +59,12 @@ unsigned long xpixels = 640;
 unsigned long ypixels = 480;
 unsigned long plano_size = 38400;
 unsigned long graphics_mode = 0x12;
+unsigned long current_x_resolution;
+unsigned long current_y_resolution;
+unsigned long current_bits_per_pixel;
 
 /* why do these have to be kept here? */
-int foreground = (63 << 16) | (63 << 8) | (63), background = 0, border = 0;
+unsigned long foreground = (63 << 16) | (63 << 8) | (63), background = 0, border = 0;
 
 /* current position */
 extern int fontx;
@@ -114,41 +117,122 @@ static void BitMask(int value) {
 int
 graphics_init (void)
 {
-    /* graphics mode will corrupt the extended memory. so we should
-     * invalidate the kernel_type. */
-    kernel_type = KERNEL_TYPE_NONE;
-	if (! graphics_CURSOR) graphics_CURSOR = (void *)&graphics_cursor;
+    if (! graphics_CURSOR)
+	  graphics_CURSOR = (void *)&graphics_cursor;
 	
     if (! graphics_inited)
     {
-        saved_videomode = set_videomode (graphics_mode);
+	/* get font info before seting mode! some buggy BIOSes destroyed the
+	 * red planar of the VGA on geting font info call. So we should set
+	 * mode only after the get font info call.
+	 */
+	font8x16 = (unsigned char *) graphics_get_font (); /* code in asm.S */
 
-	if (graphics_mode == 0x6A)
+	if (graphics_mode > 0xFF) /* VBE */
 	{
-		current_term->chars_per_line = x1 = 100;
-		current_term->max_lines = y1 = 37;
-		plano_size = 60000;
-		xpixels = 800;
-		ypixels = 600;
+	    if (graphics_mode == 0x102)
+	    {
+		if (set_vbe_mode (graphics_mode) != 0x004F)
+			return !(errnum = ERR_SET_VBE_MODE);
+		goto success;
+	    }
+	    if (set_vbe_mode (graphics_mode | (1 << 14)) != 0x004F)
+		return !(errnum = ERR_SET_VBE_MODE);
+
+	    /* here should read splashimage and font. */
+
+	    /* initialize using the VGA font */
+	    if (narrow_char_indicator == 0)	/* not initialized */
+	    {
+		unsigned long i, j, k;
+		/* first, initialize all chars as narrow, each with
+		 * an ugly pattern of its direct code! */
+		for (i = 0; i < 0x10000; i++)
+		{
+		    /* set the new narrow_char_indicator to -1 */
+		    *(unsigned long *)(UNIFONT_START + (i << 5)) = -1;
+		    *(unsigned short *)(UNIFONT_START + (i << 5) + 16) = i;
+		}
+		/* then, initialize ASCII chars with VGA font. */
+		for (i = 0; i < 0x7F; i++)
+		{
+		    for (j = 0; j < 8; j++)
+		    {
+			unsigned short tmp = 0;
+			for (k = 0; k < 16; k++)
+			{
+			    tmp |= (((*(unsigned char *)(font8x16 + (i << 4)) + k) >> (7 - j)) & 1) << k;
+			}
+			((unsigned short *)(UNIFONT_START + (i << 5) + 16))[j] = tmp;
+		    }
+		}
+	    }
+
+	    graphics_inited = 1;
+	    return 1;
 	}
 	else
 	{
-		current_term->chars_per_line = x1 = 80;
-		current_term->max_lines = y1 = 30;
-		plano_size = 38400;
-		xpixels = 640;
-		ypixels = 480;
+		unsigned long tmp_mode;
+		//saved_videomode = set_videomode (graphics_mode);
+		/* the mode set could fail !! */
+		if (graphics_mode == 0x12)
+		{
+			if (set_videomode (graphics_mode) != graphics_mode)
+				return !(errnum = ERR_SET_VGA_MODE);
+			current_term->chars_per_line = x1 = 80;
+			current_term->max_lines = y1 = 30;
+			xpixels = 640;
+			ypixels = 480;
+			plano_size = (640 * 480) / 8;
+		}
+		else /* 800x600x4 */
+		{
+		    if (set_videomode (graphics_mode) != graphics_mode
+			|| (*(unsigned char *)(0x8000 + 4) != graphics_mode)
+			|| (*(unsigned short *)(0x8000 + 5) != 100)
+			|| (*(unsigned char *)(0x8000 + 0x22) != 37)
+			|| (*(unsigned short *)(0x8000 + 0x23) != 16)
+			|| (*(unsigned short *)(0x8000 + 0x27) != 16)
+			|| (*(unsigned char *)(0x8000 + 0x29) != 1)
+			)
+		    {
+			/* probe 800x600x4 modes */
+			for (tmp_mode = 0x15; tmp_mode < 0x78; tmp_mode++)
+			{
+			    if (set_videomode (tmp_mode) == tmp_mode
+				&& (*(unsigned char *)(0x8000 + 4) == tmp_mode)
+				&& (*(unsigned short *)(0x8000 + 5) == 100)
+				&& (*(unsigned char *)(0x8000 + 0x22) == 37)
+				&& (*(unsigned short *)(0x8000 + 0x23) == 16)
+				&& (*(unsigned short *)(0x8000 + 0x27) == 16)
+				&& (*(unsigned char *)(0x8000 + 0x29) == 1)
+				)
+			    {
+				/* got it! */
+				graphics_mode = tmp_mode;
+				goto success;
+			    }
+			}
+			set_videomode (3);
+			return !(errnum = ERR_SET_VGA_MODE);
+		    }
+success:
+			current_term->chars_per_line = x1 = 100;
+			current_term->max_lines = y1 = 37;
+			xpixels = 800;
+			ypixels = 600;
+			plano_size = (800 * 600) / 8;
+		}
 	}
     }
 
     if (! read_image (splashimage))
     {
-        set_videomode (saved_videomode);
-        grub_printf("failed to read image\n");
-        return 0;
+	//set_videomode (3/*saved_videomode*/);
+	graphics_end ();
+	return !(errnum = ERR_LOAD_SPLASHIMAGE);
     }
-
-    font8x16 = (unsigned char *) graphics_get_font (); /* code in asm.S */
 
     graphics_inited = 1;
 
@@ -161,7 +245,7 @@ graphics_end (void)
 {
     if (graphics_inited)
     {
-        set_videomode (saved_videomode);
+        set_videomode (3/*saved_videomode*/);
         graphics_inited = 0;
     }
 }
@@ -193,7 +277,7 @@ graphics_putchar (unsigned int ch)
 
     //graphics_CURSOR(0);
 
-    text[fonty * x1 + fontx] = ch;
+    text[fonty * x1 + fontx] = (unsigned char)ch;
     //text[fonty * x1 + fontx] &= 0x00ff;
     //if (current_color & 0xf0)
     //    text[fonty * x1 + fontx] |= 0x10000;//0x100;
@@ -510,15 +594,14 @@ graphics_cursor (int set)
 {
     unsigned char *pat, *mem, *ptr;
     int i, ch, offset;
-    int invert = 0;
 
     if (set && no_scroll)
         return;
 
     offset = cursorY * x1 + fontx;
+
     ch = text[fonty * x1 + fontx];
-    if ((char)ch != ' ' || ! disable_space_highlight)
-	invert = (text[fonty * x1 + fontx] & /*0xff00*/ 0xffff0000) != 0;
+
     pat = font8x16 + (((unsigned long)((unsigned char)ch)) << 4);
 
     mem = (unsigned char*)VIDEOMEM + offset;
@@ -553,7 +636,7 @@ graphics_cursor (int set)
 
 	p = pat[i];
 
-	if (invert)
+	if (is_highlight)
 	{
 		p = ~p;
 		chr[i     ] = p;
@@ -582,16 +665,6 @@ graphics_cursor (int set)
 	c2 |= p;
 	c4 |= p;
 	c8 |= p;
-
-#if 0	
-        if (invert)
-	{
-		c1 = ~c1;
-		c2 = ~c2;
-		c4 = ~c4;
-		c8 = ~c8;
-	}
-#endif
 
 	chr[i     ] = c1;
 	chr[16 + i] = c2;
