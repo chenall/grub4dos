@@ -218,7 +218,7 @@ int expand_var(const char *str,char *out,const unsigned int len_max)
 			continue;
 		}
 		p = str + i++;
-		if (*p != '%')
+		if (*p != '%' && out+16 < out_end)
 		{
 			memmove(out,str,i);
 			out += i;

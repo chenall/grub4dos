@@ -8982,7 +8982,7 @@ map_func (char *arg, int flags)
 {
   char *to_drive;
   char *from_drive;
-  unsigned long to, from, i = 0;
+  unsigned long to, from, to_o, i = 0;
   int j;
   char *filename;
   char *p;
@@ -9569,7 +9569,7 @@ map_func (char *arg, int flags)
   to = current_drive;
   if (to == FB_DRIVE)
     to = (unsigned char)(fb_status >> 8)/* & 0xff*/;
-
+  to_o = to;
   if (! (to & 0x80) && in_situ)
 	return ! (errnum = ERR_IN_SITU_FLOPPY);
 
@@ -10221,7 +10221,15 @@ map_whole_drive:
 		if (from != ram_drive)
 			goto delete_drive_map_slot;
 	    }
-
+         for (j = 0; j < DRIVE_MAP_SIZE; j++)
+         {
+            if (to == hooked_drive_map[j].from_drive)
+            {
+               break;
+            }
+         }
+         if (j == DRIVE_MAP_SIZE)
+            to_o = to;
 	  break;
     }
 
@@ -10624,7 +10632,7 @@ map_whole_drive:
   }
   else
   /* Get the geometry. This ensures that the drive is present.  */
-  if (to != PXE_DRIVE && get_diskinfo (to, &tmp_geom))
+  if (to != PXE_DRIVE && get_diskinfo (to_o, &tmp_geom))
   {
 	return ! (errnum = ERR_NO_DISK);
   }
