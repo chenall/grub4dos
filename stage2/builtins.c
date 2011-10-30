@@ -8982,7 +8982,7 @@ map_func (char *arg, int flags)
 {
   char *to_drive;
   char *from_drive;
-  unsigned long to, from, to_o, i = 0;
+  unsigned long to, from, to_o = -1, i = 0;
   int j;
   char *filename;
   char *p;
@@ -9569,7 +9569,6 @@ map_func (char *arg, int flags)
   to = current_drive;
   if (to == FB_DRIVE)
     to = (unsigned char)(fb_status >> 8)/* & 0xff*/;
-  to_o = to;
   if (! (to & 0x80) && in_situ)
 	return ! (errnum = ERR_IN_SITU_FLOPPY);
 
@@ -10166,60 +10165,61 @@ map_whole_drive:
 
   /* check whether TO is being mapped */
   //if (mem == -1)
-  if (! unset_int13_handler (1)) /* hooked */
-    for (j = 0; j < DRIVE_MAP_SIZE; j++)
-    {
-      if (to != hooked_drive_map[j].from_drive)
-	  continue;
-#if 0
-	  if (! (hooked_drive_map[j].max_sector & 0x3F))
-	      disable_chs_mode = 1;
+   if (to != ram_drive && to != 0xffff && ! unset_int13_handler (1)) /* hooked */
+   {
+      for (j = 0; j < DRIVE_MAP_SIZE; j++)
+      {
+         if (to != hooked_drive_map[j].from_drive)
+            continue;
+         #if 0
+         if (! (hooked_drive_map[j].max_sector & 0x3F))
+         disable_chs_mode = 1;
 
-	  /* X=max_sector bit 7: read only or fake write */
-	  /* Y=to_sector  bit 6: safe boot or fake write */
-	  /* ------------------------------------------- */
-	  /* X Y: meaning of restrictions imposed on map */
-	  /* ------------------------------------------- */
-	  /* 1 1: read only=0, fake write=1, safe boot=0 */
-	  /* 1 0: read only=1, fake write=0, safe boot=0 */
-	  /* 0 1: read only=0, fake write=0, safe boot=1 */
-	  /* 0 0: read only=0, fake write=0, safe boot=0 */
+         /* X=max_sector bit 7: read only or fake write */
+         /* Y=to_sector  bit 6: safe boot or fake write */
+         /* ------------------------------------------- */
+         /* X Y: meaning of restrictions imposed on map */
+         /* ------------------------------------------- */
+         /* 1 1: read only=0, fake write=1, safe boot=0 */
+         /* 1 0: read only=1, fake write=0, safe boot=0 */
+         /* 0 1: read only=0, fake write=0, safe boot=1 */
+         /* 0 0: read only=0, fake write=0, safe boot=0 */
 
-	  if (!(read_Only | fake_write | unsafe_boot))	/* no restrictions specified */
-	  switch ((hooked_drive_map[j].max_sector & 0x80) | (hooked_drive_map[j].to_sector & 0x40))
-	  {
-		case 0xC0: read_Only = 0; fake_write = 1; unsafe_boot = 1; break;
-		case 0x80: read_Only = 1; fake_write = 0; unsafe_boot = 1; break;
-		case 0x00: read_Only = 0; fake_write = 0; unsafe_boot = 1; break;
-	      /*case 0x40:*/
-		default:   read_Only = 0; fake_write = 0; unsafe_boot = 0;
-	  }
+         if (!(read_Only | fake_write | unsafe_boot))	/* no restrictions specified */
+         switch ((hooked_drive_map[j].max_sector & 0x80) | (hooked_drive_map[j].to_sector & 0x40))
+         {
+         case 0xC0: read_Only = 0; fake_write = 1; unsafe_boot = 1; break;
+         case 0x80: read_Only = 1; fake_write = 0; unsafe_boot = 1; break;
+         case 0x00: read_Only = 0; fake_write = 0; unsafe_boot = 1; break;
+         /*case 0x40:*/
+         default:   read_Only = 0; fake_write = 0; unsafe_boot = 0;
+         }
 
-	  if (hooked_drive_map[j].max_sector & 0x40)
-	      disable_lba_mode = 1;
-#endif
+         if (hooked_drive_map[j].max_sector & 0x40)
+         disable_lba_mode = 1;
+         #endif
+         to_o = to;
+         to = hooked_drive_map[j].to_drive;
+         if (to == 0xFF && !(hooked_drive_map[j].to_cylinder & 0x4000))
+            to = 0xFFFF;		/* memory device */
+         if (start_sector == 0 && (sector_count == 0 || (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
+         {
+            sector_count = hooked_drive_map[j].sector_count;
+            heads_per_cylinder = hooked_drive_map[j].max_head + 1;
+            sectors_per_track = (hooked_drive_map[j].max_sector) & 0x3F;
+         }
+         start_sector += hooked_drive_map[j].start_sector;
 
-	  to = hooked_drive_map[j].to_drive;
-	  if (to == 0xFF && !(hooked_drive_map[j].to_cylinder & 0x4000))
-		to = 0xFFFF;		/* memory device */
-	  if (start_sector == 0 && (sector_count == 0 || (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
-	  {
-		sector_count = hooked_drive_map[j].sector_count;
-		heads_per_cylinder = hooked_drive_map[j].max_head + 1;
-		sectors_per_track = (hooked_drive_map[j].max_sector) & 0x3F;
-	  }
-	  start_sector += hooked_drive_map[j].start_sector;
-      
-	  /* If TO == FROM and whole drive is mapped, and, no map options occur, then delete the entry.  */
-	  if (to == from && read_Only == 0 && fake_write == 0 && disable_lba_mode == 0
-	      && disable_chs_mode == 0 && start_sector == 0 && (sector_count == 0 ||
-	  /* sector_count == 1 if the user uses a special method to map a whole drive, e.g., map (hd1)+1 (hd0) */
-	     (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
-	    {
-		/* yes, delete the FROM drive(with slot[i]), not the TO drive(with slot[j]) */
-		if (from != ram_drive)
-			goto delete_drive_map_slot;
-	    }
+         /* If TO == FROM and whole drive is mapped, and, no map options occur, then delete the entry.  */
+         if (to == from && read_Only == 0 && fake_write == 0 && disable_lba_mode == 0
+         && disable_chs_mode == 0 && start_sector == 0 && (sector_count == 0 ||
+         /* sector_count == 1 if the user uses a special method to map a whole drive, e.g., map (hd1)+1 (hd0) */
+         (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
+         {
+         /* yes, delete the FROM drive(with slot[i]), not the TO drive(with slot[j]) */
+            if (from != ram_drive)
+               goto delete_drive_map_slot;
+         }
          for (j = 0; j < DRIVE_MAP_SIZE; j++)
          {
             if (to == hooked_drive_map[j].from_drive)
@@ -10228,10 +10228,10 @@ map_whole_drive:
             }
          }
          if (j == DRIVE_MAP_SIZE)
-            to_o = to;
-	  break;
-    }
-
+            to_o = -1;
+         break;
+      }
+  }
   j = i;	/* save i into j */
 //grub_printf ("\n debug 4 start_sector=%lX, part_start=%lX, part_length=%lX, sector_count=%lX, filemax=%lX\n", start_sector, part_start, part_length, sector_count, filemax);
   
@@ -10629,13 +10629,16 @@ map_whole_drive:
 	tmp_geom.heads = 2;		/* does not care */
 	tmp_geom.sectors = 18;		/* does not care */
   }
-  else
-  /* Get the geometry. This ensures that the drive is present.  */
-  if (to != PXE_DRIVE && get_diskinfo (to_o, &tmp_geom))
-  {
-	return ! (errnum = ERR_NO_DISK);
-  }
-
+   else
+   {
+      if (to_o == -1)
+         to_o = to;
+      /* Get the geometry. This ensures that the drive is present.  */
+      if (to_o != PXE_DRIVE && get_diskinfo (to_o, &tmp_geom))
+      {
+         return ! (errnum = ERR_NO_DISK);
+      }
+   }
   i = j;	/* restore i from j */
   
   bios_drive_map[i].from_drive = from;
