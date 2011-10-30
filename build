@@ -87,6 +87,9 @@ ${Get_source}and now you may \"cd grub4dos\" and do a \"make\" to compile.\r\n\r
 				\r\n" > grub4dos-temp/Get_Source_of_This_Build.txt
 			fi
 		fi
+	elif [ -d .git ]; then
+		git checkout-index -a -f --prefix=../grub4dos-temp/
+		cd ..
 	else
 		rm -rf grub4dos-temp
 		files=$(echo *)

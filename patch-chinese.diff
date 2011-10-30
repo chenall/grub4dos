@@ -884,7 +884,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
 + *    These codes used for defining a proper fontfile
 + */
 +char fontfile[256];
-+static int font_func (char *arg, int flags) {
++static int fontfile_func (char *arg, int flags) {
 +	int i;
 +
 +	if (grub_strlen(arg) <= 0)
@@ -940,7 +940,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
 +static struct builtin builtin_fontfile =
 +{
 +  "fontfile",
-+  font_func,
++  fontfile_func,
 +  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_HELP_LIST,
 +  "fontfile FILE",
 +  "Specify the Chinese Font File. "
@@ -1178,10 +1178,10 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
    
  
 @@ -16052,6 +16486,7 @@
-   &builtin_fallback,
    &builtin_find,
  #ifdef SUPPORT_GRAPHICS
-+  &builtin_fontfile,			/* Chinese Support Function by Gandalf*/
+   &builtin_font,
++  &builtin_fontfile,		/* Chinese Support by Gandalf */
    &builtin_foreground,
  #endif
    &builtin_fstest,

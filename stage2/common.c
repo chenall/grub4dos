@@ -159,6 +159,8 @@ char *err_list[] =
   [ERR_SET_VBE_MODE] = "Set VBE mode failed.",
   [ERR_SET_VGA_MODE] = "Set VGA mode failed.",
   [ERR_LOAD_SPLASHIMAGE] = "Failed loading splashimage.",
+  [ERR_UNIFONT_FORMAT] = "Wrong unifont format.",
+  [ERR_UNIFONT_RELOAD] = "Unifont already loaded.",
 
 };
 
@@ -966,8 +968,12 @@ set_root:
 #endif /* ! STAGE1_5 */
 #endif /* ! GRUB_UTIL */
 
-  /* clear it so that the unifont looks like not yet initialized */
-  narrow_char_indicator = 0;
+#ifndef STAGE1_5
+#ifdef SUPPORT_GRAPHICS
+extern int font_func (char *, int);
+  font_func (NULL, 0);	/* clear the font */
+#endif /* SUPPORT_GRAPHICS */
+#endif /* ! STAGE1_5 */
 
   /* Start main routine here.  */
   

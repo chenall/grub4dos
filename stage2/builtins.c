@@ -6107,6 +6107,191 @@ static struct builtin builtin_find =
 };
 
 
+static unsigned long
+get_nibble (unsigned long c)
+{
+	unsigned long tmp;
+	tmp = ((c > '9') ? (c - 'A' + 10) : (c - '0'));
+	if (tmp & 0xFFFFFFF0)
+	{
+	    errnum = ERR_UNIFONT_FORMAT;
+	}
+	return tmp;
+}
+
+#ifdef SUPPORT_GRAPHICS
+/* font */
+/* load unifont to UNIFONT_START */
+int
+font_func (char *arg, int flags)
+{
+  unsigned long i, j, k;
+  unsigned long len;
+  unsigned long unicode;
+  unsigned long narrow_indicator;
+  unsigned char buf[80];
+  extern unsigned char *font8x16;
+
+  errnum = 0;
+  if (arg == NULL || *arg == '\0')
+	goto build_default_VGA_font;
+
+  if (! grub_open(arg))
+	return 0;
+
+  if (narrow_char_indicator)
+	return !(errnum = ERR_UNIFONT_RELOAD);
+
+  memset ((char *)0x100000, 0, 0x10000);	/* clear 64K at 1M */
+
+  while	(len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 38, 0xedde0d90))
+  {
+    if (len != 38 || buf[4] != ':')
+    {
+	errnum = ERR_UNIFONT_FORMAT;
+	break;
+    }
+    /* get the unicode value */
+    unicode = 0;
+    for (i = 0; i < 4; i++)
+    {
+	unsigned short tmp;
+	tmp = get_nibble (buf[i]);
+	if (errnum)
+	    goto close_file;
+	unicode |= (tmp << ((3 - i) << 2));
+    }
+
+    if (buf[37] == '\n')	/* narrow char */
+    {
+	/* simply put the 8x16 dot matrix at the right half */
+	for (j = 0; j < 8; j++)
+	{
+	    unsigned short tmp = 0;
+	    for (k = 0; k < 16; k++)
+	    {
+		unsigned long t = 0;
+		t = get_nibble (buf[5+(j>>2)+(k<<1)]);
+		if (errnum)
+		    goto close_file;
+		tmp |= ((t >> ((7-j) & 3)) & 1) << k;
+	    }
+	    ((unsigned short *)(UNIFONT_START + (unicode << 5) + 16))[j] = tmp;
+	}
+    }
+    else
+    {
+	/* set bit 0: this unicode char is a wide char. */
+	*(unsigned char *)(0x100000 + unicode) |= 1;	/* bit 0 */
+
+	/* read additional 32 chars and see if it end in a LF */
+	len = grub_read((unsigned long long)(unsigned int)(char*)(buf+38), 32, 0xedde0d90);
+	if (len != 32 || buf[69] != '\n')
+	{
+	    errnum = ERR_UNIFONT_FORMAT;
+	    break;
+	}
+	/* put the 16x16 dot matrix */
+	for (j = 0; j < 16; j++)
+	{
+	    unsigned short tmp = 0;
+	    for (k = 0; k < 16; k++)
+	    {
+		unsigned long t = 0;
+		t = get_nibble (buf[5+(j>>2)+(k<<2)]);
+		if (errnum)
+		    goto close_file;
+		tmp |= ((t >> ((15-j) & 3)) & 1) << k;
+	    }
+	    ((unsigned short *)(UNIFONT_START + (unicode << 5)))[j] = tmp;
+	    /* the first integer is to be checked for narrow_char_indicator */
+	    if (j == 0)
+	    {
+		/* set bit 4: this integer already used by this wide char, so
+		 * it will not be used as the narrow_char_indicator.
+		 */
+		*(unsigned char *)(0x100000 + tmp) |= 16;	/* bit 4 */
+	    }
+	}
+    }
+  } /* while */
+
+close_file:
+
+  grub_close();
+
+  /* if any error occurred, restore the default VGA font. */
+  if (errnum)
+    goto build_default_VGA_font;
+
+  /* determine narrow_char_indicator */
+  narrow_indicator = 0;
+  for (i = 1; i < 0x10000; i++)
+  {
+    if (!((*(unsigned char *)(0x100000 + i)) & 16))
+    {
+      /* not yet used by all wide chars, and got it! */
+      narrow_indicator = i;
+      break;
+    }
+  }
+  if (narrow_indicator == 0)
+  {
+    errnum = ERR_INTERNAL_CHECK;
+    goto build_default_VGA_font;
+  }
+  /* update narrow_char_indicator for each narrow char */
+  for (i = 0; i < 0x10000; i++)
+  {
+    if (!((*(unsigned char *)(0x100000 + i)) & 1))	/* not wide */
+    {
+      *(unsigned long *)(UNIFONT_START + (i << 5)) = narrow_indicator;
+    }
+  }
+
+  return 1;	/* success */
+
+build_default_VGA_font:
+  /* first, initialize all chars as narrow, each with
+   * an ugly pattern of its direct code! */
+  for (i = 0; i < 0x10000; i++)
+  {
+    /* clear the narrow_char_indicator */
+    *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
+    *(unsigned short *)(UNIFONT_START + (i << 5) + 16) = i;
+  }
+
+  /* then, initialize ASCII chars with VGA font. */
+
+  if (! font8x16)
+        font8x16 = (unsigned char *) graphics_get_font ();
+
+  for (i = 0; i < 0x7F; i++)
+  {
+    for (j = 0; j < 8; j++)
+    {
+      unsigned short tmp = 0;
+      for (k = 0; k < 16; k++)
+      {
+	tmp |= ((font8x16[(i<<4) + k] >> (7-j)) & 1) << k;
+      }
+      ((unsigned short *)(UNIFONT_START + (i << 5) + 16))[j] = tmp;
+    }
+  }
+  return !(errnum);
+}
+
+static struct builtin builtin_font =
+{
+  "font",
+  font_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_HELP_LIST,
+  "font [FILE]",
+  "Load unifont file FILE, or clear the font if no FILE specified."
+};
+#endif /* SUPPORT_GRAPHICS */
+
+
 /* uuid */
 /* List filesystem UUID in all of partitions or search for filesystem
  * with specified UUID and set the partition as root.
@@ -10165,73 +10350,73 @@ map_whole_drive:
 
   /* check whether TO is being mapped */
   //if (mem == -1)
-   if (to != ram_drive && to != 0xffff && ! unset_int13_handler (1)) /* hooked */
-   {
-      for (j = 0; j < DRIVE_MAP_SIZE; j++)
-      {
-         if (to != hooked_drive_map[j].from_drive)
-            continue;
-         #if 0
-         if (! (hooked_drive_map[j].max_sector & 0x3F))
-         disable_chs_mode = 1;
+	if (to != ram_drive && to != 0xffff && ! unset_int13_handler (1)) /* hooked */
+	{
+		for (j = 0; j < DRIVE_MAP_SIZE; j++)
+		{
+			if (to != hooked_drive_map[j].from_drive)
+				continue;
+			#if 0
+			if (! (hooked_drive_map[j].max_sector & 0x3F))
+			disable_chs_mode = 1;
 
-         /* X=max_sector bit 7: read only or fake write */
-         /* Y=to_sector  bit 6: safe boot or fake write */
-         /* ------------------------------------------- */
-         /* X Y: meaning of restrictions imposed on map */
-         /* ------------------------------------------- */
-         /* 1 1: read only=0, fake write=1, safe boot=0 */
-         /* 1 0: read only=1, fake write=0, safe boot=0 */
-         /* 0 1: read only=0, fake write=0, safe boot=1 */
-         /* 0 0: read only=0, fake write=0, safe boot=0 */
+			/* X=max_sector bit 7: read only or fake write */
+			/* Y=to_sector  bit 6: safe boot or fake write */
+			/* ------------------------------------------- */
+			/* X Y: meaning of restrictions imposed on map */
+			/* ------------------------------------------- */
+			/* 1 1: read only=0, fake write=1, safe boot=0 */
+			/* 1 0: read only=1, fake write=0, safe boot=0 */
+			/* 0 1: read only=0, fake write=0, safe boot=1 */
+			/* 0 0: read only=0, fake write=0, safe boot=0 */
 
-         if (!(read_Only | fake_write | unsafe_boot))	/* no restrictions specified */
-         switch ((hooked_drive_map[j].max_sector & 0x80) | (hooked_drive_map[j].to_sector & 0x40))
-         {
-         case 0xC0: read_Only = 0; fake_write = 1; unsafe_boot = 1; break;
-         case 0x80: read_Only = 1; fake_write = 0; unsafe_boot = 1; break;
-         case 0x00: read_Only = 0; fake_write = 0; unsafe_boot = 1; break;
-         /*case 0x40:*/
-         default:   read_Only = 0; fake_write = 0; unsafe_boot = 0;
-         }
+			if (!(read_Only | fake_write | unsafe_boot))	/* no restrictions specified */
+			switch ((hooked_drive_map[j].max_sector & 0x80) | (hooked_drive_map[j].to_sector & 0x40))
+			{
+			case 0xC0: read_Only = 0; fake_write = 1; unsafe_boot = 1; break;
+			case 0x80: read_Only = 1; fake_write = 0; unsafe_boot = 1; break;
+			case 0x00: read_Only = 0; fake_write = 0; unsafe_boot = 1; break;
+			/*case 0x40:*/
+			default:   read_Only = 0; fake_write = 0; unsafe_boot = 0;
+			}
 
-         if (hooked_drive_map[j].max_sector & 0x40)
-         disable_lba_mode = 1;
-         #endif
-         to_o = to;
-         to = hooked_drive_map[j].to_drive;
-         if (to == 0xFF && !(hooked_drive_map[j].to_cylinder & 0x4000))
-            to = 0xFFFF;		/* memory device */
-         if (start_sector == 0 && (sector_count == 0 || (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
-         {
-            sector_count = hooked_drive_map[j].sector_count;
-            heads_per_cylinder = hooked_drive_map[j].max_head + 1;
-            sectors_per_track = (hooked_drive_map[j].max_sector) & 0x3F;
-         }
-         start_sector += hooked_drive_map[j].start_sector;
+			if (hooked_drive_map[j].max_sector & 0x40)
+			disable_lba_mode = 1;
+			#endif
+			to_o = to;
+			to = hooked_drive_map[j].to_drive;
+			if (to == 0xFF && !(hooked_drive_map[j].to_cylinder & 0x4000))
+				to = 0xFFFF;		/* memory device */
+			if (start_sector == 0 && (sector_count == 0 || (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
+			{
+				sector_count = hooked_drive_map[j].sector_count;
+				heads_per_cylinder = hooked_drive_map[j].max_head + 1;
+				sectors_per_track = (hooked_drive_map[j].max_sector) & 0x3F;
+			}
+			start_sector += hooked_drive_map[j].start_sector;
 
-         /* If TO == FROM and whole drive is mapped, and, no map options occur, then delete the entry.  */
-         if (to == from && read_Only == 0 && fake_write == 0 && disable_lba_mode == 0
-         && disable_chs_mode == 0 && start_sector == 0 && (sector_count == 0 ||
-         /* sector_count == 1 if the user uses a special method to map a whole drive, e.g., map (hd1)+1 (hd0) */
-         (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
-         {
-         /* yes, delete the FROM drive(with slot[i]), not the TO drive(with slot[j]) */
-            if (from != ram_drive)
-               goto delete_drive_map_slot;
-         }
-         for (j = 0; j < DRIVE_MAP_SIZE; j++)
-         {
-            if (to == hooked_drive_map[j].from_drive)
-            {
-               break;
-            }
-         }
-         if (j == DRIVE_MAP_SIZE)
-            to_o = -1;
-         break;
-      }
-  }
+			/* If TO == FROM and whole drive is mapped, and, no map options occur, then delete the entry.  */
+			if (to == from && read_Only == 0 && fake_write == 0 && disable_lba_mode == 0
+			&& disable_chs_mode == 0 && start_sector == 0 && (sector_count == 0 ||
+			/* sector_count == 1 if the user uses a special method to map a whole drive, e.g., map (hd1)+1 (hd0) */
+			(sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
+			{
+			/* yes, delete the FROM drive(with slot[i]), not the TO drive(with slot[j]) */
+				if (from != ram_drive)
+					goto delete_drive_map_slot;
+			}
+			for (j = 0; j < DRIVE_MAP_SIZE; j++)
+			{
+				if (to == hooked_drive_map[j].from_drive)
+				{
+					break;
+				}
+			}
+			if (j == DRIVE_MAP_SIZE)
+				to_o = -1;
+			break;
+		}
+	}
   j = i;	/* save i into j */
 //grub_printf ("\n debug 4 start_sector=%lX, part_start=%lX, part_length=%lX, sector_count=%lX, filemax=%lX\n", start_sector, part_start, part_length, sector_count, filemax);
   
@@ -10629,16 +10814,16 @@ map_whole_drive:
 	tmp_geom.heads = 2;		/* does not care */
 	tmp_geom.sectors = 18;		/* does not care */
   }
-   else
-   {
-      if (to_o == -1)
-         to_o = to;
-      /* Get the geometry. This ensures that the drive is present.  */
-      if (to_o != PXE_DRIVE && get_diskinfo (to_o, &tmp_geom))
-      {
-         return ! (errnum = ERR_NO_DISK);
-      }
-   }
+	else
+	{
+		if (to_o == -1)
+			to_o = to;
+		/* Get the geometry. This ensures that the drive is present.  */
+		if (to_o != PXE_DRIVE && get_diskinfo (to_o, &tmp_geom))
+		{
+			return ! (errnum = ERR_NO_DISK);
+		}
+	}
   i = j;	/* restore i from j */
   
   bios_drive_map[i].from_drive = from;
@@ -16148,6 +16333,7 @@ struct builtin *builtin_table[] =
   &builtin_fallback,
   &builtin_find,
 #ifdef SUPPORT_GRAPHICS
+  &builtin_font,
   &builtin_foreground,
 #endif
   &builtin_fstest,

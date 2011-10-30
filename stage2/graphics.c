@@ -126,7 +126,8 @@ graphics_init (void)
 	 * red planar of the VGA on geting font info call. So we should set
 	 * mode only after the get font info call.
 	 */
-	font8x16 = (unsigned char *) graphics_get_font (); /* code in asm.S */
+	if (! font8x16)
+	    font8x16 = (unsigned char *) graphics_get_font ();
 
 	if (graphics_mode > 0xFF) /* VBE */
 	{
@@ -139,34 +140,7 @@ graphics_init (void)
 	    if (set_vbe_mode (graphics_mode | (1 << 14)) != 0x004F)
 		return !(errnum = ERR_SET_VBE_MODE);
 
-	    /* here should read splashimage and font. */
-
-	    /* initialize using the VGA font */
-	    if (narrow_char_indicator == 0)	/* not initialized */
-	    {
-		unsigned long i, j, k;
-		/* first, initialize all chars as narrow, each with
-		 * an ugly pattern of its direct code! */
-		for (i = 0; i < 0x10000; i++)
-		{
-		    /* set the new narrow_char_indicator to -1 */
-		    *(unsigned long *)(UNIFONT_START + (i << 5)) = -1;
-		    *(unsigned short *)(UNIFONT_START + (i << 5) + 16) = i;
-		}
-		/* then, initialize ASCII chars with VGA font. */
-		for (i = 0; i < 0x7F; i++)
-		{
-		    for (j = 0; j < 8; j++)
-		    {
-			unsigned short tmp = 0;
-			for (k = 0; k < 16; k++)
-			{
-			    tmp |= (((*(unsigned char *)(font8x16 + (i << 4)) + k) >> (7 - j)) & 1) << k;
-			}
-			((unsigned short *)(UNIFONT_START + (i << 5) + 16))[j] = tmp;
-		    }
-		}
-	    }
+	    /* here should read splashimage. */
 
 	    graphics_inited = 1;
 	    return 1;

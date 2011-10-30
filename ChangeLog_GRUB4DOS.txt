@@ -1,3 +1,4 @@
+2011-10-29 (tinybit)add new command 'font' for vesa fonts.(Not yet complete). 
 2011-10-22 (tinybit)bug fix on failed loading multi-boot kernel(issue 44).
 2011-10-20 (tinybit)increased SYSTEM_RESERVED_MEMORY upto 0x2000000(i.e., 32M).
 2011-10-19 (tinybit)merged console/graphics setcolor functions.
