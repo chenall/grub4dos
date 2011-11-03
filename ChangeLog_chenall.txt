@@ -1,4 +1,17 @@
-﻿2011-10-07
+﻿2011-11-03
+	1.修正一个map的bug.                     bug fixed in map_func.
+	  相关贴子:
+	  http://bbs.wuyou.com/viewthread.php?tid=201887
+	  http://bbs.wuyou.com/viewthread.php?tid=201647
+	2.忽略ISO9660文件系统上文件名的大小写.   Make name comparisoncase-insensitive on iso9660.
+	  可以使用以下命令禁用该功能.            You can use below command to disable this feature.
+	  write 0x4CA24 0
+	3.cat命令添加--locatei参数,             added --locatei option for cat.
+	  查找时忽略大小写                      ignore case locate.
+	eg.
+	  cat --locatei=Test (md)0x300+1
+
+2011-10-07
 	1.新增?_BOOT变量，访问启动GRUB4DOS的Boot_drive
 	  add new Variable ?_BOOT to access grub4dos Boot_drive.
 	2.为了节省代码GRUB4DOS内部不再处理外部命令WENV的兼容性(WENV tuxw版)

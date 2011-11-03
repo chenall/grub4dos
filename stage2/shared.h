@@ -831,8 +831,27 @@ extern int map_func (char *arg, int flags);
 
 extern void hexdump(unsigned long,char*,int);
 extern int builtin_cmd (char *cmd, char *arg, int flags);
-extern int envi_cmd(const char *var,char * const env,int flags);
 extern long realmode_run(long regs_ptr);
+
+#define MAX_USER_VARS 60
+#define MAX_VARS 64
+#define MAX_VAR_LEN	8
+#define MAX_ENV_LEN	512
+#define MAX_BUFFER	(MAX_VARS * (MAX_VAR_LEN + MAX_ENV_LEN))
+#define BASE_ADDR 0x45000
+#define VAR ((char (*)[MAX_VAR_LEN])BASE_ADDR)
+#define ENVI ((char (*)[MAX_ENV_LEN])(BASE_ADDR + MAX_VARS * MAX_VAR_LEN))
+#define _WENV_ 60
+#define WENV_RANDOM (*(unsigned long *)(ENVI[_WENV_]+0x20))
+#define FSYS_FLAGS (*(unsigned long *)(ENVI[_WENV_]+0x24))
+#define QUOTE_CHAR (*(ENVI[_WENV_]+0x30))
+#define WENV_TMP (ENVI[_WENV_]+0x40)
+#define set_envi(var, val)			envi_cmd(var, val, 0)
+//#define get_env(var, val)			envi_cmd(var, val, 1)
+#define get_env_all()				envi_cmd(NULL, NULL, 2)
+#define reset_env_all()				envi_cmd(NULL, NULL, 3)
+extern int envi_cmd(const char *var,char * const env,int flags);
+
 
 #ifndef STAGE1_5
 /* GUI interface variables. */
@@ -1312,6 +1331,10 @@ char *grub_strstr (const char *s1, const char *s2);
 char *grub_strtok (char *s, const char *delim);
 int grub_memcmp (const char *s1, const char *s2, int n);
 int grub_strcmp (const char *s1, const char *s2);
+int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitive);
+#define strncmp(s1,s2,n) strncmpx(s1,s2,n,0)
+#define strnicmp(s1,s2,n) strncmpx(s1,s2,n,1)
+#define strncmpi strnicmp
 int grub_strlen (const char *str);
 char *grub_strcpy (char *dest, const char *src);
 

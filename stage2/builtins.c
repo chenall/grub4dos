@@ -1326,6 +1326,7 @@ cat_func (char *arg, int flags)
   unsigned long long ret = 0;
 	unsigned long long number = -1ULL;
   quit_print = 0;
+  int locate_ignore_case = 0;
 
   for (;;)
   {
@@ -1351,6 +1352,11 @@ cat_func (char *arg, int flags)
 	else if (grub_memcmp (arg, "--locate=", 9) == 0)
 	{
 		locate = arg += 9;
+	}
+	else if (grub_memcmp (arg, "--locatei=", 9) == 0)
+	{
+		locate_ignore_case = 1;
+		locate = arg += 10;
 	}
 	else if (grub_memcmp (arg, "--replace=", 10) == 0)
 	{
@@ -1484,7 +1490,7 @@ cat_func (char *arg, int flags)
 			{
 				k = j - 16 + i;
 				if ((locate_align == 1 || ! ((unsigned long)k % (unsigned long)locate_align))
-					&& grub_memcmp ((char *)&s, (char *)(SCRATCHADDR + (unsigned long)i), len_s) == 0)
+					&& strncmpx ((char *)&s, (char *)(SCRATCHADDR + (unsigned long)i), len_s,locate_ignore_case) == 0)
 				{
 					/* print the address */
 					if (!replace || debug > 1)
@@ -1557,7 +1563,7 @@ static struct builtin builtin_cat =
   "cat",
   cat_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "cat [--hex] [--skip=S] [--length=L] [--locate=STRING] [--replace=REPLACE]\n"
+  "cat [--hex] [--skip=S] [--length=L] [--locate[i]=STRING] [--replace=REPLACE]\n"
   "\t [--locate-align=A] [--number=n] FILE",
   "Print the contents of the file FILE,"
   "Or print the locations of the string STRING in FILE,"
@@ -10350,7 +10356,7 @@ map_whole_drive:
 
   /* check whether TO is being mapped */
   //if (mem == -1)
-	if (to != ram_drive && to != 0xffff && ! unset_int13_handler (1)) /* hooked */
+	if ( mem == -1ULL &&  ! unset_int13_handler (1)) /* hooked */
 	{
 		for (j = 0; j < DRIVE_MAP_SIZE; j++)
 		{
@@ -10386,7 +10392,9 @@ map_whole_drive:
 			to_o = to;
 			to = hooked_drive_map[j].to_drive;
 			if (to == 0xFF && !(hooked_drive_map[j].to_cylinder & 0x4000))
-				to = 0xFFFF;		/* memory device */
+			{
+				to_o = to = 0xFFFF;		/* memory device */
+			}
 			if (start_sector == 0 && (sector_count == 0 || (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
 			{
 				sector_count = hooked_drive_map[j].sector_count;
@@ -15342,22 +15350,6 @@ static struct builtin builtin_if =
   "if [NOT] exist VARIABLE|FILENAME [COMMAND]"
 };
 
-#define MAX_USER_VARS 60
-#define MAX_VARS 64
-#define MAX_VAR_LEN	8
-#define MAX_ENV_LEN	512
-#define MAX_BUFFER	(MAX_VARS * (MAX_VAR_LEN + MAX_ENV_LEN))
-#define BASE_ADDR 0x45000
-#define VAR ((char (*)[MAX_VAR_LEN])BASE_ADDR)
-#define ENVI ((char (*)[MAX_ENV_LEN])(BASE_ADDR + MAX_VARS * MAX_VAR_LEN))
-#define _WENV_ 60
-#define WENV_RANDOM (*(unsigned long *)(ENVI[_WENV_]+0x20))
-#define QUOTE_CHAR (*(ENVI[_WENV_]+0x30))
-#define WENV_TMP (ENVI[_WENV_]+0x40)
-#define set_envi(var, val)			envi_cmd(var, val, 0)
-//#define get_env(var, val)			envi_cmd(var, val, 1)
-#define get_env_all()				envi_cmd(NULL, NULL, 2)
-#define reset_env_all()				envi_cmd(NULL, NULL, 3)
 /*
 flags:
 0 add or set

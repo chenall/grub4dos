@@ -1754,6 +1754,24 @@ setcursor (int on)
 }
 #endif /* ! STAGE1_5 */
 
+int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitive)
+{
+	while(n)
+	{
+		if (case_insensitive)
+		{
+			if (tolower(*s1) != tolower(*s2))
+				return *s1 - *s2;
+		}
+		else if (*s1 != *s2)
+		{
+			return *s1 - *s2;
+		}
+		++s1,++s2,--n;
+	}
+	return 0;
+}
+
 int
 substring (const char *s1, const char *s2, int case_insensitive)
 {
