@@ -69,7 +69,7 @@ struct term_entry
   /* Default for maximum number of lines if not specified */
   unsigned short max_lines;
   /* Put a character.  */
-  void (*putchar) (unsigned int c);
+  unsigned int (*putchar) (unsigned int c, unsigned int max_width);
   /* Check if any input character is available.  */
   int (*checkkey) (void);
   /* Get a character.  */
@@ -104,7 +104,7 @@ extern struct term_entry *current_term;
 
 /* The console stuff.  */
 extern int current_color;
-void console_putchar (unsigned int c);
+unsigned int console_putchar (unsigned int c, unsigned int max_width);
 
 #ifndef STAGE1_5
 int console_checkkey (void);
@@ -118,7 +118,7 @@ int console_setcursor (int on);
 #endif
 
 #ifdef SUPPORT_SERIAL
-void serial_putchar (unsigned int c);
+unsigned int serial_putchar (unsigned int c, unsigned int max_width);
 int serial_checkkey (void);
 int serial_getkey (void);
 int serial_getxy (void);
@@ -128,7 +128,7 @@ void serial_setcolorstate (color_state state);
 #endif
 
 #ifdef SUPPORT_HERCULES
-void hercules_putchar (unsigned int c);
+unsigned int hercules_putchar (unsigned int c, unsigned int max_width);
 int hercules_getxy (void);
 void hercules_gotoxy (int x, int y);
 void hercules_cls (void);
@@ -136,11 +136,11 @@ int hercules_setcursor (int on);
 #endif
 
 #ifdef SUPPORT_GRAPHICS
-extern unsigned long foreground, background, border, graphics_inited;
+extern unsigned long foreground, background, graphics_inited;
 
 void graphics_set_splash(char *splashfile);
 int set_videomode (int mode);
-void graphics_putchar (unsigned int c);
+unsigned int graphics_putchar (unsigned int c, unsigned int max_width);
 int graphics_getxy(void);
 void graphics_gotoxy(int x, int y);
 void graphics_cls(void);
@@ -148,8 +148,6 @@ int graphics_setcursor (int on);
 int graphics_init(void);
 void graphics_end(void);
 
-int hex(int v);
-void graphics_set_palette(int idx, int red, int green, int blue);
 #endif /* SUPPORT_GRAPHICS */
 
 #endif /* ! GRUB_TERM_HEADER */

@@ -1495,7 +1495,7 @@ static void print_name(char* s,int len)
   int i;
 
   for (i=0;i<len;i++)
-    putchar((unsigned char)(s[i*2]));
+    putchar((unsigned char)(s[i*2]), 255);
 }
 
 void print_runlist(char *run)
@@ -1510,7 +1510,7 @@ void print_runlist(char *run)
       if (first)
         first=0;
       else
-        putchar(',');
+        putchar(',', 255);
       if (ctx.flags & RF_BLNK)
         printf("(+%d)",((ctx.next_vcn-ctx.curr_vcn)*spc));
       else

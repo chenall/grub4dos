@@ -199,7 +199,7 @@ vstafs_dir (char *dirname)
 	{
 	  if (print_possibilities < 0)
 	    {
-	      putchar ('\n');
+	      putchar ('\n', 255);
 	      return 1;
 	    }
 	  

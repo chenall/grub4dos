@@ -102,15 +102,6 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	}
     }
 
-//  /* leave graphics mode now before the extended memory is overwritten. */
-//#ifdef SUPPORT_GRAPHICS
-//  if (graphics_inited)
-//  {
-//    graphics_end ();
-//    current_term = term_table; /* assumption: console is first */
-//  }
-//#endif
-
   /* Use BUFFER as a linux kernel header, if the image is Linux zImage
      or bzImage.  */
   lh = (struct linux_kernel_header *) buffer;
@@ -775,7 +766,7 @@ success:
 failure_newline:
 
   if (debug > 0)
-	putchar ('\n');
+	putchar ('\n', 255);
 
 failure_exec_format:
 

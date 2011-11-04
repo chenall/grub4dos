@@ -54,8 +54,8 @@ herc_set_cursor (void)
   outb (0x80, 0);
 }
 
-void
-hercules_putchar (unsigned int c)
+unsigned int
+hercules_putchar (unsigned int c, unsigned int max_width)
 {
   switch (c)
     {
@@ -106,6 +106,7 @@ hercules_putchar (unsigned int c)
 	   i++)
 	video[i] = 0x07200720;
     }
+  return 1;
 }
 
 void
@@ -124,7 +125,7 @@ hercules_cls (void)
 int
 hercules_getxy (void)
 {
-  return (herc_x << 8) | herc_y;
+  return (herc_y << 8) | herc_x;
 }
 
 void

@@ -50,10 +50,11 @@ static unsigned char *VSHADOW8 = (unsigned char *)0x3CBF20;	//unsigned char VSHA
 //static unsigned short text[80 * 30];
 static unsigned long *text = (unsigned long *)0x3FC000; // length in bytes = 100*37*4 = 0x39D0
 
+static unsigned long graphics_showcursor = 0;
+static unsigned long splashimage_loaded = 0;
+
 /* constants to define the viewable area */
-const unsigned long x0 = 0;
 unsigned long x1 = 80;
-const unsigned long y0 = 0;
 unsigned long y1 = 30;
 unsigned long xpixels = 640;
 unsigned long ypixels = 480;
@@ -64,23 +65,20 @@ unsigned long current_y_resolution;
 unsigned long current_bits_per_pixel;
 
 /* why do these have to be kept here? */
-unsigned long foreground = (63 << 16) | (63 << 8) | (63), background = 0, border = 0;
-
-/* current position */
-extern int fontx;
-extern int fonty;
+unsigned long foreground = 0xFFFFFF; //(63 << 16) | (63 << 8) | (63)
+unsigned long background = 0;
 
 /* global state so that we don't try to recursively scroll or cursor */
-static int no_scroll = 0;
+//static int no_scroll = 0;
 
 /* color state */
 extern int current_color;
 
 
 /* graphics local functions */
-static void graphics_setxy (int col, int row);
 static void graphics_scroll (void);
-static int read_image (char *s);
+static int read_image (void);
+static void graphics_cursor (int set);
 extern void (*graphics_CURSOR) (int set);
 /* FIXME: where do these really belong? */
 static inline void outb(unsigned short port, unsigned char val)
@@ -100,17 +98,6 @@ static void BitMask(int value) {
 }
 
 
-
-///* Set the splash image */
-//void graphics_set_splash(char *splashfile) {
-//    grub_strcpy(splashimage, splashfile);
-//}
-
-///* Get the current splash image */
-//char *graphics_get_splash(void) {
-//    return splashimage;
-//}
-
 /* Initialize a vga16 graphics display with the palette based off of
  * the image in splashimage.  If the image doesn't exist, leave graphics
  * mode.  */
@@ -127,14 +114,18 @@ graphics_init (void)
 	 * mode only after the get font info call.
 	 */
 	if (! font8x16)
-	    font8x16 = (unsigned char *) graphics_get_font ();
+	    font8x16 = graphics_get_font ();
 
 	if (graphics_mode > 0xFF) /* VBE */
 	{
 	    if (graphics_mode == 0x102)
 	    {
 		if (set_vbe_mode (graphics_mode) != 0x004F)
+		{
+			graphics_end ();
 			return !(errnum = ERR_SET_VBE_MODE);
+		}
+		graphics_mode = 0x6A;
 		goto success;
 	    }
 	    if (set_vbe_mode (graphics_mode | (1 << 14)) != 0x004F)
@@ -147,61 +138,73 @@ graphics_init (void)
 	}
 	else
 	{
-		unsigned long tmp_mode;
-		//saved_videomode = set_videomode (graphics_mode);
-		/* the mode set could fail !! */
-		if (graphics_mode == 0x12)
+	    unsigned long tmp_mode;
+	    //saved_videomode = set_videomode (graphics_mode);
+	    /* the mode set could fail !! */
+	    if (graphics_mode == 0x12)
+	    {
+		if (set_videomode (graphics_mode) != graphics_mode)
 		{
-			if (set_videomode (graphics_mode) != graphics_mode)
-				return !(errnum = ERR_SET_VGA_MODE);
-			current_term->chars_per_line = x1 = 80;
-			current_term->max_lines = y1 = 30;
-			xpixels = 640;
-			ypixels = 480;
-			plano_size = (640 * 480) / 8;
+			graphics_end ();
+			return !(errnum = ERR_SET_VGA_MODE);
 		}
-		else /* 800x600x4 */
-		{
-		    if (set_videomode (graphics_mode) != graphics_mode
+		current_term->chars_per_line = x1 = 80;
+		current_term->max_lines = y1 = 30;
+		xpixels = 640;
+		ypixels = 480;
+		plano_size = (640 * 480) / 8;
+	    }
+	    else /* 800x600x4 */
+	    {
+		/* first, try VBE mode 0x102 anyway */
+		if (set_vbe_mode (0x102) == 0x004F)
+			goto success;
+		if (set_videomode (graphics_mode) != graphics_mode
+			|| (*(unsigned char *)(0x8000 + 64) != 0x1B)
 			|| (*(unsigned char *)(0x8000 + 4) != graphics_mode)
 			|| (*(unsigned short *)(0x8000 + 5) != 100)
-			|| (*(unsigned char *)(0x8000 + 0x22) != 37)
+			/* qemu bug: byte at 0x22 should be 37, but only 36 */
+			|| (((*(unsigned char *)(0x8000 + 0x22)) & 0xFE) != 36)
 			|| (*(unsigned short *)(0x8000 + 0x23) != 16)
 			|| (*(unsigned short *)(0x8000 + 0x27) != 16)
-			|| (*(unsigned char *)(0x8000 + 0x29) != 1)
+			/* qemu bug: byte at 0x29 should be 1, but was 8 */
+			/*|| (*(unsigned char *)(0x8000 + 0x29) != 1)*/
+			)
+		{
+		  /* probe 800x600x4 modes */
+		  for (tmp_mode = 0x15; tmp_mode < 0x78; tmp_mode++)
+		  {
+		    if (set_videomode (tmp_mode) == tmp_mode
+			&& (*(unsigned char *)(0x8000 + 64) == 0x1B)
+			&& (*(unsigned char *)(0x8000 + 4) == tmp_mode)
+			&& (*(unsigned short *)(0x8000 + 5) == 100)
+			/* qemu bug: byte at 0x22 should be 37, but only 36 */
+			&& (((*(unsigned char *)(0x8000 + 0x22)) & 0xFE) == 36)
+			&& (*(unsigned short *)(0x8000 + 0x23) == 16)
+			&& (*(unsigned short *)(0x8000 + 0x27) == 16)
+			/* qemu bug: byte at 0x29 should be 1, but was 8 */
+			/*&& (*(unsigned char *)(0x8000 + 0x29) == 1)*/
 			)
 		    {
-			/* probe 800x600x4 modes */
-			for (tmp_mode = 0x15; tmp_mode < 0x78; tmp_mode++)
-			{
-			    if (set_videomode (tmp_mode) == tmp_mode
-				&& (*(unsigned char *)(0x8000 + 4) == tmp_mode)
-				&& (*(unsigned short *)(0x8000 + 5) == 100)
-				&& (*(unsigned char *)(0x8000 + 0x22) == 37)
-				&& (*(unsigned short *)(0x8000 + 0x23) == 16)
-				&& (*(unsigned short *)(0x8000 + 0x27) == 16)
-				&& (*(unsigned char *)(0x8000 + 0x29) == 1)
-				)
-			    {
-				/* got it! */
-				graphics_mode = tmp_mode;
-				goto success;
-			    }
-			}
-			set_videomode (3);
-			return !(errnum = ERR_SET_VGA_MODE);
+			/* got it! */
+			graphics_mode = tmp_mode;
+			goto success;
 		    }
-success:
-			current_term->chars_per_line = x1 = 100;
-			current_term->max_lines = y1 = 37;
-			xpixels = 800;
-			ypixels = 600;
-			plano_size = (800 * 600) / 8;
+		  }
+		  graphics_end ();	/* failure, go back to console. */
+		  return !(errnum = ERR_SET_VGA_MODE);
 		}
+success:
+		current_term->chars_per_line = x1 = 100;
+		current_term->max_lines = y1 = 37;
+		xpixels = 800;
+		ypixels = 600;
+		plano_size = (800 * 600) / 8;
+	    }
 	}
     }
 
-    if (! read_image (splashimage))
+    if (! read_image ())
     {
 	//set_videomode (3/*saved_videomode*/);
 	graphics_end ();
@@ -217,78 +220,126 @@ success:
 void
 graphics_end (void)
 {
-    if (graphics_inited)
-    {
-        set_videomode (3/*saved_videomode*/);
-        graphics_inited = 0;
-    }
+	current_term = term_table; /* set terminal to console */
+	set_videomode (3); /* set normal 80x25 text mode. */
+	set_videomode (3); /* set it once more for buggy BIOSes. */
+	graphics_inited = 0;
 }
 
 /* Print ch on the screen.  Handle any needed scrolling or the like */
-void
-graphics_putchar (unsigned int ch)
+unsigned int
+graphics_putchar (unsigned int ch, unsigned int max_width)
 {
-    //ch &= 0xff;
-
-    //graphics_CURSOR(0);
+    if (graphics_mode > 0xFF /*&& graphics_mode != 0x102*/)
+	goto vbe;
 
     if ((char)ch == '\n') {
-        if (fonty + 1 < y1)
-            graphics_gotoxy(fontx, fonty + 1);
-        else
-	{
+	if (graphics_showcursor)
 	    graphics_CURSOR(0);
-            graphics_scroll();
-	    graphics_CURSOR(1);
+	if (fonty + 1 < y1)
+	{
+	    fonty++;
 	}
-        //graphics_CURSOR(1);
-        return;
+	else
+	{
+	    graphics_scroll();
+	}
+	if (graphics_showcursor)
+	    graphics_CURSOR(1);
+	return 1;
     } else if ((char)ch == '\r') {
-        graphics_gotoxy(x0, fonty);
-        //graphics_CURSOR(1);
-        return;
+	if (graphics_showcursor)
+	    graphics_CURSOR(0);
+	fontx = 0;
+	if (graphics_showcursor)
+	    graphics_CURSOR(1);
+	return 1;
     }
 
-    //graphics_CURSOR(0);
-
     text[fonty * x1 + fontx] = (unsigned char)ch;
-    //text[fonty * x1 + fontx] &= 0x00ff;
-    //if (current_color & 0xf0)
-    //    text[fonty * x1 + fontx] |= 0x10000;//0x100;
 
     graphics_CURSOR(0);
 
     if (fontx + 1 >= x1)
     {
         if (fonty + 1 < y1)
-            graphics_setxy(x0, fonty + 1);
+	{
+	    fontx = 0;
+	    fonty++;
+	}
         else
 	{
-            graphics_setxy(x0, fonty);
+	    fontx = 0;
             graphics_scroll();
 	}
     } else {
-        graphics_setxy(fontx + 1, fonty);
+	fontx++;
     }
 
-    graphics_CURSOR(1);
+    if (graphics_showcursor)
+	graphics_CURSOR(1);
+    return 1;
+
+vbe:
+#if 0
+    if ((unsigned char)ch > 0x7F)	/* multi-byte */
+	goto multibyte;
+
+    if (pending)
+	goto error_case;
+
+    if (fontx >= vesa.chars_per_line)
+    {
+	fontx = 0;
+	++fonty;
+    }
+    if (fonty >= vesa.max_lines)
+    {
+	graphics_scroll();
+	--fonty;
+    }
+
+    if ((char)c == '\n')
+    {
+	fonty++; //graphics_gotoxy (fontx, fonty + 1);
+	return 1;
+    }
+    else if ((char)c == '\r')
+    {
+	fontx = 0; //graphics_gotoxy(0, fonty);
+	return 1;
+    }
+#endif
+    /* print dot matrix of the ASCII char */
+
+
+
+multibyte:
+    return 1;
+
+error_case:
+    return 1;
+
 }
 
 /* get the current location of the cursor */
 int
 graphics_getxy(void)
 {
-    return (fontx << 8) | fonty;
+    return (fonty << 8) | fontx;
 }
 
 void
 graphics_gotoxy (int x, int y)
 {
-    graphics_CURSOR(0);
+    if (graphics_showcursor)
+	graphics_CURSOR(0);
 
-    graphics_setxy(x, y);
+    fontx = x;
+    fonty = y;
 
-    graphics_CURSOR(1);
+    if (graphics_showcursor)
+	graphics_CURSOR(1);
 }
 
 void
@@ -297,18 +348,29 @@ graphics_cls (void)
     int i;
     unsigned char *mem, *s1, *s2, *s4, *s8;
 
-    graphics_CURSOR(0);
-    graphics_gotoxy(x0, y0);
+    //graphics_CURSOR(0);
+    //graphics_gotoxy(0, 0);
+    fontx = 0;
+    fonty = 0;
 
     mem = (unsigned char*)VIDEOMEM;
+
+    for (i = 0; i < x1 * y1; i++)
+        text[i] = ' ';
+
+    if (graphics_showcursor)
+    {
+	MapMask(15);
+	memset (mem, 0, plano_size);
+	return;
+    }
+
     s1 = (unsigned char*)VSHADOW1;
     s2 = (unsigned char*)VSHADOW2;
     s4 = (unsigned char*)VSHADOW4;
     s8 = (unsigned char*)VSHADOW8;
 
-    for (i = 0; i < x1 * y1; i++)
-        text[i] = ' ';
-    graphics_CURSOR(1);
+    //graphics_CURSOR(1);
 
     BitMask(0xff);
 
@@ -335,40 +397,42 @@ graphics_cls (void)
 int
 graphics_setcursor (int on)
 {
-    /* FIXME: we don't have a cursor in graphics */
-    return 0;
+    ///* FIXME: we don't have a cursor in graphics */
+    unsigned long old_state = graphics_showcursor;
+    graphics_showcursor = on;
+    return old_state;
 }
 
 /* Read in the splashscreen image and set the palette up appropriately.
  * Format of splashscreen is an xpm (can be gzipped) with 16 colors and
  * 640x480. */
 static int
-read_image (char *s)
+read_image (void)
 {
     char buf[32], pal[16];
     unsigned char c, base, mask;
     unsigned i, len, idx, colors, x, y, width, height;
+    unsigned char *s1;
+    unsigned char *s2;
+    unsigned char *s4;
+    unsigned char *s8;
 
-    unsigned char *s1 = (unsigned char*)VSHADOW1;
-    unsigned char *s2 = (unsigned char*)VSHADOW2;
-    unsigned char *s4 = (unsigned char*)VSHADOW4;
-    unsigned char *s8 = (unsigned char*)VSHADOW8;
+    s1 = (unsigned char*)VSHADOW1;
+    s2 = (unsigned char*)VSHADOW2;
+    s4 = (unsigned char*)VSHADOW4;
+    s8 = (unsigned char*)VSHADOW8;
 
-    if (! grub_open(s))
+    if (! grub_open(splashimage))
     {
 	errnum = 0;
-	//graphics_set_palette(1, 0, 0, 0);
-	
+
+	if (splashimage_loaded)
+		return 1;
+
 	for (i = 0; i < plano_size / 4; i++)
 		((long *)s1)[i] = ((long *)s2)[i] = ((long *)s4)[i] = ((long *)s8)[i] = 0;
 
-	//for (y = 0, len = 0; y < 480; y++, len += 80) {
-	//    for (x = 0; x < 640; x++) {
-	//	s1[len + (x >> 3)] |= 0x80 >> (x & 7);
-	//    }
-	//}
-
-        goto set_palette;	//return 0;
+        goto set_palette;
     }
 
     /* read header */
@@ -435,12 +499,12 @@ read_image (char *s)
         }
 
         if (len == 6 && idx < 15) {
-            int r = ((hex(buf[0]) << 4) | hex(buf[1])) >> 2;
-            int g = ((hex(buf[2]) << 4) | hex(buf[3])) >> 2;
-            int b = ((hex(buf[4]) << 4) | hex(buf[5])) >> 2;
+            int r = (hex(buf[0]) << 4) | hex(buf[1]);
+            int g = (hex(buf[2]) << 4) | hex(buf[3]);
+            int b = (hex(buf[4]) << 4) | hex(buf[5]);
 
             pal[idx] = base;
-            graphics_set_palette(idx, r, g, b);
+            graphics_set_palette(idx, (r<<16) | (g<<8) | b);
             ++idx;
         }
     }
@@ -470,28 +534,21 @@ read_image (char *s)
                 }
 
               mask = 0x80 >> (x & 7);
-              if (c & 1)
-                s1[len + (x >> 3)] |= mask;
-              if (c & 2)
-                s2[len + (x >> 3)] |= mask;
-              if (c & 4)
-                s4[len + (x >> 3)] |= mask;
-              if (c & 8)
-                s8[len + (x >> 3)] |= mask;
+              if (c & 1) s1[len + (x >> 3)] |= mask;
+              if (c & 2) s2[len + (x >> 3)] |= mask;
+              if (c & 4) s4[len + (x >> 3)] |= mask;
+              if (c & 8) s8[len + (x >> 3)] |= mask;
             }
         }
     }
 
     grub_close();
+    splashimage_loaded = 1;
 
 set_palette:
 
-    graphics_set_palette(0, (background >> 16), (background >> 8) & 63, 
-                background & 63);
-    graphics_set_palette(15, (foreground >> 16), (foreground >> 8) & 63, 
-                foreground & 63);
-    graphics_set_palette(0x11, (border >> 16), (border >> 8) & 63, 
-                         border & 63);
+    graphics_set_palette( 0, background);
+    graphics_set_palette(15, foreground);
 
     return 1;
 }
@@ -509,27 +566,22 @@ hex (int v)
 }
 
 
-/* move the graphics cursor location to col, row */
-static void
-graphics_setxy (int col, int row)
-{
-    if (col >= x0 && col < x1)
-    {
-        fontx = col;
-        cursorX = col << 3;
-    }
-
-    if (row >= y0 && row < y1)
-    {
-        fonty = row;
-        cursorY = row << 4;
-    }
-}
-
 /* scroll the screen */
 static void
 graphics_scroll (void)
 {
+#if 1
+    unsigned long i, j;
+
+    graphics_scroll_up ();
+
+    fontx = 0;
+    fonty = y1 - 1;
+
+    for (i = x1 * (y1 - 1), j = x1 * y1; i < j; i++)
+        text[i] = ' ';
+
+#else
     int i, j;
 
     /* we don't want to scroll recursively... that would be bad */
@@ -538,25 +590,31 @@ graphics_scroll (void)
     no_scroll = 1;
 
     /* move everything up a line */
-    for (j = y0 + 1; j < y1; j++)
+    for (j = 0 + 1; j < y1; j++)
     {
-        graphics_gotoxy (x0, j - 1);
+	//graphics_gotoxy (0, j - 1);
+        fontx = 0;
+	fonty = j - 1;
 
-        for (i = x0; i < x1; i++)
+        for (i = 0; i < x1; i++)
        	{
-            graphics_putchar (text[j * x1 + i]);
+            graphics_putchar (text[j * x1 + i], 255);
         }
     }
 
     /* last line should be blank */
-    graphics_gotoxy (x0, y1 - 1);
+    //graphics_gotoxy (0, y1 - 1);
+    fontx = 0;
+    fonty = y1 - 1;
 
-    for (i = x0; i < x1; i++)
-        graphics_putchar (' ');
+    for (i = 0; i < x1; i++)
+        graphics_putchar (' ', 255);
 
-    graphics_setxy (x0, y1 - 1);
+    fontx = 0;
+    fonty = y1 - 1;
 
     no_scroll = 0;
+#endif
 }
 
 
@@ -569,10 +627,10 @@ graphics_cursor (int set)
     unsigned char *pat, *mem, *ptr;
     int i, ch, offset;
 
-    if (set && no_scroll)
-        return;
+    //if (set && no_scroll)
+    //    return;
 
-    offset = cursorY * x1 + fontx;
+    offset = (fonty << 4) * x1 + fontx;
 
     ch = text[fonty * x1 + fontx];
 
@@ -582,14 +640,13 @@ graphics_cursor (int set)
 
     if (set)
     {
-        MapMask(15);
-        ptr = mem;
-        for (i = 0; i < 16; i++, ptr += x1)
-       	{
-            cursorBuf[i] = pat[i];
-            *ptr = ~pat[i];
-        }
-        return;
+	MapMask(15);
+	ptr = mem;
+	for (i = 0; i < 16; i++, ptr += x1)
+	{
+		*ptr = ~pat[i];
+	}
+	return;
     }
 
     if (outline)
@@ -610,9 +667,12 @@ graphics_cursor (int set)
 
 	p = pat[i];
 
+	if (graphics_showcursor)
+		goto put_pattern;
 	if (is_highlight)
 	{
 		p = ~p;
+put_pattern:
 		chr[i     ] = p;
 		chr[16 + i] = p;
 		chr[32 + i] = p;
@@ -635,15 +695,10 @@ graphics_cursor (int set)
 		c8 &= m;
 	}
 	
-	c1 |= p;
-	c2 |= p;
-	c4 |= p;
-	c8 |= p;
-
-	chr[i     ] = c1;
-	chr[16 + i] = c2;
-	chr[32 + i] = c4;
-	chr[48 + i] = c8;
+	chr[i     ] = c1 | p;
+	chr[16 + i] = c2 | p;
+	chr[32 + i] = c4 | p;
+	chr[48 + i] = c8 | p;
     }
 
     offset = 0;

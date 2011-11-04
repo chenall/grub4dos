@@ -555,15 +555,15 @@ static unsigned long pxe_read_len (unsigned long long buf, unsigned long long le
             pxe_read_ofs += nr;
           if ((long)nb <= nb_pos)
             {
-              grub_putchar ('.');
+              grub_putchar ('.', 255);
               nb_pos -= nb_del;
             }
         }
 
       if (nb_del)
         {
-          grub_putchar ('\r');
-          grub_putchar ('\n');
+          grub_putchar ('\r', 255);
+          grub_putchar ('\n', 255);
         }
 
       if (pxe_cur_ofs)

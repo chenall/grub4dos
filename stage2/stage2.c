@@ -265,7 +265,7 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
   is_highlight = 0;
 
   gotoxy (MENU_BOX_X - 1, y);
-  grub_putchar(highlight ? 30 : ' ');
+  grub_putchar(highlight ? 30 : ' ', 255);
 
   if (entry)
   {
@@ -275,18 +275,25 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 	if (c == 8 || c == 9)
 		c = *(++entry);
   }
-  for (x = MENU_BOX_X; x < MENU_BOX_E; x = getxy() >> 8)
+  for (x = MENU_BOX_X; x < MENU_BOX_E; x = fontx/*(unsigned int)(unsigned char)getxy()*/)
     {
+      unsigned int ret;
+
+      ret = MENU_BOX_E - x;
       if (c && c != '\n' /* && x <= MENU_BOX_W*/)
 	{
 		is_highlight = highlight;
-		grub_putchar (((unsigned char)c) /*| (unsigned)(highlight<<16)*/);
+		ret = grub_putchar (((unsigned char)c) /*| (unsigned)(highlight<<16)*/, ret);
 		is_highlight = 0;
 		c = *(++entry);
+		if ((long)ret < 0)
+			c = 0;
 	}
       else
 	{
-		grub_putchar (' ');
+		ret = grub_putchar (' ', ret);
+		if ((long)ret < 0)
+			break;
 	}
     }
 
@@ -312,21 +319,21 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 				c = *(++entry);
 			gotoxy (0, j);
 			for (x = 0; x < MENU_BOX_X - 2; x++)
-				grub_putchar (' ');
+				grub_putchar (' ', 255);
 			for (x = 0; x <= MENU_BOX_W + 2; x++)
 			{
 				if (c && c != '\n')
 				{
 					if (c == '\r')
 						x = 0;
-					grub_putchar (c);
+					grub_putchar (c, 255);
 					c = *(++entry);
 				}
 				else
-					grub_putchar (' ');
+					grub_putchar (' ', 255);
 			}
-			for (x = getxy() >> 8; x < current_term->chars_per_line - 1; x++)
-				grub_putchar (' ');
+			for (x = fontx/*(unsigned int)(unsigned char)getxy()*/; x < current_term->chars_per_line - 1; x++)
+				grub_putchar (' ', 255);
 		}
 		//gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
 		//grub_putstr (++entry);
@@ -338,7 +345,7 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 		{
 			gotoxy (0, j);
 			for (x = 0; x < current_term->chars_per_line - 1; x++)
-				grub_putchar (' ');
+				grub_putchar (' ', 255);
 		}
 		gotoxy (0, MENU_BOX_B + 1);
 		print_default_help_message (config_entries);
@@ -362,9 +369,9 @@ print_entries (int first, int entryno, char *menu_entries, char *config_entries)
   gotoxy (MENU_BOX_E, MENU_BOX_Y);
 
   if (first)
-    grub_putchar (DISP_UP);
+    grub_putchar (DISP_UP, 255);
   else
-    grub_putchar (DISP_VERT);
+    grub_putchar (DISP_VERT, 255);
 
   if (main_menu || *menu_entries)
     menu_entries = get_entry (menu_entries, first);
@@ -394,9 +401,9 @@ print_entries (int first, int entryno, char *menu_entries, char *config_entries)
     current_term->setcolorstate (COLOR_STATE_NORMAL);
   
   if (menu_entries && *menu_entries)
-    grub_putchar (DISP_DOWN);
+    grub_putchar (DISP_DOWN, 255);
   else
-    grub_putchar (DISP_VERT);
+    grub_putchar (DISP_VERT, 255);
 
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
@@ -411,8 +418,8 @@ print_entries_raw (int size, int first, char *menu_entries)
   char *p;
 
   for (i = 0; i < MENU_BOX_W; i++)
-    grub_putchar ('-');
-  grub_putchar ('\n');
+    grub_putchar ('-', 255);
+  grub_putchar ('\n', 255);
 
   for (i = first; i < size; i++)
     {
@@ -421,9 +428,9 @@ print_entries_raw (int size, int first, char *menu_entries)
     }
 
   for (i = 0; i < MENU_BOX_W; i++)
-    grub_putchar ('-');
-  grub_putchar ('\n');
-  grub_putchar ('\n');
+    grub_putchar ('-', 255);
+  grub_putchar ('\n', 255);
+  grub_putchar ('\n', 255);
 }
 
 
@@ -437,10 +444,10 @@ print_border (int y, int size)
   
   gotoxy (MENU_BOX_X - 2, y);
 
-  grub_putchar (DISP_UL);
+  grub_putchar (DISP_UL, 255);
   for (i = 0; i < MENU_BOX_W + 1; i++)
-    grub_putchar (DISP_HORIZ);
-  grub_putchar (DISP_UR);
+    grub_putchar (DISP_HORIZ, 255);
+  grub_putchar (DISP_UR, 255);
 
   i = 1;
   while (1)
@@ -450,17 +457,17 @@ print_border (int y, int size)
       if (i > size)
 	break;
       
-      grub_putchar (DISP_VERT);
+      grub_putchar (DISP_VERT, 255);
       gotoxy (MENU_BOX_E, y + i);
-      grub_putchar (DISP_VERT);
+      grub_putchar (DISP_VERT, 255);
 
       i++;
     }
 
-  grub_putchar (DISP_LL);
+  grub_putchar (DISP_LL, 255);
   for (i = 0; i < MENU_BOX_W + 1; i++)
-    grub_putchar (DISP_HORIZ);
-  grub_putchar (DISP_LR);
+    grub_putchar (DISP_HORIZ, 255);
+  grub_putchar (DISP_LR, 255);
 
   gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
 
@@ -748,6 +755,7 @@ restart:
   if (grub_timeout < 0)
     show_menu = 1;
   
+  setcursor (0);
   /* If SHOW_MENU is false, don't display the menu until a key-press.  */
   if (! show_menu)
     {
@@ -809,7 +817,7 @@ restart:
   if (show_menu)
     {
       init_page ();
-      setcursor (0);
+      //setcursor (0);
 
       if (current_term->flags & TERM_DUMB)
 	print_entries_raw (num_entries, first_entry, menu_entries);
@@ -827,7 +835,7 @@ restart:
 		{
 			gotoxy (0, j);
 			for (x = 0; x < current_term->chars_per_line - 1; x++)
-				grub_putchar (' ');
+				grub_putchar (' ', 255);
 		}
 		gotoxy (0, MENU_BOX_B + 1);
 	}
@@ -886,16 +894,8 @@ restart:
 	      {
 		if (ch)
 			ch = tmp_buf[i];
-		grub_putchar ((unsigned char)(ch ? ch : ' '));
+		grub_putchar ((unsigned char)(ch ? ch : ' '), 255);
 	      }
-//#ifdef SUPPORT_GRAPHICS
-//	      if (! graphics_inited)
-//#endif
-//	      {
-//		gotoxy (MENU_BOX_X - 2, MENU_BOX_H + 8);
-//		for (i = 0; i < 79; i++)
-//			grub_putchar (' ');
-//	      }
 	      gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
 	    }
 	  
@@ -937,20 +937,12 @@ restart:
 		  current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 
 	      if (current_term->flags & TERM_DUMB)
-		grub_putchar ('\r');
+		grub_putchar ('\r', 255);
 	      else
 		gotoxy (0, MENU_BOX_B + 5);
 	      for (i = 0; i < 79/*158*/; i++)
 	      {
-//		if (i == 79)
-//		{
-//#ifdef SUPPORT_GRAPHICS
-//			if (graphics_inited)
-//				break;
-//#endif
-//			grub_putchar ('\n');
-//		}
-		grub_putchar (' ');
+		grub_putchar (' ', 255);
 	      }
 	      grub_timeout = -1;
 	      fallback_entryno = -1;
@@ -1245,8 +1237,8 @@ done_key_handling:
 
 		  if (current_term->flags & TERM_DUMB)
 		    {
-		      grub_putchar ('\n');
-		      grub_putchar ('\n');
+		      grub_putchar ('\n', 255);
+		      grub_putchar ('\n', 255);
 		      print_entries_raw (num_entries, first_entry, menu_entries);
 		    }
 		  else if (num_entries > 0)
@@ -1388,6 +1380,7 @@ done_key_handling:
 		    run_menu (heap, NULL, new_num_entries, new_heap, 0);	/* recursive!! */
 		  else
 		    {
+		      setcursor (1); /* show cursor and disable splashimage */
 		      cls ();
 		      print_cmdline_message (0);
 
@@ -1454,8 +1447,8 @@ done_key_handling:
   
  boot_entry:
   
-  cls ();
-  setcursor (1);
+  cls (); /* show splashimage */
+  //setcursor (1); /* show cursor and disable splashimage */
 //  /* if our terminal needed initialization, we should shut it down
 //   * before booting the kernel, but we want to save what it was so
 //   * we can come back if needed */
@@ -1481,9 +1474,9 @@ done_key_handling:
 		if (! ((*p) & 0xF0))
 			p++;
 		grub_putstr ("  Booting ");
-		while ((*p) && (ch = *p++) && ch != '\n') grub_putchar (ch);
-		grub_putchar ('\n');
-		grub_putchar ('\n');
+		while ((*p) && (ch = *p++) && ch != '\n') grub_putchar (ch, 255);
+		grub_putchar ('\n', 255);
+		grub_putchar ('\n', 255);
 	}
 	else
 		printf ("  Booting command-list\n\n");
@@ -1785,15 +1778,6 @@ run_graphics_menu (char *menu_entries, char *config_entries, int num_entries,
 
       return;
     }
-
-//  /* leave graphics mode now before the extended memory is overwritten. */
-//#ifdef SUPPORT_GRAPHICS
-//  if (graphics_inited)
-//  {
-//    graphics_end ();
-//    current_term = term_table; /* assumption: console is first */
-//  }
-//#endif
 
 #ifdef GFX_DEBUG
   if (verbose)

@@ -352,8 +352,8 @@ serial_checkkey (void)
 }
 
 /* The serial version of grub_putchar.  */
-void
-serial_putchar (unsigned int c)
+unsigned int
+serial_putchar (unsigned int c, unsigned int max_width)
 {
   /* Keep track of the cursor.  */
   if (keep_track)
@@ -419,8 +419,8 @@ serial_putchar (unsigned int c)
 	default:
 	  if (serial_x >= 79)
 	    {
-	      serial_putchar ('\r');
-	      serial_putchar ('\n');
+	      serial_putchar ('\r', max_width);
+	      serial_putchar ('\n', max_width);
 	    }
 	  serial_x++;
 	  break;
@@ -428,12 +428,13 @@ serial_putchar (unsigned int c)
     }
   
   serial_hw_put (c);
+  return 1;
 }
 
 int
 serial_getxy (void)
 {
-  return (serial_x << 8) | serial_y;
+  return (serial_y << 8) | serial_x;
 }
 
 void

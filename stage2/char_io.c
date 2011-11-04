@@ -49,6 +49,24 @@ struct term_entry term_table[] =
       0,
       0
     },
+#ifdef SUPPORT_GRAPHICS
+    { "graphics",
+      0/*TERM_NEED_INIT*/, /* flags */
+      80,
+      30, /* number of lines */
+      graphics_putchar, /* putchar */
+      console_checkkey, /* checkkey */
+      console_getkey, /* getkey */
+      graphics_getxy, /* getxy */
+      graphics_gotoxy, /* gotoxy */
+      graphics_cls, /* cls */
+      console_setcolorstate, // graphics_setcolorstate, /* setcolorstate */
+      console_setcolor, // graphics_setcolor, /* setcolor */
+      graphics_setcursor, /* nocursor */
+      graphics_init, /* initialize */
+      graphics_end /* shutdown */
+    },
+#endif /* SUPPORT_GRAPHICS */
 #ifdef SUPPORT_SERIAL
     {
       "serial",
@@ -88,29 +106,10 @@ struct term_entry term_table[] =
       0
     },      
 #endif /* SUPPORT_HERCULES */
-#ifdef SUPPORT_GRAPHICS
-    { "graphics",
-      0/*TERM_NEED_INIT*/, /* flags */
-      80,
-      30, /* number of lines */
-      graphics_putchar, /* putchar */
-      console_checkkey, /* checkkey */
-      console_getkey, /* getkey */
-      graphics_getxy, /* getxy */
-      graphics_gotoxy, /* gotoxy */
-      graphics_cls, /* cls */
-      console_setcolorstate, // graphics_setcolorstate, /* setcolorstate */
-      console_setcolor, // graphics_setcolor, /* setcolor */
-      graphics_setcursor, /* nocursor */
-      graphics_init, /* initialize */
-      graphics_end /* shutdown */
-    },
-#endif /* SUPPORT_GRAPHICS */
     /* This must be the last entry.  */
     { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
   };
 
-int max_lines = 25;
 int count_lines = -1;
 int use_pager = 1;
 #endif
@@ -220,7 +219,7 @@ void
 grub_putstr (const char *str)
 {
   while (*str)
-    grub_putchar ((unsigned char)*str++);
+    grub_putchar ((unsigned char)*str++, 255);
 }
 
 #if 0
@@ -379,7 +378,7 @@ grub_sprintf (char *buffer, const char *format, ...)
 			if (buffer)
 				*bp = pad; /* putchar(pad); */
 			else
-				grub_putchar (pad);
+				grub_putchar (pad, 255);
 			++bp;
 		}
 	}
@@ -388,7 +387,7 @@ grub_sprintf (char *buffer, const char *format, ...)
 		if (buffer)
 			*bp = *ptr;
 		else
-			grub_putchar (*ptr);
+			grub_putchar (*ptr, 255);
 		++bp,++ptr;
 	}
 	if (align && width > 0)
@@ -398,7 +397,7 @@ grub_sprintf (char *buffer, const char *format, ...)
 			if (buffer)
 				*bp = pad; /* putchar(pad); */
 			else
-				grub_putchar (pad);
+				grub_putchar (pad, 255);
 			++bp;
 		}
 	}
@@ -409,7 +408,7 @@ grub_sprintf (char *buffer, const char *format, ...)
 	if (buffer)
 		*bp = *format;
 	else
-		grub_putchar((unsigned char)*format);
+		grub_putchar((unsigned char)*format, 255);
 	++bp;
     } /* if */
     ++format;
@@ -423,7 +422,7 @@ grub_sprintf (char *buffer, const char *format, ...)
 	  *bp++ = c; /* putchar(c); */
 	else
 	{
-	  grub_putchar (c);
+	  grub_putchar (c, 255);
 	  bp++;
 	}
       }
@@ -444,7 +443,7 @@ find_specifier:
 			if (buffer)
 				*bp = c;
 			else
-				grub_putchar(c);
+				grub_putchar(c, 255);
 			bp++;
 			break;
 		case '.':
@@ -469,7 +468,7 @@ find_specifier:
 			*bp++ = pad; /* putchar(pad); */
 		    else
 		    {
-			grub_putchar (pad);
+			grub_putchar (pad, 255);
 			bp++;
 		    }
 	      }
@@ -481,7 +480,7 @@ find_specifier:
 	    } else {
 		while (*ptr)
 		{
-			grub_putchar (*(ptr++));
+			grub_putchar (*(ptr++), 255);
 			bp++;
 		}
 	    }
@@ -497,7 +496,7 @@ find_specifier:
 			*bp++ = pad; /* putchar(pad); */
 		    else
 		    {
-			grub_putchar (pad);
+			grub_putchar (pad, 255);
 			bp++;
 		    }
 	      }
@@ -505,7 +504,7 @@ find_specifier:
 	    {
 		*bp++ = (*(char *)(dataptr++)) /*& 0xff*/;
 	    } else {
-		grub_putchar ((*(char *)(dataptr++)) /*& 0xff*/);
+		grub_putchar ((*(char *)(dataptr++)) /*& 0xff*/, 255);
 		bp++;
 	    }
 	    //dataptr++;
@@ -522,7 +521,7 @@ find_specifier:
 			*bp++ = pad; /* putchar(pad); */
 		    else
 		    {
-			grub_putchar (pad);
+			grub_putchar (pad, 255);
 			bp++;
 		    }
 	      }
@@ -533,7 +532,7 @@ find_specifier:
 	    	if (buffer)
 	    		*bp = c;
 	    	else
-	    		grub_putchar (c);
+	    		grub_putchar (c, 255);
 	    	bp++;
 	    }
 	    break;
@@ -591,7 +590,7 @@ init_page (void)
   {
 	if (ch)
 		ch = tmp_buf[i];
-	grub_putchar ((unsigned char)(ch ? ch : ' '));
+	grub_putchar ((unsigned char)(ch ? ch : ' '), 255);
   }
 
   if (current_term->setcolorstate)
@@ -707,10 +706,10 @@ static void cl_backward (int count)
 	      int i;
 	      
 	      for (i = 0; i < count; i++)
-		grub_putchar ('\b');
+		grub_putchar ('\b', 255);
 	    }
 	  else
-	    gotoxy (xpos, getxy () & 0xFF);
+	    gotoxy (xpos, fonty/*(unsigned int)(unsigned char)(getxy () >> 8)*/);
 	}
 }
 
@@ -733,13 +732,13 @@ static void cl_forward (int count)
 	      for (i = lpos - count; i < lpos; i++)
 		{
 		  if (! p_getcmdline_arg->echo_char)
-		    grub_putchar (buf[i]);
+		    grub_putchar (buf[i], 255);
 		  else
-		    grub_putchar (p_getcmdline_arg->echo_char);
+		    grub_putchar (p_getcmdline_arg->echo_char, 255);
 		}
 	    }
 	  else
-	    gotoxy (xpos, getxy () & 0xFF);
+	    gotoxy (xpos, fonty/*(unsigned int)(unsigned char)(getxy () >> 8)*/);
 	}
 }
 
@@ -764,7 +763,7 @@ static void cl_refresh (int full, int len)
 	  len = CMDLINE_WIDTH;
 	  pos = 0;
 	  //grub_putchar ('\r');
-	  gotoxy (0, (unsigned char) (getxy ()));
+	  gotoxy (0, fonty/*(unsigned int)(unsigned char)(getxy () >> 8)*/);
 
 	  /* If SECTION is the first section, print the prompt, otherwise,
 	     print `<'.  */
@@ -776,7 +775,7 @@ static void cl_refresh (int full, int len)
 	    }
 	  else
 	    {
-	      grub_putchar ('<');
+	      grub_putchar ('<', 255);
 	      len--;
 	      pos++;
 	    }
@@ -812,9 +811,9 @@ static void cl_refresh (int full, int len)
       for (i = start; i < start + len && i < llen; i++)
 	{
 	  if (! p_getcmdline_arg->echo_char)
-	    grub_putchar (buf[i]);
+	    grub_putchar (buf[i], 255);
 	  else
-	    grub_putchar (p_getcmdline_arg->echo_char);
+	    grub_putchar (p_getcmdline_arg->echo_char, 255);
 
 	  pos++;
 	}
@@ -822,7 +821,7 @@ static void cl_refresh (int full, int len)
       /* Fill up the rest of the line with spaces.  */
       for (; i < start + len; i++)
 	{
-	  grub_putchar (' ');
+	  grub_putchar (' ', 255);
 	  pos++;
 	}
       
@@ -831,9 +830,9 @@ static void cl_refresh (int full, int len)
       if (pos == CMDLINE_WIDTH)
 	{
 	  if (start + len < llen)
-	    grub_putchar ('>');
+	    grub_putchar ('>', 255);
 	  else
-	    grub_putchar (' ');
+	    grub_putchar (' ', 255);
 	  
 	  pos++;
 	}
@@ -842,17 +841,17 @@ static void cl_refresh (int full, int len)
       if (current_term->flags & TERM_DUMB)
 	{
 	  for (i = 0; i < pos - xpos; i++)
-	    grub_putchar ('\b');
+	    grub_putchar ('\b', 255);
 	}
       else
-	gotoxy (xpos, getxy () & 0xFF);
+	gotoxy (xpos, fonty/*(unsigned int)(unsigned char)(getxy () >> 8)*/);
 }
 
 /* Initialize the command-line.  */
 static void cl_init (void)
 {
       /* Distinguish us from other lines and error messages!  */
-      grub_putchar ('\n');
+      grub_putchar ('\n', 255);
 
       /* Print full line and set position here.  */
       cl_refresh (1, 0);
@@ -1047,7 +1046,7 @@ real_get_cmdline (char *cmdline)
 		      {
 			/* There are more than one candidates, so print
 			   the list.  */
-			grub_putchar ('\n');
+			grub_putchar ('\n', 255);
 			print_completions (is_filename, 0);
 			errnum = ERR_NONE;
 		      }
@@ -1177,7 +1176,7 @@ real_get_cmdline (char *cmdline)
 	  }
     }
 
-  grub_putchar ('\n');
+  grub_putchar ('\n', 255);
 
   /* If ECHO_CHAR is NUL, remove the leading spaces.  */
   lpos = 0;
@@ -1242,7 +1241,7 @@ get_cmdline (struct get_cmdline_arg p_cmdline)
 	  if (c >= ' ' && c <= '~')
 	    {
 	      if (! (current_term->flags & TERM_NO_ECHO))
-		grub_putchar (c);
+		grub_putchar (c, 255);
 
 	      /* Preceding space characters must be ignored.  */
 	      if (c != ' ' || p != p_cmdline.cmdline)
@@ -1253,7 +1252,7 @@ get_cmdline (struct get_cmdline_arg p_cmdline)
       *p = 0;
 
       if (! (current_term->flags & TERM_NO_ECHO))
-	grub_putchar ('\n');
+	grub_putchar ('\n', 255);
 
       setcursor (old_cursor);
       return 0;
@@ -1619,10 +1618,12 @@ checkkey (void)
 }
 #endif /* ! STAGE1_5 */
 
+/* FIXME: this is problematic! it could cause memory conflicts! */
+union output_status putchar_st = {{0,(char *)SYSTEM_RESERVED_MEMORY+0x11000}};
+
 /* Display an ASCII character.  */
-union output_status putchar_st = {{0,((char *)0x1011000)}};
-void
-grub_putchar (unsigned int c)
+unsigned int
+grub_putchar (unsigned int c, unsigned int max_width)
 {
   /* if it is a Line Feed, we insert a Carriage Return. */
 
@@ -1632,40 +1633,40 @@ grub_putchar (unsigned int c)
   
   if (c == '\n')
     //grub_putchar ('\r');	/* recursive, bad!! */
-    console_putchar ('\r');
-  console_putchar (c);
+    console_putchar ('\r', max_width);
+  return console_putchar (c, max_width);
   
 #else /* ! STAGE1_5 */
   if (putchar_st.flag)
   {
 	*putchar_st.addr++ = (char)c;
-	return;
+	return 1;
   }
-  if (c == '\t' && current_term->getxy)
+  if (c == '\t'/* && current_term->getxy*/)
     {
-      c = 8 - ((current_term->getxy () >> 8) & 7);
+      c = 8 - (fontx/*(current_term->getxy ())*/ & 7);
       while (c--)
 	//grub_putchar (' ');	/* recursive, bad!! */
-	current_term->putchar (' ');
-      return;
+	current_term->putchar (' ', max_width);
+      return 1;
     }
 
   if (c == '\n')
     {
-      current_term->putchar ('\r');
+      current_term->putchar ('\r', max_width);
       
       /* Internal `more'-like feature.  */
       if (count_lines >= 0)
 	{
 	  count_lines++;
-	  if (count_lines >= max_lines - 2)
+	  if (count_lines >= current_term->max_lines - 2)
 	    {
 	      /* It's important to disable the feature temporarily, because
 		 the following grub_printf call will print newlines.  */
 	      count_lines = -1;
 
 	      //grub_printf("\n");	/* recursive, bad!! */
-	      current_term->putchar ('\n');
+	      current_term->putchar ('\n', max_width);
 	      
 	      if (! (current_term->flags & TERM_DUMB))
 	      {
@@ -1675,7 +1676,7 @@ grub_putchar (unsigned int c)
 		//grub_printf ("[Hit return to continue]");	/* recursive, bad!! */
 		c = (int)"[Hit Q to quit, any other key to continue]";
 		while (*(unsigned char *)c)
-		  current_term->putchar (*(unsigned char *)c++);
+		  current_term->putchar (*(unsigned char *)c++, max_width);
 
 		if ((getkey () & 0xDF) == 0x51)	/* 0x51 == 'Q' */
 			quit_print = 1;
@@ -1696,12 +1697,12 @@ grub_putchar (unsigned int c)
 		//grub_printf ("\r                                          \r");	/* recursive, bad!! */
 		c = (int)"\r                                          \r";
 		while (*(char *)c)
-		  current_term->putchar (*(char *)c++);
+		  current_term->putchar (*(char *)c++, max_width);
 	      }
 	      
 	      /* Restart to count lines.  */
 	      count_lines = 0;
-	      return;
+	      return 1;
 	    }
 	}
     }
@@ -1716,7 +1717,7 @@ grub_putchar (unsigned int c)
 //	}
 //  }
   
-  current_term->putchar (c);
+  return current_term->putchar (c, max_width);
   
 #endif /* ! STAGE1_5 */
 }
@@ -1739,7 +1740,7 @@ cls (void)
 {
   /* If the terminal is dumb, there is no way to clean the terminal.  */
   if (current_term->flags & TERM_DUMB)
-    grub_putchar ('\n');
+    grub_putchar ('\n', 255);
   else
     current_term->cls ();
 }

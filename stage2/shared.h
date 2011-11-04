@@ -61,6 +61,9 @@ extern char *grub_scratch_mem;
 
 #define narrow_char_indicator	(*(unsigned long *)(UNIFONT_START + ('A' << 5)))
 
+/* graphics video memory */
+#define VIDEOMEM 0xA0000
+
 /* Maximum command line size. Before you blindly increase this value,
    see the comment in char_io.c (get_cmdline).  */
 #define MAX_CMDLINE 1600
@@ -513,6 +516,10 @@ extern char *grub_scratch_mem;
  *  Below this should be ONLY defines and other constructs for C code.
  */
 
+/* function prototypes for asm functions */
+unsigned char * graphics_get_font();
+void graphics_set_palette(int idx, int color);
+
 /* multiboot stuff */
 
 #include "mb_header.h"
@@ -756,6 +763,8 @@ struct broder {
 } __attribute__ ((packed));
 
 extern struct broder menu_broder;
+extern unsigned long fontx;
+extern unsigned long fonty;
 extern unsigned long install_partition;
 extern unsigned long boot_drive;
 //extern unsigned long install_second_sector;
@@ -936,7 +945,6 @@ extern int auth;
 extern char commands[];
 
 /* For `more'-like feature.  */
-extern int max_lines;
 extern int count_lines;
 extern int use_pager;
 #endif
@@ -1218,7 +1226,7 @@ void gotoxy (int x, int y);
 
 /* Displays an ASCII character.  IBM displays will translate some
    characters to special graphical ones (see the DISP_* constants). */
-void grub_putchar (unsigned int c);
+unsigned int grub_putchar (unsigned int c, unsigned int max_width);
 
 /* Wait for a keypress, and return its packed BIOS/ASCII key code.
    Use ASCII_CHAR(ret) to extract the ASCII code. */

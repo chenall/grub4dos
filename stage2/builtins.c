@@ -433,7 +433,7 @@ blocklist_func (char *arg, int flags)
     }
 
   if (query_block_entries >= 0)
-    grub_putchar ('\n');
+    grub_putchar ('\n', 255);
 #if 0
   if (num_entries > 1)
     query_block_entries = num_entries;
@@ -1541,14 +1541,14 @@ cat_func (char *arg, int flags)
     {
 #if 1
 //	if (debug > 0)//chenall 2010-11-12 changed.always show.
-		grub_putchar (c);
+		grub_putchar (c, 255);
 #else
 	/* Because running "cat" with a binary file can confuse the terminal,
 	   print only some characters as they are.  */
 	if (grub_isspace (c) || (c >= ' ' && c <= '~'))
-		grub_putchar (c);
+		grub_putchar (c, 255);
 	else
-		grub_putchar ('?');
+		grub_putchar ('?', 255);
 #endif
 	if (quit_print)
 		break;
@@ -4245,45 +4245,24 @@ extern char splashimage[64];
 static int
 splashimage_func(char *arg, int flags)
 {
-    //char splashimage[64];
-//    int i;
-
     /* If ARG is empty, we reset SPLASHIMAGE.  */
     if (*arg)
     {
-	/* filename can only be 64 characters due to our buffer size */
 	if (strlen(arg) > 63)
 		return ! (errnum = ERR_WONT_FIT);
     
-//    if (flags == BUILTIN_CMDLINE) {
 	if (! grub_open(arg))
 		return 0;
 	grub_close();
-//    }
     }
 
     strcpy(splashimage, arg);
 
-//    /* get rid of TERM_NEED_INIT from the graphics terminal. */
-//    for (i = 0; term_table[i].name; i++) {
-//	if (grub_strcmp (term_table[i].name, "graphics") == 0) {
-//	    term_table[i].flags &= ~TERM_NEED_INIT;
-//	    break;
-//	}
-//    }
-    
-    //graphics_set_splash (splashimage);
-
-    if (/* flags == BUILTIN_CMDLINE && */ graphics_inited) {
 	graphics_end();
+	current_term = term_table + 1;	/* terminal graphics */
 	if (! graphics_init())
 		return ! (errnum = ERR_EXEC_FORMAT);
-	graphics_cls();
-    }
-
-    /* FIXME: should we be explicitly switching the terminal as a 
-     * side effect here? */
-    terminal_func("graphics", flags);
+	//graphics_cls();
 
     return 1;
 }
@@ -4303,13 +4282,13 @@ static int
 foreground_func(char *arg, int flags)
 {
     if (grub_strlen(arg) == 6) {
-	int r = ((hex(arg[0]) << 4) | hex(arg[1])) >> 2;
-	int g = ((hex(arg[2]) << 4) | hex(arg[3])) >> 2;
-	int b = ((hex(arg[4]) << 4) | hex(arg[5])) >> 2;
+	int r = (hex(arg[0]) << 4) | hex(arg[1]);
+	int g = (hex(arg[2]) << 4) | hex(arg[3]);
+	int b = (hex(arg[4]) << 4) | hex(arg[5]);
 
 	foreground = (r << 16) | (g << 8) | b;
 	if (graphics_inited)
-	    graphics_set_palette(15, r, g, b);
+	    graphics_set_palette(15, foreground);
 
 	return 1;
     }
@@ -4333,13 +4312,13 @@ static int
 background_func(char *arg, int flags)
 {
     if (grub_strlen(arg) == 6) {
-	int r = ((hex(arg[0]) << 4) | hex(arg[1])) >> 2;
-	int g = ((hex(arg[2]) << 4) | hex(arg[3])) >> 2;
-	int b = ((hex(arg[4]) << 4) | hex(arg[5])) >> 2;
+	int r = (hex(arg[0]) << 4) | hex(arg[1]);
+	int g = (hex(arg[2]) << 4) | hex(arg[3]);
+	int b = (hex(arg[4]) << 4) | hex(arg[5]);
 
 	background = (r << 16) | (g << 8) | b;
 	if (graphics_inited)
-	    graphics_set_palette(0, r, g, b);
+	    graphics_set_palette(0, background);
 	return 1;
     }
 
@@ -5665,7 +5644,7 @@ static int find_check(char *filename,struct builtin *builtin1,char *arg,int flag
 		if (debug > 0)
 		{
 			print_root_device(NULL,0);
-			putchar('\n');
+			putchar('\n', 255);
 		}
 		return 1;
 	}
@@ -6270,7 +6249,7 @@ build_default_VGA_font:
   /* then, initialize ASCII chars with VGA font. */
 
   if (! font8x16)
-        font8x16 = (unsigned char *) graphics_get_font ();
+        font8x16 = graphics_get_font ();
 
   for (i = 0; i < 0x7F; i++)
   {
@@ -7095,7 +7074,7 @@ help_func (char *arg, int flags)
 	    printf("%-*.*s",MAX_SHORT_DOC_LEN,MAX_SHORT_DOC_LEN-1,(*builtin)->short_doc?(*builtin)->short_doc:(*builtin)->name);
 #endif
 	  if (! left)
-	    grub_putchar ('\n');
+	    grub_putchar ('\n', 255);
 
 	  left = ! left;
 	}
@@ -7103,7 +7082,7 @@ help_func (char *arg, int flags)
       /* If the last entry was at the left column, no newline was printed
 	 at the end.  */
       if (! left)
-	grub_putchar ('\n');
+	grub_putchar ('\n', 255);
     }
   else
     {
@@ -12458,7 +12437,7 @@ print_root_device (char *buffer,int flag)
 	if (buffer)
 		putchar_st.status = ((unsigned long long)(int)buffer << 32) | 1;
 	else
-		putchar(' ');
+		putchar(' ', 255);
 	switch(tmp_drive)
 	{
 	#ifdef FSYS_FB
@@ -14027,11 +14006,6 @@ terminal_func (char *arg, int flags)
   current_term = term_table + default_term;
   current_term->flags = term_flags;
   
-  if (lines)
-    max_lines = lines;
-  else
-    max_lines = current_term->max_lines;
-  
   /* If the interface is currently the command-line,
      restart it to repaint the screen.  */
   if (current_term != prev_term /*&& (flags & BUILTIN_CMDLINE)*/)
@@ -15090,8 +15064,12 @@ graphicsmode_func (char *arg, int flags)
       graphics_mode = tmp_graphicsmode;
       if (graphics_inited)
       {
-	 current_term->shutdown();
-	 current_term->startup();
+	struct term_entry *prev_term = current_term;
+	if (current_term->shutdown)
+		current_term->shutdown();
+	current_term = prev_term;
+	if (current_term->startup)
+		current_term->startup();
       }
       if (debug > 0)
 	grub_printf (" Graphics mode number set to 0x%X\n", graphics_mode);
@@ -15150,12 +15128,18 @@ static struct builtin builtin_initscript =
 
 static int echo_func (char *arg,int flags)
 {
-   int saved_xy = 0;
-   int x,y;
-   x = y = getxy() & 0xffff;
-   x >>= 8;
-   y &= 0xff;
-	char echo_ec = 0;
+   unsigned int xy_changed = 0;
+   unsigned int saved_x = 0;
+   unsigned int saved_y = 0;
+   unsigned int x;
+   unsigned int y;
+   unsigned int echo_ec = 0;
+
+   //y = getxy();
+   //x = (unsigned int)(unsigned char)y;
+   //y = (unsigned int)(unsigned char)(y >> 8);
+   x = fontx;
+   y = fonty;
    for(;;)
    {
       if (grub_memcmp(arg,"-P:",3) == 0)
@@ -15176,7 +15160,10 @@ static int echo_func (char *arg,int flags)
 	 x = ((*arg++ - '0') & 15)*10;
 	 x += ((*arg++ - '0') & 15);
 	 if (c != 0) x = current_term->chars_per_line - x;
-	 saved_xy = getxy();
+	 //saved_xy = getxy();
+	 saved_x = fontx;
+	 saved_y = fonty;
+	 xy_changed = 1;
 	 gotoxy(x,y);
       }
       else if (grub_memcmp(arg,"-h",2) == 0 )
@@ -15188,7 +15175,7 @@ static int echo_func (char *arg,int flags)
 	    if (y < current_term->max_lines-1)
 	       y++;
 	    else
-	       putchar('\n');
+	       putchar('\n', 255);
 
 	    gotoxy(x,y);
 
@@ -15204,7 +15191,8 @@ static int echo_func (char *arg,int flags)
 	    }
 	 }
 	 current_color = A_NORMAL;
-	 if (saved_xy) gotoxy((saved_xy >> 8) & 0xff,saved_xy & 0xff);//restor cursor
+	 if (xy_changed)
+		gotoxy(saved_x, saved_y);	//restore cursor
 	 return 1;
       }
       else if (grub_memcmp(arg,"-n",2) == 0)
@@ -15259,17 +15247,18 @@ static int echo_func (char *arg,int flags)
             arg += 7;
          }
       }
-      grub_putchar((unsigned char)*arg);
+      grub_putchar((unsigned char)*arg, 255);
    }
 
 	if ((echo_ec & 1) == 0)
 	{
-		grub_putchar('\r');
-		grub_putchar('\n');
+		grub_putchar('\r', 255);
+		grub_putchar('\n', 255);
 	}
    if (current_term->setcolorstate)
 	  current_term->setcolorstate (COLOR_STATE_STANDARD);
-   if (saved_xy) gotoxy((saved_xy >> 8) & 0xff,saved_xy & 0xff);//restor cursor
+   if (xy_changed)
+	gotoxy(saved_x, saved_y);	//restore cursor
    return 1;
 }
 static struct builtin builtin_echo =
@@ -16046,7 +16035,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			loop_yn:
 			grub_printf("\nTerminate batch job (Y/N)? ");
 			k = getkey() & 0xDF;
-			putchar(k);
+			putchar(k, 255);
 			if (k == 'Y')
 			{
 					errnum = 1255;

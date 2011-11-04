@@ -8344,13 +8344,10 @@ ENTRY(biosdisk_int13_extensions)
 	#;  +8	 ax
 	#;  +4	EIP
 	#; ebp	EBP
-	#;  -4	ESI
-	#;  -8	EBX
 
-	pushl	%esi
 	pushl	%ebx
-	pushl	%ecx
-	pushl	%edx
+	pushl	%esi
+	pushl	%edi
 
 	/* compute the address of disk_address_packet */
 	movl	0x10(%ebp), %eax	#; linear address of dap
@@ -8440,10 +8437,9 @@ ENTRY(biosdisk_int13_extensions)
 
 	movzbl	%dl, %eax	/* return value in %eax */
 
-	popl	%edx
-	popl	%ecx
-	popl	%ebx
+	popl	%edi
 	popl	%esi
+	popl	%ebx
 	popl	%ebp
 
 	ret
@@ -8465,8 +8461,8 @@ ENTRY(biosdisk_standard)
 	movl	%esp, %ebp
 
 	pushl	%ebx
-	pushl	%edi
 	pushl	%esi
+	pushl	%edi
 
 	/* set up CHS information */
 	movl	0x10(%ebp), %eax
@@ -8571,8 +8567,8 @@ ENTRY(biosdisk_standard)
 
 	movzbl	%bl, %eax	/* return value in %eax */
 
-	popl	%esi
 	popl	%edi
+	popl	%esi
 	popl	%ebx
 	popl	%ebp
 
@@ -8594,6 +8590,8 @@ ENTRY(check_int13_extensions)
 	movl	%esp, %ebp
 
 	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	/* drive */
 	movb	0x8(%ebp), %dl
@@ -8652,6 +8650,8 @@ ENTRY(check_int13_extensions)
 
 	xchgl	%eax, %ebx	/* return value in %eax */
 
+	popl	%edi
+	popl	%esi
 	popl	%ebx
 	popl	%ebp
 
@@ -8675,8 +8675,8 @@ ENTRY(get_diskinfo_standard)
 	movl	%esp, %ebp
 
 	pushl	%ebx
-	pushl	%edi
 	pushl	%esi
+	pushl	%edi
 
 	/* Heads */
 	movl	0x10(%ebp), %edi
@@ -8772,8 +8772,8 @@ ENTRY(get_diskinfo_standard)
 1:
 	movzbl	%bl, %eax	/* return value in %eax */
 
-	popl	%esi
 	popl	%edi
+	popl	%esi
 	popl	%ebx
 	popl	%ebp
 
@@ -9801,25 +9801,23 @@ ENTRY(get_memsize)
 
 	pushl	%ebp
 	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
-	movl	0xc(%esp), %ebx
+	movl	0x14(%esp), %ebx
 
 	call	EXT_C(prot_to_real)	/* enter real mode */
 
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
 	cmpb	$0x1, %bl
-	//DATA32	je	xext
 	je	1f
 
 	int	$0x12
-	//DATA32	jmp	xdone
 	jmp	2f
 
-//xext:
 1:
 	movb	$0x88, %ah
 #ifdef STAGE1_5
@@ -9829,7 +9827,6 @@ ENTRY(get_memsize)
 	lcall	*ABS(EXT_C(ROM_int15))
 #endif
 
-//xdone:
 2:
 	movw	%ax, %bx
 
@@ -9837,6 +9834,8 @@ ENTRY(get_memsize)
 	.code32
 
 	movw	%bx, %ax
+	popl	%edi
+	popl	%esi
 	popl	%ebx
 	popl	%ebp
 	ret
@@ -9861,8 +9860,8 @@ ENTRY(get_eisamemsize)
 
 	pushl	%ebp
 	pushl	%ebx
-	pushl	%ecx
-	pushl	%edx
+	pushl	%esi
+	pushl	%edi
 
 	call	EXT_C(prot_to_real)	/* enter real mode */
 
@@ -9913,8 +9912,8 @@ ENTRY(get_eisamemsize)
 
 	movl	%ebx, %eax
 
-	popl	%edx
-	popl	%ecx
+	popl	%edi
+	popl	%esi
 	popl	%ebx
 	popl	%ebp
 	ret
@@ -9939,8 +9938,8 @@ ENTRY(get_mmap_entry)
 
 	pushl	%ebp
 	pushl	%ebx
-	pushl	%edi
 	pushl	%esi
+	pushl	%edi
 
 	/* place address (+4) in ES:DI */
 	movl	0x14(%esp), %eax	/* addr */
@@ -9979,12 +9978,10 @@ ENTRY(get_mmap_entry)
 	pushfw
 	lcall	%cs:*ABS(EXT_C(ROM_int15))
 
-	//DATA32	jc	xnosmap
 	jnc	1f
 	movl	$0, %ebx	/* set end indicator */
 1:
 	cmpl	$0x534d4150, %eax
-	//DATA32	jne	xnosmap
 	jne	1f
 
 	/* 20-byte length is currently standard. So others are considered
@@ -9992,17 +9989,10 @@ ENTRY(get_mmap_entry)
 	 */
 
 	cmpl	$0x14, %ecx
-	//DATA32	jb	xnosmap
-	//
-	//cmpl	$0x400, %ecx
-	//DATA32	jg	xnosmap
-	//DATA32	jmp	xsmap
 	je	2f
 
-//xnosmap:
 1:
 	movl	$0, %ecx
-//xsmap:
 2:
 
 	xorw	%ax, %ax
@@ -10022,8 +10012,8 @@ ENTRY(get_mmap_entry)
 	/* set return value to continuation */
 	movl	%ebx, %eax
 
-	popl	%esi
 	popl	%edi
+	popl	%esi
 	popl	%ebx
 	popl	%ebp
 	ret
@@ -10041,7 +10031,8 @@ ENTRY(get_rom_config_table)
 
 	pushl	%ebp
 	pushl	%ebx
-	pushl	%edx
+	pushl	%esi
+	pushl	%edi
 
 	/* zero %ebx for simplicity */
 	xorl	%ebx, %ebx
@@ -10050,7 +10041,6 @@ ENTRY(get_rom_config_table)
 
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
 	movb	$0xc0, %ah
@@ -10082,7 +10072,8 @@ found_rom_table:
 	shll	$4, %eax
 	addl	%ebx, %eax
 
-	popl	%edx
+	popl	%edi
+	popl	%esi
 	popl	%ebx
 	popl	%ebp
 	ret
@@ -10101,9 +10092,9 @@ ENTRY(get_vbe_controller_info)
 	pushl	%ebp
 	movl	%esp, %ebp
 
-	pushl	%edi
 	pushl	%ebx
 	pushl	%esi
+	pushl	%edi
 
 	/* Convert the linear address to segment:offset */
 	movl	8(%ebp), %eax
@@ -10116,7 +10107,6 @@ ENTRY(get_vbe_controller_info)
 
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
 	movw	%bx, %es
@@ -10139,9 +10129,9 @@ ENTRY(get_vbe_controller_info)
 
 	movzwl	%bx, %eax
 
+	popl	%edi
 	popl	%esi
 	popl	%ebx
-	popl	%edi
 	popl	%ebp
 	ret
 
@@ -10159,8 +10149,9 @@ ENTRY(get_vbe_mode_info)
 	pushl	%ebp
 	movl	%esp, %ebp
 
-	pushl	%edi
 	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	/* Convert the linear address to segment:offset */
 	movl	0xc(%ebp), %eax
@@ -10176,7 +10167,6 @@ ENTRY(get_vbe_mode_info)
 
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
 	movw	%bx, %es
@@ -10189,8 +10179,9 @@ ENTRY(get_vbe_mode_info)
 
 	movzwl	%bx, %eax
 
-	popl	%ebx
 	popl	%edi
+	popl	%esi
+	popl	%ebx
 	popl	%ebp
 	ret
 
@@ -10209,6 +10200,8 @@ ENTRY(set_vbe_mode)
 	movl	%esp, %ebp
 
 	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	/* Save the mode number in %bx */
 	movl	0x8(%ebp), %ebx
@@ -10231,6 +10224,8 @@ ENTRY(set_vbe_mode)
 
 	movzwl	%bx, %eax
 
+	popl	%edi
+	popl	%esi
 	popl	%ebx
 	popl	%ebp
 	ret
@@ -10263,9 +10258,9 @@ ENTRY(gfx_init_v1)
 	pushl	%ebp
 	movl	%esp, %ebp
 
-	pushl	%edi
-	pushl	%esi
 	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	movl	8(%ebp),%edx
 	movl	%edx,%edi
@@ -10312,10 +10307,9 @@ gfx_init_50_v1:
 	movl	8(%ebp),%edx
 	movl	%ebx,gfx_ofs_v1_ok(%edx)
 
-	popl	%ebx
-	popl	%esi
 	popl	%edi
-
+	popl	%esi
+	popl	%ebx
 	popl	%ebp
 	ret
 
@@ -10337,9 +10331,9 @@ ENTRY(gfx_done_v1)
 	pushl	%ebp
 	movl	%esp, %ebp
 
-	pushl	%edi
-	pushl	%esi
 	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	movl	8(%ebp),%edx
 	movl	%edx,%ebx
@@ -10368,10 +10362,9 @@ ENTRY(gfx_done_v1)
 	movl	8(%ebp),%edx
 	movl	%eax,gfx_ofs_v1_ok(%edx)
 
-	popl	%ebx
-	popl	%esi
 	popl	%edi
-
+	popl	%esi
+	popl	%ebx
 	popl	%ebp
 	ret
 
@@ -10396,9 +10389,9 @@ ENTRY(gfx_input_v1)
 	pushl	%ebp
 	movl	%esp, %ebp
 
-	pushl	%edi
 	pushl	%esi
 	pushl	%ebx
+	pushl	%edi
 
 	movl	8(%ebp),%edx
 	movl	%edx,%ebx
@@ -10437,10 +10430,9 @@ ENTRY(gfx_input_v1)
 
 	movl	%ecx,%eax
 
+	popl	%edi
 	popl	%ebx
 	popl	%esi
-	popl	%edi
-
 	popl	%ebp
 	ret
 
@@ -10470,9 +10462,9 @@ ENTRY(gfx_setup_menu_v1)
 	pushl	%ebp
 	movl	%esp, %ebp
 
-	pushl	%edi
-	pushl	%esi
 	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	movl	8(%ebp),%edx
 	movl	%edx,%ebx
@@ -10529,10 +10521,9 @@ ENTRY(gfx_setup_menu_v1)
 
 	xorl	%eax,%eax
 
-	popl	%ebx
-	popl	%esi
 	popl	%edi
-
+	popl	%esi
+	popl	%ebx
 	popl	%ebp
 	ret
 
@@ -10555,9 +10546,9 @@ ENTRY(gfx_init_v2)
 	pushl	%ebp
 	movl	%esp, %ebp
 
-	pushl	%edi
-	pushl	%esi
 	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	movl	8(%ebp),%edx
 	movl	%edx,%edi
@@ -10590,10 +10581,9 @@ ENTRY(gfx_init_v2)
 	movl	8(%ebp),%edx
 	movl	%ebx,gfx_ofs_v2_ok(%edx)
 
-	popl	%ebx
-	popl	%esi
 	popl	%edi
-
+	popl	%esi
+	popl	%ebx
 	popl	%ebp
 	ret
 
@@ -10615,9 +10605,9 @@ ENTRY(gfx_done_v2)
 	pushl	%ebp
 	movl	%esp, %ebp
 
-	pushl	%edi
-	pushl	%esi
 	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	movl	8(%ebp),%edx
 	movl	%edx,%ebx
@@ -10646,10 +10636,9 @@ ENTRY(gfx_done_v2)
 	movl	8(%ebp),%edx
 	movl	%eax,gfx_ofs_v2_ok(%edx)
 
-	popl	%ebx
-	popl	%esi
 	popl	%edi
-
+	popl	%esi
+	popl	%ebx
 	popl	%ebp
 	ret
 
@@ -10674,9 +10663,9 @@ ENTRY(gfx_input_v2)
 	pushl	%ebp
 	movl	%esp, %ebp
 
-	pushl	%edi
-	pushl	%esi
 	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	movl	8(%ebp),%edx
 	movl	%edx,%ebx
@@ -10714,10 +10703,9 @@ ENTRY(gfx_input_v2)
 
 	movl	%ecx,%eax
 
-	popl	%ebx
-	popl	%esi
 	popl	%edi
-
+	popl	%esi
+	popl	%ebx
 	popl	%ebp
 	ret
 
@@ -10747,9 +10735,9 @@ ENTRY(gfx_setup_menu_v2)
 	pushl	%ebp
 	movl	%esp, %ebp
 
-	pushl	%edi
-	pushl	%esi
 	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	movl	8(%ebp),%edx
 	movl	%edx,%ebx
@@ -10806,10 +10794,9 @@ ENTRY(gfx_setup_menu_v2)
 
 	xorl	%eax,%eax
 
-	popl	%ebx
-	popl	%esi
 	popl	%edi
-
+	popl	%esi
+	popl	%ebx
 	popl	%ebp
 	ret
 
@@ -10821,159 +10808,6 @@ ENTRY(gfx_setup_menu_v2)
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  */
 #endif /* SUPPORT_GFX */
-
-#if 0
-/*
- * grub2_gate_a20(int on)
- *
- * Gate address-line 20 for high memory.
- *
- * This routine is probably overconservative in what it does, but so what?
- *
- * It also eats any keystrokes in the keyboard buffer.  :-(
- */
-
-ENTRY(grub2_gate_a20)
-
-	.code32
-
-	//movl	%eax, %edx
-	movl	4(%esp), %edx		/* the value of `on' */
-
-gate_a20_test_current_state:
-	/* first of all, test if already in a good state */
-	call	gate_a20_check_state
-	cmpb	%al, %dl
-	jnz	gate_a20_try_bios
-	ret
-
-gate_a20_try_bios:
-	/* second, try a BIOS call */
-	pushl	%ebp
-	call	EXT_C(prot_to_real)
-
-	.code16
-	sti		/* for hardware interrupt or watchdog */
-	movw	$0x2400, %ax
-	testb	%dl, %dl
-	jz	1f
-	incw	%ax
-1:	int	$0x15
-
-	call	EXT_C(real_to_prot)
-	.code32
-
-	popl	%ebp
-	call	gate_a20_check_state
-	cmpb	%al, %dl
-	jnz	gate_a20_try_keyboard_controller
-	ret
-
-gate_a20_flush_keyboard_buffer:
-	inb	$0x64
-	andb	$0x02, %al
-	jnz	gate_a20_flush_keyboard_buffer
-2:
-	inb	$0x64
-	andb	$0x01, %al
-	jz	3f
-	inb	$0x60
-	jmp	2b
-3:
-	ret
-
-gate_a20_try_keyboard_controller:
-	/* third, try the keyboard controller */
-	call    gate_a20_flush_keyboard_buffer
-
-	movb	$0xd1, %al
-	outb	$0x64
-4:
-	inb	$0x64
-	andb	$0x02, %al
-	jnz	4b
-
-	movb	$0xdd, %al
-	testb	%dl, %dl
-	jz	5f
-	orb	$0x02, %al
-5:	outb	$0x60
-	call    gate_a20_flush_keyboard_buffer
-
-	/* output a dummy command (USB keyboard hack) */
-	movb	$0xff, %al
-	outb	$0x64
-	call    gate_a20_flush_keyboard_buffer
-
-	call	gate_a20_check_state
-	cmpb	%al, %dl
-	jnz	gate_a20_try_system_control_port_a
-	ret
-
-gate_a20_try_system_control_port_a:
-	/* fourth, try the system control port A */
-	inb	$0x92
-	andb	$(~0x03), %al
-	testb	%dl, %dl
-	jz	6f
-	orb	$0x02, %al
-6:	outb	$0x92
-
-	/* When turning off Gate A20, do not check the state strictly,
-	   because a failure is not fatal usually, and Gate A20 is always
-	   on some modern machines.  */
-	testb	%dl, %dl
-	jz	7f
-	call	gate_a20_check_state
-	cmpb	%al, %dl
-	/* everything failed, so restart from the beginning */
-	jnz	gate_a20_try_bios
-7:	ret
-
-gate_a20_check_state:
-	/* iterate the checking for a while */
-	movl	$100, %ecx
-1:
-	call	3f
-	cmpb	%al, %dl
-	jz	2f
-	loop	1b
-2:
-	ret
-3:
-	pushl	%ebx
-	pushl	%ecx
-	xorl	%eax, %eax
-	/* compare the byte at 0x8000 with that at 0x108000 */
-	movl	$0x8000/*GRUB_BOOT_MACHINE_KERNEL_ADDR*/, %ebx
-	pushl	%ebx				# EBX=0x8000
-	/* save the original byte in CL */
-	movb	(%ebx), %cl			# CL=byte at 0x8000
-	/* store the value at 0x108000 in AL */
-	addl	$0x100000, %ebx			# EBX=0x108000
-	movb	(%ebx), %al			# AL=byte at 0x108000
-	/* try to set one less value at 0x8000 */
-	popl	%ebx				# EBX=0x8000
-	movb	%al, %ch			# CH=AL
-	decb	%ch				# CH=AL-1
-	movb	%ch, (%ebx)			# byte at 0x8000=CH
-	/* serialize */
-	outb	%al, $0x80
-	outb	%al, $0x80
-	/* obtain the value at 0x108000 in CH */
-	pushl	%ebx				# EBX=0x8000
-	addl	$0x100000, %ebx			# EBX=0x108000
-	movb	(%ebx), %ch			# CH=byte at 0x108000
-	/* this result is 1 if A20 is on or 0 if it is off */
-	subb	%ch, %al			# AL-=CH
-	xorb	$1, %al
-	/* restore the original */
-	popl	%ebx				# EBX=0x8000
-	movb	%cl, (%ebx)			# restore it
-	popl	%ecx
-	popl	%ebx
-	ret
-#endif
 
 
 /*
@@ -11446,10 +11280,6 @@ linux_real_mode_startup:
 	addl	$0x20, %eax	#; one sector
 	movw	%ax, 1f		// linux_setup_seg
 
-#;	/* XXX new stack pointer in safe area for calling functions */
-#;	movl	$0x4000, %esp
-#;	call	EXT_C(stop_floppy)
-
 	/* final setup for linux boot */
 
 	call	EXT_C(prot_to_real)
@@ -11465,11 +11295,6 @@ linux_real_mode_startup:
 	movw	%bx, %es
 	movw	%bx, %fs
 	movw	%bx, %gs
-
-#;	/* Reset floppy. Not required. */
-#;	xorw	%ax, %ax
-#;	xorb	%dl, %dl
-#;	int	$0x13
 
 	/* jump to start */
 	/* ljmp */
@@ -11495,8 +11320,10 @@ ENTRY(toggle_blinking)
 
 	.code32
 
-	push	%ebp
-	push	%ebx                    /* save EBX */
+	pushl	%ebp
+	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	movl	EXT_C(blinking), %ebx
 	call	EXT_C(prot_to_real)
@@ -11515,15 +11342,17 @@ ENTRY(toggle_blinking)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	pop	%ebx
-	pop	%ebp
+	popl	%edi
+	popl	%esi
+	popl	%ebx
+	popl	%ebp
 	ret
 
 #endif /* ! STAGE1_5 */
 
 
 /*
- * void console_putchar (int c)
+ * unsigned int console_putchar (unsigned int c, unsigned int max_width)
  *
  * Put the character C on the console. Because GRUB wants to write a
  * character with an attribute, this implementation is a bit tricky.
@@ -11541,7 +11370,10 @@ ENTRY(console_putchar)
 	.code32
 
 	movl	0x4(%esp), %edx
-	pusha
+	pushl	%ebp
+	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 #ifdef STAGE1_5
 	movb	$0x07, %bl
 #else
@@ -11551,7 +11383,6 @@ ENTRY(console_putchar)
 	call	EXT_C(prot_to_real)
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
 	movb	%dl, %al
@@ -11611,59 +11442,35 @@ ENTRY(console_putchar)
 1:	movb	$0x0e, %ah
 	int	$0x10
 
-3:	call	EXT_C(real_to_prot)
+3:
+#ifndef STAGE1_5
+	/* update fontx, fonty */
+        xorb	%bh, %bh                /* set page to 0 */
+	movb	$0x3, %ah
+	int	$0x10			/* get cursor position */
+#endif /* ! STAGE1_5 */
+
+	call	EXT_C(real_to_prot)
 	.code32
 
-	popa
+	/* EAX = 0 */
+
+#ifndef STAGE1_5
+	movb	%dl, %al
+	movl	%eax, EXT_C(fontx)
+	movb	%dh, %al
+	movl	%eax, EXT_C(fonty)
+#endif /* ! STAGE1_5 */
+
+	popl	%edi
+	popl	%esi
+	popl	%ebx
+	popl	%ebp
+	movl	$0x00000001, %eax	/* always return 1 char printed. */
 	ret
 
 
 #ifndef STAGE1_5
-
-#if 0
-/* this table is used in translate_keycode below */
-translation_table:
-	.word	KEY_LEFT, 2
-	.word	KEY_RIGHT, 6
-	.word	KEY_UP, 16
-	.word	KEY_DOWN, 14
-	.word	KEY_HOME, 1
-	.word	KEY_END, 5
-	.word	KEY_DC, 4
-	.word	KEY_BACKSPACE, 8
-	.word	KEY_PPAGE, 7
-	.word	KEY_NPAGE, 3
-	.word	0
-
-/*
- * translate_keycode translates the key code %dx to an ascii code.
- */
-translate_keycode:
-
-	.code16
-
-	pushw	%bx
-	pushw	%si
-
-	movw	$ABS(translation_table), %si
-
-1:	lodsw
-	/* check if this is the end */
-	testw	%ax, %ax
-	jz	2f
-	/* load the ascii code into %ax */
-	movw	%ax, %bx
-	lodsw
-	/* check if this matches the key code */
-	cmpw	%bx, %dx
-	jne	1b
-	/* translate %dx, if successful */
-	movw	%ax, %dx
-
-2:	popw	%si
-	popw	%bx
-	ret
-#endif
 
 /*
  * remap_ascii_char remaps the ascii code %dl to another if the code is
@@ -11709,7 +11516,10 @@ ENTRY(console_getkey)
 
 	.code32
 
-	push	%ebp
+	pushl	%ebp
+	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	call	EXT_C(prot_to_real)
 
@@ -11738,7 +11548,10 @@ ENTRY(console_getkey)
 
 	movw	%dx, %ax
 
-	pop	%ebp
+	popl	%edi
+	popl	%esi
+	popl	%ebx
+	popl	%ebp
 	ret
 
 
@@ -11759,7 +11572,10 @@ ENTRY(console_checkkey)
 
 	.code32
 
-	push	%ebp
+	pushl	%ebp
+	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 	xorl	%edx, %edx
 
 	call	EXT_C(prot_to_real)	/* enter real mode */
@@ -11797,7 +11613,10 @@ pending:
 
 	mov	%edx, %eax
 
-	pop	%ebp
+	popl	%edi
+	popl	%esi
+	popl	%ebx
+	popl	%ebp
 	ret
 
 
@@ -11817,14 +11636,15 @@ ENTRY(console_getxy)
 
 	.code32
 
-	push	%ebp
-	push	%ebx                    /* save EBX */
+	pushl	%ebp
+	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	call	EXT_C(prot_to_real)
 
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
         xorb	%bh, %bh                /* set page to 0 */
@@ -11834,11 +11654,14 @@ ENTRY(console_getxy)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	movb	%dl, %ah
-	movb	%dh, %al
+	//movb	%dl, %ah
+	//movb	%dh, %al
+	movw	%dx, %ax
 
-	pop	%ebx
-	pop	%ebp
+	popl	%edi
+	popl	%esi
+	popl	%ebx
+	popl	%ebp
 	ret
 
 
@@ -11856,17 +11679,18 @@ ENTRY(console_gotoxy)
 
 	.code32
 
-	push	%ebp
-	push	%ebx                    /* save EBX */
+	pushl	%ebp
+	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
-	movb	0xc(%esp), %dl           /* %dl = x */
-	movb	0x10(%esp), %dh          /* %dh = y */
+	movb	0x14(%esp), %dl		/* x */
+	movb	0x18(%esp), %dh		/* y */
 
 	call	EXT_C(prot_to_real)
 
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
         xorb	%bh, %bh                /* set page to 0 */
@@ -11876,8 +11700,10 @@ ENTRY(console_gotoxy)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	pop	%ebx
-	pop	%ebp
+	popl	%edi
+	popl	%esi
+	popl	%ebx
+	popl	%ebp
 	ret
 
 
@@ -11896,14 +11722,15 @@ ENTRY(console_cls)
 
 	.code32
 
-	push	%ebp
-	push	%ebx                    /* save EBX */
+	pushl	%ebp
+	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	call	EXT_C(prot_to_real)
 
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
 	/* move the cursor to the beginning */
@@ -11925,8 +11752,10 @@ ENTRY(console_cls)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	pop	%ebx
-	pop	%ebp
+	popl	%edi
+	popl	%esi
+	popl	%ebx
+	popl	%ebp
 	ret
 
 
@@ -11947,8 +11776,10 @@ ENTRY(console_setcursor)
 
 	.code32
 
-	push	%ebp
-	push	%ebx
+	pushl	%ebp
+	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	/* check if the standard cursor shape has already been saved */
 	movw	console_cursor_shape, %ax
@@ -11959,7 +11790,6 @@ ENTRY(console_setcursor)
 
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
 	movb	$0x03, %ah
@@ -11973,7 +11803,7 @@ ENTRY(console_setcursor)
 1:
 	/* set %cx to the designated cursor shape */
 	movw	$0x2000, %cx
-	movl	0xc(%esp), %ebx
+	movl	0x14(%esp), %ebx	/* on */
 	testl	%ebx, %ebx
 	jz	2f
 	movw	console_cursor_shape, %cx
@@ -11982,7 +11812,6 @@ ENTRY(console_setcursor)
 
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
 	movb    $0x1, %ah
@@ -11994,23 +11823,14 @@ ENTRY(console_setcursor)
 	movzbl	console_cursor_state, %eax
 	movb	%bl, console_cursor_state
 
-	pop	%ebx
-	pop	%ebp
+	popl	%edi
+	popl	%esi
+	popl	%ebx
+	popl	%ebp
 	ret
 
 /* graphics mode functions */
 #ifdef SUPPORT_GRAPHICS
-ENTRY(VARIABLE_GRAPHICS)
-VARIABLE(cursorX)
-	.word	0
-VARIABLE(cursorY)
-	.word	0
-VARIABLE(cursorCount)
-	.word	0
-VARIABLE(cursorBuf)
-	.byte	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-
-
 /*
  * int set_videomode(mode)
  * BIOS call "INT 10H Function 0h" to set video mode
@@ -12023,10 +11843,10 @@ ENTRY(set_videomode)
 
 	.code32
 
-	push	%ebp
-	push	%ebx
-	push	%esi
-	push	%edi
+	pushl	%ebp
+	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
 
 	movb	0x14(%esp), %cl
 
@@ -12054,14 +11874,15 @@ ENTRY(set_videomode)
 	jne	1f
 	movw	$0x8000, %di		// use 64-byte buffer at 0000:8000
 	xorl	%eax, %eax
-	movw	$0x10, %cx		// clear the buffer
+	movw	$0x11, %cx		// clear the buffer (64 + 4) bytes
 	cld
 	rep stosl
 	movw	$0x8000, %di		// use 64-byte buffer at 0000:8000
 	movw	$0x1B00, %ax		// get current mode infomation
 	xorw	%bx, %bx		// BX=0 for return state infomation
 	int	$0x10
-	// FIXME: should confirm AL=0x1B for a successful return.
+	// the caller want to confirm AL=0x1B for a successful return.
+	movb	%al, %cs:(0x8000+64)	// it is certain CS = 0
 1:
 	call	EXT_C(real_to_prot)
 	.code32
@@ -12070,10 +11891,10 @@ ENTRY(set_videomode)
 	//movb	%ch, %al
 	movb	0x449, %al
 
-	pop	%edi
-	pop	%esi
-	pop	%ebx
-	pop	%ebp
+	popl	%edi
+	popl	%esi
+	popl	%ebx
+	popl	%ebp
 	ret
 
 
@@ -12088,14 +11909,13 @@ ENTRY(graphics_get_font)
 
 	push	%ebp
 	push	%ebx
-	push	%ecx
-	push	%edx
+	push	%esi
+	push	%edi
 
 	call	EXT_C(prot_to_real)
 
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
 
 	movw	$0x1130, %ax
@@ -12112,8 +11932,62 @@ ENTRY(graphics_get_font)
 	shll	$4, %eax
 	movw	%dx, %ax
 
-	pop	%edx
-	pop	%ecx
+	pop	%edi
+	pop	%esi
+	pop	%ebx
+	pop	%ebp
+	ret
+
+
+/*
+ * void graphics_scroll_up()
+ * BIOS call "INT 10H Function 6h" to scroll up window
+ *
+ * VIDEO - SCROLL UP WINDOW
+ * AH = 06h
+ * AL = number of lines by which to scroll up (00h = clear entire window)
+ * BH = attribute used to write blank lines at bottom of window
+ * CH,CL = row,column of window's upper left corner
+ * DH,DL = row,column of window's lower right corner
+ *
+ * Return: Nothing
+ *
+ * Note: Affects only the currently active page (see AH=05h)
+ *
+ * BUGS: Some implementations (including the original IBM PC) have a bug
+ * which destroys BP. The Trident TVGA8900CL (BIOS dated 1992/9/8) clears
+ * DS to 0000h when scrolling in an SVGA mode (800x600 or higher)
+ */
+ENTRY(graphics_scroll_up)
+
+	.code32
+
+	push	%ebp
+	push	%ebx
+	push	%esi
+	push	%edi
+
+	movb	EXT_C(x1), %dl	/* bytes per line */
+	movb	EXT_C(y1), %dh	/* number of lines */
+
+	call	EXT_C(prot_to_real)
+
+	.code16
+
+	sti
+
+	decb	%dl
+	decb	%dh
+	movw	$0x0601, %ax	/* scroll up 1 line */
+	movb	$0, %bh		/* use background color */
+	xorw	%cx, %cx	/* upper left corner */
+	int	$0x10
+
+	call	EXT_C(real_to_prot)
+	.code32
+
+	pop	%edi
+	pop	%esi
 	pop	%ebx
 	pop	%ebp
 	ret
@@ -12121,7 +11995,7 @@ ENTRY(graphics_get_font)
 
 
 /*
- * graphics_set_palette(index, red, green, blue)
+ * graphics_set_palette(index, color)
  * BIOS call "INT 10H Function 10h" to set individual dac register
  *	Call with	%ah = 0x10
  *			%bx = register number
@@ -12135,46 +12009,91 @@ ENTRY(graphics_set_palette)
 	.code32
 
 	push	%ebp
-	push	%eax
 	push	%ebx
-	push	%ecx
-	push	%edx
+	push	%esi
+	push	%edi
 
+#if 0
 	movw	$0x3c8, %bx		/* address write mode register */
 
 	/* wait vertical retrace */
 
 	movw	$0x3da, %dx
-l1b:	inb	%dx, %al	/* wait vertical active display */
+1:	inb	%dx, %al	/* wait vertical active display */
 	test	$8, %al
-	jnz	l1b
+	jnz	1b
 
-l2b:	inb	%dx, %al	/* wait vertical retrace */
+2:	inb	%dx, %al	/* wait vertical retrace */
 	test	$8, %al
-	jnz	l2b
+	jnz	2b
 
 	mov	%bx, %dx
-	movb	0x18(%esp), %al		/* index */
+	movb	0x14(%esp), %al		/* index */
 	outb	%al, %dx
 	inc	%dx
 
-	movb	0x1c(%esp), %al		/* red */
+	movb	0x1A(%esp), %al		/* red */
+	shrb	$2, %al
 	outb	%al, %dx
 
-	movb	0x20(%esp), %al		/* green */
+	movb	0x19(%esp), %al		/* green */
+	shrb	$2, %al
 	outb	%al, %dx
 
-	movb	0x24(%esp), %al		/* blue */
+	movb	0x18(%esp), %al		/* blue */
+	shrb	$2, %al
 	outb	%al, %dx
-
-	movw	0x18(%esp), %bx
+#endif
+	movw	0x14(%esp), %bx
+#if 1
+	movl	0x18(%esp), %ecx
+	movl	%ecx, %edx
+	shrl	$10, %edx		/* DH = red */
+	shrb	$2, %ch			/* CH = green */
+	shrb	$2, %cl			/* CL = blue */
+#endif
 
 	call	EXT_C(prot_to_real)
 
 	.code16
 
-	//sti		/* it is not bad keeping interrupt off */
 	sti		/* for hardware interrupt or watchdog */
+
+#if 1
+	// VIDEO - SET INDIVIDUAL DAC REGISTER (VGA/MCGA)
+	//
+	// AX = 1010h
+	// BX = register number
+	// CH = new value for green (0-63)
+	// CL = new value for blue (0-63)
+	// DH = new value for red (0-63)
+	//
+	// Return: Nothing 
+
+	pushal
+	movw	$0x1010, %ax
+	int	$0x10
+	popal
+#endif
+
+	// VIDEO - SET SINGLE PALETTE REGISTER (PCjr,Tandy,EGA,MCGA,VGA)
+	//
+	// AX = 1000h
+	// BL = palette register number (00h-0Fh)
+	//    = attribute register number (undocumented, see below)
+	// BH = color or attribute register value
+	//
+	// Return: Nothing
+	//
+	// Notes: On MCGA, only BX = 0712h is supported. Under UltraVision,
+	// the palette locking status (see AX=CD01h) determines the outcome
+	//
+	// (undocumented) values for attribute register number:
+	// 10h	attribute mode control register (should let BIOS control this)
+	// 11h	overscan color register
+	// 12h	color plane enable register (bits 3-0 enable corresponding text attribute bit)
+	// 13h	horizontal PEL panning register
+	// 14h	color select register
 
 	movb	%bl, %bh
 	movw	$0x1000, %ax
@@ -12183,10 +12102,9 @@ l2b:	inb	%dx, %al	/* wait vertical retrace */
 	call	EXT_C(real_to_prot)
 	.code32
 
-	pop	%edx
-	pop	%ecx
+	pop	%edi
+	pop	%esi
 	pop	%ebx
-	pop	%eax
 	pop	%ebp
 	ret
 
@@ -13234,11 +13152,7 @@ VARIABLE(current_term)
 	.long	NUM_FSYS		//reserved
 VARIABLE(graphics_inited)
 	.long	0
-#ifdef SUPPORT_GRAPHICS
-	.long	ABS(EXT_C(VARIABLE_GRAPHICS))
-#else
-	.long	0
-#endif
+	.long	0			//reserved
 VARIABLE(font8x16)
 	.long	0
 VARIABLE(fontx)

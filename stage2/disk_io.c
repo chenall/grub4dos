@@ -1800,7 +1800,7 @@ print_completions (int is_filename, int is_completion)
 	}
 
       if (! is_completion)
-	grub_putchar ('\n');
+	grub_putchar ('\n', 255);
 
       print_error ();
       do_completion = 0;
@@ -1942,7 +1942,7 @@ print_completions (int is_filename, int is_completion)
 		}
 
 	      if (! is_completion)
-		grub_putchar ('\n');
+		grub_putchar ('\n', 255);
 	    }
 	  else
 	    {
@@ -2016,7 +2016,7 @@ print_completions (int is_filename, int is_completion)
 	    }
 
 	  if (! is_completion)
-	    grub_putchar ('\n');
+	    grub_putchar ('\n', 255);
 	}
       else
 	errnum = ERR_BAD_FILENAME;
@@ -2059,6 +2059,8 @@ grub_open (char *filename)
 #ifndef NO_DECOMPRESSION
   compressed_file = 0;
 #endif /* NO_DECOMPRESSION */
+
+  errnum = 0;
 
   /* if any "dir" function uses/sets filepos, it must
      set it to zero before returning if opening a file! */
@@ -2324,6 +2326,8 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
      there is an error */
   if (filepos + len > fsmax)
       return !(errnum = ERR_FILELENGTH);
+
+  errnum = 0;
 
   unsigned long long (*read_func) (unsigned long long _buf, unsigned long long _len, unsigned long _write);
 

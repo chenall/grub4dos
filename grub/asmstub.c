@@ -514,8 +514,8 @@ currticks (void)
 
 /* displays an ASCII character.  IBM displays will translate some
    characters to special graphical ones */
-void
-console_putchar (unsigned int c)
+unsigned int
+console_putchar (unsigned int c, unsigned int max_width)
 {
 #if 0
   /* Curses doesn't have VGA fonts.  */
@@ -713,6 +713,9 @@ console_getkey (void)
   
   return c;	//console_translate_key (c);
 }
+
+unsigned long fontx = 0;
+unsigned long fonty = 0;
 
 /* returns packed values, LSB+1 is x, LSB is y */
 int
@@ -1253,10 +1256,10 @@ serial_set_device (const char *device)
 }
 
 /* There is no difference between console and hercules in the grub shell.  */
-void
-hercules_putchar (unsigned int c)
+unsigned int
+hercules_putchar (unsigned int c, unsigned int max_width)
 {
-  console_putchar (c);
+  console_putchar (c, max_width);
 }
 
 int

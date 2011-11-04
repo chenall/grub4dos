@@ -388,6 +388,9 @@ enter_cmdline (char *heap, int forever)
 
   //grub_setjmp (restart_cmdline_env);
 
+  /* show cursor and disable splashimage. */
+  setcursor (1);
+
   /* Initialize the data and print a message.  */
   current_drive = GRUB_INVALID_DRIVE;
   count_lines = -1;
@@ -395,10 +398,10 @@ enter_cmdline (char *heap, int forever)
   errnum = 0;
   errorcheck = 1;	/* errorcheck on */
   init_page ();
-  grub_putchar ('\n');
+  grub_putchar ('\n', 255);
 #ifdef SUPPORT_DISKLESS
   print_network_configuration ();
-  grub_putchar ('\n');
+  grub_putchar ('\n', 255);
 #endif
   print_cmdline_message (forever);
   
