@@ -50,7 +50,6 @@ static unsigned char *VSHADOW8 = (unsigned char *)0x3CBF20;	//unsigned char VSHA
 //static unsigned short text[80 * 30];
 static unsigned long *text = (unsigned long *)0x3FC000; // length in bytes = 100*37*4 = 0x39D0
 
-static unsigned long graphics_showcursor = 0;
 static unsigned long splashimage_loaded = 0;
 
 /* constants to define the viewable area */
@@ -63,6 +62,8 @@ unsigned long graphics_mode = 0x12;
 unsigned long current_x_resolution;
 unsigned long current_y_resolution;
 unsigned long current_bits_per_pixel;
+unsigned long current_bytes_per_scanline;
+unsigned long current_phys_base;
 
 /* why do these have to be kept here? */
 unsigned long foreground = 0xFFFFFF; //(63 << 16) | (63 << 8) | (63)
@@ -71,14 +72,14 @@ unsigned long background = 0;
 /* global state so that we don't try to recursively scroll or cursor */
 //static int no_scroll = 0;
 
-/* color state */
-extern int current_color;
-
-
 /* graphics local functions */
 static void graphics_scroll (void);
+static void vbe_scroll (void);
+void SetPixel (unsigned long x, unsigned long y, unsigned long color);
+void XorPixel (unsigned long x, unsigned long y, unsigned long color);
 static int read_image (void);
 static void graphics_cursor (int set);
+static void vbe_cursor (int set);
 extern void (*graphics_CURSOR) (int set);
 /* FIXME: where do these really belong? */
 static inline void outb(unsigned short port, unsigned char val)
@@ -97,6 +98,73 @@ static void BitMask(int value) {
     outb(0x3cf, value);
 }
 
+static inline void * _memcpy_forward(void *dst, const void *src, unsigned int len)
+{
+    int r0, r1, r2, r3;
+    __asm__ __volatile__(
+	"movl %%ecx, %0; shrl $2, %%ecx; "	// ECX=(len / 4)
+	"rep; movsl; "
+	"movl %0, %%ecx; andl $3, %%ecx; "	// ECX=(len % 4)
+	"rep; movsb; "
+	: "=&r"(r0), "=&c"(r1), "=&D"(r2), "=&S"(r3)
+	: "1"(len), "2"((long)dst), "3"((long)src)
+	: "memory");
+    return dst;
+}
+
+static inline void _memset(void *dst, unsigned char data, unsigned int len)
+{
+    int r0,r1,r2,r3;
+    __asm__ __volatile__ (
+	"movb %b2, %h2; movzwl %w2, %3; shll $16, %2; orl %3, %2; "	// duplicate data into all 4-bytes of EAX
+	"movl %0, %3; shrl $2, %0; "	// ECX=(len / 4)
+	"rep; stosl;  "
+	"movl %3, %0; andl $3, %0; "	// ECX=(len % 4)
+	"rep; stosb;  "
+	:"=&c"(r1),"=&D"(r2),"=&a"(r0),"=&r"(r3)
+	:"0"(len),"1"(dst),"2"(data)
+	:"memory");
+}
+
+void SetPixel (unsigned long x, unsigned long y, unsigned long color)
+{
+	unsigned char *lfb;
+
+	if (x < 0 || y < 0 || x >= current_x_resolution || y >= current_y_resolution)
+		return;
+
+	lfb = (unsigned char *)(current_phys_base + (y * current_bytes_per_scanline) + (x * ((current_bits_per_pixel + 7) / 8)));
+	switch (current_bits_per_pixel)
+	{
+	case 24:
+		*(unsigned short *)lfb = (unsigned short)color;
+		lfb[2] = (unsigned char)(color >> 16);
+		break;
+	case 32:
+		*(unsigned long *)lfb = (unsigned long)color;
+		break;
+	}
+}
+
+void XorPixel (unsigned long x, unsigned long y, unsigned long color)
+{
+	unsigned char *lfb;
+
+	if (x < 0 || y < 0 || x >= current_x_resolution || y >= current_y_resolution)
+		return;
+
+	lfb = (unsigned char *)(current_phys_base + (y * current_bytes_per_scanline) + (x * ((current_bits_per_pixel + 7) / 8)));
+	switch (current_bits_per_pixel)
+	{
+	case 24:
+		*(unsigned short *)lfb ^= (unsigned short)color;
+		lfb[2] ^= (unsigned char)(color >> 16);
+		break;
+	case 32:
+		*(unsigned long *)lfb ^= (unsigned long)color;
+		break;
+	}
+}
 
 /* Initialize a vga16 graphics display with the palette based off of
  * the image in splashimage.  If the image doesn't exist, leave graphics
@@ -129,9 +197,24 @@ graphics_init (void)
 		goto success;
 	    }
 	    if (set_vbe_mode (graphics_mode | (1 << 14)) != 0x004F)
+	    {
+		graphics_end ();
 		return !(errnum = ERR_SET_VBE_MODE);
+	    }
+
+	    current_term->chars_per_line = x1 = current_x_resolution / 8;
+	    current_term->max_lines = y1 = current_y_resolution / 16;
 
 	    /* here should read splashimage. */
+
+	    menu_broder.disp_ul = 0x14;
+	    menu_broder.disp_ur = 0x15;
+	    menu_broder.disp_ll = 0x16;
+	    menu_broder.disp_lr = 0x13;
+	    menu_broder.disp_horiz = 0x0F;
+	    menu_broder.disp_vert = 0x0E;
+
+	    graphics_CURSOR = (void *)&vbe_cursor;
 
 	    graphics_inited = 1;
 	    return 1;
@@ -201,6 +284,13 @@ success:
 		ypixels = 600;
 		plano_size = (800 * 600) / 8;
 	    }
+
+	    menu_broder.disp_ul = 218;
+	    menu_broder.disp_ur = 191;
+	    menu_broder.disp_ll = 192;
+	    menu_broder.disp_lr = 217;
+	    menu_broder.disp_horiz = 196;
+	    menu_broder.disp_vert = 179;
 	}
     }
 
@@ -223,6 +313,15 @@ graphics_end (void)
 	current_term = term_table; /* set terminal to console */
 	set_videomode (3); /* set normal 80x25 text mode. */
 	set_videomode (3); /* set it once more for buggy BIOSes. */
+
+	menu_broder.disp_ul = 218;
+	menu_broder.disp_ur = 191;
+	menu_broder.disp_ll = 192;
+	menu_broder.disp_lr = 217;
+	menu_broder.disp_horiz = 196;
+	menu_broder.disp_vert = 179;
+
+	graphics_CURSOR = 0;
 	graphics_inited = 0;
 }
 
@@ -230,11 +329,121 @@ graphics_end (void)
 unsigned int
 graphics_putchar (unsigned int ch, unsigned int max_width)
 {
-    if (graphics_mode > 0xFF /*&& graphics_mode != 0x102*/)
-	goto vbe;
+    unsigned long i, j;
+    unsigned long pending = 0;
+    unsigned long pat;
+    unsigned long char_width;
 
+    if (graphics_mode <= 0xFF)
+	goto vga;
+
+    /* VBE */
+
+    if ((unsigned char)ch > 0x7F)	/* multi-byte */
+	goto multibyte;
+
+    if (pending)
+	goto error_case;
+
+    if (cursor_state)
+	vbe_cursor(0);
+    if (fontx >= x1)
+    {
+	fontx = 0;
+	++fonty;
+    }
+    if (fonty >= y1)
+    {
+	vbe_scroll();
+	--fonty;
+    }
+
+    if ((char)ch == '\n')
+    {
+	fonty++;
+	if (fonty >= y1)
+	{
+	    vbe_scroll();
+	    --fonty;
+	}
+	if (cursor_state)
+	    vbe_cursor(1);
+	return 1;
+    }
+    else if ((char)ch == '\r')
+    {
+	fontx = 0;
+	if (cursor_state)
+	    vbe_cursor(1);
+	return 1;
+    }
+
+    char_width = 2;	/* wide char */
+    pat = UNIFONT_START + (((unsigned long)(unsigned char)ch) << 5);
+
+    if (*(unsigned long *)pat == narrow_char_indicator)
+    {
+	/* narrow char */
+	pat += 16;
+	char_width = 1;
+    }
+
+    if (char_width > max_width)
+    {
+	if (cursor_state)
+	    vbe_cursor(1);
+	/* printed width = 0, with fontx and fonty unchanged. */
+	return (1 << 31);
+    }
+
+    /* print CRLF or scroll if needed */
+    if (char_width > x1 - fontx)
+    {
+	fontx = 0;
+	++fonty;
+	if (fonty >= y1)
+	{
+	    vbe_scroll();
+	    --fonty;
+	}
+    }
+
+    /* print dot matrix of the ASCII char */
+    for (i = 0; i < char_width * 8; ++i)
+    {
+	for (j = 0; j< 16; ++j)
+	{
+	    /* print char using foreground and background colors. */
+	    SetPixel (fontx * 8 + i, fonty * 16 + j, ((((unsigned short *)pat)[i] >> j) & 1) ? current_color_64bit : (current_color_64bit >> 32));
+	}
+    }
+
+    fontx += char_width;
+    if (cursor_state)
+    {
+	if (fontx >= x1)
+	{
+	    fontx = 0;
+	    ++fonty;
+	    if (fonty >= y1)
+	    {
+		vbe_scroll();
+		--fonty;
+	    }
+	}
+	vbe_cursor(1);
+    }
+    return char_width;
+
+multibyte:
+    return 1;
+
+error_case:
+    return 1;
+
+vga:
     if ((char)ch == '\n') {
-	if (graphics_showcursor)
+	if (cursor_state)
 	    graphics_CURSOR(0);
 	if (fonty + 1 < y1)
 	{
@@ -244,14 +453,14 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
 	{
 	    graphics_scroll();
 	}
-	if (graphics_showcursor)
+	if (cursor_state)
 	    graphics_CURSOR(1);
 	return 1;
     } else if ((char)ch == '\r') {
-	if (graphics_showcursor)
+	if (cursor_state)
 	    graphics_CURSOR(0);
 	fontx = 0;
-	if (graphics_showcursor)
+	if (cursor_state)
 	    graphics_CURSOR(1);
 	return 1;
     }
@@ -276,48 +485,8 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
 	fontx++;
     }
 
-    if (graphics_showcursor)
+    if (cursor_state)
 	graphics_CURSOR(1);
-    return 1;
-
-vbe:
-#if 0
-    if ((unsigned char)ch > 0x7F)	/* multi-byte */
-	goto multibyte;
-
-    if (pending)
-	goto error_case;
-
-    if (fontx >= vesa.chars_per_line)
-    {
-	fontx = 0;
-	++fonty;
-    }
-    if (fonty >= vesa.max_lines)
-    {
-	graphics_scroll();
-	--fonty;
-    }
-
-    if ((char)c == '\n')
-    {
-	fonty++; //graphics_gotoxy (fontx, fonty + 1);
-	return 1;
-    }
-    else if ((char)c == '\r')
-    {
-	fontx = 0; //graphics_gotoxy(0, fonty);
-	return 1;
-    }
-#endif
-    /* print dot matrix of the ASCII char */
-
-
-
-multibyte:
-    return 1;
-
-error_case:
     return 1;
 
 }
@@ -332,13 +501,13 @@ graphics_getxy(void)
 void
 graphics_gotoxy (int x, int y)
 {
-    if (graphics_showcursor)
+    if (cursor_state)
 	graphics_CURSOR(0);
 
     fontx = x;
     fonty = y;
 
-    if (graphics_showcursor)
+    if (cursor_state)
 	graphics_CURSOR(1);
 }
 
@@ -348,20 +517,29 @@ graphics_cls (void)
     int i;
     unsigned char *mem, *s1, *s2, *s4, *s8;
 
-    //graphics_CURSOR(0);
-    //graphics_gotoxy(0, 0);
     fontx = 0;
     fonty = 0;
 
+    if (graphics_mode <= 0xFF)
+	goto vga;
+
+    /* VBE */
+
+    _memset ((char *)current_phys_base, 0, current_y_resolution * current_bytes_per_scanline);
+    if (cursor_state)
+	    vbe_cursor(1);
+    return;
+
+vga:
     mem = (unsigned char*)VIDEOMEM;
 
     for (i = 0; i < x1 * y1; i++)
         text[i] = ' ';
 
-    if (graphics_showcursor)
+    if (cursor_state)
     {
 	MapMask(15);
-	memset (mem, 0, plano_size);
+	_memset (mem, 0, plano_size);
 	return;
     }
 
@@ -370,37 +548,26 @@ graphics_cls (void)
     s4 = (unsigned char*)VSHADOW4;
     s8 = (unsigned char*)VSHADOW8;
 
-    //graphics_CURSOR(1);
-
     BitMask(0xff);
 
     /* plano 1 */
     MapMask(1);
-    grub_memcpy(mem, s1, plano_size);
+    _memcpy_forward (mem, s1, plano_size);
 
     /* plano 2 */
     MapMask(2);
-    grub_memcpy(mem, s2, plano_size);
+    _memcpy_forward (mem, s2, plano_size);
 
     /* plano 3 */
     MapMask(4);
-    grub_memcpy(mem, s4, plano_size);
+    _memcpy_forward (mem, s4, plano_size);
 
     /* plano 4 */
     MapMask(8);
-    grub_memcpy(mem, s8, plano_size);
+    _memcpy_forward (mem, s8, plano_size);
 
     MapMask(15);
  
-}
-
-int
-graphics_setcursor (int on)
-{
-    ///* FIXME: we don't have a cursor in graphics */
-    unsigned long old_state = graphics_showcursor;
-    graphics_showcursor = on;
-    return old_state;
 }
 
 /* Read in the splashscreen image and set the palette up appropriately.
@@ -573,13 +740,24 @@ graphics_scroll (void)
 #if 1
     unsigned long i, j;
 
-    graphics_scroll_up ();
-
     fontx = 0;
     fonty = y1 - 1;
+#if 0
+    if (graphics_mode <= 0xFF)
+	goto vga;
+
+    /* VBE */
+
+    _memcpy_forward ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline << 4),
+		    /*((y1 - 1) << 4)*/ current_y_resolution * current_bytes_per_scanline);
+    return;
+
+vga:
+#endif
+    bios_scroll_up ();
 
     for (i = x1 * (y1 - 1), j = x1 * y1; i < j; i++)
-        text[i] = ' ';
+	text[i] = ' ';
 
 #else
     int i, j;
@@ -617,6 +795,39 @@ graphics_scroll (void)
 #endif
 }
 
+static void
+vbe_scroll (void)
+{
+#if 1
+    _memcpy_forward ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline << 4),
+		    /*((y1 - 1) << 4)*/ current_y_resolution * current_bytes_per_scanline);
+#else
+    bios_scroll_up ();
+#endif
+}
+
+static void
+vbe_cursor (int set)
+{
+    unsigned long i, j;
+
+#if 1
+    /* invert the beginning 1 vertical lines of the char */
+	for (j = 0; j < 16; ++j)
+	{
+	    XorPixel (fontx * 8, fonty * 16 + j, -1);
+	}
+#else
+    /* invert the beginning 2 vertical lines of the char */
+    for (i = 0; i < 2; ++i)
+    {
+	for (j = 0; j < 16; ++j)
+	{
+	    XorPixel (fontx * 8 + i, fonty * 16 + j, -1);
+	}
+    }
+#endif
+}
 
 static unsigned char chr[16 << 2];
 static unsigned char mask[16];
@@ -667,7 +878,7 @@ graphics_cursor (int set)
 
 	p = pat[i];
 
-	if (graphics_showcursor)
+	if (cursor_state)
 		goto put_pattern;
 	if (is_highlight)
 	{

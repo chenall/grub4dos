@@ -104,7 +104,8 @@ read_from_preset_menu (char *buf, int max_len)
 
 #define MENU_BOX_X	(menu_broder.menu_box_x)
 //#define MENU_BOX_W	(menu_broder.menu_box_w)
-#define MENU_BOX_W	(menu_broder.menu_box_w ? menu_broder.menu_box_w : current_term->chars_per_line - 4)
+//#define MENU_BOX_W	(menu_broder.menu_box_w ? menu_broder.menu_box_w : current_term->chars_per_line - 4)
+#define MENU_BOX_W	(menu_broder.menu_box_w ? menu_broder.menu_box_w : current_term->chars_per_line - 3)
 #define MENU_BOX_Y	(menu_broder.menu_box_y)
 /* window height */
 #define MENU_BOX_H	(menu_broder.menu_box_h?menu_broder.menu_box_h:(current_term->max_lines - 6 - menu_broder.menu_box_y)) //current_term->max_lines - 8
@@ -265,7 +266,7 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
   is_highlight = 0;
 
   gotoxy (MENU_BOX_X - 1, y);
-  grub_putchar(highlight ? 30 : ' ', 255);
+  grub_putchar(highlight ? 0x10 : ' ', 255);
 
   if (entry)
   {
@@ -332,7 +333,7 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 				else
 					grub_putchar (' ', 255);
 			}
-			for (x = fontx/*(unsigned int)(unsigned char)getxy()*/; x < current_term->chars_per_line - 1; x++)
+			for (x = fontx/*(unsigned int)(unsigned char)getxy()*/; x < current_term->chars_per_line/* - 1*/; x++)
 				grub_putchar (' ', 255);
 		}
 		//gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
@@ -344,7 +345,7 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
 		{
 			gotoxy (0, j);
-			for (x = 0; x < current_term->chars_per_line - 1; x++)
+			for (x = 0; x < current_term->chars_per_line/* - 1*/; x++)
 				grub_putchar (' ', 255);
 		}
 		gotoxy (0, MENU_BOX_B + 1);
@@ -834,7 +835,7 @@ restart:
 		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
 		{
 			gotoxy (0, j);
-			for (x = 0; x < current_term->chars_per_line - 1; x++)
+			for (x = 0; x < current_term->chars_per_line/* - 1*/; x++)
 				grub_putchar (' ', 255);
 		}
 		gotoxy (0, MENU_BOX_B + 1);
@@ -890,7 +891,7 @@ restart:
 
 	      grub_sprintf (tmp_buf, " The highlighted entry will be booted automatically in %d seconds.", grub_timeout);
 	      gotoxy (0, MENU_BOX_B + 5);
-	      for (i = 0; i < current_term->chars_per_line - 1; i++)
+	      for (i = 0; i < current_term->chars_per_line/* - 1*/; i++)
 	      {
 		if (ch)
 			ch = tmp_buf[i];

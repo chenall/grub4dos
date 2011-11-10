@@ -3269,22 +3269,28 @@ color_func (char *arg, int flags)
   if ((long long)new_normal_color < 0 && ! safe_parse_maxint (&normal, &new_normal_color))
     return 0;
   
-  if (new_normal_color & 0xFF00)	/* disable blinking */
+  if (new_normal_color >> 8)	/* disable blinking */
 	blinking = 0;
   new_helptext_color = new_normal_color;
   new_heading_color = new_normal_color;
   /* The second argument is optional, so set highlight_color
      to inverted NORMAL_COLOR.  */
   if (! *highlight)
-    new_highlight_color = (((new_normal_color >> 4) & 0xf)
+  {
+    if (new_normal_color >> 8)
+      new_highlight_color = ((new_normal_color >> 32)
+			   | (new_normal_color << 32));
+    else
+      new_highlight_color = (((new_normal_color >> 4) & 0xf)
 			   | ((new_normal_color & 0xf) << 4));
+  }
   else
     {
       new_highlight_color = (unsigned long long)(long long)color_number (highlight);
       if ((long long)new_highlight_color < 0
 	  && ! safe_parse_maxint (&highlight, &new_highlight_color))
 	return 0;
-      if (new_highlight_color & 0xFF00)	/* disable blinking */
+      if (new_highlight_color >> 8)	/* disable blinking */
       {
 	if (blinking == 0x80)
 	{
@@ -3299,7 +3305,7 @@ color_func (char *arg, int flags)
 	if ((long long)new_helptext_color < 0
 	    && ! safe_parse_maxint (&helptext, &new_helptext_color))
 		return 0;
-	if (new_helptext_color & 0xFF00)	/* disable blinking */
+	if (new_helptext_color >> 8)	/* disable blinking */
 	{
 		if (blinking == 0x80)
 		{
@@ -3314,7 +3320,7 @@ color_func (char *arg, int flags)
 		if ((long long)new_heading_color < 0
 		    && ! safe_parse_maxint (&heading, &new_heading_color))
 			return 0;
-		if (new_heading_color & 0xFF00)	/* disable blinking */
+		if (new_heading_color >> 8)	/* disable blinking */
 		{
 			if (blinking == 0x80)
 			{
@@ -6149,6 +6155,10 @@ font_func (char *arg, int flags)
 
     if (buf[37] == '\n')	/* narrow char */
     {
+	/* discard if it is a control char(we will re-map control chars) */
+	if (unicode <= 0x1F)
+	    continue;
+
 	/* simply put the 8x16 dot matrix at the right half */
 	for (j = 0; j < 8; j++)
 	{
@@ -6166,9 +6176,6 @@ font_func (char *arg, int flags)
     }
     else
     {
-	/* set bit 0: this unicode char is a wide char. */
-	*(unsigned char *)(0x100000 + unicode) |= 1;	/* bit 0 */
-
 	/* read additional 32 chars and see if it end in a LF */
 	len = grub_read((unsigned long long)(unsigned int)(char*)(buf+38), 32, 0xedde0d90);
 	if (len != 32 || buf[69] != '\n')
@@ -6176,6 +6183,14 @@ font_func (char *arg, int flags)
 	    errnum = ERR_UNIFONT_FORMAT;
 	    break;
 	}
+
+	/* discard if it is a normal ASCII char */
+	if (unicode <= 0x7F)
+	    continue;
+
+	/* set bit 0: this unicode char is a wide char. */
+	*(unsigned char *)(0x100000 + unicode) |= 1;	/* bit 0 */
+
 	/* put the 16x16 dot matrix */
 	for (j = 0; j < 16; j++)
 	{
@@ -6251,7 +6266,7 @@ build_default_VGA_font:
   if (! font8x16)
         font8x16 = graphics_get_font ();
 
-  for (i = 0; i < 0x7F; i++)
+  for (i = 0; i < 0xFF; i++)
   {
     for (j = 0; j < 8; j++)
     {
@@ -6263,6 +6278,15 @@ build_default_VGA_font:
       ((unsigned short *)(UNIFONT_START + (i << 5) + 16))[j] = tmp;
     }
   }
+
+  /* re-map 6 box drawing chars to replace 6 control chars respectively. */
+  /* Lower Right (0xD9) and Upper Left (0xDA) to 0x13 and 0x14 */
+  memmove (UNIFONT_START + (0x13 << 5), UNIFONT_START + (0xD9 << 5), 64);
+  /* Upper Right (0xBF) and Lower Left (0xC0) to 0x15 and 0x16 */
+  memmove (UNIFONT_START + (0x15 << 5), UNIFONT_START + (0xBF << 5), 64);
+  /* Vertical Line (0xB3) and Horizontal Line (0xC4) to 0x0E and 0x0F */
+  memmove (UNIFONT_START + (0x0E << 5), UNIFONT_START + (0xB3 << 5), 32);
+  memmove (UNIFONT_START + (0x0F << 5), UNIFONT_START + (0xC4 << 5), 32);
   return !(errnum);
 }
 
@@ -6270,7 +6294,7 @@ static struct builtin builtin_font =
 {
   "font",
   font_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
   "font [FILE]",
   "Load unifont file FILE, or clear the font if no FILE specified."
 };
@@ -14963,9 +14987,12 @@ graphicsmode_func (char *arg, int flags)
   extern unsigned long current_x_resolution;
   extern unsigned long current_y_resolution;
   extern unsigned long current_bits_per_pixel;
+  extern unsigned long current_bytes_per_scanline;
+  extern unsigned long current_phys_base;
   unsigned long long tmp_graphicsmode;
   int old_graphics_mode = graphics_mode;
 
+  errnum = 0;
   if (! *arg)
   {
     if (debug > 0)
@@ -15031,6 +15058,8 @@ graphicsmode_func (char *arg, int flags)
 		x = _X_;
 		y = _Y_;
 		z = _Z_;
+		current_bytes_per_scanline = mode->bytes_per_scanline;
+		current_phys_base = mode->phys_base;
 		mode_found = *mode_list;
 		break; /* done. */
 	    }
@@ -15040,6 +15069,8 @@ graphicsmode_func (char *arg, int flags)
 		x = _X_;
 		y = _Y_;
 		z = _Z_;
+		current_bytes_per_scanline = mode->bytes_per_scanline;
+		current_phys_base = mode->phys_base;
 		mode_found = *mode_list;
 	    }
 	} /* for */
@@ -15054,11 +15085,20 @@ graphicsmode_func (char *arg, int flags)
 #undef _Y_
 #undef _Z_
     }
-//    else if (tmp_graphicsmode != 0x12 && tmp_graphicsmode != 0x6A)
-//    {
-//      errnum = ERR_BAD_ARGUMENT;
-//      return 0;
-//    }
+    else if (tmp_graphicsmode == 3)
+    {
+      if (graphics_inited)
+      {
+	if (current_term->shutdown)
+		current_term->shutdown();
+      }
+      else
+      {
+	if (current_term != term_table)		/* terminal console */
+		current_term = term_table;	/* terminal console */
+      }
+      return old_graphics_mode;
+    }
     if (graphics_mode != (unsigned long)tmp_graphicsmode)
     {
       graphics_mode = tmp_graphicsmode;
@@ -15071,8 +15111,21 @@ graphicsmode_func (char *arg, int flags)
 	if (current_term->startup)
 		current_term->startup();
       }
-      if (debug > 0)
-	grub_printf (" Graphics mode number set to 0x%X\n", graphics_mode);
+      else
+      {
+	current_term = term_table + 1;	/* terminal graphics */
+	if (current_term->startup)
+		current_term->startup();
+      }
+      if (! errnum)
+      {
+	if (debug > 0)
+	    printf (" Graphics mode number set to 0x%X\n", graphics_mode);
+      }
+      else
+      {
+	graphics_mode = old_graphics_mode;
+      }
     }
     else
     {
@@ -15173,35 +15226,38 @@ static int echo_func (char *arg,int flags)
 	 for (i=0;i<16;i++)
 	 {
 	    if (y < current_term->max_lines-1)
-	       y++;
+		y++;
 	    else
-	       putchar('\n', 255);
+		putchar('\n', 255);
 
 	    gotoxy(x,y);
 
 	    for (j=0;j<16;j++)
 	    {
-	       if (j==8)
-	       {
-	         current_color = A_NORMAL;
-	         printf(" L ");
-	       }
-       	       current_color = (i << 4) | j;
-      	       printf("%02X",current_color);
+		if (j == 8)
+		{
+			current_color = A_NORMAL;
+			current_color_64bit = 0xAAAAAA;
+			printf(" L ");
+		}
+		current_color = (i << 4) | j;
+		current_color_64bit = color_8_to_64 (current_color);
+		printf("%02X",current_color);
 	    }
 	 }
 	 current_color = A_NORMAL;
+	 current_color_64bit = 0xAAAAAA;
 	 if (xy_changed)
 		gotoxy(saved_x, saved_y);	//restore cursor
 	 return 1;
       }
       else if (grub_memcmp(arg,"-n",2) == 0)
       {
-			echo_ec |= 1;
+		echo_ec |= 1;
       }
       else if (grub_memcmp(arg,"-e",2) == 0)
       {
-			echo_ec |= 2;
+		echo_ec |= 2;
       }
       else break;
    	 arg = skip_to (0,arg);
@@ -15222,7 +15278,10 @@ static int echo_func (char *arg,int flags)
             if (current_term->setcolorstate)
                 current_term->setcolorstate (COLOR_STATE_STANDARD);
             else
-               current_color = A_NORMAL;
+	    {
+		current_color = A_NORMAL;
+		current_color_64bit = 0xAAAAAA;
+	    }
             arg += 3;
          }
          else if (arg[3] == 'x')
@@ -15231,8 +15290,9 @@ static int echo_func (char *arg,int flags)
             char *p = arg + 2;
             if (safe_parse_maxint(&p,&ull) && *p == ']')
             {
-               current_color = (unsigned long)ull;
-               arg = p + 1;
+		current_color = (unsigned char)ull;
+		current_color_64bit = color_8_to_64 (current_color);
+		arg = p + 1;
             }
             errnum = 0;
          }
@@ -15244,6 +15304,7 @@ static int echo_func (char *arg,int flags)
             char_attr |= ((arg[4] - '0') & 7) << 4;
             char_attr |= ((arg[5] - '0') & 7);
             current_color = char_attr;
+	    current_color_64bit = color_8_to_64 (current_color);
             arg += 7;
          }
       }

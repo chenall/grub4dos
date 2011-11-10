@@ -84,9 +84,9 @@ struct term_entry
   void (*setcolorstate) (color_state state);
   /* Set the normal color and the highlight color. The format of each
      color is VGA's.  */
-  void (*setcolor) (int normal_color, int highlight_color, int helptext_color, int heading_color);
+  void (*setcolor) (unsigned long long normal_color, unsigned long long highlight_color, unsigned long long helptext_color, unsigned long long heading_color);
   /* Turn on/off the cursor.  */
-  int (*setcursor) (int on);
+  void (*setcursor) (unsigned long on);
 
   /* function to start a terminal */
   int (*startup) (void);
@@ -103,7 +103,6 @@ extern struct term_entry *current_term;
 #endif /* ! STAGE1_5 */
 
 /* The console stuff.  */
-extern int current_color;
 unsigned int console_putchar (unsigned int c, unsigned int max_width);
 
 #ifndef STAGE1_5
@@ -113,8 +112,8 @@ int console_getxy (void);
 void console_gotoxy (int x, int y);
 void console_cls (void);
 void console_setcolorstate (color_state state);
-void console_setcolor (int normal_color, int highlight_color, int helptext_color, int heading_color);
-int console_setcursor (int on);
+void console_setcolor (unsigned long long normal_color, unsigned long long highlight_color, unsigned long long helptext_color, unsigned long long heading_color);
+void console_setcursor (unsigned long on);
 #endif
 
 #ifdef SUPPORT_SERIAL
@@ -132,7 +131,7 @@ unsigned int hercules_putchar (unsigned int c, unsigned int max_width);
 int hercules_getxy (void);
 void hercules_gotoxy (int x, int y);
 void hercules_cls (void);
-int hercules_setcursor (int on);
+void hercules_setcursor (unsigned long on);
 #endif
 
 #ifdef SUPPORT_GRAPHICS
@@ -144,7 +143,6 @@ unsigned int graphics_putchar (unsigned int c, unsigned int max_width);
 int graphics_getxy(void);
 void graphics_gotoxy(int x, int y);
 void graphics_cls(void);
-int graphics_setcursor (int on);
 int graphics_init(void);
 void graphics_end(void);
 

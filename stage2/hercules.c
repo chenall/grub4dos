@@ -28,9 +28,6 @@
 static int herc_x;
 static int herc_y;
 
-extern int current_color;
-static int herc_cursor_state = 1;
-
 /* Write a byte to a port.  */
 static inline void
 outb (unsigned short port, unsigned char value)
@@ -80,8 +77,7 @@ hercules_putchar (unsigned int c, unsigned int max_width)
 	volatile unsigned short *video
 	  = (unsigned short *) HERCULES_VIDEO_ADDR;
 	
-	video[herc_y * HERCULES_WIDTH + herc_x]
-	  = (current_color << 8) | c;
+	video[herc_y * HERCULES_WIDTH + herc_x] = (current_color << 8) | c;
 	herc_x++;
 	if (herc_x >= HERCULES_WIDTH)
 	  {
@@ -136,18 +132,15 @@ hercules_gotoxy (int x, int y)
   herc_set_cursor ();
 }
 
-int
-hercules_setcursor (int on)
+void
+hercules_setcursor (unsigned long on)
 {
-  int old_state = herc_cursor_state;
-  
   outb (HERCULES_INDEX_REG, 0x0a);
   outb (0x80, 0);
   outb (HERCULES_DATA_REG, on ? 0 : (1 << 5));
   outb (0x80, 0);
-  herc_cursor_state = on;
 
-  return old_state;
+  return;
 }
 
 #endif /* SUPPORT_HERCULES */

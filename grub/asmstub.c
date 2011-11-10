@@ -77,6 +77,7 @@ char *linux_data_tmp_addr = 0;
 char *linux_data_real_addr = 0;
 char *linux_bzimage_tmp_addr = 0;
 struct apm_info apm_bios_info;
+unsigned long cursor_state = 0;
 
 /* Emulation requirements. */
 char *grub_scratch_mem = 0;
@@ -760,13 +761,13 @@ console_setcolorstate (color_state state)
 }
 
 void
-console_setcolor (int normal_color, int highlight_color, int helptext_color, int heading_color)
+console_setcolor (unsigned long long normal_color, unsigned long long highlight_color, unsigned long long helptext_color, unsigned long long heading_color)
 {
   /* Nothing to do.  */
 }
 
-int
-console_setcursor (int on)
+void
+console_setcursor (unsigned long on)
 {
   return 1;
 }
@@ -1259,7 +1260,7 @@ serial_set_device (const char *device)
 unsigned int
 hercules_putchar (unsigned int c, unsigned int max_width)
 {
-  console_putchar (c, max_width);
+  return console_putchar (c, max_width);
 }
 
 int
@@ -1280,8 +1281,8 @@ hercules_cls (void)
   console_cls ();
 }
 
-int
-hercules_setcursor (int on)
+void
+hercules_setcursor (unsigned long on)
 {
   return 1;
 }

@@ -923,7 +923,7 @@ diff -Naur grub-0.97_splash/stage2/builtins.c grub-0.97_chinese/stage2/builtins.
 +{
 +  "fontfile",
 +  fontfile_func,
-+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_HELP_LIST,
++  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
 +  "fontfile FILE",
 +  "Specify the Chinese Font File. "
 +  "If you want display chinese character, please run"
@@ -1400,8 +1400,8 @@ diff -Naur grub-0.97_splash/stage2/shared.h grub-0.97_chinese/stage2/shared.h
 --- grub-0.97_splash/stage2/shared.h	2011-11-04 03:15:15.000000000 +0800
 +++ grub-0.97_chinese/stage2/shared.h	2011-11-04 16:13:35.000000000 +0800
 @@ -520,6 +520,12 @@
- unsigned char * graphics_get_font();
- void graphics_set_palette(int idx, int color);
+ 
+ /* The Chinese patch will begin at here */
  
 +
 +extern char fontfile[256];
@@ -1559,7 +1559,7 @@ diff -Naur grub-0.97_splash/stage2/stage2.c grub-0.97_chinese/stage2/stage2.c
 +#endif
  	      grub_sprintf (tmp_buf, " The highlighted entry will be booted automatically in %d seconds.", grub_timeout);
  	      gotoxy (0, MENU_BOX_B + 5);
- 	      for (i = 0; i < current_term->chars_per_line - 1; i++)
+ 	      for (i = 0; i < current_term->chars_per_line/* - 1*/; i++)
 @@ -913,7 +965,14 @@
  	     since we're comming in here also on GRUB_TIMEOUT == -1 and
  	     hang in GETKEY */

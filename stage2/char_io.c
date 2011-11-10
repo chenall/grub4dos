@@ -62,7 +62,7 @@ struct term_entry term_table[] =
       graphics_cls, /* cls */
       console_setcolorstate, // graphics_setcolorstate, /* setcolorstate */
       console_setcolor, // graphics_setcolor, /* setcolor */
-      graphics_setcursor, /* nocursor */
+      0/*graphics_setcursor*/, /* nocursor */
       graphics_init, /* initialize */
       graphics_end /* shutdown */
     },
@@ -586,7 +586,7 @@ init_page (void)
 		(unsigned long)(saved_mem_upper >> 10),
 		(unsigned long long)(saved_mem_higher >> 10),
 		(unsigned int)(((char *) init_free_mem_start) + 256 * sizeof (char *) + config_len));
-  for (i = 0; i < current_term->chars_per_line - 1; i++)
+  for (i = 0; i < current_term->chars_per_line/* - 1*/; i++)
   {
 	if (ch)
 		ch = tmp_buf[i];
@@ -1206,7 +1206,7 @@ real_get_cmdline (char *cmdline)
 int
 get_cmdline (struct get_cmdline_arg p_cmdline)
 {
-  int old_cursor;
+  unsigned long old_cursor;
   int ret;
   p_getcmdline_arg = &p_cmdline ;
   old_cursor = setcursor (1);
@@ -1745,13 +1745,16 @@ cls (void)
     current_term->cls ();
 }
 
-int
-setcursor (int on)
+unsigned long
+setcursor (unsigned long on)
 {
+  unsigned long old_state = cursor_state;
+  cursor_state = on;
+  
   if (current_term->setcursor)
-    return current_term->setcursor (on);
+      current_term->setcursor (on);
 
-  return 1;
+  return old_state;
 }
 #endif /* ! STAGE1_5 */
 

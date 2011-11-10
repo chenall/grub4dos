@@ -11380,6 +11380,12 @@ ENTRY(console_putchar)
 	movl	EXT_C(current_color), %ebx
 #endif
 
+#ifndef STAGE1_5
+	movb	EXT_C(fontx), %cl
+	movb	EXT_C(fonty), %ch
+#endif /* ! STAGE1_5 */
+
+
 	call	EXT_C(prot_to_real)
 	.code16
 
@@ -11389,6 +11395,35 @@ ENTRY(console_putchar)
 	xorb	%bh, %bh
 
 #ifndef STAGE1_5
+	cmpb	$80, %cl
+	jb	5f
+	movb	$0, %cl
+	movw	%cx, %dx
+	pushaw
+	movb	$0x02, %ah
+	int	$0x10
+	popaw
+	incb	%ch
+
+	cmpb	$25, %ch
+	jb	5f
+	/* scroll up */
+	pushaw
+	movw	$0x0e0d, %ax
+	int	$0x10
+	movw	$0x0e0a, %ax
+	int	$0x10
+	popaw
+	decb	%ch
+	jmp	3f
+5:
+	movw	%cx, %dx
+	pushaw
+	movb	$0x02, %ah
+	int	$0x10
+	popaw
+3:
+
 	/* use teletype output if control character */
 	cmpb	$0x07, %al
 	je	1f
@@ -11399,57 +11434,90 @@ ENTRY(console_putchar)
 	cmpb	$0x0d, %al
 	je	1f
 
-	/* save the character and the attribute on the stack */
-	pushw	%ax
-	pushw	%bx
+//	/* save the character and the attribute on the stack */
+//	pushw	%ax
+//	pushw	%bx
+//
+//	/* get the current position */
+//	movb	$0x03, %ah
+//	int	$0x10
+//
+//	/* check the column with the width */
+//	cmpb	$79, %dl
+//	jb	2f
+//
+//	/* print CR and LF, if next write will exceed the width */
+//	movw	$0x0e0d, %ax
+//	int	$0x10
+//	movw	$0x0e0a, %ax
+//	int	$0x10
+//
+//	/* get the current position */
+//	movb	$0x03, %ah
+//	int	$0x10
+//
+//2:
+//	/* restore the character and the attribute */
+//	popw	%bx
+//	popw	%ax
 
-	/* get the current position */
-	movb	$0x03, %ah
-	int	$0x10
-
-	/* check the column with the width */
-	cmpb	$79, %dl
-	jb	2f
-
-	/* print CR and LF, if next write will exceed the width */
-	movw	$0x0e0d, %ax
-	int	$0x10
-	movw	$0x0e0a, %ax
-	int	$0x10
-
-	/* get the current position */
-	movb	$0x03, %ah
-	int	$0x10
-
-2:
-	/* restore the character and the attribute */
-	popw	%bx
-	popw	%ax
+	pushw	%cx
 
 	/* write the character with the attribute */
 	movb	$0x09, %ah
 	movw	$1, %cx
 	int	$0x10
 
+	popw	%dx
+
 	/* move the cursor forward */
 	incb	%dl
+//	movb	$0x02, %ah
+//	int	$0x10
+
+	/* if showcursor, print CRLF on needed */
+	cmpb	$0, cursor_state
+	jz	3f
+
+	cmpb	$80, %dl
+	jb	5f
+	movb	$0, %dl
+	pushaw
 	movb	$0x02, %ah
 	int	$0x10
+	popaw
+	incb	%dh
 
+	cmpb	$25, %dh
+	jb	5f
+	/* scroll up */
+	pushaw
+	movw	$0x0e0d, %ax
+	int	$0x10
+	movw	$0x0e0a, %ax
+	int	$0x10
+	popaw
+	decb	%dh
+	jmp	3f
+5:
+	pushaw
+	movb	$0x02, %ah
+	int	$0x10
+	popaw
 	jmp	3f
 #endif /* ! STAGE1_5 */
 
-1:	movb	$0x0e, %ah
+1:
+	movb	$0x0e, %ah
 	int	$0x10
-
-3:
 #ifndef STAGE1_5
 	/* update fontx, fonty */
-        xorb	%bh, %bh                /* set page to 0 */
+	xorb	%bh, %bh                /* set page to 0 */
 	movb	$0x3, %ah
 	int	$0x10			/* get cursor position */
 #endif /* ! STAGE1_5 */
 
+3:
 	call	EXT_C(real_to_prot)
 	.code32
 
@@ -11687,6 +11755,11 @@ ENTRY(console_gotoxy)
 	movb	0x14(%esp), %dl		/* x */
 	movb	0x18(%esp), %dh		/* y */
 
+	movb	%dl, %al
+	movl	%eax, EXT_C(fontx)
+	movb	%dh, %al
+	movl	%eax, EXT_C(fonty)
+
 	call	EXT_C(prot_to_real)
 
 	.code16
@@ -11746,11 +11819,16 @@ ENTRY(console_cls)
         int	$0x10
 
 	/* move back the cursor */
+	xorw	%dx, %dx
 	movb	$0x02, %ah
 	int	$0x10
 
 	call	EXT_C(real_to_prot)
 	.code32
+
+	/* EAX = 0 */
+	movl	%eax, EXT_C(fontx)
+	movl	%eax, EXT_C(fonty)
 
 	popl	%edi
 	popl	%esi
@@ -11760,15 +11838,15 @@ ENTRY(console_cls)
 
 
 /*
- * int console_setcursor (int on)
+ * void console_setcursor (unsigned long on)
  * BIOS call "INT 10H Function 01h" to set cursor type
  *      Call with       %ah = 0x01
  *                      %ch = cursor starting scanline
  *                      %cl = cursor ending scanline
  */
 
-console_cursor_state:
-	.byte	1
+VARIABLE(cursor_state)
+	.long	0
 console_cursor_shape:
 	.word	0
 
@@ -11820,8 +11898,8 @@ ENTRY(console_setcursor)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	movzbl	console_cursor_state, %eax
-	movb	%bl, console_cursor_state
+	//movb	cursor_state, %al
+	//movb	%bl, cursor_state
 
 	popl	%edi
 	popl	%esi
@@ -11940,7 +12018,7 @@ ENTRY(graphics_get_font)
 
 
 /*
- * void graphics_scroll_up()
+ * void bios_scroll_up()
  * BIOS call "INT 10H Function 6h" to scroll up window
  *
  * VIDEO - SCROLL UP WINDOW
@@ -11958,7 +12036,7 @@ ENTRY(graphics_get_font)
  * which destroys BP. The Trident TVGA8900CL (BIOS dated 1992/9/8) clears
  * DS to 0000h when scrolling in an SVGA mode (800x600 or higher)
  */
-ENTRY(graphics_scroll_up)
+ENTRY(bios_scroll_up)
 
 	.code32
 
@@ -13166,17 +13244,23 @@ VARIABLE(gzip_filemax)
 	.long	0
 	.long	0
 	//reserved for wee
-	.long 0
-	.long 0
-	.long 0
-	.long 0
-	.long 0
-	.long 0
-	.long 0
-	.long 0
-	.long 0
+	.long	0	// reserved 1
+	.long	0	// reserved 2
+	.long	0	// reserved 3
+	.long	0	// reserved 4
+	.long	0	// reserved 5
+	.long	0	// reserved 6
+	.long	0	// reserved 7
+	.long	0	// reserved 8
+	.long	0	// reserved 9
+	.long	0	// reserved 10
 	//////////////////////////////
 VARIABLE(current_color)
 	.long A_NORMAL
+
+VARIABLE(current_color_64bit)
+	.long	0xAAAAAA	/* lo 32 bits for foreground */
+	.long	0		/* hi 32 bits for background */
+
 #endif /* ! STAGE1_5 */
 

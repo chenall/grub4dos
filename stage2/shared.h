@@ -519,6 +519,13 @@ extern char *grub_scratch_mem;
 /* function prototypes for asm functions */
 unsigned char * graphics_get_font();
 void graphics_set_palette(int idx, int color);
+unsigned long long color_8_to_64 (unsigned char color8);
+unsigned long long color_4_to_32 (unsigned char color4);
+extern unsigned long current_color;
+extern unsigned long long current_color_64bit;
+extern unsigned long cursor_state;
+
+/* The Chinese patch will begin at here */
 
 /* multiboot stuff */
 
@@ -1214,7 +1221,7 @@ int currticks (void);
 void cls (void);
 
 /* Turn on/off cursor. */
-int setcursor (int on);
+unsigned long setcursor (unsigned long on);
 
 /* Get the current cursor position (where 0,0 is the top left hand
    corner of the screen).  Returns packed values, (RET >> 8) is x,
@@ -1340,7 +1347,9 @@ char *grub_strtok (char *s, const char *delim);
 int grub_memcmp (const char *s1, const char *s2, int n);
 int grub_strcmp (const char *s1, const char *s2);
 int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitive);
+#ifndef GRUB_UTIL
 #define strncmp(s1,s2,n) strncmpx(s1,s2,n,0)
+#endif
 #define strnicmp(s1,s2,n) strncmpx(s1,s2,n,1)
 #define strncmpi strnicmp
 int grub_strlen (const char *str);
