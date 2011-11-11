@@ -276,7 +276,7 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 	if (c == 8 || c == 9)
 		c = *(++entry);
   }
-  for (x = MENU_BOX_X; x < MENU_BOX_E; x = fontx/*(unsigned int)(unsigned char)getxy()*/)
+  for (x = MENU_BOX_X; x < MENU_BOX_E; x = fontx)
     {
       unsigned int ret;
 
@@ -284,17 +284,21 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
       if (c && c != '\n' /* && x <= MENU_BOX_W*/)
 	{
 		is_highlight = highlight;
-		ret = grub_putchar (((unsigned char)c) /*| (unsigned)(highlight<<16)*/, ret);
+		ret = grub_putchar ((unsigned char)c, ret);
 		is_highlight = 0;
-		c = *(++entry);
 		if ((long)ret < 0)
+		{
 			c = 0;
+			continue;
+		}
+		c = *(++entry);
 	}
       else
 	{
-		ret = grub_putchar (' ', ret);
-		if ((long)ret < 0)
-			break;
+		//ret = grub_putchar (' ', ret);
+		//if ((long)ret < 0)
+		//	break;
+		grub_putchar (' ', ret);
 	}
     }
 

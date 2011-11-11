@@ -301,6 +301,7 @@ success:
 	return !(errnum = ERR_LOAD_SPLASHIMAGE);
     }
 
+    fontx = fonty = 0;
     graphics_inited = 1;
 
     return 1;
@@ -322,99 +323,58 @@ graphics_end (void)
 	menu_broder.disp_vert = 179;
 
 	graphics_CURSOR = 0;
+	fontx = fonty = 0;
 	graphics_inited = 0;
 }
 
-/* Print ch on the screen.  Handle any needed scrolling or the like */
-unsigned int
-graphics_putchar (unsigned int ch, unsigned int max_width)
+static unsigned long pending = 0;
+static unsigned long byte_SN;
+static unsigned long unicode;
+static unsigned long invalid;
+
+static void
+check_scroll (void)
 {
-    unsigned long i, j;
-    unsigned long pending = 0;
-    unsigned long pat;
-    unsigned long char_width;
-
-    if (graphics_mode <= 0xFF)
-	goto vga;
-
-    /* VBE */
-
-    if ((unsigned char)ch > 0x7F)	/* multi-byte */
-	goto multibyte;
-
-    if (pending)
-	goto error_case;
-
-    if (cursor_state)
-	vbe_cursor(0);
-    if (fontx >= x1)
-    {
-	fontx = 0;
-	++fonty;
-    }
+    ++fonty;
     if (fonty >= y1)
     {
 	vbe_scroll();
 	--fonty;
     }
+}
 
-    if ((char)ch == '\n')
-    {
-	fonty++;
-	if (fonty >= y1)
-	{
-	    vbe_scroll();
-	    --fonty;
-	}
-	if (cursor_state)
-	    vbe_cursor(1);
-	return 1;
-    }
-    else if ((char)ch == '\r')
-    {
-	fontx = 0;
-	if (cursor_state)
-	    vbe_cursor(1);
-	return 1;
-    }
+static unsigned long
+print_unicode (unsigned long max_width)
+{
+    unsigned long i, j;
+    unsigned long pat;
+    unsigned long char_width;
 
-    char_width = 2;	/* wide char */
-    pat = UNIFONT_START + (((unsigned long)(unsigned char)ch) << 5);
+    char_width = 2;				/* wide char */
+    pat = UNIFONT_START + (unicode << 5);
 
     if (*(unsigned long *)pat == narrow_char_indicator)
-    {
-	/* narrow char */
-	pat += 16;
-	char_width = 1;
-    }
+	{ --char_width; pat += 16; }		/* narrow char */
 
-    if (char_width > max_width)
-    {
-	if (cursor_state)
-	    vbe_cursor(1);
-	/* printed width = 0, with fontx and fonty unchanged. */
-	return (1 << 31);
-    }
+    if (max_width < char_width)
+	return (1 << 31) | invalid | (byte_SN << 8); // printed width = 0
 
-    /* print CRLF or scroll if needed */
-    if (char_width > x1 - fontx)
-    {
-	fontx = 0;
-	++fonty;
-	if (fonty >= y1)
-	{
-	    vbe_scroll();
-	    --fonty;
-	}
-    }
+    if (cursor_state)
+	vbe_cursor(0);
 
-    /* print dot matrix of the ASCII char */
+    /* print CRLF and scroll if needed */
+    if (fontx + char_width > x1)
+	{ fontx = 0; check_scroll (); }
+
+    /* print dot matrix of the unicode char */
     for (i = 0; i < char_width * 8; ++i)
     {
-	for (j = 0; j< 16; ++j)
+	unsigned long tmp_x = fontx * 8 + i;
+	unsigned long column = ((unsigned short *)pat)[i];
+	for (j = 0; j < 16; ++j)
 	{
 	    /* print char using foreground and background colors. */
-	    SetPixel (fontx * 8 + i, fonty * 16 + j, ((((unsigned short *)pat)[i] >> j) & 1) ? current_color_64bit : (current_color_64bit >> 32));
+	    SetPixel (tmp_x, fonty * 16 + j, ((column >> j) & 1) ? current_color_64bit : (current_color_64bit >> 32));
 	}
     }
 
@@ -422,24 +382,180 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
     if (cursor_state)
     {
 	if (fontx >= x1)
-	{
-	    fontx = 0;
-	    ++fonty;
-	    if (fonty >= y1)
-	    {
-		vbe_scroll();
-		--fonty;
-	    }
-	}
+	    { fontx = 0; check_scroll (); }
 	vbe_cursor(1);
     }
-    return char_width;
+    return invalid | (byte_SN << 8) | char_width;
+}
+
+static unsigned long
+print_invalid_pending_bytes (unsigned long max_width)
+{
+    unsigned long tmpcode = unicode;
+    unsigned long ret = 0;
+
+    /* now pending is on, so byte_SN can tell the number of bytes, and
+     * unicode can tell the value of each byte.
+     */
+    invalid = (1 << 15);	/* set the error bit for return */
+    if (byte_SN == 2)	/* print 2 bytes */
+    {
+	unicode = (unicode >> 6) | 0xDCE0;	/* the 1st byte */
+	ret = print_unicode (max_width);
+	if ((long)ret < 0)
+	    return ret;
+	max_width -= (unsigned char)ret;
+	unicode = (tmpcode & 0x3F) | 0xDC80;	/* the 2nd byte */
+    }
+    else // byte_SN == 1
+	unicode |= 0xDCC0;
+    return print_unicode (max_width) + (unsigned char)ret;
+}
+
+/* Print ch on the screen.  Handle any needed scrolling or the like */
+unsigned int
+graphics_putchar (unsigned int ch, unsigned int max_width)
+{
+    unsigned long i, j;
+    unsigned long pat;
+    unsigned long ret;
+
+    if (graphics_mode <= 0xFF)
+	goto vga;
+
+    /* VBE */
+
+    invalid = 0;
+
+    if ((unsigned char)ch > 0x7F)	/* multi-byte */
+	goto multibyte;
+
+    if (pending)	/* print (byte_SN) invalid bytes */
+    {
+	pending = 0;	/* end the utf8 byte sequence */
+	ret = print_invalid_pending_bytes (max_width);
+	if ((long)ret < 0)
+	    return ret;
+	max_width -= (unsigned char)ret;
+    }
+
+    if (! max_width)
+	return (1 << 31);	/* printed width = 0 */
+
+    if (cursor_state)
+	vbe_cursor(0);
+
+    if (fontx >= x1)
+        { fontx = 0; check_scroll (); }
+
+    if ((char)ch == '\n')
+    {
+	check_scroll ();
+	if (cursor_state)
+	    vbe_cursor(1);
+	return 1;
+    }
+    if ((char)ch == '\r')
+    {
+	fontx = 0;
+	if (cursor_state)
+	    vbe_cursor(1);
+	return 1;
+    }
+
+    /* we know that the ASCII chars are all narrow */
+    pat = UNIFONT_START + 16 + (((unsigned long)(unsigned char)ch) << 5);
+
+    /* print dot matrix of the ASCII char */
+    for (i = 0; i < 8; ++i)
+    {
+	unsigned long tmp_x = fontx * 8 + i;
+	unsigned long column = ((unsigned short *)pat)[i];
+	for (j = 0; j < 16; ++j)
+	{
+	    /* print char using foreground and background colors. */
+	    SetPixel (tmp_x, fonty * 16 + j, ((column >> j) & 1) ? current_color_64bit : (current_color_64bit >> 32));
+	}
+    }
+
+    fontx++;
+    if (cursor_state)
+    {
+	if (fontx >= x1)
+	    { fontx = 0; check_scroll (); }
+	vbe_cursor(1);
+    }
+    return 1; //char_width;
 
 multibyte:
-    return 1;
 
-error_case:
-    return 1;
+    if (! (((unsigned char)ch) & 0x40))	/* continuation byte 10xxxxxx */
+    {
+	if (! pending)
+	{
+	    /* print this single invalid byte */
+	    unicode = 0xDC00 | (unsigned char)ch; /* the invalid code point */
+	    invalid = (1 << 15);	/* set the error bit for return */
+	    byte_SN = 0;
+	}
+	else
+	{
+	    pending--; byte_SN++;
+	    unicode = ((unicode << 6) | (ch & 0x3F));
+
+	    if (pending) /* pending = 1, awaiting the last continuation byte. */
+		return (byte_SN << 8); // succeed with printed width = 0
+	}
+
+	/* pending = 0, end the sequence, print the unicode char */
+	return print_unicode (max_width);
+    }
+    if (! (((unsigned char)ch) & 0x20)) /* leading byte 110xxxxx */
+    {
+	if (pending)	/* print (byte_SN) invalid bytes */
+	{
+	    ret = print_invalid_pending_bytes (max_width);
+	    if ((long)ret < 0)
+		return ret;
+	    max_width -= (unsigned char)ret;
+	}
+	pending = 1;	/* awaiting 1 continuation byte */
+	byte_SN = 1;
+	unicode = (ch & 0x1F);
+	return (1 << 8); // succeed with printed width = 0
+    }
+    if (! (((unsigned char)ch) & 0x10)) /* leading byte 1110xxxx */
+    {
+	if (pending)	/* print (byte_SN) invalid bytes */
+	{
+	    ret = print_invalid_pending_bytes (max_width);
+	    if ((long)ret < 0)
+		return ret;
+	    max_width -= (unsigned char)ret;
+	}
+	pending = 2;	/* awaiting 2 continuation bytes */
+	byte_SN = 1;
+	unicode = (ch & 0x0F);
+	return (1 << 8); // succeed with printed width = 0
+    }
+
+    /* now the current byte is invalid */
+
+    if (pending)	/* print (byte_SN) invalid bytes */
+    {
+	ret = print_invalid_pending_bytes (max_width);
+	if ((long)ret < 0)
+	    return ret;
+	max_width -= (unsigned char)ret;
+    }
+
+    unicode = 0xDC00 | (unsigned char)ch; /* the invalid code point */
+    invalid = (1 << 15);	/* set the error bit for return */
+    pending = 0;	/* end the utf8 byte sequence */
+    /* print the current invalid byte */
+    return print_unicode (max_width);
+
+//////////////////////////////////////////////////////////////////////////////
 
 vga:
     if ((char)ch == '\n') {
