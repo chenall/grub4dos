@@ -6111,6 +6111,9 @@ get_nibble (unsigned long c)
 }
 
 #ifdef SUPPORT_GRAPHICS
+
+static unsigned long old_narrow_char_indicator = 0;
+
 /* font */
 /* load unifont to UNIFONT_START */
 int
@@ -6173,6 +6176,8 @@ font_func (char *arg, int flags)
 	    }
 	    ((unsigned short *)(UNIFONT_START + (unicode << 5) + 16))[j] = tmp;
 	}
+	/* set to the old_narrow_char_indicator */
+	*(unsigned long *)(UNIFONT_START + (unicode << 5)) = old_narrow_char_indicator;
     }
     else
     {
@@ -6226,15 +6231,27 @@ close_file:
 
   /* determine narrow_char_indicator */
   narrow_indicator = 0;
-  for (i = 1; i < 0x10000; i++)
+
+  i = 0;
+loop:
+  i++;
+  if (i < 0x10000)
   {
-    if (!((*(unsigned char *)(0x100000 + i)) & 16))
+    if (((*(unsigned char *)(0x100000 + i)) & 16))
+	goto loop; /* the i already used by a new wide char, failed */
+    /* now the i is not used by all new wide chars */
+    if (i == old_narrow_char_indicator)
+	return 1;	/* nothing need to change, success */
+    /* old wide chars should not use this i as leading integer */
+    for (j = 0x80; j < 0x10000; j++)
     {
-      /* not yet used by all wide chars, and got it! */
-      narrow_indicator = i;
-      break;
+	if (*(unsigned long *)(UNIFONT_START + (j << 5)) == i)
+		goto loop; /* the i was used by old wide char j, failed */
     }
+    /* the i is not used by all wide chars, and got it! */
+    narrow_indicator = i;
   }
+
   if (narrow_indicator == 0)
   {
     errnum = ERR_INTERNAL_CHECK;
@@ -6243,30 +6260,63 @@ close_file:
   /* update narrow_char_indicator for each narrow char */
   for (i = 0; i < 0x10000; i++)
   {
-    if (!((*(unsigned char *)(0x100000 + i)) & 1))	/* not wide */
+    if ((!((*(unsigned char *)(0x100000 + i)) & 1) /* not a new wide char */
+	&& (*(unsigned long *)(UNIFONT_START + (i << 5))
+		 == old_narrow_char_indicator)	/* not an old wide char */
+	)
+	|| i <= 0x7F
+       )
     {
-      *(unsigned long *)(UNIFONT_START + (i << 5)) = narrow_indicator;
+	*(unsigned long *)(UNIFONT_START + (i << 5)) = narrow_indicator;
     }
   }
+
+  old_narrow_char_indicator = narrow_indicator;
 
   return 1;	/* success */
 
 build_default_VGA_font:
-  /* first, initialize all chars as narrow, each with
-   * an ugly pattern of its direct code! */
-  for (i = 0; i < 0x10000; i++)
-  {
-    /* clear the narrow_char_indicator */
-    *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
-    *(unsigned short *)(UNIFONT_START + (i << 5) + 16) = i;
-  }
+  ///* first, initialize all chars as narrow, each with
+  // * an ugly pattern of its direct code! */
+  //for (i = 0; i < 0x10000; i++)
+  //{
+  //  /* clear the narrow_char_indicator */
+  //  *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
+  //  *(unsigned short *)(UNIFONT_START + (i << 5) + 16) = i;
+  //}
 
-  /* then, initialize ASCII chars with VGA font. */
+  /* initialize ASCII chars with ROM 8x16 font. */
 
   if (! font8x16)
-        font8x16 = graphics_get_font ();
+  {
+	font8x16 = graphics_get_font ();
+	/* first, initialize all chars as narrow, each with
+	 * an ugly pattern of its direct code! */
+	for (i = 0; i < 0x10000; i++)
+	{
+	  /* clear the narrow_char_indicator */
+	  *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
+	  *(unsigned short *)(UNIFONT_START + (i << 5) + 16) = i;
+	}
+  }
 
-  for (i = 0; i < 0xFF; i++)
+  /* copy font8x16 to RAM at 0x580000 */
+  if (font8x16 != 0x580000)
+  {
+	memmove (0x580000, font8x16, 0x1000);
+	font8x16 = 0x580000;
+
+	// re-map 6 box-drawing chars to replace 6 control-chars respectively.
+	/* Lower Right (0xD9) and Upper Left (0xDA) to 0x13 and 0x14 */
+	memmove (font8x16 + (0x13 << 4), font8x16 + (0xD9 << 4), 32);
+	/* Upper Right (0xBF) and Lower Left (0xC0) to 0x15 and 0x16 */
+	memmove (font8x16 + (0x15 << 4), font8x16 + (0xBF << 4), 32);
+	/* Vertical Line (0xB3) and Horizontal Line (0xC4) to 0x0E and 0x0F */
+	memmove (font8x16 + (0x0E << 4), font8x16 + (0xB3 << 4), 16);
+	memmove (font8x16 + (0x0F << 4), font8x16 + (0xC4 << 4), 16);
+  }
+
+  for (i = 0; i <= 0x7F; i++)
   {
     for (j = 0; j < 8; j++)
     {
@@ -6277,16 +6327,18 @@ build_default_VGA_font:
       }
       ((unsigned short *)(UNIFONT_START + (i << 5) + 16))[j] = tmp;
     }
+    /* clear the narrow_char_indicator */
+    *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
   }
 
   /* re-map 6 box drawing chars to replace 6 control chars respectively. */
   /* Lower Right (0xD9) and Upper Left (0xDA) to 0x13 and 0x14 */
-  memmove (UNIFONT_START + (0x13 << 5), UNIFONT_START + (0xD9 << 5), 64);
+  //memmove (UNIFONT_START + (0x13 << 5), UNIFONT_START + (0xD9 << 5), 64);
   /* Upper Right (0xBF) and Lower Left (0xC0) to 0x15 and 0x16 */
-  memmove (UNIFONT_START + (0x15 << 5), UNIFONT_START + (0xBF << 5), 64);
+  //memmove (UNIFONT_START + (0x15 << 5), UNIFONT_START + (0xBF << 5), 64);
   /* Vertical Line (0xB3) and Horizontal Line (0xC4) to 0x0E and 0x0F */
-  memmove (UNIFONT_START + (0x0E << 5), UNIFONT_START + (0xB3 << 5), 32);
-  memmove (UNIFONT_START + (0x0F << 5), UNIFONT_START + (0xC4 << 5), 32);
+  //memmove (UNIFONT_START + (0x0E << 5), UNIFONT_START + (0xB3 << 5), 32);
+  //memmove (UNIFONT_START + (0x0F << 5), UNIFONT_START + (0xC4 << 5), 32);
   return !(errnum);
 }
 
@@ -14983,7 +15035,6 @@ static int
 graphicsmode_func (char *arg, int flags)
 {
 #ifdef SUPPORT_GRAPHICS
-  extern unsigned long graphics_mode;
   extern unsigned long current_x_resolution;
   extern unsigned long current_y_resolution;
   extern unsigned long current_bits_per_pixel;
@@ -14991,12 +15042,17 @@ graphicsmode_func (char *arg, int flags)
   extern unsigned long current_phys_base;
   unsigned long long tmp_graphicsmode;
   int old_graphics_mode = graphics_mode;
+  char *x_restrict = "0:-1";
+  char *y_restrict = "0:-1";
+  char *z_restrict = "0:-1";
 
   errnum = 0;
   if (! *arg)
   {
-    if (debug > 0)
-	grub_printf (" Current graphics mode setting is 0x%X\n", graphics_mode);
+//    if (debug > 0)
+//	grub_printf (" Current graphics mode setting is 0x%X\n", graphics_mode);
+    tmp_graphicsmode = graphics_mode;
+    goto enter_graphics_mode;
   }
   else if (safe_parse_maxint (&arg, &tmp_graphicsmode))
   {
@@ -15010,6 +15066,37 @@ graphicsmode_func (char *arg, int flags)
 #define _X_ ((unsigned long)mode->x_resolution)
 #define _Y_ ((unsigned long)mode->y_resolution)
 #define _Z_ ((unsigned long)mode->bits_per_pixel)
+
+	if ((unsigned long)tmp_graphicsmode == -1) /* mode auto detect */
+	{
+		unsigned long long tmp_ll;
+		char *tmp_arg;
+
+		tmp_arg = arg = wee_skip_to (arg, 0);
+		if (! *arg)
+			goto xyz_done;
+		if (! safe_parse_maxint (&arg, &tmp_ll))
+			goto bad_arg;
+		if (tmp_ll != -1ULL || (unsigned char)*arg > ' ')
+			x_restrict = tmp_arg;
+
+		tmp_arg = arg = wee_skip_to (arg, 0);
+		if (! *arg)
+			goto xyz_done;
+		if (! safe_parse_maxint (&arg, &tmp_ll))
+			goto bad_arg;
+		if (tmp_ll != -1ULL || (unsigned char)*arg > ' ')
+			y_restrict = tmp_arg;
+
+		tmp_arg = arg = wee_skip_to (arg, 0);
+		if (! *arg)
+			goto xyz_done;
+		if (! safe_parse_maxint (&arg, &tmp_ll))
+			goto bad_arg;
+		if (tmp_ll != -1ULL || (unsigned char)*arg > ' ')
+			z_restrict = tmp_arg;
+	}
+xyz_done:
 
 	/* Preset `VBE2'.  */
 	grub_memmove (controller->signature, "VBE2", 4);
@@ -15064,7 +15151,11 @@ graphicsmode_func (char *arg, int flags)
 		break; /* done. */
 	    }
 	    if ((unsigned long)tmp_graphicsmode == -1 /* mode auto detect */
-		&& x * y * z <  _X_ * _Y_ * _Z_)
+			&& x * y * z <  _X_ * _Y_ * _Z_
+			&& in_range (x_restrict, _X_)
+			&& in_range (y_restrict, _Y_)
+			&& in_range (z_restrict, _Z_)
+		)
 	    {
 		x = _X_;
 		y = _Y_;
@@ -15099,7 +15190,10 @@ graphicsmode_func (char *arg, int flags)
       }
       return old_graphics_mode;
     }
-    if (graphics_mode != (unsigned long)tmp_graphicsmode)
+enter_graphics_mode:
+    if (graphics_mode != (unsigned long)tmp_graphicsmode 
+	|| current_term != term_table + 1	/* terminal graphics */
+	)
     {
       graphics_mode = tmp_graphicsmode;
       if (graphics_inited)
@@ -15127,7 +15221,7 @@ graphicsmode_func (char *arg, int flags)
 	graphics_mode = old_graphics_mode;
       }
     }
-    else
+    else	/* already in graphics mode. */
     {
       if (debug > 0)
 	grub_printf (" Graphics mode number was already 0x%X\n", graphics_mode);
@@ -15135,6 +15229,7 @@ graphicsmode_func (char *arg, int flags)
   }
   else
   {
+bad_arg:
     if (errnum == 0)
       errnum = ERR_BAD_ARGUMENT;
     return 0;

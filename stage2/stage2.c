@@ -132,7 +132,8 @@ static int default_help_message_destoyed = 1;
 	unsigned char menu_box_h;
 	unsigned char menu_box_b;
 */
-struct broder menu_broder = {218,191,192,217,196,179,2,0,2,0,0};
+struct broder menu_broder = {218,191,192,217,196,179,2,0,2,0,0}; /* console */
+//struct broder menu_broder = {20,21,22,19,15,14,2,0,2,0,0}; /* graphics */
 
 static void
 print_default_help_message (char *config_entries)
@@ -438,47 +439,6 @@ print_entries_raw (int size, int first, char *menu_entries)
   grub_putchar ('\n', 255);
 }
 
-
-static void
-print_border (int y, int size)
-{
-  int i;
-
-  if (current_term->setcolorstate)
-    current_term->setcolorstate (COLOR_STATE_NORMAL);
-  
-  gotoxy (MENU_BOX_X - 2, y);
-
-  grub_putchar (DISP_UL, 255);
-  for (i = 0; i < MENU_BOX_W + 1; i++)
-    grub_putchar (DISP_HORIZ, 255);
-  grub_putchar (DISP_UR, 255);
-
-  i = 1;
-  while (1)
-    {
-      gotoxy (MENU_BOX_X - 2, y + i);
-
-      if (i > size)
-	break;
-      
-      grub_putchar (DISP_VERT, 255);
-      gotoxy (MENU_BOX_E, y + i);
-      grub_putchar (DISP_VERT, 255);
-
-      i++;
-    }
-
-  grub_putchar (DISP_LL, 255);
-  for (i = 0; i < MENU_BOX_W + 1; i++)
-    grub_putchar (DISP_HORIZ, 255);
-  grub_putchar (DISP_LR, 255);
-
-  gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
-
-  if (current_term->setcolorstate)
-    current_term->setcolorstate (COLOR_STATE_STANDARD);
-}
 
 extern int command_func (char *arg1, int flags);
 extern int commandline_func (char *arg1, int flags);
@@ -826,8 +786,48 @@ restart:
 
       if (current_term->flags & TERM_DUMB)
 	print_entries_raw (num_entries, first_entry, menu_entries);
-      else
-	print_border (MENU_BOX_Y - 1, MENU_BOX_H);
+      else /* print border */
+	{
+	  int i;
+
+	  if (current_term->setcolorstate)
+	    current_term->setcolorstate (COLOR_STATE_NORMAL);
+  
+	  /* upper-left corner */
+	  gotoxy (MENU_BOX_X - 2, MENU_BOX_Y - 1);
+	  grub_putchar (DISP_UL, 255);
+
+	  /* top horizontal line */
+	  for (i = 0; i < MENU_BOX_W + 1; i++)
+	    grub_putchar (DISP_HORIZ, 255);
+
+	  /* upper-right corner */
+	  grub_putchar (DISP_UR, 255);
+
+	  for (i = 0; i < MENU_BOX_H; i++)
+	    {
+	      /* left vertical line */
+	      gotoxy (MENU_BOX_X - 2, MENU_BOX_Y + i);
+	      grub_putchar (DISP_VERT, 255);
+	      /* right vertical line */
+	      gotoxy (MENU_BOX_E, MENU_BOX_Y + i);
+	      grub_putchar (DISP_VERT, 255);
+	    }
+
+	  /* lower-left corner */
+	  gotoxy (MENU_BOX_X - 2, MENU_BOX_Y + MENU_BOX_H);
+	  grub_putchar (DISP_LL, 255);
+
+	  /* bottom horizontal line */
+	  for (i = 0; i < MENU_BOX_W + 1; i++)
+	    grub_putchar (DISP_HORIZ, 255);
+
+	  /* lower-right corner */
+	  grub_putchar (DISP_LR, 255);
+
+	  if (current_term->setcolorstate)
+	    current_term->setcolorstate (COLOR_STATE_STANDARD);
+	}
 
       if (current_term->setcolorstate)
 	  current_term->setcolorstate (COLOR_STATE_HELPTEXT);
@@ -836,7 +836,7 @@ restart:
 		int j;
 		int x;
 
-		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
+		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 6; j++)
 		{
 			gotoxy (0, j);
 			for (x = 0; x < current_term->chars_per_line/* - 1*/; x++)
@@ -889,17 +889,23 @@ restart:
 			   entryno, grub_timeout);
 	  else
 	    {
-	      int i;
-	      char tmp_buf[128];
-	      char ch = ' ';
+	      unsigned long x;
+	      unsigned long ret;
+	      unsigned char tmp_buf[512];
+	      unsigned char *p;
+	      unsigned char ch = ' ';
 
 	      grub_sprintf (tmp_buf, " The highlighted entry will be booted automatically in %d seconds.", grub_timeout);
 	      gotoxy (0, MENU_BOX_B + 5);
-	      for (i = 0; i < current_term->chars_per_line/* - 1*/; i++)
+	      p = tmp_buf;
+	      for (x = 0; x < current_term->chars_per_line; x = fontx)
 	      {
-		if (ch)
-			ch = tmp_buf[i];
-		grub_putchar ((unsigned char)(ch ? ch : ' '), 255);
+		if (ch >= ' ')
+			ch = *p++;
+		ret = current_term->chars_per_line - x;
+		ret = grub_putchar ((ch >= ' ' ? ch : ' '), ret);
+		if ((long)ret < 0)
+			break;
 	      }
 	      gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
 	    }
@@ -936,7 +942,7 @@ restart:
 
 	  if (grub_timeout >= 0)
 	    {
-	      int i;
+	      unsigned long x;
 
 	      if (current_term->setcolorstate)
 		  current_term->setcolorstate (COLOR_STATE_HELPTEXT);
@@ -945,7 +951,7 @@ restart:
 		grub_putchar ('\r', 255);
 	      else
 		gotoxy (0, MENU_BOX_B + 5);
-	      for (i = 0; i < 79/*158*/; i++)
+	      for (x = 0; x < current_term->chars_per_line; x++)
 	      {
 		grub_putchar (' ', 255);
 	      }

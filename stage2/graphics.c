@@ -74,7 +74,6 @@ unsigned long background = 0;
 
 /* graphics local functions */
 static void graphics_scroll (void);
-static void vbe_scroll (void);
 void SetPixel (unsigned long x, unsigned long y, unsigned long color);
 void XorPixel (unsigned long x, unsigned long y, unsigned long color);
 static int read_image (void);
@@ -181,8 +180,8 @@ graphics_init (void)
 	 * red planar of the VGA on geting font info call. So we should set
 	 * mode only after the get font info call.
 	 */
-	if (! font8x16)
-	    font8x16 = graphics_get_font ();
+	//if (! font8x16)
+	//    font8x16 = graphics_get_font ();
 
 	if (graphics_mode > 0xFF) /* VBE */
 	{
@@ -285,12 +284,12 @@ success:
 		plano_size = (800 * 600) / 8;
 	    }
 
-	    menu_broder.disp_ul = 218;
-	    menu_broder.disp_ur = 191;
-	    menu_broder.disp_ll = 192;
-	    menu_broder.disp_lr = 217;
-	    menu_broder.disp_horiz = 196;
-	    menu_broder.disp_vert = 179;
+	    menu_broder.disp_ul = 0x14;
+	    menu_broder.disp_ur = 0x15;
+	    menu_broder.disp_ll = 0x16;
+	    menu_broder.disp_lr = 0x13;
+	    menu_broder.disp_horiz = 0x0F;
+	    menu_broder.disp_vert = 0x0E;
 	}
     }
 
@@ -338,8 +337,8 @@ check_scroll (void)
     ++fonty;
     if (fonty >= y1)
     {
-	vbe_scroll();
 	--fonty;
+	graphics_scroll();
     }
 }
 
@@ -360,7 +359,7 @@ print_unicode (unsigned long max_width)
 	return (1 << 31) | invalid | (byte_SN << 8); // printed width = 0
 
     if (cursor_state)
-	vbe_cursor(0);
+	graphics_CURSOR(0);
 
     /* print CRLF and scroll if needed */
     if (fontx + char_width > x1)
@@ -383,7 +382,7 @@ print_unicode (unsigned long max_width)
     {
 	if (fontx >= x1)
 	    { fontx = 0; check_scroll (); }
-	vbe_cursor(1);
+	graphics_CURSOR(1);
     }
     return invalid | (byte_SN << 8) | char_width;
 }
@@ -420,6 +419,9 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
     unsigned long pat;
     unsigned long ret;
 
+    if (fontx >= x1)
+        { fontx = 0; check_scroll (); }
+
     if (graphics_mode <= 0xFF)
 	goto vga;
 
@@ -443,23 +445,20 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
 	return (1 << 31);	/* printed width = 0 */
 
     if (cursor_state)
-	vbe_cursor(0);
-
-    if (fontx >= x1)
-        { fontx = 0; check_scroll (); }
+	graphics_CURSOR(0);
 
     if ((char)ch == '\n')
     {
 	check_scroll ();
 	if (cursor_state)
-	    vbe_cursor(1);
+	    graphics_CURSOR(1);
 	return 1;
     }
     if ((char)ch == '\r')
     {
 	fontx = 0;
 	if (cursor_state)
-	    vbe_cursor(1);
+	    graphics_CURSOR(1);
 	return 1;
     }
 
@@ -483,7 +482,7 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
     {
 	if (fontx >= x1)
 	    { fontx = 0; check_scroll (); }
-	vbe_cursor(1);
+	graphics_CURSOR(1);
     }
     return 1; //char_width;
 
@@ -558,21 +557,17 @@ multibyte:
 //////////////////////////////////////////////////////////////////////////////
 
 vga:
-    if ((char)ch == '\n') {
+    if ((char)ch == '\n')
+    {
 	if (cursor_state)
 	    graphics_CURSOR(0);
-	if (fonty + 1 < y1)
-	{
-	    fonty++;
-	}
-	else
-	{
-	    graphics_scroll();
-	}
+	check_scroll ();
 	if (cursor_state)
 	    graphics_CURSOR(1);
 	return 1;
-    } else if ((char)ch == '\r') {
+    }
+    if ((char)ch == '\r')
+    {
 	if (cursor_state)
 	    graphics_CURSOR(0);
 	fontx = 0;
@@ -585,26 +580,14 @@ vga:
 
     graphics_CURSOR(0);
 
-    if (fontx + 1 >= x1)
-    {
-        if (fonty + 1 < y1)
-	{
-	    fontx = 0;
-	    fonty++;
-	}
-        else
-	{
-	    fontx = 0;
-            graphics_scroll();
-	}
-    } else {
-	fontx++;
-    }
-
+    fontx++;
     if (cursor_state)
+    {
+	if (fontx >= x1)
+	    { fontx = 0; check_scroll (); }
 	graphics_CURSOR(1);
+    }
     return 1;
-
 }
 
 /* get the current location of the cursor */
@@ -643,7 +626,7 @@ graphics_cls (void)
 
     _memset ((char *)current_phys_base, 0, current_y_resolution * current_bytes_per_scanline);
     if (cursor_state)
-	    vbe_cursor(1);
+	    graphics_CURSOR(1);
     return;
 
 vga:
@@ -853,12 +836,8 @@ hex (int v)
 static void
 graphics_scroll (void)
 {
-#if 1
     unsigned long i, j;
 
-    fontx = 0;
-    fonty = y1 - 1;
-#if 0
     if (graphics_mode <= 0xFF)
 	goto vga;
 
@@ -869,57 +848,10 @@ graphics_scroll (void)
     return;
 
 vga:
-#endif
     bios_scroll_up ();
 
     for (i = x1 * (y1 - 1), j = x1 * y1; i < j; i++)
 	text[i] = ' ';
-
-#else
-    int i, j;
-
-    /* we don't want to scroll recursively... that would be bad */
-    if (no_scroll)
-        return;
-    no_scroll = 1;
-
-    /* move everything up a line */
-    for (j = 0 + 1; j < y1; j++)
-    {
-	//graphics_gotoxy (0, j - 1);
-        fontx = 0;
-	fonty = j - 1;
-
-        for (i = 0; i < x1; i++)
-       	{
-            graphics_putchar (text[j * x1 + i], 255);
-        }
-    }
-
-    /* last line should be blank */
-    //graphics_gotoxy (0, y1 - 1);
-    fontx = 0;
-    fonty = y1 - 1;
-
-    for (i = 0; i < x1; i++)
-        graphics_putchar (' ', 255);
-
-    fontx = 0;
-    fonty = y1 - 1;
-
-    no_scroll = 0;
-#endif
-}
-
-static void
-vbe_scroll (void)
-{
-#if 1
-    _memcpy_forward ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline << 4),
-		    /*((y1 - 1) << 4)*/ current_y_resolution * current_bytes_per_scanline);
-#else
-    bios_scroll_up ();
-#endif
 }
 
 static void
@@ -953,9 +885,6 @@ graphics_cursor (int set)
 {
     unsigned char *pat, *mem, *ptr;
     int i, ch, offset;
-
-    //if (set && no_scroll)
-    //    return;
 
     offset = (fonty << 4) * x1 + fontx;
 
