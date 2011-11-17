@@ -98,7 +98,8 @@ static void BitMask(int value) {
 }
 
 #if 1
-static void _memcpy_forward(void *dst, const void *src, unsigned int len)
+/* memmove using SSE */
+static void _memcpy_forward (void *dst, const void *src, unsigned int len)
 {
 #if 0
   asm ("  movl	%cr0, %eax");
@@ -127,6 +128,40 @@ static void _memcpy_forward(void *dst, const void *src, unsigned int len)
   asm ("  movl	%0, %%ecx" : :"m"(len));
   asm ("  shrl	$7, %ecx");	// ECX = len / (16 * 8)
   asm ("1:");
+#if 1
+  asm ("  movdqa	(%esi), %xmm0");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntps	%xmm0, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	(%esi), %xmm1");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntps	%xmm1, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	(%esi), %xmm2");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntps	%xmm2, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	(%esi), %xmm3");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntps	%xmm3, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	(%esi), %xmm4");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntps	%xmm4, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	(%esi), %xmm5");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntps	%xmm5, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	(%esi), %xmm6");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntps	%xmm6, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	(%esi), %xmm7");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntps	%xmm7, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+#else
 #if 1
   asm ("  movdqa	(%esi), %xmm0");	// works on PIII and up
   asm ("  addl	$16, %esi");
@@ -196,6 +231,7 @@ static void _memcpy_forward(void *dst, const void *src, unsigned int len)
   asm ("  addl	$16, %edi");
   asm ("  movntps	%xmm7, (%edi)");	// works on PIII and up
   asm ("  addl	$16, %edi");
+#endif
 #endif
   asm ("  loop	1b");
   asm ("  popl %edi");
