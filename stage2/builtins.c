@@ -6287,18 +6287,84 @@ build_default_VGA_font:
 
   /* initialize ASCII chars with ROM 8x16 font. */
 
-  if (! font8x16)
+  if (font8x16)
+	goto ROM_font_loaded;
+
+  font8x16 = graphics_get_font ();
+
+//	/* first, initialize all chars as narrow, each with
+//	 * an ugly pattern of its direct code! */
+//	for (i = 0; i < 0x10000; i++)
+//	{
+//	  /* clear the narrow_char_indicator */
+//	  *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
+//	  *(unsigned short *)(UNIFONT_START + (i << 5) + 16) = i;
+//	}
+
+  ///////////////////////////////////////////////////////////////////////
+  //                                                                   //
+  //                    ( old 3 x 5 dot matrix )                       //
+  //                                                                   //
+  //     0       1       2       3       4       5       6       7     //
+  //                                                                   //
+  //   0 1 0   0 1 0   1 1 0   1 1 1   0 0 1   1 1 1   1 1 1   1 1 1   //
+  //   1 0 1   0 1 0   0 0 1   0 0 1   0 1 1   1 0 0   1 0 0   0 0 1   //
+  //   1 0 1   0 1 0   0 1 0   0 1 0   1 0 1   1 1 1   1 1 1   0 1 0   //
+  //   1 0 1   0 1 0   1 0 0   0 0 1   1 1 1   0 0 1   1 0 1   0 1 0   //
+  //   0 1 0   0 1 0   1 1 1   1 1 1   0 0 1   1 1 1   1 1 1   0 1 0   //
+  //                                                                   // 
+  //     8       9       A       B       C       D       E       F     //
+  //                                                                   //
+  //   1 1 1   1 1 1   0 1 0   1 0 0   0 1 1   0 0 1   1 1 1   1 1 1   //
+  //   1 0 1   1 0 1   1 0 1   1 0 0   1 0 0   0 0 1   1 0 0   1 0 0   //
+  //   0 1 0   1 1 1   1 1 1   1 1 1   1 0 0   1 1 1   1 1 1   1 1 1   //
+  //   1 0 1   0 0 1   1 0 1   1 0 1   1 0 0   1 0 1   1 0 0   1 0 0   //
+  //   1 1 1   1 1 1   1 0 1   1 1 1   0 1 1   1 1 1   1 1 1   1 0 0   //
+  //                                                                   //
+  ///////////////////////////////////////////////////////////////////////
+  //                                                                   //
+  //     #       #     # #     # #         #   # # #     # #   # # #   //
+  //   #   #   # #         #       #   #   #   #       #           #   //
+  //   #   #     #         #       #   #   #   #       #           #   //
+  //   #   #     #       #       #     #   #   # # #   # # #     #     //
+  //   #   #     #     #           #   # # #       #   #   #     #     //
+  //   #   #     #     #           #       #       #   #   #     #     //
+  //     #       #     # # #   # #         #   # #     # #       #     //
+  //                                                                   //
+  //     #       # #     #     #                   #   # # #   # # #   //
+  //   #   #   #   #   #   #   #                   #   #       #       //
+  //   #   #   #   #   #   #   #                   #   #       #       //
+  //     #     # # #   # # #   # # #     # #   # # #   # # #   # # #   //
+  //   #   #       #   #   #   #   #   #       #   #   #       #       //
+  //   #   #       #   #   #   #   #   #       #   #   #       #       //
+  //     #     # #     #   #   # #       # #     # #   # # #   #       //
+  //                                                                   //
+  ///////////////////////////////////////////////////////////////////////
+
+  unsigned long dot[16] =
   {
-	font8x16 = graphics_get_font ();
-	/* first, initialize all chars as narrow, each with
-	 * an ugly pattern of its direct code! */
-	for (i = 0; i < 0x10000; i++)
-	{
-	  /* clear the narrow_char_indicator */
-	  *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
-	  *(unsigned short *)(UNIFONT_START + (i << 5) + 16) = i;
-	}
+    0x3E413E,0x007F02,0x464971,0x364941,0x7F101E,0x39494F,0x39497E,0x077901,
+    0x364936,0x3F494E,0x7E097E,0x38487F,0x484830,0x7F4838,0x49497F,0x09097F,
+  };
+
+  for (i = 0; i < 0x10000; i++)
+  {
+    /* clear the narrow_char_indicator */
+    *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
+    for (j = 0; j < 7; j++)
+    {
+      ((unsigned short *)(UNIFONT_START + (i << 5) + 16))[j] =
+//	  ((((dot[((i >> (4-(j&4))) & 15)] >> ((j&3)*5)) & 31) | 64) << 8)
+//	| (((dot[((i >> (12-(j&4))) & 15)] >> ((j&3)*5)) & 31) << 2);
+	//  (j == 3) ? 128 :	/* print a dot at the center */
+	  (((dot[((i >> (4-(j&4))) & 15)] >> ((j&3)<<3)) & 127) << 8)
+	| ((dot[((i >> (12-(j&4))) & 15)] >> ((j&3)<<3)) & 127);
+    }
+    /* empty the last column */
+    ((unsigned short *)(UNIFONT_START + (i << 5) + 16))[j] = 0;
   }
+
+ROM_font_loaded:
 
   /* copy font8x16 to RAM at 0x580000 */
   if (font8x16 != 0x580000)
@@ -15133,6 +15199,9 @@ xyz_done:
 	    if (mode->phys_base == 0)
 		continue;
 	      
+	    if ((mode->phys_base & 0x0F))	/* Unaligned !! */
+		continue;
+	      
 	    if (mode->memory_model != 6) /* Direct Color */
 		continue;
 	      
@@ -15145,7 +15214,9 @@ xyz_done:
 		x = _X_;
 		y = _Y_;
 		z = _Z_;
-		current_bytes_per_scanline = mode->bytes_per_scanline;
+		current_bytes_per_scanline = ((controller->version >= 0x0300)
+			? mode->linear_bytes_per_scanline
+			: mode->bytes_per_scanline);
 		current_phys_base = mode->phys_base;
 		mode_found = *mode_list;
 		break; /* done. */
@@ -15160,7 +15231,9 @@ xyz_done:
 		x = _X_;
 		y = _Y_;
 		z = _Z_;
-		current_bytes_per_scanline = mode->bytes_per_scanline;
+		current_bytes_per_scanline = ((controller->version >= 0x0300)
+			? mode->linear_bytes_per_scanline
+			: mode->bytes_per_scanline);
 		current_phys_base = mode->phys_base;
 		mode_found = *mode_list;
 	    }

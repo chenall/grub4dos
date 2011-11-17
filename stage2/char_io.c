@@ -662,7 +662,7 @@ add_history (const char *cmdline, int no)
 /* XXX: These should be defined in shared.h, but I leave these here,
 	until this code is freezed.  */
 #define CMDLINE_WIDTH	(current_term->chars_per_line - 2)
-#define CMDLINE_MARGIN	10
+#define CMDLINE_MARGIN	11
 /*  
 char *prompt;
 int maxlen;
@@ -684,7 +684,6 @@ static void cl_backward (int count);
 static void cl_forward (int count);
 static void cl_insert (const char *str);
 static void cl_delete (int count);
-static void cl_init (void);
   
 /* Move the cursor backward.  */
 static void cl_backward (int count)
@@ -709,7 +708,7 @@ static void cl_backward (int count)
 		grub_putchar ('\b', 255);
 	    }
 	  else
-	    gotoxy (xpos, fonty/*(unsigned int)(unsigned char)(getxy () >> 8)*/);
+	    gotoxy (xpos, fonty);
 	}
 }
 
@@ -738,7 +737,7 @@ static void cl_forward (int count)
 		}
 	    }
 	  else
-	    gotoxy (xpos, fonty/*(unsigned int)(unsigned char)(getxy () >> 8)*/);
+	    gotoxy (xpos, fonty);
 	}
 }
 
@@ -749,32 +748,26 @@ static void cl_refresh (int full, int len)
       int i;
       int start;
       int pos = xpos;
+      int offset = 0;
       
       if (full)
 	{
-	  /* Recompute the section number.  */
-	  if (lpos + plen < CMDLINE_WIDTH)
-	    section = 0;
-	  else
-	    section = ((lpos + plen - CMDLINE_WIDTH)
-		       / (CMDLINE_WIDTH - 1 - CMDLINE_MARGIN) + 1);
-
 	  /* From the start to the end.  */
 	  len = CMDLINE_WIDTH;
 	  pos = 0;
-	  //grub_putchar ('\r');
-	  gotoxy (0, fonty/*(unsigned int)(unsigned char)(getxy () >> 8)*/);
+	  gotoxy (0, fonty);
 
-	  /* If SECTION is the first section, print the prompt, otherwise,
-	     print `<'.  */
-	  if (section == 0)
+	  /* Recompute the section number.  */
+	  if (lpos + plen < CMDLINE_WIDTH)
 	    {
+	      section = 0;
 	      grub_printf ("%s", p_getcmdline_arg->prompt);
 	      len -= plen;
 	      pos += plen;
 	    }
 	  else
 	    {
+	      section = (lpos + plen - CMDLINE_MARGIN)/ (CMDLINE_WIDTH - CMDLINE_MARGIN);
 	      grub_putchar ('<', 255);
 	      len--;
 	      pos++;
@@ -785,27 +778,21 @@ static void cl_refresh (int full, int len)
 	 on the screen.  */
       if (section == 0)
 	{
-	  int offset = 0;
-	  
 	  if (! full)
 	    offset = xpos - plen;
 	  
 	  start = 0;
 	  xpos = lpos + plen;
-	  start += offset;
 	}
       else
 	{
-	  int offset = 0;
-	  
 	  if (! full)
 	    offset = xpos - 1;
 	  
-	  start = ((section - 1) * (CMDLINE_WIDTH - 1 - CMDLINE_MARGIN)
-		   + CMDLINE_WIDTH - plen - CMDLINE_MARGIN);
+	  start = section * (CMDLINE_WIDTH - CMDLINE_MARGIN) - plen + 1;
 	  xpos = lpos + 1 - start;
-	  start += offset;
 	}
+      start += offset;
 
       /* Print BUF. If ECHO_CHAR is not zero, put it instead.  */
       for (i = start; i < start + len && i < llen; i++)
@@ -844,17 +831,7 @@ static void cl_refresh (int full, int len)
 	    grub_putchar ('\b', 255);
 	}
       else
-	gotoxy (xpos, fonty/*(unsigned int)(unsigned char)(getxy () >> 8)*/);
-}
-
-/* Initialize the command-line.  */
-static void cl_init (void)
-{
-      /* Distinguish us from other lines and error messages!  */
-      grub_putchar ('\n', 255);
-
-      /* Print full line and set position here.  */
-      cl_refresh (1, 0);
+	gotoxy (xpos, fonty);
 }
 
 /* Insert STR to BUF.  */
@@ -949,7 +926,9 @@ real_get_cmdline (char *cmdline)
   lpos = llen;
   grub_strcpy (buf, cmdline);
 
-  cl_init ();
+  grub_putchar ('\n', 255);
+  cl_refresh (1, 0);  /* Print full line and set position here */
+
   if (p_getcmdline_arg->readline > 1)
   {
 	int t1;
@@ -1025,8 +1004,7 @@ real_get_cmdline (char *cmdline)
 		   removable disks.  */
 		buf_drive = -1;
 
-		/* Copy this word to COMPLETION_BUFFER and do the
-		   completion.  */
+		/* Copy this word to COMPLETION_BUFFER and do the completion.*/
 		grub_memmove (completion_buffer, buf + i, lpos - i);
 		completion_buffer[lpos - i] = 0;
 		ret = print_completions (is_filename, 1);
@@ -1057,7 +1035,10 @@ real_get_cmdline (char *cmdline)
 		  buf[equal_pos] = '=';
 
 		if (ret)
-		  cl_init ();
+		{
+		  grub_putchar ('\n', 255);
+		  cl_refresh (1, 0);/* Print full line and set position here */
+		}
 	      }
 	  else if (c == KEY_HOME/* || (char)c == 1*/)	/* C-a beginning */
 		/* Home= 0x4700 for BIOS, 0x0106 for Linux */

@@ -24,10 +24,6 @@
 #include <hercules.h>
 #include <term.h>
 
-/* The position of the cursor.  */
-static int herc_x;
-static int herc_y;
-
 /* Write a byte to a port.  */
 static inline void
 outb (unsigned short port, unsigned char value)
@@ -38,7 +34,7 @@ outb (unsigned short port, unsigned char value)
 static void
 herc_set_cursor (void)
 {
-  unsigned offset = herc_y * HERCULES_WIDTH + herc_x;
+  unsigned offset = fonty * HERCULES_WIDTH + fontx;
   
   outb (HERCULES_INDEX_REG, 0x0f);
   outb (0x80, 0);
@@ -57,16 +53,16 @@ hercules_putchar (unsigned int c, unsigned int max_width)
   switch (c)
     {
     case '\b':
-      if (herc_x > 0)
-	herc_x--;
+      if (fontx > 0)
+	fontx--;
       break;
       
     case '\n':
-      herc_y++;
+      fonty++;
       break;
       
     case '\r':
-      herc_x = 0;
+      fontx = 0;
       break;
 
     case '\a':
@@ -77,23 +73,23 @@ hercules_putchar (unsigned int c, unsigned int max_width)
 	volatile unsigned short *video
 	  = (unsigned short *) HERCULES_VIDEO_ADDR;
 	
-	video[herc_y * HERCULES_WIDTH + herc_x] = (current_color << 8) | c;
-	herc_x++;
-	if (herc_x >= HERCULES_WIDTH)
+	video[fonty * HERCULES_WIDTH + fontx] = (current_color << 8) | c;
+	fontx++;
+	if (fontx >= HERCULES_WIDTH)
 	  {
-	    herc_x = 0;
-	    herc_y++;
+	    fontx = 0;
+	    fonty++;
 	  }
       }
       break;
     }
 
-  if (herc_y >= HERCULES_HEIGHT)
+  if (fonty >= HERCULES_HEIGHT)
     {
       volatile unsigned long *video = (unsigned long *) HERCULES_VIDEO_ADDR;
       int i;
       
-      herc_y = HERCULES_HEIGHT - 1;
+      fonty = HERCULES_HEIGHT - 1;
       grub_memmove ((char *) HERCULES_VIDEO_ADDR,
 		    (char *) HERCULES_VIDEO_ADDR + HERCULES_WIDTH * 2,
 		    HERCULES_WIDTH * (HERCULES_HEIGHT - 1) * 2);
@@ -114,21 +110,21 @@ hercules_cls (void)
   for (i = 0; i < HERCULES_WIDTH * HERCULES_HEIGHT / 2; i++)
     video[i] = 0x07200720;
 
-  herc_x = herc_y = 0;
+  fontx = fonty = 0;
   herc_set_cursor ();
 }
 
 int
 hercules_getxy (void)
 {
-  return (herc_y << 8) | herc_x;
+  return (fonty << 8) | fontx;
 }
 
 void
 hercules_gotoxy (int x, int y)
 {
-  herc_x = x;
-  herc_y = y;
+  fontx = x;
+  fonty = y;
   herc_set_cursor ();
 }
 

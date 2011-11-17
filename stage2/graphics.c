@@ -97,6 +97,113 @@ static void BitMask(int value) {
     outb(0x3cf, value);
 }
 
+#if 1
+static void _memcpy_forward(void *dst, const void *src, unsigned int len)
+{
+#if 0
+  asm ("  movl	%cr0, %eax");
+  asm ("  orb	$2, %al");			// set CR0.MP
+  asm ("  movl	%eax, %cr0");
+  asm ("  movl	%cr4, %eax");
+  asm ("  orb	$0x6, %ah");// set CR4.OSFXSR (bit 9) OSXMMEXCPT (bit 10)
+  asm ("  movl	%eax, %cr4");
+#endif
+
+#if 1
+  /* this piece of code must exist! or else gcc will fail to run the asm
+   * code that immediately follows. So do not comment out this C code! */
+  if (((int)src | (int)dst) & 0xF)
+  {
+	fontx = fonty = 0;
+	printf ("Unaligned!\n");
+	return;
+  }
+#endif
+  asm ("  pushl %esi");
+  asm ("  pushl %edi");
+  asm ("  cld");
+  asm ("  movl	%0, %%edi" : :"m"(dst));
+  asm ("  movl	%0, %%esi" : :"m"(src));
+  asm ("  movl	%0, %%ecx" : :"m"(len));
+  asm ("  shrl	$7, %ecx");	// ECX = len / (16 * 8)
+  asm ("1:");
+#if 1
+  asm ("  movdqa	(%esi), %xmm0");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movdqa	(%esi), %xmm1");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movdqa	(%esi), %xmm2");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movdqa	(%esi), %xmm3");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movdqa	(%esi), %xmm4");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movdqa	(%esi), %xmm5");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movdqa	(%esi), %xmm6");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movdqa	(%esi), %xmm7");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+#else
+  asm ("  movntdqa	(%esi), %xmm0");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntdqa	(%esi), %xmm1");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntdqa	(%esi), %xmm2");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntdqa	(%esi), %xmm3");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntdqa	(%esi), %xmm4");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntdqa	(%esi), %xmm5");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntdqa	(%esi), %xmm6");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+  asm ("  movntdqa	(%esi), %xmm7");	// works on PIII and up
+  asm ("  addl	$16, %esi");
+#endif
+#if 0
+  asm ("  movdqa	%xmm0, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	%xmm1, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	%xmm2, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	%xmm3, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	%xmm4, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	%xmm5, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	%xmm6, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movdqa	%xmm7, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+#else
+  asm ("  movntps	%xmm0, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movntps	%xmm1, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movntps	%xmm2, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movntps	%xmm3, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movntps	%xmm4, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movntps	%xmm5, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movntps	%xmm6, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+  asm ("  movntps	%xmm7, (%edi)");	// works on PIII and up
+  asm ("  addl	$16, %edi");
+#endif
+  asm ("  loop	1b");
+  asm ("  popl %edi");
+  asm ("  popl %esi");
+}
+
+#else
+
 static inline void * _memcpy_forward(void *dst, const void *src, unsigned int len)
 {
     int r0, r1, r2, r3;
@@ -110,6 +217,7 @@ static inline void * _memcpy_forward(void *dst, const void *src, unsigned int le
 	: "memory");
     return dst;
 }
+#endif
 
 static inline void _memset(void *dst, unsigned char data, unsigned int len)
 {

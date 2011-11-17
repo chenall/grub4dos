@@ -29,9 +29,6 @@
 static char input_buf[8];
 static int npending = 0;
 
-static int serial_x;
-static int serial_y;
-
 static int keep_track = 1;
 
 
@@ -400,29 +397,29 @@ serial_putchar (unsigned int c, unsigned int max_width)
       switch (c)
 	{
 	case '\r':
-	  serial_x = 0;
+	  fontx = 0;
 	  break;
 	  
 	case '\n':
-	  serial_y++;
+	  fonty++;
 	  break;
 	  
 	case '\b':
 	case 127:
-	  if (serial_x > 0)
-	    serial_x--;
+	  if (fontx > 0)
+	    fontx--;
 	  break;
 	  
 	case '\a':
 	  break;
 	  
 	default:
-	  if (serial_x >= 79)
+	  if (fontx >= 79)
 	    {
 	      serial_putchar ('\r', max_width);
 	      serial_putchar ('\n', max_width);
 	    }
-	  serial_x++;
+	  fontx++;
 	  break;
 	}
     }
@@ -434,7 +431,7 @@ serial_putchar (unsigned int c, unsigned int max_width)
 int
 serial_getxy (void)
 {
-  return (serial_y << 8) | serial_x;
+  return (fonty << 8) | fontx;
 }
 
 void
@@ -444,8 +441,8 @@ serial_gotoxy (int x, int y)
   ti_cursor_address (x, y);
   keep_track = 1;
   
-  serial_x = x;
-  serial_y = y;
+  fontx = x;
+  fonty = y;
 }
 
 void
@@ -455,7 +452,7 @@ serial_cls (void)
   ti_clear_screen ();
   keep_track = 1;
   
-  serial_x = serial_y = 0;
+  fontx = fonty = 0;
 }
 
 void

@@ -7966,7 +7966,7 @@ ENTRY(real_to_prot)
 
 	/* turn on protected mode */
 	movl	%cr0, %eax
-	andl	$0x0000FFFF, %eax
+	andl	$0xFFFFFFF3, %eax
 	orb	$1, %al
 	movl	%eax, %cr0
 
@@ -8047,7 +8047,7 @@ tmpcseg:
 	/* clear the PE bit of CR0 */
 	movl	%cr0, %eax
 	//andl 	$CR0_PE_OFF, %eax
-	andl 	$0x0000FFFE, %eax
+	andl 	$0xFFFFFFF2, %eax
 	movl	%eax, %cr0
 
 	/* flush prefetch queue, reload %cs */
