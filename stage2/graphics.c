@@ -97,6 +97,9 @@ static void BitMask(int value) {
     outb(0x3cf, value);
 }
 
+extern void memmove_forward_SSE (void *dst, const void *src, unsigned int len);
+
+#if 0
 #if 1
 /* memmove using SSE */
 static void _memcpy_forward (void *dst, const void *src, unsigned int len)
@@ -253,6 +256,7 @@ static inline void * _memcpy_forward(void *dst, const void *src, unsigned int le
 	: "memory");
     return dst;
 }
+#endif
 #endif
 
 static inline void _memset(void *dst, unsigned char data, unsigned int len)
@@ -795,19 +799,19 @@ vga:
 
     /* plano 1 */
     MapMask(1);
-    _memcpy_forward (mem, s1, plano_size);
+    memmove_forward_SSE (mem, s1, plano_size);
 
     /* plano 2 */
     MapMask(2);
-    _memcpy_forward (mem, s2, plano_size);
+    memmove_forward_SSE (mem, s2, plano_size);
 
     /* plano 3 */
     MapMask(4);
-    _memcpy_forward (mem, s4, plano_size);
+    memmove_forward_SSE (mem, s4, plano_size);
 
     /* plano 4 */
     MapMask(8);
-    _memcpy_forward (mem, s8, plano_size);
+    memmove_forward_SSE (mem, s8, plano_size);
 
     MapMask(15);
  
@@ -987,7 +991,7 @@ graphics_scroll (void)
 
     /* VBE */
 
-    _memcpy_forward ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline << 4),
+    memmove_forward_SSE ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline << 4),
 		    /*((y1 - 1) << 4)*/ current_y_resolution * current_bytes_per_scanline);
     return;
 

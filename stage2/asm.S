@@ -13025,6 +13025,72 @@ ENTRY(unset_int13_handler)
 	ret
 
 
+/* memmove using SSE */
+/*
+ * void memmove_forward_SSE (void *dst, const void *src, unsigned int len)
+ *
+ */
+
+ENTRY(memmove_forward_SSE)
+
+	.code32
+
+	pushl	%esi
+	pushl	%edi
+
+#if 1
+	movl	%cr0, %eax
+	orb	$2, %al		// set CR0.MP
+	movl	%eax, %cr0
+	movl	%cr4, %eax
+	orb	$0x6, %ah	// set CR4.OSFXSR (bit 9) OSXMMEXCPT (bit 10)
+	movl	%eax, %cr4
+#endif
+
+	movl	0x0C(%esp), %edi
+	movl	0x10(%esp), %esi
+	movl	0x14(%esp), %ecx
+	shrl	$7, %ecx
+1:
+	movdqa	(%esi), %xmm0
+	addl	$16, %esi
+	movntps	%xmm0, (%edi)
+	addl	$16, %edi
+	movdqa	(%esi), %xmm1
+	addl	$16, %esi
+	movntps	%xmm1, (%edi)
+	addl	$16, %edi
+	movdqa	(%esi), %xmm2
+	addl	$16, %esi
+	movntps	%xmm2, (%edi)
+	addl	$16, %edi
+	movdqa	(%esi), %xmm3
+	addl	$16, %esi
+	movntps	%xmm3, (%edi)
+	addl	$16, %edi
+	movdqa	(%esi), %xmm4
+	addl	$16, %esi
+	movntps	%xmm4, (%edi)
+	addl	$16, %edi
+	movdqa	(%esi), %xmm5
+	addl	$16, %esi
+	movntps	%xmm5, (%edi)
+	addl	$16, %edi
+	movdqa	(%esi), %xmm6
+	addl	$16, %esi
+	movntps	%xmm6, (%edi)
+	addl	$16, %edi
+	movdqa	(%esi), %xmm7
+	addl	$16, %esi
+	movntps	%xmm7, (%edi)
+	addl	$16, %edi
+	loop	1b
+
+	popl	%edi
+	popl	%esi
+	ret
+
+
 /* get_code_end() :  return the address of the end of the code
  * This is here so that it can be replaced by asmstub.c.
  */
