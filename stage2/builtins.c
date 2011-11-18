@@ -4247,11 +4247,14 @@ static int terminal_func (char *arg, int flags);
 
 #ifdef SUPPORT_GRAPHICS
 extern char splashimage[64];
+static int graphicsmode_func (char *arg, int flags);
 
 static int
 splashimage_func(char *arg, int flags)
 {
     /* If ARG is empty, we reset SPLASHIMAGE.  */
+    unsigned long type = 0;
+    unsigned long h,w;
     if (*arg)
     {
 	if (strlen(arg) > 63)
@@ -4259,11 +4262,24 @@ splashimage_func(char *arg, int flags)
     
 	if (! grub_open(arg))
 		return 0;
+	grub_read((unsigned long long*)(unsigned int)&type,2,GRUB_READ);
+	if (type == 0x4D42)
+	{
+		filepos = 18;
+		grub_read((unsigned long long*)(unsigned int)&w,4,GRUB_READ);
+		grub_read((unsigned long long*)(unsigned int)&h,4,GRUB_READ);
+	}
 	grub_close();
     }
 
     strcpy(splashimage, arg);
-
+	if (type == 0x4D42 && (!graphics_inited || graphics_mode < 0xFF)) //BMP
+	{
+		char tmp[16];
+		sprintf(tmp,"-1 %d %d",w,h);
+		if (graphicsmode_func(tmp,1))
+			return 1;
+	}
 	graphics_end();
 	current_term = term_table + 1;	/* terminal graphics */
 	if (! graphics_init())
@@ -15443,13 +15459,8 @@ static int echo_func (char *arg,int flags)
       {
          if (arg[2] == ']')
          {
-            if (current_term->setcolorstate)
-                current_term->setcolorstate (COLOR_STATE_STANDARD);
-            else
-	    {
 		current_color = A_NORMAL;
-		current_color_64bit = 0xAAAAAA;
-	    }
+//		current_color_64bit = 0xAAAAAA;
             arg += 3;
          }
          else if (arg[3] == 'x')
@@ -15459,7 +15470,7 @@ static int echo_func (char *arg,int flags)
             if (safe_parse_maxint(&p,&ull) && *p == ']')
             {
 		current_color = (unsigned char)ull;
-		current_color_64bit = color_8_to_64 (current_color);
+//		current_color_64bit = color_8_to_64 (current_color);
 		arg = p + 1;
             }
             errnum = 0;
@@ -15472,10 +15483,12 @@ static int echo_func (char *arg,int flags)
             char_attr |= ((arg[4] - '0') & 7) << 4;
             char_attr |= ((arg[5] - '0') & 7);
             current_color = char_attr;
-	    current_color_64bit = color_8_to_64 (current_color);
+//	    current_color_64bit = color_8_to_64 (current_color);
             arg += 7;
          }
+         current_color_64bit = color_8_to_64 (current_color);
       }
+      
       grub_putchar((unsigned char)*arg, 255);
    }
 

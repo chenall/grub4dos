@@ -326,7 +326,7 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 			gotoxy (0, j);
 			for (x = 0; x < MENU_BOX_X - 2; x++)
 				grub_putchar (' ', 255);
-			for (x = 0; x <= MENU_BOX_W + 2; x++)
+			for (; fontx <= MENU_BOX_W + 2;)
 			{
 				if (c && c != '\n')
 				{
@@ -1458,8 +1458,10 @@ done_key_handling:
   
  boot_entry:
   
-  cls (); /* show splashimage */
-  //setcursor (1); /* show cursor and disable splashimage */
+  cls ();
+  setcursor (1); /* show cursor and disable splashimage */
+  if (current_term->setcolorstate)
+    current_term->setcolorstate (COLOR_STATE_STANDARD);
 //  /* if our terminal needed initialization, we should shut it down
 //   * before booting the kernel, but we want to save what it was so
 //   * we can come back if needed */

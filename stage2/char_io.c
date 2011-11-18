@@ -762,6 +762,7 @@ static void cl_refresh (int full, int len)
 	    {
 	      section = 0;
 	      grub_printf ("%s", p_getcmdline_arg->prompt);
+	      plen = fontx;
 	      len -= plen;
 	      pos += plen;
 	    }
@@ -831,7 +832,7 @@ static void cl_refresh (int full, int len)
 	    grub_putchar ('\b', 255);
 	}
       else
-	gotoxy (xpos, fonty);
+	gotoxy (fontx-(pos - xpos), fonty);
 }
 
 /* Insert STR to BUF.  */

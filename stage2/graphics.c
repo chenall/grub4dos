@@ -362,9 +362,8 @@ graphics_init (void)
 	    menu_broder.disp_vert = 0x0E;
 
 	    graphics_CURSOR = (void *)&vbe_cursor;
-
-	    graphics_inited = 1;
-	    return 1;
+	    //graphics_inited = 1;
+	    //return 1;
 	}
 	else
 	{
@@ -518,10 +517,18 @@ print_unicode (unsigned long max_width)
     {
 	unsigned long tmp_x = fontx * 8 + i;
 	unsigned long column = ((unsigned short *)pat)[i];
+	unsigned long bit_color = 0;
 	for (j = 0; j < 16; ++j)
 	{
 	    /* print char using foreground and background colors. */
-	    SetPixel (tmp_x, fonty * 16 + j, ((column >> j) & 1) ? current_color_64bit : (current_color_64bit >> 32));
+	    /* print char using foreground and background colors. */
+	    if ((column >> j) & 1)
+		bit_color = current_color_64bit;
+	    else if (!SPLASH_LOADED || cursor_state || (is_highlight && current_color_64bit >> 32))
+		bit_color = current_color_64bit >> 32;
+	    else
+		bit_color = SPLASH_IMAGE[tmp_x+(fonty*16+j)*SPLASH_W];
+	    SetPixel (tmp_x, fonty * 16 + j,bit_color);
 	}
     }
 
@@ -609,7 +616,7 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
 	    graphics_CURSOR(1);
 	return 1;
     }
-
+    #if 0
     /* we know that the ASCII chars are all narrow */
     pat = UNIFONT_START + 16 + (((unsigned long)(unsigned char)ch) << 5);
 
@@ -621,7 +628,13 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
 	for (j = 0; j < 16; ++j)
 	{
 	    /* print char using foreground and background colors. */
-	    SetPixel (tmp_x, fonty * 16 + j, ((column >> j) & 1) ? current_color_64bit : (current_color_64bit >> 32));
+	    if ((column >> j) & 1)
+		ret = current_color_64bit;
+	    else if (cursor_state)
+		ret = current_color_64bit >> 32;
+	    else
+	        ret = SPLASH_IMAGE[tmp_x+(fonty*16+j)*SPLASH_W];
+	    SetPixel (tmp_x, fonty * 16 + j,ret);
 	}
     }
 
@@ -633,7 +646,10 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
 	graphics_CURSOR(1);
     }
     return 1; //char_width;
-
+    #else
+    unicode = ch;
+    return print_unicode (1);
+    #endif
 multibyte:
 
     if (! (((unsigned char)ch) & 0x40))	/* continuation byte 10xxxxxx */
@@ -817,13 +833,65 @@ vga:
  
 }
 
+static int read_image_bmp(int type)
+{
+	struct { /* bmfh */ 
+		unsigned short bfType;
+		unsigned long bfSize; 
+		unsigned long bfReserved1; 
+		unsigned long bfOffBits;
+		} __attribute__ ((packed)) bmfh;
+	struct { /* bmih */ 
+		unsigned long  biSize; 
+		unsigned long  biWidth; 
+		unsigned long  biHeight; 
+		unsigned short biPlanes; 
+		unsigned short biBitCount; 
+		unsigned long  biCompression; 
+		unsigned long  biSizeImage; 
+		unsigned long  biXPelsPerMeter; 
+		unsigned long  biYPelsPerMeter; 
+		unsigned long  biClrUsed; 
+		unsigned long  biClrImportant;
+	} __attribute__ ((packed)) bmih;
+	unsigned long bftmp,bfbit;
+	int x,y;
+	if (type == 0)
+		return 0;
+	filepos = 10;
+	if (!grub_read((unsigned long long)(unsigned int)(char*)&bftmp,4, GRUB_READ) || ! grub_read((unsigned long long)(unsigned int)&bmih,sizeof(bmih),GRUB_READ) || bmih.biBitCount < 24)
+	{
+		return !printf("Error:Read BMP Head\n");
+	}
+	filepos = bftmp;
+	bfbit = bmih.biBitCount>>3;
+	bftmp = 0;
+	//bftmp = (bmih.biWidth*(bmih.biBitCount>>3)+3)&~3;
+	SPLASH_W = bmih.biWidth;
+	SPLASH_H = bmih.biHeight;
+	unsigned long *bmp = SPLASH_IMAGE;
+	printf("Loading splashimage...\n");
+	for(y=bmih.biHeight-1;y>=0;--y)
+	{
+		bmp = SPLASH_IMAGE+y*SPLASH_W;
+		for(x=0;x<bmih.biWidth;++x)
+		{
+			grub_read((unsigned long long)(unsigned int)(char*)&bftmp,bfbit, GRUB_READ);
+			bmp[x] = bftmp;
+		}
+	}
+	SPLASH_LOADED = 1;
+	return 1;
+}
+
 /* Read in the splashscreen image and set the palette up appropriately.
  * Format of splashscreen is an xpm (can be gzipped) with 16 colors and
  * 640x480. */
 static int
-read_image (void)
+read_image_xpm (int type)
 {
     char buf[32], pal[16];
+    unsigned long pal_color[16];
     unsigned char c, base, mask;
     unsigned i, len, idx, colors, x, y, width, height;
     unsigned char *s1;
@@ -836,25 +904,6 @@ read_image (void)
     s4 = (unsigned char*)VSHADOW4;
     s8 = (unsigned char*)VSHADOW8;
 
-    if (! grub_open(splashimage))
-    {
-	errnum = 0;
-
-	if (splashimage_loaded)
-		return 1;
-
-	for (i = 0; i < plano_size / 4; i++)
-		((long *)s1)[i] = ((long *)s2)[i] = ((long *)s4)[i] = ((long *)s8)[i] = 0;
-
-        goto set_palette;
-    }
-
-    /* read header */
-    if (! grub_read((unsigned long long)(unsigned int)(char*)&buf, 10, 0xedde0d90) || grub_memcmp(buf, "/* XPM */\n", 10)) {
-        grub_close();
-        return 0;
-    }
-    
     /* parse info */
     while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
         if (c == '"')
@@ -918,7 +967,10 @@ read_image (void)
             int b = (hex(buf[4]) << 4) | hex(buf[5]);
 
             pal[idx] = base;
-            graphics_set_palette(idx, (r<<16) | (g<<8) | b);
+            if (type == 0)
+		graphics_set_palette(idx, (r<<16) | (g<<8) | b);
+	    else
+		pal_color[idx] = (r<<16) | (g<<8) | b;
             ++idx;
         }
     }
@@ -930,7 +982,7 @@ read_image (void)
     for (y = len = 0; y < height && y < ypixels; ++y, len += x1) {
         while (1) {
             if (!grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
-                grub_close();
+//                grub_close();
                 return 0;
             }
             if (c == '"')
@@ -946,18 +998,30 @@ read_image (void)
                     c = i;
                     break;
                 }
-
+              if (type == 0)
+              {
               mask = 0x80 >> (x & 7);
               if (c & 1) s1[len + (x >> 3)] |= mask;
               if (c & 2) s2[len + (x >> 3)] |= mask;
               if (c & 4) s4[len + (x >> 3)] |= mask;
               if (c & 8) s8[len + (x >> 3)] |= mask;
+              }
+              else
+              {
+		SPLASH_IMAGE[y*width+x] = pal_color[c];
+              }
             }
         }
     }
 
-    grub_close();
-    splashimage_loaded = 1;
+//    grub_close();
+    if (type == 1)
+    {
+	SPLASH_W = width;
+	SPLASH_H = height;
+	SPLASH_LOADED = 1;
+	return 1;
+    }
 
 set_palette:
 
@@ -967,6 +1031,53 @@ set_palette:
     return 1;
 }
 
+static int read_image()
+{
+	char buf[16];
+	if (*splashimage == 1)
+		return 1;
+	if (!*splashimage)
+	{
+		SPLASH_LOADED = 0;
+		splashimage_loaded = 0;
+		*splashimage = 1;
+		if (graphics_mode < 0xFF)
+		{
+			unsigned char *s1;
+			unsigned char *s2;
+			unsigned char *s4;
+			unsigned char *s8;
+			unsigned i;
+			s1 = (unsigned char*)VSHADOW1;
+			s2 = (unsigned char*)VSHADOW2;
+			s4 = (unsigned char*)VSHADOW4;
+			s8 = (unsigned char*)VSHADOW8;
+			for (i = 0; i < plano_size / 4; i++)
+				((long *)s1)[i] = ((long *)s2)[i] = ((long *)s4)[i] = ((long *)s8)[i] = 0;
+			graphics_set_palette( 0, background);
+			graphics_set_palette(15, foreground);
+		}
+		return 1;
+	}
+	if (! grub_open(splashimage))
+	{
+		return 0;
+	}
+	/* read header */
+	grub_read((unsigned long long)(unsigned int)(char*)&buf, 10, 0xedde0d90);
+	splashimage_loaded = 0;
+	if (*(unsigned short*)buf == 0x4d42) /*BMP */
+	{
+		splashimage_loaded = read_image_bmp(graphics_mode > 0xFF);
+	}
+	else if (grub_memcmp(buf, "/* XPM */\n", 10) == 0) /* XPM */
+	{
+		splashimage_loaded = read_image_xpm(graphics_mode > 0xFF);
+	}
+	*splashimage = 1;
+	grub_close();
+	return splashimage_loaded;
+}
 
 /* Convert a character which is a hex digit to the appropriate integer */
 int
