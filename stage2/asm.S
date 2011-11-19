@@ -11476,7 +11476,7 @@ ENTRY(console_putchar)
 //	int	$0x10
 
 	/* if showcursor, print CRLF on needed */
-	cmpb	$0, cursor_state
+	andb	$1, cursor_state
 	jz	3f
 
 	cmpb	$80, %dl
@@ -11846,7 +11846,7 @@ ENTRY(console_cls)
  */
 
 VARIABLE(cursor_state)
-	.long	0
+	.long	0 //bit 0=1 show cursor,bit 1=1 show splashimage
 console_cursor_shape:
 	.word	0
 

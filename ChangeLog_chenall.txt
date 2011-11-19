@@ -1,4 +1,10 @@
-﻿2011-11-18
+﻿2011-11-19
+	1.cursor_state bit 0=1 show cursor,bit 1=1 show splashimage.
+	  use setcursor(n) to change if need,can change from commandline e.g.
+	  call Fn.70 0 disable cursor and splashimage.
+	2.清理部份无用代码.
+
+2011-11-18
 	1.支持BMP背景图片,只限于VBE模式         supported splashimage with BMP format(VBE mode only).
 	2.使用BMP图片时,如果非处于VBE模式,则尝试自动匹配图片分辨率.
 

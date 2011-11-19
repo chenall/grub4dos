@@ -1734,7 +1734,7 @@ setcursor (unsigned long on)
   cursor_state = on;
   
   if (current_term->setcursor)
-      current_term->setcursor (on);
+      current_term->setcursor (on & 1);
 
   return old_state;
 }

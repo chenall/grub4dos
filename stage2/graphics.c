@@ -505,7 +505,7 @@ print_unicode (unsigned long max_width)
     if (max_width < char_width)
 	return (1 << 31) | invalid | (byte_SN << 8); // printed width = 0
 
-    if (cursor_state)
+    if (cursor_state & 1)
 	graphics_CURSOR(0);
 
     /* print CRLF and scroll if needed */
@@ -524,7 +524,7 @@ print_unicode (unsigned long max_width)
 	    /* print char using foreground and background colors. */
 	    if ((column >> j) & 1)
 		bit_color = current_color_64bit;
-	    else if (!SPLASH_LOADED || cursor_state || (is_highlight && current_color_64bit >> 32))
+	    else if (!(splashimage_loaded & 2) || !(cursor_state & 2) || (is_highlight && current_color_64bit >> 32))
 		bit_color = current_color_64bit >> 32;
 	    else
 		bit_color = SPLASH_IMAGE[tmp_x+(fonty*16+j)*SPLASH_W];
@@ -533,7 +533,7 @@ print_unicode (unsigned long max_width)
     }
 
     fontx += char_width;
-    if (cursor_state)
+    if (cursor_state & 1)
     {
 	if (fontx >= x1)
 	    { fontx = 0; check_scroll (); }
@@ -599,20 +599,20 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
     if (! max_width)
 	return (1 << 31);	/* printed width = 0 */
 
-    if (cursor_state)
+    if (cursor_state & 1)
 	graphics_CURSOR(0);
 
     if ((char)ch == '\n')
     {
 	check_scroll ();
-	if (cursor_state)
+	if (cursor_state & 1)
 	    graphics_CURSOR(1);
 	return 1;
     }
     if ((char)ch == '\r')
     {
 	fontx = 0;
-	if (cursor_state)
+	if (cursor_state & 1)
 	    graphics_CURSOR(1);
 	return 1;
     }
@@ -723,19 +723,19 @@ multibyte:
 vga:
     if ((char)ch == '\n')
     {
-	if (cursor_state)
+	if (cursor_state & 1)
 	    graphics_CURSOR(0);
 	check_scroll ();
-	if (cursor_state)
+	if (cursor_state & 1)
 	    graphics_CURSOR(1);
 	return 1;
     }
     if ((char)ch == '\r')
     {
-	if (cursor_state)
+	if (cursor_state & 1)
 	    graphics_CURSOR(0);
 	fontx = 0;
-	if (cursor_state)
+	if (cursor_state & 1)
 	    graphics_CURSOR(1);
 	return 1;
     }
@@ -745,7 +745,7 @@ vga:
     graphics_CURSOR(0);
 
     fontx++;
-    if (cursor_state)
+    if (cursor_state & 1)
     {
 	if (fontx >= x1)
 	    { fontx = 0; check_scroll (); }
@@ -764,13 +764,13 @@ graphics_getxy(void)
 void
 graphics_gotoxy (int x, int y)
 {
-    if (cursor_state)
+    if (cursor_state & 1)
 	graphics_CURSOR(0);
 
     fontx = x;
     fonty = y;
 
-    if (cursor_state)
+    if (cursor_state & 1)
 	graphics_CURSOR(1);
 }
 
@@ -789,7 +789,7 @@ graphics_cls (void)
     /* VBE */
 
     _memset ((char *)current_phys_base, 0, current_y_resolution * current_bytes_per_scanline);
-    if (cursor_state)
+    if (cursor_state & 1)
 	    graphics_CURSOR(1);
     return;
 
@@ -799,7 +799,7 @@ vga:
     for (i = 0; i < x1 * y1; i++)
         text[i] = ' ';
 
-    if (cursor_state)
+    if (!(cursor_state & 2))
     {
 	MapMask(15);
 	_memset (mem, 0, plano_size);
@@ -880,8 +880,7 @@ static int read_image_bmp(int type)
 			bmp[x] = bftmp;
 		}
 	}
-	SPLASH_LOADED = 1;
-	return 1;
+	return 2;
 }
 
 /* Read in the splashscreen image and set the palette up appropriately.
@@ -1019,8 +1018,7 @@ read_image_xpm (int type)
     {
 	SPLASH_W = width;
 	SPLASH_H = height;
-	SPLASH_LOADED = 1;
-	return 1;
+	return 2;
     }
 
 set_palette:
@@ -1038,7 +1036,6 @@ static int read_image()
 		return 1;
 	if (!*splashimage)
 	{
-		SPLASH_LOADED = 0;
 		splashimage_loaded = 0;
 		*splashimage = 1;
 		if (graphics_mode < 0xFF)
@@ -1182,7 +1179,7 @@ graphics_cursor (int set)
 
 	p = pat[i];
 
-	if (cursor_state)
+	if (!(cursor_state & 2))
 		goto put_pattern;
 	if (is_highlight)
 	{
