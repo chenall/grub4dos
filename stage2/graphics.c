@@ -50,7 +50,7 @@ static unsigned char *VSHADOW8 = (unsigned char *)0x3CBF20;	//unsigned char VSHA
 //static unsigned short text[80 * 30];
 static unsigned long *text = (unsigned long *)0x3FC000; // length in bytes = 100*37*4 = 0x39D0
 
-static unsigned long splashimage_loaded = 0;
+extern unsigned long splashimage_loaded;
 
 /* constants to define the viewable area */
 unsigned long x1 = 80;
@@ -353,14 +353,6 @@ graphics_init (void)
 	    current_term->max_lines = y1 = current_y_resolution / 16;
 
 	    /* here should read splashimage. */
-
-	    menu_broder.disp_ul = 0x14;
-	    menu_broder.disp_ur = 0x15;
-	    menu_broder.disp_ll = 0x16;
-	    menu_broder.disp_lr = 0x13;
-	    menu_broder.disp_horiz = 0x0F;
-	    menu_broder.disp_vert = 0x0E;
-
 	    graphics_CURSOR = (void *)&vbe_cursor;
 	    //graphics_inited = 1;
 	    //return 1;
@@ -430,14 +422,13 @@ success:
 		ypixels = 600;
 		plano_size = (800 * 600) / 8;
 	    }
-
-	    menu_broder.disp_ul = 0x14;
-	    menu_broder.disp_ur = 0x15;
-	    menu_broder.disp_ll = 0x16;
-	    menu_broder.disp_lr = 0x13;
-	    menu_broder.disp_horiz = 0x0F;
-	    menu_broder.disp_vert = 0x0E;
 	}
+	menu_broder.disp_ul = 0x14;
+	menu_broder.disp_ur = 0x15;
+	menu_broder.disp_ll = 0x16;
+	menu_broder.disp_lr = 0x13;
+	menu_broder.disp_horiz = 0x0F;
+	menu_broder.disp_vert = 0x0E;
     }
 
     if (! read_image ())
@@ -499,7 +490,7 @@ print_unicode (unsigned long max_width)
     char_width = 2;				/* wide char */
     pat = UNIFONT_START + (unicode << 5);
 
-    if (*(unsigned long *)pat == narrow_char_indicator)
+    if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
 	{ --char_width; pat += 16; }		/* narrow char */
 
     if (max_width < char_width)
@@ -520,7 +511,6 @@ print_unicode (unsigned long max_width)
 	unsigned long bit_color = 0;
 	for (j = 0; j < 16; ++j)
 	{
-	    /* print char using foreground and background colors. */
 	    /* print char using foreground and background colors. */
 	    if ((column >> j) & 1)
 		bit_color = current_color_64bit;
@@ -616,40 +606,9 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
 	    graphics_CURSOR(1);
 	return 1;
     }
-    #if 0
     /* we know that the ASCII chars are all narrow */
-    pat = UNIFONT_START + 16 + (((unsigned long)(unsigned char)ch) << 5);
-
-    /* print dot matrix of the ASCII char */
-    for (i = 0; i < 8; ++i)
-    {
-	unsigned long tmp_x = fontx * 8 + i;
-	unsigned long column = ((unsigned short *)pat)[i];
-	for (j = 0; j < 16; ++j)
-	{
-	    /* print char using foreground and background colors. */
-	    if ((column >> j) & 1)
-		ret = current_color_64bit;
-	    else if (cursor_state)
-		ret = current_color_64bit >> 32;
-	    else
-	        ret = SPLASH_IMAGE[tmp_x+(fonty*16+j)*SPLASH_W];
-	    SetPixel (tmp_x, fonty * 16 + j,ret);
-	}
-    }
-
-    fontx++;
-    if (cursor_state)
-    {
-	if (fontx >= x1)
-	    { fontx = 0; check_scroll (); }
-	graphics_CURSOR(1);
-    }
-    return 1; //char_width;
-    #else
     unicode = ch;
     return print_unicode (1);
-    #endif
 multibyte:
 
     if (! (((unsigned char)ch) & 0x40))	/* continuation byte 10xxxxxx */
@@ -1062,18 +1021,18 @@ static int read_image()
 	}
 	/* read header */
 	grub_read((unsigned long long)(unsigned int)(char*)&buf, 10, 0xedde0d90);
-	splashimage_loaded = 0;
+	splashimage_loaded = 0x1000000;
 	if (*(unsigned short*)buf == 0x4d42) /*BMP */
 	{
-		splashimage_loaded = read_image_bmp(graphics_mode > 0xFF);
+		splashimage_loaded |= read_image_bmp(graphics_mode > 0xFF);
 	}
 	else if (grub_memcmp(buf, "/* XPM */\n", 10) == 0) /* XPM */
 	{
-		splashimage_loaded = read_image_xpm(graphics_mode > 0xFF);
+		splashimage_loaded |= read_image_xpm(graphics_mode > 0xFF);
 	}
 	*splashimage = 1;
 	grub_close();
-	return splashimage_loaded;
+	return splashimage_loaded & 0xf;
 }
 
 /* Convert a character which is a hex digit to the appropriate integer */

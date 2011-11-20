@@ -20,9 +20,8 @@
 
 #ifndef GRAPHICS_H
 #define GRAPHICS_H
-#define SPLASH_BASE_ADDR 0x1000000
+#define SPLASH_BASE_ADDR (splashimage_loaded & ~0xfL)
 #define SPLASH_W (*(unsigned long *)SPLASH_BASE_ADDR)
 #define SPLASH_H (*(unsigned long *)(SPLASH_BASE_ADDR+4))
-#define SPLASH_LOADED (*(unsigned long *)(SPLASH_BASE_ADDR+8))
 #define SPLASH_IMAGE ((unsigned long*)(SPLASH_BASE_ADDR+0x10))
 #endif /* GRAPHICS_H */

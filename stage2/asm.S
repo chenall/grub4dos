@@ -13327,6 +13327,20 @@ VARIABLE(current_color)
 VARIABLE(current_color_64bit)
 	.long	0xAAAAAA	/* lo 32 bits for foreground */
 	.long	0		/* hi 32 bits for background */
-
+VARIABLE(p_get_cmdline_str)
+	.long ABS(EXT_C(get_cmdline_str))
+VARIABLE(splashimage_loaded)
+	.long 0	
+/*
+  flags for vbe splashimage
+  splashimage_loaded & ~0xf   SPLASH_BASE_ADDR
+  if image load success set bit 1=1;
+  SPLASH_BASE_ADDR+4		image Width.
+  SPLASH_BASE_ADDR+8		image height
+  SPLASH_BASE_ADDR+16		image data
+  the image data use 32bit colors.eg. width=4,height=2
+  xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx
+  xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx
+*/
 #endif /* ! STAGE1_5 */
 

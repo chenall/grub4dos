@@ -460,85 +460,9 @@ enter_cmdline (char *heap, int forever)
       if ((builtin->func) == errnum_func || (builtin->func) == checkrange_func)
 	errnum = errnum_old;
 */
-      /* find && and || */
-#if 0
-      for (arg = skip_to (0, heap); *arg != 0; arg = skip_to (0, arg))
-      {
-	struct builtin *builtin1;
-	int ret;
-	char *arg1;
-	arg1 = arg;
-        if (*arg == '&' && arg[1] == '&' && (arg[2] == ' ' || arg[2] == '\t'))
-        {
-		/* handle the AND operator */
-		arg = skip_to (0, arg);
-		builtin1 = find_command (arg);
-		if ((int)builtin1 != -1)
-		if (! builtin1 || ! (builtin1->flags & BUILTIN_CMDLINE))
-		{
-			errnum = ERR_UNRECOGNIZED;
-			goto next;
-		}
-
-		*arg1 = 0;
-		if ((int)builtin != -1)
-			ret = (builtin->func) (skip_to (1, heap), BUILTIN_CMDLINE);
-		else
-			ret = command_func (heap, BUILTIN_CMDLINE);
-		*arg1 = '&';
-		if (ret)
-		{
-			if ((int)builtin1 == -1 || ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func))
-				errnum = 0;
-			if ((int)builtin1 != -1)
-				(builtin1->func) (skip_to (1, arg), BUILTIN_CMDLINE);
-			else
-				command_func (arg, BUILTIN_CMDLINE);
-		} else
-			errnum = 0;
-		goto next;
-	} else if (*arg == '|' && arg[1] == '|' && (arg[2] == ' ' || arg[2] == '\t'))
-	{
-		/* handle the OR operator */
-		arg = skip_to (0, arg);
-		builtin1 = find_command (arg);
-		if ((int)builtin1 != -1)
-		if (! builtin1 || ! (builtin1->flags & BUILTIN_CMDLINE))
-		{
-			errnum = ERR_UNRECOGNIZED;
-			goto next;
-		}
-
-		*arg1 = 0;
-		if ((int)builtin != -1)
-			ret = (builtin->func) (skip_to (1, heap), BUILTIN_CMDLINE);
-		else
-			ret = command_func (heap, BUILTIN_CMDLINE);
-		*arg1 = '|';
-		if (! ret)
-		{
-			if ((int)builtin1 == -1 || ((builtin1->func) != errnum_func && (builtin1->func) != checkrange_func))
-				errnum = 0;
-			if ((int)builtin1 != -1)
-				(builtin1->func) (skip_to (1, arg), BUILTIN_CMDLINE);
-			else
-				command_func (arg, BUILTIN_CMDLINE);
-		} else
-			errnum = 0;
-		goto next;
-	}
-      }
-
-	/* Run BUILTIN->FUNC.  */
-	if ((int)builtin != -1)
-	{
-		arg = ((builtin->func) == commandline_func) ? heap : skip_to (1, heap);
-		(builtin->func) (arg, BUILTIN_CMDLINE);
-	}
-	else
-		command_func (heap, BUILTIN_CMDLINE);
-#endif
 	errnum = errnum_old;
+	if (memcmp(heap,"clear",5))
+	    putchar('\n',255);
 	run_line (heap , BUILTIN_CMDLINE);
       /* Finish the line count.  */
       count_lines = -1;
