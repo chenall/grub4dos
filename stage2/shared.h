@@ -1391,7 +1391,6 @@ void init_page (void);
 void print_error (void);
 char *convert_to_ascii (char *buf, int c, ...);
 extern char *prompt;
-extern int maxlen;
 extern int echo_char;
 extern int readline;
 struct get_cmdline_arg
@@ -1403,7 +1402,7 @@ struct get_cmdline_arg
 	unsigned int readline;
 } __attribute__ ((packed));
 extern struct get_cmdline_arg get_cmdline_str;
-int get_cmdline (struct get_cmdline_arg p_cmdline);
+int get_cmdline (void);
 int substring (const char *s1, const char *s2, int case_insensitive);
 int nul_terminate (char *str);
 int get_based_digit (int c, int base);

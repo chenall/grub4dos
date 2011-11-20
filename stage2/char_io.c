@@ -663,13 +663,8 @@ add_history (const char *cmdline, int no)
 	until this code is freezed.  */
 #define CMDLINE_WIDTH	(current_term->chars_per_line - 2)
 #define CMDLINE_MARGIN	11
-/*  
-char *prompt;
-int maxlen;
-int echo_char;
-int readline;
-*/
-struct get_cmdline_arg get_cmdline_str, *p_getcmdline_arg;
+
+struct get_cmdline_arg get_cmdline_str;
 static int xpos, lpos, section;
 
 /* The length of PROMPT.  */
@@ -688,6 +683,45 @@ static void cl_delete (int count);
 /* Move the cursor backward.  */
 static void cl_backward (int count)
 {
+	unsigned long unicode;
+	unsigned char b = *(buf + lpos - 1);
+	unsigned char a = *(buf + lpos - 2);
+	//unsigned long count = 1;
+
+	/* get the length of the current sequence */
+	if (b < 0x80)
+	    goto do_backward;	/* backward 1 ASCII byte */
+	if ((b & 0x40))		/* not continuation byte 10xxxxxx */
+	    goto do_backward;	/* backward 1 invalid byte */
+	/* now b is continuation byte */
+	if (! (a & 0x80))
+	    goto do_backward;	/* backward 1 invalid byte */
+
+	if (! (a & 0x40))	/* a is 10xxxxxx */
+	{
+	    if (((*(buf + lpos - 3)) >> 4) != 0xE)
+		goto do_backward;	/* backward 1 invalid byte */
+	    count = 3;		/* backward 3 bytes for the valid sequence */
+	    unicode = (buf[lpos - 3] << 6) | (a & 0x3F);
+	    unicode = (unicode << 6) | (b & 0x3F);
+	}
+	else			/* a is 11xxxxxx */
+	{
+	    if ((a & 0x20))	/* a is not 110xxxxx */
+		goto do_backward;	/* backward 1 invalid byte */
+	    /* backward 2 bytes for the valid sequence */
+	    count++;		// count = 2;
+	    unicode = (a << 6) | (b & 0x3F);
+	}
+
+do_backward:
+
+	if (lpos < count)
+	{
+		/* count > 1, but exceeding the buffer, so it is invalid. */
+		count = 1;	/* backward 1 invalid byte */
+	}
+
       lpos -= count;
       
       /* If the cursor is in the first section, display the first section
@@ -698,23 +732,72 @@ static void cl_backward (int count)
 	cl_refresh (1, 0);
       else
 	{
-	  xpos -= count;
-
 	  if (current_term->flags & TERM_DUMB)
 	    {
 	      int i;
 	      
+	      xpos -= count;
+
 	      for (i = 0; i < count; i++)
 		grub_putchar ('\b', 255);
 	    }
 	  else
-	    gotoxy (xpos, fonty);
+	    {
+	      if (count > 1)
+	      {
+		/* get char width */
+		count = 2;	/* initalize as wide char */
+		if (*(unsigned long *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
+			count--;	// count = 1;
+	      }
+	      xpos -= count;
+	      gotoxy (xpos, fonty);
+	    }
 	}
 }
 
 /* Move the cursor forward.  */
 static void cl_forward (int count)
 {
+	unsigned long unicode;
+	unsigned char b = *(buf + lpos);
+	//unsigned long count = 1;
+
+	/* get the length of the current sequence */
+	if (b < 0x80)
+	    goto do_forward;	/* forward 1 ASCII byte */
+	if (! (b & 0x40))	/* continuation byte 10xxxxxx */
+	    goto do_forward;	/* forward 1 invalid continuation byte */
+	if (! (b & 0x20))	/* leading byte 110xxxxx */
+	{
+	    /* check the next 1 continuation byte */
+	    if ((buf[lpos + 1] >> 6) == 2)
+	    {
+		/* forward 2 bytes for the valid sequence */
+		count++;	// count = 2;
+		unicode = (b << 6) | (buf[lpos + 1] & 0x3F);
+	    }
+	}	
+	else if (! (b & 0x10))	/* leading byte 1110xxxx */
+	{
+	    /* check the next 2 continuation bytes */
+	    if ((buf[lpos + 1] >> 6) == 2 && (buf[lpos + 2] >> 6) == 2)
+	    {
+		count = 3;	/* forward 3 bytes for the valid sequence */
+		unicode = (b << 6) | (buf[lpos + 1] & 0x3F);
+		unicode = (unicode << 6) | (buf[lpos + 2] & 0x3F);
+	    }
+	}
+	/* invalid byte */
+do_forward:
+
+	//lpos < llen;
+	if (lpos + count > llen)
+	{
+		/* count > 1, but exceeding the buffer, so it is invalid. */
+		count = 1;	/* forward 1 invalid byte */
+	}
+
       lpos += count;
 
       /* If the cursor goes outside, scroll the screen to the right.  */
@@ -722,22 +805,32 @@ static void cl_forward (int count)
 	cl_refresh (1, 0);
       else
 	{
-	  xpos += count;
-
 	  if (current_term->flags & TERM_DUMB)
 	    {
 	      int i;
 	      
+	      xpos += count;
+
 	      for (i = lpos - count; i < lpos; i++)
 		{
-		  if (! p_getcmdline_arg->echo_char)
+		  if (! get_cmdline_str.echo_char)
 		    grub_putchar (buf[i], 255);
 		  else
-		    grub_putchar (p_getcmdline_arg->echo_char, 255);
+		    grub_putchar (get_cmdline_str.echo_char, 255);
 		}
 	    }
 	  else
-	    gotoxy (xpos, fonty);
+	    {
+	      if (count > 1)
+	      {
+		/* get char width */
+		count = 2;	/* initalize as wide char */
+		if (*(unsigned long *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
+			count--;	// count = 1;
+	      }
+	      xpos += count;
+	      gotoxy (xpos, fonty);
+	    }
 	}
 }
 
@@ -745,10 +838,11 @@ static void cl_forward (int count)
    only LEN characters from LPOS.  */
 static void cl_refresh (int full, int len)
 {
-      int i;
-      int start;
-      int pos = xpos;
-      int offset = 0;
+      unsigned long i;
+      unsigned long start;
+      unsigned long pos = xpos;
+      unsigned long offset = 0;
+      unsigned long lpos_fontx;
       
       if (full)
 	{
@@ -761,7 +855,7 @@ static void cl_refresh (int full, int len)
 	  if (lpos + plen < CMDLINE_WIDTH)
 	    {
 	      section = 0;
-	      grub_printf ("%s", p_getcmdline_arg->prompt);
+	      grub_printf ("%s", get_cmdline_str.prompt);
 	      plen = fontx;
 	      len -= plen;
 	      pos += plen;
@@ -795,17 +889,29 @@ static void cl_refresh (int full, int len)
 	}
       start += offset;
 
+      lpos_fontx = 0;
+
       /* Print BUF. If ECHO_CHAR is not zero, put it instead.  */
       for (i = start; i < start + len && i < llen; i++)
 	{
-	  if (! p_getcmdline_arg->echo_char)
+	  if (i == lpos)
+		lpos_fontx = fontx;
+	  if (! get_cmdline_str.echo_char)
+	  {
 	    grub_putchar (buf[i], 255);
+	  }
 	  else
-	    grub_putchar (p_getcmdline_arg->echo_char, 255);
+	    grub_putchar (get_cmdline_str.echo_char, 255);
 
 	  pos++;
 	}
       
+      if (i == lpos)
+		lpos_fontx = fontx;
+
+      if (lpos_fontx == 0)
+	printf ("\n!! Unexpected error in cl_refresh() !! Please report the problem.\n");
+
       /* Fill up the rest of the line with spaces.  */
       for (; i < start + len; i++)
 	{
@@ -832,7 +938,7 @@ static void cl_refresh (int full, int len)
 	    grub_putchar ('\b', 255);
 	}
       else
-	gotoxy (fontx-(pos - xpos), fonty);
+	gotoxy ((xpos = lpos_fontx), fonty);	//gotoxy (fontx-(pos - xpos), fonty);
 }
 
 /* Insert STR to BUF.  */
@@ -840,7 +946,7 @@ static void cl_insert (const char *str)
 {
       int l = grub_strlen (str);
 
-      if (llen + l < p_getcmdline_arg->maxlen)
+      if (llen + l < get_cmdline_str.maxlen)
 	{
 	  if (lpos == llen)
 	    grub_memmove (buf + lpos, str, l + 1);
@@ -852,29 +958,56 @@ static void cl_insert (const char *str)
 	  
 	  llen += l;
 	  lpos += l;
+	  cl_refresh (1, 0);
+#if 0
 	  if (xpos + l >= CMDLINE_WIDTH)
 	    cl_refresh (1, 0);
 	  else if (xpos + l + llen - lpos > CMDLINE_WIDTH)
 	    cl_refresh (0, CMDLINE_WIDTH - xpos);
 	  else
 	    cl_refresh (0, l + llen - lpos);
+#endif
 	}
 }
 
 /* Delete COUNT characters in BUF.  */
 static void cl_delete (int count)
 {
+	unsigned char b = *(buf + lpos);
+	//unsigned long count = 1;
+
+	/* get the length of the current sequence */
+	if (b < 0x80)
+	    goto do_delete;	/* delete 1 ASCII byte */
+	if (! (b & 0x40))	/* continuation byte 10xxxxxx */
+	    goto do_delete;	/* delete 1 invalid continuation byte */
+	if (! (b & 0x20))	/* leading byte 110xxxxx */
+	{
+	    /* check the next 1 continuation byte */
+	    count += ((buf[lpos + 1] >> 6) == 2);
+	}	
+	else if (! (b & 0x10))	/* leading byte 1110xxxx */
+	{
+	    /* check the next 2 continuation bytes */
+	    if ((buf[lpos + 1] >> 6) == 2 && (buf[lpos + 2] >> 6) == 2)
+		count = 3;	/* delete 3 bytes for the valid sequence */
+	}	
+	/* invalid byte */
+do_delete:
       grub_memmove (buf + lpos, buf + lpos + count, llen - count + 1);
       llen -= count;
       
+      cl_refresh (1, 0);
+#if 0
       if (xpos + llen + count - lpos > CMDLINE_WIDTH)
 	cl_refresh (0, CMDLINE_WIDTH - xpos);
       else
 	cl_refresh (0, llen + count - lpos);
+#endif
 }
 
 static int
-real_get_cmdline (char *cmdline)
+real_get_cmdline (void)
 {
   /* This is a rather complicated function. So explain the concept.
      
@@ -908,33 +1041,33 @@ real_get_cmdline (char *cmdline)
      outside that section.  */
 
   int c;
-  /* The index for the history.  */
-  int history = -1;
-  
-  buf = (char *) CMDLINE_BUF;
-  plen = grub_strlen (p_getcmdline_arg->prompt);
-  llen = grub_strlen (cmdline);
+  int history = -1;	/* The index for the history.  */
 
-  if (p_getcmdline_arg->maxlen > MAX_CMDLINE)
+  buf = (unsigned char *) CMDLINE_BUF;
+  //plen = grub_strlen (get_cmdline_str.prompt);
+  llen = grub_strlen (get_cmdline_str.cmdline);
+
+  if (get_cmdline_str.maxlen > MAX_CMDLINE)
     {
-      p_getcmdline_arg->maxlen = MAX_CMDLINE;
+      get_cmdline_str.maxlen = MAX_CMDLINE;
       if (llen >= MAX_CMDLINE)
 	{
 	  llen = MAX_CMDLINE - 1;
-	  cmdline[MAX_CMDLINE] = 0;
+	  get_cmdline_str.cmdline[MAX_CMDLINE] = 0;
 	}
     }
   lpos = llen;
-  grub_strcpy (buf, cmdline);
+  grub_strcpy (buf, get_cmdline_str.cmdline);
 
-  grub_putchar ('\n', 255);
+  if (fontx)
+	grub_putchar ('\n', 255);
   cl_refresh (1, 0);  /* Print full line and set position here */
 
-  if (p_getcmdline_arg->readline > 1)
+  if (get_cmdline_str.readline > 1)
   {
 	int t1;
 	int t2 = -1;
-	int wait_t = p_getcmdline_arg->readline >> 8;
+	int wait_t = get_cmdline_str.readline >> 8;
 	while ((t2 = getrtsecs ()) == 0xFF);
 	while (wait_t)
 	{
@@ -949,12 +1082,12 @@ real_get_cmdline (char *cmdline)
 	if (wait_t == 0)
 		return 1;
   }
-  p_getcmdline_arg->readline &= 1;
+  get_cmdline_str.readline &= 1;
 
   while ((char)(c = /*ASCII_CHAR*/ (getkey ())) != '\n' && (char)c != '\r')
     {
       /* If READLINE is non-zero, handle readline-like key bindings.  */
-      if (p_getcmdline_arg->readline)
+      if (get_cmdline_str.readline)
 	{
 	  if ((char)c == 9)	/* TAB lists completions */
 	      {
@@ -963,7 +1096,7 @@ real_get_cmdline (char *cmdline)
 		int pos = 0;
 		int ret;
 		char *completion_buffer = (char *) COMPLETION_BUF;
-		int equal_pos = -1;
+		int equal_pos =-1;
 		int is_filename;
 
 		/* Find the first word.  */
@@ -1025,7 +1158,8 @@ real_get_cmdline (char *cmdline)
 		      {
 			/* There are more than one candidates, so print
 			   the list.  */
-			grub_putchar ('\n', 255);
+			if (fontx)
+			  grub_putchar ('\n', 255);
 			print_completions (is_filename, 0);
 			errnum = ERR_NONE;
 		      }
@@ -1037,16 +1171,25 @@ real_get_cmdline (char *cmdline)
 
 		if (ret)
 		{
-		  grub_putchar ('\n', 255);
+		  if (fontx)
+			grub_putchar ('\n', 255);
 		  cl_refresh (1, 0);/* Print full line and set position here */
 		}
 	      }
 	  else if (c == KEY_HOME/* || (char)c == 1*/)	/* C-a beginning */
 		/* Home= 0x4700 for BIOS, 0x0106 for Linux */
-	      cl_backward (lpos);
+	    {
+	      //cl_backward (lpos);
+		lpos = 0;
+		cl_refresh (1, 0);
+	    }
 	  else if (c == KEY_END/* || (char)c == 5*/)	/* C-e end */
 		/* End= 0x4F00 for BIOS, 0x0168 for Linux */
-	      cl_forward (llen - lpos);
+	    {
+	      //cl_forward (llen - lpos);
+		lpos = llen;
+		cl_refresh (1, 0);
+	    }
 	  else if (c == KEY_RIGHT/* || (char)c == 6*/)	/* C-f forward */
 		/* Right= 0x4D00 for BIOS, 0x0105 for Linux */
 	      {
@@ -1066,7 +1209,7 @@ real_get_cmdline (char *cmdline)
 
 		if (history < 0)
 		  /* Save the working buffer.  */
-		  grub_strcpy (cmdline, buf);
+		  grub_strcpy (get_cmdline_str.cmdline, buf);
 		else if (grub_strcmp (get_history (history), buf) != 0)
 		  /* If BUF is modified, add it into the history list.  */
 		  add_history (buf, history);
@@ -1100,7 +1243,7 @@ real_get_cmdline (char *cmdline)
 		    history--;
 		    p = get_history (history);
 		    if (! p)
-		      p = cmdline;
+		      p = get_cmdline_str.cmdline;
 
 		    grub_strcpy (buf, p);
 		    llen = grub_strlen (buf);
@@ -1124,7 +1267,9 @@ real_get_cmdline (char *cmdline)
 		/* Del= 0x5300 for BIOS, 0x014A for Linux */
 	  {
 	    if (lpos != llen)
+	    {
 	      cl_delete (1);
+	    }
 	  }
 	else if (c == KEY_BACKSPACE || (char)c == 8)	/* C-h backspace */
 		/* Backspace= 0x0E08 for BIOS, 0x0107 for Linux */
@@ -1158,23 +1303,31 @@ real_get_cmdline (char *cmdline)
 	  }
     }
 
-  grub_putchar ('\n', 255);
+//  if (fontx)
+//	grub_putchar ('\n', 255);
 
   /* If ECHO_CHAR is NUL, remove the leading spaces.  */
   lpos = 0;
-  if (! p_getcmdline_arg->echo_char)
+  if (! get_cmdline_str.echo_char)
     while (buf[lpos] == ' ')
       lpos++;
 
   /* Copy the working buffer to CMDLINE.  */
-  grub_memmove (cmdline, buf + lpos, llen - lpos + 1);
+  grub_memmove (get_cmdline_str.cmdline, buf + lpos, llen - lpos + 1);
 
   /* If the readline-like feature is turned on and CMDLINE is not
      empty, add it into the history list.  */
-  if (p_getcmdline_arg->readline && lpos < llen)
-    add_history (cmdline, 0);
+  if (get_cmdline_str.readline && lpos < llen)
+    add_history (get_cmdline_str.cmdline, 0);
 
   return 0;
+}
+
+int
+get_cmdline_obsolete (struct get_cmdline_arg cmdline)
+{
+	get_cmdline_str = cmdline;
+	return get_cmdline ();
 }
 
 /* Don't use this with a MAXLEN greater than 1600 or so!  The problem
@@ -1186,11 +1339,10 @@ real_get_cmdline (char *cmdline)
 
    If ECHO_CHAR is nonzero, echo it instead of the typed character. */
 int
-get_cmdline (struct get_cmdline_arg p_cmdline)
+get_cmdline (void)
 {
   unsigned long old_cursor;
   int ret;
-  p_getcmdline_arg = &p_cmdline ;
   old_cursor = setcursor (1);
   
   /* Because it is hard to deal with different conditions simultaneously,
@@ -1198,16 +1350,16 @@ get_cmdline (struct get_cmdline_arg p_cmdline)
      implies TERM_NO_EDIT.  */
   if (current_term->flags & (TERM_NO_ECHO | TERM_NO_EDIT))
     {
-      unsigned char *p = p_cmdline.cmdline;
+      unsigned char *p = get_cmdline_str.cmdline;
       unsigned int c;
       
       /* Make sure that MAXLEN is not too large.  */
-      if (p_getcmdline_arg->maxlen > MAX_CMDLINE)
-		p_getcmdline_arg->maxlen = MAX_CMDLINE;
+      if (get_cmdline_str.maxlen > MAX_CMDLINE)
+		get_cmdline_str.maxlen = MAX_CMDLINE;
 
       /* Print only the prompt. The contents of CMDLINE is simply discarded,
 	 even if it is not empty.  */
-      grub_printf ("%s", p_getcmdline_arg->prompt);
+      grub_printf ("%s", get_cmdline_str.prompt);
 
       /* Gather characters until a newline is gotten.  */
       while ((c = ASCII_CHAR (getkey ())) != '\n' && c != '\r')
@@ -1226,7 +1378,7 @@ get_cmdline (struct get_cmdline_arg p_cmdline)
 		grub_putchar (c, 255);
 
 	      /* Preceding space characters must be ignored.  */
-	      if (c != ' ' || p != p_cmdline.cmdline)
+	      if (c != ' ' || p != get_cmdline_str.cmdline)
 		*p++ = c;
 	    }
 	}
@@ -1241,7 +1393,7 @@ get_cmdline (struct get_cmdline_arg p_cmdline)
     }
 
   /* Complicated features are left to real_get_cmdline.  */
-  ret = real_get_cmdline (p_cmdline.cmdline);
+  ret = real_get_cmdline ();
   setcursor (old_cursor);
   return ret;
 }

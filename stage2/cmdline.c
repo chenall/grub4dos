@@ -425,7 +425,7 @@ enter_cmdline (char *heap, int forever)
       get_cmdline_str.echo_char = 0;
       get_cmdline_str.readline = 1;
       get_cmdline_str.cmdline=heap;
-      if (get_cmdline (get_cmdline_str))
+      if (get_cmdline ())
 	{
 	  kernel_type = KERNEL_TYPE_NONE;
 	  return;

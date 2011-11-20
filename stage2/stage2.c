@@ -1145,7 +1145,7 @@ done_key_handling:
 		  get_cmdline_str.echo_char = '*';
 		  get_cmdline_str.readline = 0;
 		  get_cmdline_str.cmdline = entered;
-		  get_cmdline (get_cmdline_str);
+		  get_cmdline ();
 		#endif
 		  while (! isspace (*pptr) && *pptr)
 		    pptr++;
@@ -1266,7 +1266,7 @@ done_key_handling:
 		      get_cmdline_str.echo_char = 0;
 		      get_cmdline_str.readline = 1;
 		      get_cmdline_str.cmdline=new_heap;
-		      if (! get_cmdline (get_cmdline_str))
+		      if (! get_cmdline ())
 			{
 			  int j = 0;
 

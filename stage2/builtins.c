@@ -269,7 +269,7 @@ check_password (char* expected, password_t type)
 	get_cmdline_str.echo_char = '*';
 	get_cmdline_str.readline = 0;
 	get_cmdline_str.cmdline = (unsigned char*)entered;
-	get_cmdline (get_cmdline_str);
+	get_cmdline ();
 	
   switch (type)
     {
@@ -6114,6 +6114,10 @@ static struct builtin builtin_find =
 };
 
 
+/*
+ * The code in function GET_NIBBLE is released to the public domain.
+ *				tinybit  2011-11-18
+ */
 static unsigned long
 get_nibble (unsigned long c)
 {
@@ -6132,6 +6136,10 @@ static unsigned long old_narrow_char_indicator = 0;
 
 /* font */
 /* load unifont to UNIFONT_START */
+/*
+ * The code and text in function FONT_FUNC is released to the public domain.
+ *				tinybit  2011-11-18
+ */
 int
 font_func (char *arg, int flags)
 {
@@ -6207,6 +6215,10 @@ font_func (char *arg, int flags)
 
 	/* discard if it is a normal ASCII char */
 	if (unicode <= 0x7F)
+	    continue;
+
+	/* discard if it is internally used INVALID chars 0xDC80 - 0xDCFF */
+	if (unicode >= 0xDC80 && unicode <= 0xDCFF)
 	    continue;
 
 	/* set bit 0: this unicode char is a wide char. */
@@ -6292,14 +6304,6 @@ loop:
   return 1;	/* success */
 
 build_default_VGA_font:
-  ///* first, initialize all chars as narrow, each with
-  // * an ugly pattern of its direct code! */
-  //for (i = 0; i < 0x10000; i++)
-  //{
-  //  /* clear the narrow_char_indicator */
-  //  *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
-  //  *(unsigned short *)(UNIFONT_START + (i << 5) + 16) = i;
-  //}
 
   /* initialize ASCII chars with ROM 8x16 font. */
 
@@ -6307,15 +6311,6 @@ build_default_VGA_font:
 	goto ROM_font_loaded;
 
   font8x16 = graphics_get_font ();
-
-//	/* first, initialize all chars as narrow, each with
-//	 * an ugly pattern of its direct code! */
-//	for (i = 0; i < 0x10000; i++)
-//	{
-//	  /* clear the narrow_char_indicator */
-//	  *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
-//	  *(unsigned short *)(UNIFONT_START + (i << 5) + 16) = i;
-//	}
 
   ///////////////////////////////////////////////////////////////////////
   //                                                                   //
@@ -6339,28 +6334,30 @@ build_default_VGA_font:
   //                                                                   //
   ///////////////////////////////////////////////////////////////////////
   //                                                                   //
-  //     #       #     # #     # #         #   # # #     # #   # # #   //
-  //   #   #   # #         #       #   #   #   #       #           #   //
-  //   #   #     #         #       #   #   #   #       #           #   //
-  //   #   #     #       #       #     #   #   # # #   # # #     #     //
-  //   #   #     #     #           #   # # #       #   #   #     #     //
-  //   #   #     #     #           #       #       #   #   #     #     //
-  //     #       #     # # #   # #         #   # #     # #       #     //
+  //                    ( new 3 x 7 dot matrix )                       //
   //                                                                   //
-  //     #       # #     #     #                   #   # # #   # # #   //
-  //   #   #   #   #   #   #   #                   #   #       #       //
-  //   #   #   #   #   #   #   #                   #   #       #       //
-  //     #     # # #   # # #   # # #     # #   # # #   # # #   # # #   //
-  //   #   #       #   #   #   #   #   #       #   #   #       #       //
-  //   #   #       #   #   #   #   #   #       #   #   #       #       //
-  //     #     # #     #   #   # #       # #     # #   # # #   #       //
+  //                             #             # # #     #             //
+  //     #       #     # #     #   #   #   #   #       #   #   # # #   //
+  //   #   #     #         #       #   #   #   #       #           #   //
+  //   #   #     #       #       #     # # #     #     # #         #   //
+  //   #   #     #     #           #       #       #   #   #       #   //
+  //     #       #     # # #   #   #       #   #   #   #   #       #   //
+  //                             #               #       #             //
+  //                                                                   //
+  //     #       #             #                   #     #         #   //
+  //   #   #   #   #     #     #         # #       #   #   #     #     //
+  //   #   #   #   #   #   #   # #     #         # #   #   #     #     //
+  //     #       # #   #   #   #   #   #       #   #   # #     # # #   //
+  //   #   #       #   # # #   #   #   #       #   #   #         #     //
+  //   #   #   #   #   #   #   # #       # #     # #   #   #     #     //
+  //     #       #     #   #                             #     #       //
   //                                                                   //
   ///////////////////////////////////////////////////////////////////////
 
   unsigned long dot[16] =
   {
-    0x3E413E,0x007F02,0x464971,0x364941,0x7F101E,0x39494F,0x39497E,0x077901,
-    0x364936,0x3F494E,0x7E097E,0x38487F,0x484830,0x7F4838,0x49497F,0x09097F,
+    0x1C221C,0x003E00,0x242A32,0x364922,0x3E080E,0x314927,0x32493E,0x3E0202,
+    0x364936,0x3E4926,0x7C127C,0x18243F,0x22221C,0x3F2418,0x26493E,0x093E48,
   };
 
   for (i = 0; i < 0x10000; i++)
@@ -6413,14 +6410,6 @@ ROM_font_loaded:
     *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
   }
 
-  /* re-map 6 box drawing chars to replace 6 control chars respectively. */
-  /* Lower Right (0xD9) and Upper Left (0xDA) to 0x13 and 0x14 */
-  //memmove (UNIFONT_START + (0x13 << 5), UNIFONT_START + (0xD9 << 5), 64);
-  /* Upper Right (0xBF) and Lower Left (0xC0) to 0x15 and 0x16 */
-  //memmove (UNIFONT_START + (0x15 << 5), UNIFONT_START + (0xBF << 5), 64);
-  /* Vertical Line (0xB3) and Horizontal Line (0xC4) to 0x0E and 0x0F */
-  //memmove (UNIFONT_START + (0x0E << 5), UNIFONT_START + (0xB3 << 5), 32);
-  //memmove (UNIFONT_START + (0x0F << 5), UNIFONT_START + (0xC4 << 5), 32);
   return !(errnum);
 }
 
@@ -11179,7 +11168,7 @@ md5crypt_func (char *arg, int flags)
 	  get_cmdline_str.echo_char = '*';
 	  get_cmdline_str.readline = 0;
 	  get_cmdline_str.cmdline = (unsigned char*)key;
-	  get_cmdline (get_cmdline_str);
+	  get_cmdline ();
   }
   /* Crypt the key.  */
   make_md5_password (key, crypted);
@@ -11819,7 +11808,7 @@ password_func (char *arg, int flags)
       get_cmdline_str.echo_char = '*';
       get_cmdline_str.readline = 0;
       get_cmdline_str.cmdline = entered;
-      get_cmdline (get_cmdline_str);
+      get_cmdline ();
 	#endif
       nul_terminate (arg);
       if ((len = check_password (arg, type)) != 0)
@@ -15840,7 +15829,7 @@ static int set_func(char *arg, int flags)
 		get_cmdline_str.echo_char = 0;
 		get_cmdline_str.readline = 1 | wait_t;
 		get_cmdline_str.cmdline = (unsigned char*)value;
-		if (get_cmdline (get_cmdline_str) || !value[0])
+		if (get_cmdline () || !value[0])
 			return 0;
 		arg = value;
 	}
