@@ -16264,8 +16264,12 @@ check_a_range_of_ROM_vectors:
 	jnb	2f
 
 8:
-	stc
-	jmp	9f
+	//stc
+	//jmp	9f
+	/* video card 'kyro2' is reported to have destroyed this vector.
+	 *				tinybit   2011-11-21
+	 */
+	jmp	2f
 
 7:
 

@@ -106,6 +106,16 @@ color_8_to_64 (unsigned char color8)
 void
 console_setcolor (unsigned long long normal_color, unsigned long long highlight_color, unsigned long long helptext_color, unsigned long long heading_color)
 {
+  if ((highlight_color | helptext_color | heading_color) == 0)
+  {
+    if (normal_color > 0xff)
+    {
+      console_standard_color_64bit = normal_color;
+    }
+    else
+      console_standard_color_64bit = color_8_to_64 (console_standard_color = normal_color); 
+    return;
+  }
   if ((normal_color | highlight_color | helptext_color | heading_color) >> 8)
 	goto color_64bit;
   console_normal_color = normal_color;

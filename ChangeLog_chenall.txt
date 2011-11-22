@@ -1,4 +1,9 @@
-﻿2011-11-19
+﻿2011-11-22
+	1.新的COLOR命令允许设置控制台默认字体颜色和背景色(只限于文本模式或VBE模式)
+	  方法: 直接使用只带一个参数的color命令即可.
+	注: 在命令行或批处理脚本中执行有效.
+
+2011-11-19
 	1.cursor_state bit 0=1 show cursor,bit 1=1 show splashimage.
 	  use setcursor(n) to change if need,can change from commandline e.g.
 	  call Fn.70 0 disable cursor and splashimage.

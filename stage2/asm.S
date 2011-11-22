@@ -11476,7 +11476,7 @@ ENTRY(console_putchar)
 //	int	$0x10
 
 	/* if showcursor, print CRLF on needed */
-	andb	$1, cursor_state
+	testb	$1, cursor_state
 	jz	3f
 
 	cmpb	$80, %dl
@@ -11752,13 +11752,12 @@ ENTRY(console_gotoxy)
 	pushl	%esi
 	pushl	%edi
 
-	movb	0x14(%esp), %dl		/* x */
-	movb	0x18(%esp), %dh		/* y */
-
-	movb	%dl, %al
+	movl	0x14(%esp), %eax		/* x */
 	movl	%eax, EXT_C(fontx)
-	movb	%dh, %al
-	movl	%eax, EXT_C(fonty)
+	movb %al, %dl
+	movl	0x18(%esp), %eax		/* y */
+	movl %eax, EXT_C(fonty)
+	movb %al, %dh
 
 	call	EXT_C(prot_to_real)
 
@@ -11799,13 +11798,32 @@ ENTRY(console_cls)
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
-
+#ifndef STAGE1_5
+	movb	EXT_C(current_color), %bh
+#endif
 	call	EXT_C(prot_to_real)
 
 	.code16
 
 	sti		/* for hardware interrupt or watchdog */
-
+#ifndef STAGE1_5
+/*
+* BIOS call "INT 10H Function 06h" to Scroll up window
+*	Call with	%AH = 0x06
+*			%AL = lines to scroll (0 = clear, CH, CL, DH, DL are used)
+*			%BH = attribute
+*			%CH = Upper row number
+*			%CL = Left column number
+*			%DH = Lower row number
+*			%DL = Right column number
+*/
+	movw $0x0600, %ax
+	xorw %cx, %cx
+	movb 0x44a, %dl //40:004a   Screen width in text columns
+	movb 0x484, %dh //40:0084   maximum valid row value
+	int	$0x10
+	xorb	%bh, %bh
+#else
 	/* move the cursor to the beginning */
 	movb	$0x02, %ah
 	xorb	%bh, %bh
@@ -11817,7 +11835,7 @@ ENTRY(console_cls)
 	movw	$0x07, %bx
 	movw	$(80 * 25), %cx
         int	$0x10
-
+#endif
 	/* move back the cursor */
 	xorw	%dx, %dx
 	movb	$0x02, %ah

@@ -3254,11 +3254,17 @@ color_func (char *arg, int flags)
   char *highlight;
   char *helptext;
   char *heading;
-  unsigned long long new_normal_color;
-  unsigned long long new_highlight_color;
-  unsigned long long new_helptext_color;
-  unsigned long long new_heading_color;
+  static unsigned long long new_normal_color;
+  static unsigned long long new_highlight_color;
+  static unsigned long long new_helptext_color;
+  static unsigned long long new_heading_color;
       
+  if (! *arg)
+  {
+    if (debug > 0)
+      printf ("current color: %X, %lX\n", current_color, current_color_64bit);
+    return 1;
+  }
   blinking = 1;
   normal = arg;
   highlight = skip_to (0, arg);
@@ -3268,7 +3274,16 @@ color_func (char *arg, int flags)
   new_normal_color = (unsigned long long)(long long)color_number (normal);
   if ((long long)new_normal_color < 0 && ! safe_parse_maxint (&normal, &new_normal_color))
     return 0;
-  
+
+	if (!*highlight && (flags & (BUILTIN_CMDLINE | BUILTIN_BAT_SCRIPT)))
+	{
+		if (current_term->setcolor)
+			current_term->setcolor (new_normal_color, 0LL,0LL,0LL);
+		if (current_term->setcolorstate)
+			current_term->setcolorstate(COLOR_STATE_STANDARD);
+		return 1;
+	}
+
   if (new_normal_color >> 8)	/* disable blinking */
 	blinking = 0;
   new_helptext_color = new_normal_color;
@@ -3277,12 +3292,10 @@ color_func (char *arg, int flags)
      to inverted NORMAL_COLOR.  */
   if (! *highlight)
   {
-    if (new_normal_color >> 8)
-      new_highlight_color = ((new_normal_color >> 32)
-			   | (new_normal_color << 32));
-    else
-      new_highlight_color = (((new_normal_color >> 4) & 0xf)
-			   | ((new_normal_color & 0xf) << 4));
+	if (new_normal_color >> 8)
+		new_highlight_color = ((new_normal_color >> 32) | (new_normal_color << 32));
+	else
+		new_highlight_color = (((new_normal_color >> 4) & 0xf) | ((new_normal_color & 0xf) << 4));
   }
   else
     {
@@ -15360,7 +15373,7 @@ static int echo_func (char *arg,int flags)
    unsigned int x;
    unsigned int y;
    unsigned int echo_ec = 0;
-
+   unsigned long DefBackGround;
    //y = getxy();
    //x = (unsigned int)(unsigned char)y;
    //y = (unsigned int)(unsigned char)(y >> 8);
@@ -15418,8 +15431,8 @@ static int echo_func (char *arg,int flags)
 		printf("%02X",current_color);
 	    }
 	 }
-	 current_color = A_NORMAL;
-	 current_color_64bit = 0xAAAAAA;
+	if (current_term->setcolorstate)
+		current_term->setcolorstate(COLOR_STATE_STANDARD);
 	 if (xy_changed)
 		gotoxy(saved_x, saved_y);	//restore cursor
 	 return 1;
@@ -15441,16 +15454,16 @@ static int echo_func (char *arg,int flags)
 		flags = parse_string(arg);
 		arg[flags] = 0;
 	}
-
+	DefBackGround = current_color & 0x70;
    for(;*arg;arg++)
    {
       if (*(unsigned short*)arg == 0x5B24)//$[
       {
          if (arg[2] == ']')
          {
-		current_color = A_NORMAL;
-//		current_color_64bit = 0xAAAAAA;
-            arg += 3;
+		if (current_term->setcolorstate)
+			current_term->setcolorstate (COLOR_STATE_STANDARD);
+		arg += 3;
          }
          else if (arg[3] == 'x')
          {
@@ -15458,8 +15471,15 @@ static int echo_func (char *arg,int flags)
             char *p = arg + 2;
             if (safe_parse_maxint(&p,&ull) && *p == ']')
             {
-		current_color = (unsigned char)ull;
-//		current_color_64bit = color_8_to_64 (current_color);
+		if (ull > 0xff)
+		{
+			current_color = (unsigned char)ull;
+			current_color_64bit = color_8_to_64 (current_color);
+		}
+		else
+		{
+			current_color_64bit = ull;
+		}
 		arg = p + 1;
             }
             errnum = 0;
@@ -15469,13 +15489,12 @@ static int echo_func (char *arg,int flags)
             int char_attr = 0;
             char_attr |= (arg[2] == '0')?0:0x80;
             char_attr |= (arg[3] == '0')?0:8;
-            char_attr |= ((arg[4] - '0') & 7) << 4;
+            char_attr |= (arg[4] == '0')?DefBackGround:((arg[4] - '0') & 7) << 4;
             char_attr |= ((arg[5] - '0') & 7);
             current_color = char_attr;
-//	    current_color_64bit = color_8_to_64 (current_color);
+	    current_color_64bit = color_8_to_64 (current_color);
             arg += 7;
          }
-         current_color_64bit = color_8_to_64 (current_color);
       }
       
       grub_putchar((unsigned char)*arg, 255);

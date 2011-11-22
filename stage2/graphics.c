@@ -552,7 +552,7 @@ print_invalid_pending_bytes (unsigned long max_width)
 	unicode = (tmpcode & 0x3F) | 0xDC80;	/* the 2nd byte */
     }
     else // byte_SN == 1
-	unicode |= 0xDCC0;
+	unicode |= 0xDCC0 | ((pending - 1) << 5);
     return print_unicode (max_width) + (unsigned char)ret;
 }
 
@@ -579,8 +579,8 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
 
     if (pending)	/* print (byte_SN) invalid bytes */
     {
-	pending = 0;	/* end the utf8 byte sequence */
 	ret = print_invalid_pending_bytes (max_width);
+	pending = 0;	/* end the utf8 byte sequence */
 	if ((long)ret < 0)
 	    return ret;
 	max_width -= (unsigned char)ret;
@@ -746,8 +746,24 @@ graphics_cls (void)
 	goto vga;
 
     /* VBE */
-
+    #if 0
     _memset ((char *)current_phys_base, 0, current_y_resolution * current_bytes_per_scanline);
+    #else
+	s1 = (char *)current_phys_base;
+	unsigned long color = current_color_64bit >> 32;
+	unsigned long y,x,z;
+	z = current_bits_per_pixel>>3;
+	for(y=0;y<current_y_resolution;++y)
+	{
+		mem = s1;
+		for(x=0;x<current_x_resolution;++x)
+		{
+			*(unsigned long *)mem = color;
+			mem += z;
+		}
+		s1 += current_bytes_per_scanline;
+	}
+    #endif
     if (cursor_state & 1)
 	    graphics_CURSOR(1);
     return;
@@ -1076,7 +1092,7 @@ vbe_cursor (int set)
 
 #if 1
     /* invert the beginning 1 vertical lines of the char */
-	for (j = 0; j < 16; ++j)
+	for (j = 2; j < 14; ++j)
 	{
 	    XorPixel (fontx * 8, fonty * 16 + j, -1);
 	}

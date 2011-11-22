@@ -92,6 +92,8 @@ static jmp_buf env_for_exit;
 
 /* The current color for console.  */
 int console_current_color = A_NORMAL;
+unsigned long current_color = 0;
+unsigned long long current_color_64bit = 0;
 
 /* The file descriptor for a serial device.  */
 static int serial_fd = -1;
