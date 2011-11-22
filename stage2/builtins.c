@@ -6145,7 +6145,8 @@ get_nibble (unsigned long c)
 
 #ifdef SUPPORT_GRAPHICS
 
-static unsigned long old_narrow_char_indicator = 0;
+//static unsigned long old_narrow_char_indicator = 0;
+#define	old_narrow_char_indicator	narrow_char_indicator
 
 /* font */
 /* load unifont to UNIFONT_START */
@@ -6170,7 +6171,7 @@ font_func (char *arg, int flags)
   if (! grub_open(arg))
 	return 0;
 
-  if (narrow_char_indicator)
+  if (*(unsigned long *)UNIFONT_START)
 	return !(errnum = ERR_UNIFONT_RELOAD);
 
   memset ((char *)0x100000, 0, 0x10000);	/* clear 64K at 1M */
@@ -6312,7 +6313,8 @@ loop:
     }
   }
 
-  old_narrow_char_indicator = narrow_indicator;
+  //old_narrow_char_indicator = narrow_indicator;
+#undef	old_narrow_char_indicator
 
   return 1;	/* success */
 
@@ -6375,19 +6377,14 @@ build_default_VGA_font:
 
   for (i = 0; i < 0x10000; i++)
   {
-    /* clear the narrow_char_indicator */
+    /* clear the narrow_char_indicator for each unicode char */
     *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
-    for (j = 0; j < 7; j++)
+    for (j = 0; j < 8; j++)
     {
       ((unsigned short *)(UNIFONT_START + (i << 5) + 16))[j] =
-//	  ((((dot[((i >> (4-(j&4))) & 15)] >> ((j&3)*5)) & 31) | 64) << 8)
-//	| (((dot[((i >> (12-(j&4))) & 15)] >> ((j&3)*5)) & 31) << 2);
-	//  (j == 3) ? 128 :	/* print a dot at the center */
-	  (((dot[((i >> (4-(j&4))) & 15)] >> ((j&3)<<3)) & 127) << 8)
-	| ((dot[((i >> (12-(j&4))) & 15)] >> ((j&3)<<3)) & 127);
+	  (((dot[((i >> (4-(j&4))) & 15)] >> ((j&3)<<3))) << 8)
+	| ((unsigned char)(dot[((i >> (12-(j&4))) & 15)] >> ((j&3)<<3)));
     }
-    /* empty the last column */
-    ((unsigned short *)(UNIFONT_START + (i << 5) + 16))[j] = 0;
   }
 
 ROM_font_loaded:
@@ -6408,6 +6405,10 @@ ROM_font_loaded:
 	memmove (font8x16 + (0x0F << 4), font8x16 + (0xC4 << 4), 16);
   }
 
+  /* clear the narrow_char_indicator for the NULL char only */
+  *(unsigned long *)UNIFONT_START = 0;	/* to enable the next font command */
+
+  /* initialize or restore the original ROM 8x16 font for each ASCII char. */
   for (i = 0; i <= 0x7F; i++)
   {
     for (j = 0; j < 8; j++)
@@ -6419,8 +6420,6 @@ ROM_font_loaded:
       }
       ((unsigned short *)(UNIFONT_START + (i << 5) + 16))[j] = tmp;
     }
-    /* clear the narrow_char_indicator */
-    *(unsigned long *)(UNIFONT_START + (i << 5)) = 0;
   }
 
   return !(errnum);
@@ -15471,7 +15470,7 @@ static int echo_func (char *arg,int flags)
             char *p = arg + 2;
             if (safe_parse_maxint(&p,&ull) && *p == ']')
             {
-		if (ull > 0xff)
+		if (ull < 0xff)
 		{
 			current_color = (unsigned char)ull;
 			current_color_64bit = color_8_to_64 (current_color);
