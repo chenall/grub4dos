@@ -525,6 +525,8 @@ extern unsigned long current_color;
 extern unsigned long long current_color_64bit;
 extern unsigned long cursor_state;
 extern unsigned long graphics_mode;
+extern unsigned long font_w;
+extern unsigned long font_h;
 
 /* The Chinese patch will begin at here */
 

@@ -55,6 +55,8 @@ extern unsigned long splashimage_loaded;
 /* constants to define the viewable area */
 unsigned long x1 = 80;
 unsigned long y1 = 30;
+unsigned long font_w = 8;
+unsigned long font_h = 16;
 unsigned long xpixels = 640;
 unsigned long ypixels = 480;
 unsigned long plano_size = 38400;
@@ -349,8 +351,8 @@ graphics_init (void)
 		return !(errnum = ERR_SET_VBE_MODE);
 	    }
 
-	    current_term->chars_per_line = x1 = current_x_resolution / 8;
-	    current_term->max_lines = y1 = current_y_resolution / 16;
+	    current_term->chars_per_line = x1 = current_x_resolution / font_w;
+	    current_term->max_lines = y1 = current_y_resolution / font_h;
 
 	    /* here should read splashimage. */
 	    graphics_CURSOR = (void *)&vbe_cursor;
@@ -486,6 +488,7 @@ print_unicode (unsigned long max_width)
     unsigned long i, j;
     unsigned long pat;
     unsigned long char_width;
+    unsigned long bgcolor;
 
     char_width = 2;				/* wide char */
     pat = UNIFONT_START + (unicode << 5);
@@ -503,22 +506,25 @@ print_unicode (unsigned long max_width)
     if (fontx + char_width > x1)
 	{ fontx = 0; check_scroll (); }
 
+	if (!(splashimage_loaded & 2) || !(cursor_state & 2) || (is_highlight && current_color_64bit >> 32))
+		bgcolor = (current_color_64bit >> 32) | 0x1000000;
+	else
+		bgcolor = 0;
+
     /* print dot matrix of the unicode char */
-    for (i = 0; i < char_width * 8; ++i)
+    for (i = 0; i < char_width * font_w; ++i)
     {
-	unsigned long tmp_x = fontx * 8 + i;
-	unsigned long column = ((unsigned short *)pat)[i];
+	unsigned long tmp_x = fontx * font_w + i;
+	unsigned long column = i < char_width * 8 ? ((unsigned short *)pat)[i] : 0;
 	unsigned long bit_color = 0;
-	for (j = 0; j < 16; ++j)
+	for (j = 0; j < font_h; ++j)
 	{
 	    /* print char using foreground and background colors. */
 	    if ((column >> j) & 1)
 		bit_color = current_color_64bit;
-	    else if (!(splashimage_loaded & 2) || !(cursor_state & 2) || (is_highlight && current_color_64bit >> 32))
-		bit_color = current_color_64bit >> 32;
 	    else
-		bit_color = SPLASH_IMAGE[tmp_x+(fonty*16+j)*SPLASH_W];
-	    SetPixel (tmp_x, fonty * 16 + j,bit_color);
+		bit_color = bgcolor?bgcolor : SPLASH_IMAGE[tmp_x+(fonty*font_h+j)*SPLASH_W];
+	    SetPixel (tmp_x, fonty * font_h + j,bit_color);
 	}
     }
 
@@ -1094,7 +1100,7 @@ vbe_cursor (int set)
     /* invert the beginning 1 vertical lines of the char */
 	for (j = 2; j < 14; ++j)
 	{
-	    XorPixel (fontx * 8, fonty * 16 + j, -1);
+	    XorPixel (fontx * font_w, fonty * font_h + j, -1);
 	}
 #else
     /* invert the beginning 2 vertical lines of the char */

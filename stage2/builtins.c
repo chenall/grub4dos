@@ -14052,6 +14052,28 @@ terminal_func (char *arg, int flags)
 	}
       else if (grub_memcmp (arg, "--silent", sizeof ("--silent") - 1) == 0)
 	no_message = 1;
+#ifdef SUPPORT_GRAPHICS
+      else if (grub_memcmp (arg, "--font-spacing=", 15) == 0)
+      {
+		arg += 15;
+		if (! safe_parse_maxint (&arg, &lines))
+			return 0;
+		font_w = 8 + (unsigned char)lines;
+		if (*arg++ == ':')
+		{
+			if (! safe_parse_maxint (&arg, &lines))
+				return 0;
+			font_h = 16 + (unsigned char)lines;
+		}
+		if (graphics_inited && graphics_mode > 0xFF)
+		{
+			current_term->shutdown();
+			current_term = term_table + 1;
+			current_term->startup();
+		}
+		return 1;
+      }
+#endif
       else
 	break;
 
@@ -14062,11 +14084,12 @@ terminal_func (char *arg, int flags)
   if (! *arg)
     {
       if (debug > 0)
-	grub_printf ("%s%s%s%s\n",
+	grub_printf ("%s%s%s%s\nchars_per_line=%d  max_lines=%d",
 		   current_term->name,
 		   (current_term->flags & TERM_DUMB ? " (dumb)" : ""),
 		   (current_term->flags & TERM_NO_EDIT ? " (no edit)" : ""),
-		   (current_term->flags & TERM_NO_ECHO ? " (no echo)" : ""));
+		   (current_term->flags & TERM_NO_ECHO ? " (no echo)" : ""),
+		    current_term->chars_per_line,current_term->max_lines);
       return 1;
     }
 
