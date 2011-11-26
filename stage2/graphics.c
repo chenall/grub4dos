@@ -66,6 +66,7 @@ unsigned long current_y_resolution;
 unsigned long current_bits_per_pixel;
 unsigned long current_bytes_per_scanline;
 unsigned long current_phys_base;
+unsigned long image_pal[16];
 
 /* why do these have to be kept here? */
 unsigned long foreground = 0xFFFFFF; //(63 << 16) | (63 << 8) | (63)
@@ -782,8 +783,19 @@ vga:
 
     if (!(cursor_state & 2))
     {
-	MapMask(15);
-	_memset (mem, 0, plano_size);
+	if (splashimage_loaded & 1)
+	{
+		MapMask(15);
+		_memset (mem, 0, plano_size);
+	}
+	else
+	{
+		for(i=1;i<16;i<<=1)
+		{
+			MapMask(i);
+			_memset (mem,(current_color & (i<<4))?0xff:0, plano_size);
+		}
+	}
 	return;
     }
 
@@ -871,7 +883,6 @@ static int
 read_image_xpm (int type)
 {
     char buf[32], pal[16];
-    unsigned long pal_color[16];
     unsigned char c, base, mask;
     unsigned i, len, idx, colors, x, y, width, height;
     unsigned char *s1;
@@ -947,10 +958,7 @@ read_image_xpm (int type)
             int b = (hex(buf[4]) << 4) | hex(buf[5]);
 
             pal[idx] = base;
-            if (type == 0)
-		graphics_set_palette(idx, (r<<16) | (g<<8) | b);
-	    else
-		pal_color[idx] = (r<<16) | (g<<8) | b;
+	    image_pal[idx] = (r<<16) | (g<<8) | b;
             ++idx;
         }
     }
@@ -988,7 +996,7 @@ read_image_xpm (int type)
               }
               else
               {
-		SPLASH_IMAGE[y*width+x] = pal_color[c];
+		SPLASH_IMAGE[y*width+x] = image_pal[c];
               }
             }
         }
@@ -1003,9 +1011,10 @@ read_image_xpm (int type)
     }
 
 set_palette:
-
-    graphics_set_palette( 0, background);
-    graphics_set_palette(15, foreground);
+    image_pal[0] = background;
+    image_pal[15] = foreground;
+    for (i=0; i < 16;++i)
+	graphics_set_palette(i,image_pal[i]);
 
     return 1;
 }
@@ -1014,7 +1023,15 @@ static int read_image()
 {
 	char buf[16];
 	if (*splashimage == 1)
+	{
+		if (splashimage_loaded & 1)
+		{
+			int i=0;
+			for (i=0 ;i<16;++i)
+				graphics_set_palette(i,image_pal[i]);
+		}
 		return 1;
+	}
 	if (!*splashimage)
 	{
 		splashimage_loaded = 0;
@@ -1160,16 +1177,28 @@ graphics_cursor (int set)
 
 	p = pat[i];
 
-	if (!(cursor_state & 2))
+	if (!(cursor_state & 2) || !(splashimage_loaded & 1))
 		goto put_pattern;
 	if (is_highlight)
 	{
 		p = ~p;
 put_pattern:
-		chr[i     ] = p;
-		chr[16 + i] = p;
-		chr[32 + i] = p;
-		chr[48 + i] = p;
+		if (splashimage_loaded & 1)
+		{
+			chr[i]=chr[i+16]=chr[i+32]=chr[i+48]= p;
+		}
+		else
+		{
+			chr[i     ] = (current_color & 1)?p:0;
+			chr[16 + i] = (current_color & 2)?p:0;
+			chr[32 + i] = (current_color & 4)?p:0;
+			chr[48 + i] = (current_color & 8)?p:0;
+			p = ~p;
+			chr[i     ] |= (current_color & 0x10)?p:0;
+			chr[16 + i] |= (current_color & 0x20)?p:0;
+			chr[32 + i] |= (current_color & 0x40)?p:0;
+			chr[48 + i] |= (current_color & 0x80)?p:0;
+		}
 		continue;
 	}
 
@@ -1198,7 +1227,6 @@ put_pattern:
     for (i = 1; i < 16; i <<= 1, offset += 16)
     {
         int j;
-
         MapMask(i);
         ptr = mem;
         for (j = 0; j < 16; j++, ptr += x1)
