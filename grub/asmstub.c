@@ -78,6 +78,7 @@ char *linux_data_real_addr = 0;
 char *linux_bzimage_tmp_addr = 0;
 struct apm_info apm_bios_info;
 unsigned long cursor_state = 0;
+unsigned long graphics_mode = 0x12;
 
 /* Emulation requirements. */
 char *grub_scratch_mem = 0;

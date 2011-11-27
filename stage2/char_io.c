@@ -689,7 +689,8 @@ static void cl_backward (int count)
 	//unsigned long count = 1;
 
 	/* get the length of the current sequence */
-	if (b < 0x80)
+	#ifdef SUPPORT_GRAPHICS
+	if (b < 0x80 || !graphics_inited)
 	    goto do_backward;	/* backward 1 ASCII byte */
 	if ((b & 0x40))		/* not continuation byte 10xxxxxx */
 	    goto do_backward;	/* backward 1 invalid byte */
@@ -713,7 +714,7 @@ static void cl_backward (int count)
 	    count++;		// count = 2;
 	    unicode = (a << 6) | (b & 0x3F);
 	}
-
+	#endif
 do_backward:
 
 	if (lpos < count)
@@ -764,7 +765,8 @@ static void cl_forward (int count)
 	//unsigned long count = 1;
 
 	/* get the length of the current sequence */
-	if (b < 0x80)
+	#ifdef SUPPORT_GRAPHICS
+	if (b < 0x80 || !graphics_inited)
 	    goto do_forward;	/* forward 1 ASCII byte */
 	if (! (b & 0x40))	/* continuation byte 10xxxxxx */
 	    goto do_forward;	/* forward 1 invalid continuation byte */
@@ -788,6 +790,7 @@ static void cl_forward (int count)
 		unicode = (unicode << 6) | (buf[lpos + 2] & 0x3F);
 	    }
 	}
+	#endif
 	/* invalid byte */
 do_forward:
 
@@ -852,7 +855,7 @@ static void cl_refresh (int full, int len)
 	  gotoxy (0, fonty);
 
 	  /* Recompute the section number.  */
-	  if (lpos + plen < CMDLINE_WIDTH)
+	  if (lpos + plen < len)
 	    {
 	      section = 0;
 	      grub_printf ("%s", get_cmdline_str.prompt);
@@ -862,7 +865,7 @@ static void cl_refresh (int full, int len)
 	    }
 	  else
 	    {
-	      section = (lpos + plen - CMDLINE_MARGIN)/ (CMDLINE_WIDTH - CMDLINE_MARGIN);
+	      section = (lpos + plen - CMDLINE_MARGIN) / (len - CMDLINE_MARGIN);
 	      grub_putchar ('<', 255);
 	      len--;
 	      pos++;
@@ -873,21 +876,38 @@ static void cl_refresh (int full, int len)
 	 on the screen.  */
       if (section == 0)
 	{
-	  if (! full)
+	  if (! full)	/* the current code use full=1, so always offset=0 */
 	    offset = xpos - plen;
 	  
-	  start = 0;
+	  start = offset;
 	  xpos = lpos + plen;
+	  //start += offset; // offset always be 0 in current implementation
 	}
       else
 	{
-	  if (! full)
+	  if (! full)	/* the current code use full=1, so always offset=0 */
 	    offset = xpos - 1;
 	  
-	  start = section * (CMDLINE_WIDTH - CMDLINE_MARGIN) - plen + 1;
+	  start = section * (CMDLINE_WIDTH - CMDLINE_MARGIN) - plen + (CMDLINE_MARGIN / 2);
+
 	  xpos = lpos + 1 - start;
+	  start += offset; // offset always be 0 in current implementation
+
+	  /* try to locate a leading byte for UTF8 sequence */
+	  if ((unsigned char)(buf[start]) > 0x7F)
+	  {
+	    for (i = start; i > start - 3; i--)
+	    {
+		if (((buf[i] >> 5) == 6)	/* leading byte 110xxxxx */
+		   ||  ((buf[i] >> 4) == 14)	/* leading byte 1110xxxx */
+		   )
+		{
+			start = i;
+			break;	/* success */
+		}
+	    }
+	  }
 	}
-      start += offset;
 
       lpos_fontx = 0;
 
@@ -910,7 +930,7 @@ static void cl_refresh (int full, int len)
 		lpos_fontx = fontx;
 
       if (lpos_fontx == 0)
-	printf ("\n!! Unexpected error in cl_refresh() !! Please report the problem.\n");
+	printf ("\nReport bug! lpos=%d, start=%d, len=%d, llen=%d, plen=%d, section=%d\n", lpos, start, len, llen, plen, section);
 
       /* Fill up the rest of the line with spaces.  */
       for (; i < start + len; i++)
@@ -923,6 +943,13 @@ static void cl_refresh (int full, int len)
 	 depending on if there are more characters in BUF.  */
       if (pos == CMDLINE_WIDTH)
 	{
+	  /* before printing the last char, print a dummy space to end the
+	   * possible pending utf8 sequence.
+	   */
+	  #ifdef SUPPORT_GRAPHICS
+	  if (graphics_inited && graphics_mode > 0xFF)
+	    grub_putchar (' ', 0);	/* width = 0 means no actual print */
+	  #endif
 	  if (start + len < llen)
 	    grub_putchar ('>', 255);
 	  else
@@ -977,7 +1004,8 @@ static void cl_delete (int count)
 	//unsigned long count = 1;
 
 	/* get the length of the current sequence */
-	if (b < 0x80)
+	#ifdef SUPPORT_GRAPHICS
+	if (b < 0x80 || !graphics_inited)
 	    goto do_delete;	/* delete 1 ASCII byte */
 	if (! (b & 0x40))	/* continuation byte 10xxxxxx */
 	    goto do_delete;	/* delete 1 invalid continuation byte */
@@ -991,7 +1019,8 @@ static void cl_delete (int count)
 	    /* check the next 2 continuation bytes */
 	    if ((buf[lpos + 1] >> 6) == 2 && (buf[lpos + 2] >> 6) == 2)
 		count = 3;	/* delete 3 bytes for the valid sequence */
-	}	
+	}
+	#endif
 	/* invalid byte */
 do_delete:
       grub_memmove (buf + lpos, buf + lpos + count, llen - count + 1);
@@ -1044,7 +1073,7 @@ real_get_cmdline (void)
   int history = -1;	/* The index for the history.  */
 
   buf = (unsigned char *) CMDLINE_BUF;
-  //plen = grub_strlen (get_cmdline_str.prompt);
+  plen = grub_strlen (get_cmdline_str.prompt);
   llen = grub_strlen (get_cmdline_str.cmdline);
 
   if (get_cmdline_str.maxlen > MAX_CMDLINE)
