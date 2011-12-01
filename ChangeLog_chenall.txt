@@ -1,4 +1,28 @@
-﻿2011-11-27
+﻿2011-12-01
+	1.BUG修正。
+	  BUG fixed.
+	2.添加使用INT18启动功能。
+	  Supported boot via INT 18.
+	  用法(usage):
+	     boot -1
+	     or 
+	     boot --int18
+	3.一些代码精简
+
+2011-11-29
+	1.BUG修正。
+	2.新的color命令语法。
+	  color color_state=color [..]
+	其中color_state字符串可以如下。
+	 normal		未选中菜单
+	 highlight	选中菜单
+	 helptext	菜单帮助信息
+	 heading	菜单头（GRUB4DOS信息）
+	 standard	默认色（控制台）
+	 border		菜单边框VBE模式下有效果
+	3.新的setcolor/setcolorstate函数
+	
+2011-11-27
 	1.修正fontfile命令在splashimage后面时导至背景图颜色错误的问题.
 	2.VGA模式(0x12/0x6a)没有使用splashimage命令时可以指定字体颜色和console模式一样.
 

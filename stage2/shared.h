@@ -443,12 +443,12 @@ extern char *grub_scratch_mem;
 #define ACS_DARROW	'v'
 
 /* Special graphics characters for IBM displays. */
-#define DISP_UL		(menu_broder.disp_ul)
-#define DISP_UR		(menu_broder.disp_ur)
-#define DISP_LL		(menu_broder.disp_ll)
-#define DISP_LR		(menu_broder.disp_lr)
-#define DISP_HORIZ	(menu_broder.disp_horiz)
-#define DISP_VERT	(menu_broder.disp_vert)
+#define DISP_UL		(menu_border.disp_ul)
+#define DISP_UR		(menu_border.disp_ur)
+#define DISP_LL		(menu_border.disp_ll)
+#define DISP_LR		(menu_border.disp_lr)
+#define DISP_HORIZ	(menu_border.disp_horiz)
+#define DISP_VERT	(menu_border.disp_vert)
 #define DISP_LEFT	0x1b
 #define DISP_RIGHT	0x1a
 #define DISP_UP		0x18
@@ -527,7 +527,9 @@ extern unsigned long cursor_state;
 extern unsigned long graphics_mode;
 extern unsigned long font_w;
 extern unsigned long font_h;
-
+extern unsigned long font_spacing;
+extern unsigned long line_spacing;
+extern void rectangle(int left, int top, int length, int width, int line);
 /* The Chinese patch will begin at here */
 
 /* multiboot stuff */
@@ -758,7 +760,7 @@ typedef enum
   ERR_BAT_CALL,
 } grub_error_t;
 
-struct broder {
+struct border {
 	unsigned char disp_ul;
 	unsigned char disp_ur;
 	unsigned char disp_ll;
@@ -770,9 +772,10 @@ struct broder {
 	unsigned char menu_box_y; /* first line number */
 	unsigned char menu_box_h;
 	unsigned char menu_box_b;
+	unsigned char border_w;
 } __attribute__ ((packed));
 
-extern struct broder menu_broder;
+extern struct border menu_border;
 extern unsigned long fontx;
 extern unsigned long fonty;
 extern unsigned long install_partition;
@@ -1091,6 +1094,8 @@ void stop (void) __attribute__ ((noreturn));
 
 /* Reboot the system.  */
 void grub_reboot (void) __attribute__ ((noreturn));
+
+void boot_int18 (void) __attribute__ ((noreturn));
 
 /* Halt the system, using APM if possible. If NO_APM is true, don't use
    APM even if it is available.  */

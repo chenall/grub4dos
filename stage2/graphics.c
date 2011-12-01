@@ -57,6 +57,8 @@ unsigned long x1 = 80;
 unsigned long y1 = 30;
 unsigned long font_w = 8;
 unsigned long font_h = 16;
+unsigned long font_spacing = 0;
+unsigned long line_spacing = 0;
 unsigned long xpixels = 640;
 unsigned long ypixels = 480;
 unsigned long plano_size = 38400;
@@ -82,6 +84,7 @@ void XorPixel (unsigned long x, unsigned long y, unsigned long color);
 static int read_image (void);
 static void graphics_cursor (int set);
 static void vbe_cursor (int set);
+void rectangle(int left, int top, int length, int width, int line);
 extern void (*graphics_CURSOR) (int set);
 /* FIXME: where do these really belong? */
 static inline void outb(unsigned short port, unsigned char val)
@@ -352,8 +355,8 @@ graphics_init (void)
 		return !(errnum = ERR_SET_VBE_MODE);
 	    }
 
-	    current_term->chars_per_line = x1 = current_x_resolution / font_w;
-	    current_term->max_lines = y1 = current_y_resolution / font_h;
+	    current_term->chars_per_line = x1 = current_x_resolution / (font_w + font_spacing);
+	    current_term->max_lines = y1 = current_y_resolution / (font_h + line_spacing);
 
 	    /* here should read splashimage. */
 	    graphics_CURSOR = (void *)&vbe_cursor;
@@ -426,12 +429,12 @@ success:
 		plano_size = (800 * 600) / 8;
 	    }
 	}
-	menu_broder.disp_ul = 0x14;
-	menu_broder.disp_ur = 0x15;
-	menu_broder.disp_ll = 0x16;
-	menu_broder.disp_lr = 0x13;
-	menu_broder.disp_horiz = 0x0F;
-	menu_broder.disp_vert = 0x0E;
+	menu_border.disp_ul = 0x14;
+	menu_border.disp_ur = 0x15;
+	menu_border.disp_ll = 0x16;
+	menu_border.disp_lr = 0x13;
+	menu_border.disp_horiz = 0x0F;
+	menu_border.disp_vert = 0x0E;
     }
 
     if (! read_image ())
@@ -455,12 +458,12 @@ graphics_end (void)
 	set_videomode (3); /* set normal 80x25 text mode. */
 	set_videomode (3); /* set it once more for buggy BIOSes. */
 
-	menu_broder.disp_ul = 218;
-	menu_broder.disp_ur = 191;
-	menu_broder.disp_ll = 192;
-	menu_broder.disp_lr = 217;
-	menu_broder.disp_horiz = 196;
-	menu_broder.disp_vert = 179;
+	menu_border.disp_ul = 218;
+	menu_border.disp_ur = 191;
+	menu_border.disp_ll = 192;
+	menu_border.disp_lr = 217;
+	menu_border.disp_horiz = 196;
+	menu_border.disp_vert = 179;
 
 	graphics_CURSOR = 0;
 	fontx = fonty = 0;
@@ -490,6 +493,7 @@ print_unicode (unsigned long max_width)
     unsigned long pat;
     unsigned long char_width;
     unsigned long bgcolor;
+    unsigned long CursorX,CursorY;
 
     char_width = 2;				/* wide char */
     pat = UNIFONT_START + (unicode << 5);
@@ -508,24 +512,34 @@ print_unicode (unsigned long max_width)
 	{ fontx = 0; check_scroll (); }
 
 	if (!(splashimage_loaded & 2) || !(cursor_state & 2) || (is_highlight && current_color_64bit >> 32))
-		bgcolor = (current_color_64bit >> 32) | 0x1000000;
+		bgcolor = current_color_64bit >> 32 | 0x1000000;
 	else
 		bgcolor = 0;
+
+	CursorX = fontx * (font_w + font_spacing);
+	CursorY = fonty * (font_h + line_spacing);
+	for (i = 0; i<char_width * (font_w+font_spacing);++i)
+	{
+		unsigned long tmp_x = CursorX + i;
+		for (j = 0;j<font_h+line_spacing;++j)
+		{
+			SetPixel (tmp_x, CursorY + j,bgcolor?bgcolor : SPLASH_IMAGE[tmp_x+(CursorY+j)*SPLASH_W]);
+		}
+	}
+
+	CursorX += font_spacing>>1;
+	CursorY += line_spacing>>1;
 
     /* print dot matrix of the unicode char */
     for (i = 0; i < char_width * font_w; ++i)
     {
-	unsigned long tmp_x = fontx * font_w + i;
-	unsigned long column = i < char_width * 8 ? ((unsigned short *)pat)[i] : 0;
-	unsigned long bit_color = 0;
+	unsigned long tmp_x = CursorX + i;
+	unsigned long column = ((unsigned short *)pat)[i];
 	for (j = 0; j < font_h; ++j)
 	{
 	    /* print char using foreground and background colors. */
 	    if ((column >> j) & 1)
-		bit_color = current_color_64bit;
-	    else
-		bit_color = bgcolor?bgcolor : SPLASH_IMAGE[tmp_x+(fonty*font_h+j)*SPLASH_W];
-	    SetPixel (tmp_x, fonty * font_h + j,bit_color);
+		SetPixel (tmp_x, CursorY + j,current_color_64bit);
 	}
     }
 
@@ -765,7 +779,10 @@ graphics_cls (void)
 		mem = s1;
 		for(x=0;x<current_x_resolution;++x)
 		{
-			*(unsigned long *)mem = color;
+			if (graphics_mode > 0xff && (splashimage_loaded & 2) && (cursor_state & 2))
+				*(unsigned long *)mem = SPLASH_IMAGE[x+y*SPLASH_W];
+			else
+				*(unsigned long *)mem = color;
 			mem += z;
 		}
 		s1 += current_bytes_per_scanline;
@@ -1078,11 +1095,23 @@ static int read_image()
 int
 hex (int v)
 {
+#if 0
     if (v >= 'A' && v <= 'F')
         return (v - 'A' + 10);
     if (v >= 'a' && v <= 'f')
         return (v - 'a' + 10);
     return (v - '0');
+#else
+/*
+   by chenall 2011-12-01.
+   '0' & 0xf = 0 ... '9' & 0xf = 9;
+   'a' & 0xf = 1 ... 'f' & 0xf = 6;
+   'A' & 0xf = 1 ... 'F' & 0xf = 6;
+*/
+	if (v >= 'A')
+		v += 9;
+	return v & 0xf;
+#endif
 }
 
 
@@ -1090,34 +1119,91 @@ hex (int v)
 static void
 graphics_scroll (void)
 {
-    unsigned long i, j;
-
+    unsigned long i;
+    unsigned long old_state = cursor_state;
+    cursor_state &= ~1;
     if (graphics_mode <= 0xFF)
-	goto vga;
+    {/* VGA */
+	bios_scroll_up ();
+    }
+    else
+    {/* VBE */
 
-    /* VBE */
-
-    memmove_forward_SSE ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline << 4),
+	memmove_forward_SSE ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline << 4),
 		    /*((y1 - 1) << 4)*/ current_y_resolution * current_bytes_per_scanline);
+    }
+
+    for (i=0;i<x1;++i)
+	graphics_putchar(' ',1);
+    gotoxy(0,fonty);
+    cursor_state = old_state;
     return;
+}
 
-vga:
-    bios_scroll_up ();
+void rectangle(int left, int top, int length, int width, int line)
+{
+	unsigned char *lfb,*p;
+	int x,y,z,i;
+	if (!graphics_inited || graphics_mode < 0xff || !line)
+		return;
 
-    for (i = x1 * (y1 - 1), j = x1 * y1; i < j; i++)
-	text[i] = ' ';
+	y = current_bytes_per_scanline * (width - line);
+	z = current_bits_per_pixel>>3;
+	lfb = (unsigned char *)(current_phys_base + top * current_bytes_per_scanline + left * z);
+
+	for (i=0;i<line;++i)
+	{
+		p = lfb + current_bytes_per_scanline*i;
+		for (x=0;x<length;++x)
+		{
+			if (z == 3)
+			{
+				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)current_color_64bit;
+				*(p+y+2) = *(p+2) = (unsigned char)(current_color_64bit>>16);
+			}
+			else
+			{
+				*(unsigned long *)(p+y) = *(unsigned long *)p = (unsigned long)current_color_64bit;
+			}
+			p += z;
+		}
+	}
+
+	y = z * (length - line);
+	lfb += line*current_bytes_per_scanline;
+	for (i=0;i<line;++i)
+	{
+		p = lfb + z * i;
+		for (x=line*2;x<width;++x)
+		{
+			if (z == 3)
+			{
+				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)current_color_64bit;
+				*(p+y+2) = *(p+2) = (unsigned char)(current_color_64bit>>16);
+			}
+			else
+			{
+				*(unsigned long *)(p+y) = *(unsigned long *)p = (unsigned long)current_color_64bit;
+			}
+			p += current_bytes_per_scanline;
+		}
+	}
+	return;
 }
 
 static void
 vbe_cursor (int set)
 {
-    unsigned long i, j;
+    unsigned long x, y,j;
 
 #if 1
+	x = fontx * (font_w+font_spacing);
+	y = fonty * (font_h+line_spacing);
+	y += line_spacing>>1;
     /* invert the beginning 1 vertical lines of the char */
 	for (j = 2; j < 14; ++j)
 	{
-	    XorPixel (fontx * font_w, fonty * font_h + j, -1);
+	    XorPixel (x, y + j, -1);
 	}
 #else
     /* invert the beginning 2 vertical lines of the char */

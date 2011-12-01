@@ -926,6 +926,12 @@ static void cl_refresh (int full, int len)
 	  pos++;
 	}
       
+      /* print a dummy space to end the possible pending utf8 sequence. */
+#ifdef SUPPORT_GRAPHICS
+      if (graphics_inited && graphics_mode > 0xFF)
+	grub_putchar (' ', 0);	/* width = 0 means no actual print */
+#endif
+
       if (i == lpos)
 		lpos_fontx = fontx;
 
@@ -943,13 +949,6 @@ static void cl_refresh (int full, int len)
 	 depending on if there are more characters in BUF.  */
       if (pos == CMDLINE_WIDTH)
 	{
-	  /* before printing the last char, print a dummy space to end the
-	   * possible pending utf8 sequence.
-	   */
-	  #ifdef SUPPORT_GRAPHICS
-	  if (graphics_inited && graphics_mode > 0xFF)
-	    grub_putchar (' ', 0);	/* width = 0 means no actual print */
-	  #endif
 	  if (start + len < llen)
 	    grub_putchar ('>', 255);
 	  else
@@ -1372,7 +1371,7 @@ get_cmdline (void)
 {
   unsigned long old_cursor;
   int ret;
-  old_cursor = setcursor (1);
+  old_cursor = setcursor (cursor_state | 1);
   
   /* Because it is hard to deal with different conditions simultaneously,
      less functional cases are handled here. Assume that TERM_NO_ECHO

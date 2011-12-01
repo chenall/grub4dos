@@ -35,7 +35,11 @@ typedef enum
   /* represents the user defined colors for help text */
   COLOR_STATE_HELPTEXT,
   /* represents the user defined colors for heading line */
-  COLOR_STATE_HEADING
+  COLOR_STATE_HEADING,
+  /* represents the user defined colors for border */
+  COLOR_STATE_BORDER,
+  /*Number of user defined colors*/
+  COLOR_STATE_MAX
 } color_state;
 
 #ifndef STAGE1_5
@@ -84,7 +88,7 @@ struct term_entry
   void (*setcolorstate) (color_state state);
   /* Set the normal color and the highlight color. The format of each
      color is VGA's.  */
-  void (*setcolor) (unsigned long long normal_color, unsigned long long highlight_color, unsigned long long helptext_color, unsigned long long heading_color);
+  void (*setcolor) (unsigned long state,unsigned long long color[]);
   /* Turn on/off the cursor.  */
   void (*setcursor) (unsigned long on);
 
@@ -112,7 +116,7 @@ int console_getxy (void);
 void console_gotoxy (int x, int y);
 void console_cls (void);
 void console_setcolorstate (color_state state);
-void console_setcolor (unsigned long long normal_color, unsigned long long highlight_color, unsigned long long helptext_color, unsigned long long heading_color);
+void console_setcolor(unsigned long state,unsigned long long color[]);
 void console_setcursor (unsigned long on);
 #endif
 

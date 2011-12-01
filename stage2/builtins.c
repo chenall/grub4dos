@@ -712,7 +712,14 @@ boot_func (char *arg, int flags)
   //errorcheck = 1;
   /* clear keyboard buffer before boot */
   while (console_checkkey () != -1) console_getkey ();
-  
+  /* if arg == -1 or --int18 boot via INT 18*/
+  if (*(unsigned short*)arg == 0x3d21 || memcmp(arg,"--int18",7) == 0)
+	{
+	  grub_printf("Local boot via INT 18...\n");
+	  boot_int18();
+	  return 0;
+	};
+
   switch (kernel_type)
     {
     case KERNEL_TYPE_FREEBSD:
@@ -3251,104 +3258,121 @@ static int
 color_func (char *arg, int flags)
 {
   char *normal;
-  char *highlight;
-  char *helptext;
-  char *heading;
-  static unsigned long long new_normal_color;
-  static unsigned long long new_highlight_color;
-  static unsigned long long new_helptext_color;
-  static unsigned long long new_heading_color;
-      
+  unsigned long long new_color[COLOR_STATE_MAX];
+  unsigned long long new_normal_color;
+
   if (! *arg)
   {
     if (debug > 0)
       printf ("current color: %X, %lX\n", current_color, current_color_64bit);
     return 1;
   }
+
+  if (!(current_term->setcolor))
+      return 0;
   blinking = 1;
   normal = arg;
-  highlight = skip_to (0, arg);
-  helptext = skip_to (0, highlight);
-  heading = skip_to (0, helptext);
+  arg = skip_to (0, arg);
 
   new_normal_color = (unsigned long long)(long long)color_number (normal);
-  if ((long long)new_normal_color < 0 && ! safe_parse_maxint (&normal, &new_normal_color))
-    return 0;
-
-	if (!*highlight && (flags & (BUILTIN_CMDLINE | BUILTIN_BAT_SCRIPT)))
+  if ((int)new_normal_color < 0 && ! safe_parse_maxint (&normal, &new_normal_color))
+  {
+	color_state state_t;
+	unsigned long state = 0;
+	arg = normal;
+	while (*arg)
 	{
-		if (current_term->setcolor)
-			current_term->setcolor (new_normal_color, 0LL,0LL,0LL);
-		if (current_term->setcolorstate)
-			current_term->setcolorstate(COLOR_STATE_STANDARD);
+		if (memcmp(arg,"normal",6) == 0)
+		{
+			state_t = COLOR_STATE_NORMAL;
+		}
+		else if (memcmp(arg,"highlight",9) == 0)
+		{
+			state_t = COLOR_STATE_HIGHLIGHT;
+		}
+		else if (memcmp(arg,"helptext",8) == 0)
+		{
+			state_t = COLOR_STATE_HELPTEXT;
+		}
+		else if (memcmp(arg,"heading",7) == 0)
+		{
+			state_t = COLOR_STATE_HEADING;
+		}
+		else if (memcmp(arg,"standard",8) == 0)
+		{
+			state_t = COLOR_STATE_STANDARD;
+		}
+		else if (memcmp(arg,"border",6) == 0)
+		{
+			state_t = COLOR_STATE_BORDER;
+		}
+		else
+			return 0;
+		normal = skip_to(1,arg);
+		if (!safe_parse_maxint (&normal, &new_color[state_t]))
+		{
+			return 0;
+		}
+		state |= 1<<state_t;
+		arg = skip_to(0,normal);
+	}
+	current_term->setcolor (state,new_color);
+	errnum = 0;
+	return 1;
+  }
+
+	if (!*arg && (flags & (BUILTIN_CMDLINE | BUILTIN_BAT_SCRIPT)))
+	{
+		current_term->setcolor (1,&new_normal_color);
 		return 1;
 	}
 
   if (new_normal_color >> 8)	/* disable blinking */
 	blinking = 0;
-  new_helptext_color = new_normal_color;
-  new_heading_color = new_normal_color;
+
+  new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[COLOR_STATE_NORMAL] = new_normal_color;
+
   /* The second argument is optional, so set highlight_color
      to inverted NORMAL_COLOR.  */
-  if (! *highlight)
+  if (! *arg)
   {
 	if (new_normal_color >> 8)
-		new_highlight_color = ((new_normal_color >> 32) | (new_normal_color << 32));
+		new_color[COLOR_STATE_HIGHLIGHT] = ((new_normal_color >> 32) | (new_normal_color << 32));
 	else
-		new_highlight_color = (((new_normal_color >> 4) & 0xf) | ((new_normal_color & 0xf) << 4));
+		new_color[COLOR_STATE_HIGHLIGHT] = (((new_normal_color >> 4) & 0xf) | ((new_normal_color & 0xf) << 4));
   }
   else
-    {
-      new_highlight_color = (unsigned long long)(long long)color_number (highlight);
-      if ((long long)new_highlight_color < 0
-	  && ! safe_parse_maxint (&highlight, &new_highlight_color))
-	return 0;
-      if (new_highlight_color >> 8)	/* disable blinking */
-      {
-	if (blinking == 0x80)
 	{
-		errnum = ERR_BAD_ARGUMENT;
-		return 0;
-	}
-	blinking = 0;
-      }
-      if (*helptext)
-      {
-	new_helptext_color = (unsigned long long)(long long)color_number (helptext);
-	if ((long long)new_helptext_color < 0
-	    && ! safe_parse_maxint (&helptext, &new_helptext_color))
-		return 0;
-	if (new_helptext_color >> 8)	/* disable blinking */
-	{
-		if (blinking == 0x80)
+		int i;
+		for (i=COLOR_STATE_HIGHLIGHT;i<=COLOR_STATE_HEADING && *arg;++i)
 		{
-			errnum = ERR_BAD_ARGUMENT;
-			return 0;
-		}
-		blinking = 0;
-	}
-	if (*heading)
-	{
-		new_heading_color = (unsigned long long)(long long)color_number (heading);
-		if ((long long)new_heading_color < 0
-		    && ! safe_parse_maxint (&heading, &new_heading_color))
-			return 0;
-		if (new_heading_color >> 8)	/* disable blinking */
-		{
-			if (blinking == 0x80)
+			normal = arg;
+			arg = skip_to (0, arg);
+			new_color[i] = (unsigned long long)(long long)color_number (normal);
+			if (((int)new_color[i] < 0) && ! safe_parse_maxint (&normal, &new_color[i]))
 			{
-				errnum = ERR_BAD_ARGUMENT;
 				return 0;
 			}
-			blinking = 0;
+			/*comment by chenall 2011-11-30 why do this? I think not need.*/
+			//if (new_color[i] & 0xff00)	/* disable blinking */
+			//{
+			//	if (blinking == 0x80)
+			//	{
+			//		errnum = ERR_BAD_ARGUMENT;
+			//		return 0;
+			//	}
+			//	blinking = 0;
+			//}
 		}
 	}
-      }
-    }
+   /*0x1E to set color for "normal highlight helptext heading".
+    (1<<COLOR_STATE_NORMAL)|
+    (1<<COLOR_STATE_HIGHLIGHT)|
+    (1<<COLOR_STATE_HELPTEXT) |
+    (1<<COLOR_STATE_HEADING
+   */
+  current_term->setcolor (0x1E,new_color);
 
-  if (current_term->setcolor)
-    current_term->setcolor (new_normal_color, new_highlight_color, new_helptext_color, new_heading_color);
-  
   return 1;
 }
 
@@ -4275,12 +4299,12 @@ splashimage_func(char *arg, int flags)
     
 	if (! grub_open(arg))
 		return 0;
-	grub_read((unsigned long long*)(unsigned int)&type,2,GRUB_READ);
+	grub_read((unsigned long long)(unsigned int)&type,2,GRUB_READ);
 	if (type == 0x4D42)
 	{
 		filepos = 18;
-		grub_read((unsigned long long*)(unsigned int)&w,4,GRUB_READ);
-		grub_read((unsigned long long*)(unsigned int)&h,4,GRUB_READ);
+		grub_read((unsigned long long)(unsigned int)&w,4,GRUB_READ);
+		grub_read((unsigned long long)(unsigned int)&h,4,GRUB_READ);
 	}
 	grub_close();
     }
@@ -4316,15 +4340,13 @@ static struct builtin builtin_splashimage =
 static int
 foreground_func(char *arg, int flags)
 {
-    if (grub_strlen(arg) == 6) {
+    if (grub_strlen(arg) == 6 && graphics_inited ) {
 	int r = (hex(arg[0]) << 4) | hex(arg[1]);
 	int g = (hex(arg[2]) << 4) | hex(arg[3]);
 	int b = (hex(arg[4]) << 4) | hex(arg[5]);
 
 	foreground = (r << 16) | (g << 8) | b;
-	if (graphics_inited)
-	    graphics_set_palette(15, foreground);
-
+	graphics_set_palette(15, foreground);
 	return 1;
     }
 
@@ -4346,14 +4368,13 @@ static struct builtin builtin_foreground =
 static int
 background_func(char *arg, int flags)
 {
-    if (grub_strlen(arg) == 6) {
+    if (grub_strlen(arg) == 6 && graphics_inited) {
 	int r = (hex(arg[0]) << 4) | hex(arg[1]);
 	int g = (hex(arg[2]) << 4) | hex(arg[3]);
 	int b = (hex(arg[4]) << 4) | hex(arg[5]);
 
 	background = (r << 16) | (g << 8) | b;
-	if (graphics_inited)
-	    graphics_set_palette(0, background);
+	graphics_set_palette(0, background);
 	return 1;
     }
 
@@ -14058,12 +14079,12 @@ terminal_func (char *arg, int flags)
 		arg += 15;
 		if (! safe_parse_maxint (&arg, &lines))
 			return 0;
-		font_w = 8 + (unsigned char)lines;
+		font_spacing = (unsigned char)lines;
 		if (*arg++ == ':')
 		{
 			if (! safe_parse_maxint (&arg, &lines))
 				return 0;
-			font_h = 16 + (unsigned char)lines;
+			line_spacing = (unsigned char)lines;
 		}
 		if (graphics_inited && graphics_mode > 0xFF)
 		{
@@ -15395,7 +15416,8 @@ static int echo_func (char *arg,int flags)
    unsigned int x;
    unsigned int y;
    unsigned int echo_ec = 0;
-   unsigned long DefBackGround;
+   unsigned long long saved_color_64;
+   unsigned char saved_color;
    //y = getxy();
    //x = (unsigned int)(unsigned char)y;
    //y = (unsigned int)(unsigned char)(y >> 8);
@@ -15476,7 +15498,8 @@ static int echo_func (char *arg,int flags)
 		flags = parse_string(arg);
 		arg[flags] = 0;
 	}
-	DefBackGround = current_color & 0x70;
+	saved_color = current_color & 0x70;
+	saved_color_64 = current_color_64bit & 0xFFFFFFFF00000000LL;
    for(;*arg;arg++)
    {
       if (*(unsigned short*)arg == 0x5B24)//$[
@@ -15509,12 +15532,19 @@ static int echo_func (char *arg,int flags)
          else if (arg[6] == ']')
          {
             int char_attr = 0;
-            char_attr |= (arg[2] == '0')?0:0x80;
-            char_attr |= (arg[3] == '0')?0:8;
-            char_attr |= (arg[4] == '0')?DefBackGround:((arg[4] - '0') & 7) << 4;
-            char_attr |= ((arg[5] - '0') & 7);
+            if (arg[2] & 7)
+		char_attr |= 0x80;
+	    if (arg[3] & 7)
+		char_attr |= 8;
+            char_attr |= (arg[4] & 7) << 4;
+            char_attr |= (arg[5] & 7);
             current_color = char_attr;
 	    current_color_64bit = color_8_to_64 (current_color);
+	    if (!(current_color & 0x70))
+	    {
+		current_color |= saved_color;
+		current_color_64bit |= saved_color_64;
+	    }
             arg += 7;
          }
       }

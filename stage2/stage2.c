@@ -102,19 +102,19 @@ read_from_preset_menu (char *buf, int max_len)
 #define DISP_DOWN	ACS_DARROW	/* 0x19 , 'v' */
 #endif
 
-#define MENU_BOX_X	(menu_broder.menu_box_x)
-//#define MENU_BOX_W	(menu_broder.menu_box_w)
-//#define MENU_BOX_W	(menu_broder.menu_box_w ? menu_broder.menu_box_w : current_term->chars_per_line - 4)
-#define MENU_BOX_W	(menu_broder.menu_box_w ? menu_broder.menu_box_w : current_term->chars_per_line - 3)
-#define MENU_BOX_Y	(menu_broder.menu_box_y)
+#define MENU_BOX_X	(menu_border.menu_box_x)
+//#define MENU_BOX_W	(menu_border.menu_box_w)
+//#define MENU_BOX_W	(menu_border.menu_box_w ? menu_border.menu_box_w : current_term->chars_per_line - 4)
+#define MENU_BOX_W	(menu_border.menu_box_w ? menu_border.menu_box_w : current_term->chars_per_line - 3)
+#define MENU_BOX_Y	(menu_border.menu_box_y)
 /* window height */
-#define MENU_BOX_H	(menu_broder.menu_box_h?menu_broder.menu_box_h:(current_term->max_lines - 6 - menu_broder.menu_box_y)) //current_term->max_lines - 8
+#define MENU_BOX_H	(menu_border.menu_box_h?menu_border.menu_box_h:(current_term->max_lines - 6 - menu_border.menu_box_y)) //current_term->max_lines - 8
 
 /* line end */
 #define MENU_BOX_E	(MENU_BOX_X + MENU_BOX_W)
 
 /* window bottom */
-#define MENU_BOX_B	(menu_broder.menu_box_b?menu_broder.menu_box_b:(current_term->max_lines - 6)) //current_term->max_lines - 7
+#define MENU_BOX_B	(menu_border.menu_box_b?menu_border.menu_box_b:(current_term->max_lines - 6)) //current_term->max_lines - 7
 
 static long temp_entryno;
 static char * *titles;	/* title array, point to 256 strings. */
@@ -132,8 +132,8 @@ static int default_help_message_destoyed = 1;
 	unsigned char menu_box_h;
 	unsigned char menu_box_b;
 */
-struct broder menu_broder = {218,191,192,217,196,179,2,0,2,0,0}; /* console */
-//struct broder menu_broder = {20,21,22,19,15,14,2,0,2,0,0}; /* graphics */
+struct border menu_border = {218,191,192,217,196,179,2,0,2,0,0,2}; /* console */
+//struct border menu_border = {20,21,22,19,15,14,2,0,2,0,0}; /* graphics */
 
 static void
 print_default_help_message (char *config_entries)
@@ -264,7 +264,7 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
   if (current_term->setcolorstate)
     current_term->setcolorstate (highlight ? COLOR_STATE_HIGHLIGHT : COLOR_STATE_NORMAL);
   
-  is_highlight = 0;
+  is_highlight = highlight;
 
   gotoxy (MENU_BOX_X - 1, y);
   grub_putchar(highlight ? 0x10 : ' ', 255);
@@ -284,9 +284,9 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
       ret = MENU_BOX_E - x;
       if (c && c != '\n' /* && x <= MENU_BOX_W*/)
 	{
-		is_highlight = highlight;
+		
 		ret = grub_putchar ((unsigned char)c, ret);
-		is_highlight = 0;
+		//is_highlight = 0;
 		if ((long)ret < 0)
 		{
 			c = 0;
@@ -368,12 +368,14 @@ print_entries (int first, int entryno, char *menu_entries, char *config_entries)
 {
   int i;
   int main_menu = (menu_entries == (char *)titles);
-  
+
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_NORMAL);
-  
   gotoxy (MENU_BOX_E, MENU_BOX_Y);
 
+#ifdef SUPPORT_GRAPHICS
+  if (!graphics_inited || graphics_mode < 0xff)
+#endif
   if (first)
     grub_putchar (DISP_UP, 255);
   else
@@ -405,7 +407,9 @@ print_entries (int first, int entryno, char *menu_entries, char *config_entries)
 
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_NORMAL);
-  
+#ifdef SUPPORT_GRAPHICS
+  if (!graphics_inited || graphics_mode < 0xff)
+#endif
   if (menu_entries && *menu_entries)
     grub_putchar (DISP_DOWN, 255);
   else
@@ -413,7 +417,7 @@ print_entries (int first, int entryno, char *menu_entries, char *config_entries)
 
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
-
+ 
   gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);	/* XXX: Why? */
 }
 
@@ -580,12 +584,15 @@ restart:
   if (grub_timeout < 0)
     show_menu = 1;
   
+  if (current_term->setcolorstate)
+    current_term->setcolorstate (COLOR_STATE_NORMAL);
+
   setcursor (2);
+  cls();	//clear screen so splash image will work
+
   /* If SHOW_MENU is false, don't display the menu until a key-press.  */
   if (! show_menu)
     {
-      cls();	//clear screen so splash image will work
-
       /* Get current time.  */
       while ((time1 = getrtsecs ()) == 0xFF)
 	;
@@ -647,11 +654,26 @@ restart:
       if (current_term->flags & TERM_DUMB)
 	print_entries_raw (num_entries, first_entry, menu_entries);
       else /* print border */
+      #ifdef SUPPORT_GRAPHICS
+	if (graphics_inited && graphics_mode > 0xff)/*vbe mode call rectangle_func*/
+	{
+		if (current_term->setcolorstate)
+			current_term->setcolorstate (COLOR_STATE_BORDER);
+		unsigned long x,y,w,h,i,j;
+		i = font_w + font_spacing;
+		j = font_h + line_spacing;
+		x = (MENU_BOX_X - 2) * i + (i>>1);
+		y = (MENU_BOX_Y)*j+j>>1;
+		w = (MENU_BOX_W + 2) * i;
+		h = (MENU_BOX_H + 1) * j;
+		rectangle(x,y,w,h,menu_border.border_w);
+	}
+	else
+	#endif
 	{
 	  int i;
 
-	  if (current_term->setcolorstate)
-	    current_term->setcolorstate (COLOR_STATE_NORMAL);
+
   
 	  /* upper-left corner */
 	  gotoxy (MENU_BOX_X - 2, MENU_BOX_Y - 1);
@@ -685,8 +707,8 @@ restart:
 	  /* lower-right corner */
 	  grub_putchar (DISP_LR, 255);
 
-	  if (current_term->setcolorstate)
-	    current_term->setcolorstate (COLOR_STATE_STANDARD);
+	  //if (current_term->setcolorstate)
+	  //  current_term->setcolorstate (COLOR_STATE_STANDARD);
 	}
 
       if (current_term->setcolorstate)
@@ -1318,10 +1340,10 @@ done_key_handling:
   
  boot_entry:
   
-  cls ();
   setcursor (1); /* show cursor and disable splashimage */
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
+  cls ();
 //  /* if our terminal needed initialization, we should shut it down
 //   * before booting the kernel, but we want to save what it was so
 //   * we can come back if needed */

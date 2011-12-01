@@ -26,50 +26,44 @@
    console_gotoxy, console_cls, and console_nocursor.  */
 
 extern void toggle_blinking (void);
-static int console_standard_color = A_NORMAL;
-static int console_normal_color = A_NORMAL;
-static int console_highlight_color = A_REVERSE;
-static int console_helptext_color = A_NORMAL;
-static int console_heading_color = A_NORMAL;
-static color_state console_color_state = COLOR_STATE_STANDARD;
+static int console_color[COLOR_STATE_MAX] = {
+  [COLOR_STATE_STANDARD] = A_NORMAL,
+  /* represents the user defined colors for normal text */
+  [COLOR_STATE_NORMAL] = A_NORMAL,
+  /* represents the user defined colors for highlighted text */
+  [COLOR_STATE_HIGHLIGHT] = A_REVERSE,
+  /* represents the user defined colors for help text */
+  [COLOR_STATE_HELPTEXT] = A_NORMAL,
+  /* represents the user defined colors for heading line */
+  [COLOR_STATE_HEADING] = A_NORMAL,
+  /* represents the user defined colors for border */
+  [COLOR_STATE_BORDER] = A_NORMAL
+};
 
-static unsigned long long console_standard_color_64bit = 0xAAAAAA;
-static unsigned long long console_normal_color_64bit = 0xAAAAAA;
-static unsigned long long console_highlight_color_64bit = 0xAAAAAA00000000ULL;
-static unsigned long long console_helptext_color_64bit = 0xAAAAAA;
-static unsigned long long console_heading_color_64bit = 0xAAAAAA;
+static unsigned long long console_color_64bit[COLOR_STATE_MAX] = {
+  [COLOR_STATE_STANDARD] = 0xAAAAAA,
+  /* represents the user defined colors for normal text */
+  [COLOR_STATE_NORMAL] = 0xAAAAAA,
+  /* represents the user defined colors for highlighted text */
+  [COLOR_STATE_HIGHLIGHT] = 0xAAAAAA00000000ULL,
+  /* represents the user defined colors for help text */
+  [COLOR_STATE_HELPTEXT] = 0xAAAAAA,
+  /* represents the user defined colors for heading line */
+  [COLOR_STATE_HEADING] = 0xAAAAAA,
+  /* represents the user defined colors for border */
+  [COLOR_STATE_BORDER] = 0xAAAAAA
+};
+
+static color_state console_color_state = COLOR_STATE_STANDARD;
 
 void
 console_setcolorstate (color_state state)
 {
-  switch (state) {
-    case COLOR_STATE_STANDARD:
-      current_color = console_standard_color;
-      current_color_64bit = console_standard_color_64bit;
-      break;
-    case COLOR_STATE_NORMAL:
-      current_color = console_normal_color;
-      current_color_64bit = console_normal_color_64bit;
-      break;
-    case COLOR_STATE_HIGHLIGHT:
-      current_color = console_highlight_color;
-      current_color_64bit = console_highlight_color_64bit;
-      break;
-    case COLOR_STATE_HELPTEXT:
-      current_color = console_helptext_color;
-      current_color_64bit = console_helptext_color_64bit;
-      break;
-    case COLOR_STATE_HEADING:
-      current_color = console_heading_color;
-      current_color_64bit = console_heading_color_64bit;
-      break;
-    default:
-      current_color = console_standard_color;
-      current_color_64bit = console_standard_color_64bit;
-      break;
-  }
-
-  console_color_state = state;
+	if (state >= COLOR_STATE_MAX)
+		state = COLOR_STATE_STANDARD;
+	current_color = console_color[state];
+	current_color_64bit = console_color_64bit[state];
+	console_color_state = state;
 }
 
 unsigned long long
@@ -104,44 +98,22 @@ color_8_to_64 (unsigned char color8)
 }
 
 void
-console_setcolor (unsigned long long normal_color, unsigned long long highlight_color, unsigned long long helptext_color, unsigned long long heading_color)
+console_setcolor(unsigned long state,unsigned long long color[])
 {
-  if ((highlight_color | helptext_color | heading_color) == 0)
-  {
-    if (normal_color > 0xff)
-    {
-      console_standard_color_64bit = normal_color;
-    }
-    else
-      console_standard_color_64bit = color_8_to_64 (console_standard_color = normal_color); 
-    return;
-  }
-  if ((normal_color | highlight_color | helptext_color | heading_color) >> 8)
-	goto color_64bit;
-  console_normal_color = normal_color;
-  console_highlight_color = highlight_color;
-  console_helptext_color = helptext_color;
-  console_heading_color = heading_color;
-
-  console_setcolorstate (console_color_state);
-  if (current_term == term_table)	/* console */
-	toggle_blinking ();
-
-  /* translate to 64-bit colors */
-  console_normal_color_64bit = color_8_to_64 (normal_color);
-  console_highlight_color_64bit = color_8_to_64 (highlight_color);
-  console_helptext_color_64bit = color_8_to_64 (helptext_color);
-  console_heading_color_64bit = color_8_to_64 (heading_color);
-  return;
-
-color_64bit:
-
-  /* 64-bit color has foreground in low DWORD and background in high DWORD */
-
-  console_normal_color_64bit = normal_color;
-  console_highlight_color_64bit = highlight_color;
-  console_helptext_color_64bit = helptext_color;
-  console_heading_color_64bit = heading_color;
-
-  console_setcolorstate (console_color_state);
+	int i;
+	for(i=0;i< COLOR_STATE_MAX;++i)
+	{
+		if (!(state & (1<<i)))
+			continue;
+		if (color[i] > 0xff)
+			console_color_64bit[i] = color[i];
+		else
+		{
+			console_color[i] = color[i];
+			console_color_64bit[i] = color_8_to_64(color[i]);
+		}
+	}
+	if (current_term == term_table)	/* console */
+		toggle_blinking ();
+	console_setcolorstate(COLOR_STATE_STANDARD);
 }

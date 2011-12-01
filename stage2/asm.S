@@ -1120,6 +1120,19 @@ ENTRY(stop_floppy)
 	ret
 
 /*
+ * boot_int18()
+  */
+ENTRY(boot_int18)
+
+	.code32
+
+	call	EXT_C(prot_to_real)
+
+	.code16
+	int $0x18
+	ljmp	$0xFFFF, $0x0000
+
+/*
  * grub_reboot()
  *
  * Reboot the system. At the moment, rely on BIOS.
@@ -13252,6 +13265,7 @@ VARIABLE(system_functions)
 	.long	ABS(EXT_C(mem64))
 	.long ABS(EXT_C(envi_cmd))
 	.long ABS(EXT_C(strncmpx))
+	.long ABS(EXT_C(rectangle))
 /*
  * The C code for a grub4dos executable may have defines as follows:
  *
@@ -13323,7 +13337,7 @@ VARIABLE(fonty)
 	.long	0
 VARIABLE(graphics_CURSOR)
 	.long	0
-	.long	(EXT_C(menu_broder))
+	.long	(EXT_C(menu_border))
 VARIABLE(gzip_filemax)
 	.long	0
 	.long	0

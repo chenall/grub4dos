@@ -764,7 +764,7 @@ console_setcolorstate (color_state state)
 }
 
 void
-console_setcolor (unsigned long long normal_color, unsigned long long highlight_color, unsigned long long helptext_color, unsigned long long heading_color)
+console_setcolor(unsigned long state,unsigned long long color[])
 {
   /* Nothing to do.  */
 }
