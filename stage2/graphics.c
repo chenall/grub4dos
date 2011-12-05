@@ -1044,7 +1044,7 @@ static int read_image()
 		if (splashimage_loaded & 1)
 		{
 			int i=0;
-			for (i=0 ;i<16;++i)
+			for (i=1 ;i<15;++i)
 				graphics_set_palette(i,image_pal[i]);
 		}
 		return 1;
@@ -1129,7 +1129,7 @@ graphics_scroll (void)
     else
     {/* VBE */
 
-	memmove_forward_SSE ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline << 4),
+	memmove_forward_SSE ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline * (font_h + line_spacing)),
 		    /*((y1 - 1) << 4)*/ current_y_resolution * current_bytes_per_scanline);
     }
 

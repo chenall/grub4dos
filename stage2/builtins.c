@@ -484,7 +484,7 @@ static struct builtin builtin_blocklist =
 {
   "blocklist",
   blocklist_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "blocklist FILE",
   "Print the blocklist notation of the file FILE."
 };
@@ -713,7 +713,7 @@ boot_func (char *arg, int flags)
   /* clear keyboard buffer before boot */
   while (console_checkkey () != -1) console_getkey ();
   /* if arg == -1 or --int18 boot via INT 18*/
-  if (*(unsigned short*)arg == 0x3d21 || memcmp(arg,"--int18",7) == 0)
+  if (*(unsigned short*)arg == 0x312d || memcmp(arg,"--int18",7) == 0)
 	{
 	  grub_printf("Local boot via INT 18...\n");
 	  boot_int18();
@@ -1569,7 +1569,7 @@ static struct builtin builtin_cat =
 {
   "cat",
   cat_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "cat [--hex] [--skip=S] [--length=L] [--locate[i]=STRING] [--replace=REPLACE]\n"
   "\t [--locate-align=A] [--number=n] FILE",
   "Print the contents of the file FILE,"
@@ -3154,7 +3154,7 @@ static struct builtin builtin_cmp =
 {
   "cmp",
   cmp_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "cmp [--hex] FILE1 FILE2",
   "Compare the file FILE1 with the FILE2 and inform the different values"
   " if any."
@@ -4470,7 +4470,7 @@ static struct builtin builtin_checkrange =
 {
   "checkrange",
   checkrange_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "checkrange RANGE COMMAND",
   "Return true if the return value of COMMAND is in RANGE and false otherwise."
 };
@@ -4609,7 +4609,7 @@ static struct builtin builtin_checktime =
 {
   "checktime",
   checktime_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "checktime min hour dom month dow",
   "Check time."
 };
@@ -5423,7 +5423,7 @@ static struct builtin builtin_command =
 {
   "command",
   command_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING | BUILTIN_IFTITLE,
   "command [--set-path=PATH] FILE [ARGS]",
   "Run executable file FILE with arguments ARGS."
   "--set-path sets a search PATH for executable files,default is (bd)/boot/grub."
@@ -5510,7 +5510,7 @@ static struct builtin builtin_insmod =
 {
    "insmod",
    insmod_func,
-   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
    "insmod MODFILE|FILE.MOD [name]",
    "FILE.MOD is MODFILE package, it has multiple MODFILE"
 };
@@ -5538,7 +5538,7 @@ static struct builtin builtin_delmod =
 {
    "delmod",
    delmod_func,
-   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
    "delmod [modname|*]",
    "delete the module loaded by insmod."
 };
@@ -6134,7 +6134,7 @@ static struct builtin builtin_find =
 {
   "find",
   find_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "find [--set-root[=DIR]] [--devices=DEVLIST] [--ignore-floppies] [--ignore-cd] [FILENAME] [CONDITION]",
   "Search for the filename FILENAME in all of partitions and print the list of"
   " the devices which contain the file and suffice CONDITION. CONDITION is a"
@@ -6658,7 +6658,7 @@ static struct builtin builtin_uuid =
 {
   "uuid",
   uuid_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "uuid [DEVICE] [UUID]",
   "If DEVICE is not specified, search for filesystem with UUID in all"
   " partitions and set the partition containing the filesystem as new"
@@ -7138,7 +7138,7 @@ static struct builtin builtin_geometry =
 {
   "geometry",
   geometry_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
 #ifdef GRUB_UTIL
   "geometry [DRIVE] [CYLINDER HEAD SECTOR [TOTAL_SECTOR]]",
   "Print the information for drive DRIVE or the current root device if DRIVE"
@@ -7206,14 +7206,15 @@ static struct builtin builtin_halt =
 
 
 /* help */
-#define MAX_SHORT_DOC_LEN	39
-#define MAX_LONG_DOC_LEN	72
+//#define MAX_SHORT_DOC_LEN	39
+//#define MAX_LONG_DOC_LEN	72
 
 static int
 help_func (char *arg, int flags)
 {
   int all = 0;
-  
+  int MAX_SHORT_DOC_LEN = current_term->chars_per_line/2-1;
+  int MAX_LONG_DOC_LEN = current_term->chars_per_line - 8;
   if (grub_memcmp (arg, "--all", sizeof ("--all") - 1) == 0)
     {
       all = 1;
@@ -7403,7 +7404,7 @@ static struct builtin builtin_hide =
 {
   "hide",
   hide_func,
-  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
+  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "hide [PARTITION]",
   "Hide PARTITION by setting the \"hidden\" bit in"
   " its partition type code. The default partition is the current"
@@ -7447,7 +7448,7 @@ static struct builtin builtin_hiddenflag =
 {
   "hiddenflag",
   hiddenflag_func,
-  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
+  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "hiddenflag [--set | --clear] [PARTITION]",
   "Hide/unhide PARTITION by setting/clearing the \"hidden\" bit in"
   " its partition type code, or report the hidden status."
@@ -8162,7 +8163,7 @@ static struct builtin builtin_is64bit =
 {
   "is64bit",
   is64bit_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "is64bit",
   "Return true if CPU is 64-bit and false if not."
 };
@@ -8308,7 +8309,7 @@ static struct builtin builtin_ls =
 {
   "ls",
   ls_func,
-  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
+  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "ls [FILE_OR_DIR]",
   "List file or directory."
 };
@@ -8409,7 +8410,7 @@ static struct builtin builtin_makeactive =
 {
   "makeactive",
   makeactive_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "makeactive [--status] [PART]",
   "Activate the partition PART. PART defaults to the current root device."
   " This command is limited to _primary_ PC partitions on a hard disk."
@@ -11119,7 +11120,7 @@ static struct builtin builtin_map =
 {
   "map",
   map_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "map [--status] [--mem[=RESERV]] [--hook] [--unhook] [--unmap=DRIVES]\n [--rehook] [--floppies=M] [--harddrives=N] [--memdisk-raw=RAW]\n [--a20-keep-on=AKO] [--safe-mbr-hook=SMH] [--int13-scheme=SCH]\n [--ram-drive=RD] [--rd-base=ADDR] [--rd-size=SIZE] [[--read-only]\n [--fake-write] [--unsafe-boot] [--disable-chs-mode] [--disable-lba-mode]\n [--heads=H] [--sectors-per-track=S] TO_DRIVE FROM_DRIVE]",
   "Map the drive FROM_DRIVE to the drive TO_DRIVE. This is necessary"
   " when you chain-load some operating systems, such as DOS, if such an"
@@ -11800,7 +11801,7 @@ static struct builtin builtin_parttype =
 {
   "parttype",
   parttype_func,
-  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
+  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "parttype [PART] [TYPE]",
   "Change the type of the partition PART to TYPE. If TYPE is omitted, return "
   "the partition type of the specified device(instead of changing it). PART "
@@ -11967,7 +11968,7 @@ static struct builtin builtin_pxe =
 {
   "pxe",
   pxe_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING | BUILTIN_IFTITLE,
   "pxe [cmd] [parameters]",
   "Call PXE command."
 };
@@ -12143,7 +12144,7 @@ static struct builtin builtin_read =
 {
   "read",
   read_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "read ADDR",
   "Read a 32-bit value from memory at address ADDR and"
   " display it in hex format."
@@ -12577,7 +12578,7 @@ static struct builtin builtin_write =
 {
   "write",
   write_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "write [--offset=SKIP] ADDR_OR_FILE INTEGER_OR_STRING",
   "Write a 32-bit value to memory or write a string to file(or device!)."
 };
@@ -12611,11 +12612,17 @@ static struct builtin builtin_reboot =
 void
 print_root_device (char *buffer,int flag)
 {
-	unsigned long long st_bak = putchar_st.status;
+	unsigned char *backup_hook;
+	unsigned long backup_hooked;
 	unsigned long tmp_drive = flag?current_drive:saved_drive;
 	unsigned long tmp_partition = flag?current_partition:saved_partition;
 	if (buffer)
-		putchar_st.status = ((unsigned long long)(int)buffer << 32) | 1;
+	{
+		backup_hook = putchar_hook;
+		backup_hooked = putchar_hooked;
+		putchar_hooked = 2;
+		putchar_hook = (unsigned char *)buffer;
+	}
 	else
 		putchar(' ', 255);
 	switch(tmp_drive)
@@ -12663,8 +12670,8 @@ print_root_device (char *buffer,int flag)
 	}
 	if (buffer)
 	{
-		*putchar_st.addr = 0;
-		putchar_st.status = st_bak;
+		putchar_hooked = backup_hooked;
+		putchar_hook = backup_hook;
 	}
 	return;
 }
@@ -12917,7 +12924,7 @@ static struct builtin builtin_root =
 {
   "root",
   root_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "root [DEVICE [HDBIAS]]",
   "Set the current \"root device\" to the device DEVICE, then"
   " attempt to mount it to get the partition size (for passing the"
@@ -12943,7 +12950,7 @@ static struct builtin builtin_rootnoverify =
 {
   "rootnoverify",
   rootnoverify_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "rootnoverify [DEVICE [HDBIAS]]",
   "Similar to `root', but don't attempt to mount the partition. This"
   " is useful for when an OS is outside of the area of the disk that"
@@ -14781,6 +14788,29 @@ static struct builtin builtin_timeout =
 //  /* This function is not actually used at least currently.  */
 //  return 1;
 //}
+static int
+iftitle_func (char *arg, int flags)
+{
+	char *p = arg;
+	if (*p != '[')
+		return 0;
+	char *cmd = ++p;
+	while (*p && *p != ']')
+		++p;
+	if (*p != ']')
+		return 0;
+	*p++ = 0;
+	if (!run_line(cmd,BUILTIN_IFTITLE))
+		return 0;
+	return (int)(p - arg);
+}
+
+struct builtin builtin_iftitle =
+{
+  "iftitle",
+  iftitle_func,
+  0/*BUILTIN_TITLE*/,
+};
 
 struct builtin builtin_title =
 {
@@ -14846,7 +14876,7 @@ static struct builtin builtin_unhide =
 {
   "unhide",
   unhide_func,
-  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
+  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "unhide [PARTITION]",
   "Unhide PARTITION by clearing the \"hidden\" bit in its"
   " partition type code. The default partition is the current"
@@ -15149,7 +15179,7 @@ static struct builtin builtin_calc =
 {
   "calc",
   calc_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "calc [*INTEGER=] [*]INTEGER OPERATOR [[*]INTEGER]",
   "GRUB4DOS Simple Calculator.\n"
   "Available Operators: + - * / % << >> ^ & |"
@@ -15636,7 +15666,7 @@ static struct builtin builtin_if =
 {
    "if",
    if_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "if [/i] [not] STRING1==STRING2 [COMMAND]",
   "if [NOT] exist VARIABLE|FILENAME [COMMAND]"
 };
@@ -15927,7 +15957,7 @@ static struct builtin builtin_set =
 {
    "set",
    set_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "set [/p] [/a|/A] [/l|/u] [VARIABLE=[STRING]]",
   "/p,Get a line of input;l|/u,lower/upper case;/a|/A,numerical expression that is evaluated(use calc)."
   "/a,set value to a Decimal;/A  to a HEX."
@@ -16441,7 +16471,7 @@ static struct builtin builtin_call =
 {
    "call",
    call_func,
-  BUILTIN_BAT_SCRIPT | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
+  BUILTIN_BAT_SCRIPT | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_IFTITLE,
 };
 
 static int exit_func(char *arg, int flags)
@@ -16637,6 +16667,7 @@ struct builtin *builtin_table[] =
 #ifdef SUPPORT_NETBOOT
   &builtin_ifconfig,
 #endif /* SUPPORT_NETBOOT */
+  &builtin_iftitle,
 //  &builtin_impsprobe,
   &builtin_initrd,
 #ifndef GRUB_UTIL

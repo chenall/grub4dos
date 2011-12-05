@@ -1,4 +1,16 @@
-﻿2011-12-01
+﻿2011-12-05
+	1.添加条件菜单功能		added iftitle.
+	语法: iftitle [<command>] Actual Title displayed\nOptional help line
+	只要条件不成立该菜单项目无效。
+	eg.如果(hd0,0)上有bootmgr文件才会显示第一个菜单，如果有NTLDR文件才会显示第二个菜单
+	
+	iftitle [if exist (hd0,0)/bootmgr] Boot to NT6.X from (hd0,0)
+	chainloader (hd0,0)/bootmgr
+	
+	iftitle [if exist (hd0,0)/ntldr] Boot to NT5.X from (hd0,0)
+	chainloader (hd0,0)/ntldr
+	
+2011-12-01
 	1.BUG修正。
 	  BUG fixed.
 	2.添加使用INT18启动功能。

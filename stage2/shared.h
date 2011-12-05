@@ -1241,7 +1241,10 @@ void gotoxy (int x, int y);
 
 /* Displays an ASCII character.  IBM displays will translate some
    characters to special graphical ones (see the DISP_* constants). */
-unsigned int grub_putchar (unsigned int c, unsigned int max_width);
+unsigned int (*grub_putchar) (unsigned int c, unsigned int max_width);
+unsigned int _putchar (unsigned int c, unsigned int max_width);
+unsigned char *putchar_hook;
+unsigned long putchar_hooked;
 
 /* Wait for a keypress, and return its packed BIOS/ASCII key code.
    Use ASCII_CHAR(ret) to extract the ASCII code. */
@@ -1265,7 +1268,7 @@ void stop_floppy (void);
 /* The flags for the builtins.  */
 #define BUILTIN_CMDLINE		0x1	/* Run in the command-line.  */
 #define BUILTIN_MENU			(1 << 1)/* Run in the menu.  */
-#define BUILTIN_TITLE		(1 << 2)	/* Only for the command title.  */
+#define BUILTIN_IFTITLE		(1 << 2)	/* Only for the command title.  */
 #define BUILTIN_SCRIPT		(1 << 3)/* Run in the script.  */
 #define BUILTIN_NO_ECHO		(1 << 4)	/* Don't print command on booting. */
 #define BUILTIN_HELP_LIST	(1 << 5)/* Show help in listing.  */
@@ -1332,15 +1335,7 @@ void enter_cmdline (char *heap, int forever);
 
 /* C library replacement functions with identical semantics. */
 //void grub_printf (const char *format,...);
-union output_status
-{
-	struct {
-		int flag;
-		char *addr;
-	};
-	unsigned long long status;
-};
-extern union output_status putchar_st;
+
 #define grub_printf(...) grub_sprintf(NULL, __VA_ARGS__)
 int grub_sprintf (char *buffer, const char *format, ...);
 int grub_tolower (int c);

@@ -11489,7 +11489,7 @@ ENTRY(console_putchar)
 //	int	$0x10
 
 	/* if showcursor, print CRLF on needed */
-	testb	$1, cursor_state
+	testb	$1, ABS(EXT_C(cursor_state))
 	jz	3f
 
 	cmpb	$80, %dl
@@ -13188,7 +13188,8 @@ http://grubutils.googlecode.com/svn/trunk/src/include/grub4dos.h
 VARIABLE(system_functions)
 	.long	ABS(EXT_C(grub_sprintf))
 	.long	ABS(EXT_C(grub_putstr))
-	.long	ABS(EXT_C(grub_putchar))
+VARIABLE(grub_putchar)
+	.long	ABS(EXT_C(_putchar))
 	.long	ABS(EXT_C(get_cmdline_obsolete))
 	.long	ABS(EXT_C(getxy))
 	.long	ABS(EXT_C(gotoxy))

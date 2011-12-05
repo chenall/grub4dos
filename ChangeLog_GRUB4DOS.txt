@@ -1,3 +1,4 @@
+2011-12-05 Issue 53: add new command 'iftitle' for menu.(thanks @Steve6375).
 2011-11-17 (tinybit)supported utf8 and unicode char printing.
 2011-11-04 (tinybit)added new argument of max_width for putchar; various fixes.
 2011-10-29 (tinybit)add new command 'font' for vesa fonts.(Not yet complete). 

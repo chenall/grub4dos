@@ -200,7 +200,7 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 	return cmd;
 }
 
-#define PRINTF_BUFFER ((char *)SYSTEM_RESERVED_MEMORY + 0x11000)
+#define PRINTF_BUFFER ((unsigned char *)SYSTEM_RESERVED_MEMORY + 0x11000)
 #define CMD_BUFFER ((char *)SYSTEM_RESERVED_MEMORY + 0x10000)
 //char *pre_cmdline = (char *)0x4CB08;
 
@@ -246,6 +246,13 @@ int run_line (char *heap,int flags)
 	int status = 0;
 	struct builtin *builtin;
 	int status_t = 0;
+	unsigned char *backup_hook = putchar_hook;
+	unsigned long backup_hooked = putchar_hooked;
+	#if 0
+	unsigned char *hook_buff;
+	#else
+	#define hook_buff putchar_hook
+	#endif
 	int i;
 	grub_error_t errnum_old = errnum;
 	char cmdline_buf[1500];
@@ -267,11 +274,11 @@ int run_line (char *heap,int flags)
 				arg = skip_to (0, arg);
 				if (*arg == 0)
 					CMD_BUFFER[i++] = ' ';
-				if (putchar_st.addr >= PRINTF_BUFFER + 0xC00)
+				if (hook_buff >= PRINTF_BUFFER + 0xC00)
 				{
-					putchar_st.addr = PRINTF_BUFFER + 0xC00;
+					hook_buff = PRINTF_BUFFER + 0xC00;
 				}
-				grub_memmove(CMD_BUFFER + i,PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER);
+				grub_memmove(CMD_BUFFER + i,PRINTF_BUFFER,hook_buff - PRINTF_BUFFER);
 				arg = CMD_BUFFER;
 				break;
 			case 2:// operator ">"
@@ -303,11 +310,11 @@ int run_line (char *heap,int flags)
 				}
 				else if (filemax < 0x40000)
 				{
-					grub_memset((char *)putchar_st.addr,0,filemax);
-					putchar_st.addr = PRINTF_BUFFER + filemax;
+					grub_memset(hook_buff,0,filemax);
+					hook_buff = PRINTF_BUFFER + filemax;
 				}
 
-				grub_read ((unsigned long long)(int)PRINTF_BUFFER,putchar_st.addr - PRINTF_BUFFER,GRUB_WRITE);
+				grub_read ((unsigned long long)(int)PRINTF_BUFFER,hook_buff - PRINTF_BUFFER,GRUB_WRITE);
 				grub_close();
 
 				restart_st:
@@ -319,8 +326,8 @@ int run_line (char *heap,int flags)
 
 		if (status & 8)
 		{
-			putchar_st.addr = PRINTF_BUFFER;
-			putchar_st.flag = status & 3;
+			putchar_hooked = 2;
+			putchar_hook = PRINTF_BUFFER;
 		}
 
 		builtin = find_command (arg);
@@ -344,8 +351,8 @@ int run_line (char *heap,int flags)
 		if (status & 8)
 		{
 			status_t = status & 3;
-			*putchar_st.addr++ = 0;
-			putchar_st.flag = 0;
+			putchar_hooked = backup_hooked;
+			*hook_buff++ = 0;
 			continue;
 		}
 
@@ -371,6 +378,7 @@ int run_line (char *heap,int flags)
 			heap = skip_to_next_cmd(heap,&status,4);
 		}
 	}
+	putchar_hook = backup_hook;
 	return (errnum > 0 && errnum<MAX_ERR_NUM)?0:ret;
 #undef ret
 }

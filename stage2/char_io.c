@@ -1781,13 +1781,20 @@ checkkey (void)
 #endif /* ! STAGE1_5 */
 
 /* FIXME: this is problematic! it could cause memory conflicts! */
-union output_status putchar_st = {{0,(char *)SYSTEM_RESERVED_MEMORY+0x11000}};
+unsigned char *putchar_hook= (unsigned char*)0;
+unsigned long putchar_hooked = 0;
 
 /* Display an ASCII character.  */
 unsigned int
-grub_putchar (unsigned int c, unsigned int max_width)
+_putchar (unsigned int c, unsigned int max_width)
 {
   /* if it is a Line Feed, we insert a Carriage Return. */
+	if (putchar_hooked)
+	{
+		if (putchar_hooked > 1)
+			*putchar_hook++ = (unsigned char)c;
+		return 1;
+	}
 
 #ifdef STAGE1_5
 
@@ -1799,11 +1806,7 @@ grub_putchar (unsigned int c, unsigned int max_width)
   return console_putchar (c, max_width);
   
 #else /* ! STAGE1_5 */
-  if (putchar_st.flag)
-  {
-	*putchar_st.addr++ = (char)c;
-	return 1;
-  }
+
   if (c == '\t'/* && current_term->getxy*/)
     {
       c = 8 - (fontx/*(current_term->getxy ())*/ & 7);

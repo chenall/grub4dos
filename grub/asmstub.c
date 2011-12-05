@@ -608,6 +608,7 @@ console_putchar (unsigned int c, unsigned int max_width)
 	if (c != '\r')
 		putchar ((unsigned char)c);
     }
+    return 1;
 }
 
 /* The store for ungetch simulation. This is necessary, because
@@ -772,7 +773,7 @@ console_setcolor(unsigned long state,unsigned long long color[])
 void
 console_setcursor (unsigned long on)
 {
-  return 1;
+  return;
 }
 
 /* Low-level disk I/O.  Our stubbed version just returns a file
@@ -1287,5 +1288,5 @@ hercules_cls (void)
 void
 hercules_setcursor (unsigned long on)
 {
-  return 1;
+  return;
 }

@@ -673,7 +673,8 @@ restart:
 	{
 	  int i;
 
-
+	if (current_term->setcolorstate)
+		current_term->setcolorstate (COLOR_STATE_NORMAL);
   
 	  /* upper-left corner */
 	  gotoxy (MENU_BOX_X - 2, MENU_BOX_Y - 1);
@@ -2110,7 +2111,8 @@ restart_config:
     {
 	/* STATE 0: Menu init, i.e., before any title command.
 	   STATE 1: In a title command.
-	   STATE 2: In a entry after a title command.  */
+	   STATE 2: In a entry after a title command.  
+	*/
 	int state = 0, prev_config_len = 0;
 	char *cmdline;
 	int is_preset;
@@ -2161,6 +2163,8 @@ restart_config:
 	reset ();
 	cmdline = (char *) CMDLINE_BUF;
 	  
+	putchar_hooked = 1;/*stop displaying on screen*/
+
 	while (get_line_from_config (cmdline, NEW_HEAPSIZE, is_preset))
 	{
 	    struct builtin *builtin;
@@ -2172,11 +2176,41 @@ restart_config:
 		/* Unknown command. Just skip now.  */
 		continue;
 	  
-	    if (builtin == &builtin_title)	/* title command */
+	    if (builtin != -1 && builtin->flags == 0)	/* title command */
 	    {
-	        /* Finish the menu init commands or previous menu items.  */
+		if (builtin != &builtin_title)/*If title*/
+		{
+			unsigned long tmp_filpos = is_preset?preset_menu_offset:filepos;
+			unsigned long tmp_drive = saved_drive;
+			unsigned long tmp_partition = saved_partition;
+			unsigned int rp;
+			cmdline = skip_to(1, cmdline);
+			rp = builtin->func(cmdline,BUILTIN_IFTITLE);
+			saved_drive = tmp_drive;
+			saved_partition = tmp_partition;
+			if (is_preset)
+			{
+				preset_menu_offset = tmp_filpos;
+			}
+			else
+			{
+				grub_open (config_file);
+				filepos = (unsigned long long)tmp_filpos;
+			}
 
-		if (state == 2)
+			if (rp)
+			{
+				cmdline += rp;
+			}
+			else
+			{
+				state |= 0x10;
+				continue;
+			}
+		}
+		/* Finish the menu init commands or previous menu items.  */
+
+		if (state & 2)
 		{
 		    /* The next title is found.  */
 		    if (num_entries >= 256)
@@ -2185,7 +2219,7 @@ restart_config:
 		    config_entries[config_len++] = 0;	/* finish the entry. */
 		    prev_config_len = config_len;
 		}
-		else if (state)		/* state == 1 */
+		else if (state & 1)		/* state == 1 */
 		{
 		    /* previous is an invalid title, overwrite it.  */
 		    config_len = prev_config_len;
@@ -2216,6 +2250,8 @@ restart_config:
 		    while ((config_entries[config_len++] = *(ptr++)) != 0);
 		}
 	    }
+	    else if (state & 0x10) /*ignored menu by iftitle*/
+		continue;
 	    else if (! state)			/* menu init command */
 	    {
 		if ((int)builtin == -1 || builtin->flags & BUILTIN_MENU)
@@ -2243,6 +2279,8 @@ restart_config:
 			config_entries[attr] |= !!(builtin->flags & BUILTIN_BOOTING);
 	    }
 	} /* while (get_line_from_config()) */
+
+	putchar_hooked = 0;
 
 	/* file must be closed here, because the menu-specific commands
 	 * below may also use the GRUB_OPEN command.  */
