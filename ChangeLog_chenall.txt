@@ -1,4 +1,8 @@
-﻿2011-12-05
+﻿2011-12-06
+	1.bug修正。
+	2.使用调试模式启动时可以显示条件菜单执行的命令。
+
+2011-12-05
 	1.添加条件菜单功能		added iftitle.
 	语法: iftitle [<command>] Actual Title displayed\nOptional help line
 	只要条件不成立该菜单项目无效。

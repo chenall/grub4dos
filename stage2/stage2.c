@@ -267,16 +267,21 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
   is_highlight = highlight;
 
   gotoxy (MENU_BOX_X - 1, y);
-  grub_putchar(highlight ? 0x10 : ' ', 255);
 
   if (entry)
   {
-	expand_var (entry, (char *)SCRATCHADDR, 0x400);
-	entry = (char *)SCRATCHADDR;
+	if (config_entries)
+	{
+		expand_var (entry, (char *)SCRATCHADDR, 0x400);
+		entry = (char *)SCRATCHADDR;
+	}
 	c = *entry;
 	if (c == 8 || c == 9)
 		c = *(++entry);
   }
+
+  grub_putchar(highlight ? 0x10 : ' ', 255);
+
   for (x = MENU_BOX_X; x < MENU_BOX_E; x = fontx)
     {
       unsigned int ret;
@@ -2178,6 +2183,7 @@ restart_config:
 	  
 	    if (builtin != -1 && builtin->flags == 0)	/* title command */
 	    {
+	    #ifndef GRUB_UTIL
 		if (builtin != &builtin_title)/*If title*/
 		{
 			unsigned long tmp_filpos = is_preset?preset_menu_offset:filepos;
@@ -2185,6 +2191,15 @@ restart_config:
 			unsigned long tmp_partition = saved_partition;
 			unsigned int rp;
 			cmdline = skip_to(1, cmdline);
+
+			if (debug_boot)
+			{
+				putchar_hooked = 0;
+				printf("IFTITLE: %s->",cmdline);
+				getkey();
+				putchar_hooked = 1;
+			}
+
 			rp = builtin->func(cmdline,BUILTIN_IFTITLE);
 			saved_drive = tmp_drive;
 			saved_partition = tmp_partition;
@@ -2198,6 +2213,13 @@ restart_config:
 				filepos = (unsigned long long)tmp_filpos;
 			}
 
+			if (debug_boot)
+			{
+				putchar_hooked = 0;
+				printf("\t %s\n",rp?"Yes":"No");
+				putchar_hooked = 1;
+			}
+
 			if (rp)
 			{
 				cmdline += rp;
@@ -2208,6 +2230,7 @@ restart_config:
 				continue;
 			}
 		}
+		#endif
 		/* Finish the menu init commands or previous menu items.  */
 
 		if (state & 2)
@@ -2289,7 +2312,7 @@ restart_config:
 	else
 	    grub_close ();
 
-	if (state == 2)
+	if (state & 2)
 	{
 	    if (num_entries < 256)
 	        num_entries++;	/* the last entry is completed. */

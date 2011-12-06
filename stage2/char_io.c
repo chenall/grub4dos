@@ -1781,8 +1781,7 @@ checkkey (void)
 #endif /* ! STAGE1_5 */
 
 /* FIXME: this is problematic! it could cause memory conflicts! */
-unsigned char *putchar_hook= (unsigned char*)0;
-unsigned long putchar_hooked = 0;
+unsigned char *putchar_hooked = (unsigned char*)0;
 
 /* Display an ASCII character.  */
 unsigned int
@@ -1791,8 +1790,8 @@ _putchar (unsigned int c, unsigned int max_width)
   /* if it is a Line Feed, we insert a Carriage Return. */
 	if (putchar_hooked)
 	{
-		if (putchar_hooked > 1)
-			*putchar_hook++ = (unsigned char)c;
+		if ((unsigned int)putchar_hooked > 0x900)
+			*(unsigned long*)putchar_hooked++ = (unsigned char)c;
 		return 1;
 	}
 

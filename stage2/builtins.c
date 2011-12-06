@@ -1218,8 +1218,9 @@ static struct builtin builtin_boot =
   "boot",
   boot_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
-  "boot",
+  "boot [-1]",
   "Boot the OS/chain-loader which has been loaded."
+  "with option \"-1\" will boot to local via INT 18.",
 };
 #endif /* ! GRUB_UTIL */
 
@@ -6321,7 +6322,7 @@ loop:
     goto build_default_VGA_font;
   }
   /* update narrow_char_indicator for each narrow char */
-  for (i = 0; i < 0x10000; i++)
+  for (i = 0xFFFF; (long)i >= 0; i--)
   {
     if ((!((*(unsigned char *)(0x100000 + i)) & 1) /* not a new wide char */
 	&& (*(unsigned long *)(UNIFONT_START + (i << 5))
@@ -12612,16 +12613,13 @@ static struct builtin builtin_reboot =
 void
 print_root_device (char *buffer,int flag)
 {
-	unsigned char *backup_hook;
-	unsigned long backup_hooked;
+	unsigned char *backup_hooked;
 	unsigned long tmp_drive = flag?current_drive:saved_drive;
 	unsigned long tmp_partition = flag?current_partition:saved_partition;
 	if (buffer)
 	{
-		backup_hook = putchar_hook;
 		backup_hooked = putchar_hooked;
-		putchar_hooked = 2;
-		putchar_hook = (unsigned char *)buffer;
+		putchar_hooked = (unsigned char *)buffer;
 	}
 	else
 		putchar(' ', 255);
@@ -12671,7 +12669,6 @@ print_root_device (char *buffer,int flag)
 	if (buffer)
 	{
 		putchar_hooked = backup_hooked;
-		putchar_hook = backup_hook;
 	}
 	return;
 }

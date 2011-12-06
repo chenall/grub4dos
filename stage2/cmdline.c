@@ -246,13 +246,8 @@ int run_line (char *heap,int flags)
 	int status = 0;
 	struct builtin *builtin;
 	int status_t = 0;
-	unsigned char *backup_hook = putchar_hook;
-	unsigned long backup_hooked = putchar_hooked;
-	#if 0
+	unsigned char *backup_hooked = putchar_hooked;
 	unsigned char *hook_buff;
-	#else
-	#define hook_buff putchar_hook
-	#endif
 	int i;
 	grub_error_t errnum_old = errnum;
 	char cmdline_buf[1500];
@@ -262,6 +257,7 @@ int run_line (char *heap,int flags)
 	/* Invalidate the cache, because the user may exchange removable disks.  */
 	while (*heap == 0x20 || *heap == '\t')
 		++heap;
+	ret = (*heap == 0);
 	buf_drive = -1;
 	while (*heap && (arg = heap))
 	{
@@ -290,7 +286,7 @@ int run_line (char *heap,int flags)
 				if (! grub_open (arg))
 				{
 					no_decompression = i;
-					goto check_status;
+					goto restart_st;
 				}
 				no_decompression = i;
 				if (status_t & 1)//>> append
@@ -326,8 +322,7 @@ int run_line (char *heap,int flags)
 
 		if (status & 8)
 		{
-			putchar_hooked = 2;
-			putchar_hook = PRINTF_BUFFER;
+			putchar_hooked = PRINTF_BUFFER;
 		}
 
 		builtin = find_command (arg);
@@ -337,11 +332,14 @@ int run_line (char *heap,int flags)
 			if (! builtin || ! (builtin->flags & flags))
 			{
 				errnum = ERR_UNRECOGNIZED;
-				break;
+				ret = 0;
 			}
-			if ((builtin->func) == errnum_func || (builtin->func) == checkrange_func)
-				errnum = errnum_old;
-			ret = (builtin->func) (skip_to (1,arg), flags);
+			else 
+			{
+				if ((builtin->func) == errnum_func || (builtin->func) == checkrange_func)
+					errnum = errnum_old;
+				ret = (builtin->func) (skip_to (1,arg), flags);
+			}
 		}
 		else
 			ret = command_func (arg,flags);
@@ -351,6 +349,7 @@ int run_line (char *heap,int flags)
 		if (status & 8)
 		{
 			status_t = status & 3;
+			hook_buff = putchar_hooked;
 			putchar_hooked = backup_hooked;
 			*hook_buff++ = 0;
 			continue;
@@ -378,7 +377,6 @@ int run_line (char *heap,int flags)
 			heap = skip_to_next_cmd(heap,&status,4);
 		}
 	}
-	putchar_hook = backup_hook;
 	return (errnum > 0 && errnum<MAX_ERR_NUM)?0:ret;
 #undef ret
 }
