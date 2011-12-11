@@ -1,4 +1,14 @@
-﻿2011-12-06
+﻿2011-12-08
+	1.支持菜单自动编号（使用动态菜单时比较有用）。		Support menu AutoNumber.this is useful when used iftitle.
+	usage:
+	  write 0x8274 0x2001
+	  or
+	  write 0x8274 0x2D01
+	0x20(space) or 0x2d ('-') is the delimiter char in ascii code.
+	更多的用法介绍：
+	http://bbs.wuyou.com/viewthread.php?tid=180142&page=193#pid2351695
+
+2011-12-06
 	1.bug修正。
 	2.使用调试模式启动时可以显示条件菜单执行的命令。
 

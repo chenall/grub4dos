@@ -150,6 +150,9 @@ codestart:
 	jmp	real_codestart
 
 	/* internal variables follow */
+	. = EXT_C(main) + 0x74
+VARIABLE(menu_num_ctrl)
+	.long 0x2000
 	#include "grub4dos_int_ver.h"
 	#ifdef GRUB4DOS_INT_VER
 	. = EXT_C(main) + 0x78
@@ -13364,6 +13367,11 @@ VARIABLE(p_get_cmdline_str)
 	.long ABS(EXT_C(get_cmdline_str))
 VARIABLE(splashimage_loaded)
 	.long 0	
+VARIABLE(putchar_hooked)
+	.long 0
+#endif /* ! STAGE1_5 */
+
+
 /*
   flags for vbe splashimage
   splashimage_loaded & ~0xf   SPLASH_BASE_ADDR
@@ -13375,5 +13383,4 @@ VARIABLE(splashimage_loaded)
   xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx
   xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx
 */
-#endif /* ! STAGE1_5 */
 

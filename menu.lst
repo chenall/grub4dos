@@ -5,9 +5,17 @@
 
 color blue/green yellow/red white/magenta white/magenta
 timeout 30
+## menu border color
+color border=0xEEFFEE
+## set vbe mode
+graphicsmode -1 640 480:800
+## loading splashimage
+splashimage /boot/grub/splashimage.xpm || splashimage /boot/grub/splashimage.bmp
 default /default
+## Menu AutoNumber
+write 0x8274 0x2001
 
-title find and load NTLDR of Windows NT/2K/XP
+title find and load NTLDR of Windows NT/2K/XP\n find and load NTLDR of Windows NT/2K/XP
 fallback 1
 find --set-root --ignore-floppies --ignore-cd /ntldr
 map () (hd0)
@@ -17,15 +25,10 @@ find --set-root --ignore-floppies --ignore-cd /ntldr
 chainloader /ntldr
 savedefault --wait=2
 
-title find and load BOOTMGR of Windows VISTA/WIN7/WIN2008
-fallback 2
-find --set-root --devices=h /bootmgr
-# did not need swap device
-#map () (hd0)
-#map (hd0) ()
-#map --rehook
-#find --set-root --devices=h /bootmgr
-chainloader /bootmgr
+#iftitle only show when command in [] returns true
+# set a variable named bootmgr where /bootmgr is found.
+iftitle [find --set-root --devices=h /bootmgr && call set bootmgr=%@root^%] load BOOTMGR of Windows VISTA/WIN7/WIN2008 on %bootmgr%
+chainloader %bootmgr%/bootmgr
 savedefault --wait=2
 
 title find and load CMLDR, the Recovery Console of Windows NT/2K/XP

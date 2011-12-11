@@ -1778,23 +1778,30 @@ checkkey (void)
 {
   return current_term->checkkey ();
 }
+
+#ifndef GRUB_UTIL
+unsigned char *set_putchar_hook(unsigned char *hooked)
+{
+	unsigned char *re = putchar_hooked;
+	putchar_hooked = hooked;
+	return re;
+}
+#else
+unsigned char *putchar_hooked = 0;
+unsigned char *set_putchar_hook(unsigned char *hooked)
+{
+	return 0;
+}
+#endif
+
 #endif /* ! STAGE1_5 */
 
 /* FIXME: this is problematic! it could cause memory conflicts! */
-unsigned char *putchar_hooked = (unsigned char*)0;
-
 /* Display an ASCII character.  */
 unsigned int
 _putchar (unsigned int c, unsigned int max_width)
 {
   /* if it is a Line Feed, we insert a Carriage Return. */
-	if (putchar_hooked)
-	{
-		if ((unsigned int)putchar_hooked > 0x900)
-			*(unsigned long*)putchar_hooked++ = (unsigned char)c;
-		return 1;
-	}
-
 #ifdef STAGE1_5
 
   /* In Stage 1.5, only the normal console is supported.  */
@@ -1805,7 +1812,14 @@ _putchar (unsigned int c, unsigned int max_width)
   return console_putchar (c, max_width);
   
 #else /* ! STAGE1_5 */
-
+#ifndef GRUB_UTIL
+	if (putchar_hooked)
+	{
+		if ((unsigned int)putchar_hooked > 0x800)
+			*(unsigned long*)putchar_hooked++ = (unsigned char)c;
+		return 1;
+	}
+#endif
   if (c == '\t'/* && current_term->getxy*/)
     {
       c = 8 - (fontx/*(current_term->getxy ())*/ & 7);

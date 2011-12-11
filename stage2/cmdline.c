@@ -246,8 +246,7 @@ int run_line (char *heap,int flags)
 	int status = 0;
 	struct builtin *builtin;
 	int status_t = 0;
-	unsigned char *backup_hooked = putchar_hooked;
-	unsigned char *hook_buff;
+	unsigned char *hook_buff = 0;
 	int i;
 	grub_error_t errnum_old = errnum;
 	char cmdline_buf[1500];
@@ -257,7 +256,8 @@ int run_line (char *heap,int flags)
 	/* Invalidate the cache, because the user may exchange removable disks.  */
 	while (*heap == 0x20 || *heap == '\t')
 		++heap;
-	ret = (*heap == 0);
+	if (*heap == 0)
+		return 1;
 	buf_drive = -1;
 	while (*heap && (arg = heap))
 	{
@@ -322,7 +322,7 @@ int run_line (char *heap,int flags)
 
 		if (status & 8)
 		{
-			putchar_hooked = PRINTF_BUFFER;
+			hook_buff = set_putchar_hook(PRINTF_BUFFER);
 		}
 
 		builtin = find_command (arg);
@@ -349,8 +349,7 @@ int run_line (char *heap,int flags)
 		if (status & 8)
 		{
 			status_t = status & 3;
-			hook_buff = putchar_hooked;
-			putchar_hooked = backup_hooked;
+			hook_buff = set_putchar_hook(hook_buff);
 			*hook_buff++ = 0;
 			continue;
 		}
@@ -426,11 +425,11 @@ enter_cmdline (char *heap, int forever)
       errnum = ERR_NONE;
 
       /* Get the command-line with the minimal BASH-like interface.  */
-      get_cmdline_str.prompt = PACKAGE "> ";
+      get_cmdline_str.prompt = (unsigned char*)PACKAGE "> ";
       get_cmdline_str.maxlen = 2048;
       get_cmdline_str.echo_char = 0;
       get_cmdline_str.readline = 1;
-      get_cmdline_str.cmdline=heap;
+      get_cmdline_str.cmdline=(unsigned char*)heap;
       if (get_cmdline ())
 	{
 	  kernel_type = KERNEL_TYPE_NONE;

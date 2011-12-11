@@ -51,7 +51,7 @@ static unsigned long long console_color_64bit[COLOR_STATE_MAX] = {
   /* represents the user defined colors for heading line */
   [COLOR_STATE_HEADING] = 0xAAAAAA,
   /* represents the user defined colors for border */
-  [COLOR_STATE_BORDER] = 0xAAAAAA
+  [COLOR_STATE_BORDER] = 0x3399
 };
 
 static color_state console_color_state = COLOR_STATE_STANDARD;

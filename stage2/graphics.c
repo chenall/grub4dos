@@ -581,8 +581,6 @@ print_invalid_pending_bytes (unsigned long max_width)
 unsigned int
 graphics_putchar (unsigned int ch, unsigned int max_width)
 {
-    unsigned long i, j;
-    unsigned long pat;
     unsigned long ret;
 
     if (fontx >= x1)
@@ -770,7 +768,7 @@ graphics_cls (void)
     #if 0
     _memset ((char *)current_phys_base, 0, current_y_resolution * current_bytes_per_scanline);
     #else
-	s1 = (char *)current_phys_base;
+	s1 = (unsigned char *)current_phys_base;
 	unsigned long color = current_color_64bit >> 32;
 	unsigned long y,x,z;
 	z = current_bits_per_pixel>>3;
@@ -845,12 +843,12 @@ vga:
 
 static int read_image_bmp(int type)
 {
-	struct { /* bmfh */ 
-		unsigned short bfType;
-		unsigned long bfSize; 
-		unsigned long bfReserved1; 
-		unsigned long bfOffBits;
-		} __attribute__ ((packed)) bmfh;
+	//struct { /* bmfh */ 
+	//	unsigned short bfType;
+	//	unsigned long bfSize; 
+	//	unsigned long bfReserved1; 
+	//	unsigned long bfOffBits;
+	//	} __attribute__ ((packed)) bmfh;
 	struct { /* bmih */ 
 		unsigned long  biSize; 
 		unsigned long  biWidth; 
@@ -1027,7 +1025,7 @@ read_image_xpm (int type)
 	return 2;
     }
 
-set_palette:
+//set_palette:
     image_pal[0] = background;
     image_pal[15] = foreground;
     for (i=0; i < 16;++i)
@@ -1116,6 +1114,7 @@ hex (int v)
 
 
 /* scroll the screen */
+void bios_scroll_up();
 static void
 graphics_scroll (void)
 {

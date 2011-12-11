@@ -6169,7 +6169,7 @@ get_nibble (unsigned long c)
 
 //static unsigned long old_narrow_char_indicator = 0;
 #define	old_narrow_char_indicator	narrow_char_indicator
-
+int font_func (char *arg, int flags);
 /* font */
 /* load unifont to UNIFONT_START */
 /*
@@ -6198,7 +6198,7 @@ font_func (char *arg, int flags)
 
   memset ((char *)0x100000, 0, 0x10000);	/* clear 64K at 1M */
 
-  while	(len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 38, 0xedde0d90))
+  while	((len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 38, 0xedde0d90)))
   {
     if (len != 38 || buf[4] != ':')
     {
@@ -6412,10 +6412,10 @@ build_default_VGA_font:
 ROM_font_loaded:
 
   /* copy font8x16 to RAM at 0x580000 */
-  if (font8x16 != 0x580000)
+  if (font8x16 != (void*)0x580000)
   {
-	memmove (0x580000, font8x16, 0x1000);
-	font8x16 = 0x580000;
+	memmove ((void*)0x580000, font8x16, 0x1000);
+	font8x16 = (void*)0x580000;
 
 	// re-map 6 box-drawing chars to replace 6 control-chars respectively.
 	/* Lower Right (0xD9) and Upper Left (0xDA) to 0x13 and 0x14 */
@@ -12610,19 +12610,19 @@ static struct builtin builtin_reboot =
    flag 0	saved device.
    flag 1  current device.
 */
+
 void
 print_root_device (char *buffer,int flag)
 {
-	unsigned char *backup_hooked;
 	unsigned long tmp_drive = flag?current_drive:saved_drive;
 	unsigned long tmp_partition = flag?current_partition:saved_partition;
+	unsigned char *tmp_hooked;
 	if (buffer)
 	{
-		backup_hooked = putchar_hooked;
-		putchar_hooked = (unsigned char *)buffer;
+		tmp_hooked  = set_putchar_hook((unsigned char*)buffer);
 	}
 	else
-		putchar(' ', 255);
+		putchar(' ',255);
 	switch(tmp_drive)
 	{
 	#ifdef FSYS_FB
@@ -12637,7 +12637,7 @@ print_root_device (char *buffer,int flag)
 	#endif /* PXE drive. */
 	#ifdef SUPPORT_NETBOOT
 		case NETWORK_DRIVE:
-			grub_printf ("(nd)");
+			grub_printf("(nd)");
 			break;
 	#endif /* SUPPORT_NETBOOT */
 		default:
@@ -12649,27 +12649,25 @@ print_root_device (char *buffer,int flag)
 			if (tmp_drive & 0x80)
 			{
 				/* Hard disk drive.  */
-				grub_printf ("(hd%d", (tmp_drive - 0x80));
+				grub_printf("(hd%d", (tmp_drive - 0x80));
 			}
 			else
 			{
 				/* Floppy disk drive.  */
-				grub_printf ("(fd%d", tmp_drive);
+				grub_printf("(fd%d", tmp_drive);
 			}
 
 			if ((tmp_partition & 0xFF0000) != 0xFF0000)
-				grub_printf (",%d", (unsigned long)(unsigned char)(tmp_partition >> 16));
+				grub_printf(",%d", (unsigned long)(unsigned char)(tmp_partition >> 16));
 
 			if ((tmp_partition & 0x00FF00) != 0x00FF00)
-				grub_printf (",%c", (unsigned long)(unsigned char)((tmp_partition >> 8) + 'a'));
+				grub_printf(",%c", (unsigned long)(unsigned char)((tmp_partition >> 8) + 'a'));
 
-			grub_printf (")");
+			putchar(')',1);
 			break;
 	}
 	if (buffer)
-	{
-		putchar_hooked = backup_hooked;
-	}
+		set_putchar_hook(tmp_hooked);
 	return;
 }
 
@@ -15259,7 +15257,7 @@ xyz_done:
 	if (get_vbe_controller_info (controller) != 0x004F)
 		return !(errnum = ERR_NO_VBE_BIOS);
 
-	if (memcmp (controller->signature, "VESA", 4) != 0)
+	if (memcmp ((char*)controller->signature, "VESA", 4) != 0)
 		return !(errnum = ERR_BAD_VBE_SIGNATURE);
 
 	if (controller->version < 0x0200)
@@ -16468,7 +16466,7 @@ static struct builtin builtin_call =
 {
    "call",
    call_func,
-  BUILTIN_BAT_SCRIPT | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_IFTITLE,
+  BUILTIN_BAT_SCRIPT | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_IFTITLE | BUILTIN_MENU,
 };
 
 static int exit_func(char *arg, int flags)

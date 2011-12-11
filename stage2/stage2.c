@@ -172,16 +172,16 @@ print_default_help_message (char *config_entries)
 
 
 // ADDED By STEVE6375
-
+static int num_entries;
 static char *
 get_entry (char *list, int num)
 {
   int i;
 
   if (list == (char *)titles)
-	return titles[num];
+	return num < num_entries?titles[num]:0;
 
-  for (i = 0; i < num; i++)
+  for (i = 0; i < num && *list; i++)
     {
 	while (*(list++));
     }
@@ -255,32 +255,40 @@ myatoi (void)
 
 
 /* Print an entry in a line of the menu box.  */
+extern unsigned char menu_num_ctrl[];
 static void
-print_entry (int y, int highlight, char *entry, char *config_entries)
+print_entry (int y, int highlight,int entryno, char *config_entries)
 {
   int x;
   unsigned char c = 0;
-
+  char *entry = get_entry (config_entries, entryno);
   if (current_term->setcolorstate)
     current_term->setcolorstate (highlight ? COLOR_STATE_HIGHLIGHT : COLOR_STATE_NORMAL);
   
   is_highlight = highlight;
 
   gotoxy (MENU_BOX_X - 1, y);
+  grub_putchar(highlight ? 0x10 : ' ', 255);
 
   if (entry)
   {
-	if (config_entries)
+	if (config_entries == (char*)titles)
 	{
+		c = *entry++;
 		expand_var (entry, (char *)SCRATCHADDR, 0x400);
 		entry = (char *)SCRATCHADDR;
+		#ifndef GRUB_UTIL
+		if (menu_num_ctrl[0])
+		{
+			if (!(c & menu_num_ctrl[0]) || !*entry || *entry == '\n')
+				printf("   ");
+			else
+				printf("%2d%c",entryno,menu_num_ctrl[1]);
+		}
+		#endif
 	}
 	c = *entry;
-	if (c == 8 || c == 9)
-		c = *(++entry);
   }
-
-  grub_putchar(highlight ? 0x10 : ' ', 255);
 
   for (x = MENU_BOX_X; x < MENU_BOX_E; x = fontx)
     {
@@ -310,7 +318,7 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 
   is_highlight = 0;
 
-  if (highlight && config_entries)
+  if (highlight && ((config_entries == (char*)titles)))
   {
 	int j;
 
@@ -369,11 +377,10 @@ print_entry (int y, int highlight, char *entry, char *config_entries)
 
 /* Print entries in the menu box.  */
 static void
-print_entries (int first, int entryno, char *menu_entries, char *config_entries)
+print_entries (int first, int entryno, char *menu_entries)
 {
   int i;
-  int main_menu = (menu_entries == (char *)titles);
-
+  //int main_menu = (menu_entries == (char *)titles);
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_NORMAL);
   gotoxy (MENU_BOX_E, MENU_BOX_Y);
@@ -381,48 +388,49 @@ print_entries (int first, int entryno, char *menu_entries, char *config_entries)
 #ifdef SUPPORT_GRAPHICS
   if (!graphics_inited || graphics_mode < 0xff)
 #endif
+  {
   if (first)
     grub_putchar (DISP_UP, 255);
   else
     grub_putchar (DISP_VERT, 255);
-
-  if (main_menu || *menu_entries)
-    menu_entries = get_entry (menu_entries, first);
+  }
+  //if (main_menu || *menu_entries)
+  //  menu_entries = get_entry (menu_entries, first);
 
   for (i = 0; i < MENU_BOX_H/*size*/; i++)
     {
-      print_entry (MENU_BOX_Y + i, entryno == i, menu_entries, config_entries);
+      print_entry (MENU_BOX_Y + i, entryno == i, first + i, menu_entries);
 
-      if (main_menu)
-      {
-	if (menu_entries)
-	{
-	    if ((++first) < 256)
-		menu_entries = titles[first];
-	    else
-		menu_entries = 0;
-	}
-	continue;
-      }
-      if (*menu_entries)
-	while (*(menu_entries++));
+   //   if (main_menu)
+   //   {
+	//if (menu_entries)
+	//{
+	//    if ((++first) < 256)
+	//	menu_entries = titles[first];
+	//    else
+	//	menu_entries = 0;
+	//}
+	//continue;
+   //   }
+   //   if (*menu_entries)
+	//while (*(menu_entries++));
     }
 
+#ifdef SUPPORT_GRAPHICS
+  if (!graphics_inited || graphics_mode < 0xff)
+#endif
+{
   gotoxy (MENU_BOX_E, MENU_BOX_Y - 1 + MENU_BOX_H/*size*/);
 
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_NORMAL);
-#ifdef SUPPORT_GRAPHICS
-  if (!graphics_inited || graphics_mode < 0xff)
-#endif
   if (menu_entries && *menu_entries)
     grub_putchar (DISP_DOWN, 255);
   else
     grub_putchar (DISP_VERT, 255);
-
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
- 
+}
   gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);	/* XXX: Why? */
 }
 
@@ -565,6 +573,7 @@ run_menu (char *menu_entries, char *config_entries, int num_entries, char *heap,
 {
   int c, time1, time2 = -1, first_entry = 0;
   char *cur_entry = 0;
+
 //  struct term_entry *prev_term = NULL;
 		  
 
@@ -668,7 +677,7 @@ restart:
 		i = font_w + font_spacing;
 		j = font_h + line_spacing;
 		x = (MENU_BOX_X - 2) * i + (i>>1);
-		y = (MENU_BOX_Y)*j+j>>1;
+		y = (MENU_BOX_Y)*j-(j>>1);
 		w = (MENU_BOX_W + 2) * i;
 		h = (MENU_BOX_H + 1) * j;
 		rectangle(x,y,w,h,menu_border.border_w);
@@ -738,7 +747,7 @@ restart:
       if (current_term->flags & TERM_DUMB)
 	grub_printf ("\n\nThe selected entry is %d ", entryno);
       else
-	print_entries (first_entry, entryno, menu_entries, config_entries);
+	print_entries (first_entry, entryno, menu_entries);
     }
 #ifndef GRUB_UTIL
    if (menu_init_script_file[0] != 0 )	command_func(menu_init_script_file,BUILTIN_MENU);
@@ -783,7 +792,7 @@ restart:
 	      unsigned char *p;
 	      unsigned char ch = ' ';
 
-	      grub_sprintf (tmp_buf, " The highlighted entry will be booted automatically in %d seconds.", grub_timeout);
+	      grub_sprintf ((char*)tmp_buf, " The highlighted entry will be booted automatically in %d seconds.", grub_timeout);
 	      gotoxy (0, MENU_BOX_B + 5);
 	      p = tmp_buf;
 	      for (x = 0; x < current_term->chars_per_line; x = fontx)
@@ -883,18 +892,18 @@ restart:
 
 		  if (entryno > 0)
 		    {
-		      cur_entry = get_entry (menu_entries, first_entry + entryno);
+		      //cur_entry = get_entry (menu_entries, first_entry + entryno);
 		      /* un-highlight the current entry */
-		      print_entry (MENU_BOX_Y + entryno, 0, cur_entry, config_entries);
-		      entryno--;
-		      cur_entry = get_entry (menu_entries, first_entry + entryno);
+		      print_entry (MENU_BOX_Y + entryno, 0, first_entry + entryno, menu_entries);
+		      --entryno;
+		      //cur_entry = get_entry (menu_entries, first_entry + entryno);
 		      /* highlight the previous entry */
-		      print_entry (MENU_BOX_Y + entryno, 1, cur_entry, config_entries);
+		      print_entry (MENU_BOX_Y + entryno, 1, first_entry + entryno, menu_entries);
 		    }
 		  else if (first_entry > 0)
 		    {
 		      first_entry--;
-		      print_entries (first_entry, entryno, menu_entries, config_entries);
+		      print_entries (first_entry, entryno, menu_entries);
 		    }
 		  else	/* loop forward to END */
 		    {
@@ -935,18 +944,19 @@ restart:
 		    }
 		  if (entryno < MENU_BOX_H - 1)
 		    {
-		      cur_entry = get_entry (menu_entries, first_entry + entryno);
+		      //cur_entry = get_entry (menu_entries, first_entry + entryno);
 		      /* un-highlight the current entry */
-		      print_entry (MENU_BOX_Y + entryno, 0, cur_entry, config_entries);
-		      entryno++;
-		      cur_entry = get_entry (menu_entries, first_entry + entryno);
+		      print_entry (MENU_BOX_Y + entryno, 0, first_entry + entryno, menu_entries);
+		      //entryno++;
+		      //cur_entry = get_entry (menu_entries, first_entry + entryno);
 		      /* highlight the next entry */
-		      print_entry (MENU_BOX_Y + entryno, 1, cur_entry, config_entries);
+		      ++entryno;
+		      print_entry (MENU_BOX_Y + entryno, 1, first_entry + entryno, menu_entries);
 		    }
 		  else if (num_entries > MENU_BOX_H + first_entry)
 		    {
 		      first_entry++;
-		      print_entries (first_entry, entryno, menu_entries, config_entries);
+		      print_entries (first_entry, entryno, menu_entries);
 		    }
 		}
 	    }
@@ -962,7 +972,7 @@ restart:
 		  if (entryno < 0)
 		    entryno = 0;
 		}
-	      print_entries (first_entry, entryno, menu_entries, config_entries);
+	      print_entries (first_entry, entryno, menu_entries);
 	    }
 	  else if (c == KEY_NPAGE/*3*/)
 	    {
@@ -976,7 +986,7 @@ restart:
 		    first_entry = 0;
 		  entryno = num_entries - first_entry - 1;
 		}
-	      print_entries (first_entry, entryno, menu_entries, config_entries);
+	      print_entries (first_entry, entryno, menu_entries);
 	    }
 	  else if ( ((char)c) >= '0' && ((char)c) <= '9')
 	    {
@@ -1020,17 +1030,17 @@ check_update:
 		      {
 			  first_entry = (temp_entryno / MENU_BOX_H) * MENU_BOX_H;
 			  entryno = temp_entryno % MENU_BOX_H;
-			  print_entries (first_entry, entryno, menu_entries, config_entries);
+			  print_entries (first_entry, entryno, menu_entries);
 		      } else {
 			  /* entry temp_entryno is on the screen, its relative entry number is
  			   * (temp_entryno - first_entry) */
-			  cur_entry = get_entry (menu_entries, first_entry + entryno);
+			  //cur_entry = get_entry (menu_entries, first_entry + entryno);
 			  /* un-highlight the current entry */
-			  print_entry (MENU_BOX_Y + entryno, 0, cur_entry, config_entries);
+			  print_entry (MENU_BOX_Y + entryno, 0, first_entry + entryno, menu_entries);
 			  entryno = temp_entryno - first_entry;
-			  cur_entry = get_entry (menu_entries, temp_entryno);
+			  //cur_entry = get_entry (menu_entries, temp_entryno);
 			  /* highlight entry temp_entryno */
-			  print_entry (MENU_BOX_Y + entryno, 1, cur_entry, config_entries);
+			  print_entry (MENU_BOX_Y + entryno, 1, temp_entryno, menu_entries);
 		      }
 		  }
 	      }
@@ -1081,8 +1091,7 @@ done_key_handling:
 	      if ((((char)c) == 'd') || (((char)c) == 'o') || (((char)c) == 'O'))
 		{
 		  if (! (current_term->flags & TERM_DUMB))
-		    print_entry (MENU_BOX_Y + entryno, 0,
-				 get_entry (menu_entries, first_entry + entryno), config_entries);
+		    print_entry (MENU_BOX_Y + entryno, 0,first_entry + entryno, menu_entries);
 
 		  /* insert after is almost exactly like insert before */
 		  if (((char)c) == 'o')
@@ -1141,9 +1150,9 @@ done_key_handling:
 		      print_entries_raw (num_entries, first_entry, menu_entries);
 		    }
 		  else if (num_entries > 0)
-		    print_entries (first_entry, entryno, menu_entries, config_entries);
+		    print_entries (first_entry, entryno, menu_entries);
 		  else
-		    print_entry (MENU_BOX_Y, 0, cur_entry, config_entries);
+		    print_entry (MENU_BOX_Y, 0, first_entry + entryno, menu_entries);
 		}
 
 	      cur_entry = menu_entries;
@@ -1289,11 +1298,11 @@ done_key_handling:
 		      saved_partition = install_partition;
 		      current_drive = GRUB_INVALID_DRIVE;
 
-		      get_cmdline_str.prompt = PACKAGE " edit> ";
+		      get_cmdline_str.prompt = (unsigned char*)PACKAGE " edit> ";
 		      get_cmdline_str.maxlen = NEW_HEAPSIZE + 1;
 		      get_cmdline_str.echo_char = 0;
 		      get_cmdline_str.readline = 1;
-		      get_cmdline_str.cmdline=new_heap;
+		      get_cmdline_str.cmdline= (unsigned char*)new_heap;
 		      if (! get_cmdline ())
 			{
 			  int j = 0;
@@ -2010,7 +2019,6 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 //void
 //reset (void);
 int config_len;
-static int num_entries;
 static char *config_entries, *cur_entry;
 
 static void
@@ -2168,7 +2176,7 @@ restart_config:
 	reset ();
 	cmdline = (char *) CMDLINE_BUF;
 	  
-	putchar_hooked = 1;/*stop displaying on screen*/
+	putchar_hooked = (unsigned char*)1;/*stop displaying on screen*/
 
 	while (get_line_from_config (cmdline, NEW_HEAPSIZE, is_preset))
 	{
@@ -2181,7 +2189,7 @@ restart_config:
 		/* Unknown command. Just skip now.  */
 		continue;
 	  
-	    if (builtin != -1 && builtin->flags == 0)	/* title command */
+	    if ((int)builtin != -1 && builtin->flags == 0)	/* title command */
 	    {
 	    #ifndef GRUB_UTIL
 		if (builtin != &builtin_title)/*If title*/
@@ -2197,7 +2205,7 @@ restart_config:
 				putchar_hooked = 0;
 				printf("IFTITLE: %s->",cmdline);
 				getkey();
-				putchar_hooked = 1;
+				putchar_hooked = (unsigned char*)1;
 			}
 
 			rp = builtin->func(cmdline,BUILTIN_IFTITLE);
@@ -2217,7 +2225,7 @@ restart_config:
 			{
 				putchar_hooked = 0;
 				printf("\t %s\n",rp?"Yes":"No");
-				putchar_hooked = 1;
+				putchar_hooked = (unsigned char*)1;
 			}
 
 			if (rp)

@@ -530,6 +530,7 @@ extern unsigned long font_h;
 extern unsigned long font_spacing;
 extern unsigned long line_spacing;
 extern void rectangle(int left, int top, int length, int width, int line);
+extern int hex (int v);
 /* The Chinese patch will begin at here */
 
 /* multiboot stuff */
@@ -1243,7 +1244,8 @@ void gotoxy (int x, int y);
    characters to special graphical ones (see the DISP_* constants). */
 unsigned int (*grub_putchar) (unsigned int c, unsigned int max_width);
 unsigned int _putchar (unsigned int c, unsigned int max_width);
-unsigned char *putchar_hooked;
+unsigned char *set_putchar_hook(unsigned char *hooked);
+extern unsigned char* putchar_hooked;
 
 /* Wait for a keypress, and return its packed BIOS/ASCII key code.
    Use ASCII_CHAR(ret) to extract the ASCII code. */
