@@ -1,4 +1,11 @@
-﻿2011-12-08
+﻿2011-12-11
+	1.可以使用map --status=n来获取已经映射磁盘的状态。  use map --status=n to get status of hooked drive n.
+	返回以下两个变量信息(return)
+	%?%=Start_Sector
+	%@retval%=Sector_Count
+	如果该磁盘不存在返回0.
+
+2011-12-08
 	1.支持菜单自动编号（使用动态菜单时比较有用）。		Support menu AutoNumber.this is useful when used iftitle.
 	usage:
 	  write 0x8274 0x2001

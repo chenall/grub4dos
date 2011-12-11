@@ -9365,8 +9365,23 @@ map_func (char *arg, int flags)
   
   for (;;)
   {
-    if (grub_memcmp (arg, "--status", 8) == 0)
-      {
+
+	if (grub_memcmp (arg, "--status", 8) == 0)
+	{
+		arg = skip_to(1,arg);
+		if (*arg>='0' && *arg <='9')
+		{
+			if (unset_int13_handler (1) || !safe_parse_maxint(&arg,&mem))
+				return 0;
+			for (i = 0; i < DRIVE_MAP_SIZE && !drive_map_slot_empty (hooked_drive_map[i]); i++)
+			{
+				if (hooked_drive_map[i].from_drive != (unsigned char)mem)
+					continue;
+				sprintf(ADDR_RET_STR,"0x%lX",(unsigned long long)hooked_drive_map[i].start_sector);
+				return hooked_drive_map[i].sector_count;
+			}
+			return 0;
+		}
 #ifndef GRUB_UTIL
 //	if (debug > 0)
 	{
