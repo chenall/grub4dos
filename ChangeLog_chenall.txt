@@ -1,4 +1,12 @@
-﻿2011-12-11
+﻿2011-12-13 
+	1.修正grub_sprintf函数%d不能正确显示负数的bug.
+
+2011-12-12  command 'if' added '>=' and '<=', and able to perform numeric comparison.
+	1.if命令新增>=和<=比较符。
+	  新的if命令支持三种比较>=,==,<=
+	  如果两边都是数字，则自动转换成数值型来比较,否则按字符串的ASCII大小比较.
+
+2011-12-11
 	1.可以使用map --status=n来获取已经映射磁盘的状态。  use map --status=n to get status of hooked drive n.
 	返回以下两个变量信息(return)
 	%?%=Start_Sector

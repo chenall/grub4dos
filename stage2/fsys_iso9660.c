@@ -354,7 +354,7 @@ iso9660_dir (char *dirname)
 
 	      filemax = MAXINT;
 	      if (name_len >= pathlen
-		  && !strncmpx(name, dirname, pathlen,FSYS_FLAGS & 1))
+		  && (!pathlen || !strncmpx(dirname,name, pathlen,FSYS_FLAGS & 1)))
 		{
 		  if (dirname[pathlen] == '/' || !print_possibilities)
 		    {

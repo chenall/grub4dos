@@ -356,10 +356,10 @@ grub_sprintf (char *buffer, const char *format, ...)
 			break;
 		case 'd': case 'x':	case 'X':  case 'u':
 			{
-				unsigned int lo, hi;
+				int lo, hi;
 
 				lo = *(dataptr++);
-				hi = (length ? (*(dataptr++)) : 0);
+				hi = (length ? (*(dataptr++)) : ((*format == 'd' && lo<0)?-1:0));
 				*convert_to_ascii ((char *)str, *format, lo, hi) = 0;
 			}
 			accuracy = grub_strlen ((char *)str);
@@ -1935,22 +1935,35 @@ setcursor (unsigned long on)
   return old_state;
 }
 #endif /* ! STAGE1_5 */
-
+/* strncmpx Enhanced string comparison function by chenall 2011-12-13
+	int strncmpx (const char * s1, const char * s2, unsigned long n, int case_insensitive)
+	Compare two strings s1, s2. Length: n,
+	If n is equal to 0, only the comparison to the end of the string.
+	If case_insensitive non-zero, not case sensitive.
+	Return value:
+		When s1 < s2, the return value < 0
+		When s1 = s2, the return value = 0
+		If s1 > s2, the return value >0
+*/
 int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitive)
 {
-	while(n)
+	int x = (n?0:--n);
+	while (n)
 	{
-		if (case_insensitive)
+		char c = *s1 - *s2;
+		if (!x)
+			--n;
+		else if (!*s1)
+			return *s2?-1:0;
+		if (c)
 		{
-			if (tolower(*s1) != tolower(*s2))
-				return *s1 - *s2;
+			if (!case_insensitive || ((c-0x20) && (c+0x20)) || (unsigned char)((*s1 | 0x20) - 'a') >= 26)
+			{
+				return x?1:c;
+			}
 		}
-		else if (*s1 != *s2)
-		{
-			return *s1 - *s2;
-		}
-		++s1,++s2,--n;
-	}
+		++s1,++s2;
+	};
 	return 0;
 }
 

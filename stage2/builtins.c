@@ -8166,7 +8166,8 @@ static struct builtin builtin_is64bit =
   is64bit_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "is64bit",
-  "Return true if CPU is 64-bit and false if not."
+  "check 64bit and PAE"
+  "return value bit0=PAE supported bit1=AMD64/Intel64 supported"
 };
 
 
@@ -15652,17 +15653,31 @@ static int if_func(char *arg,int flags)
 	}
 	else
 	{
-		str1 = arg;
+		int cmpn = 0;
+		unsigned long long v1,v2;
+		char *s1 = str1 = arg;
 		str2 = arg = skip_to(1,arg);
 		arg -= 2;
-		if (*(unsigned short *)arg != 0x3D3D)
+		if (*(unsigned short *)arg < 0x3D3C /* <= */
+			|| *(unsigned short *)arg > 0x3D3E/* >= */
+			)
 		{
 			errnum = ERR_BAD_ARGUMENT;
 			return 0;
 		}
-		skip_to (SKIP_WITH_TERMINATE | 1,str1);
+		cmpn = (unsigned long)(*arg - '=');
+		*arg = 0;
 		arg = skip_to (SKIP_WITH_TERMINATE,str2);
-		ret = (substring(str1,str2,cmp_flag & 1) == 0);
+		if (safe_parse_maxint(&s1,&v1) && safe_parse_maxint(&str2,&v2))
+		{
+			ret = (int)(v1 - v2);
+		}
+		else
+		{
+			errnum = 0;
+			ret = strncmpx(str1,str2,0,cmp_flag & 1);
+		}
+		ret = (cmpn == 0)?ret == 0:((cmpn==-1)?ret<=0:ret>=0);
 	}
 
 	if (ret ^ (cmp_flag >> 2))
