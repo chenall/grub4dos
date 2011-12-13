@@ -5056,7 +5056,7 @@ static struct builtin builtin_fallback =
 /* command */
 static char command_path[128]="(bd)/BOOT/GRUB/";
 static int command_path_len = 15;
-#define GRUB_MOD_ADDR 0x1200000
+#define GRUB_MOD_ADDR (SYSTEM_RESERVED_MEMORY - 0x100000)
 #define UTF8_BAT_SIGN 0x54414221BFBBEFULL
 #define BAT_SIGN 0x54414221UL
 struct exec_array
@@ -5092,7 +5092,7 @@ static int grub_mod_add (struct exec_array *mod)
       rd_size = (unsigned long long)mod->len;
       buf_drive = -1;
       grub_open("(rd)+1");
-      if ((mod_end + filemax) >= GRUB_MOD_ADDR + 0xF0000)
+      if ((mod_end + filemax) >= GRUB_MOD_ADDR + 0x100000)
       {
          grub_close();
          errnum = ERR_WONT_FIT;
