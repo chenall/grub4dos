@@ -1944,6 +1944,10 @@ setcursor (unsigned long on)
 		When s1 < s2, the return value < 0
 		When s1 = s2, the return value = 0
 		If s1 > s2, the return value >0
+	When n =0,
+	return 0 when s1 = s2;
+	return 1 s1 isn't a substring of S2
+	return -1 s1 is a substring of S2.
 */
 int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitive)
 {
