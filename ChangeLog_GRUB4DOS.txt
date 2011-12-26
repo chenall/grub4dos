@@ -1,4 +1,3 @@
-2011-12-24 (tinybit)Added preliminary interrupt mechanism.
 2011-12-05 Issue 53: add new command 'iftitle' for menu.(thanks @Steve6375).
 2011-11-17 (tinybit)supported utf8 and unicode char printing.
 2011-11-04 (tinybit)added new argument of max_width for putchar; various fixes.

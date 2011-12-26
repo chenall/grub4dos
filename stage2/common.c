@@ -54,9 +54,9 @@ unsigned long saved_mem_lower;
 #ifndef STAGE1_5
 /* This saves the maximum size of extended memory (in KB).  */
 unsigned long extended_memory;
-unsigned long init_free_mem_start;
 #endif
 #ifdef GRUB_UTIL
+unsigned long init_free_mem_start;
 int is64bit = 0;
 grub_error_t errnum = ERR_NONE;
 #endif

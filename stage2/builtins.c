@@ -5724,10 +5724,15 @@ find_func (char *arg, int flags)
   unsigned long ignore_cd = 0;
   unsigned long ignore_floppies = 0;
   unsigned long ignore_oem = 0;
-  char find_devices[8]="upnhcf";//find order:ud->pd->nd->hd->cd->fd
+  char find_devices[8]="pnuhcf";//find order:pd->nd->ud->hd->cd->fd
   //char *in_drives = NULL;	/* search in drive list */
 //  char root_found[16];
-  
+#ifdef FSYS_FB
+  if (saved_drive == FB_DRIVE && !(fb_status >> 8 & 0xff))
+  {
+	*(unsigned long *)&find_devices[3]=0x686366;
+  }
+#endif
 	for (;;)
 	{
 		if (grub_memcmp (arg, "--set-root=", 11) == 0)
@@ -5894,10 +5899,10 @@ find_func (char *arg, int flags)
 			case 'f':
 				#ifdef GRUB_UTIL
 				#define FIND_HD_DRIVES 8
-				#define FIND_FD_DRIVES 8
+				#define FIND_FD_DRIVES 4
 				#else
 				#define FIND_HD_DRIVES  (*((char *)0x475))
-				#define FIND_FD_DRIVES  (((*(char*)0x410) & 1)?((*(char*)0x410) >> 6) + 1 : 0)
+				#define FIND_FD_DRIVES  (((*(char*)0x410) & 1)?(((*(char*)0x410) >> 6) & 3 ) + 1 : 0)
 				#endif
 				FIND_DRIVES = (*devtype == 'h') ? 0x80 + FIND_HD_DRIVES : FIND_FD_DRIVES;
 				for (drive = (*devtype == 'h')?0x80:0; drive < FIND_DRIVES; drive++)
@@ -11790,7 +11795,7 @@ parttype_func (char *arg, int flags)
 	  {
 		new_type = PC_SLICE_TYPE (mbr, entry1);
 		if (debug > 0)
-			printf ("Partition type for (hd%d,%d) is 0x%X.\n", (current_drive & 0x7F), (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long)new_type);
+			printf ("Partition type for (hd%d,%d) is 0x%02X.\n", (current_drive & 0x7F), (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long)new_type);
 		return new_type;
 	  }
 
@@ -11803,7 +11808,7 @@ parttype_func (char *arg, int flags)
 	    break;	/* failure */
 
 	  if (debug > 0)
-		printf ("Partition type for (hd%d,%d) set to 0x%X successfully.\n", (current_drive & 0x7F), (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long)new_type);
+		printf ("Partition type for (hd%d,%d) set to 0x%02X successfully.\n", (current_drive & 0x7F), (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long)new_type);
 	  /* Succeed.  */
 	  errnum = 0;
 	  return 1;

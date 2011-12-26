@@ -117,7 +117,9 @@ read_from_preset_menu (char *buf, int max_len)
 #define MENU_BOX_B	(menu_border.menu_box_b?menu_border.menu_box_b:(current_term->max_lines - 6)) //current_term->max_lines - 7
 
 static long temp_entryno;
+static short temp_num;
 static char * *titles;	/* title array, point to 256 strings. */
+static unsigned short *title_boot;
 static int default_help_message_destoyed = 1;
 /*
 	unsigned char disp_ul;
@@ -172,7 +174,7 @@ print_default_help_message (char *config_entries)
 
 
 // ADDED By STEVE6375
-static int num_entries;
+static unsigned int num_entries;
 static char *
 get_entry (char *list, int num)
 {
@@ -283,7 +285,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 			if (!(c & menu_num_ctrl[0]) || !*entry || *entry == '\n')
 				printf("   ");
 			else
-				printf("%2d%c",entryno,menu_num_ctrl[1]);
+				printf("%2d%c",(menu_num_ctrl[0] > 1)?entryno:title_boot[entryno],menu_num_ctrl[1]);
 		}
 		#endif
 	}
@@ -990,17 +992,15 @@ restart:
 	    }
 	  else if ( ((char)c) >= '0' && ((char)c) <= '9')
 	    {
-	      temp_entryno *= 10;
-	      temp_entryno += ((char)c) - '0';
+	      temp_num *= 10;
+	      temp_num += ((char)c) - '0';
 //	      if (temp_entryno >= num_entries)
 //		  temp_entryno = num_entries - 1;
-	      if (temp_entryno >= num_entries)	/* too big an entryno */
+	      if (temp_num >= num_entries)	/* too big an entryno */
 	      {
-		     if ((char)c - '0' >= num_entries)
-		     temp_entryno = 0;
-	        else
-		     temp_entryno = (char)c - '0';
+		     temp_num = ((char)c - '0'>= num_entries)?0:(char)c - '0';
 	      }
+	      temp_entryno = temp_num;
 	      if (temp_entryno != 0 || (char)c == '0')
 	      {
 	      
@@ -1009,18 +1009,35 @@ restart:
 // temp_entryno has users number - check if it matches a title number
 // If menu items are numbered then there must be no unnumbered items in the first few entries
 // e.g. if you have 35 menu items, then menu entries 0 - 3 must all numbered - otherwise double-digit user entry will not work - e.g. 34 will not work
-  int j;
-  for (j = 0; j < num_entries; ++j)
-  {
- //  grub_printf("TE%d C%dC A%dATE%s ",temp_entryno,checkvalue (get_entry (menu_entries,j) ),myatoi (get_entry (menu_entries,j)),get_entry(menu_entries,j));
-    clean_entry (get_entry (menu_entries, j));
-    if (checkvalue () > 0 && myatoi () == temp_entryno)
-    {
-	temp_entryno = j;
-	j = num_entries;
-    }
-  }
-
+			int j;
+			#ifndef GRUB_UTIL
+			if (menu_num_ctrl[0])
+			{
+				if (menu_num_ctrl[0] == 1)
+				{
+					j = temp_num;
+					while(title_boot[j+1]<=temp_num)
+					{
+						++j;
+					}
+					if (title_boot[j] == temp_num)
+						temp_entryno = j;
+				}
+			}
+			else
+			#endif
+			{
+				for (j = 0; j < num_entries; ++j)
+				{
+				//  grub_printf("TE%d C%dC A%dATE%s ",temp_entryno,checkvalue (get_entry (menu_entries,j) ),myatoi (get_entry (menu_entries,j)),get_entry(menu_entries,j));
+				 clean_entry (get_entry (menu_entries, j));
+				 if (checkvalue () > 0 && myatoi () == temp_entryno)
+				 {
+				temp_entryno = j;
+				j = num_entries;
+				 }
+				}
+			}
 
 check_update:
 		  if (temp_entryno != first_entry + entryno)
@@ -1044,7 +1061,7 @@ check_update:
 		      }
 		  }
 	      }
-	      if (temp_entryno * 10 >= num_entries)
+	      if (temp_entryno >= num_entries)
 		  temp_entryno = 0;
 	    }
 	  else if (c == KEY_HOME/*1*/)
@@ -2052,9 +2069,9 @@ cmain (void)
 #ifndef GRUB_UTIL
     debug = debug_boot + 1;
 #endif /* ! GRUB_UTIL */
-  
     titles = (char * *)init_free_mem_start;
-    config_entries = ((char *) init_free_mem_start) + 256 * sizeof (char *);
+    title_boot = ((char *) init_free_mem_start) + 256 * sizeof (char *);
+    config_entries = title_boot + 512;
     /* Never return.  */
 restart:
     reset ();
@@ -2126,7 +2143,7 @@ restart_config:
 	   STATE 1: In a title command.
 	   STATE 2: In a entry after a title command.  
 	*/
-	int state = 0, prev_config_len = 0;
+	int state = 0, prev_config_len = 0,bt=0;
 	char *cmdline;
 	int is_preset;
 	#ifndef GRUB_UTIL
@@ -2246,6 +2263,7 @@ restart_config:
 		    /* The next title is found.  */
 		    if (num_entries >= 256)
 			break;
+			bt += (config_entries[attr] & 1);
 		    num_entries++;	/* an entry is completed. */
 		    config_entries[config_len++] = 0;	/* finish the entry. */
 		    prev_config_len = config_len;
@@ -2274,8 +2292,12 @@ restart_config:
 			ptr++;
 		    attr = config_len;
 		    if (num_entries < 256)
-			titles[num_entries] = config_entries + config_len;
+			{
+				titles[num_entries] = config_entries + config_len;
+				title_boot[num_entries] = bt;
+			}
 		    config_entries[config_len++] = 0x08;	/* attribute byte */
+		    
 		    len = parse_string (ptr);
 		    ptr[len] = 0;
 		    while ((config_entries[config_len++] = *(ptr++)) != 0);
@@ -2332,9 +2354,10 @@ restart_config:
 
 	/* Finish the last entry or the menu init commands.  */
 	config_entries[config_len++] = 0;
+	title_boot[num_entries] = -1;
 	if (num_entries < 256)
 		titles[num_entries] = 0;
-	  
+	
 	/* old MENU_BUF is not used any more. So MENU_BUF is a temp area,
 	 * and can be moved to elsewhere. */
 

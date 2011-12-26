@@ -352,6 +352,10 @@ real_codestart:
 	movl	(0x21ae), %eax
 	movb	(0x21ad), %al
 	movl	%eax, ABS(EXT_C(fb_status))
+	cmpb	$0,%ah
+	jnz	1f
+	orw	$0x1,0x0410
+	
 //	movb	$(FB_DRIVE),%dl
 1:
 	movb	0x0410, %al
@@ -698,69 +702,7 @@ bootup_a20_failure:
 	/* clean out */
 	rep stosl
 
-#ifndef STAGE1_5
-	/* initialize IDT */
-
-	movl	$0x300000, %edi
-	movl	$0x100, %ecx
-	xorl	%ebx, %ebx
-2:
-	movl	$ABS(default_iret), %eax
-	cmpb	$0xFE, %cl		// int 0x02 nmi
-	jne	3f
-	movl	$ABS(int2_nmi), %eax
-	jmp	5f
-3:
-	cmpb	$0xF8, %cl
-	jg	5f			// int 0x00 - 0x07
-	cmpb	$0xF1, %cl
-	jl	3f			// int 0x10 - 0xFF
-	cmpb	$8, %bl
-	jne	4f
-	movl	$ABS(irq_0), %eax	// int 0x08
-	jmp	5f
-4:
-	movl	$(irq_2 - irq_1), %eax	// int 0x09 - 0x0F
-	subl	$0x09, %ebx
-	mull	%ebx
-	addl	$0x09, %ebx
-	addl	$ABS(irq_1), %eax
-	jmp	5f
-3:
-	cmpb	$0x90, %cl
-	jg	5f			// int 0x10 - 0x6F
-	cmpb	$0x88, %cl
-	jl	3f			// int 0x78 - 0xFF
-	movl	$(irq_9 - irq_8), %eax	// int 0x70 - 0x77
-	subl	$0x70, %ebx
-	mull	%ebx
-	addl	$0x70, %ebx
-	addl	$ABS(irq_8), %eax
-	//jmp	5f
-3:
-5:
-	stosw
-	shrl	$16, %eax
-	movl	$(0x8E000000 + 40), %edx
-	xchgl	%eax, %edx
-	stosl
-	xchgl	%eax, %edx
-	stosw
-	incl	%ebx
-	loop	2b
-#endif /* !STAGE1_5 */
-
 1:
-	call	EXT_C(prot_to_real)
-	
-	.code16
-
-	call	EXT_C(real_to_prot)
-
-	.code32
-
-	sti
-
 	/*
 	 *  Call the start of main body of C code, which does some
 	 *  of it's own initialization before transferring to "cmain".
@@ -796,8 +738,6 @@ hard_stop:
 	hlt
 	//jmp EXT_C(hard_stop)
 	jmp hard_stop
-
-	.code32
 
 VARIABLE(force_cdrom_as_boot_device)
 	.long	1
@@ -906,8 +846,6 @@ ENTRY(pxe_scan)
 
 	call EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	/* EAX=0 */
 	testl	%ecx, %ecx
@@ -1036,8 +974,6 @@ ENTRY(pxe_call)
 	call EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movzwl	%cx, %eax
 
 	popl	%ebx
@@ -1155,8 +1091,6 @@ ENTRY(pxe_fast_read)
 	call EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movzwl	%cx, %eax
 
 	popl	%ebx
@@ -1189,8 +1123,6 @@ ENTRY(stop_floppy)
 #endif
 	call EXT_C(real_to_prot)
 	.code32
-	sti
-
 	popal
 	ret
 
@@ -1238,7 +1170,6 @@ ENTRY(grub_reboot)
 ENTRY(grub_halt)
 	.code32
 	
-	cli
 	pushl	%ebp
 	movl	%esp, %ebp
 	movl	8(%ebp), %eax		/* get the argument: skip_flags */
@@ -1579,8 +1510,6 @@ try_apm:
 	call	EXT_C(real_to_prot)
 
 	.code32
-	sti
-
 	ret			/* APM code end */
 
 	/* end of halt code */
@@ -1628,8 +1557,6 @@ ENTRY(tpm_init)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	movzbl	%dl, %eax
 
@@ -7555,8 +7482,6 @@ ENTRY(init_atapi)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movzwl	%bx, %eax
 
 	popl	%ebx
@@ -8097,8 +8022,6 @@ protcseg:
 #;	movl	STACKOFF, %eax
 #;	movl	%eax, (%esp)
 
-	lidt	pmode_idtdesc
-
 	/* zero %eax */
 	xorl	%eax, %eax
 
@@ -8110,8 +8033,6 @@ protcseg:
 ENTRY(prot_to_real)
 
 	.code32
-
-	cli
 
 	/* just in case, set GDT */
 	lgdt	gdtdesc
@@ -8168,7 +8089,6 @@ realcseg:
 	/* restore interrupts */
 	/* oh, don't enable interrupt when we are controlling gateA20 */
 	//sti
-	lidt	realmode_idtdesc
 
 	/* return on new stack! */
 	DATA32	ret		/* 32-bit RET!! */
@@ -8535,8 +8455,6 @@ ENTRY(biosdisk_int13_extensions)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movzbl	%dl, %eax	/* return value in %eax */
 
 	popl	%edi
@@ -8667,8 +8585,6 @@ ENTRY(biosdisk_standard)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movzbl	%bl, %eax	/* return value in %eax */
 
 	popl	%edi
@@ -8751,8 +8667,6 @@ ENTRY(check_int13_extensions)
 	/* back to protected mode */
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	xchgl	%eax, %ebx	/* return value in %eax */
 
@@ -8839,8 +8753,6 @@ ENTRY(get_diskinfo_standard)
 	call	EXT_C(real_to_prot)
 
 	.code32
-
-	sti
 
 	testb	%bl, %bl	/* check failure */
 	jnz	1f		/* failure */
@@ -9941,8 +9853,6 @@ ENTRY(get_memsize)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movw	%bx, %ax
 	popl	%edi
 	popl	%esi
@@ -10019,8 +9929,6 @@ ENTRY(get_eisamemsize)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	movl	%ebx, %eax
 
@@ -10114,8 +10022,6 @@ ENTRY(get_mmap_entry)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	popl	%eax		/* OLD ECX */
 
 	/* write length of buffer (zero if error) into "addr" */
@@ -10180,8 +10086,6 @@ found_rom_table:
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	/* compute the linear address */
 	xorl	%eax, %eax
 	movw	%dx, %ax
@@ -10243,8 +10147,6 @@ ENTRY(get_vbe_controller_info)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movzwl	%bx, %eax
 
 	popl	%edi
@@ -10295,8 +10197,6 @@ ENTRY(get_vbe_mode_info)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movzwl	%bx, %eax
 
 	popl	%edi
@@ -10341,8 +10241,6 @@ ENTRY(set_vbe_mode)
 	movw	%ax, %bx
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	movzwl	%bx, %eax
 
@@ -10421,8 +10319,6 @@ gfx_init_50_v1:
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	popl	%ebp
 
 	movl	%ebx,%eax
@@ -10479,8 +10375,6 @@ ENTRY(gfx_done_v1)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	popl	%ebp
 
@@ -10548,8 +10442,6 @@ ENTRY(gfx_input_v1)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	popl	%ebp
 
@@ -10647,8 +10539,6 @@ ENTRY(gfx_setup_menu_v1)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	xorl	%eax,%eax
 
 	popl	%edi
@@ -10703,8 +10593,6 @@ ENTRY(gfx_init_v2)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	popl	%ebp
 
@@ -10761,8 +10649,6 @@ ENTRY(gfx_done_v2)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	popl	%ebp
 
@@ -10829,8 +10715,6 @@ ENTRY(gfx_input_v2)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	popl	%ebp
 
@@ -10927,8 +10811,6 @@ ENTRY(gfx_setup_menu_v2)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	xorl	%eax,%eax
 
@@ -11058,8 +10940,6 @@ ENTRY(gateA20)
 
 	.code32
 
-	sti
-
 	movzbl	%dl, %eax
 
 1:
@@ -11073,6 +10953,7 @@ chain_stage1_esp:
 /*
  * long realmode_run(long regs_ptr)
  *
+ *  This starts another stage1 loader, at segment_offset.
  */
 
 ENTRY(realmode_run)
@@ -11295,8 +11176,6 @@ ENTRY(realmode_run)
 
 	.code32
 
-	sti
-
 	cld
 	movl	%ebp, %esi
 
@@ -11352,32 +11231,6 @@ ENTRY(realmode_run)
 	ret
 
 
-realmode_int:
-
-	.code32
-
-	pushl	%eax
-
-	call	EXT_C(prot_to_real)
-
-	.code16
-
-	sti
-
-	.byte	0xCD			/* opcode for "INT xx" */
-VARIABLE(interrupt_number)
-	.byte	0			/* interrupt number */
-
-	call	EXT_C(real_to_prot)
-
-	.code32
-
-	sti
-
-	popl	%eax
-
-	iret
-
 /*
  * linux_boot()
  *
@@ -11401,13 +11254,8 @@ ENTRY(linux_boot)
 
 	.code32
 
-	cli
-
 	/* don't worry about saving anything, we're committed at this point */
 	cld	/* forward copying */
-
-	///* realmode_idtdesc is at memory address below 0x10000 */
-	//lidt	realmode_idtdesc
 
 	/* copy kernel */
 	movl	EXT_C(linux_text_len), %ecx
@@ -11424,11 +11272,7 @@ ENTRY(big_linux_boot)
 
 	.code32
 
-	cli
 	cld
-
-	///* realmode_idtdesc is at memory address below 0x10000 */
-	//lidt	realmode_idtdesc
 
 	/* copy kernel */
 	movl	EXT_C(linux_text_len), %ecx
@@ -11517,8 +11361,6 @@ ENTRY(toggle_blinking)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	popl	%edi
 	popl	%esi
@@ -11699,8 +11541,6 @@ ENTRY(console_putchar)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	/* EAX = 0 */
 
 #ifndef STAGE1_5
@@ -11794,8 +11634,6 @@ ENTRY(console_getkey)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movw	%dx, %ax
 
 	popl	%edi
@@ -11861,8 +11699,6 @@ pending:
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	mov	%edx, %eax
 
 	popl	%edi
@@ -11905,8 +11741,6 @@ ENTRY(console_getxy)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	//movb	%dl, %ah
 	//movb	%dh, %al
@@ -11957,8 +11791,6 @@ ENTRY(console_gotoxy)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	popl	%edi
 	popl	%esi
@@ -12032,8 +11864,6 @@ ENTRY(console_cls)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	/* EAX = 0 */
 	movl	%eax, EXT_C(fontx)
 	movl	%eax, EXT_C(fonty)
@@ -12085,8 +11915,6 @@ ENTRY(console_setcursor)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movw	%cx, console_cursor_shape
 1:
 	/* set %cx to the designated cursor shape */
@@ -12107,8 +11935,6 @@ ENTRY(console_setcursor)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	//movb	cursor_state, %al
 	//movb	%bl, cursor_state
@@ -12177,8 +12003,6 @@ ENTRY(set_videomode)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	//xorb	%ah, %ah
 	//movb	%ch, %al
 	movb	0x449, %al
@@ -12218,8 +12042,6 @@ ENTRY(graphics_get_font)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	xorl	%eax, %eax
 	movw	%cx, %ax
@@ -12279,8 +12101,6 @@ ENTRY(bios_scroll_up)
 
 	call	EXT_C(real_to_prot)
 	.code32
-
-	sti
 
 	pop	%edi
 	pop	%esi
@@ -12398,8 +12218,6 @@ ENTRY(graphics_set_palette)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	pop	%edi
 	pop	%esi
 	pop	%ebx
@@ -12477,8 +12295,6 @@ gottime:
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movb	%dh, %al
 
 	pop	%ebp
@@ -12528,8 +12344,6 @@ ENTRY(get_datetime)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movl	%esp, %ebp
 	movl	8(%ebp), %eax
 	movl	%edx, (%eax)
@@ -12564,8 +12378,6 @@ ENTRY(currticks)
 	call	EXT_C(real_to_prot)
 	.code32
 
-	sti
-
 	movl	%ecx, %eax
 	shll	$16, %eax
 	movw	%dx, %ax
@@ -12583,8 +12395,6 @@ ENTRY(currticks)
 ENTRY(multi_boot)
 
 	.code32
-
-	cli
 
 	/* before moving kernel, move module list(mll) down to 0x20000. */
 
@@ -12710,11 +12520,6 @@ gdtdesc:
 	.long	gdt			/* addr */
 #endif
 
-pmode_idtdesc:
-	.word	0x7FF
-	.long	0x300000	/* at 3M */
-	.word	0	// pad
-
 
 /* this code will be moved to and get executed at HMA_ADDR=0x2B0000 */
 
@@ -12757,11 +12562,6 @@ gdtdescHMA:
 	/* 16-bit code segment base=0x2B0000 */
 	.word	0xFFFF, 0x0000
 	.byte	0x2B, 0x9E, 0, 0
-
-realmode_idtdesc:
-	.word	0x3FF
-	.long	0
-	.word	0	// pad
 
 1:
 	/* set up to pass boot drive */
@@ -12816,9 +12616,7 @@ realmode_idtdesc:
 1:
 
 	/* set new GDT */
-	cli
 	lgdt	(gdtdescHMA - EXT_C(HMA_start) + HMA_ADDR)
-	lidt	(realmode_idtdesc - EXT_C(HMA_start) + HMA_ADDR)
 
 	/* set up segment limits */
 	movw	$PSEUDO_RM_DSEG, %ax
@@ -13350,201 +13148,6 @@ ENTRY(get_code_end)
 	shll	$2, %eax
 	ret
 
-int2_nmi:
-
-	.code32
-
-	movb	$0x02, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-
-irq_8_to_15:	/* from the slave interrupt controller */
-
-	.code32
-
-	pushl	%eax
-	movb	$0x20, %al	// End Of Interrupt(EOI) command
-	outb	%al, $0xA0	// sent EOI to slave controller
-	outb	%al, $0x20	// sent EOI to master controller
-	popl	%eax
-	iret
-
-irq_0_to_7:	/* from the master interrupt controller */
-
-	.code32
-
-	pushl	%eax
-	movb	$0x20, %al	// End Of Interrupt(EOI) command
-	outb	%al, $0x20	// sent EOI to master controller
-	popl	%eax
-	iret
-
-irq_0:	/* int 0x08, timer interrupt, also the CPU double fault */
-
-	.code32
-
-	/* double fault has error code 0 on stack.
-	 * we never have the EIP = 0.
-	 * So check the stack and we can distinguish these two.
-	 */
-
-	cmpl	$0, (%esp)
-	jnz	1f
-	cmpl	$40, 8(%esp)	// it should be the CS if it is double fault
-	jnz	1f
-	/* CPU double fault */
-	addl	$4, %esp	// remove the error code
-	/* simply return for now */
-	iret
-1:
-	/* simulate the ROM real-mode routine */
-	sti
-	pushl	%eax
-	movb	0x440, %al	// Diskette Motor shutoff counter
-	testb	%al, %al
-	jz	1f		// motor already stopped
-	decb	%al
-	movb	%al, 0x440	// decrement the counter
-	jnz	1f		// motor is running, continue
-	/* time is out, stop the motor now */
-	pushl	%edx
-	movw	$0x3F2, %dx	// diskette controller digit-out register
-	inb	%dx, %al
-	andb	$0xCF, %al	// shut off drive 0 and 1
-	outb	%al, %dx
-	andb	$0xFC, 0x43F	// Diskette motor status
-				// set motor staus to be off for drive 0, 1
-	popl	%edx
-1:
-	movl	0x46C, %eax	// Daily timer counter, cleared at midnight
-	incl	%eax		// incremented
-	cmpl	$0x1800B0, %eax
-	jb	2f
-	xorl	%eax, %eax	// cleared
-	incb	0x470	//Clock rollover flag, set when 40:6C exceeds 24hrs
-2:
-	movl	%eax, 0x46C	// get incremented or cleared
-	//int	0x1C	// could do it in protected mode, but no need yet
-
-	cli
-	movb	$0x20, %al	// End Of Interrupt(EOI) command
-	outb	%al, $0x20	// sent EOI to master controller
-	sti
-
-	popl	%eax
-	iret
-
-irq_1:
-
-	.code32
-
-	movb	$9, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_2:
-
-	.code32
-
-	movb	$0x0A, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_3:
-
-	.code32
-
-	movb	$0x0B, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_4:
-
-	.code32
-
-	movb	$0x0C, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_5:
-
-	.code32
-
-	movb	$0x0D, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_6:
-
-	.code32
-
-	movb	$0x0E, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_7:
-
-	.code32
-
-	movb	$0x0F, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_8:
-
-	.code32
-
-	movb	$0x70, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_9:
-
-	.code32
-
-	movb	$0x71, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_10:
-
-	.code32
-
-	movb	$0x72, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_11:
-
-	.code32
-
-	movb	$0x73, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_12:
-
-	.code32
-
-	movb	$0x74, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_13:
-
-	.code32
-
-	movb	$0x75, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_14:
-
-	.code32
-
-	movb	$0x76, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-irq_15:
-
-	.code32
-
-	movb	$0x77, EXT_C(interrupt_number)
-	jmp	realmode_int
-
-default_iret:
-
-	.code32
-
-	iret
-
 
 #endif /* ! STAGE1_5 */
 
@@ -13637,7 +13240,7 @@ VARIABLE(grub_putchar)
 	.long	ABS(EXT_C(skip_to))
 	.long	ABS(EXT_C(builtin_cmd))
 	.long	ABS(EXT_C(get_datetime))
-	.long 0				//reserved
+	.long	ABS(EXT_C(find_command))
 	.long 0				//reserved
 	.long 0				//reserved
 	.long	ABS(EXT_C(get_mmap_entry))
@@ -13671,6 +13274,8 @@ VARIABLE(grub_putchar)
 	.long ABS(EXT_C(envi_cmd))
 	.long ABS(EXT_C(strncmpx))
 	.long ABS(EXT_C(rectangle))
+	.long ABS(EXT_C(get_cmdline))
+
 /*
  * The C code for a grub4dos executable may have defines as follows:
  *
@@ -13769,6 +13374,8 @@ VARIABLE(p_get_cmdline_str)
 VARIABLE(splashimage_loaded)
 	.long 0	
 VARIABLE(putchar_hooked)
+	.long 0
+VARIABLE(init_free_mem_start)
 	.long 0
 #endif /* ! STAGE1_5 */
 

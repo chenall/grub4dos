@@ -5,13 +5,14 @@ timeout 1
 
 title find /menu.lst, /boot/grub/menu.lst, /grub/menu.lst
 	errorcheck off
-	configfile /menu.lst || configfile /MENU.LST
-	configfile /boot/grub/menu.lst || configfile /BOOT/GRUB/MENU.LST
-	configfile /grub/menu.lst || configfile /GRUB/MENU.LST
+	configfile /menu.lst
+	configfile /boot/grub/menu.lst
+	configfile /grub/menu.lst
+	if "%@root%"=="(ud)" && calc *0x82A0=*0x82b9&0xff
+	if "%@root:~1,1%"=="f" && find --set-root --devices=f /menu.lst && configfile /menu.lst
 	find --set-root --ignore-floppies --ignore-cd /menu.lst && configfile /menu.lst
 	find --set-root --ignore-floppies --ignore-cd /boot/grub/menu.lst && configfile /boot/grub/menu.lst
 	find --set-root --ignore-floppies --ignore-cd /grub/menu.lst && configfile /grub/menu.lst
-	if "%@root:~1,2%"=="fd" find --set-root --ignore-cd /menu.lst && configfile /menu.lst
 	errorcheck on
 	commandline
 
