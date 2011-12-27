@@ -1958,12 +1958,12 @@ int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitiv
 		if (!x)
 			--n;
 		else if (!*s1)
-			return *s2?-1:0;
+			return c;
 		if (c)
 		{
 			if (!case_insensitive || ((c-0x20) && (c+0x20)) || (unsigned char)((*s1 | 0x20) - 'a') >= 26)
 			{
-				return x?1:c;
+				return c;
 			}
 		}
 		++s1,++s2;
