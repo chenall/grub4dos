@@ -351,8 +351,13 @@ grub_sprintf (char *buffer, const char *format, ...)
 			break;
 		case 's':
 			ptr = (unsigned char *)(unsigned int) (*(dataptr++));
-			length = grub_strlen((char *)ptr);
-			width -= (length > accuracy)?accuracy:length;
+			if (ptr)
+			{
+				length = grub_strlen((char *)ptr);
+				width -= (length > accuracy)?accuracy:length;
+			}
+			else
+				accuracy = 0;
 			break;
 		case 'd': case 'x':	case 'X':  case 'u':
 			{
@@ -370,10 +375,9 @@ grub_sprintf (char *buffer, const char *format, ...)
 			format = (char *)ptr;
 			goto next_c;
 	}
-
 	if (align == 0 && width > 0)
 	{
-		while(width--)
+		for(;width;--width)
 		{
 			if (buffer)
 				*bp = pad; /* putchar(pad); */
@@ -382,17 +386,29 @@ grub_sprintf (char *buffer, const char *format, ...)
 			++bp;
 		}
 	}
-	while (*ptr && accuracy--)
+	while (*ptr && accuracy)
 	{
 		if (buffer)
+		{
 			*bp = *ptr;
+			--accuracy;
+		}
 		else
-			grub_putchar (*ptr, 255);
+		{
+			int pn = grub_putchar (*ptr, accuracy);
+			if (pn < 0)
+			{
+				--accuracy;
+				bp -= (unsigned char)(pn>>8);
+			}
+			else
+				accuracy -= (unsigned char)pn;
+		}
 		++bp,++ptr;
 	}
 	if (align && width > 0)
 	{
-		while(width--)
+		for(;width;--width)
 		{
 			if (buffer)
 				*bp = pad; /* putchar(pad); */

@@ -264,6 +264,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   int x;
   unsigned char c = 0;
   char *entry = get_entry (config_entries, entryno);
+  char *p;
   if (current_term->setcolorstate)
     current_term->setcolorstate (highlight ? COLOR_STATE_HIGHLIGHT : COLOR_STATE_NORMAL);
   
@@ -271,7 +272,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 
   gotoxy (MENU_BOX_X - 1, y);
   grub_putchar(highlight ? 0x10 : ' ', 255);
-
+  x = MENU_BOX_W;
   if (entry)
   {
 	if (config_entries == (char*)titles)
@@ -286,39 +287,17 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 				printf("   ");
 			else
 				printf("%2d%c",(menu_num_ctrl[0] > 1)?entryno:title_boot[entryno],menu_num_ctrl[1]);
+			x -= 3;
 		}
 		#endif
 	}
 	c = *entry;
   }
-
-  for (x = MENU_BOX_X; x < MENU_BOX_E; x = fontx)
-    {
-      unsigned int ret;
-
-      ret = MENU_BOX_E - x;
-      if (c && c != '\n' /* && x <= MENU_BOX_W*/)
-	{
-		
-		ret = grub_putchar ((unsigned char)c, ret);
-		//is_highlight = 0;
-		if ((long)ret < 0)
-		{
-			c = 0;
-			continue;
-		}
-		c = *(++entry);
-	}
-      else
-	{
-		//ret = grub_putchar (' ', ret);
-		//if ((long)ret < 0)
-		//	break;
-		grub_putchar (' ', ret);
-	}
-    }
-
-  is_highlight = 0;
+	p = grub_strstr(entry,"\n");
+	if (p)
+		*p = 0;
+	grub_printf("%-*.*s",x,x,entry);
+	is_highlight = 0;
 
   if (highlight && ((config_entries == (char*)titles)))
   {
@@ -326,12 +305,11 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 
 	if (current_term->setcolorstate)
 	    current_term->setcolorstate (COLOR_STATE_HELPTEXT);
-	
-	while (c && c != '\n')
-		c = *(++entry);
 
-	if (c == '\n')
+	if (p)
 	{
+		entry = p;
+		c = '\n';
 		default_help_message_destoyed = 1;
 		//c = *(++entry);
 		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
@@ -341,12 +319,10 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 			gotoxy (0, j);
 			for (x = 0; x < MENU_BOX_X - 2; x++)
 				grub_putchar (' ', 255);
-			for (; fontx <= MENU_BOX_W + 2;)
+			for(;fontx <= MENU_BOX_E;)
 			{
 				if (c && c != '\n')
 				{
-					if (c == '\r')
-						x = 0;
 					grub_putchar (c, 255);
 					c = *(++entry);
 				}
