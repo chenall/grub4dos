@@ -119,6 +119,9 @@ read_from_preset_menu (char *buf, int max_len)
 static long temp_entryno;
 static short temp_num;
 static char * *titles;	/* title array, point to 256 strings. */
+#ifndef GRUB_UTIL
+extern int (*hotkey_func)(char *titles,int flags);
+#endif
 static unsigned short *title_boot;
 static int default_help_message_destoyed = 1;
 /*
@@ -264,7 +267,6 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   int x;
   unsigned char c = 0;
   char *entry = get_entry (config_entries, entryno);
-  char *p;
   if (current_term->setcolorstate)
     current_term->setcolorstate (highlight ? COLOR_STATE_HIGHLIGHT : COLOR_STATE_NORMAL);
   
@@ -272,7 +274,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 
   gotoxy (MENU_BOX_X - 1, y);
   grub_putchar(highlight ? 0x10 : ' ', 255);
-  x = MENU_BOX_W;
+
   if (entry)
   {
 	if (config_entries == (char*)titles)
@@ -287,17 +289,39 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 				printf("   ");
 			else
 				printf("%2d%c",(menu_num_ctrl[0] > 1)?entryno:title_boot[entryno],menu_num_ctrl[1]);
-			x -= 3;
 		}
 		#endif
 	}
 	c = *entry;
   }
-	p = grub_strstr(entry,"\n");
-	if (p)
-		*p = 0;
-	grub_printf("%-*.*s",x,x,entry);
-	is_highlight = 0;
+
+  for (x = MENU_BOX_X; x < MENU_BOX_E; x = fontx)
+    {
+      unsigned int ret;
+
+      ret = MENU_BOX_E - x;
+      if (c && c != '\n' /* && x <= MENU_BOX_W*/)
+	{
+		
+		ret = grub_putchar ((unsigned char)c, ret);
+		//is_highlight = 0;
+		if ((long)ret < 0)
+		{
+			c = 0;
+			continue;
+		}
+		c = *(++entry);
+	}
+      else
+	{
+		//ret = grub_putchar (' ', ret);
+		//if ((long)ret < 0)
+		//	break;
+		grub_putchar (' ', ret);
+	}
+    }
+
+  is_highlight = 0;
 
   if (highlight && ((config_entries == (char*)titles)))
   {
@@ -305,11 +329,12 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 
 	if (current_term->setcolorstate)
 	    current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+	
+	while (c && c != '\n')
+		c = *(++entry);
 
-	if (p)
+	if (c == '\n')
 	{
-		entry = p;
-		c = '\n';
 		default_help_message_destoyed = 1;
 		//c = *(++entry);
 		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
@@ -319,7 +344,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 			gotoxy (0, j);
 			for (x = 0; x < MENU_BOX_X - 2; x++)
 				grub_putchar (' ', 255);
-			for(;fontx <= MENU_BOX_E;)
+			for (; fontx <= MENU_BOX_W + 2;)
 			{
 				if (c && c != '\n')
 				{
@@ -329,7 +354,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 				else
 					grub_putchar (' ', 255);
 			}
-			for (x = fontx/*(unsigned int)(unsigned char)getxy()*/; x < current_term->chars_per_line/* - 1*/; x++)
+			for (x = fontx; x < current_term->chars_per_line/* - 1*/; x++)
 				grub_putchar (' ', 255);
 		}
 		//gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
@@ -341,7 +366,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
 		{
 			gotoxy (0, j);
-			for (x = 0; x < current_term->chars_per_line/* - 1*/; x++)
+			for (x = 0; x < current_term->chars_per_line; x++)
 				grub_putchar (' ', 255);
 		}
 		gotoxy (0, MENU_BOX_B + 1);
@@ -545,7 +570,6 @@ static int fallbacked_entries;
 static int old_c;
 static int old_c_count;
 static int old_c_count_end;
-
 static void
 run_menu (char *menu_entries, char *config_entries, int num_entries, char *heap, int entryno)
 {
@@ -800,8 +824,25 @@ restart:
 	     hang in GETKEY */
 	  if (current_term->flags & TERM_DUMB)
 	    grub_printf ("\r    Highlighted entry is %d: ", entryno);
-
-	  c = /*ASCII_CHAR*/ (getkey ());
+	  #ifndef GRUB_UTIL
+	  if (config_entries && hotkey_func)
+	  {
+			putchar_hooked = (unsigned char*)0x800;
+			c = hotkey_func(0,-1);
+			putchar_hooked = 0;
+			if (c>>16)
+			{
+				temp_entryno = (long)(unsigned char)(c>>16);
+				if (c & 1<<30)
+					goto check_update;
+				entryno = temp_entryno;
+				first_entry = 0;
+				goto boot_entry;
+			}
+	  }
+	  else
+	  #endif
+		c = /*ASCII_CHAR*/ (getkey ());
 
 	  if (! old_c_count_end)
 	  {
@@ -1050,7 +1091,7 @@ check_update:
 	      temp_entryno = num_entries - 1;
 	      goto check_update;
 	    }
-	  else
+		else
 	      temp_entryno = 0;
 
 done_key_handling:
@@ -2032,7 +2073,6 @@ reset (void)
   
 extern struct builtin builtin_title;
 static unsigned long attr = 0;
-
 /* This is the starting function in C.  */
 void
 cmain (void)
@@ -2045,9 +2085,9 @@ cmain (void)
 #ifndef GRUB_UTIL
     debug = debug_boot + 1;
 #endif /* ! GRUB_UTIL */
-    titles = (char * *)init_free_mem_start;
-    title_boot = ((char *) init_free_mem_start) + 256 * sizeof (char *);
-    config_entries = title_boot + 512;
+    title_boot = (unsigned short *) init_free_mem_start;
+    titles = (char * *)(init_free_mem_start + 1024);
+    config_entries = (char*)init_free_mem_start + 1024 + 256 * sizeof (char *);
     /* Never return.  */
 restart:
     reset ();
@@ -2357,7 +2397,6 @@ restart_config:
 	    //saved_partition = install_partition;
 	    current_drive = GRUB_INVALID_DRIVE;
 	    count_lines = -1;
-  
 	    kernel_type = KERNEL_TYPE_NONE;
 	    errnum = 0;
 
@@ -2555,6 +2594,10 @@ done_config_file:
 //#endif
 	/* Run menu interface.  */
 	/* cur_entry point to the first menu item command. */
+	#ifndef GRUB_UTIL
+	if (hotkey_func)
+		hotkey_func(0,0);
+	#endif
 	run_menu ((char *)titles, cur_entry, num_entries, config_entries + config_len, default_entry);
     }
     goto restart;

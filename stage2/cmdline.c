@@ -388,9 +388,8 @@ int run_line (char *heap,int flags)
 void
 enter_cmdline (char *heap, int forever)
 {
-  if (! debug)
-      debug++;
-
+  int debug_old = debug;
+  debug = 1;
   //grub_setjmp (restart_cmdline_env);
 
   /* show cursor and disable splashimage. */
@@ -433,6 +432,7 @@ enter_cmdline (char *heap, int forever)
       if (get_cmdline ())
 	{
 	  kernel_type = KERNEL_TYPE_NONE;
+	  debug = debug_old;
 	  return;
 	}
 

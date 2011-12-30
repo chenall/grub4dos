@@ -16466,14 +16466,14 @@ static int call_func(char *arg,int flags)
 	}
 	if (*(short *)arg == 0x6E46)
 	{
-		int func;
+		unsigned int func;
 		unsigned long long ull;
 		int i;
 		char *ch[10]={0};
 		arg += 3;
 		if (! read_val(&arg,&ull))
 			return 0;
-		func=(int)ull;
+		func=(unsigned int)ull;
 		arg[parse_string(arg)] = 0;
 		for (i=0;i<10;++i)
 		{
@@ -16491,7 +16491,9 @@ static int call_func(char *arg,int flags)
 			}
 		}
 		errnum = 0;
-		return ((int (*)(char *, const char *, ...))((*(int **)0x8300)[func]))(ch[0],ch[1],ch[2],ch[3],ch[4],ch[5],ch[6],ch[7],ch[8],ch[9]);
+		if (func<0xFF)
+			func = (*(int **)0x8300)[func];
+		return ((int (*)())func)(ch[0],ch[1],ch[2],ch[3],ch[4],ch[5],ch[6],ch[7],ch[8],ch[9]);
 	}
 	else
 		return run_line(arg,flags);

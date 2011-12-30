@@ -375,9 +375,9 @@ grub_sprintf (char *buffer, const char *format, ...)
 			format = (char *)ptr;
 			goto next_c;
 	}
-	if (align == 0 && width > 0)
+	if (align == 0)
 	{
-		for(;width;--width)
+		for(;width>0;--width)
 		{
 			if (buffer)
 				*bp = pad; /* putchar(pad); */
@@ -389,26 +389,15 @@ grub_sprintf (char *buffer, const char *format, ...)
 	while (*ptr && accuracy)
 	{
 		if (buffer)
-		{
 			*bp = *ptr;
-			--accuracy;
-		}
 		else
-		{
-			int pn = grub_putchar (*ptr, accuracy);
-			if (pn < 0)
-			{
-				--accuracy;
-				bp -= (unsigned char)(pn>>8);
-			}
-			else
-				accuracy -= (unsigned char)pn;
-		}
+			grub_putchar (*ptr, accuracy);
 		++bp,++ptr;
+		--accuracy;
 	}
-	if (align && width > 0)
+	if (align)
 	{
-		for(;width;--width)
+		for(;width>0;--width)
 		{
 			if (buffer)
 				*bp = pad; /* putchar(pad); */
@@ -601,14 +590,8 @@ init_page (void)
 		(unsigned long)saved_mem_lower,
 		(unsigned long)(saved_mem_upper >> 10),
 		(unsigned long long)(saved_mem_higher >> 10),
-		(unsigned int)(((char *) init_free_mem_start) + 256 * sizeof (char *) + config_len));
-  for (i = 0; i < current_term->chars_per_line/* - 1*/; i++)
-  {
-	if (ch)
-		ch = tmp_buf[i];
-	grub_putchar ((unsigned char)(ch ? ch : ' '), 255);
-  }
-
+		(unsigned int)(((char *) init_free_mem_start) + 1024 + 256 * sizeof (char *) + config_len));
+	grub_printf("%-*.*s",current_term->chars_per_line,current_term->chars_per_line,tmp_buf);
   if (current_term->setcolorstate)
       current_term->setcolorstate (COLOR_STATE_STANDARD);
 }
@@ -1839,10 +1822,13 @@ _putchar (unsigned int c, unsigned int max_width)
   if (c == '\t'/* && current_term->getxy*/)
     {
       c = 8 - (fontx/*(current_term->getxy ())*/ & 7);
-      while (c--)
-	//grub_putchar (' ');	/* recursive, bad!! */
-	current_term->putchar (' ', max_width);
-      return 1;
+      if (max_width>c)
+			max_width = c;
+		else
+			c = max_width;
+      for (;c;--c)
+		  current_term->putchar (' ', 1);
+      return max_width;
     }
 
   if (c == '\n')
@@ -1977,7 +1963,7 @@ int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitiv
 			return c;
 		if (c)
 		{
-			if (!case_insensitive || ((c-0x20) && (c+0x20)) || (unsigned char)((*s1 | 0x20) - 'a') >= 26)
+			if (!case_insensitive || (unsigned char)((*s1 | 0x20) - 'a') >= 26 || (*s1|0x20) - (*s2|0x20))
 			{
 				return c;
 			}

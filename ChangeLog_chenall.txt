@@ -1,4 +1,11 @@
-﻿2011-12-13 
+﻿2011-12-30
+	1.添加菜单热键功能接口，可以通过外部命令来增加热键功能
+	  Add menu hotkey function interface。
+
+2011-12-26
+	1.改善菜单自动编号。improve autonumber. 
+
+2011-12-13 
 	1.修正grub_sprintf函数%d不能正确显示负数的bug.
 
 2011-12-12  command 'if' added '>=' and '<=', and able to perform numeric comparison.

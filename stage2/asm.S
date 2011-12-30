@@ -155,10 +155,13 @@ VARIABLE(menu_num_ctrl)
 	.long 0x2000
 	#include "grub4dos_int_ver.h"
 	#ifdef GRUB4DOS_INT_VER
-	. = EXT_C(main) + 0x78
 	.long GRUB4DOS_INT_VER
-	#undef GRUB4DOS_INT_VER
+	#else
+	.long 0
 	#endif
+	#undef GRUB4DOS_INT_VER
+VARIABLE(hotkey_func)
+	.long 0
 	. = EXT_C(main) + 0x80
 
 VARIABLE(boot_drive)
