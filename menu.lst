@@ -1,0 +1,132 @@
+# This is a sample menu.lst file. You should make some changes to it.
+# The old install method of booting via the stage-files has been removed.
+# Please install GRLDR boot strap code to MBR with the bootlace.com
+# utility under DOS/Win9x or Linux.
+
+color blue/green yellow/red white/magenta white/magenta
+timeout 30
+## menu border color
+color border=0xEEFFEE
+## set vbe mode
+graphicsmode -1 640 480:800
+## loading splashimage
+splashimage /boot/grub/splashimage.xpm || splashimage /boot/grub/splashimage.bmp
+default /default
+## Menu AutoNumber
+write 0x8274 0x2001
+
+title find and load NTLDR of Windows NT/2K/XP\n find and load NTLDR of Windows NT/2K/XP
+fallback 1
+find --set-root --ignore-floppies --ignore-cd /ntldr
+map () (hd0)
+map (hd0) ()
+map --rehook
+find --set-root --ignore-floppies --ignore-cd /ntldr
+chainloader /ntldr
+savedefault --wait=2
+
+#iftitle only show when command in [] returns true
+# set a variable named bootmgr where /bootmgr is found.
+iftitle [find --set-root --devices=h /bootmgr && call set bootmgr=%@root^%] load BOOTMGR of Windows VISTA/WIN7/WIN2008 on %bootmgr%
+chainloader %bootmgr%/bootmgr
+savedefault --wait=2
+
+title find and load CMLDR, the Recovery Console of Windows NT/2K/XP
+fallback 3
+find --set-root --ignore-floppies --ignore-cd /cmldr
+map () (hd0)
+map (hd0) ()
+map --rehook
+find --set-root --ignore-floppies --ignore-cd /cmldr
+chainloader /cmldr
+#####################################################################
+# write string "cmdcons" to memory 0000:7C03 in 2 steps:
+#####################################################################
+# step 1. Write 4 chars "cmdc" at 0000:7C03
+#write 0x7C03 0x63646D63
+# step 2. Write 3 chars "ons" and an ending null at 0000:7C07
+#write 0x7C07 0x00736E6F
+
+#	or.
+#write --offset=3 (md)0x3e+1 cmdcons
+#	or
+calc *0x7c03=0x00736E6F63646D63
+
+savedefault --wait=2
+
+title find and load IO.SYS of Windows 9x/Me
+fallback 4
+find --set-root /io.sys
+chainloader /io.sys
+savedefault --wait=2
+# you can also use below commands.
+# find --set-root chainloader /io.sys
+# boot
+# the boot is necessary,
+# please see "Delimitors or comments between titles" in grub4dos_readme.txt.
+
+title find and boot 0PE.ISO
+fallback 5
+find --set-root /0PE/0PE.ISO
+map /0PE/0PE.ISO (0xff) || map --mem /0PE/0PE.ISO (0xff)
+map --hook
+chainloader (0xff)
+savedefault --wait=2
+
+title find and boot MicroPE.ISO
+fallback 6
+find --set-root /boot/MicroPE.ISO
+map /boot/MicroPE.ISO (0xff) || map --mem /boot/MicroPE.ISO (0xff)
+map --hook
+chainloader (0xff)
+savedefault --wait=2
+
+title Parted Magic ISO
+fallback 7
+find --set-root /pmagic.iso
+map /pmagic.iso (0xff) || map --mem /pmagic.iso (0xff)
+map --hook
+chainloader (0xff)
+savedefault --wait=2
+
+title Ultimate Boot CD ISO
+fallback 8
+find --set-root /ubcd.iso
+map /ubcd.iso (0xff) || map --mem /ubcd.iso (0xff)
+map --hook
+chainloader (0xff)
+savedefault --wait=2
+
+title SliTaz ISO
+find --set-root /slitaz.iso
+map /slitaz.iso (0xff) || map --mem /slitaz.iso (0xff)
+map --hook
+chainloader (0xff)
+
+title commandline
+commandline
+
+title floppy (fd0)
+chainloader (fd0)+1
+rootnoverify (fd0)
+# or use below commands.
+# rootnoverify (fd0)
+# chainloader +1
+
+title back to dos
+quit
+
+title reboot
+reboot
+
+title halt
+halt
+
+title MAXDOS.IMG
+find --set-root --ignore-floppies /boot/MAXDOS.IMG
+map --mem /boot/MAXDOS.IMG (fd0)
+map --hook
+chainloader (fd0)+1
+rootnoverify (fd0)
+
+

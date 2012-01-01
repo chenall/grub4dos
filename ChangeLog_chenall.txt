@@ -1,0 +1,660 @@
+﻿2011-12-30
+	1.添加菜单热键功能接口，可以通过外部命令来增加热键功能
+	  Add menu hotkey function interface。
+
+2011-12-26
+	1.改善菜单自动编号。improve autonumber. 
+
+2011-12-13 
+	1.修正grub_sprintf函数%d不能正确显示负数的bug.
+
+2011-12-12  command 'if' added '>=' and '<=', and able to perform numeric comparison.
+	1.if命令新增>=和<=比较符。
+	  新的if命令支持三种比较>=,==,<=
+	  如果两边都是数字，则自动转换成数值型来比较,否则按字符串的ASCII大小比较.
+
+2011-12-11
+	1.可以使用map --status=n来获取已经映射磁盘的状态。  use map --status=n to get status of hooked drive n.
+	返回以下两个变量信息(return)
+	%?%=Start_Sector
+	%@retval%=Sector_Count
+	如果该磁盘不存在返回0.
+
+2011-12-08
+	1.支持菜单自动编号（使用动态菜单时比较有用）。		Support menu AutoNumber.this is useful when used iftitle.
+	usage:
+	  write 0x8274 0x2001
+	  or
+	  write 0x8274 0x2D01
+	0x20(space) or 0x2d ('-') is the delimiter char in ascii code.
+	更多的用法介绍：
+	http://bbs.wuyou.com/viewthread.php?tid=180142&page=193#pid2351695
+
+2011-12-06
+	1.bug修正。
+	2.使用调试模式启动时可以显示条件菜单执行的命令。
+
+2011-12-05
+	1.添加条件菜单功能		added iftitle.
+	语法: iftitle [<command>] Actual Title displayed\nOptional help line
+	只要条件不成立该菜单项目无效。
+	eg.如果(hd0,0)上有bootmgr文件才会显示第一个菜单，如果有NTLDR文件才会显示第二个菜单
+	
+	iftitle [if exist (hd0,0)/bootmgr] Boot to NT6.X from (hd0,0)
+	chainloader (hd0,0)/bootmgr
+	
+	iftitle [if exist (hd0,0)/ntldr] Boot to NT5.X from (hd0,0)
+	chainloader (hd0,0)/ntldr
+	
+2011-12-01
+	1.BUG修正。
+	  BUG fixed.
+	2.添加使用INT18启动功能。
+	  Supported boot via INT 18.
+	  用法(usage):
+	     boot -1
+	     or 
+	     boot --int18
+	3.一些代码精简
+
+2011-11-29
+	1.BUG修正。
+	2.新的color命令语法。
+	  color color_state=color [..]
+	其中color_state字符串可以如下。
+	 normal		未选中菜单
+	 highlight	选中菜单
+	 helptext	菜单帮助信息
+	 heading	菜单头（GRUB4DOS信息）
+	 standard	默认色（控制台）
+	 border		菜单边框VBE模式下有效果
+	3.新的setcolor/setcolorstate函数
+	
+2011-11-27
+	1.修正fontfile命令在splashimage后面时导至背景图颜色错误的问题.
+	2.VGA模式(0x12/0x6a)没有使用splashimage命令时可以指定字体颜色和console模式一样.
+
+2011-11-22
+	1.新的COLOR命令允许设置控制台默认字体颜色和背景色(只限于文本模式或VBE模式)
+	  方法: 直接使用只带一个参数的color命令即可.
+	注: 在命令行或批处理脚本中执行有效.
+
+2011-11-19
+	1.cursor_state bit 0=1 show cursor,bit 1=1 show splashimage.
+	  use setcursor(n) to change if need,can change from commandline e.g.
+	  call Fn.70 0 disable cursor and splashimage.
+	2.清理部份无用代码.
+
+2011-11-18
+	1.支持BMP背景图片,只限于VBE模式         supported splashimage with BMP format(VBE mode only).
+	2.使用BMP图片时,如果非处于VBE模式,则尝试自动匹配图片分辨率.
+
+2011-11-03
+	1.修正一个map的bug.                     bug fixed in map_func.
+	  相关贴子:
+	  http://bbs.wuyou.com/viewthread.php?tid=201887
+	  http://bbs.wuyou.com/viewthread.php?tid=201647
+	2.忽略ISO9660文件系统上文件名的大小写.   Make name comparisoncase-insensitive on iso9660.
+	  可以使用以下命令禁用该功能.            You can use below command to disable this feature.
+	  write 0x4CA24 0
+	3.cat命令添加--locatei参数,             added --locatei option for cat.
+	  查找时忽略大小写                      ignore case locate.
+	eg.
+	  cat --locatei=Test (md)0x300+1
+
+2011-10-07
+	1.新增?_BOOT变量，访问启动GRUB4DOS的Boot_drive
+	  add new Variable ?_BOOT to access grub4dos Boot_drive.
+	2.为了节省代码GRUB4DOS内部不再处理外部命令WENV的兼容性(WENV tuxw版)
+	解决办法如下：
+	  如果需要使用该版本WENV则自己在菜单或批处理中添加以下命令
+	  write --offset=0x1f8 (md)0x228+1 ?_WENV\0
+	3.uuid 命令对于uuid字符的判断不区分大小写。
+
+2011-10-02
+	1.取消对fb启动盘的修正,恢复原样.
+	2.其它批处理相关代码微调.
+
+2011-09-28
+	1.修正访问磁盘分区的BUG(disk_io.c),感谢Yonsm的报告和测试.
+	  fixed a bug in disk_io.c
+	  http://bbs.wuyou.com/viewthread.php?tid=200520&extra=page%3D1
+
+2011-09-13
+	1.修正insmod的一个bug(不能直接insmod默认路径下的文件)
+	  fixed a bug in insmod_func.
+
+2011-09-05
+	1.insmod支持指定名字,比如insmod fat.gz fat.
+	  Support specified name when insmod a module.
+
+2011-09-02
+	1.fixed a bug in setloca/endlocal.
+2011-08-25
+	1.修正cat命令的一个BUG,使用cat --locate-align参数时会出错.
+	 fixed a bug in cat_func.
+2011-08-23
+	1.添加echo/cat命令的帮助信息.(issue: 38,40)
+	  add help text for command echo/cat.
+	2.修复help --all显示的问题(issue: 39)
+	  fixed "help --all" issue.
+2011-08-09
+	1.批处理call/gotoBUG修复.
+	2.新的call可以直接call一个命令.
+
+2011-08-08
+	1.一些代码微调.
+	2.修正Ctrl+C强制中止批处理脚本,有时会失败的问题(call和&&,||连用时可能会失败)
+	3.使用管道符"|"时超过0xC00长度的之符将被丢弃.
+
+2011-08-01
+	1.外部命令调用修改,优先使用当前目录下的命令(如果存在的话).
+	2.修复在批处理中使用exit命令退出批处理,导致批处理返回值为0的问题.
+
+2011-07-30
+	1.批处理执行时允许使用Ctrl+C强制中断运行.
+
+2011-07-19
+	1.内置变量?_WENV=?_UUID=?
+	  注:1.将来会取消?_UUID,为了保持兼容性,暂时先放一段时间.
+	       请使用%?%或%?_WENV%代替%?_UUID%来获取UUID.
+	     2.%?%变量可以获取命令返回的字符串信息.
+	       目前可用的信息有两个.uuid dev(返回指定设备的UUID字符串),cat --locate= (返回最后一个找到的位置)
+	2.@random算法修改.
+
+
+2011-07-13
+	1.在执行cmain之前初始化变量内存空间。
+
+2011-07-12
+	1.执行clear命令时同时设置count_lines为0。
+	2.内置变量增加@retval，其实就是之前的0x4cb00
+	3.增加setlocal @和endlocal @用法。
+	  setlocal @可以在批处理中使用,把当前的环境保存起来
+	  除非使用endlocal @否则setlocal @之后的设置会一直保留(批处理退出也不影响).
+	注：1.在批处理中出现setlocal @则在批处理中setlocal @之前的setlocal命令会全部失效。
+	    所以setlocal @有必要的使用的话一般要放在批处理最前面。
+	    2.setlocal @后面如果还有出现setlocal，则setlocal之后的设置不会保留.
+
+2011-07-11
+	1.添加SETLOCAL和ENDLOCAL命令，和WINDOWS下的批处理用法一样。
+
+2011-07-05
+	1.尝试解决%~d0,%~f0路径提取的问题，现在%~f0应该可以提取到正确的路径。
+	2.解决if命令输出转向失败的问题。
+	3.其它代码调整。
+
+2011-05-27
+	1.优化PXE_DIR代码。
+	2.其它微调。
+
+2011-05-25@176
+	1.调整cat命令的查找字符串代码。
+	2.修改批处理的调试模式开启方法（改为debug 3才会进入调试模式）
+	3.消除一些编译时的警告信息。
+
+2011-05-23@174
+	1.修正一个TFTP相对路径的问题，感谢2011exuejiao@wuyou.
+	2.在批处理中可以使用debug 3临时开启debug模式。
+
+2011-04-30@159
+	1.取消前面版本对批处理参数的调整.恢复到04-16版.
+	2.修正一个BUG.(函数print_root_device).
+	3.批处理参数新增%~f 文件全路径,%~z文件大小.
+	4.现在批处理脚本可以使用使用errorcheck命令控制是否检测错误(默认错误就退出).
+
+2011-04-29@157
+	1.find 命令不再查找(hdx)设备.
+	2.删除@root变量的前导空格.
+	3.ls命令新增dev参数,用于显示设备列表.
+	4.批处理代码调整,对于(bd)设备%~d0会使用实际的设备.
+
+2011-04-25@156
+	1.新增两个内置变量@root,@path.
+	  @root 当前的root.
+	  @path 当前默认外部命令查找路径.
+	2.修正一个可能导致程序出错的问题.(使用到了临时变量的内存).
+	3.批处理代码功能增强.
+
+2011-04-16@153
+	1.md5crypt 支持参数。后面直接跟一个字符串会直接计算这个字符串的md5。
+	2.菜单支持以变量开头的命令。
+
+2011-03-30@151
+	1.LZMA格式解压时暂时禁止显示进度（因为显示进度时解压大文件会失败）。
+	2.添加内置变量?_UUID（使用uuid命令可以把获取到的磁盘uuid保存到变量中）.
+
+2011-03-29@150
+	1.insmod *.mod添加了检测模块文件头是否为GRUBEXEC签名.
+	注：目前还是兼容旧版本的MOD模块，一段时间后会取消，请使用新的MAKEMOD重新制作模块。
+
+	2.对批处理路径和文件名的空格进行自动处理。空格前面自动加转义符"\"
+	注：使用p,n,x参数时有效。即%~1时不会处理，但%~p1时会处理。
+	
+2011-03-26@150
+	1.使用kernel (rd)+1启动时,默认的启动设备改为当前root.
+
+2011-03-25@149
+	1.修改cat命令替换时显示的信息
+	cat --locate=S -replace=R 除非debug on否则不显示信息.
+	2.批处理参数新增%*代表所有参数%1 %2 %3 ....
+
+2011-03-24
+	1.set /p功能增强(可能会和之前的版本不兼容),新增参数set /p:N
+	主要变动:
+		1).如果未输入不会清除原来的变量.(之前的版本会清除).
+		2).新增支持默认时间没有输入自动退出.
+		   set /p:N variable=prompt
+		如果在N秒之内没有任何输入,则返回,并且不改变variable的值.
+		   
+2011-03-23
+	1.为了方便使用,修改shift命令为内部命令.并且shift支持参数
+	shift n 或 shift /n
+	具体用法,可以参考CMD/linux下的shift命令帮助.
+
+2011-02-19
+	1.修复kernel加载grub2 loader的问题.
+	  fixed a bug when load multiboot-image(boot.c).
+	2.现在可以运行16位程序，和wee的机制一样（直接移植了wee里面的代码）
+	
+2011-02-15
+	1.添加realmode_run函数
+	2.修改GPT分区检测代码，更加严格的检测。
+
+2011-02-12
+	1.增加GPT分区检测，检测不通过就使用MBR分区。
+	2.一些代码微调。
+
+2011-02-10
+	1.清理UTF8转换UNICODE的代码,不再需要(请同时更新UNIFONT).
+	2.修复变量字符串截取BUG.Fixed Bug in envi_cmd func.(thanks sratlf@wuyou report).
+	http://bbs.wuyou.com/viewthread.php?tid=180142&page=52#pid2154655
+
+	注意:从2011-02-10开始,必须使用最新版的UNIFONT才可以正常显示UNICODE字符.
+
+	Note: You must also update unifont to the latest version.new unifont can show unicode char anywhere.
+	Download the latest version of unifont:
+	    http://code.google.com/p/grubutils/downloads/list
+
+2011-01-28
+	1.支持读取GPT分区表。
+	  为了区别MBR分区表和方便编程，所有的GPT分区类型全部使用0xEE表示。
+
+	2.修正一个bug,现在可以访问大于1T的硬盘.但还不能访问超过2T的内容。
+
+2011-01-26
+	1.修复run_line的一个BUG，会导致返回值为假。
+	2.添加IF/SET命令的帮助信息。
+	3.IF命令增加以下语法,判读一个变量或文件是否存在。
+	  if exist variable|filename command.
+	4.控制pause的输出，debug小于0时不显示倒计时。debug小于1时不显示按键码.
+
+2011-01-22
+	1.set /A 参数使用16进制数保存变量,set /a 十进制数保存变量。
+	2.修复goto的一个bug.
+	3.修复重定向操作符的bug.
+
+2011-01-19
+	1.set命令不再接受回车换行符。
+	2.修复获取批处理参数bug.
+	3.修复fb文件系统bug（可能会导致访问文件出错）。
+
+2011-01-14
+	1.set命令增强.添加了/l,/u参数
+	set /l a=Abcd
+	把Abcd转为小写./u是转换大写。
+
+2011-01-13
+	1.修复utf8菜单编码自动检测的BUG。
+
+2011-01-10
+	1.修复SET命令的bug，添加/p参数
+	2.修复启动linux时内存冲突的bug.
+
+2011-01-09
+	1.菜单支持变量。
+	2.支持变量截取(和CMD的方法一样),不支持替换。
+
+2011-01-08
+	1.重写grub_sprintf函数，支持简易的宽度和精度控制符(m.n或*.*)。
+	
+﻿2011-01-07
+	1.SET命令添加一个参数/a可以把=后面的计算结果赋值给变量.
+	2.新的safe_parse_maxint函数支持一元运算符。"~!-"
+
+2011-01-06
+	1.修改CAT命令的显示。现在的cat /filen.ext碰到字符结束符'\0'就停止。
+	2.批处理内部添加一个命令shift（只能在批处理中使用）.
+	3.skip_to函数现在会可以跳过(‘\r’和‘\n’)。
+	4.set *将清除所有变量。
+
+2011-01-05
+	1.修正run_line的一个逻辑错误。
+	2.外部命令command默认的目录改为(bd)/BOOT/GRUB/
+2011-01-03
+	1.pager命令即实生效。
+	2.添加简易的if判断命令类似的MSDOS.目前支持的判断如下：
+	  added a new command if.
+	if [/I] [NOT] STRING1==STRING2 [COMMAND]
+	注：判断符号==前后不允许有空格或制表符否则比较会失败。
+	2.添加SET命令可以设置、修改、删除变量。
+	  added a new command set to modify the variable.
+	3.从现在开始支持变量。用法和MS-DOS一样。
+	  From now supports variable.
+	注：使用了和WENV同样的方案。所以这个功能可以看成是简化版的WENV
+
+2011-01-02
+	1.pause命令添加一个参数--test-key，可以显示按键扫描码。
+	  added --test-key option for pause to display the key scan code.
+	2.grub_sprintf函数支持字符串精度控制符。
+	  
+
+2011-01-01
+	1.修复find命令的bug。当然使用条件查询时可能会出错。
+	2.批处理参数修改,为了方便使用，%9改成剩余的所有参数。
+	比如参数: 1 2 3 4 5 6 7 8 9 0 a b c
+	那%9就是9 0 a b c.
+
+2010-12-31
+	1.pause命令增强，增加了显示按键码的功能。
+	2.hiddenmenu命令增强。增加一个--chkpass参数
+	具体用法请参考: README_GRUB4DOS.TXT对应的更新
+
+2010-12-28
+	1.一些BUG修复.
+	2.PAUSE命令增加倒计时显示.
+	3.fsys_fb.sys代码微调.
+
+2010-12-25
+	1.现在delmod也是一个内部命令.
+	2.重写insmod/delmod相关的代码.把加载的模块固定在内存18MB开始的位置.
+
+2010-12-21
+	1.从command_func中分离出insmod作为一个内部命令存在.
+	现在允许insmod加载一个命令合集.(扩展名.mod)
+	例子:
+	insmod grub4dos.mod
+	这个命令合集使用MAKEMOD程序生成.
+
+2010-12-18
+	1.代码调整.
+	cat添加一个参数--number=N 在查找替换的时候指定查找次数.
+2010-12-17
+	1.fixed a bug in checkrange_func.
+
+2010-12-16
+	1.修正使用批处理运行时可能会出现ERROR 25的错误.
+	2.重写批处理运行函数.
+
+2010-12-15
+	1.还原2010-12-10对0000:82A4的改变.
+	2.为了方便使用当使用fbinst启动时有如下调整
+          boot_drive (bd) 为FB_DRIVE(ud)
+	  默认root(saved_drive) 为可见分区.
+	3.为了减小压缩包的大小,改成用7z压缩发布.
+
+2010-12-14
+	1.完善对ud(fbinst创建的分区)支持.现在不需要从fbinst启动也可以随意访问fbinst创建的分区.
+	2.允许在批处理中执行的外部命令调用goto/call标签.
+
+2010-12-12
+	1.批处理添加exit命令.直接退出批处理.如果后面有数值则设置为errnum.
+	如exit 1,退出,并返回一个错误的值.
+	2.一些代码优化调整.
+	3.修改pause命令,现在的pause直接返回按键的ascii码值.
+
+2010-12-11
+	1.完善批处理脚本参数的支持(同CMD下的批处理用法一样).
+	2.可以在菜单中使用goto命令(即跳到某个菜单项目).
+	3.delmod 添加参数-l用于显示已经加载的模块.如果-l后面还有参数则是判断该模块是否加载.
+
+2010-12-10
+	1.改变了以下内存地址的定义(和之前的版本相反)
+		0000:82A4	4 (DWORD)	no_decompression (no auto gunzip)
+		改成了
+		0000:82A4	4 (DWORD)	do_decompression (do auto gunzip)
+	2.0x8284的值的bit2如果为1则显示解压进度,否则不显示,默认不显示.
+	3.完善了goto/call的功能
+
+2010-12-09
+	1.批处理脚本支持标签(类拟BAT批处理).
+	support goto/call and :label in batch script.
+	CALL :label arguments
+	goto label
+
+2010-12-07
+	1.添加两个命令用于加载外部命令到内存中,加快运行速度.
+	insmod  path-to-program
+	delmod program
+
+2010-12-06
+	1.批处理脚本支持参数%0 - %9同cmd批处理用法一样。%~n 可以去掉前后的引号
+
+2010-11-24
+	1.修正一个skip_to函数的bug。
+	fixed a bug in skip_to func,thanks tuxw.
+
+2010-11-21
+	1.解决在(ud)上使用自动补全功能问题.
+	http://bbs.znpc.net/viewthread.php?tid=5976
+
+2010-11-19 supported pxe_dir list.
+	1.添加PXE(pd)文件列表的支持.TFTP ROOT 上的每个目录下都需要有dir.txt才支持.
+	可以使用以下命令生成dir.txt文件
+	for /r %i in (.) do (dir /a/b %i >%i\dir.txt)
+
+2010-11-18
+	1.Fixed a bug in batch file,thanks Mr.zhaohj.
+	http://bbs.wuyou.com/viewthread.php?tid=180142&page=9#pid2087407
+	2.Add a new variable at 0000:8278 for grub4dos version by date.
+	e.g. read 0x8278 return 0x132B7FE  (20101118)
+	3.Fixed a bug in find_func,thanks Mr.pseudo.
+2010-11-17
+	1.重写command_func函数大部份代码。
+	  为了方便外命命令的编写，修改主函数调用为以下格式。
+	int main (char *arg, int flags)
+	新的版本可以直接使用arg和flags参数，不需要再进行计算了。
+	
+2010-11-16
+	1.改进malloc/free函数。
+	2.允许执行多个外部命令（之前只允许一个），现在可以在外部命令里面调用其它外部命令。
+	外部命令调用方法使用builtin_cmd函数：builtin_cmd(char *cmd,char *arg,chat *flags);
+	builtin_cmd(NULL,Command and parameters,flags);
+
+2010-11-15
+	1.内置echo命令自动回车符改为"\r\n"
+	2.添加malloc/free函数.
+
+2010-11-04
+	1.重写run_line（执行一行命令函数）。
+	  支持操作符连用。例:
+	　echo a | echo b | echo c | echo
+	  echo abcd > (md)0x300+1 && echo def
+	2.支持新的操作符">>"和">"一样，但这个会附加(附加在输出文件中的第一个字符串结束符'\0'后面)
+	　注：目前这个操作符不会改变文件大小。
+
+	2.内置ECHO函数添加两个参数（默认回车不转义）
+	  -n 不自动添加回车符
+　　　　　-e 允许转义符
+2010-10-28
+ 	1.some bug fixed.
+	2.find支持查找使用cdrom --init生成的光驱(只找第一个)
+
+2010-10-27
+	1.修改printf函数,支持显示"%",和C语言的语法一样,使用"%%"来显示一个"%"
+	2.重写find的查询代码.
+	3.find新增参数--devices=[DEVICES],指定要查找的设备.
+
+	说明:DEVICES可以是以下字符的组合:
+	u,p,n,h,c,f -->分别对应 ud,pd,nd,hd,cd,fd,
+
+	例子:--devices=hcf //只查找hd,cd,fd,从hd开始.
+	注:优先current root.然后再按上面的顺序.(current root必须在列表中,否则跳过)
+
+	可以使用这个参数来重新设定查找顺序,默认(find order):ud->pd->nd->hd->cd->fd
+
+	4.保留--ignore-cd和--ignore-floppies参数(会自动转换).
+
+2010-10-26
+	1.find支持(fdx,y)的格式.
+	2.优先查找当前root.
+2010-10-03
+	1.使用操作符"|"时默认自动添加空格,并解决使用"|"时可能导致死机或重启的问题。
+
+2010-09-30
+	1.修正操作符号!失效的问题。
+	2.恢复内置菜单的大写MENU.LST为小写（保持兼容性）。
+	3.内置echo命令。
+	用法：
+	  echo [-P:[-]XX[-]YY] MESSAGE
+	XX: Line number.
+	YY: Column number.
+	
+	XXYY指定后面MESSAGE要显示的位置。
+	XX指定行号，YY指定列号。前导“－”，即倒数.
+
+2010-09-25
+	1.修正calc计算的一个逻辑错误。
+	2.使用fbinst启动默认root设为ud
+	set boot_drive to fb_drive(ud) if boot from fbinst.
+	3.添加一个新的命令initscript，只能用于菜单中。
+	  initscript用于初始化菜单，每次返回菜单时在显示完菜单后执行。
+	  有时候会需要这样的功能，比如执行某个菜单失败后返回菜单时重新执行一次初始化。
+	initscript /initscript.g4d
+	
+2010-09-25
+	1.简易计算器调整.如果没有"="则不保存计算结果,但++和--除外.
+	例子:
+		calc *0x60000 + 4 不保存计算结果,所以内存指向*0x60000的值不会被改变.
+		calc *0x60000++   会保存计算结果到*0x60000中.
+		calc *0x60000 = 1+2 同上.
+	2.如果当前已经是图形模式允许graphicsmode直接切换,而不用经过terminal console中转.
+		
+2010-09-16
+	1.修正一个产生Error 27的错误。
+
+2010-09-06
+	1.添加操作符号"|" ">"，输出重定向（有点类似DOS）
+	Implemented two syntactic operators "|" and ">".Like Dos Output redirection.
+	note: 1.use with "&&" and "||" ,the "|" and ">" must be at last.
+              2."|" and ">" can not use at same time.
+	例子:
+              1. pause abcd | pause efg
+               output: efgabcd
+              2. pause 0x60000 | read #There is a space after the read.
+               run read 0x60000
+              3.help > (hd0,0)/help.txt or help > (md)0x3000+2
+                help.txt must already exist,grub4dos cann't create file or change file size.
+2010-09-05
+	1.修改TAB的显示方式，现在使用8个字节对齐显示。
+
+2010-08-10
+	1.fixed a bug in disk_io.c,it may return error 25 when set root to a cd drive.
+	  修正一个BUG,当设置root为cd设备时可能会提示Error 25的错误.
+	2.加快colinux下源码在cofs设备时编译的速度.
+
+2010-06-21
+	1.打上支持新版FB的补丁
+	来源:http://www.burgloader.com/bbs/index.php?topic=37.30
+2010-05-02
+	1.PXE启动时首先尝试加载root目录下的menu.lst。
+	
+2010-04-17
+	1.命令行自动完成调整.现在可以直接输入/+TAB显示当前目录下的文件或(hd0,0)/+TAB显示(hd0,0)/下面的文件列表
+	以前的版本必需要像以下命令才可以。
+		root /+TAB
+	2.get_cmdline函数调整，以方便外部命令直接调用。
+
+2010-03-29
+	1.外部命令执行过程调整。
+
+	例子:默认path (bd)/grub/
+ 	     echo abcd  ## 优先使用(bd)/grub/echo 文件，如果没有再找 /echo 文件
+	     /echo abcd ## 只查找/echo 文件。
+	     (fd0)/echo abcd ## 只找 (fd0)/echo abcd 文件。
+	2.find 命令添加一个 --ignore-oem 参数。
+	http://code.google.com/p/grub4dos-ireneuszp/
+
+2010-03-10
+	1.边框位置自动调整。
+
+2010-03-09
+	1.注释掉karyonix 4G GZIP MAP的部份代码。
+	2.添加UNIFONT外部命令，可以加载UNIFONT字库。当菜单文件是UTF8格式时可以显示多国语言。
+	Support multi-language menu with UNIFONT.
+	
+2010-03-01
+	1.打上了karyonix的4G map 补丁
+	http://bbs.znpc.net/viewthread.php?tid=5844
+	http://www.boot-land.net/forums/index.php?s=&showtopic=10096&view=findpost&p=91378
+	
+	2.添加fontfile外部命令.
+	3.添加menuset外部命令.
+
+2010-02-09
+	1.重写cmp部份代码(注:比较时可能会比较慢,因为只使用了1MB的缓存,之前的版本是完全缓存).
+	顺便添加了新参数 --skip= 
+	可以指定在比较时跳过几个字节,用于cmp --hex时方便查看差异.
+	
+2010-02-05
+	1.添加calc简单计算器功能.
+	calc [*INTEGER=] [*]INTEGER OPERATOR [[*]INTEGER]
+	
+	具体使用方法参考这里的外部命令calc的用法,是一样的,只是内置了.
+	http://www.chenall.com/blog/2010/02/grub4dos_calc.html
+	
+	
+2010-01-13
+	修改设置默认可执行文件搜索路径参数为
+	--set-path=PATH
+	例子
+	command --set-path=(bd)/grub/
+	
+2010-01-09
+	1.为command参数添加一个参数--set-root用于设置默认可执行文件的搜索路径。
+	add option --set-root for command
+	sets a search PATH for executable files,default is (bd)/grub
+
+2009-12-03 g@chenall.cn
+	1.修改了cat --hex代码，现在cat --hex会显示ascii>127的字符。
+	2.修改了cmp --hex代码，现在cmp --hex后面显示的字符同样可以显示中文。
+	  并且添加了颜色控制，不同的地方使用了菜单的高亮色显示。
+
+2009-12-01 g@chenall.cn
+	1.同步源码到2009-12-01版（修正了NTFS上DD或WRITE的问题）
+	2.修改调整了cat --replace，当使用--replace=*addr时允许使用--hex来指定读取长度。具体
+	http://bbs.znpc.net/viewthread.php?tid=5784&page=10&fromuid=29#pid42939
+
+2009-11-29 g@chenall.cn
+	1.调整了chainloader功能，如果chainloader (rd)+1，并且没有指定edx设备，那将把当前设备设为EDX。
+	  Changed chainloader_func,if use chainloader (rd)+1 then will set current_root to EDX
+	从光盘上的BOOTMGR启动硬盘上的VISTA/WIN7系统。
+ 	Boot VISTA/WIN7 from cdrom or any other device
+		chainloader (cd)/BOOTMGR
+		rootnoverify (hd0,0)
+		dd if=(hd0,0)+1 of=(md)0x3E+1
+	现在可以直接使用以下方法来启动;	You can now use the following commands..
+		map --mem=0xF000 /BOOTMGR
+		find --set-root --ignore-cd --ignore-floppies /BOOT/BCD
+		chainloader (rd)+1
+	http://bbs.znpc.net/viewthread.php?tid=5784&page=7&fromuid=29#pid42684
+	Tips:about EDX,please read README_GRUB4DOS.txt
+	2.源码同步到官方2009-11-29版。
+2009-11-28 g@chenall.cn
+    1.修正了当内存>2G时访问可能会出错的问题.
+      fixed a bug when access memory>2G problems.
+      eg.
+      cat --hex (md)0x40002F+1
+      map --mem (md)0x600000+0x19020
+2009-11-26 g@chenall.cn
+	1.修改cmp_func代码，使用之使用十六进制显示差异偏移（为了方便对比使用）。
+	  change cmp_func to show Differ at the offset with HEX
+	2.为cmp添加了一个参数--hex（直接显示十六进制）
+	  add --hex option for cmp	
+2009-11-24 g@chenall.cn
+	1.添加(bd)设备，即启动设备，注：使用configfile命令会改变启动设备。
+	added (bd) support.(bd):the boot drive. note:use configfile to change boot drive
+	eg. boot from (hd0,0)
+	   now boot drive is (hd0,0)
+	   configfile (hd0,1)/menu.lst
+	   now boot drive is (hd0,1)
