@@ -623,13 +623,24 @@ restart:
 	      {
 	         if (c != silent_hiddenmenu >> 16)
 	            goto boot_entry;
-	         else if (password_buf && check_password (password_buf, password_type))
+	         else if (password_buf)
 	      	{
-	      		grub_printf ("\nauth failed! Press any key to continue...");
-		      	getkey ();
-	      		cls();
-	      		grub_timeout = 5;
-	      		continue;
+					char *p = wee_skip_to(password_buf,SKIP_WITH_TERMINATE);
+					if (check_password (password_buf, password_type))
+					{
+						grub_printf ("\nauth failed! Press any key to continue...");
+						getkey ();
+						cls();
+						grub_timeout = 5;
+						continue;
+					}
+					if (*p)
+					{
+						strcpy(config_file,p);
+						auth = 0;
+						return;
+					}
+					auth = 1;
 	      	}
 	      }
 	      grub_timeout = -1;
