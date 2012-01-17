@@ -5,7 +5,6 @@ timeout 1
 
 title find /menu.lst, /boot/grub/menu.lst, /grub/menu.lst
 	errorcheck off
-	configfile /menu.lst
 	configfile /boot/grub/menu.lst
 	configfile /grub/menu.lst
 	if "%@root%"=="(ud)" && calc *0x82A0=*0x82b9&0xff

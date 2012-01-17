@@ -1,4 +1,9 @@
-﻿2011-12-30
+﻿2012-01-17
+	1.修复一个由于map --rehook导致的问题。http://bbs.wuyou.com/viewthread.php?tid=180142&page=231#pid2373207
+	2.一些小调整。
+	3.版本号改为0.4.5c
+
+2011-12-30
 	1.添加菜单热键功能接口，可以通过外部命令来增加热键功能
 	  Add menu hotkey function interface。
 

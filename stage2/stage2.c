@@ -575,6 +575,7 @@ run_menu (char *menu_entries, char *config_entries, int num_entries, char *heap,
 {
   int c, time1, time2 = -1, first_entry = 0;
   char *cur_entry = 0;
+  char *pass_config;
 
 //  struct term_entry *prev_term = NULL;
 		  
@@ -582,6 +583,8 @@ run_menu (char *menu_entries, char *config_entries, int num_entries, char *heap,
   /*
    *  Main loop for menu UI.
    */
+   if (password_buf)//Make sure that PASSWORD is NUL-terminated.
+		pass_config = wee_skip_to(password_buf,SKIP_WITH_TERMINATE);
 
 restart:
   /* Dumb terminal always use all entries for display 
@@ -600,12 +603,7 @@ restart:
   if (grub_timeout < 0)
     show_menu = 1;
   
-  if (current_term->setcolorstate)
-    current_term->setcolorstate (COLOR_STATE_NORMAL);
-
-  setcursor (2);
-  cls();	//clear screen so splash image will work
-
+	cls();
   /* If SHOW_MENU is false, don't display the menu until a key-press.  */
   if (! show_menu)
     {
@@ -619,24 +617,21 @@ restart:
 	  if (checkkey () != -1 /*&& ASCII_CHAR (getkey ()) == '\e'*/)
 	    {
 	    	c = getkey();/* eat the key */
-	      if ((silent_hiddenmenu & 0xFFFF0000))
+	      if (silent_hiddenmenu > 1)
 	      {
-	         if (c != silent_hiddenmenu >> 16)
+	         if (c != silent_hiddenmenu)
 	            goto boot_entry;
-	         else if (password_buf)
+	         if (password_buf)
 	      	{
-					char *p = wee_skip_to(password_buf,SKIP_WITH_TERMINATE);
 					if (check_password (password_buf, password_type))
 					{
-						grub_printf ("\nauth failed! Press any key to continue...");
-						getkey ();
-						cls();
+						grub_printf ("auth failed!\n");
 						grub_timeout = 5;
 						continue;
 					}
-					if (*p)
+					if (*pass_config)
 					{
-						strcpy(config_file,p);
+						strcpy(config_file,pass_config);
 						auth = 0;
 						return;
 					}
@@ -671,6 +666,12 @@ restart:
 	    }
 	}
     }
+
+  if (current_term->setcolorstate)
+    current_term->setcolorstate (COLOR_STATE_NORMAL);
+
+  setcursor (2);
+  cls();	//clear screen so splash image will work
 
   /* Only display the menu if the user wants to see it. */
   if (show_menu)
@@ -1212,43 +1213,19 @@ done_key_handling:
 	      if (((char)c) == 'p')
 		{
 		  /* Do password check here! */
-		  //char entered[32];
-		  char *pptr = password_buf;
-
 		  if (current_term->flags & TERM_DUMB)
 		    grub_printf ("\r                                    ");
 		  else
 		    gotoxy (MENU_BOX_X - 2, MENU_BOX_H + 6);
-		#if 0
-		  /* Wipe out the previously entered password */
-		  grub_memset (entered, 0, sizeof (entered));
-		  get_cmdline_str.prompt = "Password: ";
-		  get_cmdline_str.maxlen = sizeof (entered) - 1;
-		  get_cmdline_str.echo_char = '*';
-		  get_cmdline_str.readline = 0;
-		  get_cmdline_str.cmdline = entered;
-		  get_cmdline ();
-		#endif
-		  while (! isspace (*pptr) && *pptr)
-		    pptr++;
-
-		  /* Make sure that PASSWORD is NUL-terminated.  */
-		  *pptr++ = 0;
 
 		  if (! check_password (password_buf, password_type))
 		    {
-		      char *new_file = config_file;
-		      while (isspace (*pptr))
-			pptr++;
-
-		      /* If *PPTR is NUL, then allow the user to use
+		      /* If *pass_config is NUL, then allow the user to use
 			 privileged instructions, otherwise, load
 			 another configuration file.  */
-		      if (*pptr != 0)
+		      if (*pass_config)
 			{
-			  while ((*(new_file++) = *(pptr++)) != 0)
-			    ;
-
+				strcpy(config_file,pass_config);
 			  /* Make sure that the user will not have
 			     authority in the next configuration.  */
 			  auth = 0;

@@ -7370,7 +7370,7 @@ hiddenmenu_func (char *arg, int flags)
 			arg = skip_to(1,arg);
 			safe_parse_maxint(&arg,&t);
 			errnum = 0;
-      	silent_hiddenmenu = t << 16;
+      	silent_hiddenmenu = t;
       }
     arg = skip_to (0, arg);
   }
@@ -9624,7 +9624,7 @@ map_func (char *arg, int flags)
 		int no_decompression_bak = no_decompression;
 		int is64bit_bak = is64bit;
 #endif
-		sprintf (tmp, "--heads=%d --sectors-per-track=%d (md)0x%lX+0x%lX (0x%X)", (hooked_drive_map[i].max_head + 1), ((hooked_drive_map[i].max_sector) & 63), (unsigned long long)hooked_drive_map[i].start_sector, (unsigned long long)hooked_drive_map[i].sector_count, hooked_drive_map[i].from_drive);
+		sprintf (tmp, "--add-mbt=0 --heads=%d --sectors-per-track=%d (md)0x%lX+0x%lX (0x%X)", (hooked_drive_map[i].max_head + 1), ((hooked_drive_map[i].max_sector) & 63), (unsigned long long)hooked_drive_map[i].start_sector, (unsigned long long)hooked_drive_map[i].sector_count, hooked_drive_map[i].from_drive);
 
 		if (debug > 1)
 		{

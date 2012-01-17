@@ -17,93 +17,86 @@ COPY_FILES="COPYING README_GRUB4DOS*.txt ChangeLog_*.txt \
 
 rm -rf *.zip *.7z *~ || exit $?
 
-if svn --version &> /dev/null ; then
-	if [ -d .svn ]; then
-		rm -rf grub4dos-temp-old
-		[ -e grub4dos-temp ] && mv -f grub4dos-temp grub4dos-temp-old
-		svn export . grub4dos-temp --force || exit $?
-		CURR_REVISION=""
-		line=0
-		while read w1 w2; do
-			line=$(($line+1))
+if svn export . grub4dos-temp --force &> /dev/null ; then
+	CURR_REVISION=""
+	line=0
+	while read w1 w2; do
+		line=$(($line+1))
 
-			if [ "$line" = 1 ]; then
-				[ "$w1" = "" -o "$w2" != "" ] && break
-			elif [ "$line" = 2 ]; then
-				[ "$w1" != "" ] && break
-			elif [ "$line" = 3 ]; then
-				[ "$w1" != "dir" -o "$w2" != "" ] && break
-			elif [ "$line" = 4 ]; then
-				[ "$w1" = "" -o "$w2" != "" ] && break
-				CURR_REVISION=$w1
-			elif [ "$line" = 5 ]; then
-				[ "$w1" = "" -o "$w2" != "" ] && break
-				SVN_URL=$w1
-				break
-			else
+		if [ "$line" = 1 ]; then
+			[ "$w1" = "" -o "$w2" != "" ] && break
+		elif [ "$line" = 2 ]; then
+			[ "$w1" != "" ] && break
+		elif [ "$line" = 3 ]; then
+			[ "$w1" != "dir" -o "$w2" != "" ] && break
+		elif [ "$line" = 4 ]; then
+			[ "$w1" = "" -o "$w2" != "" ] && break
+			CURR_REVISION=$w1
+		elif [ "$line" = 5 ]; then
+			[ "$w1" = "" -o "$w2" != "" ] && break
+			SVN_URL=$w1
+			break
+		else
+			break
+		fi
+	done < .svn/entries
+
+	if [ "$CURR_REVISION" = "" ]; then
+		export LC_ALL=C
+		svninfo=$(svn info)
+		while read w1 w2 w3; do
+			if [ "$w1" = "Revision:" -a "$w2" != "" -a "$w3" = "" ]; then
+				CURR_REVISION=$w2
+			fi
+			if [ "$w1" = "URL:" -a "$w2" != "" -a "$w3" = "" ]; then
+				SVN_URL=$w2
 				break
 			fi
-		done < .svn/entries
-
-		if [ "$CURR_REVISION" = "" ]; then
-			export LC_ALL=C
-			svninfo=$(svn info)
-			while read w1 w2 w3; do
-				if [ "$w1" = "Revision:" -a "$w2" != "" -a "$w3" = "" ]; then
-					CURR_REVISION=$w2
-				fi
-				if [ "$w1" = "URL:" -a "$w2" != "" -a "$w3" = "" ]; then
-					SVN_URL=$w2
-					break
-				fi
-			done << EOF
+		done << EOF
 $svninfo
 EOF
 
+	fi
+	if [ "$CURR_REVISION" != "" ]; then
+
+		# Generate patch file
+		if [ "$SVN_URL" = "" ]; then
+			SVN_URL="svn://svn.gna.org/svn/grub4dos/trunk"
 		fi
-		if [ "$CURR_REVISION" != "" ]; then
+		SVN_URL_HTTP=http://${SVN_URL#*://}
 
-			# Generate patch file
-			if [ "$SVN_URL" = "" ]; then
-				SVN_URL="svn://svn.gna.org/svn/grub4dos/trunk"
-			fi
-			SVN_URL_HTTP=http://${SVN_URL#*://}
-
-			export LC_ALL=C
-			svn diff . > grub4dos-temp/grub4dos_r${CURR_REVISION}.diff 2> /dev/null
-			Get_source="Get the source code of this build by using anonymous svn in this way:\r\n\r\nsvn co -r $CURR_REVISION ${SVN_URL_HTTP} grub4dos\r\n\r\n"
-			if [ $SVN_URL = "svn://svn.gna.org/svn/grub4dos/trunk" ]; then
-				Get_source="${Get_source}or in this way:\r\n\r\nsvn co -r $CURR_REVISION ${SVN_URL} grub4dos\r\n\r\n"
-			fi
-			if [ -s grub4dos-temp/grub4dos_r${CURR_REVISION}.diff ]; then
-				echo -n -e "${Get_source}and then apply the patch against revision ${CURR_REVISION} you just downloaded:\r\n\r\n\
+		export LC_ALL=C
+		svn diff . > grub4dos-temp/grub4dos_r${CURR_REVISION}.diff 2> /dev/null
+		Get_source="Get the source code of this build by using anonymous svn in this way:\r\n\r\nsvn co -r $CURR_REVISION ${SVN_URL_HTTP} grub4dos\r\n\r\n"
+		if [ $SVN_URL = "svn://svn.gna.org/svn/grub4dos/trunk" ]; then
+			Get_source="${Get_source}or in this way:\r\n\r\nsvn co -r $CURR_REVISION ${SVN_URL} grub4dos\r\n\r\n"
+		fi
+		if [ -s grub4dos-temp/grub4dos_r${CURR_REVISION}.diff ]; then
+			echo -n -e "${Get_source}and then apply the patch against revision ${CURR_REVISION} you just downloaded:\r\n\r\n\
 cd grub4dos\r\n\r\n\
 patch -p0 < ../grub4dos_r${CURR_REVISION}.diff\r\n\r\n\
 and now you may do a \"make\" to compile.\r\n\r\n\
-				\r\n" > grub4dos-temp/Get_Source_of_This_Build.txt
-			else
-				echo -n -e "\
+			\r\n" > grub4dos-temp/Get_Source_of_This_Build.txt
+		else
+			echo -n -e "\
 ${Get_source}and now you may \"cd grub4dos\" and do a \"make\" to compile.\r\n\r\n\
-				\r\n" > grub4dos-temp/Get_Source_of_This_Build.txt
-			fi
+			\r\n" > grub4dos-temp/Get_Source_of_This_Build.txt
 		fi
-	elif [ -d .git ]; then
-		git checkout-index -a -f --prefix=../grub4dos-temp/
+	fi
+elif ! git checkout-index -a -f --prefix=grub4dos-temp &> /dev/null ; then
+	if [ "grub4dos-temp" = "${PWD##*/}" ] ; then
 		cd ..
 	else
-		rm -rf grub4dos-temp
+		if ! [ -d grub4dos-temp ] ; then
+			mkdir grub4dos-temp || exit $?
+		fi
 		files=$(echo *)
-		mkdir grub4dos-temp || exit $?
 		cp -a $files grub4dos-temp || exit $?
 	fi
-else
-	rm -rf grub4dos-temp
-	files=$(echo *)
-	mkdir grub4dos-temp || exit $?
-	cp -a $files grub4dos-temp || exit $?
 fi
 
 cd grub4dos-temp || exit $?
+make clean
 rm -rf grub4dos-${VER}
 #############################################
 #	Build english version
@@ -114,6 +107,10 @@ make || exit $?
 rm -rf grub4dos-${VER}
 mkdir grub4dos-${VER} || exit $?
 cp $COPY_FILES grub4dos-${VER} || exit $?
+pushd grub4dos-${VER}
+mkdir docs && mv *.txt docs/
+mkdir sample && mv menu.lst default config.sys sample/
+popd
 if [ -f Get_Source_of_This_Build.txt ]; then
 	cp Get_Source_of_This_Build.txt grub4dos-${VER}
 	if [ -s grub4dos_r${CURR_REVISION}.diff ]; then
