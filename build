@@ -17,7 +17,7 @@ COPY_FILES="COPYING README_GRUB4DOS*.txt ChangeLog_*.txt \
 
 rm -rf *.zip *.7z *~ || exit $?
 
-if svn export . grub4dos-temp --force &> /dev/null ; then
+if svn export . grub4dos-temp --force > /dev/null ; then
 	CURR_REVISION=""
 	line=0
 	while read w1 w2; do
@@ -83,7 +83,7 @@ ${Get_source}and now you may \"cd grub4dos\" and do a \"make\" to compile.\r\n\r
 			\r\n" > grub4dos-temp/Get_Source_of_This_Build.txt
 		fi
 	fi
-elif ! git checkout-index -a -f --prefix=grub4dos-temp &> /dev/null ; then
+elif ! git checkout-index -a -f --prefix=grub4dos-temp/ > /dev/null ; then
 	if [ "grub4dos-temp" = "${PWD##*/}" ] ; then
 		cd ..
 	else
@@ -97,7 +97,6 @@ fi
 
 cd grub4dos-temp || exit $?
 make clean
-rm -rf grub4dos-${VER}
 #############################################
 #	Build english version
 #############################################
@@ -107,10 +106,10 @@ make || exit $?
 rm -rf grub4dos-${VER}
 mkdir grub4dos-${VER} || exit $?
 cp $COPY_FILES grub4dos-${VER} || exit $?
-pushd grub4dos-${VER}
+cd grub4dos-${VER}
 mkdir docs && mv *.txt docs/
 mkdir sample && mv menu.lst default config.sys sample/
-popd
+cd ..
 if [ -f Get_Source_of_This_Build.txt ]; then
 	cp Get_Source_of_This_Build.txt grub4dos-${VER}
 	if [ -s grub4dos_r${CURR_REVISION}.diff ]; then
@@ -135,9 +134,9 @@ fi
 rm -f ../${RELEASE}.zip ../${RELEASE}.rar ../${RELEASE}.tar.gz || exit $?
 if ! 7z a ../${RELEASE}.7z grub4dos-${VER} ; then
 	echo 7z failed. Continue with zip or tar...
-fi
-if ! zip -r -q ../${RELEASE}.zip grub4dos-${VER} ; then
-	tar -czf ../${RELEASE}.tar.gz grub4dos-${VER}
+	if ! zip -r -q ../${RELEASE}.zip grub4dos-${VER} ; then
+		tar -czf ../${RELEASE}.tar.gz grub4dos-${VER}
+	fi
 fi
 
 cd ..

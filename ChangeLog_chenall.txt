@@ -1,4 +1,17 @@
-﻿2012-01-17
+2012-02-01
+	1./build
+		Fixed build script.
+	2./stage2/builtins.c
+		cat --replace changed (issue 71).
+		Supported savedefault +n/-n (issue 70).
+	3./stage2/stage2.c
+		Memory address 0x8276 for variable current_entryno (issue 70).
+	4./stage2/disk_io.c
+		enable parttype 00  (http://reboot.pro/16004/page__st__25).
+	5./stage2/cmdline.c
+		fixed skip_to issue. e.g. cat --locate="abc \"def" (md)0x300+1.
+
+2012-01-17
 	1.修复一个由于map --rehook导致的问题。http://bbs.wuyou.com/viewthread.php?tid=180142&page=231#pid2373207
 	2.一些小调整。
 	3.版本号改为0.4.5c

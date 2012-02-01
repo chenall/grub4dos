@@ -64,8 +64,13 @@ skip_to (int flags, char *cmdline)
   {
 		if (*cmdline == '\"')
 		{
-			 while (*++cmdline && *cmdline != '\"')
-				;
+			while (*++cmdline && *cmdline != '\"')
+			{
+				if (*cmdline == '\\')
+				{
+					++cmdline;
+				}
+			}
 		}
 		else if (*cmdline == '\\')
 		{

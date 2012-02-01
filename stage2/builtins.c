@@ -1320,7 +1320,7 @@ cat_func (char *arg, int flags)
 {
   unsigned char c;
   unsigned char s[128];
-  unsigned char r[128];
+  //unsigned char r[128];
   unsigned long long Hex = 0;
   unsigned long long len, i, j;
   char *p;
@@ -1433,6 +1433,7 @@ cat_func (char *arg, int flags)
 		}
 		if (! len_r)
 		{
+			#if 0
 			if (*replace == '\"')
 			{
 				for (i = 0; i < 128 && (r[i] = *(++replace)) != '\"'; i++);
@@ -1442,13 +1443,19 @@ cat_func (char *arg, int flags)
 			r[i] = 0;
 			replace = (char*)r;
 			len_r = parse_string (replace);
+			#else
+			wee_skip_to(replace,SKIP_WITH_TERMINATE);
+			len_r = parse_string (replace);
+			if (*replace == '\"')
+				++replace,len_r -= 2;
+			#endif
 		}
 		else
 		{
 			replace = (char*)(unsigned int)len_r;
 			len_r = Hex?Hex:8;
 		}
-		if (len_r == 0 || len_r > 16)
+		if (len_r == 0)
 		{
 			return ! (errnum = ERR_BAD_ARGUMENT);
 		}
@@ -1462,6 +1469,7 @@ cat_func (char *arg, int flags)
   
   if (locate)
   {
+    #if 0
     if (*locate == '\"')
     {
       for (i = 0; i < 128 && (s[i] = *(++locate)) != '\"'; i++);
@@ -1470,11 +1478,18 @@ cat_func (char *arg, int flags)
     }
     s[i] = 0;
     len_s = parse_string ((char *)s);
+    locate = s;
+    #else
+    wee_skip_to(locate,SKIP_WITH_TERMINATE);
+    len_s = parse_string (locate);
+    if (*locate == '\"')
+      ++locate,len_s -= 2;
+    #endif
     if (len_s == 0 || len_s > 16)
     {
-		grub_close();
-		return ! (errnum = ERR_BAD_ARGUMENT);
-		}
+      grub_close();
+      return ! (errnum = ERR_BAD_ARGUMENT);
+    }
     //j = skip;
     grub_memset ((char *)(SCRATCHADDR), 0, 32);
 	length += skip;
@@ -1498,7 +1513,7 @@ cat_func (char *arg, int flags)
 			{
 				k = j - 16 + i;
 				if ((locate_align == 1 || ! ((unsigned long)k % (unsigned long)locate_align))
-					&& strncmpx ((char *)&s, (char *)(SCRATCHADDR + (unsigned long)i), len_s,locate_ignore_case) == 0)
+					&& strncmpx (locate, (char *)(SCRATCHADDR + (unsigned long)i), len_s,locate_ignore_case) == 0)
 				{
 					/* print the address */
 					if (!replace || debug > 1)
@@ -1511,7 +1526,8 @@ cat_func (char *arg, int flags)
 						/* write len_r bytes at string replace to file!! */
 						grub_read ((unsigned long long)(unsigned int)replace,len_r, 0x900ddeed);
 						i += len_r;
-						filepos = filepos_bak;
+						if (filepos < filepos_bak)
+							filepos = filepos_bak;
 					}
 					else
 						i += len_s;
@@ -13088,22 +13104,13 @@ savedefault_func (char *arg, int flags)
 //      return 0;
 //    }
 
-  for (;;)
-  {
-    /*if (grub_memcmp (arg, "--ignore-error", 14) == 0)
-      {
-	ignore_error = 1;
-      }
-    else*/ if (grub_memcmp (arg, "--wait=", 7) == 0)
-      {
-	p = arg + 7;
-	if (! safe_parse_maxint (&p, &wait))
-		return 0;
-      }
-    else
-	break;
-    arg = skip_to (0, arg);
-  }
+	if (grub_memcmp (arg, "--wait=", 7) == 0)
+	{
+		p = arg + 7;
+		if (! safe_parse_maxint (&p, &wait))
+			return 0;
+		arg = skip_to (0, arg);
+	}
   
   /* Determine a saved entry number.  */
   if (*arg)
@@ -13133,8 +13140,18 @@ savedefault_func (char *arg, int flags)
 
 	  entryno = fallback_entries[index];
 	}
-      else if (! safe_parse_maxint (&arg, &entryno))
-	return 0;
+   else
+   {
+		p = arg;
+		if (*arg == '-' || *arg == '+')
+			++arg;
+		if (! safe_parse_maxint (&arg, &entryno))
+			return 0;
+		if (*p == '-')
+			entryno -= current_entryno;
+		else if (*p == '+')
+			entryno += current_entryno;
+	}
     }
   else
     entryno = current_entryno;
@@ -13302,7 +13319,7 @@ static struct builtin builtin_savedefault =
   "savedefault",
   savedefault_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "savedefault [--wait=T] [NUM | `fallback']",
+  "savedefault [--wait=T] [[+/-]NUM | `fallback']",
   "Save the current entry as the default boot entry if no argument is"
   " specified. If a number is specified, this number is saved. If"
   " `fallback' is used, next fallback entry is saved."

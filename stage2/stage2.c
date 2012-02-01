@@ -273,8 +273,9 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   is_highlight = highlight;
 
   gotoxy (MENU_BOX_X - 1, y);
-  grub_putchar(highlight ? 0x10 : ' ', 255);
-
+  #ifndef GRUB_UTIL
+  grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,0x10) : ' ', 255);
+  #endif
   if (entry)
   {
 	if (config_entries == (char*)titles)
