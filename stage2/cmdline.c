@@ -205,7 +205,7 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 	return cmd;
 }
 
-#define PRINTF_BUFFER ((unsigned char *)SYSTEM_RESERVED_MEMORY + 0x11000)
+#define PRINTF_BUFFER ((unsigned char *)SYSTEM_RESERVED_MEMORY + 0x20000)
 #define CMD_BUFFER ((char *)SYSTEM_RESERVED_MEMORY + 0x10000)
 //char *pre_cmdline = (char *)0x4CB08;
 
@@ -272,13 +272,14 @@ int run_line (char *heap,int flags)
 			case 1:// operator "|"
 				i = grub_strlen(arg);
 				grub_memmove(CMD_BUFFER,arg,i);
-				arg = skip_to (0, arg);
-				if (*arg == 0)
+				if (skip_to (0, arg) - arg == i)
 					CMD_BUFFER[i++] = ' ';
+				#if 0
 				if (hook_buff >= PRINTF_BUFFER + 0xC00)
 				{
 					hook_buff = PRINTF_BUFFER + 0xC00;
 				}
+				#endif
 				grub_memmove(CMD_BUFFER + i,PRINTF_BUFFER,hook_buff - PRINTF_BUFFER);
 				arg = CMD_BUFFER;
 				break;

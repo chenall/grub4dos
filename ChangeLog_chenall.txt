@@ -1,3 +1,10 @@
+﻿2012-02-10
+	1.stage2/builtins.c
+	  修正cat --locate=\x22时产生的错误。
+	  http://bbs.wuyou.com/viewthread.php?tid=180142&page=240#pid2382770
+	2.cmdline.c
+	  Do not limit pipe "|" buffer.
+	  取消管道"|"缓冲区限制。
 2012-02-01
 	1./build
 		Fixed build script.

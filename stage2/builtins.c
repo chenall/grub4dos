@@ -1445,8 +1445,9 @@ cat_func (char *arg, int flags)
 			len_r = parse_string (replace);
 			#else
 			wee_skip_to(replace,SKIP_WITH_TERMINATE);
+			c = *replace;
 			len_r = parse_string (replace);
-			if (*replace == '\"')
+			if (c == '\"')
 				++replace,len_r -= 2;
 			#endif
 		}
@@ -1455,7 +1456,7 @@ cat_func (char *arg, int flags)
 			replace = (char*)(unsigned int)len_r;
 			len_r = Hex?Hex:8;
 		}
-		if (len_r == 0)
+		if ((int)len_r <= 0)
 		{
 			return ! (errnum = ERR_BAD_ARGUMENT);
 		}
@@ -1481,8 +1482,9 @@ cat_func (char *arg, int flags)
     locate = s;
     #else
     wee_skip_to(locate,SKIP_WITH_TERMINATE);
+    c = *locate;
     len_s = parse_string (locate);
-    if (*locate == '\"')
+    if (c == '\"')
       ++locate,len_s -= 2;
     #endif
     if (len_s == 0 || len_s > 16)
@@ -5027,10 +5029,16 @@ fallback_func (char *arg, int flags)
     {
       unsigned long long entry;
       unsigned long j;
-      
+      unsigned char c = *arg;
+      if (c == '+' || c == '-')
+	      ++arg;
       if (! safe_parse_maxint (&arg, &entry))
 	return 0;
 
+      if (c == '+')
+	      entry += current_entryno;
+      else if (c == '-')
+	      entry -= current_entryno;
       /* Remove duplications to prevent infinite looping.  */
       for (j = 0; j < i; j++)
 	if (entry == fallback_entries[j])
@@ -15631,9 +15639,11 @@ static struct builtin builtin_echo =
    "echo",
    echo_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
-   "echo [-P:XXYY] [-h] [[$[ABCD]]MESSAGE ...] ",
+   "echo [-P:XXYY] [-h] [-e] [-n] [[$[ABCD]]MESSAGE ...] ",
    "-P:XXYY position control line(XX) and column(YY). "
    "-h      show a color panel. "
+   "-n      do not output the trailing newline."
+   "-e      enable interpretation of backslash escapes."
    "$[ABCD] the color for MESSAGE.(console only). "
    "A blink-, B light-, C BG, D FG."
 };
