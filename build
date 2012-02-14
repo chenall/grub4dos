@@ -87,10 +87,10 @@ elif ! git checkout-index -a -f --prefix=grub4dos-temp/ > /dev/null ; then
 	if [ "grub4dos-temp" = "${PWD##*/}" ] ; then
 		cd ..
 	else
+		files=$(echo *)
 		if ! [ -d grub4dos-temp ] ; then
 			mkdir grub4dos-temp || exit $?
 		fi
-		files=$(echo *)
 		cp -a $files grub4dos-temp || exit $?
 	fi
 fi

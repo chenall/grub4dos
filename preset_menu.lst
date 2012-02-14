@@ -1,7 +1,7 @@
 pxe detect
 configfile
 default 0
-timeout 1
+timeout 0
 
 title find /menu.lst, /boot/grub/menu.lst, /grub/menu.lst
 	errorcheck off

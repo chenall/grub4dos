@@ -2058,6 +2058,9 @@ reset (void)
   fallback_entryno = -1;
   fallback_entries[0] = -1;
   grub_timeout = -1;
+  #ifndef GRUB_UTIL
+  menu_num_ctrl[0] = 0;
+  #endif
 }
   
 extern struct builtin builtin_title;
