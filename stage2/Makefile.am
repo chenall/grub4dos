@@ -37,26 +37,22 @@ pkglib_DATA = stage2 stage2_eltorito e2fs_stage1_5 fat_stage1_5 ntfs_stage1_5 \
 	ffs_stage1_5 iso9660_stage1_5 jfs_stage1_5 minix_stage1_5 \
 	reiserfs_stage1_5 ufs2_stage1_5 vstafs_stage1_5 xfs_stage1_5\
 	nbgrub pxegrub grub.exe badgrub.exe grldr grldr.mbr bootlace.com hmload.com
-# noinst_DATA = pre_stage2 start start_eltorito nbloader pxeloader diskless dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
-noinst_DATA = pre_stage2 start start_eltorito nbloader pxeloader diskless dosstart badgrubstart grldrstart bootlacestart hmloadstart
+noinst_DATA = pre_stage2 start start_eltorito nbloader pxeloader diskless dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
 noinst_PROGRAMS = pre_stage2.exec start.exec start_eltorito.exec \
 	e2fs_stage1_5.exec fat_stage1_5.exec ntfs_stage1_5.exec ffs_stage1_5.exec \
 	iso9660_stage1_5.exec jfs_stage1_5.exec minix_stage1_5.exec \
 	reiserfs_stage1_5.exec ufs2_stage1_5.exec vstafs_stage1_5.exec \
-#	xfs_stage1_5.exec nbloader.exec pxeloader.exec diskless.exec dosstart.exec badgrubstart.exec grldrstart.exec mbrstart.exec bootlacestart.exec hmloadstart.exec
-	xfs_stage1_5.exec nbloader.exec pxeloader.exec diskless.exec dosstart.exec badgrubstart.exec grldrstart.exec bootlacestart.exec hmloadstart.exec
+  xfs_stage1_5.exec nbloader.exec pxeloader.exec diskless.exec dosstart.exec badgrubstart.exec grldrstart.exec mbrstart.exec bootlacestart.exec hmloadstart.exec
 else
 pkglib_DATA = stage2 stage2_eltorito e2fs_stage1_5 fat_stage1_5 ntfs_stage1_5 \
 	ffs_stage1_5 iso9660_stage1_5 jfs_stage1_5 minix_stage1_5 \
 	reiserfs_stage1_5 ufs2_stage1_5 vstafs_stage1_5 xfs_stage1_5 grub.exe badgrub.exe grldr grldr.mbr bootlace.com hmload.com
-# noinst_DATA = pre_stage2 start start_eltorito dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
-noinst_DATA = pre_stage2 start start_eltorito dosstart badgrubstart grldrstart bootlacestart hmloadstart
+noinst_DATA = pre_stage2 start start_eltorito dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
 noinst_PROGRAMS = pre_stage2.exec start.exec start_eltorito.exec \
 	e2fs_stage1_5.exec fat_stage1_5.exec ntfs_stage1_5.exec ffs_stage1_5.exec \
 	iso9660_stage1_5.exec jfs_stage1_5.exec minix_stage1_5.exec \
 	reiserfs_stage1_5.exec ufs2_stage1_5.exec vstafs_stage1_5.exec \
-#	xfs_stage1_5.exec dosstart.exec badgrubstart.exec grldrstart.exec mbrstart.exec bootlacestart.exec hmloadstart.exec
-	xfs_stage1_5.exec dosstart.exec badgrubstart.exec grldrstart.exec bootlacestart.exec hmloadstart.exec
+	xfs_stage1_5.exec dosstart.exec badgrubstart.exec grldrstart.exec mbrstart.exec bootlacestart.exec hmloadstart.exec
 endif
 MOSTLYCLEANFILES = $(noinst_PROGRAMS)
 
@@ -194,23 +190,21 @@ grldrstart_exec-grldrstart.$(OBJEXT): stage2_size.h
 
 grldr: pre_stage2 grldrstart
 	-rm -f grldr
-	-rm -f grldr.mbr
 	-rm -f grldr_cd.bin
 	echo -n -e "\000\000\000\000\000\000\000\000\000\000\000\000" | cat grldrstart pre_stage2 - > grldr
 	if [ -f ../preset_menu_used ]; then cat ../preset_menu_used >> grldr ;fi
-	cat grldrstart > grldr.mbr
 	dd if=grldrstart of=grldr_cd.bin bs=512 count=2 
 	
 
-# mbrstart_exec_SOURCES = mbrstart.S
-# mbrstart_exec_CCASFLAGS = $(STAGE2_COMPILE)
-# mbrstart_exec_LDFLAGS = $(START_LINK)
+mbrstart_exec_SOURCES = mbrstart.S
+mbrstart_exec_CCASFLAGS = $(STAGE2_COMPILE)
+mbrstart_exec_LDFLAGS = $(START_LINK)
 
-# mbrstart_exec-mbrstart.$(OBJEXT): stage2_size.h grldrstart.S
+mbrstart_exec-mbrstart.$(OBJEXT): stage2_size.h grldrstart.S
 
-# grldr.mbr: mbrstart
-#	-rm -f grldr.mbr
-#	cat mbrstart > grldr.mbr
+grldr.mbr: mbrstart
+	-rm -f grldr.mbr
+	cat mbrstart > grldr.mbr
 
 bootlacestart_exec_SOURCES = bootlacestart.S
 bootlacestart_exec_CCASFLAGS = $(STAGE2_COMPILE)
@@ -220,9 +214,9 @@ bootlacestart_exec-bootlacestart.$(OBJEXT): stage2_size.h bootlace.inc grldrstar
 
 bootlace.com: bootlacestart
 	-rm -f bootlace.com
-	-rm -f grldr.dbr
+	-rm -f grldr.pbr
 	cp bootlacestart bootlace.com && chmod a+x bootlace.com
-	dd if=bootlace.com of=grldr.dbr bs=512 skip=52 count=10
+	dd if=bootlace.com of=grldr.pbr bs=512 skip=51 count=10
 	cat grldr.mbr >> bootlace.com
 	
 

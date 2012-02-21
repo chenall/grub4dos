@@ -241,32 +241,32 @@ option_read_only:
 option_floppy:
 	.ascii	"--floppy\0"
 
-option_lba:
-	.ascii	"--lba\0"
+//option_lba:
+//	.ascii	"--lba\0"
 
-option_chs:
-	.ascii	"--chs\0"
+//option_chs:
+//	.ascii	"--chs\0"
 
-option_fat12:
-	.ascii	"--fat12\0"
+//option_fat12:
+//	.ascii	"--fat12\0"
 
-option_fat16:
-	.ascii	"--fat16\0"
+//option_fat16:
+//	.ascii	"--fat16\0"
 
-option_fat32:
-	.ascii	"--fat32\0"
+//option_fat32:
+//	.ascii	"--fat32\0"
 
-option_ntfs:
-	.ascii	"--ntfs\0"
+//option_ntfs:
+//	.ascii	"--ntfs\0"
 
-option_ext2:
-	.ascii	"--ext2\0"
+//option_ext2:
+//	.ascii	"--ext2\0"
 
-option_vfat:
-	.ascii	"--vfat\0"
+//option_vfat:
+//	.ascii	"--vfat\0"
 	
-option_exfat:
-	.ascii	"--exfat\0"	
+//option_exfat:
+//	.ascii	"--exfat\0"	
 
 msg_start:
 
@@ -274,263 +274,263 @@ msg_start:
 
 msg_ebios_read_failure:
 
-	.ascii	"\r\nWarning: EBIOS read failure!\r\n\r\n\0"
+	.ascii	"\r\nWarning: EBIOS read failure!\r\n\0"
 
 msg_ebios_write_failure:
 
-	.ascii	"\r\nWarning: EBIOS write failure! Now try standard CHS write, but not reliable.\r\n\r\n\0"
+	.ascii	"\r\nWarning: EBIOS write failure! Now try standard CHS write, but not reliable.\r\n\0"
 
 msg_no_ebios_support:
 
-	.ascii	"\r\nWarning: EBIOS not present! It is not reliable running under DOS without EBIOS.\r\n\r\n\0"
+	.ascii	"\r\nWarning: EBIOS not present! It is not reliable running under DOS without EBIOS.\r\n\0"
 
 msg_stdin_too_long:
 
-	.ascii	"\r\nError: The standard input is too long.\r\n\r\n\0"
+	.ascii	"\r\nError: The standard input is too long.\r\n\0"
 
 msg_too_many_parameters:
 
-	.ascii	"\r\nError: Too many parameters in command line.\r\n\r\n\0"
+	.ascii	"\r\nError: Too many parameters in command line.\r\n\0"
 
 msg_no_args:
 
-	.ascii	"\r\nError: No command-line arguments specified.\r\n\r\n\0"
+	.ascii	"\r\nError: No command-line arguments specified.\r\n\0"
 
 msg_too_many_files:
 
-	.ascii	"\r\nError: More than one files specified.\r\n\r\n\0"
+	.ascii	"\r\nError: More than one files specified.\r\n\0"
 
 msg_no_file:
 
-	.ascii	"\r\nError: No device or file specified.\r\n\r\n\0"
+	.ascii	"\r\nError: No device or file specified.\r\n\0"
 
 msg_option_restore_mbr:
-	.ascii	"\r\nError: Specified --restore-mbr twice.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --restore-mbr twice.\r\n\0"
 
 msg_option_restore_mbr_with_other:
-	.ascii	"\r\nError: Specified --restore-mbr with other options than --read-only.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --restore-mbr with other options than --read-only.\r\n\0"
 
 msg_invalid_prev_mbr:
-	.ascii	"\r\nError: previous MBR is invalid, or it is the GRLDR MBR.\r\n\r\n\0"
+	.ascii	"\r\nError: previous MBR is invalid, or it is the GRLDR MBR.\r\n\0"
 
 msg_option_backup_mbr:
-	.ascii	"\r\nError: Specified an option twice for backing up MBR.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for backing up MBR.\r\n\0"
 
 msg_option_backup_mbr_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with backing up MBR.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with backing up MBR.\r\n\0"
 
 msg_option_backup_mbr_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with backing up MBR.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with backing up MBR.\r\n\0"
 
 msg_option_mbr_floppy:
-	.ascii	"\r\nError: Specified an option twice for searching floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for searching floppy.\r\n\0"
 
 msg_option_mbr_floppy_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with MBR searching floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with MBR searching floppy.\r\n\0"
 
 msg_option_mbr_floppy_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with MBR searching floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with MBR searching floppy.\r\n\0"
 
 msg_option_mbr_osbr:
-	.ascii	"\r\nError: Specified an option twice for booting osbr.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for booting osbr.\r\n\0"
 
 msg_option_mbr_osbr_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with booting osbr.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with booting osbr.\r\n\0"
 
 msg_option_mbr_osbr_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with booting osbr.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with booting osbr.\r\n\0"
 
 msg_option_mbr_bpb:
-	.ascii	"\r\nError: Specified an option twice for mbr-bpb.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for mbr-bpb.\r\n\0"
 
 msg_option_mbr_bpb_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with  mbr-bpb.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with  mbr-bpb.\r\n\0"
 
 msg_option_mbr_bpb_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with mbr-bpb.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with mbr-bpb.\r\n\0"
 
 msg_option_duce:
-	.ascii	"\r\nError: Specified --duce twice.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --duce twice.\r\n\0"
 
 msg_option_duce_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with --duce.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with --duce.\r\n\0"
 
 msg_option_duce_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with --duce.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with --duce.\r\n\0"
 
 msg_option_chs_no_tune:
-	.ascii	"\r\nError: Specified --chs-no-tune twice.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --chs-no-tune twice.\r\n\0"
 
 msg_option_chs_no_tune_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with --chs-no-tune.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with --chs-no-tune.\r\n\0"
 
 msg_option_chs_no_tune_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with --chs-no-tune.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with --chs-no-tune.\r\n\0"
 
 msg_option_boot_prevmbr:
-	.ascii	"\r\nError: Specified an option twice for booting prevmbr.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for booting prevmbr.\r\n\0"
 
 msg_option_boot_prevmbr_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with booting prevmbr.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with booting prevmbr.\r\n\0"
 
 msg_option_boot_prevmbr_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with booting prevmbr.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with booting prevmbr.\r\n\0"
 
 msg_option_preferred_drive:
-	.ascii	"\r\nError: Specified an option twice for preferred drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for preferred drive.\r\n\0"
 
 msg_option_preferred_drive_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with preferred drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with preferred drive.\r\n\0"
 
 msg_option_preferred_drive_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with preferred drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with preferred drive.\r\n\0"
 
 msg_option_preferred_partition:
-	.ascii	"\r\nError: Specified an option twice for preferred partition.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for preferred partition.\r\n\0"
 
 msg_option_preferred_partition_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with preferred partition.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with preferred partition.\r\n\0"
 
 msg_option_preferred_partition_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with preferred partition.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with preferred partition.\r\n\0"
 
 msg_option_serial_number:
-	.ascii	"\r\nError: Specified an option twice for disk serial number.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for disk serial number.\r\n\0"
 
 msg_option_serial_number_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with disk serial number.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with disk serial number.\r\n\0"
 
 msg_option_serial_number_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with disk serial number.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with disk serial number.\r\n\0"
 
 msg_option_install_partition:
-	.ascii	"\r\nError: Specified an option twice for install partition.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for install partition.\r\n\0"
 
 msg_option_install_partition_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with install partition.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with install partition.\r\n\0"
 
-msg_option_install_partition_not_implemented:
-	.ascii	"\r\nSorry! --install-partition not yet implemented with this release.\r\n\r\n\0"
+//msg_option_install_partition_not_implemented:
+//	.ascii	"\r\nSorry! --install-partition not yet implemented with this release.\r\n\0"
 
 msg_option_time_out:
-	.ascii	"\r\nError: Specified an option twice for time out.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for time out.\r\n\0"
 
 msg_option_time_out_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with time out.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with time out.\r\n\0"
 
 msg_option_time_out_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with time out.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with time out.\r\n\0"
 
 //msg_option_time_out_without_prevmbr:
-//	.ascii	"\r\nError: Specified --time-out without specifying --boot-prevmbr-first.\r\n\r\n\0"
+//	.ascii	"\r\nError: Specified --time-out without specifying --boot-prevmbr-first.\r\n\0"
 
 msg_option_hot_key:
-	.ascii	"\r\nError: Specified an option twice for hot key.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for hot key.\r\n\0"
 
 msg_option_hot_key_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with hot key.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with hot key.\r\n\0"
 
 msg_option_hot_key_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with hot key.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with hot key.\r\n\0"
 
 //msg_option_hot_key_without_prevmbr:
-//	.ascii	"\r\nError: Specified --hot-key without specifying --boot-prevmbr-first.\r\n\r\n\0"
+//	.ascii	"\r\nError: Specified --hot-key without specifying --boot-prevmbr-first.\r\n\0"
 
 msg_option_sectors_per_track:
-	.ascii	"\r\nError: Specified an option twice for sectors per track.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for sectors per track.\r\n\0"
 
 msg_option_sectors_per_track_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with sectors per track.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with sectors per track.\r\n\0"
 
 msg_option_sectors_per_track_for_mbr:
-	.ascii	"\r\nError: Specified --sectors-per-track for a hard drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --sectors-per-track for a hard drive.\r\n\0"
 
 msg_option_heads:
-	.ascii	"\r\nError: Specified an option twice for heads.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for heads.\r\n\0"
 
 msg_option_heads_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with --heads.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with --heads.\r\n\0"
 
 msg_option_heads_for_mbr:
-	.ascii	"\r\nError: Specified --heads for a hard drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --heads for a hard drive.\r\n\0"
 
 msg_option_start_sector:
-	.ascii	"\r\nError: Specified an option twice for start sector.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for start sector.\r\n\0"
 
 msg_option_start_sector_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with --start-sector.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with --start-sector.\r\n\0"
 
 msg_option_start_sector_for_mbr:
-	.ascii	"\r\nError: Specified --start-sector for a hard drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --start-sector for a hard drive.\r\n\0"
 
 msg_option_total_sectors:
-	.ascii	"\r\nError: Specified an option twice for total sectors.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for total sectors.\r\n\0"
 
 msg_option_total_sectors_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with --total-sectors.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with --total-sectors.\r\n\0"
 
 msg_option_total_sectors_for_mbr:
-	.ascii	"\r\nError: Specified --total-sectors for a hard drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --total-sectors for a hard drive.\r\n\0"
 
 msg_option_read_only:
-	.ascii	"\r\nError: Specified an option twice for read only.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for read only.\r\n\0"
 
 msg_option_floppy:
-	.ascii	"\r\nError: Specified an option twice for --floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for --floppy.\r\n\0"
 
-msg_option_lba:
-	.ascii	"\r\nError: Specified an option twice for lba-chs mode.\r\n\r\n\0"
+//msg_option_lba:
+//	.ascii	"\r\nError: Specified an option twice for lba-chs mode.\r\n\0"
 
-msg_option_lba_for_mbr:
-	.ascii	"\r\nError: Specified --lba for a hard drive.\r\n\r\n\0"
+//msg_option_lba_for_mbr:
+//	.ascii	"\r\nError: Specified --lba for a hard drive.\r\n\0"
 
-msg_option_fstypes_for_mbr:
-	.ascii	"\r\nError: Specified file system types for a hard-drive mbr device.\r\n\r\n\0"
+//msg_option_fstypes_for_mbr:
+//	.ascii	"\r\nError: Specified file system types for a hard-drive mbr device.\r\n\0"
 
 msg_partition_without_drive:
-	.ascii	"\r\nError: Preferred partition without preferred drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Preferred partition without preferred drive.\r\n\0"
 
 msg_partition_start:
-	.ascii	"\r\nError: For a single partition you must specify --start-sector to non-zero.\r\n\r\n\0"
+	.ascii	"\r\nError: For a single partition you must specify --start-sector to non-zero.\r\n\0"
 
 msg_floppy_start:
-	.ascii	"\r\nError: For a real floppy you must specify --start-sector to 0.\r\n\r\n\0"
+	.ascii	"\r\nError: For a real floppy you must specify --start-sector to 0.\r\n\0"
 
 msg_invalid_number:
-	.ascii	"\r\nError: Invalid number format or invalid value for the specified option.\r\n\r\n\0"
+	.ascii	"\r\nError: Invalid number format or invalid value for the specified option.\r\n\0"
 
 msg_invalid_option:
-	.ascii	"\r\nError: Invalid option.\r\n\r\n\0"
+	.ascii	"\r\nError: Invalid option.\r\n\0"
 
 msg_open_file_rw:
-	.ascii	"\r\nError: Cannot open file for read/write access.\r\n\r\n\0"
+	.ascii	"\r\nError: Cannot open file for read/write access.\r\n\0"
 
 msg_open_file_ro:
-	.ascii	"\r\nError: Cannot open file for read-only access.\r\n\r\n\0"
+	.ascii	"\r\nError: Cannot open file for read-only access.\r\n\0"
 
 msg_read_file:
-	.ascii	"\r\nError: Read file failed.\r\n\r\n\0"
+	.ascii	"\r\nError: Read file failed.\r\n\0"
 
 msg_lseek_file:
-	.ascii	"\r\nError: Rewind file(lseek) failed.\r\n\r\n\0"
+	.ascii	"\r\nError: Rewind file(lseek) failed.\r\n\0"
 
 msg_write_file:
-	.ascii	"\r\nError: Write file failed.\r\n\r\n\0"
+	.ascii	"\r\nError: Write file failed.\r\n\0"
 
 msg_close_file:
-	.ascii	"\r\nFatal! Close file failed. Please backup your disk in case it becomes unusable.\r\n\r\n\0"
+	.ascii	"\r\nFatal! Close file failed. Please backup your disk in case it becomes unusable.\r\n\0"
 
 msg_boot_signature_mbr:
-	.ascii	"\r\nError: No boot signature(55 AA). Must specify --floppy explicitly for floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: No boot signature(55 AA). Must specify --floppy explicitly for floppy.\r\n\0"
 
 msg_invalid_partition_table:
-	.ascii	"\r\nError: Invalid partition table. Must specify --floppy explicitly for floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: Invalid partition table. Must specify --floppy explicitly for floppy.\r\n\0"
 
 msg_floppy_partition_table:
-	.ascii	"\r\nError: Specified --floppy for DEVICE_OR_FILE that has a valid partition table.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy for DEVICE_OR_FILE that has a valid partition table.\r\n\0"
 
 msg_sectors_per_track:
-	.ascii	"\r\nError: Too few sectors to hold GRLDR.MBR.\r\n\r\n\0"
+	.ascii	"\r\nError: Too few sectors to hold GRLDR.MBR.\r\n\0"
 
 msg_geometry_S:
 	.ascii	"\r\nDisk geometry calculated according to the partition table:\r\n\r\n"
@@ -538,70 +538,113 @@ msg_geometry_S:
 msg_geometry_H:
 	.ascii	", Number of heads = \0"
 msg_success:
-	.ascii	"\r\n\r\nSuccess.\r\n\r\n\0"
+	.ascii	"\r\nSuccess.\r\n\0"
 msg_success_create_triple_mbr:
-	.ascii	"\r\n\r\nSuccess. Triple MBR installed.\r\n\r\n\0"
+	.ascii	"\r\nSuccess. Triple MBR installed.\r\n\0"
 msg_success_cancel_triple_mbr:
-	.ascii	"\r\n\r\nTriple MBR cancelled. Original partition layout restored.\r\n\r\n\0"
+	.ascii	"\r\nTriple MBR cancelled. Original partition layout restored.\r\n\0"
 
-msg_fstype_fat32_deny:
-	.ascii	"\r\n\r\nError: Filesystem type is FAT32 but --fat32 was not specified.\r\n\r\n\0"
+//msg_fstype_fat32_deny:
+//	.ascii	"\r\nError: Filesystem type is FAT32 but --fat32 was not specified.\r\n\0"
 
 msg_fstype_fat32_allow:
-	.ascii	"\r\n\r\nFilesystem type is FAT32.\r\n\r\n\0"
+	.ascii	"\r\nFilesystem type is FAT32.\r\n\0"
 
-msg_fstype_ntfs_deny:
-	.ascii	"\r\n\r\nError: Filesystem type is NTFS but --ntfs was not specified.\r\n\r\n\0"
+//msg_fstype_ntfs_deny:
+//	.ascii	"\r\nError: Filesystem type is NTFS but --ntfs was not specified.\r\n\0"
 
 msg_fstype_ntfs_allow:
-	.ascii	"\r\n\r\nFilesystem type is NTFS.\r\n\r\n\0"
+	.ascii	"\r\nFilesystem type is NTFS.\r\n\0"
 
-msg_fstype_fat12_deny:
-	.ascii	"\r\n\r\nError: Filesystem type is FAT12 but --fat12 was not specified.\r\n\r\n\0"
+//msg_fstype_fat12_deny:
+//	.ascii	"\r\nError: Filesystem type is FAT12 but --fat12 was not specified.\r\n\0"
 
 msg_fstype_fat12_allow:
-	.ascii	"\r\n\r\nFilesystem type is FAT12.\r\n\r\n\0"
+	.ascii	"\r\nFilesystem type is FAT12.\r\n\0"
 
-msg_fstype_fat16_deny:
-	.ascii	"\r\n\r\nError: Filesystem type is FAT16 but --fat16 was not specified.\r\n\r\n\0"
+//msg_fstype_fat16_deny:
+//	.ascii	"\r\nError: Filesystem type is FAT16 but --fat16 was not specified.\r\n\0"
 
 msg_fstype_fat16_allow:
-	.ascii	"\r\n\r\nFilesystem type is FAT16.\r\n\r\n\0"
+	.ascii	"\r\nFilesystem type is FAT16.\r\n\0"
 
-msg_fstype_ext2_deny:
-	.ascii	"\r\n\r\nError: Filesystem type is EXT2 but --ext2 was not specified.\r\n\r\n\0"
+//msg_fstype_ext2_deny:
+//	.ascii	"\r\nError: Filesystem type is EXT2 but --ext2 was not specified.\r\n\0"
 
 msg_fstype_ext2_allow:
-	.ascii	"\r\n\r\nFilesystem type is EXT2.\r\n\r\n\0"
+	.ascii	"\r\nFilesystem type is EXT2.\r\n\0"
 
-msg_fstype_exfat_deny:
-	.ascii	"\r\n\r\nError: Filesystem type is EXFAT but --exfat was not specified.\r\n\r\n\0"  //文件系统类型是exFAT，但 --exfat未指定
+//msg_fstype_exfat_deny:
+//	.ascii	"\r\nError: Filesystem type is EXFAT but --exfat was not specified.\r\n\0"
 
 msg_fstype_exfat_allow:
-	.ascii	"\r\n\r\nFilesystem type is EXFAT.\r\n\r\n\0"	
+	.ascii	"\r\nFilesystem type is EXFAT.\r\n\0"	
 
 msg_unsupported_fstype:
-	.ascii	"\r\n\r\nError: Unsupported filesystem type.\r\n\r\n\0"
+	.ascii	"\r\nError: Unsupported filesystem type.\r\n\0"
 
 msg_fstype_mbr_deny:
-	.ascii	"\r\n\r\nError: Cannot overwrite the MBR of a harddrive(or HD image) with --floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: Cannot overwrite the MBR of a harddrive(or HD image) with --floppy.\r\n\0"
 
 //msg_no_ntfs_boot_record:
-//	.ascii	"\r\n\r\nError: Filesystem type is NTFS, but no ntfs boot record was found.\r\n\r\n\0"
+//	.ascii	"\r\nError: Filesystem type is NTFS, but no ntfs boot record was found.\r\n\0"
 
 msg_no_enough_memory:
-	.ascii	"\r\n\r\nError: No enough memory.\r\n\r\n\0"
+	.ascii	"\r\nError: No enough memory.\r\n\0"
 
+msg_install_partition_not:
+        .ascii  "\r\n\r\nError: Specified install partition not exist.\r\n\0"
+
+msg_disk_Information:	
+	.ascii  "\r\nHD"
+
+msg_disk:	
+        .ascii  "0"
+
+msg_d:
+        .ascii  ","
+
+msg_partition:        
+        .ascii  "0  "
+
+msg_Information:
+        .ascii  "            \0"
+        
+scS_c_s:
+        .byte   0x30,0x30
+
+scS_c:
+        .byte   0x30
+
+scS_z_s:
+        .byte   0x20,0x20,0x20,0x20
+     
+scS_z_w:
+        .byte   0x20
+
+scS_d:
+        .ascii  "."
+
+scS_x:
+        .byte   0x20,0x20
+
+scM:
+        .ascii  "Mb\0"
+        
+msg_Wait_for_key:
+	.ascii  "\r\n\r\nPress 'y' to continue, other exit.\r\n\0"
+ 
 msg_usage:
 
-	.ascii	"BOOTLACE writes GRLDR BOOT RECORD to MBR or to the boot area of a file system.\r\n"
+	.ascii	"\r\nBOOTLACE writes GRLDR BOOT RECORD to MBR or to the boot area of a file system.\r\n"
 	.ascii	"Usage:  bootlace.com  [OPTIONS]  DEVICE_OR_FILE\r\n"
 	.ascii	"Options: --read-only, --floppy[=N], --boot-prevmbr-first, --boot-prevmbr-last,\r\n"
 	.ascii	"--no-backup-mbr, --force-backup-mbr, --mbr-enable-floppy, --mbr-disable-floppy,\r\n"
 	.ascii	"--mbr-enable-osbr, --mbr-disable-osbr, --duce, --time-out=T, --hot-key=K, \r\n"
 	.ascii	"--preferred-drive=D, --preferred-partition=P, --sectors-per-track=S, --heads=H,\r\n"
-	.ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --lba, --chs,\r\n"
-	.ascii	"--fat12, --fat16, --fat32, --vfat, --ntfs, --ext2, --exfat, --serial-number=SN,\r\n"
+//      .ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --lba, --chs,\r\n"
+//      .ascii	"--fat12, --fat16, --fat32, --vfat, --ntfs, --ext2, --exfat, --serial-number=SN,\r\n"
+        .ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --serial-number=SN,\r\n"
 	.ascii	"--restore-mbr, --mbr-no-bpb, --chs-no-tune\r\n"
 	.ascii	"DEVICE_OR_FILE: Filename of the device or image. For DOS, a BIOS drive number\r\n"
 	.ascii	"(in hex 0xHH or decimal DDD format)can be used to access the drive.\r\n\0"
@@ -760,7 +803,8 @@ total_sectors:
 
 time_out:
 
-	.long	0xffffff05	/* low byte default is 5 seconds */
+//	.long	0xffffff05	/* low byte default is 5 seconds */
+        .long	0xffffff00	/* low byte default is 0 seconds */
 
 hot_key:
 
@@ -783,13 +827,13 @@ floppy:
 
 	.long	0xffffffff	/* default is for hard drive MBR */
 
-lba:
+//lba:
 
 	/* 1 for lba, 0 for chs, -1 for `not specified'. */
 
-	.long	0xffffffff	/* default is `not specified' */
+//	.long	0xffffffff	/* default is `not specified' */
 
-fstypes:
+//fstypes:
 
 	/* bit 0: fat12 */
 	/* bit 1: fat16 */
@@ -798,7 +842,7 @@ fstypes:
 	/* bit 4: ext2 */
 	/* bit 5: exfat */
 	
-	.long	0xfffffff7	/* default is all types except ntfs */
+//	.long	0xfffffff7	/* default is all types except ntfs */
 
 sectors_to_write:
 
@@ -814,11 +858,12 @@ ebios_support:
 	.long	0
 
 current_partition:
-	.long	0
-
-	.align	0x200
-
-
+	.long	0 
+	
+total_partition_entries:
+        .long	0
+        
+//	.align	0x200
 
 //#define GRLDR_INSTALL
 //#include "grldrstart.S"
@@ -1038,7 +1083,7 @@ envp:
 
         .align	0x200
 
-grldr_dbr_start:
+grldr_pbr_start:
 
 //*******************************************************
 //        Offset  Sector  Partition type
@@ -1054,7 +1099,4 @@ grldr_dbr_start:
 #include "grldrstart.S"
 
 grldr_mbr_start:
-
-
-
-        
+       

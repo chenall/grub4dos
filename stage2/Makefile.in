@@ -59,7 +59,7 @@ EXTRA_PROGRAMS = nbloader.exec$(EXEEXT) pxeloader.exec$(EXEEXT) \
 @DISKLESS_SUPPORT_FALSE@	dosstart.exec$(EXEEXT) \
 @DISKLESS_SUPPORT_FALSE@	badgrubstart.exec$(EXEEXT) \
 @DISKLESS_SUPPORT_FALSE@	grldrstart.exec$(EXEEXT) \
-# @DISKLESS_SUPPORT_FALSE@	mbrstart.exec$(EXEEXT) \
+@DISKLESS_SUPPORT_FALSE@	mbrstart.exec$(EXEEXT) \
 @DISKLESS_SUPPORT_FALSE@	bootlacestart.exec$(EXEEXT) \
 @DISKLESS_SUPPORT_FALSE@	hmloadstart.exec$(EXEEXT)
 @DISKLESS_SUPPORT_TRUE@noinst_PROGRAMS = pre_stage2.exec$(EXEEXT) \
@@ -82,7 +82,7 @@ EXTRA_PROGRAMS = nbloader.exec$(EXEEXT) pxeloader.exec$(EXEEXT) \
 @DISKLESS_SUPPORT_TRUE@	dosstart.exec$(EXEEXT) \
 @DISKLESS_SUPPORT_TRUE@	badgrubstart.exec$(EXEEXT) \
 @DISKLESS_SUPPORT_TRUE@	grldrstart.exec$(EXEEXT) \
-# @DISKLESS_SUPPORT_TRUE@	mbrstart.exec$(EXEEXT) \
+@DISKLESS_SUPPORT_TRUE@	mbrstart.exec$(EXEEXT) \
 @DISKLESS_SUPPORT_TRUE@	bootlacestart.exec$(EXEEXT) \
 @DISKLESS_SUPPORT_TRUE@	hmloadstart.exec$(EXEEXT)
 subdir = stage2
@@ -216,9 +216,9 @@ am_jfs_stage1_5_exec_OBJECTS = jfs_stage1_5_exec-start.$(OBJEXT) \
 	jfs_stage1_5_exec-bios.$(OBJEXT)
 jfs_stage1_5_exec_OBJECTS = $(am_jfs_stage1_5_exec_OBJECTS)
 jfs_stage1_5_exec_LDADD = $(LDADD)
-# am_mbrstart_exec_OBJECTS = mbrstart_exec-mbrstart.$(OBJEXT)
-# mbrstart_exec_OBJECTS = $(am_mbrstart_exec_OBJECTS)
-# mbrstart_exec_LDADD = $(LDADD)
+am_mbrstart_exec_OBJECTS = mbrstart_exec-mbrstart.$(OBJEXT)
+mbrstart_exec_OBJECTS = $(am_mbrstart_exec_OBJECTS)
+mbrstart_exec_LDADD = $(LDADD)
 am_minix_stage1_5_exec_OBJECTS = minix_stage1_5_exec-start.$(OBJEXT) \
 	minix_stage1_5_exec-asm.$(OBJEXT) \
 	minix_stage1_5_exec-common.$(OBJEXT) \
@@ -342,7 +342,7 @@ SOURCES = $(libgrub_a_SOURCES) $(badgrubstart_exec_SOURCES) \
 	$(fat_stage1_5_exec_SOURCES) $(ffs_stage1_5_exec_SOURCES) \
 	$(grldrstart_exec_SOURCES) $(hmloadstart_exec_SOURCES) \
 	$(iso9660_stage1_5_exec_SOURCES) $(jfs_stage1_5_exec_SOURCES) \
-#	$(mbrstart_exec_SOURCES) $(minix_stage1_5_exec_SOURCES) \
+	$(mbrstart_exec_SOURCES) $(minix_stage1_5_exec_SOURCES) \
 	$(nbloader_exec_SOURCES) $(ntfs_stage1_5_exec_SOURCES) \
 	$(pre_stage2_exec_SOURCES) $(pxeloader_exec_SOURCES) \
 	$(reiserfs_stage1_5_exec_SOURCES) $(start_exec_SOURCES) \
@@ -354,7 +354,7 @@ DIST_SOURCES = $(libgrub_a_SOURCES) $(badgrubstart_exec_SOURCES) \
 	$(fat_stage1_5_exec_SOURCES) $(ffs_stage1_5_exec_SOURCES) \
 	$(grldrstart_exec_SOURCES) $(hmloadstart_exec_SOURCES) \
 	$(iso9660_stage1_5_exec_SOURCES) $(jfs_stage1_5_exec_SOURCES) \
-#	$(mbrstart_exec_SOURCES) $(minix_stage1_5_exec_SOURCES) \
+	$(mbrstart_exec_SOURCES) $(minix_stage1_5_exec_SOURCES) \
 	$(nbloader_exec_SOURCES) $(ntfs_stage1_5_exec_SOURCES) \
 	$(pre_stage2_exec_SOURCES) $(pxeloader_exec_SOURCES) \
 	$(reiserfs_stage1_5_exec_SOURCES) $(start_exec_SOURCES) \
@@ -535,11 +535,9 @@ libgrub_a_CFLAGS = $(GRUB_CFLAGS) -I$(top_srcdir)/lib \
 @DISKLESS_SUPPORT_TRUE@pkglib_DATA = stage2 stage2_eltorito e2fs_stage1_5 fat_stage1_5 ntfs_stage1_5 \
 @DISKLESS_SUPPORT_TRUE@	ffs_stage1_5 iso9660_stage1_5 jfs_stage1_5 minix_stage1_5 \
 @DISKLESS_SUPPORT_TRUE@	reiserfs_stage1_5 ufs2_stage1_5 vstafs_stage1_5 xfs_stage1_5\
-@DISKLESS_SUPPORT_FALSE@noinst_DATA = pre_stage2 start start_eltorito dosstart badgrubstart grldrstart bootlacestart hmloadstart
-# @DISKLESS_SUPPORT_FALSE@noinst_DATA = pre_stage2 start start_eltorito dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
+@DISKLESS_SUPPORT_FALSE@noinst_DATA = pre_stage2 start start_eltorito dosstart badgrubstart grldrstart bootlacestart hmloadstart@DISKLESS_SUPPORT_FALSE@noinst_DATA = pre_stage2 start start_eltorito dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
 @DISKLESS_SUPPORT_TRUE@	nbgrub pxegrub grub.exe badgrub.exe grldr grldr.mbr bootlace.com hmload.com
-# @DISKLESS_SUPPORT_TRUE@noinst_DATA = pre_stage2 start start_eltorito nbloader pxeloader diskless dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
-@DISKLESS_SUPPORT_TRUE@noinst_DATA = pre_stage2 start start_eltorito nbloader pxeloader diskless dosstart badgrubstart grldrstart bootlacestart hmloadstart
+@DISKLESS_SUPPORT_TRUE@noinst_DATA = pre_stage2 start start_eltorito nbloader pxeloader diskless dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
 MOSTLYCLEANFILES = $(noinst_PROGRAMS)
 PRE_STAGE2_LINK = -nostdlib -Wl,-N -Wl,-Ttext -Wl,8200 $(BIN_LDFLAGS)
 START_LINK = -nostdlib -Wl,-N -Wl,-Ttext -Wl,8000 $(BIN_LDFLAGS)
@@ -592,9 +590,9 @@ badgrubstart_exec_LDFLAGS = $(START_LINK)
 grldrstart_exec_SOURCES = grldrstart.S
 grldrstart_exec_CCASFLAGS = $(STAGE2_COMPILE)
 grldrstart_exec_LDFLAGS = $(START_LINK)
-# mbrstart_exec_SOURCES = mbrstart.S
-# mbrstart_exec_CCASFLAGS = $(STAGE2_COMPILE)
-# mbrstart_exec_LDFLAGS = $(START_LINK)
+mbrstart_exec_SOURCES = mbrstart.S
+mbrstart_exec_CCASFLAGS = $(STAGE2_COMPILE)
+mbrstart_exec_LDFLAGS = $(START_LINK)
 bootlacestart_exec_SOURCES = bootlacestart.S
 bootlacestart_exec_CCASFLAGS = $(STAGE2_COMPILE)
 bootlacestart_exec_LDFLAGS = -nostdlib -Wl,-N -Wl,-Ttext -Wl,08048000 $(BIN_LDFLAGS)
@@ -834,9 +832,9 @@ iso9660_stage1_5.exec$(EXEEXT): $(iso9660_stage1_5_exec_OBJECTS) $(iso9660_stage
 jfs_stage1_5.exec$(EXEEXT): $(jfs_stage1_5_exec_OBJECTS) $(jfs_stage1_5_exec_DEPENDENCIES) 
 	@rm -f jfs_stage1_5.exec$(EXEEXT)
 	$(LINK) $(jfs_stage1_5_exec_LDFLAGS) $(jfs_stage1_5_exec_OBJECTS) $(jfs_stage1_5_exec_LDADD) $(LIBS)
-# mbrstart.exec$(EXEEXT): $(mbrstart_exec_OBJECTS) $(mbrstart_exec_DEPENDENCIES) 
-# 	@rm -f mbrstart.exec$(EXEEXT)
-# 	$(LINK) $(mbrstart_exec_LDFLAGS) $(mbrstart_exec_OBJECTS) $(mbrstart_exec_LDADD) $(LIBS)
+mbrstart.exec$(EXEEXT): $(mbrstart_exec_OBJECTS) $(mbrstart_exec_DEPENDENCIES) 
+	@rm -f mbrstart.exec$(EXEEXT)
+	$(LINK) $(mbrstart_exec_LDFLAGS) $(mbrstart_exec_OBJECTS) $(mbrstart_exec_LDADD) $(LIBS)
 minix_stage1_5.exec$(EXEEXT): $(minix_stage1_5_exec_OBJECTS) $(minix_stage1_5_exec_DEPENDENCIES) 
 	@rm -f minix_stage1_5.exec$(EXEEXT)
 	$(LINK) $(minix_stage1_5_exec_LDFLAGS) $(minix_stage1_5_exec_OBJECTS) $(minix_stage1_5_exec_LDADD) $(LIBS)
@@ -1135,11 +1133,11 @@ jfs_stage1_5_exec-asm.o: asm.S
 jfs_stage1_5_exec-asm.obj: asm.S
 	$(CCAS) $(jfs_stage1_5_exec_CCASFLAGS) $(CCASFLAGS) -c -o jfs_stage1_5_exec-asm.obj `if test -f 'asm.S'; then $(CYGPATH_W) 'asm.S'; else $(CYGPATH_W) '$(srcdir)/asm.S'; fi`
 
-# mbrstart_exec-mbrstart.o: mbrstart.S
-# 	$(CCAS) $(mbrstart_exec_CCASFLAGS) $(CCASFLAGS) -c -o mbrstart_exec-mbrstart.o `test -f 'mbrstart.S' || echo '$(srcdir)/'`mbrstart.S
+mbrstart_exec-mbrstart.o: mbrstart.S
+	$(CCAS) $(mbrstart_exec_CCASFLAGS) $(CCASFLAGS) -c -o mbrstart_exec-mbrstart.o `test -f 'mbrstart.S' || echo '$(srcdir)/'`mbrstart.S
 
-# mbrstart_exec-mbrstart.obj: mbrstart.S
-#	$(CCAS) $(mbrstart_exec_CCASFLAGS) $(CCASFLAGS) -c -o mbrstart_exec-mbrstart.obj `if test -f 'mbrstart.S'; then $(CYGPATH_W) 'mbrstart.S'; else $(CYGPATH_W) '$(srcdir)/mbrstart.S'; fi`
+mbrstart_exec-mbrstart.obj: mbrstart.S
+	$(CCAS) $(mbrstart_exec_CCASFLAGS) $(CCASFLAGS) -c -o mbrstart_exec-mbrstart.obj `if test -f 'mbrstart.S'; then $(CYGPATH_W) 'mbrstart.S'; else $(CYGPATH_W) '$(srcdir)/mbrstart.S'; fi`
 
 minix_stage1_5_exec-start.o: start.S
 	$(CCAS) $(minix_stage1_5_exec_CCASFLAGS) $(CCASFLAGS) -c -o minix_stage1_5_exec-start.o `test -f 'start.S' || echo '$(srcdir)/'`start.S
@@ -3743,26 +3741,24 @@ grldrstart_exec-grldrstart.$(OBJEXT): stage2_size.h
 
 grldr: pre_stage2 grldrstart
 	-rm -f grldr
-	-rm -f grldr.mbr
 	-rm -f grldr_cd.bin
 	echo -n -e "\000\000\000\000\000\000\000\000\000\000\000\000" | cat grldrstart pre_stage2 - > grldr
 	if [ -f ../preset_menu_used ]; then cat ../preset_menu_used >> grldr ;fi
-	cat grldrstart > grldr.mbr
 	dd if=grldrstart of=grldr_cd.bin bs=512 count=2
 
-# mbrstart_exec-mbrstart.$(OBJEXT): stage2_size.h grldrstart.S
+mbrstart_exec-mbrstart.$(OBJEXT): stage2_size.h grldrstart.S
 
-# grldr.mbr: mbrstart
-#	-rm -f grldr.mbr
-#	cat mbrstart > grldr.mbr
+grldr.mbr: mbrstart
+	-rm -f grldr.mbr
+	cat mbrstart > grldr.mbr
 
 bootlacestart_exec-bootlacestart.$(OBJEXT): stage2_size.h bootlace.inc grldrstart.S
 
 bootlace.com: bootlacestart
 	-rm -f bootlace.com
-	-rm -f grldr.dbr
+	-rm -f grldr.pbr
 	cp bootlacestart bootlace.com && chmod a+x bootlace.com
-	dd if=bootlace.com of=grldr.dbr bs=512 skip=52 count=10
+	dd if=bootlace.com of=grldr.pbr bs=512 skip=51 count=10
 	cat grldr.mbr >> bootlace.com
 	
 

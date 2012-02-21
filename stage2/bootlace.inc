@@ -714,7 +714,8 @@
 
 	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xffffff05, ABS(time_out)
+//	cmpl	$0xffffff05, ABS(time_out)
+	cmpl	$0xffffff00, ABS(time_out)
 	movl	$ABS(msg_option_time_out), %ecx
 	jnz	4f	/* error */
 
@@ -774,6 +775,7 @@
 	movl	$ABS(msg_option_install_partition), %ecx
 	jnz	4f	/* error */
 
+	movl	%edi, %esi							//Point input
 	movl	$0xffff, %ebx
 	call	7f	/* parse_number */
 	movl	%ebx, %edi	# save EBX to EDI
@@ -951,203 +953,203 @@
 	movl	$0xff, ABS(floppy)
 	jmp	1b
 
-3:
+//3:
 
 	/* check --lba */
 
-	movl	$6, %ecx
-	movl	$ABS(option_lba), %esi
-	movl	%ebx, %edi
+//	movl	$6, %ecx
+//	movl	$ABS(option_lba), %esi
+//	movl	%ebx, %edi
 
-	cld
-	repz cmpsb
+//	cld
+//	repz cmpsb
 
-	jnz	3f
+//	jnz	3f
 
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
+//	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xffffffff, ABS(lba)
-	movl	$ABS(msg_option_lba), %ecx
-	jnz	4f	/* error */
+//	cmpl	$0xffffffff, ABS(lba)
+//	movl	$ABS(msg_option_lba), %ecx
+//	jnz	4f	/* error */
 
-	movl	$1, ABS(lba)
-	jmp	1b
+//	movl	$1, ABS(lba)
+//	jmp	1b
 
-3:
+//3:
 
 	/* check --chs */
 
-	movl	$6, %ecx
-	movl	$ABS(option_chs), %esi
-	movl	%ebx, %edi
+//	movl	$6, %ecx
+//	movl	$ABS(option_chs), %esi
+//	movl	%ebx, %edi
 
-	cld
-	repz cmpsb
+//	cld
+//	repz cmpsb
 
-	jnz	3f
+//	jnz	3f
 
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
+//	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xffffffff, ABS(lba)
-	movl	$ABS(msg_option_lba), %ecx
-	jnz	4f	/* error */
+//	cmpl	$0xffffffff, ABS(lba)
+//	movl	$ABS(msg_option_lba), %ecx
+//	jnz	4f	/* error */
 
-	movl	$0, ABS(lba)
-	jmp	1b
+//	movl	$0, ABS(lba)
+//	jmp	1b
 
-3:
+//3:
 
 	/* check --fat12 */
 
-	movl	$8, %ecx
-	movl	$ABS(option_fat12), %esi
-	movl	%ebx, %edi
+//	movl	$8, %ecx
+//	movl	$ABS(option_fat12), %esi
+//	movl	%ebx, %edi
 
-	cld
-	repz cmpsb
+//	cld
+//	repz cmpsb
 
-	jnz	3f
+//	jnz	3f
 
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
+//	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xfffffff7, ABS(fstypes)
-	jnz	2f
-	movl	$0, ABS(fstypes)
-2:
-	orb	$1, ABS(fstypes)
-	jmp	1b
+//	cmpl	$0xfffffff7, ABS(fstypes)
+//	jnz	2f
+//	movl	$0, ABS(fstypes)
+//2:
+//	orb	$1, ABS(fstypes)
+//	jmp	1b
 
-3:
+//3:
 
 	/* check --fat16 */
 
-	movl	$8, %ecx
-	movl	$ABS(option_fat16), %esi
-	movl	%ebx, %edi
+//	movl	$8, %ecx
+//	movl	$ABS(option_fat16), %esi
+//	movl	%ebx, %edi
 
-	cld
-	repz cmpsb
+//	cld
+//	repz cmpsb
 
-	jnz	3f
+//	jnz	3f
 
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
+//	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xfffffff7, ABS(fstypes)
-	jnz	2f
-	movl	$0, ABS(fstypes)
-2:
-	orb	$2, ABS(fstypes)
-	jmp	1b
+//	cmpl	$0xfffffff7, ABS(fstypes)
+//	jnz	2f
+//	movl	$0, ABS(fstypes)
+//2:
+//	orb	$2, ABS(fstypes)
+//	jmp	1b
 
-3:
+//3:
 
 	/* check --fat32 */
 
-	movl	$8, %ecx
-	movl	$ABS(option_fat32), %esi
-	movl	%ebx, %edi
+//	movl	$8, %ecx
+//	movl	$ABS(option_fat32), %esi
+//	movl	%ebx, %edi
 
-	cld
-	repz cmpsb
+//	cld
+//	repz cmpsb
 
-	jnz	3f
+//	jnz	3f
 
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
+//	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xfffffff7, ABS(fstypes)
-	jnz	2f
-	movl	$0, ABS(fstypes)
-2:
-	orb	$4, ABS(fstypes)
-	jmp	1b
+//	cmpl	$0xfffffff7, ABS(fstypes)
+//	jnz	2f
+//	movl	$0, ABS(fstypes)
+//2:
+//	orb	$4, ABS(fstypes)
+//	jmp	1b
 
-3:
+//3:
 
 	/* check --ntfs */
 
-	movl	$7, %ecx
-	movl	$ABS(option_ntfs), %esi
-	movl	%ebx, %edi
+//	movl	$7, %ecx
+//	movl	$ABS(option_ntfs), %esi
+//	movl	%ebx, %edi
 
-	cld
-	repz cmpsb
+//	cld
+//	repz cmpsb
 
-	jnz	3f
+//	jnz	3f
 
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
+//	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xfffffff7, ABS(fstypes)
-	jnz	2f
-	movl	$0, ABS(fstypes)
-2:
-	orb	$8, ABS(fstypes)
-	jmp	1b
+//	cmpl	$0xfffffff7, ABS(fstypes)
+//	jnz	2f
+//	movl	$0, ABS(fstypes)
+//2:
+//	orb	$8, ABS(fstypes)
+//	jmp	1b
 
-3:
+//3:
 
 	/* check --ext2 */
 
-	movl	$7, %ecx
-	movl	$ABS(option_ext2), %esi
-	movl	%ebx, %edi
+//	movl	$7, %ecx
+//	movl	$ABS(option_ext2), %esi
+//	movl	%ebx, %edi
 
-	cld
-	repz cmpsb
+//	cld
+//	repz cmpsb
 
-	jnz	3f
+//	jnz	3f
 
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
+//	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xfffffff7, ABS(fstypes)
-	jnz	2f
-	movl	$0, ABS(fstypes)
-2:
-	orb	$0x10, ABS(fstypes)
-	jmp	1b
+//	cmpl	$0xfffffff7, ABS(fstypes)
+//	jnz	2f
+//	movl	$0, ABS(fstypes)
+//2:
+//	orb	$0x10, ABS(fstypes)
+//	jmp	1b
 
-3:
+//3:
 
 	/* check --vfat */
 
-	movl	$7, %ecx
-	movl	$ABS(option_vfat), %esi
-	movl	%ebx, %edi
+//	movl	$7, %ecx
+//	movl	$ABS(option_vfat), %esi
+//	movl	%ebx, %edi
 
-	cld
-	repz cmpsb
+//	cld
+//	repz cmpsb
 
-	jnz	3f
+//	jnz	3f
 
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
+//	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xfffffff7, ABS(fstypes)
-	jnz	2f
-	movl	$0, ABS(fstypes)
-2:
-	orb	$7, ABS(fstypes)
-	jmp	1b
+//	cmpl	$0xfffffff7, ABS(fstypes)
+//	jnz	2f
+//	movl	$0, ABS(fstypes)
+//2:
+//	orb	$7, ABS(fstypes)
+//	jmp	1b
 
-3:
+//3:
 
 	/* check --exfat */
 
-	movl	$8, %ecx
-	movl	$ABS(option_exfat), %esi
-	movl	%ebx, %edi
+//	movl	$8, %ecx
+//	movl	$ABS(option_exfat), %esi
+//	movl	%ebx, %edi
 
-	cld
-	repz cmpsb
+//	cld
+//	repz cmpsb
 
-	jnz	3f
+//	jnz	3f
 
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
+//	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xfffffff7, ABS(fstypes)
-	jnz	2f
-	movl	$0, ABS(fstypes)
-2:
-	orb	$0x20, ABS(fstypes)
-	jmp	1b
+//	cmpl	$0xfffffff7, ABS(fstypes)
+//	jnz	2f
+//	movl	$0, ABS(fstypes)
+//2:
+//	orb	$0x20, ABS(fstypes)
+//	jmp	1b
 
 3:
 
@@ -1182,12 +1184,12 @@
 	cmpb	$0xff, %al
 	jne	1f
 
-	movl	%ebx, %edi	# save EBX to EDI
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
+//	movl	%ebx, %edi	# save EBX to EDI
+//	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	cmpb	$0xff, %ah
 	movl	$ABS(msg_partition_without_drive), %ecx
 	jne	4f	/* error */
-	movl	%edi, %ebx	# restore EBX from EDI
+//	movl	%edi, %ebx	# restore EBX from EDI
 1:
 
 	/* EBX points to the pathname of the file. */
@@ -1243,7 +1245,8 @@
 	movl	$ABS(msg_option_install_partition_with_floppy), %ecx
 	jnz	4f	/* error */
 
-	cmpl	$0xffffff05, ABS(time_out)
+//	cmpl	$0xffffff05, ABS(time_out)
+	cmpl	$0xffffff00, ABS(time_out)
 	movl	$ABS(msg_option_time_out_with_floppy), %ecx
 	jnz	4f	/* error */
 
@@ -1322,7 +1325,8 @@
 	movl	$ABS(msg_option_serial_number_with_partition), %ecx
 	jnz	4f	/* error */
 
-	cmpl	$0xffffff05, ABS(time_out)
+//	cmpl	$0xffffff05, ABS(time_out)
+	cmpl	$0xffffff00, ABS(time_out)
 	movl	$ABS(msg_option_time_out_with_partition), %ecx
 	jnz	4f	/* error */
 
@@ -1469,6 +1473,7 @@
 	movw	%ax, %ss
 	movw	%ax, %ds
 	movw	%ax, %es
+	
 	popl	%eax		// dummy pop
 	pushl	%ebx		// file descriptor, or 0 for BIOS drive
 
@@ -1491,6 +1496,25 @@
 	jz	3f		/* No EBIOS */
 	/* EBIOS supported */
 	movl	$1, PRE(cs)ABS(ebios_support)
+	movb	PRE(cs)ABS(bios_drive_number), %dl
+	movw	$0, %si
+	movb	$0x48, %ah
+	int $0x13
+	jc	2f
+	cmpb	$0x42, 0x00
+	jne	2f
+	movw	$12, %cx
+	movw	$0x24, %si
+	movl	$ABS(msg_Information), %edi
+	pushw	%es
+	pushw	%cs
+	popw	%es
+	repz	movsb
+	popw	%es
+2:
+	movw	$3, %si
+2:
+	pushw	%si	
 	/* try read using EBIOS */
 	pushl	$0		// hi 32bit of startLBA
 	pushl	$0		// startLBA=0
@@ -1505,11 +1529,20 @@
 	movw	%ss, %ax
 	movw	%ax, %ds
 	movw	%ax, %es
-	popl	%eax
-	popl	%eax
-	popl	%eax
-	popl	%eax		# EAX=0
+//	popl	%eax
+//	popl	%eax
+//	popl	%eax
+//	popl	%eax		# EAX=0
+	popaw
+	popw	%si
 	jnc	2f		// EBIOS read success
+	decw	%si
+	je	sb	
+	xorw	%ax, %ax
+	movb	PRE(cs)ABS(bios_drive_number), %dl
+	int	$0x13
+	jmp	2b
+sb:	
 	/* A read failure means actually no EBIOS support */
 	movl	$0, PRE(cs)ABS(ebios_support)
 	movl	$ABS(msg_ebios_read_failure), %ecx
@@ -1709,54 +1742,149 @@
 	movl	$ABS(msg_option_total_sectors_for_mbr), %ecx
 	jnz	4f	/* error */
 
-	cmpl	$0xffffffff, PRE(cs)ABS(lba)
-	movl	$ABS(msg_option_lba_for_mbr), %ecx
-	jnz	4f	/* error */
+//	cmpl	$0xffffffff, PRE(cs)ABS(lba)
+//	movl	$ABS(msg_option_lba_for_mbr), %ecx
+//	jnz	4f	/* error */
 
-	cmpl	$0xfffffff7, PRE(cs)ABS(fstypes)
-	movl	$ABS(msg_option_fstypes_for_mbr), %ecx
-	jnz	4f	/* error */
+//	cmpl	$0xfffffff7, PRE(cs)ABS(fstypes)
+//	movl	$ABS(msg_option_fstypes_for_mbr), %ecx
+//	jnz	4f	/* error */
 
 //	cmpl	$((pre_stage2_start - _start1) / 512), PRE(cs)ABS(mbr_free_sectors)
-	cmpl	$(8192 / 512), PRE(cs)ABS(mbr_free_sectors)
+	cmpl	$(0x2000 / 0x200), PRE(cs)ABS(mbr_free_sectors)
 	movl	$ABS(msg_sectors_per_track), %ecx
 	jb	4f	/* error */
 
 	cmpl	$0xffffffff, PRE(cs)ABS(install_partition)
-	movl	$ABS(msg_option_install_partition_not_implemented), %ecx
+//	movl	$ABS(msg_option_install_partition_not_implemented), %ecx
 	je	1f	/* --install-partition not specified */
 
-	jmp	4f	/* error since --install-partition not implemented */
+//	jmp	4f	/* error since --install-partition not implemented */
 
-	/***************************************************************/
-	/* piece of code for --install-partition, but not used for now */
-	/***************************************************************/
 
+	/*****************************************/
+	/* piece of code for --install-partition */ 
+	/*****************************************/
 	/* EBX holds the file descriptor number or 0 if it is BIOS drive */
 	/* move partition table forward to the beginning of the 17th sector */
+	cmpb	$0, PRE(cs)ABS(ebios_support)	//Support the expansion of reading？
+	movl	$ABS(msg_no_ebios_support), %ecx
+	je	4f	//no
 
 	movl	$MBR(0x01be), %esi
 	movl	$MBR(0x2000), %edi
 	movl	$0x10, %ecx	# 0x10 dwords = 0x40 bytes
-
 	cld
-	repz movsl
+	repz movsl  //Move the partition table
 
 	/* initialize the current_partition number */
-	movzbl	PRE(cs)ABS(install_partition), %eax
-	movl	%eax, PRE(cs)ABS(current_partition)
+//	movzbl	PRE(cs)ABS(install_partition), %eax
+//	movl	%eax, PRE(cs)ABS(current_partition)
 
-3:
+//3:
 	/* load the next partition and modify the boot record */
+
+	/* Detection of extended partitions start logical sector */
 	call	0f	/* partition */
-	jc	3f	/* done */
-	call	2f	/* write to file */
-	incl	PRE(cs)ABS(current_partition)
-	movw	PRE(cs)ABS(install_partition), %ax
-	addb	%ah, %al	/* Max partition number for install */
-	cmpb	%al, PRE(cs)ABS(current_partition)
-	jbe	3b
+	/* Display disk information */
+	movb	PRE(cs)ABS(bios_drive_number), %al	//bios id
+	subb	$0x50, %al
+	movb	%al, PRE(cs)ABS(msg_disk)
+	movw	$0xffff, %bx
+	pushw	%bx
+33:
+	popw	%bx
+	incw	%bx
+	cmpb	PRE(cs)ABS(total_partition_entries), %bl //The total number of partitions
+	ja	34f	
+	pushw	%bx
+	shlw	$4, %bx
+	cmpb	$0, 0x2004(%bx)
+	je	33b
+	movl	0x200c(%bx), %eax
+	popw	%bx
 3:
+	pushw	%bx	
+	addb	$0x30, %bl
+	movb	%bl, PRE(cs)ABS(msg_partition)
+	call	66f
+	jmp	33b
+34:	
+	//Wait for key
+	movw	PRE(cs)ABS(install_partition), %bx	//Installation partition
+	cmpb	PRE(cs)ABS(total_partition_entries), %bl //The total number of partitions
+	movl	$ABS(msg_install_partition_not), %ecx	
+	ja	4f
+	shlw	$4, %bx
+	cmpb	$0, 0x2004(%bx)
+	je	4f	
+	movl	$ABS(msg_Wait_for_key), %ecx
+	call	8f	/* linux_print */
+3:	
+	movb	$1, %ah	//Get keyboard input
+	int	$0x16
+	je	3b	//not
+	xorl	%ecx, %ecx    	
+	cmpb	$0x79, %al	//"y"?
+	jne	4f	//not	
+	//Install the boot code to disk
+	//24 sectors to read the specified partition es: 0000
+
+	movl	$MBR(0x07BE), %ebp
+	movw	PRE(cs)ABS(install_partition), %bx	  //Partition number
+	shlw	$4, %bx
+	movl	0x2008(%bx), %eax	//The partition start LBA address
+	addl	0x2000(%bx), %eax	//Starting LBA address plus the parent partition
+	pushl	%eax
+	pushl	$0
+	pushl	%eax
+	pushw	%es
+	pushw	$0
+	pushw $0x18
+	pushw $0x10
+	movb	$0x42, %ah		
+	movw	%sp, %si
+	movb	PRE(cs)ABS(bios_drive_number), %dl //bios id	
+	int $0x13
+	popaw
+	popl	%eax
+	movl	$0, %ecx
+	jc 4f
+  //Determine the partition type, copy the file
+  xorl	%esi, %esi
+	call	5f	/* floppy routine */
+	movl	$0, %ecx
+	jc	4f	/* error */
+	//Write from memory to the boot sector file
+	cmpw	$2, PRE(cs)ABS(read_only)	#; 0=read only, 2=read/write
+	jne	4f		/* read only */
+	
+	
+	pushl	$0
+	pushl	%eax
+	pushw	%es
+	pushw	$0
+	movw	PRE(cs)ABS(sectors_to_write), %ax	//Write the number of sectors
+	pushw %ax
+	pushw $0x0010
+	movb	$0x43, %ah		
+	movw	%sp, %si
+	movb	PRE(cs)ABS(bios_drive_number), %dl		//bios id
+	int $0x13
+	popaw
+	movl	$0, %ecx
+	jc 4f
+	movl	$ABS(msg_success), %ecx	
+	call	8f	/* linux_print */
+
+//	jc	3f	/* done */
+//	call	2f	/* write to file */
+//	incl	PRE(cs)ABS(current_partition)
+//	movw	PRE(cs)ABS(install_partition), %ax
+//	addb	%ah, %al	/* Max partition number for install */
+//	cmpb	%al, PRE(cs)ABS(current_partition)
+//	jbe	3b
+//3:
 	/* all partitions have been installed. */
 	
 	xorl	%eax, %eax	# exit code = 0
@@ -1772,7 +1900,7 @@
 	int	$0x80
 #endif
 		
-	ret
+//	ret
 
 	/*************************************************/
 	/* end the piece of code for --install-partition */
@@ -1813,8 +1941,8 @@
 	repnz scasb
 	jnz	3f		// 2nd is not grldr, restore it
 	movl	$ABS(msg_invalid_prev_mbr), %ecx
-	cmpl	$0xB8661FFC, (%edi) 
-	jz	4f	/* error */
+//	cmpl	$0xB8661FFC, (%edi) 
+//	jz	4f	/* error */
 	
 	cmpl	$0xC38E0820, (%edi)
 	jz	4f	/* error */
@@ -1872,9 +2000,9 @@
 	cld
 	repnz scasb
 	jnz	3f		# 2nd is not grldr, do not overwrite it
-	cmpl	$0xB8661FFC, (%edi)
-//	jnz	3f		# 2nd is not grldr, do not overwrite it
-	je	10f
+//	cmpl	$0xB8661FFC, (%edi)
+   //jnz	3f		# 2nd is not grldr, do not overwrite it
+//	je	10f
 	cmpl	$0xC38E0820, (%edi) 
 	jnz	3f	/* error */
 10:
@@ -1888,8 +2016,8 @@
 	jnz	1f		# MBR is not grldr, enable backup
 	cmpl	$0xB8661FFC, (%edi)
 	jz	3f		# MBR is grldr, do not backup
-	cmpl	$0xC38E0820, (%edi)
-	jz	3f
+//	cmpl	$0xC38E0820, (%edi)
+//	jz	3f
 1:
 
 //----------------------------------------------------------------------------
@@ -2283,28 +2411,32 @@
 
 	movb	PRE(cs)ABS(mbr_floppy), %al
 	andb	$0x01, %al
-	movb	%al, MBR(2)
+//	movb	%al, MBR(2)
+	movb	%al, MBR(0x5a)
 
 	/* modify PRE(cs)ABS(mbr_osbr) bit */
 
 	movb	PRE(cs)ABS(mbr_osbr), %al
 	andb	$0x01, %al
 	shlb	$1, %al
-	orb	%al, MBR(2)
+//	orb	%al, MBR(2)
+	orb	%al, MBR(0x5a)
 
 	/* modify PRE(cs)ABS(duce) bit */
 
 	movb	PRE(cs)ABS(duce), %al
 	andb	$0x01, %al
 	shlb	$2, %al
-	orb	%al, MBR(2)
+//	orb	%al, MBR(2)
+	orb	%al, MBR(0x5a)
 
 	/* modify PRE(cs)ABS(chs_no_tune) bit */
 
 	movb	PRE(cs)ABS(chs_no_tune), %al
 	andb	$0x01, %al
 	shlb	$3, %al
-	orb	%al, MBR(2)
+//	orb	%al, MBR(2)
+	orb	%al, MBR(0x5a)
 
 	/* modify PRE(cs)ABS(boot_prevmbr) bit */
 
@@ -2312,27 +2444,32 @@
 	notb	%al
 	andb	$0x01, %al
 	rorb	$1, %al
-	orb	%al, MBR(2)
+//	orb	%al, MBR(2)
+	orb	%al, MBR(0x5a)
 
 	/* modify PRE(cs)ABS(time_out) byte */
 
 	movb	PRE(cs)ABS(time_out), %al
-	movb	%al, MBR(3)
+//	movb	%al, MBR(3)
+	movb	%al, MBR(0x5b)
 
 	/* modify PRE(cs)ABS(hot_key) byte */
 
 	movw	PRE(cs)ABS(hot_key), %ax
-	movw	%ax, MBR(4)
+//	movw	%ax, MBR(4)
+	movw	%ax, MBR(0x5c)
 
 	/* modify PRE(cs)ABS(preferred_drive) byte */
 
 	movb	PRE(cs)ABS(preferred_drive), %al
-	movb	%al, MBR(6)
+//	movb	%al, MBR(6)
+	movb	%al, MBR(0x5e)
 
 	/* modify PRE(cs)ABS(preferred_partition) byte */
 
 	movb	PRE(cs)ABS(preferred_partition), %al
-	movb	%al, MBR(7)
+//	movb	%al, MBR(7)
+	movb	%al, MBR(0x5f)
 
 	/* modify disk serial number */
 
@@ -2356,7 +2493,7 @@
 	movl	$ABS(grldr_mbr_start + 0x400), %esi
 	movl	$MBR(0x400), %edi
 //	movl	$((pre_stage2_start - _start1 - 0x400) / 4), %ecx
-	movl	$(0x1c00 / 4), %ecx
+	movl	$((0x2000 - 0x400) / 4), %ecx
 
 	cld
 #ifdef __DOS_16
@@ -2700,24 +2837,24 @@
 	pushl	%ebx		# file descriptor, or 0 if specified BIOS drive
 
 	/* for safety, don't write too many sectors */
-	cmpl	$0xffffffff, PRE(cs)ABS(install_partition)
-	jne	1f		/* floppy */
-	cmpl	$0xffffffff, PRE(cs)ABS(floppy)
-	je	2f		/* hard drive */
-1:
+//	cmpl	$0xffffffff, PRE(cs)ABS(install_partition)
+//	jne	1f		/* floppy */
+//	cmpl	$0xffffffff, PRE(cs)ABS(floppy)
+//	je	2f		/* hard drive */
+//1:
 	/* floppy */
-	cmpl	$4, PRE(cs)ABS(sectors_to_write)
-	jbe	1f
-	movl	$4, PRE(cs)ABS(sectors_to_write)
-	jmp	1f
-2:
+//	cmpl	$4, PRE(cs)ABS(sectors_to_write)
+//	jbe	1f
+//	movl	$4, PRE(cs)ABS(sectors_to_write)
+//	jmp	1f
+//2:
 	/* hard drive */
 	//cmpl	$((pre_stage2_start - _start1) / 512), PRE(cs)ABS(sectors_to_write)
-	cmpl	$(63+32+1), PRE(cs)ABS(sectors_to_write)
-	jbe	1f
+//	cmpl	$(63+32+1), PRE(cs)ABS(sectors_to_write)
+//	jbe	1f
 	//movl	$((pre_stage2_start - _start1) / 512), PRE(cs)ABS(sectors_to_write)
-	movl	$(63+32+1), PRE(cs)ABS(sectors_to_write)
-1:
+//	movl	$(63+32+1), PRE(cs)ABS(sectors_to_write)
+//1:
 #ifdef __DOS_16
 
 	xorl	%eax, %eax
@@ -2725,7 +2862,27 @@
 	je	1f		/* not bios */
 
 	/* BIOS drive */
-
+	/* Display disk information */
+	movb	PRE(cs)ABS(bios_drive_number), %al	//bios id
+	subb	$0x50, %al
+	movb	%al, PRE(cs)ABS(msg_disk)
+	movw	$0x2020, %ax
+	movw	%ax, PRE(cs)ABS(msg_d)
+	movl	0x1ca, %eax
+	addl	0x1da, %eax
+	addl	0x1ea, %eax
+	addl	0x1fa, %eax
+	call	66f
+	//Wait for key
+	movl	$ABS(msg_Wait_for_key), %ecx
+	call	8f	/* linux_print */
+2:	
+	movb	$1, %ah	//Get keyboard input
+	int	$0x16
+	je	2b	//not
+	xorl	%ecx, %ecx      	
+	cmpb	$0x79, %al	//"y"
+	jne	4f	//not	
 	cmpl	$0, PRE(cs)ABS(ebios_support)
 	je	10f		/* EBIOS not present */
 	/* EBIOS supported */
@@ -2743,10 +2900,11 @@
 	movw	%ss, %ax
 	movw	%ax, %ds
 	movw	%ax, %es
-	popl	%eax
-	popl	%eax
-	popl	%eax
-	popl	%eax		#; EAX=0
+//	popl	%eax
+//	popl	%eax
+//	popl	%eax
+//	popl	%eax		#; EAX=0
+	popaw
 	jnc	2f
 	movl	$ABS(msg_ebios_write_failure), %ecx
 	call	8f	/* linux_print */
@@ -2817,13 +2975,13 @@
 
 	popl	%ebx		# file descriptor, or 0 if specified BIOS drive
 3:
-	cmpl	$0xffffffff, PRE(cs)ABS(install_partition)
-	je	3f
+//	cmpl	$0xffffffff, PRE(cs)ABS(install_partition)
+//	je	3f
 	
 	/* for install_partition, SF=0 when success, SF=1 when failure */
-	testl	%eax, %eax
-	ret
-3:
+//	testl	%eax, %eax
+//	ret
+//3:
 	testl	%eax, %eax
 	movl	$ABS(msg_write_file), %ecx
 	js	4f	/* error */
@@ -3085,7 +3243,7 @@
 
 	cld
 //	movl	$ABS(_start1 + 0x800), %esi	/* points to the 5th sector */
-	movl	$ABS(grldr_dbr_start + 0x400), %esi
+	movl	$ABS(grldr_pbr_start + 0x400), %esi
 #ifdef __DOS_16
 	xorl	%edi, %edi
 	cs lodsw
@@ -3243,7 +3401,7 @@
 	 * 2 bytes of boot signature */
 
 //	movl	$ABS(_start1 + 0x830), %esi
-	movl	$ABS(grldr_dbr_start + 0x430), %esi
+	movl	$ABS(grldr_pbr_start + 0x430), %esi
 //	lodsl	PRE(cs)(iSI), %eax
 //	movb	PRE(cs)ABS(floppy), %cl	/* partition number(0xFF for floppy) */
 //	cmpb	$0xff, %cl
@@ -3346,7 +3504,7 @@
 	
 	cld
 //	movl	$ABS(_start1 + 0x400), %esi	/* points to the 3rd sector */
-	movl	$ABS(grldr_dbr_start), %esi //6900
+	movl	$ABS(grldr_pbr_start), %esi
 #ifdef __DOS_16
 	xorl	%edi, %edi
 	cs lodsw
@@ -3445,7 +3603,7 @@
 	//movl	$ABS(_start1 + 0x45e), %esi
 //	movl	$(416 / 4), %ecx
 //	repz movsl PRE(cs)(iSI), %es:(iDI)
-	movl	$ABS(grldr_dbr_start + 0x5a), %esi
+	movl	$ABS(grldr_pbr_start + 0x5a), %esi
 	movl 	$0x5a, %edi
 	movl	$((0x200-0x5a)/2), %ecx
 	repz movsw PRE(cs)(iSI), %es:(iDI)
@@ -3490,7 +3648,7 @@
 
 	cld
 //	movl	$ABS(_start1 + 0xA00), %esi	/* points to the 6th sector */
-	movl	$ABS(grldr_dbr_start + 0x0c00), %esi
+	movl	$ABS(grldr_pbr_start + 0x0c00), %esi
 #ifdef __DOS_16
 	xorl	%edi, %edi
 	cs lodsw
@@ -3597,7 +3755,7 @@
 	 * we assume that NTFS boot record takes up 4 sectors. */
 
 //	movl	$((0x800 - 0x58)/ 4), %ecx
-	movl	$ABS(grldr_dbr_start + 0x0c54), %esi
+	movl	$ABS(grldr_pbr_start + 0x0c54), %esi
 	movl	$0x54, %edi
 	movl	$((0x800 - 0x54)/ 4), %ecx	
 	repz movsl PRE(cs)(iSI), %es:(iDI)
@@ -3752,7 +3910,7 @@
 	
 	cld
 //	movl	$ABS(_start1 + 0x600), %esi	/* points to the 4th sector */
-	movl	$ABS(grldr_dbr_start + 0x200), %esi
+	movl	$ABS(grldr_pbr_start + 0x200), %esi
 #ifdef __DOS_16
 	xorl	%edi, %edi
 	cs lodsw
@@ -3851,7 +4009,7 @@
 	//movl	$ABS(_start1 + 0x642), %esi
 //	movl	$(444 / 4), %ecx
 //	repz movsl PRE(cs)(iSI), %es:(iDI)
-	movl	$ABS(grldr_dbr_start + 0x23e), %esi
+	movl	$ABS(grldr_pbr_start + 0x23e), %esi
 	movl	$0x3e, %edi
 	movl	$((0x200-0x3e)/2), %ecx	
 	repz movsw PRE(cs)(iSI), %es:(iDI)
@@ -3890,7 +4048,7 @@
 //2:
 	/* write to FAT16 boot area */
 	
-	cld
+//	cld
 //	movl	$ABS(_start1 + 0x600), %esi	/* points to the 4th sector */
 #ifdef __DOS_16
 //	xorl	%edi, %edi
@@ -4000,7 +4158,7 @@
 //	popal
 //	ret
 1:
-	/* Secondly, try EXFAT */ //其次，尝试EXFAT	
+	/* Secondly, try EXFAT */
 	cmpl	$0x41465845, 0x03(iSI)			/* EXFA */
 	jnz	1f
 	cmpl	$0x20202054, 0x07(iSI)			/* T    */
@@ -4018,26 +4176,66 @@
 //	popal
 //	ret
 //2:
-	/* write to EXFAT boot area */  //写EXFAT引导区
+	/* write to EXFAT boot area */
 	
 	cld
-//	movl	$ABS(Entry_exfat), %esi
-#ifdef __DOS_16
-	movl	$ABS(grldr_dbr_start + 0x800), %esi
+	movl	$ABS(grldr_pbr_start + 0x800), %esi
+#ifdef __DOS_16	
+	xorl	%edi, %edi
 	cs lodsw
 #else
 	movl	$MBR(0), %edi
-	lodsw	PRE(cs)(iSI), %ax	/* The first 2 byte: short jmp */ //2字节跳转代码
+	lodsw	PRE(cs)(iSI), %ax	/* The first 2 byte: short jmp */
 #endif
 	stosw
 	movb	$0x90, %al
 	stosb
-	movl	$ABS(grldr_dbr_start + 0x878), %esi
+	movl	$ABS(grldr_pbr_start + 0x878), %esi
 	movl	$0x78, %edi
 	movl	$((0x400-0x78)/4), %ecx	
 	repz movsl PRE(cs)(iSI), %es:(iDI)
-	
-	movl	$2, PRE(cs)ABS(sectors_to_write)
+	//Fill sector
+	xorl	%eax, %eax
+	movw	$0x400, %di
+	movw	$0x480, %cx
+	repz	stosl
+	xorw	%si, %si
+	movw	$0xAA55, %ax
+	movw	$7, %cx
+3:	
+	movw	%ax, 0x5fe(%si)
+	addw	$0x200, %si
+	loop 3b
+2:	
+//Calculation exfat volume boot record checksum
+//si=the index entry (from 0 to cx) eax=checksum  cx=volume boot record check bytes (0x1600)
+	xorw	%si, %si	//Initialize the index
+	xorl	%eax, %eax	//Initialize the checksum
+	movw	$0x1600, %cx	//Bytes volume boot record check
+3:
+	rorl	$1, %eax	//"Checksum" right Cycle 1 bit
+	movzbl	(%si), %ebx	//Check items
+	addl	%ebx, %eax	//(("Checksum" Left Cycle 31 bit) or ("Checksum" right Cycle 1 bit)) + Check items
+2:
+	incw	%si	//index+1
+	cmpw	$0x6a, %si	//index=0x6a Exclude
+	je	2b
+	cmpw	$0x6b, %si	//index=0x6b Exclude
+	je	2b
+	cmpw	$0x70, %si	//index=0x70 Exclude
+	je	2b
+	cmpw	%cx, %si	//index=Maximum?
+	jb	3b	//No, continue to
+//Filling Checksum 	
+//	movw	$0x1600, %di
+	movw	$0x80, %cx
+	rep	stosl	//0x200 byte   
+//Modify the backup area
+	movw	$0x600, %cx
+	xorw	%si, %si
+	repz movsl
+
+	movl	$24, PRE(cs)ABS(sectors_to_write)
 	
 	movl	$ABS(msg_fstype_exfat_allow), %ecx
 	call	8f	/* linux_print */
@@ -5382,7 +5580,7 @@
 
 //partition:
 0:
-#if 0
+//#if 0
 	/* load the next partition and modify the boot record */
 
 	/* EBX holds the file descriptor number or 0 if it is BIOS drive */
@@ -5399,18 +5597,22 @@
 	 */
 	movl	$MBR(0x2000), %ebp
 	xorl	%eax, %eax
-	xchgl	%eax, 0x08(%ebp)
-	movl	%eax, 0x0c(%ebp)
-	xorl	%eax, %eax
-	xchgl	%eax, 0x18(%ebp)
-	movl	%eax, 0x1c(%ebp)
-	xorl	%eax, %eax
-	xchgl	%eax, 0x28(%ebp)
-	movl	%eax, 0x2c(%ebp)
-	xorl	%eax, %eax
-	xchgl	%eax, 0x38(%ebp)
-	movl	%eax, 0x3c(%ebp)
-
+//	xchgl	%eax, 0x08(%ebp)
+//	movl	%eax, 0x0c(%ebp)
+//	xorl	%eax, %eax
+//	xchgl	%eax, 0x18(%ebp)
+//	movl	%eax, 0x1c(%ebp)
+//	xorl	%eax, %eax
+//	xchgl	%eax, 0x28(%ebp)
+//	movl	%eax, 0x2c(%ebp)
+//	xorl	%eax, %eax
+//	xchgl	%eax, 0x38(%ebp)
+//	movl	%eax, 0x3c(%ebp)
+	movl	%eax, 0x00(%ebp)	//Clear the parent partition
+	movl	%eax, 0x10(%ebp)
+	movl	%eax, 0x20(%ebp)
+	movl	%eax, 0x30(%ebp)
+	
 	movl	$0x04, PRE(cs)ABS(total_partition_entries)
 	/* copy extended partition entries to the end of the partition table */
 	xorl	%esi, %esi
@@ -5428,45 +5630,90 @@
 	jne	4f
 2:
 	/* extended partition */
-
+	movb	$0xff, 0x04(%ebp, %esi)	//Basic extended partition
+	movl	0x08(%ebp, %esi), %eax
+2:	
 	/* read one sector of the partition to MBR(0) */
-	........
+	pushal
+	pushl	$0
+	pushl	%eax
+	pushw	%es
+	pushw	$0
+	pushw $0001
+	pushw $0x0010
+	movb	$0x42, %ah		
+	movw	%sp, %si
+	movb	PRE(cs)ABS(bios_drive_number), %dl //bios id
+	int $0x13
+	popaw
+	popal
 	/* check if the partition table is valid */
-	j_invalid	3f
+//	j_invalid	3f
+//	cmpl	$0, 0x1c6
+//	je	3f
+	movb	0x1c2, %bl	//分区标记
+	cmpb	$0x05, %bl  //扩展分区?
+	je	3f						//是
+	cmpb	$0x0f, %bl  //扩展分区? 
+	je	3f						//是
+	cmpb	$0x15, %bl  //扩展分区?
+	je	3f						//是
+	cmpb	$0x1f, %bl  //扩展分区?
+	je	3f						//是
+	cmpb	$0x85, %bl  //扩展分区?
+	jne	5f						//不是
+3:
+	addl	0x1c6, %eax	//分区起始LBA地址
+	jmp	2b
+5:	
 	/* approve the partition entries and move onto the free entries */
 	movl	PRE(cs)ABS(total_partition_entries), %edi
 	shll	$4, %edi
 	addl	%ebp, %edi		# EDI points to the first free entry
 	/* move the extended partition entry onto the first free entry */
-	movl	(%ebp, %esi), %eax
-	stosl
-	movl	4(%ebp, %esi), %eax
-	stosl
-	xorl	%eax, %eax
-	stosl
-	movl	8(%ebp, %esi), %eax
-	stosl
+//	movl	(%ebp, %esi), %eax
+//	stosl
+//	movl	4(%ebp, %esi), %eax
+//	stosl
+//	xorl	%eax, %eax
+//	stosl
+//	movl	8(%ebp, %esi), %eax
+//	stosl
+	movl	%eax, 0x00(%edi)	//parent partition
+	movl	0x1c2, %eax
+	movl	%eax, 0x04(%edi)
+	movl	0x1c6, %eax
+	movl	%eax, 0x08(%edi)	//The partition
+	movl	0x1ca, %eax
+	movl	%eax, 0x0c(%edi)	//The total number of sectors
+	//Determine whether there is an extended partition
+	cmpl	$0, 0x1d6
+	je	2f	//no
 	incl	PRE(cs)ABS(total_partition_entries)
-3:
+	movl	0x08(%ebp, %esi), %eax	//parent partition
+	addl	0x1d6, %eax	//LBA partition start address
+	jmp	2b
+//3:
 	///* disable the original extended partition entry by clearing its id */
 	//movb	$0, 4(%ebp, %esi)
 	cmpl	$0x40, %esi		# Is it in the main partition table?
-	jb	4f			# yes, keep the entry in its place.
-	
+//	jb	4f			# yes, keep the entry in its place.
+	jae	2f
 					# no, remove the entry.
-	pushl	%esi
-	addl	%ebp, %esi
-	movl	%esi, %edi
-	addl	$0x10, %esi
-	movl	PRE(cs)ABS(total_partition_entries), %ecx
-	shll	$4, %ecx
-	subl	%esi, %ecx
-	shrl	$2, %ecx
-	cld
-	repz movsl
-	popl	%esi
-	decl	PRE(cs)ABS(total_partition_entries)
-	subl	$0x10, %esi		# go back one entry and redo
+//	pushl	%esi
+//	addl	%ebp, %esi
+//	movl	%esi, %edi
+//	addl	$0x10, %esi
+//	movl	PRE(cs)ABS(total_partition_entries), %ecx
+//	shll	$4, %ecx
+////	subl	%esi, %ecx
+//	subl	%ecx, %esi
+//	shrl	$2, %ecx
+//	cld
+//	repz movsl
+//	popl	%esi
+//	decl	PRE(cs)ABS(total_partition_entries)
+//	subl	$0x10, %esi		# go back one entry and redo
 4:
 	addl	$0x10, %esi
 	movl	PRE(cs)ABS(total_partition_entries), %edi
@@ -5482,41 +5729,41 @@
 	//cmpl	PRE(cs)ABS(total_partition_entries), %esi
 	
 	
-	cmpl	$3, PRE(cs)ABS(current_partition)
-	ja	1f
+//	cmpl	$3, PRE(cs)ABS(current_partition)
+//	ja	1f
 	/* it is primary partition */
-	movl	PRE(cs)ABS(current_partition), %esi
-	shll	$4, %esi
-	movl	8(%ebp, %esi), %eax	# start LBA
-	movl	$ABS(msg_no_such_partition), PRE(cs)ABS(error_message_pointer)
-	testl	%eax, %eax
-	stc
-	jz	2f
+//	movl	PRE(cs)ABS(current_partition), %esi
+//	shll	$4, %esi
+//	movl	8(%ebp, %esi), %eax	# start LBA
+//	movl	$ABS(msg_no_such_partition), PRE(cs)ABS(error_message_pointer)
+//	testl	%eax, %eax
+//	stc
+//	jz	2f
 	/* read 4 sectors at start LBA to MBR(0) */
-	movl	$4, %ecx
-	clc		/* read */
-	call	6f
-	movl	$ABS(msg_read_file), PRE(cs)ABS(error_message_pointer)
-	jc	2f
+//	movl	$4, %ecx
+//	clc		/* read */
+//	call	6f
+//	movl	$ABS(msg_read_file), PRE(cs)ABS(error_message_pointer)
+//	jc	2f
 	/* modify the boot record */
-	call	7f
-	movl	$ABS(msg_unsupported_fstype), PRE(cs)ABS(error_message_pointer)
-	jc	2f
+//	call	7f
+//	movl	$ABS(msg_unsupported_fstype), PRE(cs)ABS(error_message_pointer)
+//	jc	2f
 	/* write sectors to start LBA at MBR(0) */
-	movl	PRE(cs)ABS(sectors_to_write), %ecx
-	stc		/* write */
-	call	6f
-	movl	$ABS(msg_write_file), PRE(cs)ABS(error_message_pointer)
+//	movl	PRE(cs)ABS(sectors_to_write), %ecx
+//	stc		/* write */
+//	call	6f
+//	movl	$ABS(msg_write_file), PRE(cs)ABS(error_message_pointer)
 2:
 	popal
 	ret
 
-1:
+//1:
 	/* it is logical partition */
-	movl	$ABS(msg_end_of_partition_chain), PRE(cs)ABS(error_message_pointer)
-	popal
-	ret
-6:
+//	movl	$ABS(msg_end_of_partition_chain), PRE(cs)ABS(error_message_pointer)
+//	popal
+//	ret
+//6:
 	/* before the call: */
 	/* EAX=start LBA */
 	/* EBX=file descriptor or 0 for BIOS drive */
@@ -5525,54 +5772,124 @@
 	/* on return: */
 	/* CF=0 for success; CF=1 for failure */
 
-	pushal
+//	pushal
 	
-	popal
-	ret
-7:
-	pushal
+//	popal
+//	ret
+//7:
+//	pushal
 	
-	popal
-	ret
+//	popal
+//	ret
 	/* EBX holds the file descriptor number or 0 if it is BIOS drive */
 	/* move partition table forward to the beginning of the 17th sector */
-	movl	$MBR(0x01be), %esi
-	movl	$MBR(0x2000), %edi
-	movl	$0x10, %ecx	# 0x10 dwords = 0x40 bytes
+//	movl	$MBR(0x01be), %esi
+//	movl	$MBR(0x2000), %edi
+//	movl	$0x10, %ecx	# 0x10 dwords = 0x40 bytes
 
-	cld
-	repz movsl
+//	cld
+//	repz movsl
 
 	/* initialize the current_partition number */
-	movzbl	PRE(cs)ABS(install_partition), %eax
-	movl	%eax, PRE(cs)ABS(current_partition)
+//	movzbl	PRE(cs)ABS(install_partition), %eax
+//	movl	%eax, PRE(cs)ABS(current_partition)
 
-3:
+//3:
 	/* load the next partition and modify the boot record */
-	call	0f	/* partition */
-	jc	3f	/* done */
-	call	2f	/* write to file */
-	incl	PRE(cs)ABS(current_partition)
-	movw	PRE(cs)ABS(install_partition), %ax
-	addb	%ah, %al	/* Max partition number for install */
-	cmpb	%al, PRE(cs)ABS(current_partition)
-	jbe	3b
-3:
+//	call	0f	/* partition */
+//	jc	3f	/* done */
+//	call	2f	/* write to file */
+//	incl	PRE(cs)ABS(current_partition)
+//	movw	PRE(cs)ABS(install_partition), %ax
+//	addb	%ah, %al	/* Max partition number for install */
+//	cmpb	%al, PRE(cs)ABS(current_partition)
+//	jbe	3b
+//3:
 	/* all partitions have been installed. */
 	
-	xorl	%eax, %eax	# exit code = 0
+//	xorl	%eax, %eax	# exit code = 0
 	
-#ifdef __DOS_16
+//#ifdef __DOS_16
 	
-	movb	$0x4c, %ah	// EXIT - TERMINATE WITH RETURN CODE in AL
-	int	$0x21		// call DOS
+//	movb	$0x4c, %ah	// EXIT - TERMINATE WITH RETURN CODE in AL
+//	int	$0x21		// call DOS
 
-#else
-	xchgl	%eax, %ebx	# move exit code in EAX to EBX
-	movl	$1, %eax	# sys_exit
-	int	$0x80
-#endif
+//#else
+//	xchgl	%eax, %ebx	# move exit code in EAX to EBX
+//	movl	$1, %eax	# sys_exit
+//	int	$0x80
+//#endif
 
-#endif		
+//#endif		
+//	ret
+
+66:
+	pushal
+	movl	$ABS(msg_disk_Information), %ecx
+	call	8b	/* linux_print */
+  //Integer calculation                 
+	xorl	%edx, %edx
+	movl	$2, %ebx
+	divl	%ebx	//Disk Bytes Kb
+	movl	$1000, %ebx	//0x3e8
+	xorl	%edx, %edx
+	divl	%ebx	//Disk Bytes Mb
+	cmpl	%ebx, %eax	//< 1Gb?
+	jb	22f	//yes
+	xorl 	%edx, %edx
+	divl	%ebx	//Disk Bytes Gb
+	cmpl	%ebx, %eax	//< 1Tb?
+	jb	3f	//yes	
+	xorl	%edx, %edx
+	divl	%ebx	//Disk Bytes Tb
+  //Setting unit'Tb'
+	movb	$0x54, %cl	//'T'
+	movb	%cl, PRE(cs)ABS(scM)
+	jmp	22f
+	//Setting unit'Gb' 
+3: 
+	movb	$0x47, %cl	//'G'
+	movb	%cl, PRE(cs)ABS(scM)     
+	//Handle decimal
+22:   
+	movl	$ABS(scS_c), %esi	//Store the last bit of pre-decimal address
+	movw	$10, %bx	//0xa
+	pushw	%ax	//Save integer
+	movw	%dx, %ax	//Decimal
+	movw	$2, %cx
+23:   
+	xorw	%dx, %dx
+	divw	%bx
+	orb		$0x30, %dl
+	movb	%dl, %cs:(%si)
+	decw	%si
+	cmpw	$0, %ax
+	jne 23b
+	//Moving two decimal
+	cmpb	$1, %cl
+	jbe 3f
+	movl	$ABS(scS_x), %edi
+	movl	$ABS(scS_c_s), %esi
+	movw	%cs:(%si), %ax
+	movw	%ax, %cs:(%di)
+	//Handle integer                               
+3: 
+	decb	%cl
+	je 3f
+	popw	%ax	//Integer
+	movl 	$ABS(scS_z_w), %esi
+	jmp 23b
+3:
+	movl	$ABS(scS_z_s), %ecx
+	call	8b	/* linux_print */
+	//Default units 'Mb'
+	movb	$0x4d, %cl	//'M'
+	movb	%cl, PRE(cs)ABS(scM)
+	//The first 8 bytes from the integer filling spaces
+	movl	$ABS(scS_z_s), %edi        
+	movl	$0x20202020, %eax
+	movl	%eax, %cs:(%edi)
+	movb	$0x30, PRE(cs)ABS(scS_c)
+	movw	$0x3030, PRE(cs)ABS(scS_c_s)
+	popal
 	ret
-
