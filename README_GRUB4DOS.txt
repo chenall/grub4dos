@@ -1240,7 +1240,7 @@ Examples:
 
 		bootlace.com  0x80
 
-	Installing GRLDR boot code to a harddisk image under DOS ¡¢Windows or Linux:
+	Installing GRLDR boot code to a harddisk image under DOS, Windows or Linux:
 
 		bootlace.com  hd.img
 
@@ -1252,7 +1252,7 @@ Examples:
 
 		bootlace.com  --floppy 0x00
 
-	Installing GRLDR boot code to a floppy image under DOS ¡¢Windows or Linux:
+	Installing GRLDR boot code to a floppy image under DOS, Windows or Linux:
 
 		bootlace.com  --floppy floppy.img
 
