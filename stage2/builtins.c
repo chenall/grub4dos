@@ -2507,12 +2507,14 @@ readroot:
 			if (*(long long *)(*(unsigned long *)0x7BF4) == *(long long *)0x7BE0) { /* BIO */
 				grub_memmove((void *)*(unsigned long *)0x7BF0, (void *)*(unsigned long *)0x7BF4, 32);
 				*(unsigned long *)0x7BF0 += 32;
+				break;
 			}
 		}
 		for ( *(unsigned long *)0x7BF4 = HMA_ADDR - 0x10000; *(char *)(*(unsigned long *)0x7BF4) && *(unsigned long *)0x7BF4 < HMA_ADDR; *(unsigned long *)0x7BF4 += 32) {
 			if (*(long long *)(*(unsigned long *)0x7BF4) == *(long long *)0x7BE8) { /* DOS */
 				grub_memmove((void *)*(unsigned long *)0x7BF0, (void *)*(unsigned long *)0x7BF4, 32);
 				*(unsigned long *)0x7BF0 += 32;
+				break;
 			}
 		}
 		if (! chainloader_bx_set)
