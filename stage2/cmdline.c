@@ -250,6 +250,7 @@ int run_line (char *heap,int flags)
 	int i;
 	grub_error_t errnum_old = errnum;
 	char cmdline_buf[1500];
+	char *cmdBuff = NULL;
 	expand_var(heap,cmdline_buf,1500);
 	heap = cmdline_buf;
 	errnum = ERR_NONE;
@@ -265,18 +266,16 @@ int run_line (char *heap,int flags)
 		switch(status_t)
 		{
 			case 1:// operator "|"
+				cmdBuff = grub_malloc(0x20000);
+				if (cmdBuff == NULL)
+					return 0;
 				i = grub_strlen(arg);
-				grub_memmove(CMD_BUFFER,arg,i);
+				grub_memmove(cmdBuff,arg,i);
 				if (skip_to (0, arg) - arg == i)
-					CMD_BUFFER[i++] = ' ';
-				#if 0
-				if (hook_buff >= PRINTF_BUFFER + 0xC00)
-				{
-					hook_buff = PRINTF_BUFFER + 0xC00;
-				}
-				#endif
-				grub_memmove(CMD_BUFFER + i,PRINTF_BUFFER,hook_buff - PRINTF_BUFFER);
-				arg = CMD_BUFFER;
+					cmdBuff[i++] = ' ';
+				cmdBuff[i] = 0;
+				grub_strncat(cmdBuff,PRINTF_BUFFER,0x20000);
+				arg = cmdBuff;
 				break;
 			case 2:// operator ">"
 			case 3:// operator ">>"
@@ -346,6 +345,8 @@ int run_line (char *heap,int flags)
 			ret = command_func (arg,flags);
 
 		errnum_old = errnum;
+		if (arg == cmdBuff)
+			grub_free(cmdBuff);
 
 		if (status & 8)
 		{

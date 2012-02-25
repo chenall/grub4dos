@@ -1,4 +1,9 @@
-﻿2012-02-10
+﻿2012-02-22
+	1.stage2/cmdline.c
+	  修正使用管道"|"可能产生的内存冲突的问题。
+	2.stage2/char_io.c
+	  Fixed `more'-like feature issue.
+2012-02-10
 	1.stage2/builtins.c
 	  修正cat --locate=\x22时产生的错误。
 	  http://bbs.wuyou.com/viewthread.php?tid=180142&page=240#pid2382770
