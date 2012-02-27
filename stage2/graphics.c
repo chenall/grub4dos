@@ -484,6 +484,8 @@ check_scroll (void)
 	--fonty;
 	graphics_scroll();
     }
+    if (count_lines >= 0)
+		++count_lines;
 }
 
 static unsigned long

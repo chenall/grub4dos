@@ -7266,8 +7266,7 @@ startup_32:
 	/* memory layout:
 	 *
 	 *	0x0600-0x07FF		this sector is not used
-	 *	0x0800-0x09FF		this sector stores command line
-	 *	0x0A00-0x0DFF		2 sectors for real mode variables
+	 *	0x0800-0x0DFF		3 sectors for command line
 	 *	0x0E00-0x0FFF		the current sector will be copied here
 	 *	0x1000-0x8000		the rest sectors
 	 *
@@ -7279,24 +7278,25 @@ startup_32:
 
 	pushl	%esi			# points to boot_params
 
-	/* move 1 sector of commandline onto 0x00000800-0x000009FF */
+	/* move 3 sectors of commandline onto 0x00000800-0x00000DFF */
 
 	movl	$0x00000800, %edi
 	movl	0x228(%esi), %esi	# 0x228 is offset for cmd_line_ptr
-	movl	$0x00000080, %ecx	# move 1 sector
+	movl	$0x00000180, %ecx	# move 3 sectors
 	repz movsl
-
-	popl	%esi			# points to boot_params
 
 	debug_putchar('2')
 
-	/* move 2-sector real mode variables onto 0x00000A00-0x00000DFF */
-
-	movl	$0x00000A00, %edi
-	movl	$0x00000100, %ecx	# move 2 sectors
-	repz movsl
-
-	debug_putchar('3')
+//	popl	%esi
+//	pushl	%esi
+//
+//	/* move 2-sector real mode variables onto 0x00000A00-0x00000DFF */
+//
+//	movl	$0x00000A00, %edi
+//	movl	$0x00000100, %ecx	# move 2 sectors
+//	repz movsl
+//
+//	debug_putchar('3')
 
 	/* move 1 sector of the init code here to a safe place 0x00000E00 */
 
@@ -7387,6 +7387,21 @@ startup_32:
 2:
 	debug_putchar('7')
 
+	popl	%esi			# points to boot_params
+
+//----------------------------------------------------------------------------
+	// it is time to evaluate rd_base and rd_size now.
+	// rd_base is a long long integer at 0x82D0.
+	// rd_size is a long long integer at 0x82D8.
+	movl	0x218(%esi), %ecx
+	jecxz	1f
+	movl	%ecx, 0x82D0	# rd_base lo 32-bit
+	movl	0x21C(%esi), %ecx
+	movl	%ecx, 0x82D8	# rd_size lo 32-bit
+	xorl	%ecx, %ecx	# ECX=0
+	movl	%ecx, 0x82D4	# clear rd_base hi 32-bit
+	movl	%ecx, 0x82DC	# clear rd_size hi 32-bit
+1:
 //----------------------------------------------------------------------------
 	# resolve the commandline arguments and move preset_menu to 0x00000800
 
@@ -7394,7 +7409,7 @@ startup_32:
 
 	/* ECX = 0 */
 
-	movl	$0x00000200, %ecx	# find the option in 1 sector
+	movl	$0x00000600, %ecx	# find the option in 3 sectors
 	//movb	$2, %ch			# ECX=0x200
 	movl	$0x00000800, %esi	# starting at physical address 0x800
 
@@ -7477,7 +7492,7 @@ startup_32:
 
 	# locate the end of the commandline preset_menu
 
-	movl	$0x000009ff, %ecx	# end of the sector
+	movl	$0x00000Dff, %ecx	# end of the 3 sectors
 	subl	%esi, %ecx		# length of menu
 
 	movl	$0x00000800, %edi

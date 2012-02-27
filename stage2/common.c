@@ -933,6 +933,7 @@ set_root:
   if (! atapi_dev_count)
     min_cdrom_id = (cdrom_drive < 0xE0 && cdrom_drive >= 0xC0) ? 0xE0 : 0xC0;
   
+#if 0 /* comment out since this is done in dosstart.S - tinybit 2012-02-13 */
   /* if grub.exe is booted as a Linux kernel, check the initrd disk. */
 
   /* the real mode zero page(only the beginning 2 sectors, the boot params) is loaded at 0xA00 */
@@ -961,6 +962,7 @@ set_root:
 	    }
 	}
   }
+#endif
   grub_printf("Initialize variable space...\n");
   run_line("set ?_BOOT=%@root%",1);
   memset(ADDR_RET_STR,0,0x200);

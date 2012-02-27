@@ -17,7 +17,7 @@ Get the latest source code by using anonymous svn in this way:
 
 or in this way:
 
-	git clone git://github.com/chenall/GRUB4DOS.git
+	git clone git://github.com/chenall/grub4dos.git
 
 View the source code online with your web browser at:
 

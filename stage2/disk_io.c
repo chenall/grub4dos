@@ -970,7 +970,7 @@ next_entry:
 	    && (PC_SLICE_ENTRY_IS_EMPTY (next_partition_buf, *next_partition_entry))) /* ignore the garbage entry(typically all bytes are 0xF6). */
 		goto next_entry;
 
-#if 1
+#if 0
 	/* disable partition id 00. */
 	if (((int)pc_slice_no) >= PC_SLICE_MAX - 1		/* if it is a logical partition */
 	    && *next_partition_type == PC_SLICE_TYPE_NONE)	/* ignore the partition with id=00. */

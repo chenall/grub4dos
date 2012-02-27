@@ -1,3 +1,5 @@
+2012-02-13 (tinybit)bugfix on initrd issue (issue 74).
+2012-01-15 (tinybit)fixed failure loading multi-boot kernel(issue 66).
 2011-12-24 (tinybit)Added preliminary interrupt mechanism.
 2011-12-05 Issue 53: add new command 'iftitle' for menu.(thanks @Steve6375).
 2011-11-17 (tinybit)supported utf8 and unicode char printing.

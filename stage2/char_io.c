@@ -1819,86 +1819,60 @@ _putchar (unsigned int c, unsigned int max_width)
 		return 1;
 	}
 #endif
-  if (c == '\t'/* && current_term->getxy*/)
-    {
-      c = 8 - (fontx/*(current_term->getxy ())*/ & 7);
-      if (max_width>c)
+
+	/* Internal `more'-like feature.  */
+	if (fontx == 0 && count_lines >= 0)
+	{
+		if (count_lines >= current_term->max_lines - 1)
+		{
+			/* It's important to disable the feature temporarily, because
+			the following grub_printf call will print newlines.  */
+			count_lines = -1;
+			if (! (current_term->flags & TERM_DUMB))
+			{
+				if (current_term->setcolorstate)
+				current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+
+				grub_printf ("[Hit Q to quit, any other key to continue]");
+
+				if ((getkey () & 0xDF) == 0x51)	/* 0x51 == 'Q' */
+					quit_print = 1;
+
+				if (current_term->setcolorstate)
+					current_term->setcolorstate (COLOR_STATE_STANDARD);
+				grub_printf ("\r%50s","\r");
+			}
+			/* Restart to count lines.  */
+			count_lines = 0;
+		}
+	}
+
+	if (c == '\t'/* && current_term->getxy*/)
+	{
+		c = 8 - (fontx/*(current_term->getxy ())*/ & 7);
+		if (max_width>c)
 			max_width = c;
 		else
 			c = max_width;
-      for (;c;--c)
+		for (;c;--c)
 		  current_term->putchar (' ', 1);
-      return max_width;
-    }
-
-  if (c == '\n')
-    {
-      current_term->putchar ('\r', max_width);
-      
-      /* Internal `more'-like feature.  */
-      if (count_lines >= 0)
-	{
-	  count_lines++;
-	  if (count_lines >= current_term->max_lines - 2)
-	    {
-	      /* It's important to disable the feature temporarily, because
-		 the following grub_printf call will print newlines.  */
-	      count_lines = -1;
-
-	      //grub_printf("\n");	/* recursive, bad!! */
-	      current_term->putchar ('\n', max_width);
-	      
-	      if (! (current_term->flags & TERM_DUMB))
-	      {
-		if (current_term->setcolorstate)
-		  current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
-	      
-		//grub_printf ("[Hit return to continue]");	/* recursive, bad!! */
-		c = (int)"[Hit Q to quit, any other key to continue]";
-		while (*(unsigned char *)c)
-		  current_term->putchar (*(unsigned char *)c++, max_width);
-
-		if ((getkey () & 0xDF) == 0x51)	/* 0x51 == 'Q' */
-			quit_print = 1;
-//		do
-//		{
-//		  tmp = ASCII_CHAR (getkey ());
-//		  if ((tmp & 0xdf) == 0x51)	/* Q */
-//		  {
-//			quit_print = 1;
-//			break;
-//		  }
-//		}
-//		while (tmp != '\n' && tmp != '\r');
-	      
-		if (current_term->setcolorstate)
-		  current_term->setcolorstate (COLOR_STATE_STANDARD);
-
-		//grub_printf ("\r                                          \r");	/* recursive, bad!! */
-		c = (int)"\r                                          \r";
-		while (*(char *)c)
-		  current_term->putchar (*(char *)c++, max_width);
-	      }
-	      
-	      /* Restart to count lines.  */
-	      count_lines = 0;
-	      return 1;
-	    }
+		return max_width;
 	}
-    }
+	if (c == '\n')
+	{
+		current_term->putchar ('\r', max_width);
+	}
 
-//  if (! (current_term->flags & TERM_DUMB))
-//  while (checkkey () != -1)
-//  {
-//	if ((getkey () & 0xdf) == 'Q')
-//	{
-//		quit_print = 1;
-//		break;
-//	}
-//  }
-  
-  return current_term->putchar (c, max_width);
-  
+	int i = current_term->putchar (c, max_width);
+
+	if (
+	#ifdef SUPPORT_GRAPHICS
+	!graphics_inited && 
+	#endif
+	fontx == 0 && count_lines >= 0 && c != '\r')
+		++count_lines;
+	return i;
+
 #endif /* ! STAGE1_5 */
 }
 

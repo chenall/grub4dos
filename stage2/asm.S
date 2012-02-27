@@ -12593,6 +12593,18 @@ ENTRY(multi_boot)
 
 	cli
 
+	/* The protected-mode IDT at 3M will be destroyed. Although cli has
+	 * been executed, the multiboot kernel might still need to call the
+	 * real-mode BIOS functions(int15/E820, etc). So we need to load the
+	 * default real-mode IDT descriptor.
+	 */
+
+	lidt	realmode_idtdesc
+
+	/* Now the IDT is wrong for protected-mode code! Do not sti in
+	 * pmode. Only do it in real-mode.
+	 */
+
 	/* before moving kernel, move module list(mll) down to 0x20000. */
 
 	movl	$ABS(EXT_C(mll)), %esi

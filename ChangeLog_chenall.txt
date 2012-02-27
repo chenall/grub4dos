@@ -1,4 +1,34 @@
-﻿2011-12-30
+﻿2012-02-22
+	1.stage2/cmdline.c
+	  修正使用管道"|"可能产生的内存冲突的问题。
+	2.stage2/char_io.c
+	  Fixed `more'-like feature issue.
+2012-02-10
+	1.stage2/builtins.c
+	  修正cat --locate=\x22时产生的错误。
+	  http://bbs.wuyou.com/viewthread.php?tid=180142&page=240#pid2382770
+	2.cmdline.c
+	  Do not limit pipe "|" buffer.
+	  取消管道"|"缓冲区限制。
+2012-02-01
+	1./build
+		Fixed build script.
+	2./stage2/builtins.c
+		cat --replace changed (issue 71).
+		Supported savedefault +n/-n (issue 70).
+	3./stage2/stage2.c
+		Memory address 0x8276 for variable current_entryno (issue 70).
+	4./stage2/disk_io.c
+		enable parttype 00  (http://reboot.pro/16004/page__st__25).
+	5./stage2/cmdline.c
+		fixed skip_to issue. e.g. cat --locate="abc \"def" (md)0x300+1.
+
+2012-01-17
+	1.修复一个由于map --rehook导致的问题。http://bbs.wuyou.com/viewthread.php?tid=180142&page=231#pid2373207
+	2.一些小调整。
+	3.版本号改为0.4.5c
+
+2011-12-30
 	1.添加菜单热键功能接口，可以通过外部命令来增加热键功能
 	  Add menu hotkey function interface。
 
