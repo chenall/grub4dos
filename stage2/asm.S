@@ -13689,7 +13689,11 @@ VARIABLE(grub_putchar)
 	.long	ABS(EXT_C(mem64))
 	.long ABS(EXT_C(envi_cmd))
 	.long ABS(EXT_C(strncmpx))
+#ifdef SUPPORT_GRAPHICS
 	.long ABS(EXT_C(rectangle))
+#else
+	.long 0
+#endif
 	.long ABS(EXT_C(get_cmdline))
 
 /*

@@ -97,9 +97,9 @@ if test "x$ac_cv_prog_gcc" = xyes; then
       CFLAGS=$saved_CFLAGS
     ])
     if test "x$size_flag" = xyes; then
-      STAGE2_CFLAGS="-Os -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer"
+      STAGE2_CFLAGS="-Os -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
     else
-      STAGE2_CFLAGS="-O2 -fno-strength-reduce -fno-unroll-loops -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer"
+      STAGE2_CFLAGS="-O2 -fno-strength-reduce -fno-unroll-loops -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
     fi
     # OpenBSD has a GCC extension for protecting applications from
     # stack smashing attacks, but GRUB doesn't want this feature.
