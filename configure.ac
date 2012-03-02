@@ -90,46 +90,46 @@ if test "x$ac_cv_prog_gcc" = xyes; then
     fi
     STAGE1_CFLAGS="-O2"
     GRUB_CFLAGS="-O2"
-    AC_CACHE_CHECK([whether optimization for size works], size_flag, [
+    AC_CACHE_CHECK([whether optimization for size works], grub_cv_cc_Os, [
       saved_CFLAGS=$CFLAGS
       CFLAGS="-Os -g"
-      AC_TRY_COMPILE(, , size_flag=yes, size_flag=no)
+      AC_TRY_COMPILE(, , grub_cv_cc_Os=yes, grub_cv_cc_Os=no)
       CFLAGS=$saved_CFLAGS
     ])
-    if test "x$size_flag" = xyes; then
-      STAGE2_CFLAGS="-Os -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
+    if test "x$grub_cv_cc_Os" = xyes; then
+      STAGE2_CFLAGS="-Os -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -fno-strict-aliasing -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
     else
-      STAGE2_CFLAGS="-O2 -fno-strength-reduce -fno-unroll-loops -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
+      STAGE2_CFLAGS="-O2 -fno-strength-reduce -fno-unroll-loops -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -fno-strict-aliasing -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
     fi
     # OpenBSD has a GCC extension for protecting applications from
     # stack smashing attacks, but GRUB doesn't want this feature.
     AC_CACHE_CHECK([whether gcc has -fno-stack-protector],
-		   no_stack_protector_flag, [
+		   grub_cv_cc_no_stack_protector, [
       saved_CFLAGS=$CFLAGS
       CFLAGS="-fno-stack-protector"
       AC_TRY_COMPILE(,
 		     ,
-		     no_stack_protector_flag=yes,
-		     no_stack_protector_flag=no)
+		     grub_cv_cc_no_stack_protector=yes,
+		     grub_cv_cc_no_stack_protector=no)
       CFLAGS=$saved_CFLAGS
     ])
-    if test "x$no_stack_protector_flag" = xyes; then
+    if test "x$grub_cv_cc_no_stack_protector" = xyes; then
       STAGE2_CFLAGS="$STAGE2_CFLAGS -fno-stack-protector"
     fi
     # GCC >= 3.3 supports -fno-reorder-functions; this defends us against
     # unlikely-to-be-executed functions being linked before _start with GCC
     # >= 4.6.
     AC_CACHE_CHECK([whether gcc has -fno-reorder-functions],
-           no_reorder_functions_flag, [
+           grub_cv_cc_no_reorder_functions_flag, [
       saved_CFLAGS=$CFLAGS
       CFLAGS="-fno-reorder-functions"
       AC_TRY_COMPILE(,
              ,
-             no_reorder_functions_flag=yes,
-             no_reorder_functions_flag=no)
+             grub_cv_cc_no_reorder_functions_flag=yes,
+             grub_cv_cc_no_reorder_functions_flag=no)
       CFLAGS=$saved_CFLAGS
     ])
-    if test "x$no_reorder_functions_flag" = xyes; then
+    if test "x$grub_cv_cc_no_reorder_functions_flag" = xyes; then
       STAGE2_CFLAGS="$STAGE2_CFLAGS -fno-reorder-functions"
     fi
   fi
@@ -143,30 +143,30 @@ AC_SUBST(GRUB_CFLAGS)
 CPPFLAGS="$CPPFLAGS -Wall -Wmissing-prototypes -Wunused -Wshadow"
 CPPFLAGS="$CPPFLAGS -Wpointer-arith"
 
-AC_CACHE_CHECK([whether -Wundef works], undef_flag, [
+AC_CACHE_CHECK([whether -Wundef works], grub_cv_cc_Wundef, [
   saved_CPPFLAGS="$CPPFLAGS"
   CPPFLAGS="-Wundef"
-  AC_TRY_COMPILE(, , undef_flag=yes, undef_flag=no)
+  AC_TRY_COMPILE(, , grub_cv_cc_Wundef=yes, grub_cv_cc_Wundef=no)
   CPPFLAGS="$saved_CPPFLAGS"
 ])
 
 # The options `-falign-*' are supported by gcc 3.0 or later.
 # Probably it is sufficient to only check for -falign-loops.
-AC_CACHE_CHECK([whether -falign-loops works], [falign_loop_flag], [
+AC_CACHE_CHECK([whether -falign-loops works], [grub_cv_cc_falign_loop], [
   saved_CPPFLAGS="$CPPFLAGS"
   CPPFLAGS="-falign-loops=1"
-  AC_TRY_COMPILE(, , [falign_loop_flag=yes], [falign_loop_flag=no])
+  AC_TRY_COMPILE(, , [grub_cv_cc_falign_loop=yes], [grub_cv_cc_falign_loop=no])
   CPPFLAGS="$saved_CPPFLAGS"
 ])
 
 # Force no alignment to save space.
-if test "x$falign_loop_flag" = xyes; then
+if test "x$grub_cv_cc_falign_loop" = xyes; then
   CPPFLAGS="$CPPFLAGS -falign-jumps=1 -falign-loops=1 -falign-functions=1"
 else
   CPPFLAGS="$CPPFLAGS -malign-jumps=1 -malign-loops=1 -malign-functions=1"
 fi
 
-if test "x$undef_flag" = xyes; then
+if test "x$grub_cv_cc_Wundef" = xyes; then
   CPPFLAGS="$CPPFLAGS -Wundef"
 fi
 

@@ -4199,7 +4199,7 @@ if test "x$ac_cv_c_compiler_gnu" = xyes; then
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether optimization for size works" >&5
 $as_echo_n "checking whether optimization for size works... " >&6; }
-if ${size_flag+:} false; then :
+if ${grub_cv_cc_Os+:} false; then :
   $as_echo_n "(cached) " >&6
 else
 
@@ -4217,26 +4217,26 @@ main ()
 }
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
-  size_flag=yes
+  grub_cv_cc_Os=yes
 else
-  size_flag=no
+  grub_cv_cc_Os=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
       CFLAGS=$saved_CFLAGS
 
 fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $size_flag" >&5
-$as_echo "$size_flag" >&6; }
-    if test "x$size_flag" = xyes; then
-      STAGE2_CFLAGS="-Os -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $grub_cv_cc_Os" >&5
+$as_echo "$grub_cv_cc_Os" >&6; }
+    if test "x$grub_cv_cc_Os" = xyes; then
+      STAGE2_CFLAGS="-Os -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -fno-strict-aliasing -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
     else
-      STAGE2_CFLAGS="-O2 -fno-strength-reduce -fno-unroll-loops -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
+      STAGE2_CFLAGS="-O2 -fno-strength-reduce -fno-unroll-loops -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -fno-strict-aliasing -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
     fi
     # OpenBSD has a GCC extension for protecting applications from
     # stack smashing attacks, but GRUB doesn't want this feature.
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether gcc has -fno-stack-protector" >&5
 $as_echo_n "checking whether gcc has -fno-stack-protector... " >&6; }
-if ${no_stack_protector_flag+:} false; then :
+if ${grub_cv_cc_no_stack_protector+:} false; then :
   $as_echo_n "(cached) " >&6
 else
 
@@ -4254,17 +4254,17 @@ main ()
 }
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
-  no_stack_protector_flag=yes
+  grub_cv_cc_no_stack_protector=yes
 else
-  no_stack_protector_flag=no
+  grub_cv_cc_no_stack_protector=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
       CFLAGS=$saved_CFLAGS
 
 fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $no_stack_protector_flag" >&5
-$as_echo "$no_stack_protector_flag" >&6; }
-    if test "x$no_stack_protector_flag" = xyes; then
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $grub_cv_cc_no_stack_protector" >&5
+$as_echo "$grub_cv_cc_no_stack_protector" >&6; }
+    if test "x$grub_cv_cc_no_stack_protector" = xyes; then
       STAGE2_CFLAGS="$STAGE2_CFLAGS -fno-stack-protector"
     fi
     # GCC >= 3.3 supports -fno-reorder-functions; this defends us against
@@ -4272,7 +4272,7 @@ $as_echo "$no_stack_protector_flag" >&6; }
     # >= 4.6.
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether gcc has -fno-reorder-functions" >&5
 $as_echo_n "checking whether gcc has -fno-reorder-functions... " >&6; }
-if ${no_reorder_functions_flag+:} false; then :
+if ${grub_cv_cc_no_reorder_functions_flag+:} false; then :
   $as_echo_n "(cached) " >&6
 else
 
@@ -4290,17 +4290,17 @@ main ()
 }
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
-  no_reorder_functions_flag=yes
+  grub_cv_cc_no_reorder_functions_flag=yes
 else
-  no_reorder_functions_flag=no
+  grub_cv_cc_no_reorder_functions_flag=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
       CFLAGS=$saved_CFLAGS
 
 fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $no_reorder_functions_flag" >&5
-$as_echo "$no_reorder_functions_flag" >&6; }
-    if test "x$no_reorder_functions_flag" = xyes; then
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $grub_cv_cc_no_reorder_functions_flag" >&5
+$as_echo "$grub_cv_cc_no_reorder_functions_flag" >&6; }
+    if test "x$grub_cv_cc_no_reorder_functions_flag" = xyes; then
       STAGE2_CFLAGS="$STAGE2_CFLAGS -fno-reorder-functions"
     fi
   fi
@@ -4316,7 +4316,7 @@ CPPFLAGS="$CPPFLAGS -Wpointer-arith"
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether -Wundef works" >&5
 $as_echo_n "checking whether -Wundef works... " >&6; }
-if ${undef_flag+:} false; then :
+if ${grub_cv_cc_Wundef+:} false; then :
   $as_echo_n "(cached) " >&6
 else
 
@@ -4334,22 +4334,22 @@ main ()
 }
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
-  undef_flag=yes
+  grub_cv_cc_Wundef=yes
 else
-  undef_flag=no
+  grub_cv_cc_Wundef=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
   CPPFLAGS="$saved_CPPFLAGS"
 
 fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $undef_flag" >&5
-$as_echo "$undef_flag" >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $grub_cv_cc_Wundef" >&5
+$as_echo "$grub_cv_cc_Wundef" >&6; }
 
 # The options `-falign-*' are supported by gcc 3.0 or later.
 # Probably it is sufficient to only check for -falign-loops.
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether -falign-loops works" >&5
 $as_echo_n "checking whether -falign-loops works... " >&6; }
-if ${falign_loop_flag+:} false; then :
+if ${grub_cv_cc_falign_loop+:} false; then :
   $as_echo_n "(cached) " >&6
 else
 
@@ -4367,25 +4367,25 @@ main ()
 }
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
-  falign_loop_flag=yes
+  grub_cv_cc_falign_loop=yes
 else
-  falign_loop_flag=no
+  grub_cv_cc_falign_loop=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
   CPPFLAGS="$saved_CPPFLAGS"
 
 fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $falign_loop_flag" >&5
-$as_echo "$falign_loop_flag" >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $grub_cv_cc_falign_loop" >&5
+$as_echo "$grub_cv_cc_falign_loop" >&6; }
 
 # Force no alignment to save space.
-if test "x$falign_loop_flag" = xyes; then
+if test "x$grub_cv_cc_falign_loop" = xyes; then
   CPPFLAGS="$CPPFLAGS -falign-jumps=1 -falign-loops=1 -falign-functions=1"
 else
   CPPFLAGS="$CPPFLAGS -malign-jumps=1 -malign-loops=1 -malign-functions=1"
 fi
 
-if test "x$undef_flag" = xyes; then
+if test "x$grub_cv_cc_Wundef" = xyes; then
   CPPFLAGS="$CPPFLAGS -Wundef"
 fi
 
