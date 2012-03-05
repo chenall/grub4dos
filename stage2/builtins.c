@@ -2501,7 +2501,7 @@ drdos:
 			else
 				grub_sprintf ((char *)(HMA_ADDR - 0x20), "(%d,%d)%d+%d", (unsigned long)(unsigned char)current_drive, (unsigned long)(unsigned char)(current_partition >> 16), *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_RESERVED_SECTORS)), *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)));
 
-			grub_open ((char *)(HMA_ADDR - 0x20)); /* read 1st FAT table(first 0x8000 bytes only) */
+			grub_open ((char *)(HMA_ADDR - 0x20)); /* read 1st FAT table (first 0x8000 bytes only) */
 			grub_read ((unsigned long long)(HMA_ADDR - 0x8000), (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT)) > 40 ? 40 : *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_FAT32_SECTORS_PER_FAT))) * *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)), 0xedde0d90);
 readroot:
 			if ( (HMA_ADDR - 0x10000 + (1+*(unsigned short *)0x7BDC) * *(unsigned short *)0x7BD8) < HMA_ADDR && /* don't overrun */
@@ -6180,6 +6180,8 @@ static struct builtin builtin_find =
 };
 
 
+#ifdef SUPPORT_GRAPHICS
+
 /*
  * The code in function GET_NIBBLE is released to the public domain.
  *				tinybit  2011-11-18
@@ -6195,8 +6197,6 @@ get_nibble (unsigned long c)
 	}
 	return tmp;
 }
-
-#ifdef SUPPORT_GRAPHICS
 
 //static unsigned long old_narrow_char_indicator = 0;
 #define	old_narrow_char_indicator	narrow_char_indicator
