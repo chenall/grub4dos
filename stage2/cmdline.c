@@ -203,6 +203,7 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 #define PRINTF_BUFFER ((unsigned char *)SYSTEM_RESERVED_MEMORY + 0x20000)
 #define CMD_BUFFER ((char *)SYSTEM_RESERVED_MEMORY + 0x10000)
 //char *pre_cmdline = (char *)0x4CB08;
+static char *cmd_buffer = ((char *)SYSTEM_RESERVED_MEMORY + 0x10000);
 
 int expand_var(const char *str,char *out,const unsigned int len_max)
 {
@@ -249,9 +250,9 @@ int run_line (char *heap,int flags)
 	unsigned char *hook_buff = 0;
 	int i;
 	grub_error_t errnum_old = errnum;
-	char cmdline_buf[1500];
+	char *cmdline_buf = cmd_buffer;
 	char *cmdBuff = NULL;
-	expand_var(heap,cmdline_buf,1500);
+	cmd_buffer += expand_var(heap,cmdline_buf,1500)+1;
 	heap = cmdline_buf;
 	errnum = ERR_NONE;
 	/* Invalidate the cache, because the user may exchange removable disks.  */
@@ -268,7 +269,10 @@ int run_line (char *heap,int flags)
 			case 1:// operator "|"
 				cmdBuff = grub_malloc(0x20000);
 				if (cmdBuff == NULL)
+				{
+					cmd_buffer = cmdline_buf;
 					return 0;
+				}
 				i = grub_strlen(arg);
 				grub_memmove(cmdBuff,arg,i);
 				if (skip_to (0, arg) - arg == i)
@@ -291,7 +295,7 @@ int run_line (char *heap,int flags)
 				no_decompression = i;
 				if (status_t & 1)//>> append
 				{
-					char *f_buf = CMD_BUFFER;
+					char *f_buf = cmd_buffer;
 					int t_read,t_len;
 					while ((t_read = grub_read ((unsigned long long)(int)f_buf,0x400,GRUB_READ)))
 					{
@@ -378,6 +382,7 @@ int run_line (char *heap,int flags)
 			heap = skip_to_next_cmd(heap,&status,4);
 		}
 	}
+	cmd_buffer = cmdline_buf;
 	return (errnum > 0 && errnum<MAX_ERR_NUM)?0:ret;
 #undef ret
 }

@@ -1820,9 +1820,33 @@ _putchar (unsigned int c, unsigned int max_width)
 	}
 #endif
 
-	/* Internal `more'-like feature.  */
+	if (c == '\t'/* && current_term->getxy*/)
+	{
+		c = 8 - (fontx/*(current_term->getxy ())*/ & 7);
+		if (max_width>c)
+			max_width = c;
+		else
+			c = max_width;
+		for (;c;--c)
+		  current_term->putchar (' ', 1);
+		return max_width;
+	}
+	if (c == '\n')
+	{
+		current_term->putchar ('\r', max_width);
+	}
+
+	int i = current_term->putchar (c, max_width);
+
 	if (fontx == 0 && count_lines >= 0)
 	{
+		if (
+		 #ifdef SUPPORT_GRAPHICS
+		!graphics_inited && 
+		#endif
+		c != '\r')
+			++count_lines;
+		/* Internal `more'-like feature.  */
 		if (count_lines >= current_term->max_lines - 1)
 		{
 			/* It's important to disable the feature temporarily, because
@@ -1846,31 +1870,6 @@ _putchar (unsigned int c, unsigned int max_width)
 			count_lines = 0;
 		}
 	}
-
-	if (c == '\t'/* && current_term->getxy*/)
-	{
-		c = 8 - (fontx/*(current_term->getxy ())*/ & 7);
-		if (max_width>c)
-			max_width = c;
-		else
-			c = max_width;
-		for (;c;--c)
-		  current_term->putchar (' ', 1);
-		return max_width;
-	}
-	if (c == '\n')
-	{
-		current_term->putchar ('\r', max_width);
-	}
-
-	int i = current_term->putchar (c, max_width);
-
-	if (
-	#ifdef SUPPORT_GRAPHICS
-	!graphics_inited && 
-	#endif
-	fontx == 0 && count_lines >= 0 && c != '\r')
-		++count_lines;
 	return i;
 
 #endif /* ! STAGE1_5 */

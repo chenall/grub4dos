@@ -3402,7 +3402,7 @@ static struct builtin builtin_color =
   "color",
   color_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
-  "color NORMAL [HIGHLIGHT [HELPTEXT [HEADING]]]",
+  "color NORMAL [HIGHLIGHT [HELPTEXT [HEADING]]]\n",
   "Change the menu colors. The color NORMAL is used for most"
   " lines in the menu, and the color HIGHLIGHT is used to highlight the"
   " line where the cursor points. If you omit HIGHLIGHT, then the"
@@ -7231,9 +7231,10 @@ static struct builtin builtin_halt =
   halt_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
   "halt [--no-apm] [--no-acpi]",
-  "Halt the system using ACPI and APM. If --no-acpi is specified, only APM is"
-  "\n\tto be tried. If --no-apm is specified, only ACPI is to be tried. if"
-  "\n\tboth options are specified, return to grub4dos with failure."
+  "Halt the system using ACPI and APM."
+  "\nIf --no-acpi is specified, only APM is to be tried."
+  "\nIf --no-apm is specified, only ACPI is to be tried."
+  "\nif both options are specified, return to grub4dos with failure."
 };
 
 
@@ -7241,12 +7242,36 @@ static struct builtin builtin_halt =
 //#define MAX_SHORT_DOC_LEN	39
 //#define MAX_LONG_DOC_LEN	72
 
+static void print_doc(char *doc,int left)
+{
+  int max_doc_len = current_term->chars_per_line - 2;
+	while (*doc)
+	{
+		int i;
+		if (quit_print)
+			break;
+		for(i=0;doc[i];)
+		{
+			if (grub_isspace(doc[i++]))
+				break;
+		}
+		if ((fontx+i)>max_doc_len)
+		{
+			putchar('\n',255);
+		}
+		if (fontx < left)
+			gotoxy(left,fonty);
+		doc += grub_printf("%.*s",i,doc);
+
+	}
+	grub_putchar('\n',255);
+}
+
 static int
 help_func (char *arg, int flags)
 {
   int all = 0;
   int MAX_SHORT_DOC_LEN = current_term->chars_per_line/2-1;
-  int MAX_LONG_DOC_LEN = current_term->chars_per_line - 8;
   if (grub_memcmp (arg, "--all", sizeof ("--all") - 1) == 0)
     {
       all = 1;
@@ -7320,36 +7345,11 @@ help_func (char *arg, int flags)
 		#endif
 	      if (substring (arg, (*builtin)->name, 0) < 1 && (*builtin)->short_doc)
 		{
-		  char *doc = (*builtin)->long_doc;
-
 		  /* At first, print the name and the short doc.  */
-		  grub_printf ("%s: %s\n",
-			       (*builtin)->name, (*builtin)->short_doc);
-
+		  grub_printf ("%s:",(*builtin)->name);
+		  print_doc((*builtin)->short_doc,4);
 		  /* Print the long doc.  */
-		  while (*doc)
-		    {
-		      int len = grub_strlen (doc);
-//		      int i;
-
-		      /* If LEN is too long, fold DOC.  */
-		      if (len > MAX_LONG_DOC_LEN)
-			{
-			  /* Fold this line at the position of a space.  */
-			  for (len = MAX_LONG_DOC_LEN; len > 0; len--)
-			    if (doc[len - 1] == ' ')
-			      break;
-			}
-			#if 0
-		      grub_printf ("    ");
-		      for (i = 0; i < len; i++)
-			grub_putchar (*doc++);
-		      grub_putchar ('\n');
-		  #else
-				grub_printf("    %.*s\n",len,doc);
-				doc += len;
-		  #endif
-		    }
+		  print_doc((*builtin)->long_doc,3);
 		}
 	    }
 
@@ -11174,26 +11174,19 @@ static struct builtin builtin_map =
   " when you chain-load some operating systems, such as DOS, if such an"
   " OS resides at a non-first drive. TO_DRIVE can be a disk file, this"
   " indicates a disk emulation."
-  " If --read-only is given, the"
-  " emulated drive will be write-protected. If --fake-write is given,"
-  " any write operations to the emulated drive are allowed but the data"
-  " written will be discarded. The --unsafe-boot switch enables the write"
-  " to the Master and DOS boot sectors of the emulated disk."
-  " If --disable-chs-mode is given, CHS access to the emulated drive will"
-  " be refused. If --disable-lba-mode is given, LBA access to the emulated"
-  " drive will be refused."
-  " if RAW=1,"
-  " all memdrives will be accessed without using int15/ah=87h. if RAW=0, then"
-  " int15/ah=87h will be used to access memdrives."
-  " If one of --status, --hook, --unhook, --rehook, --floppies, --harddrives,"
-  " --memdisk-raw, --a20-keep-on, --safe-mbr-hook, --int13-scheme,"
-  " --ram-drive, --rd-base or --rd-size is"
-  " given, then any other command-line arguments will be ignored."
-  " The --mem option indicates a drive in"
-  " memory. if RESERV is used and <= 0, the minimum memory occupied by the"
-  " memdrive is (-RESERV) in 512-byte-sectors. if RESERV is used and > 0,"
-  " the memdrive will occupy the mem area starting at absolute physical"
-  " address RESERV in 512-byte-sectors and ending at the end of this mem"
+  "\nIf --read-only is given, the emulated drive will be write-protected."
+  "\nIf --fake-write is given, any write operations to the emulated drive are allowed but the data"
+  " written will be discarded."
+  "\nThe --unsafe-boot switch enables the write to the Master and DOS boot sectors of the emulated disk."
+  "\nIf --disable-chs-mode is given, CHS access to the emulated drive will be refused."
+  "\nIf --disable-lba-mode is given, LBA access to the emulated drive will be refused."
+  "\nIf RAW=1, all memdrives will be accessed without using int15/ah=87h."
+  "\nIf RAW=0, then int15/ah=87h will be used to access memdrives."
+  "\nIf one of --status, --hook, --unhook, --rehook, --floppies, --harddrives, --memdisk-raw, --a20-keep-on, --safe-mbr-hook, --int13-scheme,"
+  " --ram-drive, --rd-base or --rd-size is given, then any other command-line arguments will be ignored."
+  "\nThe --mem option indicates a drive in memory."
+  "\nif RESERV is used and <= 0, the minimum memory occupied by the memdrive is (-RESERV) in 512-byte-sectors."
+  "\nif RESERV is used and > 0,the memdrive will occupy the mem area starting at absolute physical address RESERV in 512-byte-sectors and ending at the end of this mem"
   " block(usually the end of physical mem)."
 };
 #endif	/* ! GRUB_UTIL */
