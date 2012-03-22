@@ -7244,7 +7244,7 @@ static struct builtin builtin_halt =
 
 static void print_doc(char *doc,int left)
 {
-  int max_doc_len = current_term->chars_per_line - 2;
+  int max_doc_len = current_term->chars_per_line;
 	while (*doc)
 	{
 		int i;
@@ -7259,10 +7259,9 @@ static void print_doc(char *doc,int left)
 		{
 			putchar('\n',255);
 		}
-		if (fontx < left)
-			gotoxy(left,fonty);
+		while (fontx < left)
+			grub_putchar(' ',255);
 		doc += grub_printf("%.*s",i,doc);
-
 	}
 	grub_putchar('\n',255);
 }
@@ -7272,6 +7271,7 @@ help_func (char *arg, int flags)
 {
   int all = 0;
   int MAX_SHORT_DOC_LEN = current_term->chars_per_line/2-1;
+  quit_print = 0;
   if (grub_memcmp (arg, "--all", sizeof ("--all") - 1) == 0)
     {
       all = 1;
@@ -7350,6 +7350,8 @@ help_func (char *arg, int flags)
 		  print_doc((*builtin)->short_doc,4);
 		  /* Print the long doc.  */
 		  print_doc((*builtin)->long_doc,3);
+	  		if (quit_print)
+				break;
 		}
 	    }
 
