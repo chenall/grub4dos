@@ -230,7 +230,7 @@ int expand_var(const char *str,char *out,const unsigned int len_max)
 		}
 		else if (out + 0x200 < out_end)
 		{
-				out += envi_cmd(str,out,1);
+			out += envi_cmd(str,out,1);
 		}
 		str += i;
 	}
@@ -251,14 +251,14 @@ int run_line (char *heap,int flags)
 	grub_error_t errnum_old = errnum;
 	char *cmdline_buf = cmd_buffer;
 	char *cmdBuff = NULL;
-	cmd_buffer += expand_var(heap,cmdline_buf,1500)+1;
+	cmd_buffer += (expand_var(heap,cmdline_buf,0x600)+0x200)&-512;
 	heap = cmdline_buf;
 	errnum = ERR_NONE;
-	/* Invalidate the cache, because the user may exchange removable disks.  */
 	while (*heap == 0x20 || *heap == '\t')
 		++heap;
 	if (*heap == 0)
 		return 1;
+	/* Invalidate the cache, because the user may exchange removable disks.  */
 	buf_drive = -1;
 	while (*heap && (arg = heap))
 	{
