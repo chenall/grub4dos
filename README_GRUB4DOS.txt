@@ -1234,13 +1234,13 @@ Examples:
 
 	Installing GRLDR boot code to MBR under Linux:
 
-		bootlace.com  /dev/hda
+		bootlace.com  /dev/sda
 
 	Installing GRLDR boot code to MBR under DOS:
 
 		bootlace.com  0x80
 
-	Installing GRLDR boot code to a harddisk image under DOS, Windows or Linux:
+	Installing GRLDR boot code to a harddisk image under DOS ¡¢Windows or Linux:
 
 		bootlace.com  hd.img
 
@@ -1252,7 +1252,7 @@ Examples:
 
 		bootlace.com  --floppy 0x00
 
-	Installing GRLDR boot code to a floppy image under DOS, Windows or Linux:
+	Installing GRLDR boot code to a floppy image under DOS ¡¢Windows or Linux:
 
 		bootlace.com  --floppy floppy.img
 
@@ -3418,10 +3418,6 @@ Step 2. Under DOS, Windows, these commands are executed:
 Step 3. Put MYPART.TMP back on to the boot sector(s) of your original partition
 	(hdX,Y).
 
-Note: Under Linux you may directly write the partition. That is to say, Step
-	1 and Step 3 are not needed. Simply use its device name instead of
-	MYPART.TMP.
-
 Method 2:
 	Executed under DOS command:
 	bootlace.com --install-partition=I K
@@ -3429,6 +3425,9 @@ Method 2:
 	I is the partition number (0,1,2,3,4, ...), K is the drive letter (0x80, 0x81, ...).
 	Implementation will show the simple disk information and regional capacity, 
 	and are prompted to press "y" key to continue, press the other key to exit.
+
+Installing GRLDR boot code to PBR under Linux:
+	bootlace.com --floppy /dev/sda1
 	
 Note: Only a few file systems(FAT12/16/32/NTFS/ext2/ext3/ext4/exfat) are supported by now.
 

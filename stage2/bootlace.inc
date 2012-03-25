@@ -1409,7 +1409,6 @@
 #else
 
 	/* int open(const char *pathname, int flags, mode_t mode) */
-
 	movl	$5, %eax		// sys_open
 	movzbl	ABS(read_only), %ecx	// O_RDWR = 02
 	int	$0x80
@@ -1689,7 +1688,7 @@ sb:
 2:
 	cmpl	$0xffffffff, PRE(cs)ABS(floppy)	/* Is --floppy specified? */
 	je	4f	/* error */
-	
+
 	/* Yes, --floppy is specified */
 
 	/* ESI points to MBR(0) */
@@ -1791,6 +1790,7 @@ sb:
 	subb	$0x50, %al
 	movb	%al, PRE(cs)ABS(msg_disk)
 	movw	$0xffff, %bx
+	movl	$MBR(0x2004), %esi
 	pushw	%bx
 33:
 	popw	%bx
@@ -1799,9 +1799,13 @@ sb:
 	ja	34f	
 	pushw	%bx
 	shlw	$4, %bx
-	cmpb	$0, 0x2004(%bx)
+//	cmpb	$0, 0x2004(%bx)
+	movl	$MBR(0x2004), %esi
+	addw	%bx, %si
+	cmpb $0, (iSI)
 	je	33b
-	movl	0x200c(%bx), %eax
+//	movl	0x200c(%bx), %eax	//´ÅÅÌ×ÜÉÈÇøÊý
+	movl 0x08(iSI), %eax
 	popw	%bx
 3:
 	pushw	%bx	
@@ -1816,7 +1820,10 @@ sb:
 	movl	$ABS(msg_install_partition_not), %ecx	
 	ja	4f
 	shlw	$4, %bx
-	cmpb	$0, 0x2004(%bx)
+//	cmpb	$0, 0x2004(%bx)
+	movl	$MBR(0x2004), %esi
+	addw	%bx, %si
+	cmpb $0, (iSI)
 	je	4f	
 	movl	$ABS(msg_Wait_for_key), %ecx
 	call	8f	/* linux_print */
@@ -1830,11 +1837,15 @@ sb:
 	//Install the boot code to disk
 	//24 sectors to read the specified partition es: 0000
 
-	movl	$MBR(0x07BE), %ebp
+//	movl	$MBR(0x07BE), %ebp
 	movw	PRE(cs)ABS(install_partition), %bx	  //Partition number
 	shlw	$4, %bx
-	movl	0x2008(%bx), %eax	//The partition start LBA address
-	addl	0x2000(%bx), %eax	//Starting LBA address plus the parent partition
+//	movl	0x2008(%bx), %eax	//The partition start LBA address
+//	addl	0x2000(%bx), %eax	//Starting LBA address plus the parent partition
+	movl	$MBR(0x2000), %esi	
+	addw	%bx, %si
+	movl	0x08(iSI), %eax
+	addl	(iSI), %eax
 	pushl	%eax
 	pushl	$0
 	pushl	%eax
@@ -3415,8 +3426,10 @@ sb:
 	
 //	movl	$((464 / 4) - 1), %ecx
 	movl	$((0x400 - 0x30)/4), %ecx
-	movl	$0X30, %edi
-	repz movsl PRE(cs)(iSI), %es:(iDI)
+//	movl	$0X30, %edi
+	movl	$MBR(0x30), %edi
+//	repz movsl PRE(cs)(iSI), %es:(iDI)
+	repz movsl PRE(cs)(iSI), (iDI)
 	
 //	movl	$1, PRE(cs)ABS(sectors_to_write)
 	movl	$2, PRE(cs)ABS(sectors_to_write)
@@ -3604,9 +3617,11 @@ sb:
 //	movl	$(416 / 4), %ecx
 //	repz movsl PRE(cs)(iSI), %es:(iDI)
 	movl	$ABS(grldr_pbr_start + 0x5a), %esi
-	movl 	$0x5a, %edi
+//	movl 	$0x5a, %edi
+	movl	$MBR(0x5a), %edi
 	movl	$((0x200-0x5a)/2), %ecx
-	repz movsw PRE(cs)(iSI), %es:(iDI)
+//	repz movsw PRE(cs)(iSI), %es:(iDI)
+		repz movsw PRE(cs)(iSI), (iDI)
 	
 	movl	$1, PRE(cs)ABS(sectors_to_write)
 	
@@ -3756,9 +3771,11 @@ sb:
 
 //	movl	$((0x800 - 0x58)/ 4), %ecx
 	movl	$ABS(grldr_pbr_start + 0x0c54), %esi
-	movl	$0x54, %edi
+//	movl	$0x54, %edi
+	movl	$MBR(0x54), %edi
 	movl	$((0x800 - 0x54)/ 4), %ecx	
-	repz movsl PRE(cs)(iSI), %es:(iDI)
+//	repz movsl PRE(cs)(iSI), %es:(iDI)
+	repz movsl PRE(cs)(iSI), (iDI)
 	
 	movl	$4, PRE(cs)ABS(sectors_to_write)
 	
@@ -4010,14 +4027,17 @@ sb:
 //	movl	$(444 / 4), %ecx
 //	repz movsl PRE(cs)(iSI), %es:(iDI)
 	movl	$ABS(grldr_pbr_start + 0x23e), %esi
-	movl	$0x3e, %edi
+//	movl	$0x3e, %edi
+	movl	$MBR(0x3e), %edi
 	movl	$((0x200-0x3e)/2), %ecx	
-	repz movsw PRE(cs)(iSI), %es:(iDI)
+//	repz movsw PRE(cs)(iSI), %es:(iDI)
+	repz movsw PRE(cs)(iSI), (iDI)
 	
 	movl	$1, PRE(cs)ABS(sectors_to_write)
 	
 	movl	$ABS(msg_fstype_fat16_allow), %ecx
-	movw	0x39, %ax
+//	movw	0x39, %ax
+	movw MBR(0x39), %ax
 	cmpw	$0x3631, %ax
 	je	2f	
 	movl	$ABS(msg_fstype_fat12_allow), %ecx
@@ -4191,48 +4211,54 @@ sb:
 	movb	$0x90, %al
 	stosb
 	movl	$ABS(grldr_pbr_start + 0x878), %esi
-	movl	$0x78, %edi
+//	movl	$0x78, %edi
+	movl	$MBR(0x78), %edi
 	movl	$((0x400-0x78)/4), %ecx	
-	repz movsl PRE(cs)(iSI), %es:(iDI)
+//	repz movsl PRE(cs)(iSI), %es:(iDI)
+		repz movsl PRE(cs)(iSI), (iDI)
 	//Fill sector
 	xorl	%eax, %eax
-	movw	$0x400, %di
-	movw	$0x480, %cx
+//	movw	$0x400, %di
+	movl	$MBR(0x400), %edi
+	movl	$0x480, %ecx
 	repz	stosl
-	xorw	%si, %si
+//	xorw	%si, %si
+	movl	$MBR(0), %esi
 	movw	$0xAA55, %ax
-	movw	$7, %cx
+	movl	$7, %ecx
 3:	
-	movw	%ax, 0x5fe(%si)
-	addw	$0x200, %si
+	movw	%ax, 0x5fe(%esi)
+	addl	$0x200, %esi
 	loop 3b
 2:	
 //Calculation exfat volume boot record checksum
 //si=the index entry (from 0 to cx) eax=checksum  cx=volume boot record check bytes (0x1600)
-	xorw	%si, %si	//Initialize the index
+//	xorw	%si, %si	//Initialize the index
+	movl	$MBR(0), %esi
 	xorl	%eax, %eax	//Initialize the checksum
-	movw	$0x1600, %cx	//Bytes volume boot record check
+	movl	$MBR(0x1600), %ecx	//Bytes volume boot record check
 3:
 	rorl	$1, %eax	//"Checksum" right Cycle 1 bit
-	movzbl	(%si), %ebx	//Check items
+	movzbl	(%esi), %ebx	//Check items
 	addl	%ebx, %eax	//(("Checksum" Left Cycle 31 bit) or ("Checksum" right Cycle 1 bit)) + Check items
 2:
-	incw	%si	//index+1
-	cmpw	$0x6a, %si	//index=0x6a Exclude
+	incl	%esi	//index+1
+	cmpl	$MBR(0x6a), %esi                      //index=0x6a Exclude
 	je	2b
-	cmpw	$0x6b, %si	//index=0x6b Exclude
+	cmpl	$MBR(0x6b), %esi                      //index=0x6b Exclude
 	je	2b
-	cmpw	$0x70, %si	//index=0x70 Exclude
+	cmpl	$MBR(0x70), %esi                      //index=0x70 Exclude
 	je	2b
-	cmpw	%cx, %si	//index=Maximum?
+	cmpl	%ecx, %esi	//index=Maximum?
 	jb	3b	//No, continue to
 //Filling Checksum 	
 //	movw	$0x1600, %di
-	movw	$0x80, %cx
-	rep	stosl	//0x200 byte   
+	movl	$0x80, %ecx
+	repz	stosl	//0x200 byte   
 //Modify the backup area
-	movw	$0x600, %cx
-	xorw	%si, %si
+	movl	$0x600, %ecx
+//	xorw	%si, %si
+	movl	$MBR(0), %esi
 	repz movsl
 
 	movl	$24, PRE(cs)ABS(sectors_to_write)
@@ -5630,7 +5656,7 @@ sb:
 	jne	4f
 2:
 	/* extended partition */
-	movb	$0xff, 0x04(%ebp, %esi)	//Basic extended partition
+	movb	$0, 0x04(%ebp, %esi)	//Basic extended partition
 	movl	0x08(%ebp, %esi), %eax
 2:	
 	/* read one sector of the partition to MBR(0) */
@@ -5861,7 +5887,8 @@ sb:
 	xorw	%dx, %dx
 	divw	%bx
 	orb		$0x30, %dl
-	movb	%dl, %cs:(%si)
+//	movb	%dl, %cs:(%si)
+	movb	%dl, PRE(cs)(iSI)
 	decw	%si
 	cmpw	$0, %ax
 	jne 23b
@@ -5870,8 +5897,10 @@ sb:
 	jbe 3f
 	movl	$ABS(scS_x), %edi
 	movl	$ABS(scS_c_s), %esi
-	movw	%cs:(%si), %ax
-	movw	%ax, %cs:(%di)
+//	movw	%cs:(%si), %ax
+//	movw	%ax, %cs:(%di)
+	movw	PRE(cs)(iSI), %ax
+	movw	%ax, 	PRE(cs)(iDI)
 	//Handle integer                               
 3: 
 	decb	%cl
@@ -5888,7 +5917,8 @@ sb:
 	//The first 8 bytes from the integer filling spaces
 	movl	$ABS(scS_z_s), %edi        
 	movl	$0x20202020, %eax
-	movl	%eax, %cs:(%edi)
+//	movl	%eax, %cs:(%edi)
+	movl	%eax, PRE(cs)(iDI)
 	movb	$0x30, PRE(cs)ABS(scS_c)
 	movw	$0x3030, PRE(cs)ABS(scS_c_s)
 	popal

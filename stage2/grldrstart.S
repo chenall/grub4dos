@@ -190,7 +190,13 @@ mbr_boot_number:
 	 */
 
 #define FS_BOOT	0xd00		/* segment of partition boot track */
-
+        
+        cmpb    $0x00, %dl
+        je      1f
+        cmpb    $0x80, %dl
+        je      1f 
+        movb    $0x80, %dl
+1:        
 	pushw	%ss		/* SS=CS */
 	popw	%es		/* ES=CS */
 
@@ -380,10 +386,11 @@ try_next_partition:
 	jmp	add_sub_si
 
 read_disk_with_reset_and_dec_di:
-2:
+//2:
 	movb    $2, %ah
 	movw    $3, %di
 	movw    $1, %cx
+2:	
 	pushaw
 ////////////////////////////////////////////////////////////
 	/* ES:BX=buffer */
@@ -512,12 +519,6 @@ cdrom_helper_2:
 	movl    2(%si), %eax                            /* File logical sector */
 	incw    %bp                                     /* Mark */ 
 	jmp     load_the_rest_1
-			
-cdrom_helper_3:	
-	popw    %si
-	movzbw  (%si), %cx
-	add     %cx, %si                                /* First record */
-	jmp     2b
 
 #endif  //! defined(GRLDR_MBR))
 
@@ -553,6 +554,12 @@ cdrom_helper_3:
         . = _start1 + 0x270 
 
 #if (! defined(GRLDR_MBR))
+
+cdrom_helper_3:	
+	popw    %si
+	movzbw  (%si), %cx
+	add     %cx, %si                                /* First record */
+	jmp     2b
 
 cd_no_grldr:
         pushw   %cs
@@ -2461,7 +2468,7 @@ extent_fh:
 	movl	(0x04 - 0x58)(%di), %eax	/* i_size, the file size */
 	decl	%eax
         
-        cdq                                     /* exfat */
+        cdq
         
 	divl	0x0e(%bp)			/* bytes per block */
 						/* EDX=various */
@@ -3079,13 +3086,13 @@ filename_end_ext2:
         16      Word    Retention
         18      Word    Sectors per track
         1a      Word    Number of heads
-        1c      DWord   Partition start Absolute sector
+        1c      DWord   Retention
         20      DWord   The current cluster the absolute sector in fat table
         24      Byte    Drive number
         25      Byte    Partition number
         26      Word    Retention
         28      DWord   FAT table start absolute sector number
-        2c      DWord   Root cluster  
+        2c      DWord   Retention 
  */        
                         
 Entry_exfat:                                   
@@ -3125,25 +3132,24 @@ Entry_exfat:
 2:	        			
 	movl    0x50(%bp), %eax
         addl    0x40(%bp), %eax
+        testb   $1, 0x6a(%bp)
+        je      2f
+        addl    0x54(%bp), %eax
+2:        
         movl    %eax, 0x28(%bp)                 /* FAT table start absolute sector number */ 
         movl    0x58(%bp), %eax
         addl    0x40(%bp), %eax                       
         movl    %eax, 0x11(%bp)                 /* Data start Absolute sector */
         movb    0x6c(%bp), %cl                  /* Bytes per sector (power) */
-        decb    %cl
-        movw    $2, %ax
+        movw    $1, %ax
         pushw   %ax
         shlw    %cl, %ax
         movw    %ax, 0x0b(%bp)                  /* Bytes per sector */
         movb    0x6d(%bp), %cl                  /* Sectors per cluster (power) */
-        decb    %cl
         popw	%ax
         shlw    %cl, %ax
         movb    %al, 0x0d(%bp)                  /* Sectors per cluster */
-        movl    0x60(%bp), %eax
-        movl    %eax, 0x2c(%bp)                 /* Root clusters */
-        movl    0x40(%bp), %eax
-	movl    %eax, 0x1c(%bp)	
+        movl    0x40(%bp), %eax                 /* Sector Address */
         pushw   $0x07e0
         popw    %es	
 	xorw    %bx, %bx
@@ -3184,7 +3190,7 @@ Entry_exfat:
         pushw   %es
         movb	$0x03, (chs_64 + 2 - Entry_exfat + 0x7c00)
         movb	$0x43, (lba_64 + 1 - Entry_exfat + 0x7c00)
-        movl    0x1c(%bp), %eax
+        movl    0x40(%bp), %eax
         movw    $12, %cx
         pushw   %cx
         call    readDisk_64 
@@ -3286,7 +3292,7 @@ lba_64:
 	
 
 exfat_next:        
-        movl    0x2c(%bp), %eax        /* Root clusters */
+        movl    0x60(%bp), %eax        /* Root clusters */
 	call    cluster_to_lba_64                               /* Calculate the absolute sector from the cluster */
         /* Read all the root directory to 2000:0000 */
         lesw	(loadseg_off_64 - Entry_exfat)(%bp), %bx	/* load to loadseg:0 */ 
@@ -3322,9 +3328,9 @@ exfat_next:
         /* GRLDR has been found */
         popw	%di                     /* Restore directory entry */
         /* files stored continuously, Calculate the number of sectors the file */
-        movw    %es:0x18(%di), %ax      /* 16-bit low byte file */
-        movw    %es:0x1a(%di), %dx      /* 16-bit high byte file */
-        divw    0x0b(%bp)               /* ax = file length / bytes per sector = file number of sectors */             
+        movl    %es:0x18(%di), %eax     /* 32-bit low byte file */
+        movb    0x6c(%bp), %cl          /* Bytes per sector (power) */
+        shrl    %cl, %eax               /* ax = file number of sectors */ 
         incw    %ax                     /* May be more than the number, file number of sectors + 1 */ 
         pushw   %ax                     /* File number of sectors */
         testb	$2, %es:1(%di)	        /* Bit 2 is equal to 1 indicates no FAT chain, files stored continuously */
@@ -3357,7 +3363,7 @@ exfat_next:
  * followed by reading from the cluster of sectors. 
  * Encountered cluster terminator stop.
  * input:       es:bx=Buffer   esi=The first absolutely  logical sector
- * output:      0x2c(%bp)=current cluster   esi=The second absolutely logical sector
+ * output:      0x60(%bp)=current cluster   esi=The second absolutely logical sector
  */
 read_2_sectors:
         pushw   %es
@@ -3369,14 +3375,14 @@ read_2_sectors:
         subl    0x11(%bp), %eax                 /* The first relatively logical sector */
         xorl    %edx, %edx
         movzbl  0x0d(%bp), %ecx                 /* sectors per cluster */
-        divl    %ecx                            /* eax=Cluster number  edx=Sector offset */
+        divl    %ecx                            /* eax=Cluster number  edx=Sector offset */    
         cmpb    0x0d(%bp), %dl                  /* In the current cluster? */
         jb      3f                              /* Yes */
         /* In the next cluster */
         popl    %eax
-        movl    0x2c(%bp), %eax                 /* current cluster */
+        movl    0x60(%bp), %eax                 /* current cluster */
         call    NextCluster                     /* Find the next cluster from the current cluster */
-        movl    %eax, 0x2c(%bp)                 /* current cluster */
+        movl    %eax, 0x60(%bp)                 /* current cluster */
         jb      1f                              /* Not the end of the cluster */ 
                 
         xorw    %ax, %ax
@@ -3412,7 +3418,9 @@ Read_Discontinuous:
         movzbw  0x0d(%bp), %di 
 1:             
         pushl	%eax                    /* Cluster number */
-        call    cluster_to_lba_64       /* Calculate the absolute sector from the cluster */        
+        pushw   %cx
+        call    cluster_to_lba_64       /* Calculate the absolute sector from the cluster */
+        popw    %cx        
         cmpw    %di, %cx
         jb      2f
         subw    %di, %cx
@@ -3481,8 +3489,8 @@ cluster_to_lba_64:
 	/* sector = (cluster-2) * clustersize + data_start */
 	decl	%eax
 	decl	%eax 
-	movzbl	0x0d(%bp), %edx		/* sectors per cluster */
-	mull	%edx			/* EDX = 0 */
+        movb    0x6d(%bp), %cl          /* Sectors per cluster (power) */
+        shll    %cl, %eax 
         addl	0x11(%bp), %eax         /* Absolute sector */
 	ret
 
@@ -5664,7 +5672,7 @@ extent_fh_mbr:
 	movl	(0x04 - 0x58)(%di), %eax	/* i_size, the file size */
 	decl	%eax
 	
-        cdq                                     /* exfat */
+        cdq
 	
 	divl	0x0e(%bp)			/* bytes per block */
 						/* EDX=various */
@@ -5763,7 +5771,7 @@ extent_fh_mbr:
 				
 7:
 	popw	%ax		/* AX < 0x14(%bp) */
-//	addb	$(0x70 / 4), %ah        /* exfat */
+//	addb	$(0x70 / 4), %ah 
         addb	$(0x10 / 4), %ah
 8:
 	xchgw	%ax, %bx
@@ -6205,7 +6213,7 @@ helper_start:
 	stosl
 	popw	%es
 1:
-	call    Clear_KeyboardBuffer    /* exfat */
+	call    Clear_KeyboardBuffer
 	
 //	testb	$0x80, %cs:0x02	/* boot previous MBR first? */
 	testb   $0x80, %cs:(mbr_disable - _start1)
@@ -6685,7 +6693,7 @@ fat:
 
 //	movw	$0xA00, %bx
 
-        movw    $(Entry_nt - _start1), %bx      /* exfat */
+        movw    $(Entry_nt - _start1), %bx
 	
 	movw	$0x52, %cx
 
@@ -6760,18 +6768,23 @@ fat:
         orb     $8, 02(%si)                     /* exfat Mark */        
         movl    0x50(%si), %eax
         addl    0x1c(%si), %eax
+        testb   $1, 0x6a(%si)
+        je      6f
+        addl    0x54(%si), %eax
+6:        
         movl    %eax, 0x28(%si)                 /* FAT table start absolute sector number */ 
         movl    0x58(%si), %eax
         addl    0x1c(%si), %eax                       
         movl    %eax, 0x11(%si)                 /* Data start Absolute sector */
         movb    0x6c(%si), %cl                  /* Bytes per sector (power) */
-        decb    %cl
-        movw    $2, %ax
+//        decb    %cl
+//        movw    $2, %ax
+        movw    $1, %ax
         pushw   %ax
         shlw    %cl, %ax
         movw    %ax, 0x0b(%si)                  /* Bytes per sector */
         movb    0x6d(%si), %cl                  /* Sectors per cluster (power) */
-        decb    %cl
+//        decb    %cl
         popw	%ax
         shlw    %cl, %ax
         movb    %al, 0x0d(%si)                  /* Sectors per cluster */

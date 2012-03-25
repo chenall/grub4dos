@@ -1034,8 +1034,7 @@ BOOTLACE.COM 能将GRLDR的引导记录安装到硬盘驱动器或硬盘映像�
 或者安装到软盘或者软盘映像的引导扇区。
 
 用法：
-	bootlace.com  [OPTIONS]  DEVICE_OR_FILE
-                       选项      设备或文件
+	bootlace.com  选项  设备或文件
 选项：
 	--read-only		对指定的设备或文件执行所有操作，但是并不不真正地写入。
 
@@ -1130,7 +1129,7 @@ grldr引导 ，而你原本的IO.SYS（DOS/Win9x/Me）和NTLDR（WinNT/2K/XP）�
 
 示例：
         在Linux下安装GRLDR的引导代码到MBR：
-		bootlace.com  /dev/hda
+		bootlace.com  /dev/sda
 
         在DOS下安装GRLDR的引导代码到MBR：
 		bootlace.com  0x80
@@ -3167,13 +3166,10 @@ OPTIONS:
 	对于EXT2/3/4分区，需要获取起始的3个扇区，对于其他类型的文件系统，你只
 	需要获取一个扇区。
 
-步骤 2. 在DOS、Windows执行这些命令：
+步骤 2. 在 DOS、Windows 执行这些命令：
 	bootlace.com --floppy MYPART.TMP
 
 步骤 3. 将 MYPART.TMP 写回你原来分区(hdx,y)的引导扇区。
-
-注意：在Linux 下你可以对分区直接写。也就是说，步骤1 和步骤3 是不需要的。简单使用
-       它的设备名代替 MYPART.TMP 即可。
 
 
 方法2：
@@ -3182,6 +3178,9 @@ OPTIONS:
 
 	I是分区号（0，1，2，3，4，...），K是驱动器号（0x80,0x81，...）。
 	执行时会显示简单的磁盘信息和分区容量，提示按“y”键继续，按其他键退出。
+
+在 Linux 下安装引导代码到 PBR：
+	bootlace.com --floppy /dev/sda1
 
 
 注意： 现在只有文件系统（FAT12/16/32/NTFS/ext2/ext3/ext4/exfat）被支持。
