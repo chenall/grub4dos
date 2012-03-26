@@ -686,9 +686,10 @@ pxe_init_done:
 #if !defined(STAGE1_5) && !defined(GRUB_UTIL)
 
     /* setup boot_drive and install_partition for dos boot drive */
+redo_dos_geometry:
     if (dos_drive_geometry)
     {
-	int j = -1;
+	unsigned long j = -1;
 	if (dos_part_start)
 	{
 		/* find the partition starting at dos_part_start. */
@@ -722,6 +723,23 @@ succeeded_dos_boot_drive:
 		hd_geom[0].heads = ((unsigned char *)&dos_drive_geometry)[1]+1;
 		hd_geom[0].sectors = ((unsigned char *)&dos_drive_geometry)[2];
 	}
+    }
+    else
+    {
+	unsigned long j, k;
+
+	/* check if there is a valid volume-boot-sector at 0x7C00. */
+	if (probe_bpb((struct master_and_dos_boot_sector *)0x7C00))
+		goto failed_dos_boot_drive;
+	dos_part_start = *((unsigned long *) (0x7C00 + 0x1C));
+	j = (dos_part_start ? 0x80 : 0);
+	k = ( j | ((*(unsigned short *)(0x7C00 + 0x1A) - 1) << 8)
+		| ((*(unsigned short *)(0x7C00 + 0x18)) << 16) );
+	if (! k)
+		goto failed_dos_boot_drive;
+	boot_drive = j;
+	dos_drive_geometry = k;
+	goto redo_dos_geometry;
     }
 failed_dos_boot_drive:
 

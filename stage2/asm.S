@@ -119,6 +119,20 @@ VARIABLE(version_string)
 VARIABLE(config_file)
 #ifndef STAGE1_5
 	.string "/boot/grub/menu.lst"
+
+	. = EXT_C(main) + 0x34
+
+	.word	0x14C	/* CPU type for i386 and compatibles */
+	.word	1	/* there is 1 section */
+
+	. = EXT_C(main) + 0x44
+
+	.word	0x20	/* size of optional header */
+	.word	3	/* flags: "no relocation" and "valid executable" */
+	.word	0x722E	/* section name for resources */
+	.word	0x7273
+	.word	0x63
+
 #else
 	.long	0xffffffff
 	.string "/boot/grub/stage2"
@@ -5419,7 +5433,7 @@ int15_e820_handler:
 
 	/* find minimum mem ever used in the drive map slots */
 
-	movl	$-1, %eax	/* 0xffffffff */
+	movl	$-1, %eax	/* 0xffffffff, initialize to maximum value */
 	movl	%eax, %cs:(minimum_mem_hi_in_map - int13_handler)
 	movl	$0x1000000, %cs:(minimum_mem_lo_in_map - int13_handler)
 	/* set %si to the drive map */
@@ -5430,8 +5444,15 @@ int15_e820_handler:
 	jne	5f
 	testb	$0x40, %cs:5(%si)	/* TO_C bit 14=(TO is cdrom) */
 	jnz	5f
+
+	cmpl	$0, %cs:12(%si)
+	jnz	5f			// too big, address exceeding 2048G!
+
 	movl	%cs:8(%si), %ebx	/* StartLBA_Lo */
-	shll	$9, %ebx
+	testl	$0xFF800000, %ebx
+	jnz	5f			// too big, address exceeding 4G!
+
+	shll	$9, %ebx		/* convert to address in bytes */
 
 	cmpl	$0x1000000, %ebx	/* 16M */
 	jb	7f
