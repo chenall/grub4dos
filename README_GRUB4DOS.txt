@@ -3569,6 +3569,11 @@ specify ADDR to be lower than 0x100000(=1MB). Besides, you must specify SIZE
 larger than 0x10000(=64KB). Normally you want ADDR >= 0x1000000(=16MB), and
 SIZE also >= 16MB. A large SIZE could speed up the progression of dd.
 
+Update 2: From 2011-10-03 on, buffer address default at 1M. Since grub4dos
+reserved 32M memory for internal use on 2011-10-20, you normally want to use
+ADDR >= 0x2000000(=32MB). Obviously you should not set ADDR and SIZE to
+conflict with code and data of grub4dos.
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!!!!
 !!!!    Caution! Both IF and OF can be a device name which stands for     !!!!

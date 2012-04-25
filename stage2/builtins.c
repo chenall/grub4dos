@@ -3679,7 +3679,7 @@ dd_func (char *arg, int flags)
       }
     else if (grub_memcmp (arg, "buf=", 4) == 0)
       {
-	if (buf_addr >= 0x100000)	/* already at above 1M, so it is set previously. */
+	if (buf_addr > 0x100000)	/* already at above 1M, so it is set previously. */
 		return !(errnum = ERR_BAD_ARGUMENT);
 	p = arg + 4;
 	if (*p == '-')			/* negative */
@@ -3691,14 +3691,14 @@ dd_func (char *arg, int flags)
       }
     else if (grub_memcmp (arg, "buflen=", 7) == 0)
       {
-	if (buf_size > 0x10000)		/* already above 640K, so it is set previously. */
+	if (buf_size > 0x10000)		/* already above 64K, so it is set previously. */
 		return !(errnum = ERR_BAD_ARGUMENT);
 	p = arg + 7;
 	if (*p == '-')			/* negative */
 		return !(errnum = ERR_BAD_ARGUMENT);
 	if (! safe_parse_maxint (&p, &buf_size))
 		return 0;
-	if (buf_size <= 0x10000 || buf_size > 0xFFFFFFFF)	/* cannot set buffer size below 640K */
+	if (buf_size <= 0x10000 || buf_size > 0xFFFFFFFF)	/* cannot set buffer size below 64K */
 		return !(errnum = ERR_BAD_ARGUMENT);
       }
     else if (*arg)
@@ -4083,6 +4083,7 @@ static struct builtin builtin_dd =
   " file, it will be decompressed automatically when copying. dd is dangerous,"
   " use at your own risk. To be on the safe side, you should only use dd to"
   " write a file in memory. ADDR and SIZE are used for user-defined buffer."
+  " ADDR default at 1M, and SIZE default to 64K."
 };
 
 
