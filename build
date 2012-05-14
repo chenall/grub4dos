@@ -107,6 +107,17 @@ rm -rf grub4dos-${VER}
 mkdir grub4dos-${VER} || exit $?
 cp $COPY_FILES grub4dos-${VER} || exit $?
 cd grub4dos-${VER}
+# generate bootlace64.com
+if [ -f bootlace.com ]; then
+	set dummy `ls -l bootlace.com`
+	# now the size of bootlace.com is $6
+	dd if=bootlace.com of=bootlace.head bs=1 count=64
+	dd if=bootlace.com of=bootlace.body bs=1 count=`expr $6 - 128` skip=64
+	dd if=bootlace.com of=bootlace.tail bs=1 count=64 skip=`expr $6 - 64`
+	cat bootlace.tail bootlace.body bootlace.head > bootlace64.com
+	chmod a+x bootlace64.com
+	rm -f bootlace.tail bootlace.body bootlace.head
+fi
 mkdir docs && mv *.txt docs/
 mkdir sample && mv menu.lst default config.sys sample/
 cd ..

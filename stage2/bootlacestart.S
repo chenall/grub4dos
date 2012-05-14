@@ -1,6 +1,6 @@
 /*
  *  bootlacestart.S -- A utility for installing GRLDR boot sectors to MBR/OSBR
- *  Copyright (C) 2005  Tinybit(tinybit@163.net)
+ *  Copyright (C) 2005, 2012  Tinybit(tinybit@tom.com)
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -46,55 +46,120 @@ _start:
 	 *	bootlace.com  [OPTIONS]  DEVICE_OR_FILE
 	 */
 
-	# ELF header begin
+	# ELF header begin here. Its length is 0x40.
+	# The ELF64 header is backed up at the end of file, which can be
+	# used to replace the ELF header for running on 64-bit Linux.
 
 	.byte	0x7F, 0x45, 0x4C, 0x46	# ELF magic number
 					// 7F 45 = jg dos_entry_point
 					// 4C = decw %sp
 					// 46 = incw %si
 
-#if 0
+#if 1
 	.byte	0x01			# 32-bit
 	.byte	0x01			# little-endian
+					# not safe for 16-bit DOS code
+					// it changes word at [BX+DI]
 					// 01 01 = addw %ax, (%bx, %di)
 #else
 	.byte	0x01			# 32-bit
-	.byte	0xC0			# corrupt-endian!
-					# Sorry!
-					# We have to use this for DOS code!
-					// 01 C0 = addw %ax, %ax
+	.byte	0xC1			# corrupt-endian!
+					# but safe for 16-bit DOS code
+					// 01 C1 = addw %ax, %cx
 #endif
 
-	.byte	0x01			# version
+	.byte	0x01			# ELF version
+					// opcode for ADD
 
 #ifdef __DOT_COM
 
-	.byte	0xC0			# pad char
-					// 01 C0 = addw %ax, %ax
+	.byte	0xC1			# pad char
+					// 01 C1 = addw %ax, %cx
+					// AX unchanged, CX modified
 
-	//.byte	0xFA			# pad char
-	//				// cli
+					// 01 C0 = addw %ax, %ax
+					// 01 C1 = addw %ax, %cx
+					// 01 C2 = addw %ax, %dx
+					// 01 C3 = addw %ax, %bx
+					// 01 C4 = addw %ax, %sp
+					// 01 C5 = addw %ax, %bp
+					// 01 C6 = addw %ax, %si
+					// 01 C7 = addw %ax, %di
+					// 01 C8 = addw %cx, %ax
+					// 01 C9 = addw %cx, %cx
+					// 01 CA = addw %cx, %dx
+					// 01 CB = addw %cx, %bx
+					// 01 CC = addw %cx, %sp
+					// 01 CD = addw %cx, %bp
+					// 01 CE = addw %cx, %si
+					// 01 CF = addw %cx, %di
+					// 01 D0 = addw %dx, %ax
+					// 01 D1 = addw %dx, %cx
+					// 01 D2 = addw %dx, %dx
+					// 01 D3 = addw %dx, %bx
+					// 01 D4 = addw %dx, %sp
+					// 01 D5 = addw %dx, %bp
+					// 01 D6 = addw %dx, %si
+					// 01 D7 = addw %dx, %di
+					// 01 D8 = addw %bx, %ax
+					// 01 D9 = addw %bx, %cx
+					// 01 DA = addw %bx, %dx
+					// 01 DB = addw %bx, %bx
+					// 01 DC = addw %bx, %sp
+					// 01 DD = addw %bx, %bp
+					// 01 DE = addw %bx, %si
+					// 01 DF = addw %bx, %di
+					// 01 E0 = addw %sp, %ax
+					// 01 E1 = addw %sp, %cx
+					// 01 E2 = addw %sp, %dx
+					// 01 E3 = addw %sp, %bx
+					// 01 E4 = addw %sp, %sp
+					// 01 E5 = addw %sp, %bp
+					// 01 E6 = addw %sp, %si
+					// 01 E7 = addw %sp, %di
+					// 01 E8 = addw %bp, %ax
+					// 01 E9 = addw %bp, %cx
+					// 01 EA = addw %bp, %dx
+					// 01 EB = addw %bp, %bx
+					// 01 EC = addw %bp, %sp
+					// 01 ED = addw %bp, %bp
+					// 01 EE = addw %bp, %si
+					// 01 EF = addw %bp, %di
+					// 01 F0 = addw %si, %ax
+					// 01 F1 = addw %si, %cx
+					// 01 F2 = addw %si, %dx
+					// 01 F3 = addw %si, %bx
+					// 01 F4 = addw %si, %sp
+					// 01 F5 = addw %si, %bp
+					// 01 F6 = addw %si, %si
+					// 01 F7 = addw %si, %di
+					// 01 F8 = addw %di, %ax
+					// 01 F9 = addw %di, %cx
+					// 01 FA = addw %di, %dx
+					// 01 FB = addw %di, %bx
+					// 01 FC = addw %di, %sp
+					// 01 FD = addw %di, %bp
+					// 01 FE = addw %di, %si
+					// 01 FF = addw %di, %di
+
+
+	.byte	0x29, 0x01		# pad chars
+					// 29 01 = subw %ax, (%bx, %di)
+					// restored word at [BX+DI]
+
 	.byte	0x90			# pad char
 					// nop
 
 	.byte	0x44			# pad char
 					// incw	%sp
 
-	//.byte	0xFB			# pad char
-	//				// sti
-	.byte	0x90			# pad char
-					// nop
-
-	.byte	0x4E			# pad char
-					// decw	%si
-
 	.byte	0x90			# pad char
 					// nop
 
 	.byte	0x90			# pad char
 					// nop
 
-	.byte	0xEB, 0x24		# pad char
+	.byte	0xEB, 0x30		# pad char
 					// jmp	invalid_dos_exec
 
 #endif
@@ -104,7 +169,8 @@ _start:
 	.word	2			# e_type = Executable
 	.word	3			# e_machine = i386
 	.long	1			# e_version
-	.long	_start_linux		# e_entry
+	.long	(_start_linux - _start + 0x00400000)
+					# e_entry
 	.long	(_ph_offset - _start)	# e_phoff
 	.long	(_sh_offset - _start)	# e_shoff(section header table)
 	.long	0			# e_flags
@@ -113,11 +179,11 @@ _start:
 	.word	1			# e_phnum(prog header entry count)
 	.word	0x28			# e_shentsize
 	.word	5			# e_shnum
-	.word	4			# e_shstrndx
+	.word	1			# e_shstrndx
 
 	# ELF header end
 
-	. = _start + 0x34		// aux dos entry point
+	. = _start + 0x40		// aux dos entry point
 
 #ifdef __DOT_COM
 
@@ -134,26 +200,275 @@ _start:
 bios_drive_number:
 	.long	0xff
 
-#if 0
-msg_invalid_dos:
-
-	.ascii	"\r\nError: Unsupported DOS. The DOS exec function call(int21/AX=4B00) did not\r\ntransfer flags of GREATER-THAN to this program. Report this problem to the\r\nmaintainers of GRUB FOR DOS.\r\n\r\n\0"
 #endif
 
-	.align	0x10
-#endif
+_string_table:
+
+	.ascii	"\0"
+
+	.ascii	".shstrtab\0"
+
+	.ascii	".text\0"
+
+	.ascii	".data\0"
+
+	.ascii	".bss\0"
+
+_string_table_end:
+
+	.align	4
 
 _ph_offset:
 
 	.long	1				# p_type
 	.long	(_start_linux - _start)		# p_offset
-	.long	_start_linux			# p_vaddr
-	.long	_start_linux			# p_paddr
+	.long	(_start_linux - _start + 0x00400000)
+						# p_vaddr
+	.long	(_start_linux - _start + 0x00400000)
+						# p_paddr
 	.long	(pre_stage2_start - _start_linux)	# p_filesz
-	.long	(pre_stage2_start - _start_linux + (0xBE00 + 0x200))	# p_memszz //mbr_63_sectors
+	.long	(pre_stage2_start - _start_linux + (0xBE00 + 0x200))
+						# p_memszz //mbr_63_sectors
 	.long	7				# p_flags
 	.long	0x200				# p_align
 
+_ph_offset_end:
+
+_sh_offset:
+
+	# SHT_UNDEF section
+
+	.long	0			# sh_name = No name
+	.long	0			# sh_type = Inactive
+	.long	0			# sh_flags = No flags
+	.long	0			# sh_addr = No address
+	.long	0			# sh_offset = No file offset
+	.long	0			# sh_size = No size
+	.long	0			# sh_link = No link information
+	.long	0			# sh_info = No auxiliary information
+	.long	0			# sh_addralign = No alignment
+	.long	0			# sh_entsize = No entries
+
+	# .shstrtab
+
+	.long	1			# sh_name
+	.long	3			# sh_type = SHT_STRTAB
+	.long	0			# sh_flags = no write,no alloc,no exec
+	.long	0			# sh_addr = not present in memory
+
+	.long	(_string_table - _start)
+					# sh_offset (where strtab begins at)
+
+	.long	(_string_table_end - _string_table)
+					# sh_size (size of the string table)
+
+	.long	0			# sh_link
+	.long	0			# sh_info
+	.long	1			# sh_addralign
+	.long	0			# sh_entsize
+
+	# .text
+
+	.long	0x0b			# sh_name
+	.long	1			# sh_type = SHT_PROGBITS
+	.long	7			# sh_flags = WRITE,ALLOC, EXEC
+
+	.long	(_start_linux - _start + 0x00400000)
+					# sh_addr(in process space)
+
+	.long	(_start_linux - _start)
+					# sh_offset(from beginning of file)
+
+	.long	(pre_stage2_start - _start_linux)
+					# sh_size
+
+	.long	0			# sh_link
+	.long	0			# sh_info
+	.long	0x200			# sh_addralign
+	.long	0			# sh_entsize
+
+	# .data
+
+	.long	0x11			# sh_name
+	.long	1			# sh_type = SHT_PROGBITS
+	.long	3			# sh_flags = WRITE, ALLOC
+
+	.long	(pre_stage2_start - _start + 0x00400000)
+					# sh_addr(in process space)
+
+	.long	(pre_stage2_start - _start)
+					# sh_offset(from beginning of file)
+
+	.long	0			# sh_size (no data present)
+	.long	0			# sh_link
+	.long	0			# sh_info
+	.long	4			# sh_addralign
+	.long	0			# sh_entsize
+
+	# .bss
+
+	.long	0x17			# sh_name
+	.long	8			# sh_type = SHT_NOBITS
+	.long	3			# sh_flags = WRITE, ALLOC
+
+	.long	(pre_stage2_start - _start + 0x00400000)
+					# sh_addr(in process space)
+
+	.long	(pre_stage2_start - _start)
+					# sh_offset(from beginning of file)
+
+	.long	(0xbe00 + 0x200)	# sh_size	//mbr_63_sectors
+	.long	0			# sh_link
+	.long	0			# sh_info
+	.long	0x200			# sh_addralign
+	.long	0			# sh_entsize
+
+_sh_offset_end:
+
+	.align	8
+
+_ph_offset_64:
+
+	.long	1				# p_type
+	.long	7				# p_flags
+	.long	(_start_linux - _start)		# p_offset
+	.long	0				# ... hi
+	.long	(_start_linux - _start + 0x00400000)
+						# p_vaddr
+	.long	0				# ... hi
+	.long	(_start_linux - _start + 0x00400000)
+						# p_paddr
+	.long	0				# ... hi
+	.long	(pre_stage2_start - _start_linux)	# p_filesz
+	.long	0				# ... hi
+	.long	(pre_stage2_start - _start_linux + (0xBE00 + 0x200))
+						# p_memszz //mbr_63_sectors
+	.long	0				# ... hi
+	.long	0x200				# p_align
+	.long	0				# ... hi
+
+_ph_offset_64_end:
+
+_sh_offset_64:
+
+	# SHT_UNDEF section
+
+	.long	0			# sh_name = No name
+	.long	0			# sh_type = Inactive
+	.long	0			# sh_flags = No flags
+	.long	0			# ... hi
+	.long	0			# sh_addr = No address
+	.long	0			# ... hi
+	.long	0			# sh_offset = No file offset
+	.long	0			# ... hi
+	.long	0			# sh_size = No size
+	.long	0			# ... hi
+	.long	0			# sh_link = No link information
+	.long	0			# sh_info = No auxiliary information
+	.long	0			# sh_addralign = No alignment
+	.long	0			# ... hi
+	.long	0			# sh_entsize = No entries
+	.long	0			# ... hi
+
+	# .shstrtab
+
+	.long	1			# sh_name
+	.long	3			# sh_type = SHT_STRTAB
+	.long	0			# sh_flags = no write,no alloc,no exec
+	.long	0			# ... hi
+	.long	0			# sh_addr = not present in memory
+	.long	0			# ... hi
+
+	.long	(_string_table - _start)
+					# sh_offset (where strtab begins at)
+	.long	0			# ... hi
+
+	.long	(_string_table_end - _string_table)
+					# sh_size (size of the string table)
+	.long	0			# ... hi
+
+	.long	0			# sh_link
+	.long	0			# sh_info
+	.long	1			# sh_addralign
+	.long	0			# ... hi
+	.long	0			# sh_entsize
+	.long	0			# ... hi
+
+	# .text
+
+	.long	0x0b			# sh_name
+	.long	1			# sh_type = SHT_PROGBITS
+	.long	7			# sh_flags = WRITE,ALLOC, EXEC
+	.long	0			# ... hi
+
+	.long	(_start_linux - _start + 0x00400000)
+					# sh_addr(in process space)
+	.long	0			# ... hi
+
+	.long	(_start_linux - _start)
+					# sh_offset(from beginning of file)
+	.long	0			# ... hi
+
+	.long	(pre_stage2_start - _start_linux)
+					# sh_size
+	.long	0			# ... hi
+
+	.long	0			# sh_link
+	.long	0			# sh_info
+	.long	0x200			# sh_addralign
+	.long	0			# ... hi
+	.long	0			# sh_entsize
+	.long	0			# ... hi
+
+	# .data
+
+	.long	0x11			# sh_name
+	.long	1			# sh_type = SHT_PROGBITS
+	.long	3			# sh_flags = WRITE, ALLOC
+	.long	0			# ... hi
+
+	.long	(pre_stage2_start - _start + 0x00400000)
+					# sh_addr(in process space)
+	.long	0			# ... hi
+
+	.long	(pre_stage2_start - _start)
+					# sh_offset(from beginning of file)
+	.long	0			# ... hi
+
+	.long	0			# sh_size (no data present)
+	.long	0			# ... hi
+	.long	0			# sh_link
+	.long	0			# sh_info
+	.long	4			# sh_addralign
+	.long	0			# ... hi
+	.long	0			# sh_entsize
+	.long	0			# ... hi
+
+	# .bss
+
+	.long	0x17			# sh_name
+	.long	8			# sh_type = SHT_NOBITS
+	.long	3			# sh_flags = WRITE, ALLOC
+	.long	0			# ... hi
+
+	.long	(pre_stage2_start - _start + 0x00400000)
+					# sh_addr(in process space)
+	.long	0			# ... hi
+
+	.long	(pre_stage2_start - _start)
+					# sh_offset(from beginning of file)
+	.long	0			# ... hi
+
+	.long	(0xbe00 + 0x200)	# sh_size	//mbr_63_sectors
+	.long	0			# ... hi
+	.long	0			# sh_link
+	.long	0			# sh_info
+	.long	0x200			# sh_addralign
+	.long	0			# ... hi
+	.long	0			# sh_entsize
+	.long	0			# ... hi
+
+_sh_offset_64_end:
 
 	.align	0x200
 
@@ -818,120 +1133,89 @@ current_partition:
 
 mbr_63_sectors:
 
+	/* The code will use ((63+32+1)*512) bytes from here on. */
 	//. = . + ((63+32+1)*512)
 
-	.align	0x200
+#############################################################################
 
-_string_table:
+	/* This backup header must be at the end of bootlace.com. It never
+	 * get used by the code in bootlace.com. But it is used by external
+	 * programs to generate bootlace64.com.
+	 */
 
-	.ascii	"\0"
+_start_ELF_64:
 
-	.ascii	".shstrtab\0"
+	# ELF64 header backup here upto the end of file. Its length is 0x40.
 
-	.ascii	".text\0"
+	.byte	0x7F, 0x45, 0x4C, 0x46	# ELF magic number
+					// 7F 45 = jg dos_entry_point
+					// 4C = decw %sp
+					// 46 = incw %si
 
-	.ascii	".data\0"
+	.byte	0x02			# 64-bit
+	.byte	0x01			# little-endian
+					// 02 01 = addb (%bx, %di), %al
+					// no problem
 
-	.ascii	".bss\0"
+	.byte	0x01			# ELF version
 
-	.align	4
+#ifdef __DOT_COM
 
-_sh_offset:
+	.byte	0xC1			# pad char
+					// 01 C1 = addw %ax, %cx
 
-	# SHT_UNDEF section
+	.byte	0x90			# pad char
+					// nop
 
-	.long	0			# sh_name = No name
-	.long	0			# sh_type = Inactive
-	.long	0			# sh_flags = No flags
-	.long	0			# sh_addr = No address
-	.long	0			# sh_offset = No file offset
-	.long	0			# sh_size = No size
-	.long	0			# sh_link = No link information
-	.long	0			# sh_info = No auxiliary information
-	.long	0			# sh_addralign = No alignment
-	.long	0			# sh_entsize = No entries
+	.byte	0x90			# pad char
+					// nop
 
-	# .text
+	.byte	0x90			# pad char
+					// nop
 
-	.long	0x0b			# sh_name
-	.long	1			# sh_type = SHT_PROGBITS
-	.long	7			# sh_flags = WRITE,ALLOC, EXEC
+	.byte	0x44			# pad char
+					// incw	%sp
 
-	.long	(_start_linux - _start + 0x08048000)
-					# sh_addr(in process space)
+	.byte	0x90			# pad char
+					// nop
 
-	.long	(_start_linux - _start)
-					# sh_offset(from beginning of file)
+	.byte	0x90			# pad char
+					// nop
 
-	.long	(pre_stage2_start - _start_linux)
-					# sh_size
+	.byte	0xEB, 0x30		# pad char
+					// jmp	invalid_dos_exec
 
-	.long	0			# sh_link
-	.long	0			# sh_info
-	.long	0x200			# sh_addralign
-	.long	0			# sh_entsize
+#endif
 
-	# .data
+	. = _start_ELF_64 + 0x10
 
-	.long	0x11			# sh_name
-	.long	1			# sh_type = SHT_PROGBITS
-	.long	3			# sh_flags = WRITE, ALLOC
+	.word	2			# e_type = Executable
+	.word	0x3E			# e_machine = x86_64
+	.long	1			# e_version
+	.long	(_start_linux - _start + 0x00400000)
+					# e_entry
+	.long	0			# ... hi
+	.long	(_ph_offset_64 - _start)
+					# e_phoff
+	.long	0			# ... hi
+	.long	(_sh_offset_64 - _start)
+					# e_shoff(section header table)
+	.long	0			# ... hi
+	.long	0			# e_flags
+	.word	0x40			# e_ehsize (ELF header size)
+	.word	0x38			# e_phentsize(prog header entry size)
+	.word	1			# e_phnum(prog header entry count)
+	.word	0x40			# e_shentsize
+	.word	5			# e_shnum
+	.word	1			# e_shstrndx
 
-	.long	(pre_stage2_start - _start + 0x08048000)
-					# sh_addr(in process space)
+	# ELF64 header end
 
-	.long	(pre_stage2_start - _start)
-					# sh_offset(from beginning of file)
+	. = _start_ELF_64 + 0x40	# code ends here
 
-	.long	0			# sh_size (no data present)
-	.long	0			# sh_link
-	.long	0			# sh_info
-	.long	4			# sh_addralign
-	.long	0			# sh_entsize
+#############################################################################
 
-	# .bss
-
-	.long	0x17			# sh_name
-	.long	8			# sh_type = SHT_NOBITS
-	.long	3			# sh_flags = WRITE, ALLOC
-
-	.long	(pre_stage2_start - _start + 0x08048000)
-					# sh_addr(in process space)
-
-	.long	(pre_stage2_start - _start)
-					# sh_offset(from beginning of file)
-
-	.long	(0xbe00 + 0x200)	# sh_size	//mbr_63_sectors
-	.long	0			# sh_link
-	.long	0			# sh_info
-	.long	0x200			# sh_addralign
-	.long	0			# sh_entsize
-
-	# .shstrtab
-
-	.long	1			# sh_name
-	.long	3			# sh_type = SHT_STRTAB
-	.long	0			# sh_flags = no write,no alloc,no exec
-	.long	0			# sh_addr = not present in memory
-
-	.long	(_string_table - _start)
-					# sh_offset (where strtab begins at)
-
-	.long	(_sh_offset - _string_table)
-					# sh_size (size of the string table)
-
-	.long	0			# sh_link
-	.long	0			# sh_info
-	.long	1			# sh_addralign
-	.long	0			# sh_entsize
-
-
-
-
-
-
-
-
+	/* !!!! Do NOT append code here !!!! See comment above. */
 
 
 
