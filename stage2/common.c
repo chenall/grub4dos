@@ -724,7 +724,7 @@ succeeded_dos_boot_drive:
 		hd_geom[0].sectors = ((unsigned char *)&dos_drive_geometry)[2];
 	}
     }
-    else
+    else if (! fb_status) // if not boot from fbinst
     {
 	unsigned long j, k;
 

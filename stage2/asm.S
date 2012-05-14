@@ -371,8 +371,13 @@ real_codestart:
 	movl	%eax, ABS(EXT_C(fb_status))
 	cmpb	$0,%ah
 	jnz	1f
-	orw	$0x1,0x0410
-	
+	/* it is the floppy (fd0) */
+	testb	$0x01,0x0410
+	jnz	1f
+	/* no floppy in BDA, so we set floppy count to 1. */
+	orb	$0x01,0x0410	/* diskette set as present */
+	andb	$0x3F,0x0410	/* clear bit 6-7 */
+
 //	movb	$(FB_DRIVE),%dl
 1:
 	movb	0x0410, %al
@@ -5203,11 +5208,16 @@ lba_to_chs:
 max_cdrom_id:		.byte	0xE0
 
 	.align	4
-ENTRY(e820cycles)	.long	-1	/* no limit. set to 0 if int15 will unhook */
-ENTRY(int15nolow)	.long	0	/* set to 1 if int15 will not handle low memory */
-ENTRY(memdisk_raw)	.long	1	/* set to 0 if accessing memdrives using int15/AH=87h */
-ENTRY(a20_keep_on)	.long	1	/* set to 0 if a20 should be auto-off */
-ENTRY(lba_cd_boot)	.long	0	/* LBA of no-emulation boot image, in 2048-byte sectors */
+ENTRY(e820cycles)
+	.long	-1	/* no limit. set to 0 if int15 will unhook */
+ENTRY(int15nolow)
+	.long	0	/* set to 1 if int15 will not handle low memory */
+ENTRY(memdisk_raw)
+	.long	1	/* set to 0 if accessing memdrives using int15/87h */
+ENTRY(a20_keep_on)
+	.long	1	/* set to 0 if a20 should be auto-off */
+ENTRY(lba_cd_boot)
+	.long	0	/* LBA of no-emu boot image, in 2048-byte sectors */
 
 minimum_mem_lo_in_map:
 	.long	0	/* min ram drive base below 16M */
@@ -5285,9 +5295,11 @@ int15_e820_handler:
 //other not defined yet -- treat as Reserved
 
 	cmpl	$0x534D4150, %edx	/* "SMAP" */
-	jne	1f
+	jne	99f	/* not a valid e820 call. But could be another */
+			/* unknown call. So pass through to original BIOS. */
+
 	cmpl	$20, %ecx
-	jb	2f
+	jb	2f	/* treat this as error: invalid call. */
 
 #if 0
 	cmpl	$1, %ebx
@@ -5303,39 +5315,79 @@ int15_e820_handler:
 	//lcall	%cs:*(EXT_C(ROM_int15) - int13_handler)
 	call	safe_ROM_int15
 
-	jc	3f
+	jc	3f	/* it signals end of a cycle of the e820 calls */
 	cmpl	$0x534D4150, %eax	/* "SMAP" */
-	jne	2f
+	jne	3f	/* unknown failure. Also end the cycle for safety. */
 #if 0
 	movl	%ebx, %cs:(int15_e820_saved_ebx - int13_handler)
 	movl	$1, %ebx
 #endif
+	#####################################################################
 	pushal
-	//movl	%es:4(%di), %eax	/* BaseAddrHigh */
-	//testl	%eax, %eax
-	//jnz	4f
-	movl	%es:16(%di), %eax	/* Type */
-	decl	%eax /* 1=usable memory, available to the operating system */
-	jnz	4f
-	///* set %si to the drive map */
-	//movw	$(EXT_C(hooked_drive_map) - int13_handler), %si
-	//movw	$(DRIVE_MAP_SIZE), %cx
-	/* First check for overlapping with int13_handler, then check all mem drives. */
-	/* set %si to the drive map - DRIVE_MAP_SLOT_SIZE */
-	movw	$(EXT_C(hooked_drive_map) - int13_handler - DRIVE_MAP_SLOT_SIZE), %si
-	movw	$(DRIVE_MAP_SIZE +1), %cx
-	/* EAX=0 */
+	#####################################################################
+
+	xorl	%eax, %eax
 	cdq				/* let EDX=0 */
-#if 0
-	movl	%cs:(int15_e820_range0_addr - int13_handler), %eax
-#else
 	movw	%cs, %ax
 	shll	$4, %eax
-#endif
+
 	/* EDX:EAX=linear address of int13_handler */
+
+#if 1
+	/* get 0x413 memory size */
+	pushw	%ds
+	movw	%dx, %ds	/* DS = 0 */
+	movzwl	0x413, %ebx
+	shll	$10, %ebx
+	jz	5f		/* invalid mem size */
+	cmpl	%ebx, %eax
+	jbe	5f
+	xchgl	%eax, %ebx	/* movl %ebx, %eax */
+5:
+	popw	%ds
+#endif
+
+	pushl	%eax		/* available low mem size in bytes */
+
+	movl	%es:16(%di), %eax	/* Type: 1 = usable memory. */
+	decl	%eax			/* is it usable? */
+	jz	5f			/* yes, modify usable mem range */
+
+	/* it is reserved memory. only modify low mem range at this moment. */
+	cmpl	%edx, %cs:(EXT_C(int15nolow) - int13_handler) /* EDX=0 */
+	jnz	4f	/* int15 will not handle low mem */
+	cmpl	%edx, %es:4(%di)	/* BaseAddrHigh */
+	jnz	4f			/* not low mem */
+	cmpl	%edx, %es:12(%di)	/* LengthHigh */
+	jnz	4f			/* not low mem */
+	movl	%es:(%di), %eax		/* BaseAddrLow */
+	addl	%es:8(%di), %eax	/* LengthLow, EAX=EndAddrLow */
+	jc	4f
+	cmpl	$0xA0000, %eax		/* EndAddrLow */
+	jne	4f			/* not a top range, will not touch */
+
+	/* Yes, modify this range */
+	popl	%eax		/* available low mem size in bytes */
+	pushl	%eax		/* available low mem size in bytes */
+	movl	%eax, %es:(%di)
+	movl	$0xA0000, %es:8(%di)
+	subl	%eax, %es:8(%di)
+	jmp	4f	/* done modifying reserved low mem range */
+
+5:
+	/* it is usable memory. */
+
+	/* check if overlapping with int13_handler and memdrives. */
+
+	movw $(EXT_C(hooked_drive_map)-int13_handler-DRIVE_MAP_SLOT_SIZE), %si
+	movw	$(DRIVE_MAP_SIZE + 1), %cx
+
+	popl	%eax		/* available low mem size in bytes */
+	pushl	%eax		/* available low mem size in bytes */
+
 	cmpl	%edx, %cs:(EXT_C(int15nolow) - int13_handler) /* EDX=0 */
 	jz	7f	/* int15 will handle low mem */
-	//jmp	5f	/* this "jmp" instruction can be omitted. */
+	jmp	5f	/* this "jmp" instruction can be omitted. */
 6:
 	/* the code should not change SI, DI and CX! */
 	cmpb	$0xff, %cs:1(%si)
@@ -5347,11 +5399,6 @@ int15_e820_handler:
 	shldl	$9, %eax, %edx
 	shll	$9, %eax		/* EDX:EAX=start_address of mem drive*/
 7:
-	//movl	%es:4(%di), %eax	/* BaseAddrHigh */
-	//testl	%eax, %eax
-	//jnz	5f
-	//cmpl	%es:(%di), %ebx		/* BaseAddrLow */
-	//jb	5f
 	subl	%es:(%di), %eax
 	sbbl	%es:4(%di), %edx	/* EDX:EAX=new length */
 	jb	5f			/* start_address is below the base */
@@ -5360,27 +5407,16 @@ int15_e820_handler:
 	jnb	5f			/* new length is too big */
 	addl	%eax, %es:8(%di)
 	adcl	%edx, %es:12(%di)	/* apply new length */
-	//movl	%es:12(%di), %eax	/* LengthHigh */
-	//testl	%eax, %eax
-	//jnz	7f
-	//movl	%es:8(%di), %eax	/* LengthLow */
-	//addl	%es:(%di), %eax
-	//jc	7f
-	//cmpl	%eax, %ebx
-	//jnb	5f
-//7:
-	//subl	%es:(%di), %ebx		/* new length */
-	//movl	%ebx, %es:8(%di)	/* LengthLow */
-	//xorl	%ebx, %ebx
-	//movl	%ebx, %es:12(%di)	/* LengthHigh */
-
 5:
 	/* try next slot */
 	addw	$DRIVE_MAP_SLOT_SIZE, %si
 	loop	6b
-	//memory block length update done
+	/* done modifying usable mem range */
 4:
+	popl	%eax		/* available low mem size in bytes */
+	#####################################################################
 	popal
+	#####################################################################
 	testl	%ebx, %ebx
 	jnz	5f
 	call	dec_e820cycles
@@ -5405,10 +5441,10 @@ int15_e820_handler:
 	clc
 	lret	$2
 #endif
-2:
-	movb	$0x86, %ah	/* function not supported */
 3:
 	call	dec_e820cycles
+2:
+	movb	$0x86, %ah	/* function not supported */
 	stc
 	lret	$2
 #;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -5425,6 +5461,7 @@ int15_e820_handler:
 	je	1f
 	cmpb	$0x88, %ah
 	je	1f
+99:
 	ljmp	%cs:*(EXT_C(ROM_int15) - int13_handler)
 #;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 1:
@@ -5514,6 +5551,8 @@ int15_e820_handler:
 4:
 	pushfw
 
+	xorw	%cx, %cx
+	xorw	%dx, %dx
 	//pushfw
 	//lcall	%cs:*(EXT_C(ROM_int15) - int13_handler)
 	call	safe_ROM_int15
@@ -5522,6 +5561,13 @@ int15_e820_handler:
 
 	pushl	%eax
 
+	testw	%cx, %cx
+	jnz	5f
+	testw	%dx, %dx
+	jnz	5f
+	movw	%ax, %cx
+	movw	%bx, %dx
+5:
 	/* between 16M and 4G, we modify BX, DX */
 
 	movl	%cs:(minimum_mem_hi_in_map - int13_handler), %eax

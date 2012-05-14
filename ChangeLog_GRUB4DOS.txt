@@ -1,3 +1,4 @@
+2012-04-12 (tinybit)removed low-mem holes for konboot to run ok.
 2012-03-26 (tinybit)fix int15 handler, add bootlace64.com for Linux x86_64.
 2012-02-13 (tinybit)bugfix on initrd issue (issue 74).
 2012-01-15 (tinybit)fixed failure loading multi-boot kernel(issue 66).
