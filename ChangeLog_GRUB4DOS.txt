@@ -1,3 +1,5 @@
+2012-04-18 (tinybit)trust low mem size at 0x413 instead of int15 report.
+2012-04-16 (tinybit)enable floppy partition access for parttype etc.
 2012-04-12 (tinybit)removed low-mem holes for konboot to run ok.
 2012-03-26 (tinybit)fix int15 handler, add bootlace64.com for Linux x86_64.
 2012-02-13 (tinybit)bugfix on initrd issue (issue 74).

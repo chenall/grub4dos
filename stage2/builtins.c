@@ -5623,12 +5623,14 @@ set_partition_hidden_flag (int hidden)
 //  char mbr[512];
 #endif
   
+#if 0
   /* The drive must be a hard disk.  */
   if (! (current_drive & 0x80))
     {
       errnum = ERR_BAD_ARGUMENT;
       return 0;
     }
+#endif
   
   /* The partition must be a PC slice.  */
   if ((current_partition >> 16) == 0xFF
@@ -5661,7 +5663,11 @@ set_partition_hidden_flag (int hidden)
 	  if (hidden == -1)	/* status only */
 	  {
 		if (debug > 0)
-			grub_printf ("Partition (hd%d,%d) is %shidden.\n", (current_drive & 0x7F), (unsigned long)(unsigned char)(part>>16), (is_hidden ? "" : "not "));
+			grub_printf ("Partition (%cd%d,%d) is %shidden.\n",
+				((current_drive & 0x80) ? 'h' : 'f'),
+				(current_drive & ~0x80),
+				(unsigned long)(unsigned char)(part>>16),
+				(is_hidden ? "" : "not "));
 		
 		return is_hidden;
 	  }
@@ -5680,10 +5686,18 @@ set_partition_hidden_flag (int hidden)
 			return 0;
 
 		if (debug > 0)
-			grub_printf ("Partition (hd%d,%d) successfully set %shidden.\n", (current_drive & 0x7F), (unsigned long)(unsigned char)(part>>16), (hidden ? "" : "un"));
+			grub_printf ("Partition (%cd%d,%d) successfully set %shidden.\n",
+				((current_drive & 0x80) ? 'h' : 'f'),
+				(current_drive & ~0x80),
+				(unsigned long)(unsigned char)(part>>16),
+				(hidden ? "" : "un"));
 	  } else {
 		if (debug > 0)
-			grub_printf ("Partition (hd%d,%d) was already %shidden.\n", (current_drive & 0x7F), (unsigned long)(unsigned char)(part>>16), (hidden ? "" : "un"));
+			grub_printf ("Partition (%cd%d,%d) was already %shidden.\n",
+				((current_drive & 0x80) ? 'h' : 'f'),
+				(current_drive & ~0x80),
+				(unsigned long)(unsigned char)(part>>16),
+				(hidden ? "" : "un"));
 
 	  }
 	  
@@ -7160,7 +7174,7 @@ geometry_func (char *arg, int flags)
 //#else
 //  if (current_drive != cdrom_drive && (current_drive < (unsigned char)min_cdrom_id || current_drive >= (unsigned char)(min_cdrom_id + atapi_dev_count)))
 //#endif /* GRUB_UTIL */
-    if (current_drive & 0x80)
+    //if (current_drive & 0x80)
       real_open_partition (1);
 
   return 1;
@@ -8376,12 +8390,14 @@ makeactive_func (char *arg, int flags)
 	return 0;
     }
 
+#if 0
   /* The drive must be a hard disk.  */
   if (! (current_drive & 0x80))
     {
       errnum = ERR_DEV_VALUES;
       return 0;
     }
+#endif
 
   /* The partition must be a primary partition.  */
   if ((part = (current_partition >> 16)) > 3
@@ -8407,7 +8423,11 @@ makeactive_func (char *arg, int flags)
     {
 	int active = (PC_SLICE_FLAG (mbr, part) == PC_SLICE_FLAG_BOOTABLE);
 	if (debug > 0)
-		grub_printf ("Partition (hd%d,%d) is %sactive.\n", (current_drive & 0x7F), part, ((active ? "" : "not ")));
+		grub_printf ("Partition (%cd%d,%d) is %sactive.\n",
+				((current_drive & 0x80) ? 'h' : 'f'),
+				(current_drive & ~0x80),
+				part,
+				(active ? "" : "not "));
 		
 	return active;
     }
@@ -8430,12 +8450,18 @@ makeactive_func (char *arg, int flags)
 	    return 0;
 
 	if (debug > 0)
-		grub_printf ("Partition (hd%d,%d) successfully set active.\n", (current_drive & 0x7F), part);
+		grub_printf ("Partition (%cd%d,%d) successfully set active.\n",
+				((current_drive & 0x80) ? 'h' : 'f'),
+				(current_drive & ~0x80),
+				part);
     }
   else
     {
 	if (debug > 0)
-		grub_printf ("Partition (hd%d,%d) was already active.\n", (current_drive & 0x7F), part);
+		grub_printf ("Partition (%cd%d,%d) was already active.\n",
+				((current_drive & 0x80) ? 'h' : 'f'),
+				(current_drive & ~0x80),
+				part);
     }
 
   return 1;
@@ -11464,12 +11490,14 @@ partnew_func (char *arg, int flags)
   if (! set_device (arg))
     return 0;
 
+#if 0
   /* The drive must be a hard disk.  */
   if (! (current_drive & 0x80))
     {
       errnum = ERR_BAD_ARGUMENT;
       return 0;
     }
+#endif
 
   entry1 = current_partition >> 16;
   
@@ -11772,12 +11800,14 @@ parttype_func (char *arg, int flags)
         return 0;
   }
 
+#if 0
   /* The drive must be a hard disk.  */
   if (! (current_drive & 0x80))
     {
       errnum = ERR_BAD_ARGUMENT;
       return 0;
     }
+#endif
   
   /* The partition must be a PC slice.  */
   if ((current_partition >> 16) == 0xFF
@@ -11816,7 +11846,11 @@ parttype_func (char *arg, int flags)
 	  {
 		new_type = PC_SLICE_TYPE (mbr, entry1);
 		if (debug > 0)
-			printf ("Partition type for (hd%d,%d) is 0x%02X.\n", (current_drive & 0x7F), (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long)new_type);
+			printf ("Partition type for (%cd%d,%d) is 0x%02X.\n",
+				((current_drive & 0x80) ? 'h' : 'f'),
+				(current_drive & ~0x80),
+				(unsigned long)(unsigned char)(current_partition >> 16),
+				(unsigned long)new_type);
 		return new_type;
 	  }
 
@@ -11829,7 +11863,11 @@ parttype_func (char *arg, int flags)
 	    break;	/* failure */
 
 	  if (debug > 0)
-		printf ("Partition type for (hd%d,%d) set to 0x%02X successfully.\n", (current_drive & 0x7F), (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long)new_type);
+		printf ("Partition type for (%cd%d,%d) set to 0x%02X successfully.\n",
+			((current_drive & 0x80) ? 'h' : 'f'),
+			(current_drive & ~0x80),
+			(unsigned long)(unsigned char)(current_partition >> 16),
+			(unsigned long)new_type);
 	  /* Succeed.  */
 	  errnum = 0;
 	  return 1;
@@ -12736,12 +12774,14 @@ real_root_func (char *arg, int attempt_mnt)
 	
 	/* find MAX/END partition of the current root drive */
 	
+#if 0
 	if (! (saved_drive & 0x80))
 	{
 		grub_printf ("Cannot use 'endpart' with the current root device (fd%d).\n", saved_drive);
 		errnum = ERR_DEV_VALUES;
 		return 0;
 	}
+#endif
 
 	tmp_partition = saved_partition;
 	tmp_drive = saved_drive;

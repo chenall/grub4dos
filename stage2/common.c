@@ -392,7 +392,8 @@ init_bios_info (void)
   DEBUG_SLEEP
   printf("\rGet lower memory... ");
 #endif
-  saved_mem_lower = get_memsize (0);	/* int12 --------safe enough */
+  //saved_mem_lower = get_memsize (0);	/* int12 --------safe enough */
+  saved_mem_lower = (*(unsigned short *)0x413);
 #ifndef STAGE1_5
   printf("\rGet upper memory... ");
 #endif
@@ -472,7 +473,7 @@ init_bios_info (void)
        *  elements.  This is for OS's that don't care about the memory
        *  map, but might care about total RAM available.
        */
-      saved_mem_lower = mmap_avail_at (0) >> 10;
+      //saved_mem_lower = mmap_avail_at (0) >> 10;
       saved_mem_upper = mmap_avail_at (0x100000) >> 10;
       saved_mem_higher = mmap_avail_at (0x100000000ULL) >> 10;
 

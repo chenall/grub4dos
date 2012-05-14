@@ -1221,7 +1221,7 @@ real_open_partition (int flags)
 	    {
 	      if (! do_completion)
 		{
-		  if (current_drive & 0x80)
+		  //if (current_drive & 0x80)
 		    {
 			int active = (PC_SLICE_FLAG (mbr, entry) == PC_SLICE_FLAG_BOOTABLE);
 			grub_printf ("   Partition num: %d%s, ",
