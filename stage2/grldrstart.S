@@ -492,7 +492,7 @@ cdrom_helper:
 	dec     %cx                                     /* File name length */
         cmpb    $7, 0x20(%si)                           /* grldr file name length */
 	je      cdrom_helper_2
-	
+//	jmp     cdrom_helper_3_1
 cdrom_helper_1:
         movw    $(cdrom_name - _start1), %si       /* "GRLDR.;1" */
 	jmp     1f
@@ -503,9 +503,12 @@ cdrom_helper_2:
 	pushw   %ds
 	pushw   %cs
 	popw    %ds
-	repz    cmpsb
-	popw    %ds
+1:
+        andb    $0xdf, %es:(%di)                        /* Changed to upper case */
+        cmpsb
 	jne     cdrom_helper_3
+	loop    1b
+	popw    %ds
         popw    %si                                     /* First record */
 	movl    0x0a(%si), %eax                         /* File length in bytes */
 	movw    $0x800, %cx                             /* 1 CD sectors = 2048 bytes */
@@ -555,7 +558,9 @@ cdrom_helper_2:
 
 #if (! defined(GRLDR_MBR))
 
-cdrom_helper_3:	
+cdrom_helper_3:
+        popw    %ds
+cdrom_helper_3_1:        	
 	popw    %si
 	movzbw  (%si), %cx
 	add     %cx, %si                                /* First record */
@@ -827,6 +832,8 @@ default_config_file:
 	.ascii	"/menu.lst"
 
 	.byte	0		/* mark the end of ascii zero string */	
+
+        . = _start1 + 0x3ec
 
 cdrom_name:
         .ascii	"GRLDR.;1"
@@ -1320,39 +1327,25 @@ ebios_32:
 
 //	. = . - (. - readDisk_32)/91
 
-msg_DiskReadError_32:
 
-	.ascii	"disk error\0"
 
-msg_BootError_32:
+//#ifdef ALTERNATIVE_KERNEL
+//filename_end_32:
 
-	.ascii	"No "
-
-filename_32:
-
-#ifdef	BOOTGRUB
-	.ascii	"GRLDR      \0"
-#else
-	.ascii	"KERNEL  SYS\0"
-#endif
-
-#ifdef ALTERNATIVE_KERNEL
-filename_end_32:
-
-	. = Entry_32 + 0x1e8
+//	. = Entry_32 + 0x1e8
 
 loadseg_off_32:
 	.word	0
 	.word	LOADSEG
 
-	. = Entry_32 + 0x1ec
+//	. = Entry_32 + 0x1ec
 
-boot_image_ofs_32:
+//boot_image_ofs_32:
 
-	.word (filename_32 - Entry_32)+(filename_end_32 - filename_32 - 1)*2048
-#endif
+//	.word (filename_32 - Entry_32)+(filename_end_32 - filename_32 - 1)*2048
+//#endif
 
-	. = Entry_32 + 0x1ee
+//	. = Entry_32 + 0x1ee
 
 disk_error_32:
 
@@ -1377,6 +1370,22 @@ boot_error_32:
 
 1:	jmp	1b
 
+        . = Entry_32 + 0x1e0
+
+msg_BootError_32:
+	.ascii	"No "
+	
+filename_32:
+
+#ifdef	BOOTGRUB
+	.ascii	"GRLDR      \0"
+#else
+	.ascii	"KERNEL  SYS\0"
+#endif
+
+msg_DiskReadError_32:
+	.ascii	"Disk error\0" 
+	
 	. = Entry_32 + 0x1fc
 
 	.word	0, 0xAA55 /* Win9x uses all 4 bytes as magic value here */
@@ -2084,38 +2093,24 @@ jc_code_end:
 
 //	. = . - (. - readDisk_12_16)/99
 
-msg_DiskReadError_12_16:
 
-	.ascii	"disk error\0"
 
-msg_BootError_12_16:
+//#ifdef ALTERNATIVE_KERNEL
+//filename_end_12_16:
 
-	.ascii	"No "
-
-filename_12_16:
-
-#ifdef	BOOTGRUB
-	.ascii	"GRLDR      \0"
-#else
-	.ascii	"KERNEL  SYS\0"
-#endif
-
-#ifdef ALTERNATIVE_KERNEL
-filename_end_12_16:
-
-	. = Entry_12_16 + 0x1e8
+//	. = Entry_12_16 + 0x1e8
 
 loadseg_off_12_16:	.word	0
 loadseg_seg_12_16:	.word	LOADSEG_12_16
 
-	. = Entry_12_16 + 0x1ec
+//	. = Entry_12_16 + 0x1ec
 
-boot_image_ofs_12_16:
+//boot_image_ofs_12_16:
 
-	.word (filename_12_16 - Entry_12_16)+(filename_end_12_16 - filename_12_16 - 1)*2048
-#endif
+//	.word (filename_12_16 - Entry_12_16)+(filename_end_12_16 - filename_12_16 - 1)*2048
+//#endif
 
-	. = Entry_12_16 + 0x1ee
+//	. = Entry_12_16 + 0x1ee
 
 disk_error_12_16:
 
@@ -2139,6 +2134,22 @@ boot_error_12_16:
 	 */
 
 1:	jmp	1b
+
+        . = Entry_12_16 + 0x1e0
+
+msg_BootError_12_16:
+	.ascii	"No "
+
+filename_12_16:
+
+#ifdef	BOOTGRUB
+	.ascii	"GRLDR      \0"
+#else
+	.ascii	"KERNEL  SYS\0"
+#endif
+
+msg_DiskReadError_12_16:
+	.ascii	"Disk error\0"
 
 	. = Entry_12_16 + 0x1fc
 
@@ -3007,6 +3018,9 @@ boot_error_ext2:
 	//. = . - (. - disk_error_ext2) / 30
 #endif  
 
+
+       . = Entry_ext2 + 0x3e0
+
 msg_No_grldr_ext2:
 	.ascii	"No "
 
@@ -3014,11 +3028,11 @@ filename_ext2:
 	.ascii	"grldr\0"
 	
 msg_DiskReadError_ext2:
-	.ascii	"disk error\0"
+	.ascii	"Disk error\0"
 
-filename_end_ext2:
+//filename_end_ext2:
 
-	.word (filename_ext2 - Entry_ext2)+(filename_end_ext2 - filename_ext2 - 1)*2048 
+//	.word (filename_ext2 - Entry_ext2)+(filename_end_ext2 - filename_ext2 - 1)*2048 
 	
 	. = Entry_ext2 + 0x3fe
 
@@ -3321,9 +3335,13 @@ exfat_next:
         addw    $0x22, %di              /* Filename address */                                                   
         movw    $5, %cx                 /* More bytes */
         movw    $(grldr_un - Entry_exfat + 0x7c00), %si /*'GRLDR' First place */
-1:      andb    $0xdf, %es:(%di)        /* Switch to uppercase */
-        cmpsw                           /* More 'GRLDR',Unicode file names */ 
+1:      
+//      andb    $0xdf, %es:(%di)        /* Switch to uppercase */
+//      cmpsw                           /* More 'GRLDR',Unicode file names */
+        orb     $0x20, %es:(%di)        /* Switch to lowercase */
+        cmpsb                           /* More 'grldr',Unicode file names */
         jne     1f                      /* NO,Restore directory entry, check the next entry */
+        incw    %di
         loop    1b                      /* The same, compare the next character */
         /* GRLDR has been found */
         popw	%di                     /* Restore directory entry */
@@ -3512,15 +3530,16 @@ print_64:
 
 1:      jmp    1f   
 
+        . = Entry_exfat + 0x3e0
 
-grldr_un:
-        .ascii  "G\0","R\0","L\0","D\0","R\0"           
-msg_DiskReadError_64:
-	.ascii	"disk error\0"
 msg_BootError_64:
-	.ascii	"No "
-filename_64:
-        .ascii	"GRLDR      \0" 
+	.ascii	"No \0"
+	
+grldr_un:
+        .ascii  "grldr\0"	
+
+msg_DiskReadError_64:
+	.ascii	"Disk error\0"  
         
 	. = Entry_exfat + 0x3fe
 
@@ -3973,24 +3992,17 @@ ebios_nt: /* ebios_nt - 1 points to 0x02 that can be changed to 0x42 */
 	ret
 
 
-msg_DiskReadError_nt:
 
-	.ascii	"0\0"
 
 NTFS_Error:
 	addb	%al, (msg_DiskReadError_nt - Entry_nt)(%bp)
 	jmp	disk_error_nt
 
-msg_NTFS_Not_Found_Error:
-	.ascii "No "
-
-nt_boot_image:
-	.ascii "grldr\0"
 
 // Kernel load address, located at 0x1E8
-	. = Entry_nt + 0x1e8
+//	. = Entry_nt + 0x1e8
 
-nt_boot_image_end:
+//nt_boot_image_end:
 
 nt_loadseg_off:
 	.word	0
@@ -3998,12 +4010,12 @@ nt_loadseg_off:
 
 // Boot image offset and length, located at 0x1EE
 // Lower 11 bit is offset, higher 5 bit is length
-	. = Entry_nt + 0x1ec
+//	. = Entry_nt + 0x1ec
 
-nt_boot_image_ofs:
-	.word (nt_boot_image - Entry_nt)+(nt_boot_image_end - nt_boot_image-1)*2048
+//nt_boot_image_ofs:
+//	.word (nt_boot_image - Entry_nt)+(nt_boot_image_end - nt_boot_image-1)*2048
 
-	. = Entry_nt + 0x1ee
+//	. = Entry_nt + 0x1ee
 
 disk_error_nt:
 
@@ -4028,6 +4040,17 @@ print_ntfs:
 	 */
 
 1:	jmp	1b
+
+        . = Entry_nt + 0x1f0
+
+msg_NTFS_Not_Found_Error:
+	.ascii "No "
+
+nt_boot_image:
+	.ascii "grldr\0"
+
+msg_DiskReadError_nt:
+	.ascii	"0\0" 
 
 	. = Entry_nt + 0x1fc
 
@@ -5179,8 +5202,12 @@ Entry_12_64_ext:                                    /* cs=ds=es=0000 ss=2000 */
         je      grldr_error_12_64_ext   /* yes */ 
         movw    $0xb, %cx               /* More bytes*/
         movw    $(filename_12_64_ext - Entry_12_64_ext + 0x7c30), %si      /*'GRLDR' First place */         
-        repz    cmpsb                   /* More 'GRLDR' */
-        jne     1b                      /* No, continue search */
+//      repz    cmpsb                   /* More 'GRLDR' */
+
+2:      orb     $0x20, %es:(%di)        /* Switch to lowercase */
+        cmpsb
+        jne     1b                      /* NO,Restore directory entry, check the next entry */
+        loop    2b                      /* No, continue search */
 1:
         /* GRLDR has been found */
         movw    %es:0x11(%di), %ax      /* 16-bit low byte file */
@@ -5216,9 +5243,13 @@ Entry_12_64_ext:                                    /* cs=ds=es=0000 ss=2000 */
         addw    $0x22, %di              /* Filename address */                                                   
         movw    $5, %cx                 /* More bytes */
         movw    $(grldr_un_12_64_ext - Entry_12_64_ext + 0x7c30), %si /*'GRLDR' First place */
-1:      andb    $0xdf, %es:(%di)        /* Switch to uppercase */
-        cmpsw                           /* More 'GRLDR',Unicode file names */ 
+1:      
+//      andb    $0xdf, %es:(%di)        /* Switch to uppercase */
+//      cmpsw                           /* More 'GRLDR',Unicode file names */
+        orb     $0x20, %es:(%di)        /* Switch to lowercase */
+        cmpsb
         jne     1f                      /* NO,Restore directory entry, check the next entry */
+        incw    %di
         loop    1b                      /* The same, compare the next character */
         /* GRLDR has been found */
         popw	%di                     /* Restore directory entry */
@@ -5283,19 +5314,12 @@ printr_12_64_ext:
 	jne	1b		/* until done */
 
         ljmp    $0, $MONITOR    /* 0:0x8410 */
-          
-        
-grldr_un_12_64_ext:
-        .ascii  "G\0","R\0","L\0","D\0","R\0"           
-msg_DiskReadError_12_64_ext:
-	.ascii	"disk error\0"
-msg_BootError_12_64_ext:
-	.ascii	"No "
-filename_12_64_ext:
-        .ascii	"GRLDR      \0"        
+
+                
 loadseg_off_12_64_ext:
 	.word	0
-	.word	LOADSEG 	
+	.word	LOADSEG
+	 	
 FAT_Address_12_64_ext:
         .word	0
 	.word	FATSEG
@@ -5960,12 +5984,22 @@ extent_mbr:
         loop    1b
         jmp     boot_now_mbr
 
+        .align	16
 
+
+	
+msg_BootError_12_64_ext:
+	.ascii	"No "
+	
+grldr_un_12_64_ext:	
+filename_12_64_ext:
 filename_ext2_mbr:
-	.ascii	"grldr\0"
+        .ascii	"grldr      \0"
 
-
-        .word	0xAA55
+msg_DiskReadError_12_64_ext:
+	.ascii	"Disk error\0" 
+	
+        .fill 6,1,0
 
 /* *************** FAT12_16_FAT32_exFAT_EXT2_3_4_mbr end ****************** */
 
