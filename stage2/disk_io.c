@@ -41,8 +41,8 @@ unsigned long long
 block_read_func (unsigned long long buf, unsigned long long len, unsigned long write);
 
 /* instrumentation variables */
-void (*disk_read_hook) (unsigned long, unsigned long, unsigned long) = NULL;
-void (*disk_read_func) (unsigned long, unsigned long, unsigned long) = NULL;
+void (*disk_read_hook) (unsigned long long, unsigned long, unsigned long) = NULL;
+void (*disk_read_func) (unsigned long long, unsigned long, unsigned long) = NULL;
 
 /* Forward declarations.  */
 static int next_bsd_partition (void);
@@ -296,7 +296,7 @@ unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n)
 #define FOUR_CHAR(x0,x1,x2,x3) (((unsigned long)(char)(x0))|((unsigned long)(char)(x1)<<8)|((unsigned long)(char)(x2)<<16)|((unsigned long)(char)(x3)<<24))
 
 static int
-rawdisk_read (int drive, int sector, int nsec, int segment)
+rawdisk_read (int drive, unsigned long long sector, unsigned long nsec, int segment)
 {
     const unsigned long BADDATA1 = FOUR_CHAR('B','A','D','?');
     const unsigned long BADDATA2 = FOUR_CHAR('b','a','d','.');
@@ -322,7 +322,7 @@ rawdisk_read (int drive, int sector, int nsec, int segment)
     // Compare with previous read data
     if (plast[0] != BADDATA1) 
     {   // Read data changed, error.
-	grub_printf("\nFatal! Inconsistent data read from (0x%X)%d+%d\n",drive,sector,nsec);
+	grub_printf("\nFatal! Inconsistent data read from (0x%X)%ld+%d\n",drive,sector,nsec);
 	return -1; // error
     }
     return 0; // success
@@ -346,9 +346,9 @@ rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offs
   if (write == 0x900ddeed && ! buf)
     return 1;
 
-  /* right now safely disable writing 64-bit sector number */
-  if (write == 0x900ddeed && (sector >> 32))
-	return !(errnum = ERR_WRITE);
+//  /* right now safely disable writing 64-bit sector number */
+//  if (write == 0x900ddeed && (sector >> 32))
+//	return !(errnum = ERR_WRITE);
 
   /* Reset geometry and invalidate track buffer if the disk is wrong. */
   if (buf_drive != drive)
@@ -387,7 +387,8 @@ rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offs
 
   while (byte_len > 0)
   {
-      unsigned long soff, num_sect, track, size;
+      unsigned long soff, num_sect, size;
+      unsigned long long track;
       char *bufaddr;
       int bufseg;
 
@@ -396,14 +397,29 @@ rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offs
       /* Sectors that need to read. */
       slen = ((byte_offset + size + buf_geom.sector_size - 1) >> sector_size_bits);
 
-      /* Eliminate a buffer overflow.  */
-      if ((buf_geom.sectors << sector_size_bits) > BUFFERLEN)
+      if ((buf_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION) && (! (buf_geom.flags & BIOSDISK_FLAG_BIFURCATE) || (drive & 0xFFFFFF00) == 0x100))
+      {
+	  /* LBA */
+      ///* Eliminate a buffer overflow.  */
+      //if ((buf_geom.sectors << sector_size_bits) > BUFFERLEN)
 	  sectors_per_vtrack = (BUFFERLEN >> sector_size_bits);
+      //else
+	//  sectors_per_vtrack = buf_geom.sectors;
+
+	  /* Get the first sector number in the track.  */
+	  soff = ((unsigned long)sector) & (sectors_per_vtrack - 1);
+      }
       else
+      {
+	  /* CHS */
+	  if (sector >> 32)	/* sector exceeding 32 bit, too big */
+		return !(errnum = ERR_READ);
+
 	  sectors_per_vtrack = buf_geom.sectors;
 
-      /* Get the first sector number in the track.  */
-      soff = ((unsigned long)sector) % sectors_per_vtrack;
+	  /* Get the first sector number in the track.  */
+	  soff = ((unsigned long)sector) % sectors_per_vtrack;
+      }
 
       /* Get the starting sector number of the track. */
       track = sector - soff;
@@ -417,7 +433,7 @@ rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offs
 
       if (track != buf_track)
       {
-	  unsigned long read_start = track;	/* = sector - soff <= sector */
+	  unsigned long long read_start = track;	/* = sector - soff <= sector */
 	  unsigned long read_len = sectors_per_vtrack;	/* >= num_sect */
 
 	  buf_track = track;
@@ -467,7 +483,7 @@ rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offs
       /* Use this interface to tell which sectors were read and used. */
       if (disk_read_func)
       {
-	  unsigned long sector_num = sector;
+	  unsigned long long sector_num = sector;
 	  unsigned long length = buf_geom.sector_size - byte_offset;
 	  if (length > size)
 	      length = size;
@@ -545,7 +561,7 @@ devread (unsigned long long sector, unsigned long byte_offset, unsigned long lon
  *		0	failure
  */
 int
-rawwrite (unsigned long drive, unsigned long sector, char *buf)
+rawwrite (unsigned long drive, unsigned long long sector, unsigned long long buf)
 {
   /* Reset geometry and invalidate track buffer if the disk is wrong. */
   if (buf_drive != drive)
@@ -563,10 +579,10 @@ rawwrite (unsigned long drive, unsigned long sector, char *buf)
       return 0;
     }
 
-  if (! memcmp ((char *) SCRATCHADDR, buf, SECTOR_SIZE))
+  if (! grub_memcmp64 ((unsigned long long) SCRATCHADDR, buf, SECTOR_SIZE))
 	return 1;
 
-  memmove ((char *) SCRATCHADDR, buf, SECTOR_SIZE);
+  grub_memmove64 ((unsigned long long) SCRATCHADDR, buf, SECTOR_SIZE);
   if (biosdisk (BIOSDISK_WRITE, drive, &buf_geom, sector, 1, SCRATCHSEG))
     {
       errnum = ERR_WRITE;
@@ -574,10 +590,11 @@ rawwrite (unsigned long drive, unsigned long sector, char *buf)
     }
 
 #if 1
-  if (buf_drive == drive && sector - sector % buf_geom.sectors == buf_track)
+  //if (buf_drive == drive && sector - sector % buf_geom.sectors == buf_track)
+  if (buf_drive == drive && sector >= buf_track && sector - buf_track < buf_geom.sectors)
     {
 	/* Update the cache. */
-	memmove ((char *) BUFFERADDR + ((sector - buf_track) << SECTOR_BITS), buf, SECTOR_SIZE);
+	grub_memmove64 (BUFFERADDR + ((sector - buf_track) << SECTOR_BITS), buf, SECTOR_SIZE);
     }
 #else
   if (sector - sector % buf_geom.sectors == buf_track)
@@ -591,7 +608,7 @@ rawwrite (unsigned long drive, unsigned long sector, char *buf)
 
 #ifndef STAGE1_5
 int
-devwrite (unsigned long sector, unsigned long sector_count, char *buf)
+devwrite (unsigned long long sector, unsigned long long sector_count, unsigned long long buf)
 {
 #if defined(GRUB_UTIL) && defined(__linux__)
   if (current_partition != 0xFFFFFF
@@ -601,7 +618,8 @@ devwrite (unsigned long sector, unsigned long sector_count, char *buf)
 	 embed a Stage 1.5 into a partition instead of a MBR, use system
 	 calls directly instead of biosdisk, because of the bug in
 	 Linux. *sigh*  */
-      return write_to_partition (device_map, current_drive, current_partition, sector, sector_count, buf);
+      return write_to_partition (device_map, current_drive, current_partition,
+		(unsigned long)sector, (unsigned long)sector_count, (char *)(int)buf);
     }
   else
 #endif /* GRUB_UTIL && __linux__ */
@@ -610,7 +628,7 @@ devwrite (unsigned long sector, unsigned long sector_count, char *buf)
 
       for (i = 0; i < sector_count; i++)
 	{
-	  if (! rawwrite (current_drive, (long)(part_start + sector + i), buf + (i << SECTOR_BITS)))
+	  if (! rawwrite (current_drive, (part_start + sector + i), buf + (i << SECTOR_BITS)))
 	      return 0;
 	}
       return 1;

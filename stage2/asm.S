@@ -127,7 +127,7 @@ VARIABLE(config_file)
 
 	. = EXT_C(main) + 0x44
 
-	.word	0x20	/* size of optional header */
+	.word	0x00	/* size of optional header */
 	.word	3	/* flags: "no relocation" and "valid executable" */
 	.word	0x722E	/* section name for resources */
 	.word	0x7273
@@ -8641,20 +8641,20 @@ ENTRY(biosdisk_standard)
 	pushl	%edi
 
 	/* set up CHS information */
-	movl	0x10(%ebp), %eax
-	movb	%al, %ch
-	movb	0x18(%ebp), %al
-	shlb	$2, %al
-	shrw	$2, %ax
-	movb	%al, %cl
-	movb	0x14(%ebp), %dh
+	movl	0x10(%ebp), %eax	/* EAX = Cylinder */
+	movb	%al, %ch		/* low 8 bits to CH */
+	movb	0x18(%ebp), %al		/* AL = Sector */
+	shlb	$2, %al			/* move low 2 bits of AH .. */
+	shrw	$2, %ax			/* .. to high 2 bits of AL */
+	movb	%al, %cl		/* CX is built OK */
+	movb	0x14(%ebp), %dh		/* DH = Head */
 	/* drive */
-	movb	0xc(%ebp), %dl
+	movb	0xc(%ebp), %dl		/* DL = drive */
 	/* segment */
-	movw	0x20(%ebp), %bx
+	movw	0x20(%ebp), %bx		/* BX = segment */
 	/* save nsec and ah to %di */
-	movb	0x8(%ebp), %ah
-	movb	0x1c(%ebp), %al
+	movb	0x8(%ebp), %ah		/* AH = read/write */
+	movb	0x1c(%ebp), %al		/* AL = nsec */
 	movw	%ax, %di
 	/* enter real mode */
 	call	EXT_C(prot_to_real)
@@ -8665,7 +8665,7 @@ ENTRY(biosdisk_standard)
 	sti	#; added 2006-11-30
 
 	movw	%bx, %es
-	movw	$5, %si		/* attempt at least 5 times */
+	movw	$3, %si		/* attempt at least 3 times */
 
 1:
 	pushw	%si
@@ -9850,8 +9850,16 @@ check_sector_readable:
 	rep movsl
 	movw	%ds, %bx
 	movw	%bx, %es
+#if 0
 	/* update buf_track variable */
 	movl	$0, %cs:ABS(EXT_C(buf_track))
+	movl	$0, %cs:ABS(EXT_C(buf_track)) + 4
+#else
+	/* Invalidate the buffer, because the buffer is not exactly 1 track. */
+	/* The buffer size is now a constant value of either 32K or 64K. */
+	movl	$-1, %cs:ABS(EXT_C(buf_track))
+	/* need not set the higher 32 bits of buf_track. */
+#endif
 	movw	$1, %cx 	/* cyl 0 sector 1 */
 
 20:	/* track loop */

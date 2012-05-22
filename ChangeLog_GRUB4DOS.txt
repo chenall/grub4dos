@@ -1,3 +1,4 @@
+2012-05-04 (tinybit)fixed a bug in biosdisk(); extend sector number to 64-bit.
 2012-04-25 (tinybit)fixed a bug on failed dd argument of "buf=".
 2012-04-18 (tinybit)trust low mem size at 0x413 instead of int15 report.
 2012-04-16 (tinybit)enable floppy partition access for parttype etc.

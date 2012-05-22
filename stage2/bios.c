@@ -41,10 +41,11 @@ extern int drive_map_slot_empty (struct drive_map_slot item);
    return the error number. Otherwise, return 0.  */
 int
 biosdisk (int read, int drive, struct geometry *geometry,
-	  int sector, int nsec, int segment)
+	  unsigned long long sector, unsigned long nsec, int segment)
 {
   int err;
-  unsigned long max_sec, start, count, seg;
+  unsigned long max_sec, count, seg;
+  unsigned long long start;
 
   if ((fb_status) && (drive == ((fb_status >> 8) & 0xff)))
     max_sec = fb_status & 0xff;
@@ -82,17 +83,17 @@ biosdisk (int read, int drive, struct geometry *geometry,
 	
 	if (nsec <=0 || nsec >= 0x80)
 		return 1;	/* failure */
-	if ((unsigned long long)((unsigned long)sector + (unsigned long)nsec) > geometry->total_sectors)
+	if (sector + nsec > geometry->total_sectors)
 		return 1;	/* failure */
 	//if ((unsigned long)sector + (unsigned long)nsec >= 0x800000)
 	//	return 1;	/* failure */
 	
-	tmp = (((unsigned long long)(unsigned long)sector+(unsigned long long)(unsigned long)nsec) << 9);
+	tmp = ((sector + nsec) << 9);
 	if (drive == ram_drive)
 	    tmp += rd_base;
 	if (tmp > 0x100000000ULL && ! is64bit)
 		return 1;	/* failure */
-	disk_sector = (((unsigned long long)((unsigned long)sector)<<9) + ((drive==0xffff) ? 0 : rd_base));
+	disk_sector = ((sector<<9) + ((drive==0xffff) ? 0 : rd_base));
 	buf_address = (segment<<4);
 
 	if (read)	/* read == 1 really means write to DISK */
@@ -108,9 +109,11 @@ biosdisk (int read, int drive, struct geometry *geometry,
       seg = segment;
       do
 	{
-	  int n;
+	  unsigned long n;
 
 	  n = (count > max_sec) ? max_sec : count;
+	  if (n > 127)
+	      n = 127;
 
 	  dap->length = 0x10;
 	  dap->block = start;
@@ -144,22 +147,30 @@ biosdisk (int read, int drive, struct geometry *geometry,
 
    /* try the standard CHS mode */
   
+    if (sector >> 32)	/* sector exceeding 32 bit, too big */
+	return 1;	/* failure */
     {
-      int cylinder_offset, head_offset, sector_offset;
-      int head;
+      unsigned long cylinder_offset, head_offset, sector_offset;
+      unsigned long head;
 
       /* SECTOR_OFFSET is counted from one, while HEAD_OFFSET and
 	 CYLINDER_OFFSET are counted from zero.  */
-      sector_offset = sector % geometry->sectors + 1;
-      head = sector / geometry->sectors;
+      sector_offset = ((unsigned long)sector) % geometry->sectors + 1;
+      head = ((unsigned long)sector) / geometry->sectors;
       head_offset = head % geometry->heads;
       cylinder_offset = head / geometry->heads;
 
+      if (cylinder_offset > 1023)	/* cylinder too big */
+		return 1;		/* failure */
       do
 	{
-	  int n;
+	  unsigned long n;
 
 	  n = (nsec > max_sec) ? max_sec : nsec;
+
+	  /* we should avoid accessing sectors across track boundary. */
+	  if (n > geometry->sectors - sector_offset + 1)
+	      n = geometry->sectors - sector_offset + 1;
 
 	  err = biosdisk_standard (read + 0x02, drive,
 				   cylinder_offset, head_offset, sector_offset,

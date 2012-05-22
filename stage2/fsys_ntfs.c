@@ -381,7 +381,7 @@ back:
       cur_mft=ctx->mft;
       if ((cur_mft) && (get_aflag(AF_ALST)))
         {
-          void (*save_hook)(unsigned long, unsigned long, unsigned long);
+          void (*save_hook)(unsigned long long, unsigned long, unsigned long);
 
           save_hook=disk_read_func;
           disk_read_func=NULL;

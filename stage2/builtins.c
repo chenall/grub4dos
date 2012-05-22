@@ -288,9 +288,9 @@ check_password (char* expected, password_t type)
 
 /* Print which sector is read when loading a file.  */
 static void
-disk_read_print_func (unsigned long sector, unsigned long offset, unsigned long length)
+disk_read_print_func (unsigned long long sector, unsigned long offset, unsigned long length)
 {
-  grub_printf ("[%d,%d,%d]", sector, offset, length);
+  grub_printf ("[%ld,%d,%d]", sector, offset, length);
 }
 
 extern int rawread_ignore_memmove_overflow; /* defined in disk_io.c */
@@ -298,17 +298,17 @@ long query_block_entries;
 unsigned long map_start_sector;
 static unsigned long map_num_sectors = 0;
 
-static unsigned long blklst_start_sector;
-static unsigned long blklst_num_sectors;
+static unsigned long long blklst_start_sector;
+static unsigned long long blklst_num_sectors;
 static unsigned long blklst_num_entries;
 static unsigned long blklst_last_length;
   
-static void disk_read_blocklist_func (unsigned long sector, unsigned long offset, unsigned long length);
+static void disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsigned long length);
   
   /* Collect contiguous blocks into one entry as many as possible,
      and print the blocklist notation on the screen.  */
 static void
-disk_read_blocklist_func (unsigned long sector, unsigned long offset, unsigned long length)
+disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsigned long length)
 {
       if (blklst_num_sectors > 0)
 	{
@@ -324,10 +324,10 @@ disk_read_blocklist_func (unsigned long sector, unsigned long offset, unsigned l
 	      if (query_block_entries >= 0)
 	        {
 		  if (blklst_last_length == buf_geom.sector_size)
-		    grub_printf ("%s%ld+%d", (blklst_num_entries ? "," : ""),
+		    grub_printf ("%s%ld+%ld", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
 		  else if (blklst_num_sectors > 1)
-		    grub_printf ("%s%ld+%d,%ld[0-%d]", (blklst_num_entries ? "," : ""),
+		    grub_printf ("%s%ld+%ld,%ld[0-%d]", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector - part_start), (blklst_num_sectors-1),
 			     (unsigned long long)(blklst_start_sector + blklst_num_sectors-1 - part_start), 
 			     blklst_last_length);
@@ -7635,15 +7635,15 @@ static struct builtin builtin_initrd =
 static unsigned long installaddr, installlist;
 static char *stage2_first_buffer;
 //#endif
-static void disk_read_blocklist_func1 (unsigned long sector, unsigned long offset, unsigned long length);
+static void disk_read_blocklist_func1 (unsigned long long sector, unsigned long offset, unsigned long length);
 
   /* Write SECTOR to INSTALLLIST, and update INSTALLADDR and
      INSTALLSECT.  */
 static void
-disk_read_blocklist_func1 (unsigned long sector, unsigned long offset, unsigned long length)
+disk_read_blocklist_func1 (unsigned long long sector, unsigned long offset, unsigned long length)
 {
       if (((unsigned long)debug) >= 0x7FFFFFFF)
-	printf("[%d]", sector);
+	printf("[%ld]", sector);
 
       if (offset != 0 || blklst_last_length != SECTOR_SIZE)
 	{
@@ -7676,16 +7676,16 @@ disk_read_blocklist_func1 (unsigned long sector, unsigned long offset, unsigned 
 //#ifdef GRUB_UTIL
 //#define saved_sector (*(unsigned long *)RAW_ADDR (0x10000C))
 //#else
-static unsigned long saved_sector;
+static unsigned long long saved_sector;
 //#endif
-static void disk_read_savesect_func (unsigned long sector, unsigned long offset, unsigned long length);
+static void disk_read_savesect_func (unsigned long long sector, unsigned long offset, unsigned long length);
   
   /* Save the first sector of Stage2 in STAGE2_SECT.  */
 static void
-disk_read_savesect_func (unsigned long sector, unsigned long offset, unsigned long length)
+disk_read_savesect_func (unsigned long long sector, unsigned long offset, unsigned long length)
 {
       if (((unsigned long)debug) >= 0x7FFFFFFF)
-	printf ("[%d]", sector);
+	printf ("[%ld]", sector);
 
       /* ReiserFS has files which sometimes contain data not aligned
          on sector boundaries.  Returning an error is better than
@@ -8484,9 +8484,9 @@ static unsigned long long start_sector, sector_count;
 unsigned long long initrd_start_sector;
 
   /* Get the start sector number of the file.  */
-static void disk_read_start_sector_func (unsigned long sector, unsigned long offset, unsigned long length);
+static void disk_read_start_sector_func (unsigned long long sector, unsigned long offset, unsigned long length);
 static void
-disk_read_start_sector_func (unsigned long sector, unsigned long offset, unsigned long length)
+disk_read_start_sector_func (unsigned long long sector, unsigned long offset, unsigned long length)
 {
       if (sector_count < 1)
 	{
@@ -13044,7 +13044,7 @@ static int time2;
 char default_file[60];
 
 #if !defined(SUPPORT_DISKLESS) && !defined(GRUB_UTIL)
-static unsigned long saved_sectors[2];
+static unsigned long long saved_sectors[2];
 static unsigned long saved_offsets[2];
 static unsigned long saved_lengths[2];
 static unsigned long long wait;
@@ -13053,9 +13053,9 @@ static unsigned long long entryno;
 static int deny_write;
 
   /* Save sector information about at most two sectors.  */
-static void disk_read_savesect_func1 (unsigned long sector, unsigned long offset, unsigned long length);
+static void disk_read_savesect_func1 (unsigned long long sector, unsigned long offset, unsigned long length);
 static void
-disk_read_savesect_func1 (unsigned long sector, unsigned long offset, unsigned long length)
+disk_read_savesect_func1 (unsigned long long sector, unsigned long offset, unsigned long length)
 {
       if (blklst_num_sectors < 2)
 	{

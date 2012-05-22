@@ -955,7 +955,7 @@ hex_dump (void *buf, size_t size)
 
 int
 biosdisk (int subfunc, int drive, struct geometry *geometry,
-	  int sector, int nsec, int segment)
+	  unsigned long long sector, unsigned long nsec, int segment)
 {
   char *buf;
   int fd = geometry->flags;
