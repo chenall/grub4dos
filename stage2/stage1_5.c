@@ -22,7 +22,7 @@
 static unsigned long saved_sector = -1;
 
 static void
-disk_read_savesect_func (unsigned long sector, unsigned long offset, unsigned long length)
+disk_read_savesect_func (unsigned long long sector, unsigned long offset, unsigned long length)
 {
   saved_sector = sector;
 }

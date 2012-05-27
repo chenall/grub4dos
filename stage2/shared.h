@@ -71,12 +71,12 @@ extern char *grub_scratch_mem;
 
 /* 512-byte scratch area */
 #ifdef GRUB_UTIL
-#define SCRATCHADDR  RAW_ADDR (0x77e00)
-#define SCRATCHSEG   RAW_SEG (0x77e0)
+#define SCRATCHADDR  RAW_ADDR (0x78000)
+#define SCRATCHSEG   RAW_SEG (0x7800)
 #else
 /* more than 1 sector used! See chainloader code. */
-#define SCRATCHADDR  RAW_ADDR (0x37e00)
-#define SCRATCHSEG   RAW_SEG (0x37e0)
+#define SCRATCHADDR  RAW_ADDR (0x1F000)
+#define SCRATCHSEG   RAW_SEG (0x1F00)
 #endif
 
 /*
@@ -84,11 +84,13 @@ extern char *grub_scratch_mem;
  *  in size.
  */
 
-#define BUFFERLEN   0x7e00
+/* BUFFERLEN must be a power of two, i.e., 2^n, or 2**n */
 #ifdef GRUB_UTIL
+#define BUFFERLEN   0x8000
 #define BUFFERADDR  RAW_ADDR (0x70000)
 #define BUFFERSEG   RAW_SEG (0x7000)
 #else
+#define BUFFERLEN   0x8000
 #define BUFFERADDR  RAW_ADDR (0x30000)
 #define BUFFERSEG   RAW_SEG (0x3000)
 #endif
@@ -968,8 +970,8 @@ extern int compressed_file;
 #endif
 
 /* instrumentation variables */
-extern void (*disk_read_hook) (unsigned long, unsigned long, unsigned long);
-extern void (*disk_read_func) (unsigned long, unsigned long, unsigned long);
+extern void (*disk_read_hook) (unsigned long long, unsigned long, unsigned long);
+extern void (*disk_read_func) (unsigned long long, unsigned long, unsigned long);
 
 #ifndef STAGE1_5
 /* The flag for debug mode.  */
@@ -1259,7 +1261,7 @@ extern int biosdisk_int13_extensions (int ax, int drive, void *dap);
 int get_cdinfo (int drive, struct geometry *geometry);
 int get_diskinfo (int drive, struct geometry *geometry);
 int biosdisk (int subfunc, int drive, struct geometry *geometry,
-	      int sector, int nsec, int segment);
+	      unsigned long long sector, unsigned long nsec, int segment);
 void stop_floppy (void);
 
 /* Command-line interface functions. */
@@ -1428,8 +1430,8 @@ unsigned long long dec_lzma_read (unsigned long long buf, unsigned long long len
 
 int rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write);
 int devread (unsigned long long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write);
-int rawwrite (unsigned long drive, unsigned long sector, char *buf);
-int devwrite (unsigned long sector, unsigned long sector_len, char *buf);
+int rawwrite (unsigned long drive, unsigned long long sector, unsigned long long buf);
+int devwrite (unsigned long long sector, unsigned long long sector_len, unsigned long long buf);
 
 /* Parse a device string and initialize the global parameters. */
 char *set_device (char *device);
