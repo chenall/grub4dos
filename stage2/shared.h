@@ -868,7 +868,6 @@ extern long realmode_run(long regs_ptr);
 #define ENVI ((char (*)[MAX_ENV_LEN])(BASE_ADDR + MAX_VARS * MAX_VAR_LEN))
 #define _WENV_ 60
 #define WENV_RANDOM (*(unsigned long *)(ENVI[_WENV_]+0x20))
-#define FSYS_FLAGS (*(unsigned long *)(ENVI[_WENV_]+0x24))
 #define QUOTE_CHAR (*(ENVI[_WENV_]+0x30))
 #define WENV_TMP (ENVI[_WENV_]+0x40)
 #define set_envi(var, val)			envi_cmd(var, val, 0)
