@@ -137,7 +137,8 @@ iso9660_dir (char *dirname)
   unsigned char file_type;
   unsigned long rr_len;
   unsigned char rr_flag;
-  char ch;
+  char tmp_name[256];
+  char *ch;
 
   idr = &PRIMDESC->root_directory_record;
   INODE->file_start = 0;
@@ -152,18 +153,18 @@ iso9660_dir (char *dirname)
 //	     && !isspace(dirname[pathlen]) && dirname[pathlen] != '/' ;
 //	   pathlen++)
 //	;
-      for (pathlen = 0;
-	  (ch = dirname[pathlen]) && !isspace (ch) && ch != '/';
-	  pathlen++)
+      for (ch = tmp_name;*dirname;++dirname)
 	{
-		if (ch == '\\')
-		{
-			pathlen++;
-			if (! (ch = dirname[pathlen]))
-				break;
-		}
+		if (isspace(*dirname) || *dirname == '/')
+			break;
+		if (*dirname == '\\')
+			++dirname;
+		if (!(*ch = *dirname))
+			break;
+		++ch;
 	}
-
+	*ch = 0;
+	pathlen = ch-tmp_name;
 
       size = idr->size.l;
       extent = idr->extent.l;
@@ -353,10 +354,9 @@ iso9660_dir (char *dirname)
 		} /* rr_len >= 4 */
 
 	      filemax = MAXINT;
-	      if (name_len >= pathlen
-		  && (!pathlen || !strncmpi(dirname,name, pathlen)))
+	      if (substring(tmp_name,name,1) != 1)
 		{
-		  if (dirname[pathlen] == '/' || !print_possibilities)
+		  if (*dirname == '/' || !print_possibilities)
 		    {
 		      /*
 		       *  DIRNAME is directory component of pathname,
@@ -364,7 +364,7 @@ iso9660_dir (char *dirname)
 		       */
 		      if (pathlen == name_len)
 			{
-			  if (dirname[pathlen] == '/')
+			  if (*dirname == '/')
 			    {
 			      if (file_type != ISO_DIRECTORY)
 				{
@@ -418,14 +418,15 @@ iso9660_dir (char *dirname)
 	  size -= ISO_SECTOR_SIZE;
 	} /* size>0 */
 
-      if (dirname[pathlen] == '/' || print_possibilities >= 0)
+      if (*dirname == '/' || print_possibilities >= 0)
 	{
 	  errnum = ERR_FILE_NOT_FOUND;
 	  return 0;
 	}
 
     next_dir_level:
-      dirname += pathlen;
+    ;
+//      dirname += pathlen;
 
     } while (*dirname == '/');
 
