@@ -90,7 +90,8 @@ extern char *grub_scratch_mem;
 #define BUFFERADDR  RAW_ADDR (0x70000)
 #define BUFFERSEG   RAW_SEG (0x7000)
 #else
-#define BUFFERLEN   0x8000
+/* BUFFERLEN must be 64K for now! */
+#define BUFFERLEN   0x10000
 #define BUFFERADDR  RAW_ADDR (0x30000)
 #define BUFFERSEG   RAW_SEG (0x3000)
 #endif
