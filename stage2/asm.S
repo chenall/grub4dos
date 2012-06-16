@@ -9856,7 +9856,7 @@ check_sector_readable:
 	movl	$0, %cs:ABS(EXT_C(buf_track)) + 4
 #else
 	/* Invalidate the buffer, because the buffer is not exactly 1 track. */
-	/* The buffer size is now a constant value of either 32K or 64K. */
+	/* The buffer size is now 64K. */
 	movl	$-1, %cs:ABS(EXT_C(buf_track))
 	/* need not set the higher 32 bits of buf_track. */
 #endif

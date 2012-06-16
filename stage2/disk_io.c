@@ -330,7 +330,6 @@ rawdisk_read (int drive, unsigned long long sector, unsigned long nsec, int segm
 
 /* Read bytes from DRIVE to BUF. The bytes start at BYTE_OFFSET in absolute
  * sector number SECTOR and with BYTE_LEN bytes long.
- * FIXME: currently only 32-bit SECTOR number is actually supported.
  */
 int
 rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
@@ -400,14 +399,28 @@ rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offs
       if ((buf_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION) && (! (buf_geom.flags & BIOSDISK_FLAG_BIFURCATE) || (drive & 0xFFFFFF00) == 0x100))
       {
 	  /* LBA */
-      ///* Eliminate a buffer overflow.  */
-      //if ((buf_geom.sectors << sector_size_bits) > BUFFERLEN)
 	  sectors_per_vtrack = (BUFFERLEN >> sector_size_bits);
-      //else
-	//  sectors_per_vtrack = buf_geom.sectors;
 
 	  /* Get the first sector number in the track.  */
 	  soff = ((unsigned long)sector) & (sectors_per_vtrack - 1);
+
+	  /* buffer can be 64K for CDROM, but 63.5K(127 sectors) for HDD. */
+	  if (sector_size_bits == 9)	/* 512-byte sector size */
+	  {
+		/* BUFFERLEN must be 64K */
+		sectors_per_vtrack = 127;
+		//soff = sector % sectors_per_vtrack;
+		if (sector >> 32)
+		{
+		    // 16 == (0x100000000 % 127)
+		    soff = (((unsigned long)(sector >> 32) % 127) * 16 +
+			    ((unsigned long)sector % 127)) % 127;
+		}
+		else
+		{
+		    soff = ((unsigned long)sector) % sectors_per_vtrack;
+		}
+	  }
       }
       else
       {
@@ -2054,12 +2067,12 @@ print_completions (int is_filename, int is_completion)
 static int block_file = 0;
 
 struct BLK_LIST_ENTRY {
-    unsigned long start, length;
+    unsigned long long start, length;
 };
 struct BLK_BUF {
   unsigned long long cur_filepos;
   struct BLK_LIST_ENTRY *cur_blklist;
-  unsigned long cur_blknum;
+  unsigned long long cur_blknum;
   struct BLK_LIST_ENTRY blklist[1];
 };
 #define blk_buf (*(struct BLK_BUF *)FSYS_BUF)
