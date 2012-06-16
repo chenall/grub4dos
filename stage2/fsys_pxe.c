@@ -50,7 +50,11 @@ void pxe_close (void) {}
 //#define PXE_BUFLEN	FSYS_BUFLEN
 /* use disk buffer for PXE_BUF */
 #define PXE_BUF		BUFFERADDR
+#if (BUFFERLEN >= 0x10000)
+#define PXE_BUFLEN	0xFE00
+#else
 #define PXE_BUFLEN	BUFFERLEN
+#endif
 
 //#define PXE_DEBUG	1
 

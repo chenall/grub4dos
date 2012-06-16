@@ -1,3 +1,4 @@
+2012-06-08 (tinybit)reduce PXE_BUFLEN to 63.5K to satisfy PXE BIOS.
 2012-05-23 (tinybit)change BUFFERLEN to 64K; use 64-bit sector number for block-list files.
 2012-05-04 (tinybit)fixed a bug in biosdisk(); extend sector number to 64-bit.
 2012-04-25 (tinybit)fixed a bug on failed dd argument of "buf=".
