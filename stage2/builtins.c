@@ -2520,7 +2520,7 @@ readroot:
 				goto readroot;
 			}
 		}
-		grub_memmove((void *)0x522, (void *)0x7C3E, 15); /* Copy DPT over PBR startup code */
+		grub_memmove((void *)0x7C3E, (void *)0x522, 15); /* Copy DPT over PBR startup code */
 
 		for ( *(unsigned long *)0x7BF4 = HMA_ADDR - 0x10000, *(unsigned long *)0x7BF0 = 0x500; *(char *)(*(unsigned long *)0x7BF4) && *(unsigned long *)0x7BF4 < HMA_ADDR; *(unsigned long *)0x7BF4 += 32) {
 			if (*(long long *)(*(unsigned long *)0x7BF4) == *(long long *)0x7BE0) { /* BIO */
