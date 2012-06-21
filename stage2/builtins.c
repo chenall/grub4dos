@@ -2520,6 +2520,7 @@ readroot:
 				goto readroot;
 			}
 		}
+		grub_memmove((void *)0x7C3E, (void *)(( (*(short*)0x7A & 0xFFFF)<<4) + (*(short*)0x78 & 0xFFFF) ), 15); /* Copy DPT over PBR startup code */
 
 		for ( *(unsigned long *)0x7BF4 = HMA_ADDR - 0x10000, *(unsigned long *)0x7BF0 = 0x500; *(char *)(*(unsigned long *)0x7BF4) && *(unsigned long *)0x7BF4 < HMA_ADDR; *(unsigned long *)0x7BF4 += 32) {
 			if (*(long long *)(*(unsigned long *)0x7BF4) == *(long long *)0x7BE0) { /* BIO */
@@ -16105,7 +16106,6 @@ static struct builtin builtin_setlocal =
    setlocal_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
 };
-
 
 static int endlocal_func(char *arg, int flags)
 {
