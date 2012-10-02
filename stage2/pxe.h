@@ -149,7 +149,8 @@
 #define SEGOFS(x)	((SEGMENT(x)<<16)+OFFSET(x))
 #define LINEAR(x)	(void*)(((x >> 16) <<4)+(x & 0xFFFF))
 
-#define PXE_ERR_LEN	0xFFFFFFFF
+//#define PXE_ERR_LEN	0xFFFFFFFF
+#define PXE_ERR_LEN	0
 
 typedef unsigned long	UINT32;
 typedef unsigned short	UINT16;

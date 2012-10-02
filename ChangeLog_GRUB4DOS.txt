@@ -1,3 +1,7 @@
+2012-09-18 (tinybit)accepted LZMAed preset-menu. font lines can be appended to both preset-menu and menu.lst.
+2012-09-08 (tinybit)added new map options --skip-sectors and --max-sectors.
+2012-08-23 (tinybit)added variables to identify the CPU with cpuid.
+2012-08-17 (tinybit)removed setkey support for Control, Shift, Alt and CapsLock keys. removed HLT instructions to satisfy buggy AMDs. getkey and chechkey functions were re-written to avoid using the int16h BIOS call. added chainloader support for bootmgr inside exFAT.
 2012-06-08 (tinybit)reduce PXE_BUFLEN to 63.5K to satisfy PXE BIOS.
 2012-05-23 (tinybit)change BUFFERLEN to 64K; use 64-bit sector number for block-list files.
 2012-05-04 (tinybit)fixed a bug in biosdisk(); extend sector number to 64-bit.

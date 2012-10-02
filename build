@@ -50,8 +50,8 @@ if svn export . grub4dos-temp --force > /dev/null ; then
 			fi
 			if [ "$w1" = "URL:" -a "$w2" != "" -a "$w3" = "" ]; then
 				SVN_URL=$w2
-				break
 			fi
+			[ "$CURR_REVISION" != "" -a "$SVN_URL" != "" ] && break
 		done << EOF
 $svninfo
 EOF

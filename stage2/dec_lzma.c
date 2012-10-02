@@ -1150,6 +1150,13 @@ SRes LzmaDec_DecodeToDic(CLzmaDec *p, SizeT dicLimit, const Byte *src, SizeT *sr
 #define ReadUnalignedUInt32(p) ((UInt32)((Byte*)(p))[0] | ((UInt32)((Byte*)(p))[1]<<8) | ((UInt32)((Byte*)(p))[2]<<16) | ((UInt32)((Byte*)(p))[3]<<24))
 #define ReadUnalignedUInt64(p) (ReadUnalignedUInt32(p) | ((UInt64)ReadUnalignedUInt32((Byte*)(p)+4)<<32))
 
+#define dBS lzmadec.dicBufSize
+#define dFP lzmadec.dicFilePos
+#define ufp lzmadec.fileu.fpos
+#define ufm lzmadec.fileu.fmax
+#define cfp lzmadec.filec.fpos
+#define cfm lzmadec.filec.fmax
+
 CLzmaDec lzmadec;
 
 int
@@ -1170,9 +1177,17 @@ dec_lzma_open (void)
     if (grub_read ((unsigned long long)(unsigned long)(char *)header, 13, 0xedde0d90) == 13) 
     {
 	// check header
-	lzmadec.prop.dicSize = ReadUnalignedUInt32(header+1);
+	lzmadec.prop.dicSize = ReadUnalignedUInt32 (header + 1);
+	if (lzmadec.prop.dicSize == 0 || (0x80000000 % lzmadec.prop.dicSize))
+	{
+	    //grub_printf("Dictionary Size in LZMA header must be 2^n.\n");
+	    goto fail;
+	}
 	if (lzmadec.prop.dicSize < LZMA_DIC_MIN)
-	    lzmadec.prop.dicSize = LZMA_DIC_MIN;
+	{
+	    //lzmadec.prop.dicSize = LZMA_DIC_MIN;
+	    goto fail;
+	}
 	d = header[0];
 	if (d < 9*5*5)
 	{
@@ -1180,10 +1195,15 @@ dec_lzma_open (void)
 	    lzmadec.prop.lc = d % 9; d /= 9;
 	    lzmadec.prop.lp = d % 5;
 	    lzmadec.prop.pb = d / 5;
-	    lzmadec.fileu.fmax = ReadUnalignedUInt64(header+5);
-	    lzmadec.fileu.fpos = 0;
-	    lzmadec.dicBufSize = lzmadec.prop.dicSize;
-	    lzmadec.dic = (Byte*) grub_malloc(lzmadec.dicBufSize);
+	    ufm = ReadUnalignedUInt64 (header + 5);
+	    if (ufm == -1ULL)
+	    {
+		//grub_printf("Uncompressed Size should not be unknown.\n");
+		goto fail;
+	    }
+	    ufp = 0;
+	    dBS = lzmadec.prop.dicSize;
+	    lzmadec.dic = (Byte*) grub_malloc (dBS);
 	    //grub_printf("LZMA allocate memory\n");
 	    if (lzmadec.dic)
 	    {
@@ -1201,9 +1221,9 @@ dec_lzma_open (void)
 			LzmaDec_Init(&lzmadec);
 			decomp_type = 1;
 			compressed_file = 1;
-			lzmadec.filec.fmax = filemax; filemax = lzmadec.fileu.fmax;
-			lzmadec.filec.fpos = filepos; filepos = lzmadec.fileu.fpos;
-			gzip_filemax = lzmadec.filec.fmax;
+			cfm = filemax; filemax = ufm;
+			cfp = filepos; filepos = ufp;
+			gzip_filemax = cfm;
 			// success
 			//grub_printf("LZMA open success\n");
 			errnum = 0;
@@ -1234,6 +1254,7 @@ dec_lzma_open (void)
     }
     else
     {
+fail:
 	//grub_printf("LZMA error reading header\n");
 	errnum = ERR_BAD_GZIP_HEADER;
     }
@@ -1254,53 +1275,60 @@ unsigned long long
 dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
     UInt64 outTx, outSkip;
-    //grub_printf("LZMA read buf=%ld len=%ld dic=%d inp=%d\n",buf,len,lzmadec.dic,lzmadec.inp);
+    //grub_printf("LZMA read buf=%lX len=%lX dic=%X inp=%X\n",buf,len,lzmadec.dic,lzmadec.inp);
+    //getkey();
 
     compressed_file = 0;
-    lzmadec.fileu.fmax = filemax; filemax = lzmadec.filec.fmax;
-    lzmadec.fileu.fpos = filepos; filepos = lzmadec.filec.fpos;
+
+    ufm = filemax;
+    ufp = filepos;
+    filemax = cfm;
+    filepos = cfp;
+
     /* Now filepos, filemax is of compressed file 
-     * fileu.fpos, fileu.fmax is of uncompressed data
+     * ufp, ufm is of uncompressed data
      * filec is not used
      */
 
     /*
      * When dicPos>0,
      *   dic[0 ... dicPos-1] contains 
-     *   uncompressed_data [dicFilePos ... dicFilePos+dicPos-1].
-     * When dicFilePos>0,
-     *   dic[dicPos ... dicBufSize-1] contains 
-     *   uncompressed_data [dicFilePos-dicBufSize+dicFilePos ... dicFilePos-1]
+     *   uncompressed_data [dFP ... dFP+dicPos-1].
+     * When dFP>0,
+     *   dic[dicPos ... dBS-1] contains 
+     *   uncompressed_data [dFP-dBS+dFP ... dFP-1]
      */
     /* do we reset decompression to the beginning of the file? */
-    if (lzmadec.dicFilePos && (lzmadec.fileu.fpos < lzmadec.dicFilePos-lzmadec.dicBufSize+lzmadec.dicFilePos))
+    if (dFP && (ufp < dFP - dBS + dFP))
     {
-	LzmaDec_Init(&lzmadec);
+	LzmaDec_Init (&lzmadec);
 	filepos = 13;
 	lzmadec.inpPos = lzmadec.inpSize = 0;
     }
 
     outTx = 0;
-    outSkip = lzmadec.fileu.fpos - lzmadec.dicFilePos;
-    //grub_printf("fileu.fpos=%ld dicFilePos=%ld\n",lzmadec.fileu.fpos,lzmadec.dicFilePos);
+    outSkip = ufp - dFP;
+    //grub_printf ("ufp=%lX dFP=%lX\n", ufp, dFP);
+    //getkey();
 
-    /* Copy uncompressed data from upper part of dic. dic[dicPos]...dic[dicBufSize-1] */
-    if (lzmadec.dicFilePos > lzmadec.fileu.fpos)
+    /* Copy uncompressed data from upper part of dic. dic[dicPos]...dic[dBS-1] */
+    if (dFP > ufp)
     {
-	UInt32 outTxCur = lzmadec.dicFilePos - lzmadec.fileu.fpos;
-	if (outTxCur > len) outTxCur = len;
+	UInt32 outTxCur = dFP - ufp;
+	if (outTxCur > len)
+	    outTxCur = len;
 	if (buf)
 	{
-	    grub_memmove64(buf, (UInt32)(lzmadec.dic+outSkip+lzmadec.dicBufSize), outTxCur); 
+	    grub_memmove64 (buf, (UInt32)(lzmadec.dic + outSkip + dBS), outTxCur);
 	    buf += outTxCur; 
 	}
 	outSkip = 0;
 	outTx += outTxCur; 
-	lzmadec.fileu.fpos += outTxCur; 
+	ufp += outTxCur; 
 	len -= outTxCur; 
     }
 
-    while (len!=0)
+    while (len != 0)
     {
 	SizeT inSizeCur, dicLimit;
 	UInt32 dicPos;
@@ -1308,22 +1336,29 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 	SRes res;
 
 	/* Copy uncompressed data from lower part of dic. dic[0]...dic[dicPos-1] */
-	//grub_printf("Loop len=%ld outSkip=%ld dicPos=%d\n",len,outSkip,lzmadec.dicPos);
+	//grub_printf ("Loop len=%lX outSkip=%lX dicPos=%X\n",
+	//		len, outSkip, lzmadec.dicPos);
+	//getkey();
 	if (outSkip < lzmadec.dicPos)
 	{
 	    UInt32 outTxCur = lzmadec.dicPos - outSkip; 
-	    //grub_printf("Copy %d byte ",outTxCur);
+	    if (outTxCur > len)
+		outTxCur = len;
+	    //grub_printf ("Copy %X byte ", outTxCur);
+	    //getkey();
 	    if (buf)
 	    {
-		grub_memmove64(buf, (UInt32)(lzmadec.dic+outSkip), outTxCur); 
-		buf += outTxCur; 
+		grub_memmove64 (buf, (UInt32)(lzmadec.dic + outSkip), outTxCur);
+		buf += outTxCur;
 	    }
 	    outSkip = lzmadec.dicPos;
 	    outTx += outTxCur; 
-	    lzmadec.fileu.fpos += outTxCur; 
+	    ufp += outTxCur; 
 	    len -= outTxCur; 
-//	    grub_printf(" remaining size %016lX\r",len);
-	    if (len==0) break;
+	    //grub_printf (" remaining size %lX\n", len);
+	    //getkey();
+	    if (len == 0)
+		break;
 	}
 	/* All existing wanted data from dic have been copied. We will add more data to dic. */
 	/* Read more input if there is no unprocessed input left. */
@@ -1332,44 +1367,68 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 	    UInt32 inTxCur = (filemax-filepos<lzmadec.inpBufSize)?filemax-filepos:lzmadec.inpBufSize;
 	    lzmadec.inpFilePos = filepos;
 	    lzmadec.inpPos = 0;
-	    //grub_printf("read inp %d ",inTxCur);
+	    //grub_printf("read inp %X ",inTxCur);
+	    //getkey();
 	    lzmadec.inpSize = grub_read((UInt32)(lzmadec.inp), inTxCur, 0xedde0d90);
-	    //grub_printf("->%d\n",lzmadec.inpSize);
+	    //grub_printf("->%X\n",lzmadec.inpSize);
+	    //getkey();
 	}
 	inSizeCur = lzmadec.inpSize - lzmadec.inpPos;
 
 	/* Prepare output dicPos, dicLimit. */
-	if (lzmadec.dicPos == lzmadec.dicBufSize)
+	if (lzmadec.dicPos == dBS)
 	{
 	    lzmadec.dicPos = 0;
-	    outSkip -= lzmadec.dicBufSize;
+	//    if (outSkip < dBS)
+	//	grub_printf ("\noutSkip(=%X) < dBS(=%X)\n", outSkip, dBS);
+	    outSkip -= dBS;
 	}
 	dicPos = lzmadec.dicPos;
-	dicLimit = (lzmadec.dicBufSize-dicPos < len)? lzmadec.dicBufSize: dicPos+len;
+	dicLimit = (dBS < dicPos + len) ?
+		    dBS : dicPos + len;
 
 	/* Do decompression. */
-	//grub_printf("DecodeToDic dicPos=%d limit=%d inPos=%d inSize=%d ",dicPos,dicLimit,lzmadec.inpPos,inSizeCur);
+	//grub_printf ("DecodeToDic dicPos=%X limit=%X inPos=%X inSize=%X ",
+	//		dicPos, dicLimit, lzmadec.inpPos, inSizeCur);
+	//getkey();
 	status = LZMA_STATUS_NOT_SPECIFIED;
-	res = LzmaDec_DecodeToDic(&lzmadec, dicLimit, lzmadec.inp+lzmadec.inpPos, &inSizeCur, LZMA_FINISH_ANY, &status);
-	//grub_printf("->%d\n",inSizeCur);
+	res = LzmaDec_DecodeToDic (&lzmadec, dicLimit,
+			lzmadec.inp + lzmadec.inpPos,
+			&inSizeCur, LZMA_FINISH_ANY, &status);
+	//grub_printf ("->%X\n", inSizeCur);
+	//getkey();
 	lzmadec.inpPos += inSizeCur;
-	if (inSizeCur==0 && lzmadec.dicPos==dicPos)
+	if (inSizeCur == 0 && lzmadec.dicPos == dicPos)
 	{
 	    /* Error */
-	    //grub_printf("No more input and output\n");
+	    //grub_printf ("No more input and output\n");
+	    //getkey();
 	    break;
 	}
     }
     compressed_file = 1;
-    lzmadec.filec.fmax = filemax; filemax = lzmadec.fileu.fmax;
-    lzmadec.filec.fpos = filepos; filepos = lzmadec.fileu.fpos;
-    /* Now filepos, file max is of uncompressed data
-     * filec.fpos, filwc.fmax is of compressed file
+
+    cfm = filemax;
+    cfp = filepos;
+    filemax = ufm;
+    filepos = ufp;
+
+    /* Now filepos, filemax is of uncompressed data
+     * cfp, cfm is of compressed file
      * fileu is not used
      */
 
-    //grub_printf("LZMA read end %ld\n",outTx);
+    //grub_printf ("LZMA read end %lX\n", outTx);
+    //getkey();
+
     return outTx;
 }
+
+#undef cfm
+#undef cfp
+#undef ufm
+#undef ufp
+#undef dFP
+#undef dBS
 
 #endif /* ! NO_DECOMPRESSION */

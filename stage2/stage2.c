@@ -41,6 +41,7 @@ const char *preset_menu = 0;
 # endif /* ! SUPPORT_DISKLESS */
 #else /* ! GRUB_UTIL */
 /* preset_menu is defined in asm.S */
+#define	preset_menu *(const char **)0x307FFC
 #endif /* GRUB_UTIL */
 
 static unsigned long preset_menu_offset;
@@ -48,15 +49,21 @@ static unsigned long preset_menu_offset;
 static int
 open_preset_menu (void)
 {
-#ifdef GRUB_UTIL
+//#ifdef GRUB_UTIL
   /* Unless the user explicitly requests to use the preset menu,
      always opening the preset menu fails in the grub shell.  */
   if (! use_preset_menu)
     return 0;
-#endif /* GRUB_UTIL */
+//#endif /* GRUB_UTIL */
+
+  if (preset_menu != (const char *)0x800)
+	  goto lzma;
   
   preset_menu_offset = 0;
-  return preset_menu != 0;
+  return 1;//preset_menu != 0;
+
+lzma:
+  return grub_open ("(md)0x880+0x200");
 }
 
 static int
@@ -64,9 +71,11 @@ read_from_preset_menu (char *buf, int max_len)
 {
   int len;
 
-  if (preset_menu == 0)
+  if (! use_preset_menu)	//if (preset_menu == 0)
 	return 0;
 
+  if (preset_menu != (const char *)0x800)
+	  goto lzma;
   len = grub_strlen (preset_menu + preset_menu_offset);
 
   if (len > max_len)
@@ -76,6 +85,9 @@ read_from_preset_menu (char *buf, int max_len)
   preset_menu_offset += len;
 
   return len;
+
+lzma:
+  return grub_read ((unsigned long long)(unsigned int)buf, max_len, 0xedde0d90);
 }
 
 #ifdef GRUB_UTIL
@@ -1969,7 +1981,10 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 
 	/* all other non-printable chars are illegal. */
 	if (c != '\n' && (unsigned char)c < ' ')
+	{
+	    pos = 0;
 	    break;
+	}
 
 //	/* The previous is a backslash, then...  */
 //	if (info & 1)	/* bit 0 for literal */
@@ -2013,13 +2028,31 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 	    {
 		/* Skip non-printable chars, including the UTF-8 Byte Order Mark: EF BB BF */
 		if ((unsigned char)c > ' ' && (unsigned char)c <= 0x7F) //((c != ' ') && (c != '\t') && (c != '\n') && (c != '\r'))
+		{
 		    cmdline[pos++] = c;
+		    if (c >= '0' && c <= '9')
+			info |= 8; // all hex digit
+		    if (c >= 'A' && c <= 'F')
+			info |= 8; // all hex digit
+		}
 	    }
 	}
 	else
 	{
 	    if (c == '\n')
 		break;
+
+	    if (!(info & 4) && pos == 4 && c == ':' && (info & 8))	/* font line, end this file */
+	    {
+		pos = 0;
+		break;
+	    }
+
+	    if (info & 8) // all hex digit
+	    {
+		    if ((c < '0' || c > '9') && (c < 'A' && c > 'F'))
+			info &= ~8; // not all hex digit
+	    }
 
 	    if (!(info & 4) && ((c & 0x80) || pos > 31))	/* bit 2 for argument */
 		break;
@@ -2064,6 +2097,7 @@ reset (void)
 }
   
 extern struct builtin builtin_title;
+extern struct builtin builtin_graphicsmode;
 static unsigned long attr = 0;
 /* This is the starting function in C.  */
 void
@@ -2107,7 +2141,7 @@ restart:
 	    grub_strncat (default_file + i, "default", sizeof (default_file) /* DEFAULT_FILE_BUFLEN */ - i);
 	}
 	if (debug > 1)
-	    grub_printf("Open %s ... ", default_file);
+	    grub_printf("\rOpen default file %s ... ", default_file);
 	DEBUG_SLEEP
 
 	if (grub_open (default_file))
@@ -2117,10 +2151,10 @@ restart:
 	    int len;
 	  
 	    if (debug > 1)
-		grub_printf("Read file ... ");
+		grub_printf("\rRead file ... ");
 	    len = grub_read ((unsigned long long)(unsigned int)buf, sizeof (buf), 0xedde0d90);
 	    if (debug > 1)
-		grub_printf("len=%d\n", (unsigned long)len);
+		grub_printf("len=%d \n", (unsigned long)len);
 	    if (len > 0)
 	    {
 		unsigned long long ull;
@@ -2151,7 +2185,8 @@ restart_config:
 	   STATE 1: In a title command.
 	   STATE 2: In a entry after a title command.  
 	*/
-	int state = 0, prev_config_len = 0,bt=0;
+	int state = 0, prev_config_len = 0, bt = 0;
+	unsigned long graphicsmode_in_menu_init = 0;
 	char *cmdline;
 	int is_preset;
 	#ifndef GRUB_UTIL
@@ -2162,7 +2197,8 @@ restart_config:
 
 	    is_preset = is_opened = 0;
 	    /* Try command-line menu first if it is specified. */
-	    if (preset_menu == (char *)0x0800/*&& ! *config_file*/)
+	    //if (preset_menu == (char *)0x0800/*&& ! *config_file*/)
+	    if (use_preset_menu)
 	    {
 		is_opened = is_preset = open_preset_menu ();
 	    }
@@ -2219,11 +2255,21 @@ restart_config:
 	    #ifndef GRUB_UTIL
 		if (builtin != &builtin_title)/*If title*/
 		{
-			unsigned long tmp_filpos = is_preset?preset_menu_offset:filepos;
+			unsigned long tmp_filpos;
 			unsigned long tmp_drive = saved_drive;
 			unsigned long tmp_partition = saved_partition;
 			unsigned int rp;
 			cmdline = skip_to(1, cmdline);
+
+			/* save original file position. */
+			tmp_filpos = (is_preset && preset_menu == 0x800) ?
+					preset_menu_offset : filepos;
+
+			/* close the already opened file for safety, in case 
+			 * the builtin->func() below would call
+			 * grub_open(). */
+			if (! is_preset || preset_menu != (const char *)0x800)
+				grub_close ();
 
 			if (debug_boot)
 			{
@@ -2236,9 +2282,17 @@ restart_config:
 			rp = builtin->func(cmdline,BUILTIN_IFTITLE);
 			saved_drive = tmp_drive;
 			saved_partition = tmp_partition;
+
+			/* re-open the config_file which is still in use by
+			 * get_line_from_config(), and restore file position
+			 * with the saved value. */
 			if (is_preset)
 			{
-				preset_menu_offset = tmp_filpos;
+				open_preset_menu ();
+				if (preset_menu == (const char *)0x800)
+					preset_menu_offset = tmp_filpos;
+				else
+					filepos = (unsigned long long)tmp_filpos;
 			}
 			else
 			{
@@ -2321,6 +2375,8 @@ restart_config:
 		    /* Copy menu-specific commands to config area.  */
 		    while ((config_entries[config_len++] = *ptr++) != 0);
 		    prev_config_len = config_len;
+		    if (builtin == &builtin_graphicsmode)
+			graphicsmode_in_menu_init = 1;
 		}
 		else
 		    /* Ignored.  */
@@ -2346,9 +2402,50 @@ restart_config:
 	/* file must be closed here, because the menu-specific commands
 	 * below may also use the GRUB_OPEN command.  */
 	if (is_preset)
-	    preset_menu = 0;	/* Disable the preset menu.  */
+	{
+#ifndef STAGE1_5
+#ifdef SUPPORT_GRAPHICS
+extern int font_func (char *, int);
+extern int graphicsmode_func (char *, int);
+	    font_func (NULL, 0);	/* clear the font */
+	    if (use_preset_menu/* != (const char *)0x800*/)
+	    {
+		/* load the font embedded in preset menu. */
+		char *menu = "(md)4+8";
+
+		if (preset_menu != (const char *)0x800)
+			menu = "(md)0x880+0x200";
+		if (font_func (menu, 0))
+		{
+		    /* font exists, automatically enter graphics mode. */
+		    if (! graphicsmode_in_menu_init)
+		    {
+			grub_printf ("\rSwitch to graphics mode ...             \r");
+			graphicsmode_func ("-1 -1 -1 24:32", 0);
+		    }
+		}
+		font_func (NULL, 0);	/* clear the font */
+	    }
+#endif /* SUPPORT_GRAPHICS */
+#endif /* ! STAGE1_5 */
+
+	    if (preset_menu != (const char *)0x800)
+		grub_close ();
+	    use_preset_menu = 0;	/* Disable the preset menu.  */
+	}
 	else
+	{
 	    grub_close ();
+	    /* before showing menu, try loading font in the tail of config_file */
+#ifndef STAGE1_5
+#ifdef SUPPORT_GRAPHICS
+	    extern int font_func (char *, int);
+	    font_func (NULL, 0);	/* clear the font */
+	    font_func (config_file, 0);
+	    font_func (NULL, 0);	/* clear the font */
+#endif /* SUPPORT_GRAPHICS */
+#endif /* ! STAGE1_5 */
+	}
 
 	if (state & 2)
 	{
@@ -2373,6 +2470,8 @@ restart_config:
 	 * 1. The array of menu init commands.
 	 * 2. The array of menu item commands with leading titles.
 	 */
+
+	printf ("\rRunning menu commands(hangup means you have a problematic config)...\r");
 
 	/* Run menu-specific commands before any other menu entry commands.  */
 
@@ -2560,7 +2659,7 @@ original_config:
 
 done_config_file:
 
-	preset_menu = 0;	/* Disable the preset menu.  */
+	use_preset_menu = 0;	/* Disable the preset menu.  */
 
 #ifndef GRUB_UTIL
 	pxe_restart_config = 1;	/* pxe_detect will use configfile to run menu */

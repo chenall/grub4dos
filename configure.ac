@@ -51,7 +51,7 @@ if test "x$CFLAGS" = x; then
 fi
 
 if test "x$host_cpu" = xx86_64; then
-  CFLAGS="-m32 $CFLAGS"
+  CFLAGS="-m32 -mno-sse $CFLAGS"
 fi
 
 #

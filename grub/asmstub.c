@@ -345,7 +345,7 @@ unset_int15_handler (void)
 
 /* The key map.  */
 unsigned short bios_key_map[KEY_MAP_SIZE + 1];
-unsigned short ascii_key_map[KEY_MAP_SIZE + 1];
+unsigned long ascii_key_map[KEY_MAP_SIZE + 1];
 
 int
 get_code_end (void)
