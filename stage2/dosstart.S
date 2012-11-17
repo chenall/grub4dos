@@ -1258,8 +1258,12 @@ end_move_self:				# now we are at the right place
 #
 # Note that the short jump isn't strictly needed, although there are
 # reasons why it might be a good idea. It won't hurt in any case.
-	movw	$1, %ax				# protected mode (PE) bit
-	lmsw	%ax				# This is it!
+
+	/* ramooflax cannot deal with LMSW. use MOV CR0 instead. 2012-11-11 */
+	//movw	$1, %ax				# protected mode (PE) bit
+	//lmsw	%ax				# This is it!
+	movl	$1, %eax
+	movl	%eax, %cr0
 	jmp	flush_instr
 
 flush_instr:
@@ -1334,8 +1338,7 @@ grldr_real_start:
 	cmpw	%bp, %cx
 	je	2f
 1:
-	/* disable pxe */
-	orb	$0x01, (pre_stage2_start - _start + 5)
+	//orb	$0x01, (pre_stage2_start - _start + 5)	/* disable pxe */
 2:
 	cmpw	$0x820, %bx
 	jb	2f

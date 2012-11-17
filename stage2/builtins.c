@@ -6289,7 +6289,10 @@ font_func (char *arg, int flags)
 
   errnum = 0;
   if (arg == NULL || *arg == '\0')
+  {
+	valid_lines--;	// let valid_lines = -1, a non-zero value for TRUE.
 	goto build_default_VGA_font;
+  }
 
   if (! grub_open(arg))
 	return 0;
@@ -9507,7 +9510,8 @@ map_func (char *arg, int flags)
   unsigned long long to_filesize = 0;
   unsigned long BPB_H = 0;
   unsigned long BPB_S = 0;
-  int in_situ = 0;
+  unsigned long in_situ = 0;
+  unsigned long in_situ_flags = 0;
   int add_mbt = -1;
   int prefer_top = 0;
   unsigned long long skip_sectors = 0;
@@ -10019,6 +10023,24 @@ map_func (char *arg, int flags)
       {
 	disable_lba_mode = 1;
       }
+    else if (grub_memcmp (arg, "--in-place=", 11) == 0)
+      {
+	unsigned long long tmp;
+	p = arg + 11;
+	if (! safe_parse_maxint (&p, &tmp))
+		return 0;
+	in_situ_flags = (unsigned char)tmp;
+	in_situ = 2;
+      }
+    else if (grub_memcmp (arg, "--in-situ=", 10) == 0)
+      {
+	unsigned long long tmp;
+	p = arg + 10;
+	if (! safe_parse_maxint (&p, &tmp))
+		return 0;
+	in_situ_flags = (unsigned char)tmp;
+	in_situ = 1;
+      }
     else if (grub_memcmp (arg, "--in-place", 10) == 0)
       {
 	in_situ = 2;
@@ -10149,8 +10171,8 @@ map_func (char *arg, int flags)
 	/* try to find an empty entry in the partition table */
 	for (i = 0; i < 4; i++)
 	{
-		if (! *(((char *)SCRATCHADDR) + 0x1C2 + i * 16))
-			break;	/* consider partition type 00 as empty */
+		//if (! *(((char *)SCRATCHADDR) + 0x1C2 + i * 16))
+		//	break;	/* consider partition type 00 as empty */
 		if (! (*(((char *)SCRATCHADDR) + 0x1C0 + i * 16) & 63))
 			break;	/* invalid start sector number of 0 */
 		if (! (*(((char *)SCRATCHADDR) + 0x1C4 + i * 16) & 63))
@@ -11169,12 +11191,13 @@ map_whole_drive:
 #endif	/* GRUB_UTIL */
 
   if (in_situ)
-	bios_drive_map[j].to_cylinder = 
+	bios_drive_map[j].to_cylinder = (in_situ_flags << 8) | (
 		filesystem_type == 1 ? 0x0E /* FAT12 */ :
 		filesystem_type == 2 ? 0x0E /* FAT16 */ :
 		filesystem_type == 3 ? 0x0C /* FAT32 */ :
 		filesystem_type == 4 ? 0x07 /* NTFS */  :
-		/*filesystem_type == 5 ?*/ 0x83 /* EXT2 */;
+		/*filesystem_type == 5 ?*/ 0x83 /* EXT2 */
+		);
   
   /* if TO_DRIVE is whole floppy, skip the geometry lookup. */
   if (start_sector == 0 && sector_count == 0 && to < 0x04)

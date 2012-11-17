@@ -693,9 +693,7 @@ grldr_real_start:
 	cmpw	%bp, %cx
 	je	2f
 1:
-	/* disable pxe */
-	
-        orb	$0x01, (pre_stage2_start - _start1 + 5)
+    //orb	$0x01, (pre_stage2_start - _start1 + 5) /* disable pxe */
 	
 2:      
 	cmpw	$0x820, %bx       

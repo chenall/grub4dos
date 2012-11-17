@@ -23,7 +23,10 @@
 #include "filesys.h"
 
 /* The menu is saved at address just below 16m  */
-#define FB_MENU_ADDR	0xff0000
+/* Emm... Room between address 15M and 16M may be used by chipset.
+ * Use 64K at 0x150000 instead.      -- tinybit  2012-11-07  */
+//#define FB_MENU_ADDR	0xff0000
+#define FB_MENU_ADDR	0x150000
 
 #define FB_MAGIC	"FBBF"
 #define FB_MAGIC_LONG	0x46424246
@@ -114,6 +117,10 @@ static int fb_init (void)
 		return 0;
 
 	list_used = data->list_used;
+
+	/* if the dir list exceeds 64K, safely exit with failure. */
+	if (list_used > 128)
+		return !(errnum = ERR_WONT_FIT);
 
 	if (current_drive == FB_DRIVE)
 	{

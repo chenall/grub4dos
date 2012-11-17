@@ -4990,8 +4990,8 @@ modify_in_situ:
 
 	/* if the first entry is empty, we simply put our new entry on it. */
 
-	cmpb	$0, %es:4(%si)	/* consider partition type 00 as empty */
-	jz	5f
+	//cmpb	$0, %es:4(%si)	/* consider partition type 00 as empty */
+	//jz	5f
 	testb	$63, %es:2(%si)	/* invalid start sector number of 0 */
 	jz	5f
 	testb	$63, %es:6(%si)	/* invalid end sector number of 0 */
@@ -5007,8 +5007,8 @@ modify_in_situ:
 7:
 	addw	$0x10, %si	/* SI=BX+0x1ce or BX+0x1de or BX+0x1ee */
 
-	cmpb	$0, %es:4(%si)	/* consider partition type 00 as empty */
-	jz	7f
+	//cmpb	$0, %es:4(%si)	/* consider partition type 00 as empty */
+	//jz	7f
 	testb	$63, %es:2(%si)	/* invalid start sector number of 0 */
 	jz	7f
 	testb	$63, %es:6(%si)	/* invalid end sector number of 0 */
@@ -5071,6 +5071,18 @@ modify_in_situ:
 	movl	%cs:16(%bp), %eax
 	stosl			/* DI=BX+0x1ce */
 
+	/* bit 8 of TO_C means clearing other partition entries. */
+	testb	$1, %cs:5(%bp)	/* TO_C hi word for in_situ_flags */
+	jz	3f
+
+	/* empty the last 3 entries */
+	xorw	%ax, %ax
+	movw	%bx, %di
+	addw	$0x1ce, %di
+	movw	$24, %cx
+	repz stosw		/* DI=BX+0x1fe */
+	ret
+3:
 #if 1
 	/* clear other boot indicators in the last 3 entries */
 
