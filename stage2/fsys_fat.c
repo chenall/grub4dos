@@ -70,7 +70,10 @@ int
 fat_mount (void)
 {
   struct fat_bpb bpb;
-  __u32 magic, first_fat;
+  __u32  first_fat;
+#ifndef STAGE1_5
+  __u32  magic;
+#endif /* STAGE1_5 */
   
   /* Check partition type for harddisk */
 //  if (((current_drive & 0x80) || (current_slice != 0))
@@ -215,17 +218,23 @@ fat_mount (void)
   if (FAT_SUPER->fat_size == 8)
     {
       first_fat &= 0x0fffffff;
+#ifndef STAGE1_5
       magic = 0x0fffff00;
+#endif /* STAGE1_5 */
     }
   else if (FAT_SUPER->fat_size == 4)
     {
       first_fat &= 0x0000ffff;
+#ifndef STAGE1_5
       magic = 0xff00;
+#endif /* STAGE1_5 */
     }
   else
     {
       first_fat &= 0x00000fff;
+#ifndef STAGE1_5
       magic = 0x0f00;
+#endif /* STAGE1_5 */
     }
 
   /* Ignore the 3rd bit, because some BIOSes assigns 0xF0 to the media

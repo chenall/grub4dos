@@ -304,7 +304,7 @@ void *grub_malloc(unsigned long size)
 {
 	struct malloc_array *p_memalloc_array = malloc_array_start;
 	unsigned long alloc_mem = 0;
-	size = (size + 0x1F) & ~0xf; //·ÖÅäÄÚ´æ,16×Ö½Ú¶ÔÆë,¶îÍâ·ÖÅä16×Ö½Ú.Ò²¾ÍÊÇËµ×îÉÙµÄÄÚ´æ·ÖÅäÊÇ32×Ö½Ú.
+	size = (size + 0x1F) & ~0xf; //åˆ†é…å†…å­˜,16å­—èŠ‚å¯¹é½,é¢å¤–åˆ†é…16å­—èŠ‚.ä¹Ÿå°±æ˜¯è¯´æœ€å°‘çš„å†…å­˜åˆ†é…æ˜¯32å­—èŠ‚.
 
 	for ( ; p_memalloc_array->addr != free_mem_end; p_memalloc_array = p_memalloc_array->next)//find free mem array;
 	{
@@ -356,7 +356,7 @@ void grub_free(void *ptr)
 			P->addr &= ~0xfUL;//unused memory
 
 			if (P1 != P && (P1->addr & 1) == 0)
-			{//ÏòÇ°ºÏ²¢¿ÉÓÃÄÚ´æ¿é.
+			{//å‘å‰åˆå¹¶å¯ç”¨å†…å­˜å—.
 				P1->next = P->next;
 				P->addr = 0;
 				P = P1;
@@ -364,7 +364,7 @@ void grub_free(void *ptr)
 
 			P1 = P->next;
 			if (P1->addr != free_mem_end && (P1->addr & 1) == 0)
-			{//ÏòºóºÏ²¢¿ÉÓÃÄÚ´æ¿é.
+			{//å‘åŽåˆå¹¶å¯ç”¨å†…å­˜å—.
 				P1->addr = 0;
 				P->next = P1->next;
 			}
@@ -409,11 +409,17 @@ init_bios_info (void)
    */
 #ifndef STAGE1_5
   DEBUG_SLEEP
+#ifndef GRUB_UTIL
+  if (debug_boot)
+#endif /* ! GRUB_UTIL */
   printf("\rGet lower memory... ");
 #endif
   //saved_mem_lower = get_memsize (0);	/* int12 --------safe enough */
   saved_mem_lower = (*(unsigned short *)0x413);
 #ifndef STAGE1_5
+#ifndef GRUB_UTIL
+  if (debug_boot)
+#endif /* ! GRUB_UTIL */
   printf("\rGet upper memory... ");
 #endif
   saved_mem_upper = get_memsize (1);	/* int15/88 -----safe enough */
@@ -428,6 +434,7 @@ init_bios_info (void)
 #ifndef GRUB_UTIL
   debug = debug_boot + 1;
   DEBUG_SLEEP
+  if (debug_boot)
   printf("\rTurning on gate A20...                          ");
 #if 1
     {
@@ -443,6 +450,7 @@ init_bios_info (void)
 #else
   extern void grub2_gate_a20 (int on);
   grub2_gate_a20 (1);
+  if (debug_boot)
   printf("\r                        \r");	/* wipe out the messages */
 #endif
   DEBUG_SLEEP
@@ -465,6 +473,9 @@ init_bios_info (void)
   addr = saved_mmap_addr;
   cont = 0;
 
+#ifndef GRUB_UTIL
+  if (debug_boot)
+#endif /* ! GRUB_UTIL */
   printf("\rGet E820 memory...           ");
   do
     {
@@ -480,6 +491,9 @@ init_bios_info (void)
   while (cont);
 
   if (! (saved_mmap_length))
+#ifndef GRUB_UTIL
+  if (debug_boot)
+#endif /* ! GRUB_UTIL */
 	printf("\rGet E801 memory...           ");
 
   if (saved_mmap_length)
@@ -716,12 +730,12 @@ redo_dos_geometry:
 		/* only primary partitions can be a DOS boot drive. */
 		/* So we read the MBR and check the partition table. */
 		/* At this moment we cannot use geometry. */
-		/* So we safely call BIOS, read at 5000:0000 */
-		if (biosdisk_standard (0x02, (unsigned char)dos_drive_geometry, 0, 0, 1, 1, 0x5000))
+		/* So we safely call BIOS, read at 2000:0000 */
+		if (biosdisk_standard (0x02, (unsigned char)dos_drive_geometry, 0, 0, 1, 1, 0x2000))
 			goto failed_dos_boot_drive;
 		for (j = 0; j < 4; j++)
 		{
-			if (*(unsigned long *)(j*16+0x501C6) == dos_part_start)
+			if (*(unsigned long *)(j*16+0x201C6) == dos_part_start)
 				goto succeeded_dos_boot_drive;
 		}
 		goto failed_dos_boot_drive;
@@ -745,6 +759,7 @@ succeeded_dos_boot_drive:
 	}
     }
     else if (! fb_status) // if not boot from fbinst
+//	 if (! ((*(char *)0x8211) & 2)) // if not booting as a Linux kernel
     {
 	unsigned long j, k;
 
@@ -1001,6 +1016,9 @@ set_root:
 	}
   }
 #endif
+#ifndef GRUB_UTIL
+  if (debug_boot)
+#endif /* ! GRUB_UTIL */
   grub_printf("\rInitialize variable space...            ");
   run_line("set ?_BOOT=%@root%",1);
   memset(ADDR_RET_STR,0,0x200);
@@ -1018,6 +1036,11 @@ extern int font_func (char *, int);
 
   /* Start main routine here.  */
   
+#ifndef GRUB_UTIL
+#ifndef STAGE1_5
+  if (debug_boot)
+#endif /* ! STAGE1_5 */
+#endif /* ! GRUB_UTIL */
   grub_printf("\rStarting cmain() ...                    ");
   
 #if !defined(STAGE1_5) && !defined(GRUB_UTIL)

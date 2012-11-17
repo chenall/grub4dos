@@ -576,9 +576,9 @@ find_specifier:
 void
 init_page (void)
 {
-  int i;
+  //int i;
   unsigned char tmp_buf[128];
-  unsigned char ch = ' ';
+  //unsigned char ch = ' ';
 
   cls ();
 
@@ -682,7 +682,7 @@ static void cl_delete (int count);
 /* Move the cursor backward.  */
 static void cl_backward (int count)
 {
-	unsigned long unicode;
+	unsigned long unicode = 0;
 	unsigned char b = *(buf + lpos - 1);
 	unsigned char a = *(buf + lpos - 2);
 	//unsigned long count = 1;
@@ -759,7 +759,7 @@ do_backward:
 /* Move the cursor forward.  */
 static void cl_forward (int count)
 {
-	unsigned long unicode;
+	unsigned long unicode = 0;
 	unsigned char b = *(buf + lpos);
 	//unsigned long count = 1;
 
@@ -1071,8 +1071,8 @@ real_get_cmdline (void)
   int history = -1;	/* The index for the history.  */
 
   buf = (unsigned char *) CMDLINE_BUF;
-  plen = grub_strlen (get_cmdline_str.prompt);
-  llen = grub_strlen (get_cmdline_str.cmdline);
+  plen = grub_strlen ((const char *)get_cmdline_str.prompt);
+  llen = grub_strlen ((const char *)get_cmdline_str.cmdline);
 
   if (get_cmdline_str.maxlen > MAX_CMDLINE)
     {
@@ -1084,7 +1084,7 @@ real_get_cmdline (void)
 	}
     }
   lpos = llen;
-  grub_strcpy (buf, get_cmdline_str.cmdline);
+  grub_strcpy ((char *)buf, (const char *)get_cmdline_str.cmdline);
 
   if (fontx)
 	grub_putchar ('\n', 255);
@@ -1236,10 +1236,10 @@ real_get_cmdline (void)
 
 		if (history < 0)
 		  /* Save the working buffer.  */
-		  grub_strcpy (get_cmdline_str.cmdline, buf);
-		else if (grub_strcmp (get_history (history), buf) != 0)
+		  grub_strcpy ((char *)get_cmdline_str.cmdline, (const char *)buf);
+		else if (grub_strcmp (get_history (history), (const char *)buf) != 0)
 		  /* If BUF is modified, add it into the history list.  */
-		  add_history (buf, history);
+		  add_history ((const char *)buf, history);
 
 		history++;
 		p = get_history (history);
@@ -1250,8 +1250,8 @@ real_get_cmdline (void)
 		else
 		  {
 
-		    grub_strcpy (buf, p);
-		    llen = grub_strlen (buf);
+		    grub_strcpy ((char *)buf, p);
+		    llen = grub_strlen ((const char *)buf);
 		    lpos = llen;
 		    cl_refresh (1, 0);
 		  }
@@ -1263,17 +1263,17 @@ real_get_cmdline (void)
 
 		if (history >= 0)
 		  {
-		    if (grub_strcmp (get_history (history), buf) != 0)
+		    if (grub_strcmp (get_history (history), (const char *)buf) != 0)
 		      /* If BUF is modified, add it into the history list.  */
-		      add_history (buf, history);
+		      add_history ((const char *)buf, history);
 
 		    history--;
 		    p = get_history (history);
 		    if (! p)
-		      p = get_cmdline_str.cmdline;
+		      p = (char *)get_cmdline_str.cmdline;
 
-		    grub_strcpy (buf, p);
-		    llen = grub_strlen (buf);
+		    grub_strcpy ((char *)buf, p);
+		    llen = grub_strlen ((const char *)buf);
 		    lpos = llen;
 		    cl_refresh (1, 0);
 		  }
@@ -1345,10 +1345,12 @@ real_get_cmdline (void)
   /* If the readline-like feature is turned on and CMDLINE is not
      empty, add it into the history list.  */
   if (get_cmdline_str.readline && lpos < llen)
-    add_history (get_cmdline_str.cmdline, 0);
+    add_history ((const char *)get_cmdline_str.cmdline, 0);
 
   return 0;
 }
+
+int get_cmdline_obsolete (struct get_cmdline_arg cmdline);
 
 int
 get_cmdline_obsolete (struct get_cmdline_arg cmdline)

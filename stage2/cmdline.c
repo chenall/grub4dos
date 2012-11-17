@@ -277,7 +277,7 @@ int run_line (char *heap,int flags)
 				if (skip_to (0, arg) - arg == i)
 					cmdBuff[i++] = ' ';
 				cmdBuff[i] = 0;
-				grub_strncat(cmdBuff,PRINTF_BUFFER,0x20000);
+				grub_strncat(cmdBuff,(const char *)PRINTF_BUFFER,0x20000);
 				arg = cmdBuff;
 				break;
 			case 2:// operator ">"

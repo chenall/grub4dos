@@ -4173,7 +4173,7 @@ debug_func (char *arg, int flags)
   return debug;
 }
 
-static struct builtin builtin_debug =
+struct builtin builtin_debug =
 {
   "debug",
   debug_func,
@@ -4982,7 +4982,7 @@ embed_func (char *arg, int flags)
   buf_track = -1;
 
   /* Now perform the embedding.  */
-  if (! devwrite ((unsigned long)(sector - part_start), size, stage1_5_buffer))
+  if (! devwrite ((unsigned long)(sector - part_start), size, (unsigned long long)(unsigned int)stage1_5_buffer))
     return 0;
   
   grub_printf (" %d sectors are embedded.\n", (unsigned long)size);
@@ -5182,10 +5182,13 @@ static int grub_mod_add (struct exec_array *mod)
          return 0;
       }
       mod_end = ((unsigned int)p_mod->data + p_mod->len + 0xf) & ~0xf;
-      return debug?grub_printf("%s loaded\n",mod->name):1;
+      if (debug > 0)
+	 grub_printf("%s loaded\n",mod->name);
    }
    else
-      return debug?grub_printf("%s already loaded\n",mod->name):1;
+      if (debug > 0)
+         grub_printf("%s already loaded\n",mod->name);
+   return 1;
 }
 
 static int grub_mod_list(const char *name)
@@ -5220,7 +5223,9 @@ static int grub_mod_del(const char *name)
             memmove(p_mod,(char *)next_mod,mod_end - next_mod);
             mod_end -= next_mod - (unsigned int)p_mod;
          }
-         return debug?grub_printf("%s unloaded.\n",name):1;
+         if (debug > 0)
+            grub_printf("%s unloaded.\n",name);
+         return 1;
       }
    }
    return 0;
@@ -5329,7 +5334,8 @@ command_func (char *arg, int flags)
 		}
 	    break;
      default:
-        grub_printf ("Warning! No such command: %s\n", arg);
+	if (debug > 0)
+        	grub_printf ("Warning! No such command: %s\n", arg);
         errnum = 0;	/* No error, so that old menus will run smoothly. */
         //return 0;
         return 0;/* return 0 indicating a failure or a false case. */
@@ -5535,7 +5541,9 @@ static int insmod_func(char *arg,int flags)
    switch(command_open(arg,0))
    {
       case 2:
-         return debug?grub_printf("%s already loaded\n",arg):1;
+	 if (debug > 0)
+	    grub_printf("%s already loaded\n",arg);
+         return 1;
       case 0:
          return 0;
       default:
@@ -5560,7 +5568,8 @@ static int insmod_func(char *arg,int flags)
             }
             if (strlen(filename) > 11)
             {
-               grub_printf("Err filename\n");
+               grub_printf("\nFilename of %s too long.\n", filename);
+	       errnum = ERR_BAD_ARGUMENT;
             }
             else
             {
@@ -5725,7 +5734,7 @@ set_partition_hidden_flag (int hidden)
 	  
 		/* Write back the MBR to the disk.  */
 		buf_track = -1;
-		if (! rawwrite (current_drive, offset, mbr))
+		if (! rawwrite (current_drive, offset, (unsigned long long)(unsigned int)mbr))
 			return 0;
 
 		if (debug > 0)
@@ -6399,7 +6408,7 @@ close_file:
 //		return 0;
 
 	filepos = saved_filepos;
-	while (len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 1, 0xedde0d90))
+	while ((len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 1, 0xedde0d90)))
 	{
 		if (buf[0] == '\n' || buf[0] == '\r')
 		{
@@ -7170,7 +7179,7 @@ geometry_func (char *arg, int flags)
 	if (debug > 0)
 	    grub_printf ("Writing MBR for drive 0x%X ... ", current_drive);
 	/* Write back/update the MBR.  */
-	if (! rawwrite (current_drive, 0, mbr))
+	if (! rawwrite (current_drive, 0, (unsigned long long)(unsigned int)mbr))
 	{
 	    if (debug > 0)
 		grub_printf ("failure.\n");
@@ -7202,7 +7211,7 @@ geometry_func (char *arg, int flags)
 			BS->sectors_per_track = tmp_geom.sectors;
 
 			/* Write back/update the floppy boot sector.  */
-			if (! rawwrite (current_drive, start_lba[entry1], mbr))
+			if (! rawwrite (current_drive, start_lba[entry1], (unsigned long long)(unsigned int)mbr))
 			{
 			    if (debug > 0)
 				grub_printf ("failure.\n");
@@ -7233,7 +7242,7 @@ geometry_func (char *arg, int flags)
 		BS->sectors_per_track = tmp_geom.sectors;
 
 		/* Write back/update the floppy boot sector.  */
-		if (! rawwrite (current_drive, 0, mbr))
+		if (! rawwrite (current_drive, 0, (unsigned long long)(unsigned int)mbr))
 		{
 		    if (debug > 0)
 			grub_printf ("failure.\n");
@@ -7791,7 +7800,7 @@ install_func (char *arg, int flags)
   unsigned long new_drive = GRUB_INVALID_DRIVE;
   unsigned long dest_drive;
   unsigned long dest_partition;
-  unsigned long dest_sector;
+  //unsigned long dest_sector;
   unsigned long src_drive, src_partition, src_part_start;
   unsigned long i;
 //struct geometry dest_geom, src_geom;
@@ -7890,7 +7899,7 @@ install_func (char *arg, int flags)
   dest_drive = current_drive;
   dest_partition = current_partition;
 //dest_geom = buf_geom;
-  dest_sector = (unsigned long)part_start;
+  //dest_sector = (unsigned long)part_start;
 
   /* Copy the possible DOS BPB, 59 bytes at byte offset 3.  */
   grub_memmove (stage1_buffer + BOOTSEC_BPB_OFFSET,
@@ -8177,7 +8186,7 @@ install_func (char *arg, int flags)
 	  else
 #endif /* GRUB_UTIL */
 	    {
-	      if (! devwrite ((unsigned long)(saved_sector - part_start), 1, stage2_buffer))
+	      if (! devwrite ((unsigned long)(saved_sector - part_start), 1, (unsigned long long)(unsigned int)stage2_buffer))
 		goto fail;
 	    }
 	}
@@ -8226,11 +8235,11 @@ install_func (char *arg, int flags)
 	goto fail;
 
       if (! devwrite (stage2_first_sector - src_part_start, 1,
-		      stage2_first_buffer))
+		      (unsigned long long)(unsigned int)stage2_first_buffer))
 	goto fail;
 
       if (! devwrite (stage2_second_sector - src_part_start, 1,
-		      stage2_second_buffer))
+		      (unsigned long long)(unsigned int)stage2_second_buffer))
 	goto fail;
     }
   
@@ -8240,7 +8249,7 @@ install_func (char *arg, int flags)
   if (! open_partition ())
     goto fail;
 
-  devwrite (0, 1, stage1_buffer);
+  devwrite (0, 1, (unsigned long long)(unsigned int)stage1_buffer);
 
  fail:
   if (is_open)
@@ -8527,7 +8536,7 @@ makeactive_func (char *arg, int flags)
 	PC_SLICE_FLAG (mbr, part) = PC_SLICE_FLAG_BOOTABLE;
 
 	/* Write back the MBR.  */
-	if (! rawwrite (current_drive, 0, mbr))
+	if (! rawwrite (current_drive, 0, (unsigned long long)(unsigned int)mbr))
 	    return 0;
 
 	if (debug > 0)
@@ -9475,7 +9484,7 @@ map_func (char *arg, int flags)
 {
   char *to_drive;
   char *from_drive;
-  unsigned long to, from, to_o = -1, i = 0;
+  unsigned long to, from, /*to_o = -1,*/ i = 0;
   int j;
   char *filename;
   char *p;
@@ -9949,7 +9958,8 @@ map_func (char *arg, int flags)
 	  if (map_mem_max==0 || map_mem_max>(1ULL<<32))
 	      map_mem_max = (1ULL<<32); // 4GB
 	}
-	grub_printf("map_mem_max = 0x%lX sectors = 0x%lX bytes\n",map_mem_max>>9,map_mem_max);
+	if (debug > 0)
+	  grub_printf("map_mem_max = 0x%lX sectors = 0x%lX bytes\n",map_mem_max>>9,map_mem_max);
 	return 1;
       }
     else if (grub_memcmp (arg, "--mem-min=", 10) == 0)
@@ -9961,7 +9971,8 @@ map_func (char *arg, int flags)
 	map_mem_min = (((num<<9)+4095)&(-4096ULL)); // convert to bytes, 4KB alignment, round up
 	if (map_mem_min < (1ULL<<20))
 	    map_mem_min = (1ULL<<20); // 1MB
-	grub_printf("map_mem_min = 0x%lX sectors = 0x%lX bytes\n",map_mem_min>>9,map_mem_min);
+	if (debug > 0)
+	  grub_printf("map_mem_min = 0x%lX sectors = 0x%lX bytes\n",map_mem_min>>9,map_mem_min);
 	return 1;
       }
     else if (grub_memcmp (arg, "--mem=", 6) == 0)
@@ -10270,6 +10281,7 @@ map_func (char *arg, int flags)
     if (to == 0xffff && sector_count == 1)
     {
       grub_printf ("For mem file in emulation, you should not specify sector_count to 1.\n");
+      errnum = ERR_BAD_ARGUMENT;
       return 0;
     }
     if (sector_count > max_sectors)
@@ -10735,11 +10747,11 @@ map_whole_drive:
 			if (hooked_drive_map[j].max_sector & 0x40)
 			disable_lba_mode = 1;
 			#endif
-			to_o = to;
+			//to_o = to;
 			to = hooked_drive_map[j].to_drive;
 			if (to == 0xFF && !(hooked_drive_map[j].to_cylinder & 0x4000))
 			{
-				to_o = to = 0xFFFF;		/* memory device */
+				/* to_o = */ to = 0xFFFF;		/* memory device */
 			}
 			if (start_sector == 0 && (sector_count == 0 || (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
 			{
@@ -10759,6 +10771,7 @@ map_whole_drive:
 				if (from != ram_drive)
 					goto delete_drive_map_slot;
 			}
+#if 0
 			for (j = 0; j < DRIVE_MAP_SIZE; j++)
 			{
 				if (to == hooked_drive_map[j].from_drive)
@@ -10768,6 +10781,7 @@ map_whole_drive:
 			}
 			if (j == DRIVE_MAP_SIZE)
 				to_o = -1;
+#endif
 			break;
 		}
 	}
@@ -11173,10 +11187,15 @@ map_whole_drive:
   }
 	else
 	{
-		if (to_o == -1)
-			to_o = to;
+		/* Using variable TO_O here is wrong! we must get_diskinfo of TO.
+		 * tmp_geom of TO will be used later.
+		 * It is just this which caused problem of issue 97.
+		 */
+		//if (to_o == -1)
+		//	to_o = to;
 		/* Get the geometry. This ensures that the drive is present.  */
-		if (to_o != PXE_DRIVE && get_diskinfo (to_o, &tmp_geom))
+		//if (to_o != PXE_DRIVE && get_diskinfo (to_o, &tmp_geom))
+		if (to != PXE_DRIVE && get_diskinfo (to, &tmp_geom))
 		{
 			return ! (errnum = ERR_NO_DISK);
 		}
@@ -11727,7 +11746,7 @@ partnew_func (char *arg, int flags)
 		grub_printf ("Changing hidden sectors 0x%X to 0x%lX... ", BS->hidden_sectors, (unsigned long long)new_start);
 	    BS->hidden_sectors = new_start;
 	    /* Write back/update the boot sector.  */
-	    if (! rawwrite (current_drive, new_start, mbr))
+	    if (! rawwrite (current_drive, new_start, (unsigned long long)(unsigned int)mbr))
 	    {
 		if (debug > 0)
 			grub_printf ("failure.\n");
@@ -11860,7 +11879,7 @@ partnew_func (char *arg, int flags)
   
   /* Write back the MBR to the disk.  */
   buf_track = -1;
-  if (! rawwrite (current_drive, 0, mbr))
+  if (! rawwrite (current_drive, 0, (unsigned long long)(unsigned int)mbr))
     return 0;
 
   return 1;
@@ -11972,7 +11991,7 @@ parttype_func (char *arg, int flags)
 	  
 	  /* Write back the MBR to the disk.  */
 	  buf_track = -1;
-	  if (! rawwrite (current_drive, offset, mbr))
+	  if (! rawwrite (current_drive, offset, (unsigned long long)(unsigned int)mbr))
 	    break;	/* failure */
 
 	  if (debug > 0)
@@ -13398,7 +13417,7 @@ savedefault_func (char *arg, int flags)
 
 	    if (deny_write <= 0 )
 	    {
-	      if (! rawwrite (current_drive, saved_sectors[0], mbr))
+	      if (! rawwrite (current_drive, saved_sectors[0], (unsigned long long)(unsigned int)mbr))
 		goto fail;
 	    }
 	  }
@@ -13432,7 +13451,7 @@ savedefault_func (char *arg, int flags)
 
 	      if (deny_write <= 0 )
 	      {
-		if (! rawwrite (current_drive, saved_sectors[1], mbr))
+		if (! rawwrite (current_drive, saved_sectors[1], (unsigned long long)(unsigned int)mbr))
 			goto fail;
 	      }
 	    }
