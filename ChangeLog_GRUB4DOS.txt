@@ -1,3 +1,4 @@
+2012-11-22 (tinybit)minor fixes on geometry_func and others.
 2012-11-07 (tinybit)avoid using memory between address 15M and 16M.
 2012-10-16 (tinybit)use enhanced keyboard function to support F11, F12 keys.
 2012-10-15 (tinybit)dropped 2012-08-17 pmode keyboard code to satisfy MacBook.
