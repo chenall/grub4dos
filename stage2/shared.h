@@ -127,9 +127,13 @@ extern char *grub_scratch_mem;
  * should not use 0x60000 for page tables. And all other free room in the low
  * memory is reserved. So we should use extended memory if possible.
  * Currently we use the ending 16K of the first 16M. -- tinybit
+ *
+ * Big problem! Some chipset use 1M at 15M. -- tinybit 2012-11-01
  */
+
 //#define PAGING_TABLES_BUF	0x60000
-#define PAGING_TABLES_BUF	0xFFC000
+//#define PAGING_TABLES_BUF	0xFFC000
+#define PAGING_TABLES_BUF	0xEFC000
 #define PAGING_TABLES_BUFLEN	0x4000
 
 /* Command-line buffer for Multiboot kernels and modules. This area

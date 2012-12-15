@@ -652,6 +652,7 @@ init_bios_info (void)
 	    printf("\rbegin pxe scan...            ");
 	    pxe_scan ();
 	    DEBUG_SLEEP
+	    printf("\r                             ");
 
 	    if (pxe_entry)
 	    {
