@@ -7402,6 +7402,8 @@ startup_32:
 	movl	%ecx, 0x82D4	# clear rd_base hi 32-bit
 	movl	%ecx, 0x82DC	# clear rd_size hi 32-bit
 1:
+	// bit 1 of the byte at 0x8211 indicates booting as a Linux kernel.
+	orb	$0x02, 0x8211
 //----------------------------------------------------------------------------
 	# resolve the commandline arguments and move preset_menu to 0x00000800
 

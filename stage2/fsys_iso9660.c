@@ -159,12 +159,12 @@ iso9660_dir (char *dirname)
 			break;
 		if (*dirname == '\\')
 			++dirname;
-		if (!(*ch = *dirname))
+		if (ch - tmp_name >= 255 || !(*ch = *dirname))
 			break;
 		++ch;
 	}
 	*ch = 0;
-	pathlen = ch-tmp_name;
+	pathlen = ch - tmp_name;
 
       size = idr->size.l;
       extent = idr->extent.l;
@@ -354,7 +354,7 @@ iso9660_dir (char *dirname)
 		} /* rr_len >= 4 */
 
 	      filemax = MAXINT;
-	      if (substring(tmp_name,name,1) != 1)
+	      if (substring(tmp_name, name, 1) != 1)
 		{
 		  if (*dirname == '/' || !print_possibilities)
 		    {
@@ -389,25 +389,25 @@ iso9660_dir (char *dirname)
 #ifndef STAGE1_5
 		      int j, k;
 		      char ch1;
-		      char *tmp_name= (char *)(NAME_BUF);
+		      char *tmp_name1 = (char *)(NAME_BUF);
 
 		      if (print_possibilities > 0)
 			print_possibilities = -print_possibilities;
 		      //memcpy(NAME_BUF, name, name_len);
 		      //NAME_BUF[name_len] = '\0';
 
-		      /* copy name to tmp_name, and quote spaces with '\\' */
+		      /* copy name to tmp_name1, and quote spaces with '\\' */
 		      for (j = 0, k = 0; j < name_len; j++)
 		      {
 			if (! (ch1 = name[j]))
 				break;
 			if (ch1 == ' ')
-				tmp_name[k++] = '\\';
-			tmp_name[k++] = ch1;
+				tmp_name1[k++] = '\\';
+			tmp_name1[k++] = ch1;
 		      }
-		      tmp_name[k] = 0;
+		      tmp_name1[k] = 0;
 
-		      print_a_completion (tmp_name, 0);
+		      print_a_completion (tmp_name1, 0);
 #endif
 		    }
 		}

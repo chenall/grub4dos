@@ -797,7 +797,7 @@ int pxe_func (char *arg, int flags)
 {
   if (! pxe_entry)
     {
-      grub_printf ("No PXE stack\n");
+      //grub_printf ("No PXE stack\n");
       goto bad_argument;
     }
   if (*arg == 0)

@@ -576,14 +576,14 @@ static int MY_FAST_CALL LzmaDec_DecodeReal(CLzmaDec *p, SizeT limit, const Byte 
         prob = probs + RepLenCoder;
       }
       {
-        unsigned limit, offset;
+        unsigned limit1, offset;
         UIntLzmaProb *probLen = prob + LenChoice;
         if(TEST_BIT_0(probLen))
         {
           UPDATE_0(probLen);
           probLen = prob + LenLow + (posState << kLenNumLowBits);
           offset = 0;
-          limit = (1 << kLenNumLowBits);
+          limit1 = (1 << kLenNumLowBits);
         }
         else
         {
@@ -594,17 +594,17 @@ static int MY_FAST_CALL LzmaDec_DecodeReal(CLzmaDec *p, SizeT limit, const Byte 
             UPDATE_0(probLen);
             probLen = prob + LenMid + (posState << kLenNumMidBits);
             offset = kLenNumLowSymbols;
-            limit = (1 << kLenNumMidBits);
+            limit1 = (1 << kLenNumMidBits);
           }
           else
           {
             UPDATE_1(probLen);
             probLen = prob + LenHigh;
             offset = kLenNumLowSymbols + kLenNumMidSymbols;
-            limit = (1 << kLenNumHighBits);
+            limit1 = (1 << kLenNumHighBits);
           }
         }
-        TREE_DECODE(probLen, limit, len);
+        TREE_DECODE(probLen, limit1, len);
         len += offset;
       }
 
@@ -1333,7 +1333,7 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 	SizeT inSizeCur, dicLimit;
 	UInt32 dicPos;
 	ELzmaStatus status;
-	SRes res;
+	//SRes res;
 
 	/* Copy uncompressed data from lower part of dic. dic[0]...dic[dicPos-1] */
 	//grub_printf ("Loop len=%lX outSkip=%lX dicPos=%X\n",
@@ -1392,7 +1392,7 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 	//		dicPos, dicLimit, lzmadec.inpPos, inSizeCur);
 	//getkey();
 	status = LZMA_STATUS_NOT_SPECIFIED;
-	res = LzmaDec_DecodeToDic (&lzmadec, dicLimit,
+	/*res =*/ LzmaDec_DecodeToDic (&lzmadec, dicLimit,
 			lzmadec.inp + lzmadec.inpPos,
 			&inSizeCur, LZMA_FINISH_ANY, &status);
 	//grub_printf ("->%X\n", inSizeCur);

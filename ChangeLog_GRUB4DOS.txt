@@ -1,3 +1,7 @@
+2012-10-16 (tinybit)use enhanced keyboard function to support F11, F12 keys.
+2012-10-15 (tinybit)dropped 2012-08-17 pmode keyboard code to satisfy MacBook.
+2012-10-14 (tinybit)removed variable to_o in map_func for solving issue 97.
+2012-10-05 (tinybit)suppressed startup messages on normal boot.
 2012-09-18 (tinybit)accepted LZMAed preset-menu. font lines can be appended to both preset-menu and menu.lst.
 2012-09-08 (tinybit)added new map options --skip-sectors and --max-sectors.
 2012-08-23 (tinybit)added variables to identify the CPU with cpuid.

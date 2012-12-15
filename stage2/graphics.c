@@ -871,7 +871,8 @@ static int read_image_bmp(int type)
 	filepos = 10;
 	if (!grub_read((unsigned long long)(unsigned int)(char*)&bftmp,4, GRUB_READ) || ! grub_read((unsigned long long)(unsigned int)&bmih,sizeof(bmih),GRUB_READ) || bmih.biBitCount < 24)
 	{
-		return !printf("Error:Read BMP Head\n");
+		//return !printf("Error:Read BMP Head\n");
+		return !(errnum = ERR_EXEC_FORMAT);
 	}
 	filepos = bftmp;
 	bfbit = bmih.biBitCount>>3;
@@ -880,7 +881,8 @@ static int read_image_bmp(int type)
 	SPLASH_W = bmih.biWidth;
 	SPLASH_H = bmih.biHeight;
 	unsigned long *bmp = SPLASH_IMAGE;
-	printf("Loading splashimage...\n");
+	if (debug > 0)
+		printf("Loading splashimage...\n");
 	for(y=bmih.biHeight-1;y>=0;--y)
 	{
 		bmp = SPLASH_IMAGE+y*SPLASH_W;

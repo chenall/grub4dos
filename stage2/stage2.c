@@ -196,7 +196,7 @@ get_entry (char *list, int num)
   int i;
 
   if (list == (char *)titles)
-	return num < num_entries?titles[num]:0;
+	return num < num_entries ? titles[num] : 0;
 
   for (i = 0; i < num && *list; i++)
     {
@@ -584,11 +584,11 @@ static int old_c;
 static int old_c_count;
 static int old_c_count_end;
 static void
-run_menu (char *menu_entries, char *config_entries, int num_entries, char *heap, int entryno)
+run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *heap, int entryno)
 {
   int c, time1, time2 = -1, first_entry = 0;
   char *cur_entry = 0;
-  char *pass_config;
+  char *pass_config = 0;
 
 //  struct term_entry *prev_term = NULL;
 		  
@@ -1320,9 +1320,15 @@ done_key_handling:
 		  *(new_heap++) = 0;
 
 		  if (config_entries && new_num_entries)
-		    run_menu (heap, NULL, new_num_entries, new_heap, 0);	/* recursive!! */
-		  else
-		    {
+		  {
+		    int old_num_entries = num_entries;
+		    num_entries = new_num_entries;
+		    run_menu (heap, NULL, /*new_num_entries,*/ new_heap, 0);	/* recursive!! */
+		    num_entries = old_num_entries;
+		    goto restart;
+		  }
+		  //else
+		  {
 		      setcursor (1); /* show cursor and disable splashimage */
 		      cls ();
 		      print_cmdline_message (0);
@@ -1366,7 +1372,7 @@ done_key_handling:
 				heap++;
 			  }
 			}
-		    }
+		  }
 
 		  goto restart;
 		}
@@ -1542,18 +1548,18 @@ unsigned long gfx_drive, gfx_partition;
  * Does normally not return.
  */
 static void
-run_graphics_menu (char *menu_entries, char *config_entries, int num_entries,
+run_graphics_menu (char *menu_entries, char *config_entries, /*int num_entries,*/
 	  char *heap, int entryno)
 {
   unsigned char *buf, *buf_ext;
-  unsigned buf_size, buf_ext_size, code_start, file_start;
+  unsigned buf_size, buf_ext_size, code_start = 0, file_start;
   char *cfg;
   int i, j, max_len, gfx_file_size, verbose;
   int selected_entry;
   gfx_data_v1_t *gfx1;
   gfx_data_v2_t *gfx2;
-  char *cmd_buf;
-  unsigned mem0_start, mem0_end, file_len;
+  //char *cmd_buf;
+  unsigned mem0_start, mem0_end, file_len = 0;
   int version;
   unsigned long tmp_drive, tmp_partition;
 
@@ -1623,7 +1629,7 @@ run_graphics_menu (char *menu_entries, char *config_entries, int num_entries,
   heap += gfx1->cmdline_len;
   memset(gfx1->cmdline, 0, gfx1->cmdline_len);
 
-  cmd_buf = heap;
+  //cmd_buf = heap;
   heap += GFX_CMD_BUF_SIZE;
 
   /* setup menu entries */
@@ -2098,6 +2104,7 @@ reset (void)
   
 extern struct builtin builtin_title;
 extern struct builtin builtin_graphicsmode;
+extern struct builtin builtin_debug;
 static unsigned long attr = 0;
 /* This is the starting function in C.  */
 void
@@ -2187,6 +2194,7 @@ restart_config:
 	*/
 	int state = 0, prev_config_len = 0, bt = 0;
 	unsigned long graphicsmode_in_menu_init = 0;
+	unsigned long debug_in_menu_init = 0;
 	char *cmdline;
 	int is_preset;
 	#ifndef GRUB_UTIL
@@ -2262,7 +2270,7 @@ restart_config:
 			cmdline = skip_to(1, cmdline);
 
 			/* save original file position. */
-			tmp_filpos = (is_preset && preset_menu == 0x800) ?
+			tmp_filpos = (is_preset && preset_menu == (const char *)0x800) ?
 					preset_menu_offset : filepos;
 
 			/* close the already opened file for safety, in case 
@@ -2377,6 +2385,8 @@ restart_config:
 		    prev_config_len = config_len;
 		    if (builtin == &builtin_graphicsmode)
 			graphicsmode_in_menu_init = 1;
+		    if (builtin == &builtin_debug)
+			debug_in_menu_init = 1;
 		}
 		else
 		    /* Ignored.  */
@@ -2420,7 +2430,10 @@ extern int graphicsmode_func (char *, int);
 		    /* font exists, automatically enter graphics mode. */
 		    if (! graphicsmode_in_menu_init)
 		    {
-			grub_printf ("\rSwitch to graphics mode ...             \r");
+#ifndef GRUB_UTIL
+			if (debug_boot)
+#endif /* ! GRUB_UTIL */
+				grub_printf ("\rSwitch to graphics mode ...             \r");
 			graphicsmode_func ("-1 -1 -1 24:32", 0);
 		    }
 		}
@@ -2471,6 +2484,14 @@ extern int graphicsmode_func (char *, int);
 	 * 2. The array of menu item commands with leading titles.
 	 */
 
+	/* Display this info if the debug command is not present in the
+	 * menu-init command set.
+	 */
+#ifndef GRUB_UTIL
+	if (debug_boot || ! debug_in_menu_init)
+#else
+	if (! debug_in_menu_init)
+#endif
 	printf ("\rRunning menu commands(hangup means you have a problematic config)...\r");
 
 	/* Run menu-specific commands before any other menu entry commands.  */
@@ -2582,7 +2603,7 @@ extern int graphicsmode_func (char *, int);
 		  pxe_restart_config = 1;	/* for configfile to work with gfxmenu. */
 #endif /* ! GRUB_UTIL */
 
-		  run_graphics_menu((char *)titles, cur_entry, num_entries, config_entries + config_len, default_entry);
+		  run_graphics_menu((char *)titles, cur_entry, /*num_entries,*/ config_entries + config_len, default_entry);
 
 #ifndef GRUB_UTIL
 		  pxe_restart_config = pxe_restart_config_bak;	/* restore the original value. */
@@ -2610,7 +2631,7 @@ original_config:
 #ifndef GRUB_UTIL
 	    if (debug_boot)
 	    {
-		debug = old_debug;
+		debug = old_debug;	/* restore user-specified debug level. */
 		grub_printf ("\n\nEnd of menu init commands. Press any key to enter command-line or run menu...");
 	    }
 #endif /* ! GRUB_UTIL */
@@ -2689,7 +2710,7 @@ done_config_file:
 	if (hotkey_func)
 		hotkey_func(0,0);
 	#endif
-	run_menu ((char *)titles, cur_entry, num_entries, config_entries + config_len, default_entry);
+	run_menu ((char *)titles, cur_entry, /*num_entries,*/ config_entries + config_len, default_entry);
     }
     goto restart;
 }

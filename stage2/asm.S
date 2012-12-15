@@ -93,6 +93,8 @@ VARIABLE(install_partition)
 #define	preset_menu 0x307FFC
 #define	use_preset_menu 0x307FF8
 
+	. = EXT_C(main) + 0xC
+
 VARIABLE(saved_entryno)
 #if defined(STAGE1_5) /* || ! defined(PRESET_MENU_STRING) */
 	.long	0
@@ -107,14 +109,19 @@ VARIABLE(saved_entryno)
 	 *
 	 * Do NOT change this variable to other value than 0.
 	 */
-	//.long	ABS(EXT_C(preset_menu))
-	.long	preset_menu	/* it is now at a fixed address 0x307FFC */
+	/* Some external utilities use this to locate the preset_menu. */
+	.long	ABS(preset_menu_old)
+	//.long	preset_menu	/* it is now at a fixed address 0x307FFC */
 #endif
+
+	. = EXT_C(main) + 0x10
 
 VARIABLE(stage2_id)
 	.byte	STAGE2_ID
 
 VARIABLE(force_lba)
+	/* only bit 0 is now used for force_lba. */
+	/* bit 1=1 means we are booting as a Linux kernel. */
 	.byte	0
 
 VARIABLE(version_string)
@@ -149,6 +156,7 @@ VARIABLE(config_file)
 
 	. = EXT_C(main) + 0x6C  #; bss starting address
 
+preset_menu_old:
 #ifndef STAGE1_5
 #if defined(HAVE_USCORE_USCORE_BSS_START_SYMBOL)
 	.long	__bss_start - 0x300000
@@ -8832,7 +8840,8 @@ ENTRY(check_int13_extensions)
 	movb	%ah, %bl	/* save the major version into %bl */
 
 	/* check if AH=0x42 is supported if FORCE_LBA is zero */
-	movb	EXT_C(force_lba), %al
+	movb	ABS(EXT_C(force_lba)), %al
+#if 0
 	testb	%al, %al
 #if 0
 	jnz	2f
@@ -8840,6 +8849,11 @@ ENTRY(check_int13_extensions)
 	jnz	2f
 #else
 	setnz	%al
+	orb	%al, %cl
+	jmp	2f
+#endif
+#else
+	andb	$0x01, %al	/* only use bit 0 for FORCE_LBA */
 	orb	%al, %cl
 	jmp	2f
 #endif
@@ -11883,7 +11897,9 @@ ENTRY(console_getkey)
 	pushl	%esi
 	pushl	%edi
 
-#if 1
+#if 0
+	/* MacBook cannot work with this pmode code. Comment out 2012-10-15 */
+
 	cld
 	xorl	%eax, %eax
 1:
@@ -11911,10 +11927,18 @@ ENTRY(console_getkey)
 	/* set new buf_head */
 	incl	%eax
 	incl	%eax
+#if 0
 	movl	$0x480, %esi	/* point to buf_start and buf_end */
 	cmpw	2(%esi), %ax	/* buf_head >= buf_end ? */
+#else
+	cmpw	$0x003E, %ax	/* buf_head >= buf_end ? */
+#endif
 	jb	1f
+#if 0
 	movw	(%esi), %ax	/* let buf_head = buf_start */
+#else
+	movw	$0x001E, %ax	/* let buf_head = buf_start */
+#endif
 1:
 	/* update buf_head in the BIOS Data Area. */
 	movw	%ax, 0x41A
@@ -11935,14 +11959,43 @@ ENTRY(console_getkey)
 	#; work around for Apple BIOS getkey bug
 	#; check the keyboard buffer, until there is a keypress.
 
+#if 0
+	/* first, use normal check key function */
 	movb	$0x01, %ah		#; check key
 	int	$0x16
-	jz	1b			#; no keypress
+	jz	2f			#; no normal key, try enhanced key
 
-	xorw	%ax, %ax
+	/* found a normal key */
+	movb	$0x00, %ah		#; get the normal key
 	int	$0x16
+	jmp	1f
+2:
+#endif
 
-	movw	%ax, %dx		/* real_to_prot uses %eax */
+#if 1
+	/* then, use enhanced check key function */
+	movb	$0x11, %ah		#; check enhanced key
+	int	$0x16
+	jz	1b			#; no keypress, loop
+
+	/* found an enhanced key */
+	movb	$0x10, %ah		#; get the enhanced key
+	int	$0x16
+	/* clear ASCII code if needed */
+	cmpb	$0xE0, %al
+	je	2f
+	cmpb	$0xF0, %al
+	jne	1f
+	cmpb	$0x00, %ah
+	je	1f
+2:
+	movb	$0x00, %al
+#else
+	/* avoid calling enhanced functions */
+	jmp	1b
+#endif
+1:
+	movzwl	%ax, %edx
 	//call	translate_keycode
 
 	call	EXT_C(real_to_prot)
@@ -11982,9 +12035,12 @@ ENTRY(console_checkkey)
 	pushl	%esi
 	pushl	%edi
 	xorl	%edx, %edx
+
+#if 0
+	/* MacBook cannot work with this pmode code. Comment out 2012-10-15 */
+
 	decl	%edx	/* EDX = -1 */	
 
-#if 1
 	cld
 	xorl	%eax, %eax
 1:
@@ -12030,19 +12086,40 @@ ENTRY(console_checkkey)
 
 	/* counter changed or timed out. */
 
-	movb	$0x1, %ah
+#if 0
+	/* first, use normal check key function */
+	movb	$0x01, %ah		#; check key
 	int	$0x16
+	jnz	2f			/* there is a key-press. */
+#endif
 
-	DATA32	jz	notpending
-
-	movw	%ax, %dx
+#if 1
+	/* then, use enhanced check key function */
+	movb	$0x11, %ah		#; check enhanced key
+	int	$0x16
+	movl	$0xFFFFFFFF, %edx	/* value for no key-press */
+	jz	1f			/* jump if no key-press */
+	/* clear ASCII code if needed */
+	cmpb	$0xE0, %al
+	je	3f
+	cmpb	$0xF0, %al
+	jne	4f
+	cmpb	$0x00, %ah
+	je	4f
+3:
+	movb	$0x00, %al
+4:
+#else
+	/* avoid calling enhanced functions */
+	movl	$0xFFFFFFFF, %edx	/* value for no key-press */
+	jmp	1f
+#endif
+2:
+	/* Yes, there is a key. */
+	movzwl	%ax, %edx
 	//call	translate_keycode
-	DATA32	jmp	pending
 
-notpending:
-	movl	$0xFFFFFFFF, %edx
-
-pending:
+1:
 	call	EXT_C(real_to_prot)
 	.code32
 
