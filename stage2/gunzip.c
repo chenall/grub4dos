@@ -282,6 +282,10 @@ gunzip_test_header (void)
 {
   unsigned char buf[10];
   
+  /* check lzma first */
+  if (dec_lzma_open ())
+	return 1;
+
   /* "compressed_file" is already reset to zero by this point */
 
   /*

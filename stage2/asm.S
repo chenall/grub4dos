@@ -90,6 +90,9 @@ ENTRY(main)
 VARIABLE(install_partition)
 	.long	0x00FFFFFF
 
+#define	preset_menu 0x307FFC
+#define	use_preset_menu 0x307FF8
+
 VARIABLE(saved_entryno)
 #if defined(STAGE1_5) /* || ! defined(PRESET_MENU_STRING) */
 	.long	0
@@ -104,7 +107,8 @@ VARIABLE(saved_entryno)
 	 *
 	 * Do NOT change this variable to other value than 0.
 	 */
-	.long	ABS(EXT_C(preset_menu))
+	//.long	ABS(EXT_C(preset_menu))
+	.long	preset_menu	/* it is now at a fixed address 0x307FFC */
 #endif
 
 VARIABLE(stage2_id)
@@ -610,13 +614,17 @@ bootup_a20_failure:
 
 #ifndef STAGE1_5
 
+	/* enable preset_menu */
+	movl	$1, use_preset_menu
+
 	/* if force_cdrom_as_boot_device==0, we are running by configfile, so we skip preset menu check */
 	cmpl	$0, ABS(EXT_C(force_cdrom_as_boot_device))
 	je	1f		/* skip all */
 
 	/* before clearing the bss, we move preset_menu to 0x800 */
 
-	movl	ABS(EXT_C(preset_menu)), %eax
+#if 0
+	movl	preset_menu, %eax
 
 #if defined(HAVE_USCORE_USCORE_BSS_START_SYMBOL)
 	cmpl	$__bss_start - 0x300000, %eax
@@ -628,6 +636,7 @@ bootup_a20_failure:
 #error no bss starting address
 #endif
 	jnz	4f		/* use old bootp for diskless */
+#endif
 
 	xorl	%eax, %eax
 	cmpb	%al, ABS(EXT_C(config_file))	/* AL == 0 */
@@ -655,13 +664,34 @@ bootup_a20_failure:
 				/* skip 4 bytes of reserved */
 				/* skip 4 bytes of reserved */
 				/* skip 4 bytes of zeroes */
-
+	/* check LZMA */
+	cmpb	$0xE0, (%esi)
+	ja	5f		/* not lzma */
+	movl	1(%esi), %ecx
+	jecxz	5f		/* not lzma */
+	cmpl	$0x1000, %ecx
+	jb	5f		/* unaccepted lzma */
+	movl	$0x80000000, %eax
+	xorl	%edx, %edx	/* dividend=EDX:EAX */
+	divl	%ecx		/* divisor=ECX */
+				/* result: EAX=quotient, EDX=remainder */
+	testl	%edx, %edx
+	jnz	5f		/* unaccepted lzma */
+	cmpl	%edx, 9(%esi)	/* EDX=0 */
+	jnz	5f		/* unaccepted lzma */
+	/* now it is LZMA */
+	movl	$0x10000, %ecx	/* move 256KB of the menu ... */
+	movl	$0x110000, %edi	/* ... to address 1M+64K */
+	repz movsl
+	movl	$0x110000, preset_menu	/* use new menu at 1M+64K */
+	jmp	4f
+5:
 	movl	$0x400, %ecx	/* move 4KB of the menu ... */
 	movl	$0x800, %edi	/* ... to 0x800 */
 	repz movsl
 
 3:
-	movl	$0x0800, EXT_C(preset_menu)	/* use new menu at 0x800 */
+	movl	$0x0800, preset_menu	/* use new menu at 0x800 */
 4:
 #endif /* !STAGE1_5 */
 
@@ -816,11 +846,9 @@ ENTRY(stop)
 
 	.code16
 
-//ENTRY(hard_stop)
 hard_stop:
 	sti
-	hlt
-	//jmp EXT_C(hard_stop)
+	//hlt
 	jmp hard_stop
 
 	.code32
@@ -835,6 +863,7 @@ VARIABLE(configfile_opened)
 
 /* If preset_menu == __bss_start, the new menu at end of pre_stage2 will be used. */
 
+#if 0
 VARIABLE(preset_menu)
 #if defined(PRESET_MENU_STRING)
 #if defined(HAVE_USCORE_USCORE_BSS_START_SYMBOL)
@@ -849,6 +878,7 @@ VARIABLE(preset_menu)
 #else  /* ! PRESET_MENU_STRING */
 	.long	0
 #endif /* PRESET_MENU_STRING */
+#endif
 
 VARIABLE(debug_boot)
 	.long	0
@@ -1830,6 +1860,7 @@ fault_recovery_handler:
 
 	iret
 
+#if 0
 /*
  * Translate a key code to another.
  *
@@ -1913,6 +1944,7 @@ int15_segment:	.word	0
 	.align	4
 ENTRY(bios_key_map)
 	.space	(KEY_MAP_SIZE + 1) * 2
+#endif
 
 
 /*
@@ -11808,30 +11840,30 @@ ENTRY(console_putchar)
  */
 remap_ascii_char:
 
-	.code16
+	.code32
 
-	pushw	%si
+	//pushl	%esi
 
-	movw	$ABS(EXT_C(ascii_key_map)), %si
+	movl	$ABS(EXT_C(ascii_key_map)), %esi
 1:
-	lodsw
+	lodsl
 	/* check if this is the end */
-	testw	%ax, %ax
+	testl	%eax, %eax
 	jz	2f
 	/* check if this matches the ascii code */
-	cmpb	%al, %dl
+	cmpw	%ax, %dx
 	jne	1b
 	/* if so, perform the mapping */
-	movb	%ah, %dl
+	shrl	$16, %eax
+	movw	%ax, %dx
 2:
-	/* restore %si */
-	popw	%si
+	//popl	%esi
 
 	ret
 
 	.align	4
 ENTRY(ascii_key_map)
-	.space	(KEY_MAP_SIZE + 1) * 2
+	.space	(KEY_MAP_SIZE + 1) * 4
 
 
 /*
@@ -11851,13 +11883,54 @@ ENTRY(console_getkey)
 	pushl	%esi
 	pushl	%edi
 
+#if 1
+	cld
+	xorl	%eax, %eax
+1:
+	cli
+	movl	$0x41A, %esi
+	lodsw		/* EAX=buf_head, ESI=0x41C, point to buf_tail */
+	cmpw	%ax, (%esi)	/* head == tail ? */
+	sti		/* Enable interrupt. Wait for a key. */
+	je	1b	/* No key. loop and continue to check buffer. */
+1:
+	/* Found a key code in buffer. */
+	/* EAX = buf_head */
+	/* get int16 key code */
+	movzwl	0x400(%eax), %edx	/* DL=ASCII code, DH=scan code */
+	/* clear ASCII code if needed */
+	cmpb	$0xE0, %dl
+	je	2f
+	cmpb	$0xF0, %dl
+	jne	1f
+	cmpb	$0x00, %dh
+	je	1f
+2:
+	movb	$0x00, %dl
+1:
+	/* set new buf_head */
+	incl	%eax
+	incl	%eax
+	movl	$0x480, %esi	/* point to buf_start and buf_end */
+	cmpw	2(%esi), %ax	/* buf_head >= buf_end ? */
+	jb	1f
+	movw	(%esi), %ax	/* let buf_head = buf_start */
+1:
+	/* update buf_head in the BIOS Data Area. */
+	movw	%ax, 0x41A
+
+	/* the int16 key code is in DX */
+	call	remap_ascii_char	/* ESI changed */
+	movzwl	%dx, %eax
+#else
+
 	call	EXT_C(prot_to_real)
 
 	.code16
 
 1:
 	sti		/* getkey needs interrupt on */
-	hlt
+	// hlt
 
 	#; work around for Apple BIOS getkey bug
 	#; check the keyboard buffer, until there is a keypress.
@@ -11871,15 +11944,15 @@ ENTRY(console_getkey)
 
 	movw	%ax, %dx		/* real_to_prot uses %eax */
 	//call	translate_keycode
-	call	remap_ascii_char
 
 	call	EXT_C(real_to_prot)
 	.code32
 
 	sti
 
-	movw	%dx, %ax
-
+	call	remap_ascii_char	/* ESI changed */
+	movzwl	%dx, %eax
+#endif
 	popl	%edi
 	popl	%esi
 	popl	%ebx
@@ -11909,6 +11982,37 @@ ENTRY(console_checkkey)
 	pushl	%esi
 	pushl	%edi
 	xorl	%edx, %edx
+	decl	%edx	/* EDX = -1 */	
+
+#if 1
+	cld
+	xorl	%eax, %eax
+1:
+	cli
+	movl	$0x41A, %esi
+	lodsw		/* EAX=buf_head */
+			/* ESI=0x41C, point to buf_tail */
+	cmpw	%ax, (%esi)	/* head == tail ? */
+	sti		/* Enable interrupt. Wait for a key. */
+	je	9f	/* no key press. return -1 immediately. */
+1:
+	/* Found a key code in buffer. */
+	/* EAX = buf_head */
+	/* get int16 key code */
+	movzwl	0x400(%eax), %edx	/* DL=ASCII code, DH=scan code */
+	/* clear ASCII code if needed */
+	cmpb	$0xE0, %dl
+	je	2f
+	cmpb	$0xF0, %dl
+	jne	1f
+	cmpb	$0x00, %dh
+	je	1f
+2:
+	movb	$0x00, %dl
+1:
+	/* return the key in DX immediately */
+	//jmp	9f
+#else
 
 	call	EXT_C(prot_to_real)	/* enter real mode */
 
@@ -11919,7 +12023,7 @@ ENTRY(console_checkkey)
 	movl	0x46c, %eax	/* get old timer counter */
 
 	sti		/* checkkey needs interrupt on */
-	hlt
+	// hlt
 
 	cmpl	0x46c, %eax	/* timer counter changed by int 8? */
 	loopz	1b		/* no change, wait a timer interrupt */
@@ -11933,7 +12037,6 @@ ENTRY(console_checkkey)
 
 	movw	%ax, %dx
 	//call	translate_keycode
-	call	remap_ascii_char
 	DATA32	jmp	pending
 
 notpending:
@@ -11944,7 +12047,13 @@ pending:
 	.code32
 
 	sti
+#endif
 
+9:
+	cmpl	$0xFFFFFFFF, %edx
+	je	1f
+	call	remap_ascii_char	/* ESI changed */
+1:
 	mov	%edx, %eax
 
 	popl	%edi
@@ -13082,6 +13191,7 @@ is_32bit:
 	ret
 #endif
 
+#if 0
 /*
  * set_int15_handler(void)
  *
@@ -13158,6 +13268,7 @@ ENTRY(unset_int15_handler)
 1:
 	popl	%edi
 	ret
+#endif
 
 
 /*

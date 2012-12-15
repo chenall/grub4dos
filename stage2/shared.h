@@ -826,7 +826,7 @@ extern int use_config_file;
 #ifdef GRUB_UTIL
 /* If using the preset menu, this variable is set to non-zero,
    otherwise zero.  */
-extern int use_preset_menu;
+extern unsigned long use_preset_menu;
 /* If not using curses, this variable is set to zero, otherwise non-zero.  */
 extern int use_curses;
 /* The flag for verbose messages.  */
@@ -845,6 +845,7 @@ extern struct geometry *disks;
 extern void assign_device_name (int drive, const char *device);
 #define DEBUG_SLEEP {}
 #else
+#define	use_preset_menu *(unsigned long *)0x307FF8
 /* print debug message on startup if the DEBUG_KEY is pressed. */
 extern int debug_boot;
 extern int console_getkey (void);
@@ -886,7 +887,6 @@ extern int fallback_entryno;
 extern int default_entry;
 extern int current_entryno;
 extern const char *preset_menu;
-
 
 /*
  * graphics menu stuff
@@ -1161,8 +1161,8 @@ void unset_int15_handler (void);
 void track_int13 (int drive);
 
 /* The key map.  */
-extern unsigned short bios_key_map[];
-extern unsigned short ascii_key_map[];
+//extern unsigned short bios_key_map[];
+extern unsigned long ascii_key_map[];
 
 /* calls for direct boot-loader chaining */
 void chain_stage1 (unsigned long segment, unsigned long offset,

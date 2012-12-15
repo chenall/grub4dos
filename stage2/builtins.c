@@ -681,11 +681,13 @@ boot_func (char *arg, int flags)
   int old_cursor, old_errnum;
   struct term_entry *prev_term = current_term;
 
+#if 0
   /* Clear the int15 handler if we can boot the kernel successfully.
      This assumes that the boot code never fails only if KERNEL_TYPE is
      not KERNEL_TYPE_NONE. Is this assumption is bad?  */
   if (kernel_type != KERNEL_TYPE_NONE)
     unset_int15_handler ();
+#endif
 
    /* if our terminal needed initialization, we should shut it down
     * before booting the kernel, but we want to save what it was so
@@ -2735,6 +2737,32 @@ readroot:
 	
 	if (*((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_HIDDEN_SECTORS)))
 	    *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_HIDDEN_SECTORS)) = (unsigned long)part_start;
+
+	/* -------- begin extra work for exFAT -------- */
+	if ((unsigned char)(current_partition >> 16) != 0xFF)	/* not whole drive, ie, not unpartitioned floppy/cdrom. */
+	    *((unsigned long *) (SCRATCHADDR + BOOTSEC_BPB_HIDDEN_SECTORS)) = (unsigned long)part_start;
+
+	if (*((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)) == 0)
+	{
+	    *((unsigned short *) (SCRATCHADDR + BOOTSEC_BPB_BYTES_PER_SECTOR)) = 512;
+	    if ((buf_geom.flags & (BIOSDISK_FLAG_LBA_EXTENSION | BIOSDISK_FLAG_BIFURCATE)) && (! (buf_geom.flags & BIOSDISK_FLAG_CDROM)))
+	    {
+		*((unsigned char *) (SCRATCHADDR + 0x02)) = 1; /* LBA must be supported for bootmgr of Win8. */
+	    } else {
+		/* Unfortunately LBA is not present. Win8 bootmgr may fail. */
+		*((unsigned char *) (SCRATCHADDR + 0x02)) = 0;
+		if (! *((unsigned long *) (SCRATCHADDR + 0x18)))
+		{
+		    /* Although Win8 bootmgr might fail, we do our best to
+		     * fill the BPB with correct sectors_per_track and
+		     * number_of_heads values. */
+		    *((unsigned short *) (SCRATCHADDR + 0x18)) = buf_geom.sectors;
+		    *((unsigned short *) (SCRATCHADDR + 0x1A)) = buf_geom.heads;
+		}
+	    }
+	}
+	/* --------  end extra work for exFAT  -------- */
+
 	if (debug > 0)
 	  grub_printf("Will boot NTLDR from drive=0x%x, partition=0x%x(hidden sectors=0x%lx)\n", current_drive, (unsigned long)(unsigned char)(current_partition >> 16), (unsigned long long)part_start);
     }
@@ -3431,11 +3459,19 @@ configfile_func (char *arg, int flags)
   char *new_config = config_file;
 
 #ifndef GRUB_UTIL
-	if (*arg == 0 && *config_file && pxe_restart_config == 0)
+	if (*arg == 0 && *config_file)
 	{
+	    if	(pxe_restart_config == 0)
+	    {
 		if (configfile_in_menu_init == 0)
 			pxe_restart_config = configfile_in_menu_init = 1;
 		return 1;
+	    }
+	    /* use the original config file */
+	    saved_drive = boot_drive;
+	    saved_partition = install_partition;
+	    *saved_dir = 0;	/* clear saved_dir */
+	    arg = config_file;
 	}
 #endif /* ! GRUB_UTIL */
 
@@ -3505,15 +3541,23 @@ configfile_func (char *arg, int flags)
   
   /* Check if the file ARG is present.  */
   if (! grub_open (arg))
-    return 0;
-
-#ifndef GRUB_UTIL
-  if (current_drive == cdrom_drive)
-	configfile_opened = 1;
-  else
-#endif /* ! GRUB_UTIL */
-	grub_close ();
+  {
+	if (! use_preset_menu)
+		return 0;
+	errnum = 0;
+  } else
+  {
+	/* Copy ARG to CONFIG_FILE.  */
+	while ((*new_config++ = *arg++));
   
+#ifndef GRUB_UTIL
+	if (current_drive == cdrom_drive)
+		configfile_opened = 1;
+	else
+#endif /* ! GRUB_UTIL */
+		grub_close ();
+  }
+
 //#ifndef GRUB_UTIL
 //	if (pxe_restart_config == 0)
 //	{
@@ -3521,10 +3565,6 @@ configfile_func (char *arg, int flags)
 //			return 1;
 //	}
 //#endif /* ! GRUB_UTIL */
-
-  /* Copy ARG to CONFIG_FILE.  */
-  while ((*new_config++ = *arg++) != 0)
-    ;
 
 //#ifdef GRUB_UTIL
   /* Force to load the configuration file.  */
@@ -3543,6 +3583,7 @@ configfile_func (char *arg, int flags)
   auth = 0;
   
   saved_entryno = 0;
+  *saved_dir = 0;	/* clear saved_dir */
   //force_cdrom_as_boot_device = 0;
   if (current_drive != 0xFFFF && (current_drive != ram_drive || filemax != rd_size))
   {
@@ -4307,7 +4348,7 @@ static int terminal_func (char *arg, int flags);
 
 #ifdef SUPPORT_GRAPHICS
 extern char splashimage[64];
-static int graphicsmode_func (char *arg, int flags);
+int graphicsmode_func (char *arg, int flags);
 
 static int
 splashimage_func(char *arg, int flags)
@@ -6231,7 +6272,11 @@ font_func (char *arg, int flags)
   unsigned long unicode;
   unsigned long narrow_indicator;
   unsigned char buf[80];
+  unsigned long valid_lines;
+  unsigned long saved_filepos;
   extern unsigned char *font8x16;
+
+  valid_lines = 0;
 
   errnum = 0;
   if (arg == NULL || *arg == '\0')
@@ -6240,18 +6285,25 @@ font_func (char *arg, int flags)
   if (! grub_open(arg))
 	return 0;
 
+  if (filemax >> 32)	// file too long
+	return !(errnum = ERR_WONT_FIT);
+
   if (*(unsigned long *)UNIFONT_START)
 	return !(errnum = ERR_UNIFONT_RELOAD);
 
   memset ((char *)0x100000, 0, 0x10000);	/* clear 64K at 1M */
 
-  while	((len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 38, 0xedde0d90)))
+redo:
+
+  while	(((saved_filepos = filepos), (len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 38, 0xedde0d90))))
   {
+//printf ("begin valid_lines=%d, buf=%s\n", valid_lines, buf);
     if (len != 38 || buf[4] != ':')
     {
 	errnum = ERR_UNIFONT_FORMAT;
 	break;
     }
+
     /* get the unicode value */
     unicode = 0;
     for (i = 0; i < 4; i++)
@@ -6263,11 +6315,14 @@ font_func (char *arg, int flags)
 	unicode |= (tmp << ((3 - i) << 2));
     }
 
-    if (buf[37] == '\n')	/* narrow char */
+    if (buf[37] == '\n' || buf[37] == '\r')	/* narrow char */
     {
 	/* discard if it is a control char(we will re-map control chars) */
 	if (unicode <= 0x1F)
+	{
+	    //valid_lines++;
 	    continue;
+	}
 
 	/* simply put the 8x16 dot matrix at the right half */
 	for (j = 0; j < 8; j++)
@@ -6290,7 +6345,7 @@ font_func (char *arg, int flags)
     {
 	/* read additional 32 chars and see if it end in a LF */
 	len = grub_read((unsigned long long)(unsigned int)(char*)(buf+38), 32, 0xedde0d90);
-	if (len != 32 || buf[69] != '\n')
+	if (len != 32 || (buf[69] != '\n' && buf[69] != '\r'))
 	{
 	    errnum = ERR_UNIFONT_FORMAT;
 	    break;
@@ -6330,16 +6385,40 @@ font_func (char *arg, int flags)
 	    }
 	}
     }
+    valid_lines++;
+//printf ("end valid_lines=%d, buf=%s\n", valid_lines, buf);
   } /* while */
 
 close_file:
 
+  if (errnum && len)
+  {
+//	/* find next line from saved_filepos and try again */
+//	grub_close ();
+//	if (! grub_open(arg))
+//		return 0;
+
+	filepos = saved_filepos;
+	while (len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 1, 0xedde0d90))
+	{
+		if (buf[0] == '\n' || buf[0] == '\r')
+		{
+//printf ("goto valid_lines=%d, buf=%s\n", valid_lines, buf);
+			goto redo;	/* try the new line */
+		}
+		if (buf[0] == '\0')	/* NULL encountered ? */
+			break;		/* yes, end */
+	}
+  }
+
   grub_close();
 
   /* if any error occurred, restore the default VGA font. */
-  if (errnum)
+  //if (errnum)
+  if (! valid_lines)
     goto build_default_VGA_font;
 
+  errnum = 0;
   /* determine narrow_char_indicator */
   narrow_indicator = 0;
 
@@ -6352,7 +6431,7 @@ loop:
 	goto loop; /* the i already used by a new wide char, failed */
     /* now the i is not used by all new wide chars */
     if (i == old_narrow_char_indicator)
-	return 1;	/* nothing need to change, success */
+	return valid_lines;	/* nothing need to change, success */
     /* old wide chars should not use this i as leading integer */
     for (j = 0x80; j < 0x10000; j++)
     {
@@ -6385,7 +6464,7 @@ loop:
   //old_narrow_char_indicator = narrow_indicator;
 #undef	old_narrow_char_indicator
 
-  return 1;	/* success */
+  return valid_lines;	/* success */
 
 build_default_VGA_font:
 
@@ -6491,7 +6570,7 @@ ROM_font_loaded:
     }
   }
 
-  return !(errnum);
+  return valid_lines;//!(errnum);
 }
 
 static struct builtin builtin_font =
@@ -9386,8 +9465,8 @@ err_print_hex:
 
 #ifndef GRUB_UTIL
 
-unsigned long long map_mem_min = 0x100000;
-unsigned long long map_mem_max = (-4096ULL);
+static unsigned long long map_mem_min = 0x100000;
+static unsigned long long map_mem_max = (-4096ULL);
 
 /* map */
 /* Map FROM_DRIVE to TO_DRIVE.  */
@@ -9422,6 +9501,8 @@ map_func (char *arg, int flags)
   int in_situ = 0;
   int add_mbt = -1;
   int prefer_top = 0;
+  unsigned long long skip_sectors = 0;
+  unsigned long long max_sectors = -1ULL;
   filesystem_type = -1;
   start_sector = sector_count = 0;
   
@@ -9961,6 +10042,20 @@ map_func (char *arg, int flags)
 	if (add_mbt < -1 || add_mbt > 1)
 		return 0;
       }
+    else if (grub_memcmp (arg, "--skip-sectors=", 15) == 0)
+      {
+	p = arg + 15;
+	if (! safe_parse_maxint_with_suffix (&p, &skip_sectors, 9))
+		return 0;
+      }
+    else if (grub_memcmp (arg, "--max-sectors=", 14) == 0)
+      {
+	p = arg + 14;
+	if (! safe_parse_maxint_with_suffix (&p, &max_sectors, 9))
+		return 0;
+	if (max_sectors < 8ULL)
+	    max_sectors = 8ULL;
+      }
     else
 	break;
     arg = skip_to (0, arg);
@@ -10128,9 +10223,13 @@ map_func (char *arg, int flags)
   }else{
     if (! grub_open (to_drive))
 	return 0;
+    if (skip_sectors > (filemax >> 9))
+	return !(errnum = ERR_EXEC_FORMAT);
+    /* disk_read_start_sector_func() will set start_sector and sector_count */
     start_sector = sector_count = 0;
     rawread_ignore_memmove_overflow = 1;
     disk_read_hook = disk_read_start_sector_func;
+    filepos = (skip_sectors << 9);
     /* Read the first sector of the emulated disk.  */
     err = grub_read ((unsigned long long)(unsigned long) BS, SECTOR_SIZE, 0xedde0d90);
     disk_read_hook = 0;
@@ -10146,22 +10245,25 @@ map_func (char *arg, int flags)
 
     to_filesize = gzip_filemax;
     sector_count = (filemax + 0x1ff) >> SECTOR_BITS; /* in small 512-byte sectors */
-    if (part_length && start_sector == part_start /* && part_start */ && sector_count == 1)
+    if (part_length
+	&& (buf_geom.sector_size == 2048 ? (start_sector - (skip_sectors >> 2)) : (start_sector - skip_sectors)) == part_start
+	/* && part_start */
+	&& (buf_geom.sector_size == 2048 ? (sector_count == 4) : (sector_count == 1)))
     {
       if (mem != -1ULL)
       {
 	char buf[32];
 
 	grub_close ();
-	sector_count = part_length;
+	//sector_count = part_length;
         grub_sprintf (buf, "(%d)%ld+%ld", to, (unsigned long long)part_start, (unsigned long long)part_length);
         if (! grub_open (buf))
 		return 0;
-        filepos = SECTOR_SIZE;
-      } else if (part_start) {
-	sector_count = part_length;
-      }
+        filepos = (skip_sectors + 1) << 9;
+      }// else if (part_start)
+      sector_count = (buf_geom.sector_size == 2048 ? (part_length << 2) : part_length);
     }
+    sector_count -= skip_sectors;
 
     if (mem == -1ULL)
       grub_close ();
@@ -10170,13 +10272,18 @@ map_func (char *arg, int flags)
       grub_printf ("For mem file in emulation, you should not specify sector_count to 1.\n");
       return 0;
     }
+    if (sector_count > max_sectors)
+	sector_count = max_sectors;
+    /* measure start_sector in small 512-byte sectors */
+    if (buf_geom.sector_size == 2048)
+    {
+	start_sector *= 4;
+	start_sector += (((unsigned long)skip_sectors) % 4);
+    }
+
   }
 
-  /* measure start_sector in small 512-byte sectors */
-  if (buf_geom.sector_size == 2048)
-	start_sector *= 4;
-
-  if (filemax < 512 || BS->boot_signature != 0xAA55)
+  if ((filemax >= (skip_sectors << 9 ) && filemax - (skip_sectors << 9) < 512) || BS->boot_signature != 0xAA55)
 	goto geometry_probe_failed;
   
   /* probe the BPB */
@@ -10298,7 +10405,8 @@ geometry_probe_failed:
   }
 
   /* possible ISO9660 image */
-  if (filemax < 512 || BS->boot_signature != 0xAA55 || (unsigned char)from >= (unsigned char)0xA0)
+  if ((filemax >= (skip_sectors << 9 ) && filemax - (skip_sectors << 9) < 512)
+	|| BS->boot_signature != 0xAA55	|| (unsigned char)from >= (unsigned char)0xA0)
   {
 	if ((long long)heads_per_cylinder < 0)
 		heads_per_cylinder = 0;
@@ -10531,7 +10639,7 @@ geometry_probe_ok:
       grub_printf ("\nprobed C/H/S = %d/%d/%d, probed total sectors = %ld\n", probed_cylinders, probed_heads, probed_sectors_per_track, (unsigned long long)probed_total_sectors);
     if (mem != -1ULL && ((long long)mem) <= 0)
     {
-      if (((unsigned long long)(-mem)) < probed_total_sectors && probed_total_sectors > 1 && filemax >= 512)
+      if (((unsigned long long)(-mem)) < probed_total_sectors && probed_total_sectors > 1 && sector_count >= 1/* filemax >= 512 */)
 	mem = - (unsigned long long)probed_total_sectors;
     }
   }
@@ -10893,23 +11001,26 @@ map_whole_drive:
 	  if ((to == 0xffff || to == ram_drive) && !compressed_file)
 	  {
 	    if (bytes_needed != start_byte)
-		grub_memmove64 (bytes_needed, start_byte, filemax);
+		grub_memmove64 (bytes_needed, start_byte, (max_sectors >= filemax) ? filemax : (sector_count << SECTOR_BITS));
 	  } else {
 	    unsigned long long read_result;
 	    grub_memmove64 (bytes_needed, (unsigned long long)(unsigned int)BS, SECTOR_SIZE);
 	    /* read the rest of the sectors */
-	    if (filemax > SECTOR_SIZE)
+	    if (sector_count > 1)
 	    {
-	      read_result = grub_read ((bytes_needed + SECTOR_SIZE), -1ULL, 0xedde0d90);
-	      if (read_result != filemax - SECTOR_SIZE)
+	      unsigned long long read_size = ((sector_count - 1) << 9);
+	      if (read_size > filemax - ((skip_sectors + 1) << 9))
+	          read_size = filemax - ((skip_sectors + 1) << 9);
+	      read_result = grub_read ((bytes_needed + SECTOR_SIZE), read_size, 0xedde0d90);
+	      if (read_result != read_size)
 	      {
 		//if ( !probed_total_sectors || read_result<(probed_total_sectors<<SECTOR_BITS) )
 		//{
 		unsigned long long required = (probed_total_sectors << SECTOR_BITS) - SECTOR_SIZE;
 		/* read again only required sectors */
 		if ( ! probed_total_sectors 
-		     || required >= filemax - SECTOR_SIZE
-		     || ( (filepos = SECTOR_SIZE), /* re-read from the second sector. */
+		     || required >= read_size
+		     || ( (filepos = ((skip_sectors + 1) << 9)), /* re-read from the second sector. */
 			  grub_read (bytes_needed + SECTOR_SIZE, required, 0xedde0d90) != required
 			)
 		   )
@@ -11035,7 +11146,7 @@ map_whole_drive:
       if (from == ram_drive)
       {
 	rd_base = base;
-	rd_size = filemax;//(sector_count << SECTOR_BITS);
+	rd_size = (max_sectors >= filemax) ? filemax : (sector_count << SECTOR_BITS);
 	if (add_mbt)
 		rd_size += sectors_per_track << SECTOR_BITS;	/* build the Master Boot Track */
 	return 1;
@@ -13530,6 +13641,7 @@ static struct builtin builtin_serial =
 
 
 /* setkey */
+#if 0
 struct keysym
 {
   char *unshifted_name;			/* the name in unshifted state */
@@ -13612,10 +13724,170 @@ static struct keysym keysym_table[] =
   /* Caution: do not add NumLock here! we cannot deal with it properly.  */
   {"delete",		0,		0x7f,	0,	0x53}
 };
+#endif
 
-static int find_key_code (char *key);
-static int find_ascii_code (char *key);
-  
+struct keysym
+{
+  char *name;			/* the name in unshifted state */
+  unsigned short code;		/* lo=ascii code, hi=scan code */
+};
+
+/* The table for key symbols. If the "shifted" member of an entry is
+   NULL, the entry does not have shifted state.  */
+static struct keysym keysym_table[] =
+{
+  {"escape",		0x011B},	// ESC
+  {"1",			0x0231},	// 1
+  {"exclam",		0x0221},	//	'!'
+  {"2",			0x0332},	// 2
+  {"at",		0x0340},	//	'@'
+  {"3",			0x0433},	// 3
+  {"numbersign",	0x0423},	//	'#'
+  {"4",			0x0534},	// 4
+  {"dollar",		0x0524},	//	'$'
+  {"5",			0x0635},	// 5
+  {"percent",		0x0625},	//	'%'
+  {"6",			0x0736},	// 6
+  {"caret",		0x075E},	//	'^'
+  {"7",			0x0837},	// 7
+  {"ampersand",		0x0826},	//	'&'
+  {"8",			0x0938},	// 8
+  {"asterisk",		0x092A},	//	'*'
+  {"9",			0x0A39},	// 9
+  {"parenleft",		0x0A28},	//	'('
+  {"0",			0x0B30},	// 0
+  {"parenright",	0x0B29},	//	')'
+  {"minus",		0x0C2D},	// -
+  {"underscore",	0x0C5F},	//	'_'
+  {"equal",		0x0D3D},	// =
+  {"plus",		0x0D2B},	//	'+'
+  {"backspace",		0x0E08},	// BS
+  {"ctrlbackspace",	0x0E7F},	// 	(DEL)
+  {"tab",		0x0F09},	// Tab
+  {"q",			0x1071},	// q
+  {"Q",			0x1051},	//	Q
+  {"w",			0x1177},	// w
+  {"W",			0x1157},	//	W
+  {"e",			0x1265},	// e
+  {"E",			0x1245},	//	E
+  {"r",			0x1372},	// r
+  {"R",			0x1352},	//	R
+  {"t",			0x1474},	// t
+  {"T",			0x1454},	//	T
+  {"y",			0x1579},	// y
+  {"Y",			0x1559},	//	Y
+  {"u",			0x1675},	// u
+  {"U",			0x1655},	//	U
+  {"i",			0x1769},	// i
+  {"I",			0x1749},	//	I
+  {"o",			0x186F},	// o
+  {"O",			0x184F},	//	O
+  {"p",			0x1970},	// p
+  {"P",			0x1950},	//	P
+  {"bracketleft",	0x1A5B},	// '['
+  {"braceleft",		0x1A7B},	//	'{'
+  {"bracketright",	0x1B5D},	// ']'
+  {"braceright",	0x1B7D},	//	'}'
+  {"enter",		0x1C0D},	// Enter
+//{"control",		0x1DXX},	// no more supported
+  {"a",			0x1E61},	// a
+  {"A",			0x1E41},	//	A
+  {"s",			0x1F73},	// s
+  {"S",			0x1F53},	//	S
+  {"d",			0x2064},	// d
+  {"D",			0x2044},	//	D
+  {"f",			0x2166},	// f
+  {"F",			0x2146},	//	F
+  {"g",			0x2267},	// g
+  {"G",			0x2247},	//	G
+  {"h",			0x2368},	// h
+  {"H",			0x2348},	//	H
+  {"j",			0x246A},	// j
+  {"J",			0x244A},	//	J
+  {"k",			0x256B},	// k
+  {"K",			0x254B},	//	K
+  {"l",			0x266C},	// l
+  {"L",			0x264C},	//	L
+  {"semicolon",		0x273B},	// ';'
+  {"colon",		0x273A},	//	':'
+  {"quote",		0x2827},	// '\''
+  {"doublequote",	0x2822},	//	'"'
+  {"backquote",		0x2960},	// '`'
+  {"tilde",		0x297E},	//	'~'
+//{"shift",		0x2AXX},	// no more supported
+  {"backslash",		0x2B5C},	// '\\'
+  {"bar",		0x2B7C},	//	'|'
+  {"z",			0x2C7A},	// z
+  {"Z",			0x2C5A},	//	Z
+  {"x",			0x2D78},	// x
+  {"X",			0x2D58},	//	X
+  {"c",			0x2E63},	// c
+  {"C",			0x2E43},	//	C
+  {"v",			0x2F76},	// v
+  {"V",			0x2F56},	//	V
+  {"b",			0x3062},	// b
+  {"B",			0x3042},	//	B
+  {"n",			0x316E},	// n
+  {"N",			0x314E},	//	N
+  {"m",			0x326D},	// m
+  {"M",			0x324D},	//	M
+  {"comma",		0x332C},	// ','
+  {"less",		0x333C},	//	'<'
+  {"period",		0x342E},	// '.'
+  {"greater",		0x343E},	//	'>'
+  {"slash",		0x352F},	// '/'
+  {"question",		0x353F},	//	'?'
+//{"alt",		0x38XX},	// no more supported
+  {"space",		0x3920},	// Space
+//{"capslock",		0x3AXX},	// no more supported
+  {"F1",		0x3B00},
+  {"F2",		0x3C00},
+  {"F3",		0x3D00},
+  {"F4",		0x3E00},
+  {"F5",		0x3F00},
+  {"F6",		0x4000},
+  {"F7",		0x4100},
+  {"F8",		0x4200},
+  {"F9",		0x4300},
+  {"F10",		0x4400},
+  /* Caution: do not add NumLock here! we cannot deal with it properly.  */
+  {"home",		0x4700},
+  {"uparrow",		0x4800},
+  {"pageup",		0x4900},	// PgUp
+  {"leftarrow",		0x4B00},
+  {"center",		0x4C00},	// keypad center key
+  {"rightarrow",	0x4D00},
+  {"end",		0x4F00},
+  {"downarrow",		0x5000},
+  {"pagedown",		0x5100},	// PgDn
+  {"insert",		0x5200},	// Insert
+  {"delete",		0x5300},	// Delete
+  {"shiftF1",		0x5400},
+  {"shiftF2",		0x5500},
+  {"shiftF3",		0x5600},
+  {"shiftF4",		0x5700},
+  {"shiftF5",		0x5800},
+  {"shiftF6",		0x5900},
+  {"shiftF7",		0x5A00},
+  {"shiftF8",		0x5B00},
+  {"shiftF9",		0x5C00},
+  {"shiftF10",		0x5D00},
+  {"ctrlF1",		0x5E00},
+  {"ctrlF2",		0x5F00},
+  {"ctrlF3",		0x6000},
+  {"ctrlF4",		0x6100},
+  {"ctrlF5",		0x6200},
+  {"ctrlF6",		0x6300},
+  {"ctrlF7",		0x6400},
+  {"ctrlF8",		0x6500},
+  {"ctrlF9",		0x6600},
+  {"ctrlF10",		0x6700},
+};
+
+//static int find_key_code (char *key);
+static unsigned long find_ascii_code (char *key);
+
+#if 0  
 static int
 find_key_code (char *key)
 {
@@ -13633,20 +13905,17 @@ find_key_code (char *key)
       
       return 0;
 }
+#endif
   
-static int
+static unsigned long
 find_ascii_code (char *key)
 {
       int i;
       
       for (i = 0; i < sizeof (keysym_table) / sizeof (keysym_table[0]); i++)
 	{
-	  if (keysym_table[i].unshifted_name &&
-	      grub_strcmp (key, keysym_table[i].unshifted_name) == 0)
-	    return keysym_table[i].unshifted_ascii;
-	  else if (keysym_table[i].shifted_name &&
-		   grub_strcmp (key, keysym_table[i].shifted_name) == 0)
-	    return keysym_table[i].shifted_ascii;
+	  if (grub_strcmp (key, keysym_table[i].name) == 0)
+	    return keysym_table[i].code;
 	}
       
       return 0;
@@ -13656,8 +13925,8 @@ static int
 setkey_func (char *arg, int flags)
 {
   char *to_key, *from_key;
-  int to_code, from_code;
-  int map_in_interrupt = 0;
+  unsigned long to_code, from_code;
+//  int map_in_interrupt = 0;
   
   to_key = arg;
   from_key = skip_to (0, to_key);
@@ -13665,8 +13934,8 @@ setkey_func (char *arg, int flags)
   if (! *to_key)
     {
       /* If the user specifies no argument, reset the key mappings.  */
-      grub_memset (bios_key_map, 0, KEY_MAP_SIZE * sizeof (unsigned short));
-      grub_memset (ascii_key_map, 0, KEY_MAP_SIZE * sizeof (unsigned short));
+//      grub_memset (bios_key_map, 0, KEY_MAP_SIZE * sizeof (unsigned short));
+      grub_memset (ascii_key_map, 0, KEY_MAP_SIZE * sizeof (unsigned long));
 
       return 1;
     }
@@ -13684,16 +13953,17 @@ setkey_func (char *arg, int flags)
   from_code = find_ascii_code (from_key);
   if (! to_code || ! from_code)
     {
-      map_in_interrupt = 1;
-      to_code = find_key_code (to_key);
-      from_code = find_key_code (from_key);
-      if (! to_code || ! from_code)
-	{
+      //map_in_interrupt = 1;
+      //to_code = find_key_code (to_key);
+      //from_code = find_key_code (from_key);
+      //if (! to_code || ! from_code)
+	//{
 	  errnum = ERR_BAD_ARGUMENT;
 	  return 0;
-	}
+	//}
     }
   
+#if 0
   if (map_in_interrupt)
     {
       int i;
@@ -13730,13 +14000,14 @@ setkey_func (char *arg, int flags)
 #endif
     }
   else
+#endif
     {
       int i;
       
       /* Find an empty slot.  */
       for (i = 0; i < KEY_MAP_SIZE; i++)
 	{
-	  if ((ascii_key_map[i] & 0xff) == from_code)
+	  if ((unsigned short)(ascii_key_map[i]) == from_code)
 	    /* Perhaps the user wants to overwrite the map.  */
 	    break;
 	  
@@ -13754,9 +14025,9 @@ setkey_func (char *arg, int flags)
 	/* If TO is equal to FROM, delete the entry.  */
 	grub_memmove ((char *) &ascii_key_map[i],
 		      (char *) &ascii_key_map[i + 1],
-		      sizeof (unsigned short) * (KEY_MAP_SIZE - i));
+		      sizeof (unsigned long) * (KEY_MAP_SIZE - i));
       else
-	ascii_key_map[i] = (to_code << 8) | from_code;
+	ascii_key_map[i] = (to_code << 16) | from_code;
     }
       
   return 1;
@@ -15268,7 +15539,7 @@ static struct builtin builtin_calc =
 
 #ifndef GRUB_UTIL
 /* graphicsmode */
-static int
+int
 graphicsmode_func (char *arg, int flags)
 {
 #ifdef SUPPORT_GRAPHICS
@@ -15485,7 +15756,7 @@ bad_arg:
 #endif
 }
 
-static struct builtin builtin_graphicsmode =
+struct builtin builtin_graphicsmode =
 {
   "graphicsmode",
   graphicsmode_func,

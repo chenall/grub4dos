@@ -259,14 +259,19 @@ int check_64bit_and_PAE ()
 	: "=a"(has_cpuid_instruction) : : "%edx" );
     if (!has_cpuid_instruction)
 	return 0;
+    unsigned int *sig = (unsigned int *)0x308000; //&vm_cpu_signature;
     unsigned int maxfn,feature;
     int x=0;
-    asm ("cpuid;" : "=a"(maxfn): "0"(0x00000000) : "%ebx","%ecx","%edx");
+    asm ("cpuid;"
+		: "=a"(maxfn), "=b"(sig[4]), "=d"(sig[5]), "=c"(sig[6])
+		: "0"(0x00000000)
+		: /* "%ebx","%ecx","%edx" */);
     if (maxfn >= 0x00000001)
     {
-	asm ("cpuid;" : "=d" (feature) : "a" (1) : "%ebx", "%ecx");
+	asm ("cpuid;" : "=d" (feature), "=c" (sig[3]) : "a" (1) : "%ebx");
 	if (feature & (1<<6)) // PAE
 	    x |= IS64BIT_PAE;
+	sig[7] = feature;
     }
     asm ("cpuid;" : "=a"(maxfn): "0"(0x80000000) : "%ebx","%ecx","%edx");
     if (maxfn >= 0x80000001)
@@ -275,6 +280,20 @@ int check_64bit_and_PAE ()
 	if (feature & (1<<29)) // AMD64, EM64T/IA-32e/Intel64
 	    x |= IS64BIT_AMD64;
     }
+
+    /* Get vm_cpu_signature */
+    unsigned int leaf = 0x40000000;
+
+    asm volatile (
+	"xchgl %%ebx,%1;"	// save EBX
+	"xorl %%ebx,%%ebx;"	// clear EBX for VMMs
+	"xorl %%ecx,%%ecx;"	// clear ECX for VMMs
+	"xorl %%edx,%%edx;"	// clear EDX for VMMs
+	"cpuid;"
+	"xchgl %%ebx,%1"	// restore EBX, and put result into %1.
+	: "=a" (leaf), "+r" (sig[0]), "=c" (sig[1]), "=d" (sig[2])
+	: "0" (leaf));
+
     return x;
 }
 
@@ -527,7 +546,7 @@ init_bios_info (void)
 	}
     }
 
-  printf("\r                        \r");	/* wipe out the messages */
+  //printf("\r                        \r");	/* wipe out the messages */
 
   mbi.mem_upper = saved_mem_upper;
   mbi.mem_lower = saved_mem_lower;
@@ -669,8 +688,8 @@ pxe_init_fail:
 		discover_reply = LINEAR(get_cached_info.Buffer);
 
 		/* on pxe boot, we only use preset_menu */
-		if (preset_menu != (char*)0x800)
-			preset_menu = (char*)0x800;
+		//if (preset_menu != (char*)0x800)
+		//	preset_menu = (char*)0x800;
 		if (*config_file)
 			*config_file = 0;
 		force_pxe_as_boot_device = 1;
@@ -982,7 +1001,7 @@ set_root:
 	}
   }
 #endif
-  grub_printf("Initialize variable space...\n");
+  grub_printf("\rInitialize variable space...            ");
   run_line("set ?_BOOT=%@root%",1);
   memset(ADDR_RET_STR,0,0x200);
 
@@ -999,7 +1018,7 @@ extern int font_func (char *, int);
 
   /* Start main routine here.  */
   
-  grub_printf("Starting cmain() ... ");
+  grub_printf("\rStarting cmain() ...                    ");
   
 #if !defined(STAGE1_5) && !defined(GRUB_UTIL)
   DEBUG_SLEEP

@@ -2235,11 +2235,13 @@ block_file:
 #else
       if (no_decompression)
 	return 1;
+#if 0
       int i;
       i = strlen(open_filename);
       if (i>=5 && substring(open_filename+i-5,".lzma",1)==0)
         dec_lzma_open ();
       else
+#endif
         gunzip_test_header ();
       errnum = 0;
       return 1;
@@ -2405,7 +2407,7 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
     {
 	unsigned long long len1;
 	unsigned long long ret1;
-	grub_printf(" [%ldM/%ldM]\r",byteread>>20,len>>20);
+	grub_printf("\r [%ldM/%ldM]",byteread>>20,len>>20);
 	len1 = (remaining > grub_read_step)? grub_read_step : remaining;
 	ret1 = read_func(buf, len1, write);
 	if (!ret1 || ret1 > len1) break;/*pxe_read returns 0xffffffff when error.*/
@@ -2413,10 +2415,12 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
 	buf += ret1;		/* Don't do this if buf is 0 */
 	remaining -= ret1;
     }
+#if 0
     if (remaining)
 		grub_printf("\r[%ldM/%ldM]\n",byteread>>20,len>>20);
-	 else
-		grub_printf("\r\t\t\r");
+    else
+#endif
+		grub_printf("\r                        \r");
     return byteread;
   }
 }

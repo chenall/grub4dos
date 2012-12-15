@@ -2,13 +2,16 @@
 # The old install method of booting via the stage-files has been removed.
 # Please install GRLDR boot strap code to MBR with the bootlace.com
 # utility under DOS/Win9x or Linux.
+#
+# It must be UTF-8 encoding for multi-lingual support. Font lines can be
+# appended to the file. The font lines should be in the unifont.hex format.
 
 color blue/green yellow/red white/magenta white/magenta
 timeout 30
 ## menu border color
 color border=0xEEFFEE
 ## set vbe mode
-graphicsmode -1 640 480:800
+graphicsmode -1 640:800 480:600 24:32 || graphicsmode -1 -1 -1 24:32
 ## loading splashimage
 splashimage /boot/grub/splashimage.xpm || splashimage /boot/grub/splashimage.bmp
 default /default
@@ -16,7 +19,7 @@ default /default
 write 0x8274 0x2001
 
 title find and load NTLDR of Windows NT/2K/XP\n find and load NTLDR of Windows NT/2K/XP
-fallback 1
+fallback +1
 find --set-root --ignore-floppies --ignore-cd /ntldr
 map () (hd0)
 map (hd0) ()
@@ -28,11 +31,12 @@ savedefault --wait=2
 #iftitle only show when command in [] returns true
 # set a variable named bootmgr where /bootmgr is found.
 iftitle [find --set-root --devices=h /bootmgr && call set bootmgr=%@root^%] load BOOTMGR of Windows VISTA/WIN7/WIN2008 on %bootmgr%
+fallback +1
 chainloader %bootmgr%/bootmgr
 savedefault --wait=2
 
 title find and load CMLDR, the Recovery Console of Windows NT/2K/XP
-fallback 3
+fallback +1
 find --set-root --ignore-floppies --ignore-cd /cmldr
 map () (hd0)
 map (hd0) ()
@@ -54,79 +58,94 @@ calc *0x7c03=0x00736E6F63646D63
 
 savedefault --wait=2
 
-title find and load IO.SYS of Windows 9x/Me
-fallback 4
-find --set-root /io.sys
+title Chainload IO.SYS for booting MS-DOS/Windows 9x/Me
+fallback +1
+find --set-root --ignore-floppies --ignore-cd /io.sys
 chainloader /io.sys
 savedefault --wait=2
-# you can also use below commands.
-# find --set-root chainloader /io.sys
+#
+# Or in this way:
+#
+# find --set-root --ignore-floppies --ignore-cd chainloader /io.sys
 # boot
-# the boot is necessary,
-# please see "Delimitors or comments between titles" in grub4dos_readme.txt.
+#
+# The above boot command is needed in this case.
+# See "Delimitors or comments between titles" in grub4dos_readme.txt.
 
-title find and boot 0PE.ISO
-fallback 5
-find --set-root /0PE/0PE.ISO
-map /0PE/0PE.ISO (0xff) || map --mem /0PE/0PE.ISO (0xff)
-map --hook
-chainloader (0xff)
-savedefault --wait=2
+title find /boot/grub/menu.lst for booting Linux (Mageia, Mandriva, etc)
+fallback +1
+find --set-root --ignore-floppies --ignore-cd /boot/grub/menu.lst
+configfile /boot/grub/menu.lst
 
-title find and boot MicroPE.ISO
-fallback 6
-find --set-root /boot/MicroPE.ISO
-map /boot/MicroPE.ISO (0xff) || map --mem /boot/MicroPE.ISO (0xff)
-map --hook
-chainloader (0xff)
-savedefault --wait=2
-
-title Parted Magic ISO
-fallback 7
-find --set-root /pmagic.iso
-map /pmagic.iso (0xff) || map --mem /pmagic.iso (0xff)
-map --hook
-chainloader (0xff)
-savedefault --wait=2
-
-title Ultimate Boot CD ISO
-fallback 8
-find --set-root /ubcd.iso
-map /ubcd.iso (0xff) || map --mem /ubcd.iso (0xff)
-map --hook
-chainloader (0xff)
-savedefault --wait=2
-
-title SliTaz ISO
-find --set-root /slitaz.iso
-map /slitaz.iso (0xff) || map --mem /slitaz.iso (0xff)
-map --hook
-chainloader (0xff)
+title Switch to GRUB2 core.img for booting Linux (Ubuntu, etc)
+fallback +1
+find --set-root --ignore-floppies --ignore-cd /boot/grub/i386-pc/core.img
+kernel /boot/grub/i386-pc/core.img
 
 title commandline
 commandline
 
-title floppy (fd0)
-chainloader (fd0)+1
-rootnoverify (fd0)
-# or use below commands.
-# rootnoverify (fd0)
-# chainloader +1
+title 0PE LiveISO
+find --set-root --ignore-floppies --ignore-cd /0PE/0PE.ISO
+map /0PE/0PE.ISO (0xff)
+map --hook
+chainloader (0xff)
+savedefault --wait=2
 
-title back to dos
-quit
+title MicroPE LiveISO
+find --set-root --ignore-floppies --ignore-cd /boot/MicroPE.ISO
+map /boot/MicroPE.ISO (0xff)
+map --hook
+chainloader (0xff)
+savedefault --wait=2
 
-title reboot
+title Parted Magic LiveISO
+find --set-root --ignore-floppies --ignore-cd /pmagic.iso
+map /pmagic.iso (0xff)
+map --hook
+chainloader (0xff)
+savedefault --wait=2
+
+title Ultimate Boot CD LiveISO
+find --set-root --ignore-floppies --ignore-cd /ubcd.iso
+map /ubcd.iso (0xff)
+map --hook
+chainloader (0xff)
+savedefault --wait=2
+
+title SliTaz LiveISO
+find --set-root --ignore-floppies --ignore-cd /slitaz.iso
+map /slitaz.iso (0xff)
+map --hook
+chainloader (0xff)
+
+title Mageia Installation ISO
+find --set-root --ignore-floppies --ignore-cd /Mageia-2-x86_64-DVD.iso
+map /Mageia-2-x86_64-DVD.iso (0xff)
+map --hook
+chainloader (0xff)
+
+title reboot (重启)
 reboot
 
-title halt
+title halt (关机)
 halt
 
 title MAXDOS.IMG
-find --set-root --ignore-floppies /boot/MAXDOS.IMG
+find --set-root --ignore-floppies --ignore-cd /boot/MAXDOS.IMG
 map --mem /boot/MAXDOS.IMG (fd0)
 map --hook
 chainloader (fd0)+1
 rootnoverify (fd0)
+
+# In the end, font lines for unicode chars in unifont.hex format.
+# It should include all unicode chars used in the above menu code.
+# Surely normal ASCII chars are not necessary to be included here.
+
+5173:10100810082000003FF8010001000100FFFE010002800280044008203018C006
+542F:010000801FFC1004100410041FFC10001000100017FC24042404440487FC0404
+673A:100011F011101110FD10111031103910551055109110111211121212120E1400
+91CD:001000F83F000100FFFE01001FF011101FF011101FF001003FF80100FFFE0000
+
 
 
