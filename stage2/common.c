@@ -265,7 +265,7 @@ int check_64bit_and_PAE ()
     asm ("cpuid;"
 		: "=a"(maxfn), "=b"(sig[4]), "=d"(sig[5]), "=c"(sig[6])
 		: "0"(0x00000000)
-		: /* "%ebx","%ecx","%edx" */);
+		/* : "%ebx","%ecx","%edx" */);
     if (maxfn >= 0x00000001)
     {
 	asm ("cpuid;" : "=d" (feature), "=c" (sig[3]) : "a" (1) : "%ebx");
