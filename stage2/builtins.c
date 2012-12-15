@@ -370,6 +370,7 @@ blocklist_func (char *arg, int flags)
   int no_decompression_bak = no_decompression;
 #endif
   
+  errnum = 0;
   blklst_start_sector = 0;
   blklst_num_sectors = 0;
   blklst_num_entries = 0;
@@ -1235,6 +1236,7 @@ bootp_func (char *arg, int flags)
 {
   int with_configfile = 0;
 
+  errnum = 0;
   if (grub_memcmp (arg, "--with-configfile", sizeof ("--with-configfile") - 1)
       == 0)
     {
@@ -1334,10 +1336,11 @@ cat_func (char *arg, int flags)
   unsigned long long len_s;
   unsigned long long len_r = 0;
   unsigned long long ret = 0;
-	unsigned long long number = -1ULL;
-  quit_print = 0;
+  unsigned long long number = -1ULL;
   int locate_ignore_case = 0;
 
+  quit_print = 0;
+  errnum = 0;
   for (;;)
   {
 	if (grub_memcmp (arg, "--hex=", 6) == 0)
@@ -1605,6 +1608,7 @@ static struct builtin builtin_cat =
 static int
 cdrom_func (char *arg, int flags)
 {
+  errnum = 0;
   for (;;)
   {
     if (grub_memcmp (arg, "--add-io-ports=", 15) == 0)
@@ -1717,6 +1721,7 @@ chainloader_func (char *arg, int flags)
   is_io = 0;
   kernel_type = KERNEL_TYPE_CHAINLOADER;
 
+  errnum = 0;
   for (;;)
   {
     if (grub_memcmp (arg, "--force", 7) == 0)
@@ -3012,6 +3017,7 @@ cmp_func (char *arg, int flags)
     quit_print=0;
     Hex = 0;
 
+  errnum = 0;
   for (;;)
   {
 		if (grub_memcmp (arg, "--hex", 5) == 0)
@@ -3311,6 +3317,7 @@ color_func (char *arg, int flags)
   unsigned long long new_color[COLOR_STATE_MAX];
   unsigned long long new_normal_color;
 
+  errnum = 0;
   if (! *arg)
   {
     if (debug > 0)
@@ -3449,6 +3456,7 @@ static struct builtin builtin_color =
 static int
 configfile_func (char *arg, int flags)
 {
+  errnum = 0;
 	if (flags & BUILTIN_USER_PROG)
 	{
 		if (! grub_open (arg))
@@ -3657,6 +3665,7 @@ dd_func (char *arg, int flags)
   char tmp_in_file[16];
   char tmp_out_file[16];
 
+  errnum = 0;
   for (;;)
   {
     if (grub_memcmp (arg, "if=", 3) == 0)
@@ -4137,6 +4146,7 @@ debug_func (char *arg, int flags)
 {
   unsigned long long tmp_debug;
 
+  errnum = 0;
   if (! *arg)
   {
     ///* If ARG is empty, toggle the flag.  */
@@ -4195,6 +4205,7 @@ default_func (char *arg, int flags)
 #endif
   //char *default_file = (char *) DEFAULT_FILE_BUF;
 
+  errnum = 0;
 #ifndef SUPPORT_DISKLESS
   if (grub_memcmp (arg, "saved", 5) == 0)
     {
@@ -4353,6 +4364,7 @@ int graphicsmode_func (char *arg, int flags);
 static int
 splashimage_func(char *arg, int flags)
 {
+    errnum = 0;
     /* If ARG is empty, we reset SPLASHIMAGE.  */
     unsigned long type = 0;
     unsigned long h,w;
@@ -4404,6 +4416,7 @@ static struct builtin builtin_splashimage =
 static int
 foreground_func(char *arg, int flags)
 {
+    errnum = 0;
     if (grub_strlen(arg) == 6 && graphics_inited ) {
 	int r = (hex(arg[0]) << 4) | hex(arg[1]);
 	int g = (hex(arg[2]) << 4) | hex(arg[3]);
@@ -4432,6 +4445,7 @@ static struct builtin builtin_foreground =
 static int
 background_func(char *arg, int flags)
 {
+  errnum = 0;
     if (grub_strlen(arg) == 6 && graphics_inited) {
 	int r = (hex(arg[0]) << 4) | hex(arg[1]);
 	int g = (hex(arg[2]) << 4) | hex(arg[3]);
@@ -4502,6 +4516,7 @@ checkrange_func(char *arg, int flags)
   unsigned long ret;
   char *arg1;
 
+  errnum = 0;
   arg1 = skip_to (0, arg);	/* the command */
 
   builtin1 = find_command (arg1);
@@ -4548,6 +4563,7 @@ checktime_func(char *arg, int flags)
   int limit[5][2] = {{0, 59}, {0, 23}, {1, 31}, {1, 12}, {0, 7}};
   int field[5];
 
+  errnum = 0;
   auto int get_day_of_week (void);
   int get_day_of_week (void)
     {
@@ -4683,6 +4699,7 @@ static struct builtin builtin_checktime =
 static int 
 clear_func() 
 {
+  errnum = 0;
   if (current_term->cls)
     current_term->cls();
   if (use_pager)
@@ -4747,6 +4764,7 @@ static struct builtin builtin_displayapm =
 static int
 displaymem_func (char *arg, int flags)
 {
+  errnum = 0;
   if (get_eisamemsize () != -1)
     grub_printf (" EISA Memory BIOS Interface is present\n");
   if (get_mmap_entry ((void *) SCRATCHADDR, 0) != 0
@@ -5027,6 +5045,7 @@ static int
 errorcheck_func (char *arg, int flags)
 {
 
+  errnum = 0;
   /* If ARG is empty, toggle the flag.  */
   if (! *arg)
   {
@@ -5065,6 +5084,10 @@ fallback_func (char *arg, int flags)
 {
   unsigned long i = 0;
   int go=0;
+  /* The goto command will set errnum before calling this function. 
+   * Clearing the errnum here will cause goto to not work.
+   */
+  //errnum = 0;
   if (memcmp(arg,"--go",4) == 0)
 	{
 		go = 1;
@@ -5251,6 +5274,7 @@ static int command_open(char *arg,int flags)
 int
 command_func (char *arg, int flags)
 {
+  errnum = 0;
   while (*arg == ' ' || *arg == '\t') arg++;
 
   if (! flags)	/* check syntax only */
@@ -5507,6 +5531,7 @@ static struct builtin builtin_command =
 
 static int insmod_func(char *arg,int flags)
 {
+   errnum = 0;
    if (arg == NULL || *arg == '\0')
       return 0;
    if (substring(skip_to(0,arg) - 4,".mod",1) == 0)
@@ -5596,6 +5621,7 @@ static struct builtin builtin_insmod =
 
 static int delmod_func(char *arg,int flags)
 {
+   errnum = 0;
    if (*arg == '\0')
       return grub_mod_list(arg);
    if (grub_memcmp(arg,"-l",2) == 0)
@@ -5630,6 +5656,7 @@ commandline_func (char *arg, int flags)
   int forever = 0;
   char *config_entries = arg;
 
+  errnum = 0;
   enter_cmdline(config_entries, forever);
 
   return 1;
@@ -5819,6 +5846,7 @@ find_func (char *arg, int flags)
   char find_devices[8]="pnuhcf";//find order:pd->nd->ud->hd->cd->fd
   //char *in_drives = NULL;	/* search in drive list */
 //  char root_found[16];
+  errnum = 0;
 #ifdef FSYS_FB
   if (saved_drive == FB_DRIVE && !(fb_status >> 8 & 0xff))
   {
@@ -6888,6 +6916,7 @@ static int
 fstest_func (char *arg, int flags)
 {
 
+  errnum = 0;
   /* If ARG is empty, toggle the flag.  */
   if (! *arg)
   {
@@ -6932,6 +6961,7 @@ static struct builtin builtin_fstest =
 static int
 gfxmenu_func (char *arg, int flags)
 {
+  errnum = 0;
     //if (*arg)
     //{
 	/* filename can only be 64 characters due to our buffer size */
@@ -7262,15 +7292,40 @@ geometry_func (char *arg, int flags)
   }
 #endif
 
+  errnum = 0;
 //#ifdef GRUB_UTIL
 //  if (current_drive != cdrom_drive)
 //#else
 //  if (current_drive != cdrom_drive && (current_drive < (unsigned char)min_cdrom_id || current_drive >= (unsigned char)(min_cdrom_id + atapi_dev_count)))
 //#endif /* GRUB_UTIL */
     //if (current_drive & 0x80)
-      real_open_partition (1);
+//      real_open_partition (1);
 
-  return 1;
+  if (tmp_geom.sector_size == 512)
+  {
+#define	BS	((struct master_and_dos_boot_sector *)mbr)
+    
+    // Make sure rawread will not call get_diskinfo again after force_geometry_tune is reset.
+    if (buf_drive != current_drive)
+    {
+	buf_drive = current_drive;
+	buf_track = -1; // invalidate track buffer
+    }
+    buf_geom = tmp_geom;
+
+    /* Read MBR or the floppy boot sector.  */
+    if (! rawread (current_drive, 0, 0, SECTOR_SIZE, (unsigned long long)(unsigned long)mbr, 0xedde0d90))
+	return 0;
+
+    if (BS->boot_signature == 0xAA55 && !(probe_mbr (BS, 0, 1, 0)))
+      real_open_partition (1);
+#undef BS
+  }
+
+  if (errnum == 0)
+	return 1;
+  errnum = 0;	/* ignore error. */
+  return 0;	/* indicates error occurred during real_open_partition. */
 }
 
 static struct builtin builtin_geometry =
@@ -7307,6 +7362,7 @@ halt_func (char *arg, int flags)
 {
   int skip_flags = 0;
 
+  errnum = 0;
   for (;;)
   {
     if (grub_memcmp (arg, "--no-apm", 8) == 0)
@@ -7378,6 +7434,7 @@ help_func (char *arg, int flags)
 {
   int all = 0;
   int MAX_SHORT_DOC_LEN = current_term->chars_per_line/2-1;
+  errnum = 0;
   quit_print = 0;
   if (grub_memcmp (arg, "--all", sizeof ("--all") - 1) == 0)
     {
@@ -7485,6 +7542,7 @@ static struct builtin builtin_help =
 static int
 hiddenmenu_func (char *arg, int flags)
 {
+  errnum = 0;
   show_menu = 0;
 
   while (*arg)
@@ -7529,6 +7587,7 @@ static struct builtin builtin_hiddenmenu =
 static int
 hide_func (char *arg, int flags)
 {
+  errnum = 0;
   /* If no arguments, hide current partition in the current drive. */
   if (! *arg || *arg == ' ' || *arg == '\t')
   {
@@ -7559,6 +7618,7 @@ hiddenflag_func (char *arg, int flags)
 {
   int hidden = -1;	/* -1 for status report */
 
+  errnum = 0;
   for (;;)
   {
     if (grub_memcmp (arg, "--set", 5) == 0)
@@ -7604,6 +7664,7 @@ ifconfig_func (char *arg, int flags)
 {
   char *svr = 0, *ip = 0, *gw = 0, *sm = 0;
   
+  errnum = 0;
   if (! eth_probe ())
     {
       grub_printf ("No ethernet card found.\n");
@@ -7690,6 +7751,7 @@ static struct builtin builtin_impsprobe =
 static int
 initrd_func (char *arg, int flags)
 {
+  errnum = 0;
   switch (kernel_type)
     {
     case KERNEL_TYPE_LINUX:
@@ -8319,6 +8381,7 @@ kernel_func (char *arg, int flags)
   kernel_t suggested_type = KERNEL_TYPE_NONE;
   unsigned long load_flags = 0;
 
+  errnum = 0;
 #ifndef AUTO_LINUX_MEM_OPT
   load_flags |= KERNEL_LOAD_NO_MEM_OPTION;
 #endif
@@ -8408,6 +8471,7 @@ static struct builtin builtin_kernel =
 static int
 lock_func (char *arg, int flags)
 {
+  errnum = 0;
   if (! auth && password_buf)
     {
       errnum = ERR_PRIVILEGED;
@@ -8432,6 +8496,7 @@ static struct builtin builtin_lock =
 static int
 ls_func (char *arg, int flags)
 {
+  errnum = 0;
   /* If no arguments, list root dir of current root device. */
   if (! *arg || *arg == ' ' || *arg == '\t')
   {
@@ -8465,6 +8530,7 @@ makeactive_func (char *arg, int flags)
   int status = 0;
   int part = 0;
 
+  errnum = 0;
   if (grub_memcmp (arg, "--status", 8) == 0)
     {
       status = 1;
@@ -9519,6 +9585,7 @@ map_func (char *arg, int flags)
   filesystem_type = -1;
   start_sector = sector_count = 0;
   
+  errnum = 0;
   for (;;)
   {
 
@@ -11390,6 +11457,7 @@ md5crypt_func (char *arg, int flags)
   
   /* First create a salt.  */
 
+  errnum = 0;
   /* The magical prefix.  */
   grub_memset (crypted, 0, sizeof (crypted));
   grub_memmove (crypted, "$1$", 3);
@@ -11452,6 +11520,7 @@ module_func (char *arg, int flags)
 {
   int len = grub_strlen (arg);
 
+  errnum = 0;
   switch (kernel_type)
     {
     case KERNEL_TYPE_MULTIBOOT:
@@ -11533,6 +11602,7 @@ static int
 outline_func (char *arg, int flags)
 {
 
+  errnum = 0;
   /* If ARG is empty, toggle the flag.  */
   if (! *arg)
     outline = ! outline;
@@ -11567,6 +11637,7 @@ static int
 pager_func (char *arg, int flags)
 {
 
+  errnum = 0;
   /* If ARG is empty, toggle the flag.  */
   if (! *arg)
     use_pager = ! use_pager;
@@ -11635,6 +11706,7 @@ partnew_func (char *arg, int flags)
 //  char mbr[512];
 #endif
 
+  errnum = 0;
   if (grub_memcmp (arg, "--active", 8) == 0)
     {
       active = 0x80;
@@ -11937,6 +12009,7 @@ parttype_func (char *arg, int flags)
 
   /* Get the drive and the partition.  */
 
+  errnum = 0;
   if (! *arg || *arg == ' ' || *arg == '\t')
   {
 	current_drive = saved_drive;
@@ -12052,6 +12125,7 @@ password_func (char *arg, int flags)
   int len;
   password_t type = PASSWORD_PLAIN;
 
+  errnum = 0;
 #ifdef USE_MD5_PASSWORDS
   if (grub_memcmp (arg, "--md5", 5) == 0)
     {
@@ -12135,6 +12209,7 @@ pause_func (char *arg, int flags)
   int time2 = -1;
   int testkey = 0;
 
+  errnum = 0;
 	for (;;)
 	{
 		if (grub_memcmp (arg, "--test-key", 10) == 0)
@@ -12216,6 +12291,7 @@ static struct builtin builtin_pxe =
 static int
 quit_func (char *arg, int flags)
 {
+  errnum = 0;
   stop ();
   
   /* Never reach here.  */
@@ -12238,6 +12314,7 @@ quit_func (char *arg, int flags)
   unsigned long i;
   register long Sum;
   
+  errnum = 0;
   /* check if we were launched from DOS.  */
   if (*(long *)0x2A0000 != 0x50554B42)	/* "BKUP" */
   {
@@ -12336,6 +12413,7 @@ static struct builtin builtin_quit =
 static int
 rarp_func (char *arg, int flags)
 {
+  errnum = 0;
   if (! rarp ())
     {
       if (errnum == ERR_NONE)
@@ -12367,6 +12445,7 @@ read_func (char *arg, int flags)
 {
   unsigned long long addr, val;
 
+  errnum = 0;
   if (! safe_parse_maxint (&arg, &addr))
     return 0;
 
@@ -12628,6 +12707,7 @@ write_func (char *arg, int flags)
   char tmp_file[16];
   //int block_file = 0;
 
+  errnum = 0;
   tmp_drive = saved_drive;
   tmp_partition = saved_partition;
   offset = 0;
@@ -12824,6 +12904,7 @@ static struct builtin builtin_write =
 static int
 reboot_func (char *arg, int flags)
 {
+  errnum = 0;
   grub_reboot ();
 
   /* Never reach here.  */
@@ -12914,6 +12995,7 @@ real_root_func (char *arg, int attempt_mnt)
   unsigned long tmp_partition = 0;
   char ch;
 
+  errnum = 0;
   /* Get the drive and the partition.  */
   if (! *arg || *arg == ' ' || *arg == '\t')
     {
@@ -13290,6 +13372,7 @@ savedefault_func (char *arg, int flags)
   char *p;
 //  int ignore_error = 0;
 
+  errnum = 0;
   blklst_num_sectors = 0;
   wait = 0;
   //default_file = (char *) DEFAULT_FILE_BUF;
@@ -13540,6 +13623,7 @@ serial_func (char *arg, int flags)
   int parity = UART_NO_PARITY;
   int stop_bit_len = UART_1_STOP_BIT;
 
+  errnum = 0;
   /* Process GNU-style long options.
      FIXME: We should implement a getopt-like function, to avoid
      duplications.  */
@@ -13970,6 +14054,7 @@ setkey_func (char *arg, int flags)
   unsigned long to_code, from_code;
 //  int map_in_interrupt = 0;
   
+  errnum = 0;
   to_key = arg;
   from_key = skip_to (0, to_key);
 
@@ -14221,6 +14306,7 @@ setup_func (char *arg, int flags)
   char *stage2_arg = 0;
   char *prefix = 0;
 
+  errnum = 0;
   tmp_drive = saved_drive;
   tmp_partition = saved_partition;
 
@@ -14440,6 +14526,7 @@ terminal_func (char *arg, int flags)
   /* XXX: Assume less than 32 terminals.  */
   unsigned long term_bitmap = 0;
 
+  errnum = 0;
   /* Get GNU-style long options.  */
   while (1)
     {
@@ -14683,6 +14770,7 @@ static struct
 static int
 terminfo_func (char *arg, int flags)
 {
+  errnum = 0;
   if (*arg)
     {
       grub_memset (term, 0, sizeof (struct terminfo));
@@ -14866,6 +14954,7 @@ testvbe_func (char *arg, int flags)
 //  struct vbe_controller controller;	//struct size 512
 //  struct vbe_mode mode;			//struct size 255
   
+  errnum = 0;
   if (! *arg)
     {
       errnum = ERR_BAD_ARGUMENT;
@@ -15039,6 +15128,7 @@ setvbe_func (char *arg, int flags)
 //  struct vbe_mode mode;			//struct size 255
   struct vbe_mode *mode2;
 
+  errnum = 0;
   if (!*arg)
   {
     *kernel_option_video = 0; /* initialize the string to be empty. */
@@ -15128,6 +15218,7 @@ static struct builtin builtin_setvbe =
 static int
 tftpserver_func (char *arg, int flags)
 {
+  errnum = 0;
   if (! *arg || ! ifconfig (0, 0, 0, arg))
     {
       errnum = ERR_BAD_ARGUMENT;
@@ -15154,6 +15245,7 @@ static int
 timeout_func (char *arg, int flags)
 {
   unsigned long long ull;
+  errnum = 0;
   if (! safe_parse_maxint (&arg, &ull))
     return 0;
 
@@ -15185,6 +15277,7 @@ static int
 iftitle_func (char *arg, int flags)
 {
 	char *p = arg;
+	errnum = 0;
 	if (*p != '[')
 		return 0;
 	char *cmd = ++p;
@@ -15224,6 +15317,7 @@ extern int tpm_init(void);
 static int
 tpm_func (char *arg, int flags)
 {
+  errnum = 0;
   for (;;)
   {
     if (grub_memcmp (arg, "--init", 6) == 0)
@@ -15253,6 +15347,7 @@ static struct builtin builtin_tpm =
 static int
 unhide_func (char *arg, int flags)
 {
+  errnum = 0;
   /* If no arguments, unhide current partition in the current drive. */
   if (! *arg || *arg == ' ' || *arg == '\t')
   {
@@ -15309,6 +15404,7 @@ vbeprobe_func (char *arg, int flags)
   unsigned short *mode_list;
   unsigned long long mode_number = -1;
   
+  errnum = 0;
   if (*arg)
     {
       if (! safe_parse_maxint (&arg, &mode_number))
@@ -15468,6 +15564,7 @@ calc_func (char *arg, int flags)
    unsigned long long *p_result = &val1;
    char O;
    
+  errnum = 0;
    if (*arg == '*')
    {
       arg++;
@@ -15815,6 +15912,7 @@ char menu_init_script_file[32];
 static int
 initscript_func (char *arg, int flags)
 {
+	errnum = 0;
 	if (grub_strlen(arg) > 32 || ! grub_open (arg))
 	{
 		return 0;
@@ -15844,6 +15942,7 @@ static int echo_func (char *arg,int flags)
    //y = getxy();
    //x = (unsigned int)(unsigned char)y;
    //y = (unsigned int)(unsigned char)(y >> 8);
+   errnum = 0;
    x = fontx;
    y = fonty;
    for(;;)
@@ -16006,6 +16105,7 @@ static int if_func(char *arg,int flags)
 	char *str1,*str2;
 	int cmp_flag = 0;
 	int ret = 0;
+	errnum = 0;
 	while(*arg)
 	{
 		if (substring("/i ", arg, 1) == -1)
@@ -16282,6 +16382,7 @@ static void case_convert(char *ch,int flag)
 
 static int set_func(char *arg, int flags)
 {
+	errnum = 0;
 	if( *arg == '*' )
 		return reset_env_all();
 	else if (strcmp(VAR[_WENV_], "?_WENV") != 0)
@@ -16391,6 +16492,7 @@ static SETLOCAL *sc = NULL;
 
 static int setlocal_func(char *arg, int flags)
 {
+	errnum = 0;
 	SETLOCAL *saved;
 	if (*arg == '0')
 		return printf("0x%X\n",cc);
@@ -16422,6 +16524,7 @@ static struct builtin builtin_setlocal =
 
 static int endlocal_func(char *arg, int flags)
 {
+	errnum = 0;
 	SETLOCAL *saved = cc;
 	if (*arg == '@')
 	{
@@ -16838,6 +16941,7 @@ static struct builtin builtin_goto =
 
 static int call_func(char *arg,int flags)
 {
+	errnum = 0;
 	if (*arg==':')
 	{
 		return bat_run_script(NULL, arg, flags);
@@ -16904,6 +17008,7 @@ static struct builtin builtin_exit =
 static int shift_func(char *arg, int flags)
 {
 	char **s = batch_args;
+	errnum = 0;
 	if (*arg == '/')
 		++arg;
 	unsigned int i = *arg - '0';
