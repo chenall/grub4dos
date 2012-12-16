@@ -325,7 +325,10 @@ int run_line (char *heap,int flags)
 
 		if (status & 8)
 		{
-			hook_buff = set_putchar_hook(PRINTF_BUFFER);
+			if (substring(heap,"nul",1) == 0)
+				hook_buff = set_putchar_hook(0x800);
+			else
+				hook_buff = set_putchar_hook(PRINTF_BUFFER);
 		}
 
 		builtin = find_command (arg);
@@ -355,7 +358,8 @@ int run_line (char *heap,int flags)
 		{
 			status_t = status & 3;
 			hook_buff = set_putchar_hook(hook_buff);
-			*hook_buff++ = 0;
+			if (substring(heap,"nul",1) != 0)
+				*hook_buff++ = 0;
 			continue;
 		}
 

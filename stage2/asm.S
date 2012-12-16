@@ -2050,7 +2050,12 @@ VARIABLE(ROM_int13_dup)	/* Win9x Safe-MBR-Hook structure requires this! */
 
 VARIABLE(safe_mbr_hook)
 
-	.long	0x00000001		/* safe MBR hook flag */
+	/* 2012-12-13: set to 0 according to sha0:
+	 *	http://reboot.pro/topic/17881-g4d-safe-hook-flags/
+	 *	http://www.osronline.com/ddkx/w98ddk/storage_5l6g.htm
+	 */
+	//.long	0x00000001		/* safe MBR hook flag */
+	.long	0x00000000		/* safe MBR hook flag */
 
 	/* -----------------  SafeMBRHook structure end  ----------------- */
 	/*******************************************************************/
