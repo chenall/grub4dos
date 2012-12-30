@@ -2025,7 +2025,11 @@ VARIABLE(ROM_int13)
 ENTRY(hooked_drive_map)
 	.space	(DRIVE_MAP_SIZE + 1) * DRIVE_MAP_SLOT_SIZE
 
-	/* 8-byte space reserved. */
+	/* El Torito drive to report at 0xF8 */
+VARIABLE(eltorito_drive)
+	.byte	0
+
+	/* 7 bytes reserved at 0xF9 */
 
 	. = int13_handler + 0x100	/* real int13 handler entry at 0x100 */
 int13_handler_entry:
@@ -2286,6 +2290,16 @@ int13_new_ss:		.word	0
 //	cmpb	$0x1a, %ah	/* PS/2 low level format ESDI drive!!!! */
 //	je	error_01_disable	/* disabled in any case */
 
+	/* sha0: Is this an El Torito emulation query? */
+	cmpw	$0x4b01, %ax
+	jne	1f
+	/* Should we hook AX == 0x4B01 for all DL? */
+	cmpb	$0, %cs:(EXT_C(eltorito_drive) - int13_handler)
+	je	1f
+	/* Discard caller's DL in favour of the El Torito drive */
+	movb	%cs:(EXT_C(eltorito_drive) - int13_handler), %dl
+
+1:
 	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
 	jz	1f		/* no cdrom */
 	cmpb	%cs:(EXT_C(min_cdrom_id) - int13_handler), %dl
@@ -3298,6 +3312,8 @@ disk_address_packet_ready:
 	movb	$4, %al
 	stosw			/* sector count=4 */
 				/* CHS makes no sense for no-emu */
+	/* sha0: Restore caller's EDX */
+	movl	%cs:(int13_old_edx - int13_handler), %edx
 	popw	%di
 	popw	%es
 	xorb	%ah, %ah	/* success, CF cleared */
