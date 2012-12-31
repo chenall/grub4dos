@@ -87,7 +87,7 @@ static unsigned long cur_part_start;
 static unsigned long cur_part_entry;
 
 static int do_completion;
-
+static int set_filename(char *filename);
 int dir (char *dirname);
 static int sane_partition (void);
 
@@ -1705,6 +1705,19 @@ setup_part (char *filename)
 //  filepos = offset;
 //  return offset;
 //}
+static int set_filename(char *filename)
+{
+	char ch = nul_terminate(filename);
+	int i = grub_strlen(filename);
+	filename[i] = ch;
+	if (i >= sizeof(open_filename) || (relative_path && grub_strlen(saved_dir)+i >= sizeof(open_filename)))
+		return !(errnum = ERR_WONT_FIT);
+	if (relative_path)
+		grub_sprintf (open_filename, "%s%.*s", saved_dir, i,filename);
+	else
+		grub_sprintf (open_filename, "%.*s", i,filename);
+	return 1;
+}
 
 int
 dir (char *dirname)
@@ -1722,28 +1735,12 @@ dir (char *dirname)
   if (fsys_type == NUM_FSYS)
     errnum = ERR_FSYS_MOUNT;
 
-  if (relative_path)
-  {
-    if (grub_strlen(saved_dir) + grub_strlen(dirname) >= sizeof(open_filename))
-      errnum = ERR_WONT_FIT;
-  }
-  else
-  {
-    if (grub_strlen(dirname) >= sizeof(open_filename))
-      errnum = ERR_WONT_FIT;
-  }
-
-  if (errnum)
-    return 0;
+	if (set_filename(dirname) == 0)
+		return 0;
 
   /* set "dir" function to list completions */
   print_possibilities = 1;
 
-  if (relative_path)
-    grub_sprintf (open_filename, "%s%s", saved_dir, dirname);
-  else
-    grub_sprintf (open_filename, "%s", dirname);
-  nul_terminate (open_filename);
   return (*(fsys_table[fsys_type].dir_func)) (open_filename);
 }
 #endif /* STAGE1_5 */
@@ -2207,7 +2204,9 @@ block_file:
 #ifndef STAGE1_5
   /* set "dir" function to open a file */
   print_possibilities = 0;
-#endif
+  if (!set_filename(filename))
+		return 0;
+#else
 
   if (relative_path)
   {
@@ -2228,6 +2227,7 @@ block_file:
   else
     grub_sprintf (open_filename, "%s", filename);
   nul_terminate (open_filename);
+#endif
   if (!errnum && (*(fsys_table[fsys_type].dir_func)) (open_filename))
     {
 #ifdef NO_DECOMPRESSION
