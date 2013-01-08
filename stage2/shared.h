@@ -1149,6 +1149,9 @@ struct drive_map_slot
 extern struct drive_map_slot   bios_drive_map[DRIVE_MAP_SIZE + 1];
 extern struct drive_map_slot hooked_drive_map[DRIVE_MAP_SIZE + 1];
 
+/* El Torito drive to report */
+extern unsigned char eltorito_drive;
+
 /* Copy MAP to the drive map and set up int13_handler.  */
 void set_int13_handler (struct drive_map_slot *map);
 

@@ -1,3 +1,4 @@
+2012-12-30 (sha0)Added "map --report-eltorito=DEVICE" function
 2012-12-16  bug fixed(Issue 100: echo to nul after kernel command causes crash).
 2012-12-13 (tinybit)set timeout back to 1. set safe_mbr_hook to 0.
 2012-11-22 (tinybit)minor fixes on geometry_func and others.
