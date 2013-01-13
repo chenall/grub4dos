@@ -36,7 +36,7 @@ if DISKLESS_SUPPORT
 pkglib_DATA = stage2 stage2_eltorito e2fs_stage1_5 fat_stage1_5 ntfs_stage1_5 \
 	ffs_stage1_5 iso9660_stage1_5 jfs_stage1_5 minix_stage1_5 \
 	reiserfs_stage1_5 ufs2_stage1_5 vstafs_stage1_5 xfs_stage1_5\
-	nbgrub pxegrub grub.exe badgrub.exe grldr grldr.mbr bootlace.com hmload.com
+	nbgrub pxegrub grub.exe badgrub.exe grldr grldr.mbr bootlace.com hmload.com eltorito.sys
 noinst_DATA = pre_stage2 start start_eltorito nbloader pxeloader diskless dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
 noinst_PROGRAMS = pre_stage2.exec start.exec start_eltorito.exec \
 	e2fs_stage1_5.exec fat_stage1_5.exec ntfs_stage1_5.exec ffs_stage1_5.exec \
@@ -46,7 +46,7 @@ noinst_PROGRAMS = pre_stage2.exec start.exec start_eltorito.exec \
 else
 pkglib_DATA = stage2 stage2_eltorito e2fs_stage1_5 fat_stage1_5 ntfs_stage1_5 \
 	ffs_stage1_5 iso9660_stage1_5 jfs_stage1_5 minix_stage1_5 \
-	reiserfs_stage1_5 ufs2_stage1_5 vstafs_stage1_5 xfs_stage1_5 grub.exe badgrub.exe grldr grldr.mbr bootlace.com hmload.com
+	reiserfs_stage1_5 ufs2_stage1_5 vstafs_stage1_5 xfs_stage1_5 grub.exe badgrub.exe grldr grldr.mbr bootlace.com hmload.com eltorito.sys
 noinst_DATA = pre_stage2 start start_eltorito dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
 noinst_PROGRAMS = pre_stage2.exec start.exec start_eltorito.exec \
 	e2fs_stage1_5.exec fat_stage1_5.exec ntfs_stage1_5.exec ffs_stage1_5.exec \
@@ -229,6 +229,10 @@ hmloadstart_exec-hmloadstart.$(OBJEXT): stage2_size.h
 hmload.com: hmloadstart
 	-rm -f hmload.com
 	cp hmloadstart hmload.com && chmod a-x hmload.com
+
+eltorito.sys: eltorito.asm
+	nasm -Ox -f bin -o $@ $< || echo "Failed in building eltorito.sys!"
+	upx --ultra-brute --lzma $@ || upx --ultra-brute $@ || echo "upx command not found!"
 
 asm.S: a20.inc
 	touch asm.S

@@ -377,20 +377,6 @@ Update 11:	stage2 of Grub Legacy can be chainloaded in this way:
 Update 12: 	added exFAT partition.
  		Increased to find grldr from the CD root function. Can grldr_cd.bin as cdrom boot code
 
-Update 12:	2012-12-30: The 'map' command now accepts a new option
-		'--report-eltorito=DEVICE', where DEVICE determines which
-		INT 0x13 drive number will be reported to users of the
-		El Torito INT 0x13, AX=0x4B01 function, regardless of the
-		value of the DL register.  There are such users including
-		(but not limited to) the ElTorito.sys DOS driver included
-		with Syslinux (in dosutil/).  The INT 0x13 hook must be
-		established with at least one virtual optical disc drive
-		before this command option is used.
-
-		Example: map (hd0,0)/some.iso (0xA0)
-			 map --hook
-			 map --report-eltorito=(0xA0)
-
 --------------------------------------------------------
 
 	There is no full documentation in English at present. Here are some

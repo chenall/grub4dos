@@ -10156,68 +10156,6 @@ map_func (char *arg, int flags)
 	if (max_sectors < 8ULL)
 	    max_sectors = 8ULL;
       }
-    else if (grub_memcmp (arg, "--report-eltorito=", 18) == 0)
-      {
-	/* sha0: Report El Torito drive as device */
-	char *et_device;
-
-	if (unset_int13_handler (1))
-	  {
-	    if (debug > 0)
-	      printf("\nThe INT 0x13 hook has not been established. Please use \"map --hook\", first.\n");
-	    return !(errnum = ERR_INT13_OFF_HOOK);
-	  }
-
-	et_device = arg + 18;
-	if (*et_device != '(')
-	  return !(errnum = ERR_DEV_FORMAT);
-
-	set_device (et_device);
-	if (errnum)
-	  return !(errnum = ERR_DEV_FORMAT);
-
-	for (i = 0; i < DRIVE_MAP_SIZE; i++)
-	  {
-	    if (drive_map_slot_empty (hooked_drive_map[i]))
-	      {
-		/* Skip the rest of the slots */
-		i = DRIVE_MAP_SIZE;
-		break;
-	      }
-
-	    /* Match? */
-	    if (current_drive == hooked_drive_map[i].from_drive)
-	      break;
-	  }
-	if (i == DRIVE_MAP_SIZE)
-	  {
-	    /* Not found */
-	    if (debug > 0)
-	      printf("\nDEVICE not found in drive mapping table.\n");
-	    return !(errnum = ERR_DEV_VALUES);
-	  }
-
-	/*
-	 * Found the device in the drive mapping table.  Check if it's
-	 * a virtual optical disc drive; suitable for an El Torito
-	 * report.
-	 */
-	if (!(hooked_drive_map[i].to_cylinder & 0x2000))
-	  {
-	    if (debug > 0)
-	      printf("\nDEVICE is not a CD/DVD.\n");
-	    return !(errnum = ERR_DEV_VALUES);
-	  }
-
-	/* Everything is good */
-	eltorito_drive = (unsigned char)current_drive;
-	if (debug > 0)
-	  printf("\nEl Torito drive will be reported as 0x%02X\n", eltorito_drive);
-
-	/* Rehook */
-	set_int13_handler (hooked_drive_map);
-	return 1;
-      }
     else
 	break;
     arg = skip_to (0, arg);
@@ -11481,7 +11419,7 @@ static struct builtin builtin_map =
   "map",
   map_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "map [--status] [--mem[=RESERV]] [--hook] [--unhook] [--unmap=DRIVES]\n [--rehook] [--floppies=M] [--harddrives=N] [--memdisk-raw=RAW]\n [--a20-keep-on=AKO] [--safe-mbr-hook=SMH] [--int13-scheme=SCH]\n [--ram-drive=RD] [--rd-base=ADDR] [--rd-size=SIZE]\n [--report-eltorito=DEVICE] [[--read-only] [--fake-write] [--unsafe-boot]\n [--disable-chs-mode] [--disable-lba-mode] [--heads=H]\n [--sectors-per-track=S] TO_DRIVE FROM_DRIVE]",
+  "map [--status] [--mem[=RESERV]] [--hook] [--unhook] [--unmap=DRIVES]\n [--rehook] [--floppies=M] [--harddrives=N] [--memdisk-raw=RAW]\n [--a20-keep-on=AKO] [--safe-mbr-hook=SMH] [--int13-scheme=SCH]\n [--ram-drive=RD] [--rd-base=ADDR] [--rd-size=SIZE] [[--read-only]\n [--fake-write] [--unsafe-boot] [--disable-chs-mode] [--disable-lba-mode]\n [--heads=H] [--sectors-per-track=S] TO_DRIVE FROM_DRIVE]",
   "Map the drive FROM_DRIVE to the drive TO_DRIVE. This is necessary"
   " when you chain-load some operating systems, such as DOS, if such an"
   " OS resides at a non-first drive. TO_DRIVE can be a disk file, this"
@@ -11500,7 +11438,6 @@ static struct builtin builtin_map =
   "\nif RESERV is used and <= 0, the minimum memory occupied by the memdrive is (-RESERV) in 512-byte-sectors."
   "\nif RESERV is used and > 0,the memdrive will occupy the mem area starting at absolute physical address RESERV in 512-byte-sectors and ending at the end of this mem"
   " block(usually the end of physical mem)."
-  "\n--report-eltorito causes DEVICE to be reported to int13/ax=4b01h users."
 };
 #endif	/* ! GRUB_UTIL */
 

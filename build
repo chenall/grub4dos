@@ -105,6 +105,7 @@ make clean
 make || exit $?
 rm -rf grub4dos-${VER}
 mkdir grub4dos-${VER} || exit $?
+[ -f stage2/eltorito.sys ] && cp stage2/eltorito.sys grub4dos-${VER}
 cp $COPY_FILES grub4dos-${VER} || exit $?
 cd grub4dos-${VER}
 # generate bootlace64.com
