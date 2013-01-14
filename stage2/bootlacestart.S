@@ -510,6 +510,9 @@ option_floppy:
 //option_exfat:
 //	.ascii	"--exfat\0"	
 
+option_usb:
+	.ascii	"--usb=\0"
+
 msg_start:
 
 	/* messages begins at here */
@@ -836,6 +839,9 @@ msg_no_enough_memory:
 
 msg_install_partition_not:
         .ascii  "\r\n\r\nError: Specified install partition not exist.\r\n\0"
+        
+msg_usb_bpb_fat:
+        .ascii  "\r\nError: Attempt to increase the reserved sector.\r\n\0"                              
 
 msg_disk_Information:	
 	.ascii  "\r\nHD"
@@ -887,7 +893,7 @@ msg_usage:
 //      .ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --lba, --chs,\r\n"
 //      .ascii	"--fat12, --fat16, --fat32, --vfat, --ntfs, --ext2, --exfat, --serial-number=SN,\r\n"
         .ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --serial-number=SN,\r\n"
-	.ascii	"--restore-mbr, --mbr-no-bpb, --chs-no-tune\r\n"
+	.ascii	"--restore-mbr, --mbr-no-bpb, --chs-no-tune, --usb=I,\r\n"
 	.ascii	"DEVICE_OR_FILE: Filename of the device or image. For DOS, a BIOS drive number\r\n"
 	.ascii	"(in hex 0xHH or decimal DDD format)can be used to access the drive.\r\n\0"
 
@@ -1105,6 +1111,9 @@ current_partition:
 total_partition_entries:
         .long	0
         
+usb:
+        .long	0
+       
 	.align	16
 	
 //-------------------------------------------------------------------
@@ -1296,6 +1305,7 @@ grldr_pbr_start:
 //        0x400   2       EXT2/3/4
 //        0x800   2       EXFAT
 //        0XC00   4       NTFS
+//        0X1400  A       USB2.0					
 //*******************************************************
 
 #define GRLDR_INSTALL

@@ -193,7 +193,6 @@ grldr: pre_stage2 grldrstart
 	-rm -f grldr_cd.bin
 	echo -n -e "\000\000\000\000\000\000\000\000\000\000\000\000" | cat grldrstart pre_stage2 - > grldr
 	if [ -f ../preset_menu_used ]; then cat ../preset_menu_used >> grldr ;fi
-	dd if=grldrstart of=grldr_cd.bin bs=512 count=2 
 	
 
 mbrstart_exec_SOURCES = mbrstart.S
@@ -216,7 +215,8 @@ bootlace.com: bootlacestart
 	-rm -f bootlace.com
 	-rm -f grldr.pbr
 	cp bootlacestart bootlace.com && chmod a+x bootlace.com
-	dd if=bootlace.com of=grldr.pbr bs=512 skip=54 count=10
+	dd if=bootlace.com of=grldr.pbr bs=512 skip=56 count=20
+	dd if=bootlace.com of=grldr_cd.bin bs=512 skip=76 count=1
 	cat grldr.mbr >> bootlace.com
 	
 

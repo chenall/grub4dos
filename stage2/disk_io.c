@@ -50,6 +50,7 @@ static int next_pc_slice (void);
 static int next_gpt_slice(void);
 static char open_filename[512];
 static unsigned long relative_path;
+extern unsigned int iso_type;
 
 #ifndef STAGE1_5
 int print_possibilities;
@@ -722,7 +723,52 @@ print_fsys_type (void)
       printf (" Filesystem type ");
 
       if (fsys_type != NUM_FSYS)
-	printf ("is %s, ", fsys_table[fsys_type].name);
+      {
+ 				if (fsys_table[fsys_type].name == "fat")
+ 				{
+ 					switch (current_slice)
+ 					{
+ 						case 1:
+ 							printf ("is fat12, ");
+ 							break;
+ 						case 4:
+ 						case 6:
+ 						case 0xe:		
+ 							printf ("is fat16, ");
+ 							break;
+ 						case 0xb:
+ 						case 0xc:	
+ 							printf ("is fat32, ");
+ 							break;
+ 						case 7:
+ 							printf ("is exfat, ");
+ 							break;
+ 						default:
+ 							printf ("is %s, ", fsys_table[fsys_type].name);
+ 							break;	
+ 					}
+ 				}	
+      	else if (fsys_table[fsys_type].name == "iso9660")
+      	{
+      		switch (iso_type)
+      		{
+      			case 1:
+      				printf ("is udf, ");
+      				break;
+      			case 2:
+      				printf ("is iso9600_Joliet, ");
+      				break;
+      			case 3:
+      				printf ("is iso9600_RockRidge, ");
+      				break;
+      			default:
+ 							printf ("is %s, ", fsys_table[fsys_type].name);
+ 							break;				
+      		}		
+				}
+				else
+      		printf ("is %s, ", fsys_table[fsys_type].name);
+			}
       else
 	printf ("unknown, ");
 

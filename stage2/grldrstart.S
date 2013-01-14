@@ -160,10 +160,7 @@ mbr_boot_number:
 
         cmpb    $0X80, %dl                              /* cdrom? */
 	jbe     1f                                      /* not */
-        cmpl	$0x4f524443, (cdrom_signature - _start1)    /* Load the 2 sectors? */
-	jne	2f                                      /* not */
 	call	cdrom_check		                /* cdrom_check present */ 
-2:
         andb    $0x80, %dl	
 
 #endif //(! defined(GRLDR_MBR))
@@ -461,76 +458,70 @@ Heads_passed_in:
 	
 #if (! defined(GRLDR_MBR))
 
-cdrom_helper:	
-	/* Find the file from the cdrom root directory */
-	pushw   $0x0040
-	popw    %ds
-	pushw   $0x700
-	popw    %es
-	pushw   %es
-	popw    %bx
-	movb    $0x10, %al                              /* Read the main sector descriptor */
-	call    load_cd_sector
-	movl    %es:0x9e, %eax                          /* Root */
-	call    load_cd_sector
-	pushw   %es
-	popw    %ds
-	xorw    %si, %si
-2:	                                                
-	cmpb    $0, (%si)                               /* Record length in bytes */
-	je      cd_no_grldr                             /* End */
-	pushw   %si                                     /* First record */
-	leaw    0x21(%si), %di                          /* file name */
-	movw    $5, %cx                                 /* File name length */
-	cmpb    $0, 0x20(%si)                           /* File name length, Accommodate some of the bug */
-	je      cdrom_helper_1
-	cmpb    $5, 0x20(%si)                           /* grldr file name length */
-	je      cdrom_helper_1
-	movw    $8, %cx                                 /* File name length */
-	cmpb    $8, 0x20(%si)                           /* grldr file name length */
-	je      cdrom_helper_1	
-	dec     %cx                                     /* File name length */
-        cmpb    $7, 0x20(%si)                           /* grldr file name length */
-	je      cdrom_helper_2
-//	jmp     cdrom_helper_3_1
-cdrom_helper_1:
-        movw    $(cdrom_name - _start1), %si       /* "GRLDR.;1" */
-	jmp     1f
-	
-cdrom_helper_2:	
-        movw    $(cdrom_name - _start1 + 8), %si   /* "GRLDR;1" */
-1:		
-	pushw   %ds
-	pushw   %cs
-	popw    %ds
-1:
-        andb    $0xdf, %es:(%di)                        /* Changed to upper case */
-        cmpsb
-	jne     cdrom_helper_3
-	loop    1b
-	popw    %ds
-        popw    %si                                     /* First record */
-	movl    0x0a(%si), %eax                         /* File length in bytes */
-	movw    $0x800, %cx                             /* 1 CD sectors = 2048 bytes */
-	pushw   %dx
-	pushl   %eax
-	popw    %ax
-	popw    %dx
-	div     %cx
-	popw    %dx
-	xchgw   %cx, %ax                                /* File number of sectors in the CD-ROM */
-	movl    2(%si), %eax                            /* File logical sector */
-	incw    %bp                                     /* Mark */ 
-	jmp     load_the_rest_1
+cdrom_check:
 
-#endif  //! defined(GRLDR_MBR))
+	/* DS=CS points to the sector start. */
+
+	/* BX segment points to near the end of GRLDR image. */
+
+	/* The code must begin with 0x58, 0x8E, 0xD3, 0xBC. */
+
+	popw	%ax	/* old return IP. code: 0x58 */
+
+	/* set BX as the new safe stack. */
+	movw	%bx, %ss	/* code: 0x8E, 0xD3 */
+	movw	$0xFFF0, %sp	/* code: 0xBC, 0xF0, 0xFF */
+	sti
+
+	pushw	%ax	/* old return IP */
+
+	/* check if DL is no-emulation-mode bootable CDROM. */
+	pushw	%ds
+
+	cmpb	$0x80, %dl
+	jb	1f	/* not a valid no-emulation-mode cdrom drive number */
+
+	cmpw	$0xAA55, 0x3FE		/* 2048 bytes loaded? */
+	jne	1f
+
+	movw	$0x0180, %si
+	movw	$0x4B01, %ax
+	pushw	$0x0040
+	//.byte	0x6A, 0x40
+	popw	%ds
+	pushw	%ds
+	popw	%es
+	movb	$0x13, (%si)
+	call	int13
+
+	/* ignore CF */
+#;	jc	2f	/* not in emulation mode */
+	xorl	%eax, %eax
+	xorw	%bp, %bp
+	testb	$0x0F, 1(%si)	/* boot media type is No Emulation? */
+	jnz	2f	/* no, it simulates floppy or hard disk. */
+	cmpb	%dl, 2(%si)	/* drive number */
+	jnz	2f	/* invalid drive */
+
+	/* OK! it is no-emulation-mode cdrom drive. */
+	movl	4(%si), %eax	/* LBA of GRLDR */
+	incw	%bp
+
+2:
+	jmp	cdrom_helper
+1:
+	popw	%ds
+	ret
+
+#endif //(! defined(GRLDR_MBR))
+	
 
 	/* Make sure the above code does not occupy the partition table */
 
 	/* offset value here must be less than or equal to 0x1b8 */
 
 #if (defined(GRLDR_MBR)) 
-        . = . - ((. - _start1) / 0x1b9)
+//       . = . - ((. - _start1) / 0x1b9)
         . = _start1 + 0x1fe	/* boot signature */
 	.word	0xAA55
 #endif //(defined(GRLDR_MBR))
@@ -554,17 +545,46 @@ cdrom_helper_2:
         movb	$0x80, %dl
 	jmp	_start1   
 
-        . = _start1 + 0x270 
+//        . = _start1 + 0x270 
 
 #if (! defined(GRLDR_MBR))
 
-cdrom_helper_3:
-        popw    %ds
-cdrom_helper_3_1:        	
-	popw    %si
-	movzbw  (%si), %cx
-	add     %cx, %si                                /* First record */
-	jmp     2b
+cdrom_helper:
+
+	/* IP and old_DS is on the stack. */
+
+	/* DS=ES=40h */
+
+	/* Stack is high and safe. */
+
+	/* EAX is LBA. if EAX==0, LBA is unknown. */
+
+	/* check if the first sector is the same as the current one */
+
+	/* load the first sector onto the sector immediately follows */
+1:
+	pushw	%cs
+	popw	%bx		/* BX=CS=old_DS=load_segment */
+	addw	$0x0080, %bx	/* buffer segment */
+	movw	%bx, %es	/* ES changed! */
+	call	load_cd_sector
+
+	/* compare the two sectors */
+	movw	$0x200, %cx
+	xorw	%si, %si
+	xorw	%di, %di
+	cld
+	cs repz cmpsl
+	je	load_the_rest	/* 1st sector is ok, continue */
+not_grldr:
+	testw	%bp, %bp
+	jz	2f
+	xorw	%bp, %bp
+//	xorl	%eax, %eax
+	movl	$0x12, %eax
+2:
+	incl	%eax
+	jnz	1b		/* try next */
 
 cd_no_grldr:
         pushw   %cs
@@ -574,12 +594,17 @@ cd_no_grldr:
 	# which is also inside the 2048-byte CD sector.
 
 	movw	$(msg_BootError_cd - _start1), %si
-        call    print_message 
-1:      jmp     1b
+1:
+	lodsb	(%si), %al	/* get token */
+	movb	$0x0e, %ah	/* print it */
+	int	$0x10		/* via TTY mode */
+	cmpb	$0, %al		/* end of string? */
+	jne	1b		/* until done */
+1:	
+	jmp	1b
+        
 
-msg_BootError_cd:
-        .ascii	"No GRLDR\0"
-
+		
 load_cd_sector:
 	/* input:	EAX	LBA
 	 *		BX	buffer segment(buffer offset=0)
@@ -603,84 +628,61 @@ load_cd_sector:
 	movb	$0x42, %ah
 	call	int13
 	popal
-	ret 
-	
-cdrom_check:
-
-	/* DS=CS points to the sector start. */
-
-	/* BX segment points to near the end of GRLDR image. */
-
-	/* The code must begin with 0x58, 0x8E, 0xD3, 0xBC. */
-
-	movw	$0x0180, %si
-	movw	$0x4B01, %ax
-	pushw	$0x0040
-	//.byte	0x6A, 0x40
-	popw	%ds
-	movb	$0x13, (%si)
-	call	int13
-	xorw	%bp, %bp
-
-	/* OK! it is no-emulation-mode cdrom drive. */
-	movl	4(%si), %eax	/* LBA of GRLDR */
-
+	ret
 
 load_the_rest:
-        cli
-	movw	%bx, %ss	/* code: 0x8E, 0xD3 */
-	movw	$0xFFF0, %sp	/* code: 0xBC, 0xF0, 0xFF */
-	sti
-	
-load_the_rest_1:
+
 	/* load all sectors (except the first one) */
 
 	/* EAX = first sector(LBA) of GRLDR */
 
+	pushl	%eax
 
 	pushw	%cs
 	popw	%bx		/* BX=CS=old_DS=load_segment */
 	/* 6144 = 0x1800 = 3 sectors > 4KB, this is for the additional 4KB-preset-menu at the end of grldr */
-	orw     %bp, %bp
-	jne     1f
-	
-        movw	$((grldr_signature - _start1 + 4 + STAGE2_SIZE - 1 + 6144) / 2048), %cx         /* sectors to load */
- 	
-			        
-1:        
+	movw	$((grldr_signature - _start1 + 4 + STAGE2_SIZE - 1 + 6144) / 2048), %cx	/* sectors to load */
+1:
 	incl	%eax		/* next sector */
 	addw	$0x0080, %bx	/* buffer segment */	
 	call	load_cd_sector
 	loop	1b
 
 	/* loading is completed. BX=segment of the last sector. */
-	        
-	orw     %bp, %bp
-	jne     grldr_real_start        
-                                                                              
+
+	subw	$0x0181, %bx	/* decw	%bx */
+	movw	%bx, %ds
+
+	popl	%eax
+//	subl	$((grldr_signature - _start1 + 4 + STAGE2_SIZE - 1 + 6144) / 2048), %eax
 
 	/* check the ending signature */
-
-        pushw   %cs
-        popw    %bx
-        
-        addw	$((grldr_signature - _start1 + 4 + STAGE2_SIZE - 4) >> 4), %bx
- 	        
-        
-	movw	%bx, %ds
-	cmpl	$0xCE1A02B0, ((STAGE2_SIZE - 4) & 0x0F)
-        jne     cdrom_helper
-
-
+	cmpl	$0xCE1A02B0, ((grldr_signature - _start1 + 4 + STAGE2_SIZE - 1) % 2048) + 13
+	jne	not_grldr
+	        
 grldr_real_start:
 
+	cli
+	//xorw	%ax, %ax
+	//movw	%ax, %ss
+	//movw	$0x0400, %sp	/* tmp use real-mode IDT as stack */
 	movw	%cs, %bp	/* save CS to BP */
-
+	call	1f
+1:
+	popw	%bx		/* BX=Instruction Pointer of 1b */
+	subw	$(1b - _start1), %bx
+	movw	%bx, %cx
+	shrw	$4, %bx
+	addw	%bp, %bx
+	pushw	%bx		/* new CS */
+	andw	$0x000f, %cx
+	addw	$(1f - _start1), %cx
+	pushw	%cx		/* new IP */
+	lret
+1:
 	movw	%ds, %cx	/* CX==BP==0x7C0 for pxe enabled */
 	pushw	%cs
 	popw	%ds
-	pushw	%cs
-	popw	%bx
 
 	/* CS=DS=BX, CS:0000 = _start1 */
 	
@@ -831,16 +833,15 @@ default_config_file:
 
 	.byte	0		/* mark the end of ascii zero string */	
 
-        . = _start1 + 0x3ec
 
-cdrom_name:
-        .ascii	"GRLDR.;1"
-        .ascii	"GRLDR;1" 
-
-        . = _start1 + 0x3fb
-         
-cdrom_signature:         
-        .ascii	"CDROM" 
+	
+	. = _start1 + 0x3f0 	
+	
+msg_BootError_cd:
+	.ascii	"No GRLDR\0"
+	
+        . = _start1 + 0x3fe	/* boot signature */
+	.word	0xAA55	
         
 #endif // (! defined(GRLDR_MBR))        
 
@@ -938,40 +939,14 @@ cdrom_signature:
 ;	...
 */
 
-#define BOOTGRUB	/* undef this if compiled for loading FreeDOS */
-//#undef BOOTGRUB
 
-#ifdef	BOOTGRUB
 #define LOADSEG		0x2000
 #define FATSEG		0x0060
-#else
-#define LOADSEG		0x0060
-#define FATSEG		0x2000
-#endif
 
 Entry_32:
 	jmp	1f
 
 	. = Entry_32 + 0x02
-
-	/* The default mode is CHS. This is for maximum compatiblity with
-	 * small-sized disks, e.g., floppies.
-	 *
-	 * Valid values are 0x90 for CHS mode, or 0x0e for LBA mode.
-	 *
-	 * If the BIOS int13 supports LBA, this byte can be safely set to 0x0e.
-	 *
-	 * Some USB BIOSes might have bugs when using CHS mode, so the format
-	 * program should set this byte to 0x0e. It seems that (generally) all
-	 * USB BIOSes have LBA support.
-	 *
-	 * If the format program does not know whether the BIOS has LBA
-	 * support, it may operate this way:
-	 *
-	 * if (partition_start + total_sectors_in_partition) exceeds the CHS
-	 * addressing ability(especially when it is greater than 1024*256*63),
-	 * the caller should set this byte to 0x0e, otherwise, set to 0x90.
-	 */
 
 	.byte	0x90	/* for CHS. Another possible value is 0x0e for LBA */
 
@@ -1020,59 +995,51 @@ Entry_32:
 1:
 	cli
 	cld
-
-#ifdef	BOOTGRUB
-
-	. = Entry_32 + 0x5c
-
-	/* the byte at offset 0x5d stores the real partition number for read.
-	 * the format program or the caller should set it to a correct value.
-	 * For floppies, it should be 0xff, which stands for whole drive.
-	 */
-
-//	movb	$0xff, %dh	/* boot partition number */
-
-//	cmpb	$0xff, %dh	/* is floppy? */
-//	jne	1f
-//	movb	$0, %dl		/* yes, let drive number = 0 */
-//1:
-#endif
-
 	xorw	%ax, %ax
 	movw	$0x7c00, %bp
-
-#ifndef	BOOTGRUB
-	movw	%ax, %ds
-	movw	$0x1fe0, %ax
-	movw	%ax, %es
-	movw	%bp, %si	/* move from 0000:7c00 */
-	movw	%bp, %di	/* move to 1fe0:7c00 */
-	movw	$0x0100, %cx	/* one sector to move */
-	repz movsw
-	ljmp	$0x1fe0, $(1f - Entry_32 + 0x7c00)
-1:
-#endif
+	movw	%bp, %sp        
 	movw	%ax, %ss	/* stack and BP-relative moves up, too */
-	leaw	-0x20(%bp), %sp
-	sti
-//	movw	%dx, 0x40(%bp)	/* BIOS passes drive number in DL */
-        movb	%dl, 0x40(%bp)
-
-	pushw	%ss
+	movw	%ax, %ds
+	sti			/* after stack setup, we can use stack */
+	
+	/* cs=ss=ds=es=0, bp=0x7C00 */
+ 
+	movb	%dl, 0x40(%bp)  /* BIOS passes drive number in DL */
 	movb	$0x41, %ah
 	movw	$0x55AA, %bx
+	pushw   %ds
 	int	$0x13
 	popw	%ds
+	movb	(Loadusb_32 - Entry_32 + 0x7c00 +1), %al
 	jc	1f		/* No EBIOS */
 	cmpw	$0xAA55, %bx
 	jne	1f		/* No EBIOS */
-	testb	$1, %cl
-	jz	1f		/* No EBIOS */
+	rorb	$1, %cl
+	jnc	1f              /* No EBIOS */
 	/* EBIOS supported */
 	movb	$0x42, (ebios_32 - 1 - Entry_32 + 0x7c00)
+4:
+	cmpb	$2, %al         //al=2,Forced load            
+	jne	2f           	//Not loaded
+	jmp	3f
 1:
-	pushw	%ss
+	cmpb	$1, %al		//al=1,When dl = 00 and does not support the expansion of reading and writing load
+	jne	4b		//Then judge al=2     
+3:	//Load the usb driver
+	movl	0x7c1c, %eax
+ 	incl	%eax
+	movw	$0x0a, %cx
+	pushw	%ds
 	popw	%es
+	movw	$0xd000, %bx    //read to 0000:d000
+1:	
+ 	call	readDisk_32
+ 	loop	1b
+	call	$0x0d00,$0x0000
+	jc 2f
+	/* EBIOS supported */
+	movb	$0x42, (ebios_32 - 1 - Entry_32 + 0x7c00)
+2:
 
 /* figure out where FAT and DATA area starts
  * (modifies EAX EDX, sets fat_start and data_start variables)
@@ -1107,8 +1074,9 @@ Entry_32:
 
 2:
 	lesw	(loadseg_off_32 - Entry_32)(%bp), %bx	/* load to loadseg:0 */
+	pushw	%es
 	call	readDisk_32
-
+	popw	%es
 	xorw	%di, %di
 
 	/* Search for kernel file name, and find start cluster */
@@ -1130,12 +1098,6 @@ Entry_32:
 	call	next_cluster_32
 	jmp	1b		/* read next cluster */
 
-#ifndef ALTERNATIVE_KERNEL
-loadseg_off_32:
-	.word	0
-	.word	LOADSEG
-#endif
-
 1:
 	/* kernel directory entry is found */
 	pushw	%es:(0x14-11)(%di)	/* get cluster number HI */
@@ -1153,11 +1115,8 @@ loadseg_off_32:
 	jnc	1f
 	
 	/* EOC encountered - done */
-#ifdef	BOOTGRUB
+
 	movw	0x40(%bp), %dx	/* boot_drive and boot_partition */
-#else
-	movb	0x40(%bp), %bl	/* FreeDOS kernel uses BL, not DL, for drive */
-#endif
 	pushw	%dx		/* for loading grub.exe */
 	ljmp	*(loadseg_off_32 - Entry_32)(%bp)
 
@@ -1180,31 +1139,11 @@ loadseg_off_32:
 
 next_cluster_32:
 	pushw	%es
-	/* pushw	%di */
 	pushw	%bx		/* hi word of EBX never used */
-
-#if 1
-	/* xorl	%edx, %edx */
+			
 	shll	$2, %eax	/* 32bit FAT */
 	movzwl	0x0b(%bp), %ebx	/* bytes per sector */
 	divl	%ebx		/* residue is in EDX */
-	/* movw	%dx, %di */
-#else	
-	shll	$2, %eax	/* 32bit FAT */
-	//xchgw	%ax, %di	/* movw	%ax, %di */
-	movw	%ax, %di
-	//shlw	$2, %di		/* 32bit FAT */
-
-	pushw	%cx
-	movw	0x0b(%bp), %bx	/* bytes per sector */
-	bsfw	%bx, %cx
-	//decw	%cx
-	//decw	%cx
-	decw	%bx
-	andw	%bx, %di	/* mask to sector size */
-	shrl	%cl, %eax
-	popw	%cx
-#endif	
 	addl	0x48(%bp), %eax	/* add the first FAT sector number.  */ 
 				/* EAX=absolute sector number */
 	movw	$FATSEG, %bx
@@ -1215,21 +1154,13 @@ next_cluster_32:
 	cmpl	0x44(%bp), %eax
 	jz	1f
 	movl	%eax, 0x44(%bp)	/* mark sector EAX as buffered */
+	pushw	%es
 	call	readDisk_32	/* read sector EAX to buffer */
+	popw	%es
 1:
-#if 1
-	//.byte	0x67, 0x26, 0x80, 0x62, 0x03, 0x0f
-//	addr32 andb	$0x0f, %es:3(%edx)	/* mask out top 4 bits */
         andb	$0x0f, %es:3(%edx)	/* mask out top 4 bits */
-	//.byte	0x67, 0x66, 0x26, 0x8b, 0x02
-//	addr32 movl	%es:(%edx), %eax	/* read next cluster number */
         movl	%es:(%edx), %eax	/* read next cluster number */
-#else
-	andb	$0x0f, %es:3(%di)	/* mask out top 4 bits */
-	movl	%es:(%di), %eax	/* read next cluster number */
-#endif
 	popw	%bx
-	/* popw	%di */
 	popw	%es
 	ret
 
@@ -1306,44 +1237,18 @@ ebios_32:
 	pushw	%ds
 	int	$0x13
 	popw	%ds
-	popw	%es
+	popw	%bx
+	jc	disk_error_32
+	leaw	0x20(%bx), %bx
+	movw	%bx, %es
 	popaw			/* remove parameter block from stack */
 	popal
-	jc	disk_error_32	/* disk read error, jc 1f if caller handles */
 	incl 	%eax		/* next sector */
-	addw	0x0b(%bp), %bx	/* bytes per sector */
-	jnc	1f		/* 64K bound check */
-	pushw	%dx
-	movw	%es, %dx
-	addb	$0x10, %dh	/* add 1000h to ES */
-				/* here, carry is cleared */
-	movw	%dx, %es
-	popw	%dx
-1:
-	/* carry stored on disk read error */
 	ret
-
-//	. = . - (. - readDisk_32)/91
-
-
-
-//#ifdef ALTERNATIVE_KERNEL
-//filename_end_32:
-
-//	. = Entry_32 + 0x1e8
 
 loadseg_off_32:
 	.word	0
 	.word	LOADSEG
-
-//	. = Entry_32 + 0x1ec
-
-//boot_image_ofs_32:
-
-//	.word (filename_32 - Entry_32)+(filename_end_32 - filename_32 - 1)*2048
-//#endif
-
-//	. = Entry_32 + 0x1ee
 
 disk_error_32:
 
@@ -1361,12 +1266,8 @@ boot_error_32:
 	int	$0x10		/* via TTY mode */
 	cmpb	$0, %al		/* end of string? */
 	jne	1b		/* until done */
-
-	/* The caller will change this to
-	 *	ljmp	$0x9400, $(try_next_partition - _start1)
-	 */
-
-1:	jmp	1b
+1:	
+	jmp	1b
 
         . = Entry_32 + 0x1e0
 
@@ -1374,18 +1275,15 @@ msg_BootError_32:
 	.ascii	"No "
 	
 filename_32:
-
-#ifdef	BOOTGRUB
 	.ascii	"GRLDR      \0"
-#else
-	.ascii	"KERNEL  SYS\0"
-#endif
 
 msg_DiskReadError_32:
 	.ascii	"Disk error\0" 
 	
-	. = Entry_32 + 0x1fc
-
+	. = Entry_32 + 0x1fa
+	
+Loadusb_32:
+        .byte   0x75,0
 	.word	0, 0xAA55 /* Win9x uses all 4 bytes as magic value here */
 
 	. = Entry_32 + 0x200  
@@ -1394,11 +1292,8 @@ msg_DiskReadError_32:
 
 /* ********************  fat12_16_dbr start  ****************************** */	
 	
+	.arch	i486, nojumps
 
-//	. = _start1 + 0x600
-
-	//.arch	i8086, nojumps
-//	.arch	i186, nojumps
 /*
  * The following is based on FreeDOS, modified heavily by Tinybit in Feb, 2004
  *
@@ -1477,39 +1372,15 @@ msg_DiskReadError_32:
 ;	+--------+
 */
 
-#ifdef	BOOTGRUB
+
 #define LOADSEG_12_16   0x2000
 #define FATBUF          0x2000        /* offset of temp buffer for FAT chain */
-#else
-#define LOADSEG_12_16   0x0060
-#define FATBUF          0x2000        /* offset of temp buffer for FAT chain */
-#endif
 
 Entry_12_16:
 	jmp     1f
 
 	. = Entry_12_16 + 0x02
-
-	/* The default mode is CHS. This is for maximum compatiblity with
-	 * small-sized disks, e.g., floppies.
-	 *
-	 * Valid values are 0x90 for CHS mode, or 0x0e for LBA mode.
-	 *
-	 * If the BIOS int13 supports LBA, this byte can be safely set to 0x0e.
-	 *
-	 * Some USB BIOSes might have bugs when using CHS mode, so the format
-	 * program should set this byte to 0x0e. It seems that (generally) all
-	 * USB BIOSes have LBA support.
-	 *
-	 * If the format program does not know whether the BIOS has LBA
-	 * support, it may operate this way:
-	 *
-	 * if (partition_start + total_sectors_in_partition) exceeds the CHS
-	 * addressing ability(especially when it is greater than 1024*256*63),
-	 * the caller should set this byte to 0x0e, otherwise, set to 0x90.
-	 */
-
-	.byte	0x90	/* for CHS. Another possible value is 0x0e for LBA */
+	.byte	0x90
 
  	. = Entry_12_16 + 0x36
 
@@ -1555,87 +1426,25 @@ Entry_12_16:
 1:
 	cli
 	cld 
-
-#ifdef	BOOTGRUB
-
-	. = Entry_12_16 + 0x40
-
-	/* the byte at offset 0x41 stores the real partition number for read.
-	 * the format program or the caller should set it to a correct value.
-	 * For floppies, it should be 0xff, which stands for whole drive.
-	 */
-
-//	movb	$0xff, %dh	/* boot partition number */
-
-//	cmpb	$0xff, %dh	/* is floppy? */
-//	jne	1f
-//	movb	$0, %dl		/* yes, let drive number = 0 */
-//1:
-#endif
-
 	xorw	%ax, %ax
 	movw	$0x7c00, %bp
-
-#ifdef	BOOTGRUB
-
+	movw	%bp, %sp        
 	movw	%ax, %ss	/* stack and BP-relative moves up, too */
-	leaw	-0x20(%bp), %sp
-
-	sti			/* after stack setup, we can use stack */
-
-//	movw	%dx, 0x24(%bp)	/* BIOS passes drive number in DL */ 
-        movb	%dl, 0x24(%bp)
-
-	pushaw			/* AX=0 */
-
-	movb	$0x41, %ah
-	movw	$0x55AA, %bx
-	pushw	%dx
-	int	$0x13
-	popw	%dx
-	pushw	%ss		/* SS=0 */
-	popw	%ds		/* DS=0 */
-
-	jc	1f		/* No EBIOS */
-	cmpw	$0xAA55, %bx
-	jne	1f		/* No EBIOS */
-	testb	$1, %cl
-	jz	1f		/* No EBIOS */
-//	testb	%dl, %dl	/* floppy? */
-//	jns	1f		/* yes, only use CHS for FAT12/16 on floppy. */
-	/* EBIOS supported */
-	movb	$0x42, (ebios_12_16 - 1 - Entry_12_16 + 0x7c00)
-1:
-	popaw			/* AX=0 */
-
-	movw	%ax, %es	/* ES=0 */
-
-	/* AX=SS=DS=ES=0, BP=0x7C00 */
-
-#else
 	movw	%ax, %ds
-	movw	%bp, %si	/* move from 0000:7c00 */
-	movw	%bp, %di	/* move to 1fe0:7c00 */
-	movb	%dl, 0x24(%si)	/* BIOS passes drive number in DL */
-//	xchgw	%ax, %dx	/* let DX = 0 */
-	movw	$0x1fe0, %ax
 	movw	%ax, %es
-	movw	$0x0100, %cx	/* one sector to move */
-	repz movsw
-				/* CX = 0 */
-	ljmp	$0x1fe0, $(1f - Entry_12_16 + 0x7c00)
-1:
-	movw	%ax, %ss	/* stack and BP-relative moves up, too */
-	leaw	-0x20(%bp), %sp
+	sti			/* after stack setup, we can use stack */ 
 
-	sti			/* after stack setup, we can use stack */
-
-	pushw	%ax		/* AX=0x1FE0 */
+	/* cs=ss=ds=es=0, bp=0x7C00 */
+ 
+	movb	%dl, 0x24(%bp)  /* BIOS passes drive number in DL */
 	movb	$0x41, %ah
 	movw	$0x55AA, %bx
+	pushw	%ds
+	pushw	%es
 	int	$0x13
-	popw	%ds		/* DS=0x1FE0 */
-
+	popw	%es
+	popw	%ds
+	movb	(Loadusb_12_16 - Entry_12_16 + 0x7c00 +1), %al
 	jc	1f		/* No EBIOS */
 	cmpw	$0xAA55, %bx
 	jne	1f		/* No EBIOS */
@@ -1643,15 +1452,25 @@ Entry_12_16:
 	jz	1f		/* No EBIOS */
 	/* EBIOS supported */
 	movb	$0x42, (ebios_12_16 - 1 - Entry_12_16 + 0x7c00)
+4:
+	cmpb	$2, %al		//al=2,Forced load             
+	jne	2f 		//not load
+	jmp	3f
 1:
-	xorw	%ax, %ax	/* AX=0 */
-
-#endif
-
+	cmpb	$1, %al		//al=1,When dl = 00 and does not support the expansion of reading and writing load
+	jne	4b 		//Then judge al=2     
+3:	//Load the usb driver
+	movl	0x7c1c, %eax
+	incl	%eax
+	movw	$0x0a, %cx
+	movw	$0xd000, %bx    //read to 0000:d000
+ 	call	readDisk_12_16
+	call	$0x0d00,$0x0000
+	jc 2f
+	/* EBIOS supported */
+	movb	$0x42, (ebios_12_16 - 1 - Entry_12_16 + 0x7c00)
+2:	
 	/* GET DRIVE PARMS: Calculate start of some disk areas */
-1:
-#if 0
-//	.arch	i486, nojumps
 
 	movzwl	0x0e(%bp), %ebx	/* reserved sectors */
 	addl	0x1c(%bp), %ebx	/* hidden sectors */
@@ -1665,123 +1484,30 @@ Entry_12_16:
 
 	/* Calculate how many sectors the root directory occupies */
 
-	movzwl	0x0b(%bp), %ecx	/* bytes per sector, should be 512 */
-
-	movzwl	0x11(%bp), %eax	/* max number of RootDir entries */
-	shll	$5, %eax	/* total bytes RootDir occupies */
-	addl	%ecx, %eax
-	decl	%eax
-	/* xorl	%edx, %edx */	/* EDX=0 */
-	divl	%ecx		/* EAX=AX=sectors for RootDir */
-
-	movw	%ax, 0x26(%bp)	/* sectors for RootDir */
-
+	movw	0x11(%bp), %ax	/* max number of root dir entries */
+	addw	$0x0f, %ax
+	movw	$0x10, %cx
+	divw	%cx		/* AX = sectors per root directory */
+	cwde
+	movw	%ax, %cx       
 	addl	%eax, %ebx
 	movl	%ebx, 0x30(%bp)	/* ---- DataArea start */
 
-	. = . - (. - 1b)/66
-
-//	.arch	i186, nojumps
-#else
-	movw	0x1c(%bp), %si	/* number of hidden sectors(lo) */
-	movw	0x1e(%bp), %di	/* number of hidden sectors(hi) */
-	addw	0x0e(%bp), %si	/* number of reserved sectors */
-	adcw	%ax, %di	/* DI:SI = first FAT sector */
-				/* AX = 0 */
-
-	movw	%si, 0x28(%bp)	/* FAT start sector(lo) */
-	movw	%di, 0x2a(%bp)	/* FAT start sector(hi) */
-
-	//xchgw	%ax, %dx	/* let AX = 0 */
-	movb	0x10(%bp), %al	/* number of FATs */
-	/* cbw */
-	mulw	0x16(%bp)	/* sectors per FAT */
-				/* DX:AX = total number of FAT sectors */
-				/* DX = 0 since no too many FAT sectors */
-	addw	%ax, %si
-	adcw	%dx, %di	/* DI:SI = root directory start sector */
-	movw	%si, 0x2c(%bp)	/* root directory starting sector(lo) */
-	movw	%di, 0x2e(%bp)	/* root directory starting sector(hi) */
-
-	/* Calculate how many sectors the root directory occupies */
-
-	movw	0x0b(%bp), %bx	/* bytes per sector */
-	movb	$5, %cl		/* divide BX by 32 */
-	shrw	%cl, %bx	/* BX = directory entries per sector */
-
-	movw	0x11(%bp), %ax	/* max number of root dir entries */
-	addw	%bx, %ax
-	decw	%ax
-	/* xorw	%dx, %dx */	/* assuming DX = 0 */
-	divw	%bx		/* AX = sectors per root directory */
-	cwd			/* DX = 0 */
-
-	movw	%ax, 0x26(%bp)	/* number of sectors the root dir occupies */
-
-	addw	%ax, %si	/* DI:SI = first data sector */
-	adcw	%dx, %di	/* assuming DX = 0 */
-
-	movw	%si, 0x30(%bp)	/* data starting sector(lo) */
-	movw	%di, 0x32(%bp)	/* data starting sector(hi) */
-
-//	. = . - (. - 1b)/63
-
-#endif
-
-
-#ifdef USE_TOTAL_CLUSTERS
-	movw	0x13(%bp), %cx	/* total sectors(small) */
-	jcxz	1f
-	movw	%cx, 0x20(%bp)	/* total sectors(large)(lo) */
-	movw	%dx, 0x22(%bp)	/* total sectors(large)(hi), assuming DX = 0 */
-1:	
-	movw	0x20(%bp), %ax	/* total sectors(large) */
-	movw	0x22(%bp), %bx
-	addw	0x1c(%bp), %ax	/* number of hidden sectors */
-	adcw	0x1e(%bp), %bx
-	subw	%si, %ax	/* data starting sector */
-	sbbw	%di, %bx	/* BX:AX = total sectors in the data area */
-	movb	0x0d(%bp), %dl	/* sectors per cluster(DH=0) */
-	xchgw	%bx, %dx	/* DX:AX = total sectors in the data area */
-				/* BX = sectors per cluster */
-	divw	%bx		/* AX = total clusters in the data area */
-	movw	%ax, 0x34(%bp)	/* total clusters in the data area */
-#else
-//	movw	$0xffff, 0x36(%bp)	/* bytes per FAT( > 0x1800 means FAT16) */
-//	movw	0x16(%bp), %ax	/* sectors per FAT */
-//	mulw	0x0b(%bp)	/* bytes per sector */
-//	jc	1f
-//	movw	%ax, 0x36(%bp)
-//1:
-#endif
-	/* Searches for the file in the root directory
-	 *
-	 * Returns:
-	 *	AX = first cluster of file
-	 */
-
 	/* First, read the whole root directory into the temporary buffer */
 
-	movw	0x2c(%bp), %ax	/* root directory starting sector(lo) */
-	movw	0x2e(%bp), %dx	/* root directory starting sector(hi) */
-	movw	0x26(%bp), %cx	/* number of sectors the root dir occupies */
-	lesw	(loadseg_off_12_16 - Entry_12_16)(%bp), %bx
-				/* ES:BX = loadseg:0 */
+	movl	0x2c(%bp), %eax	/* root directory starting sector(lo) */
+	lesw	(loadseg_off_12_16 - Entry_12_16)(%bp), %bx     /* ES:BX = 0x2000:0000 */
+	
+	/* cs=ss=ds=0 es=0x2000 */
+	
+	call	readDisk_12_16	/* CX=0, eax,ES changed */ 
 
-//	pushw	%es
-	call	readDisk_12_16	/* CX=0, AX,DX,ES changed */
-//	popw	%es
-
-	lesw	(loadseg_off_12_16 - Entry_12_16)(%bp), %di
-				/* ES:DI = loadseg:0 */
+	lesw	(loadseg_off_12_16 - Entry_12_16)(%bp), %di     /* ES:DI = 0x2000:0000 */
 
 
 	/* Search for kernel file name, and find start cluster */
 
 	/* BX=0, CX=0 */
-
-//	pushw	%cx
-//	popw	%di
 
 1:
 	movw	$(filename_12_16 - Entry_12_16 + 0x7c00), %si	/* filename */
@@ -1805,11 +1531,6 @@ Entry_12_16:
 	movw	$(msg_BootError_12_16 - Entry_12_16 + 0x7c00), %si
 	jmp	boot_error_12_16	/* fail if not found */
 
-#ifndef ALTERNATIVE_KERNEL
-loadseg_off_12_16:	.word	0
-loadseg_seg_12_16:	.word	LOADSEG_12_16
-#endif
-
 1:
 
 /****************************************************************************/
@@ -1832,16 +1553,14 @@ loadseg_seg_12_16:	.word	LOADSEG_12_16
 	/********************************************************************/
 
 	pushw	%es:0x1a(%di)	/* save first cluster number of file */
-
-//	lesw	(loadseg_off_12_16 - Entry_12_16)(%bp), %bx
-//				/* ES:BX = loadseg:0 */
 	movw	0x16(%bp), %cx	/* sectors per FAT */
-	movw	0x28(%bp), %ax	/* FAT start sector(lo) */
-	movw	0x2a(%bp), %dx	/* FAT start sector(hi) */
+	movl	0x28(%bp), %eax	/* FAT start sector(lo) */
 
 	pushw	%es		/* ES=0x2000 */
-	call	readDisk_12_16	/* CX=0, AX,DX,ES changed */
+	call	readDisk_12_16	/* CX=0, eax,ES changed */	
 	popw	%ds		/* DS=0x2000 */
+	
+	/* cs=ss=0 ds=0x2000 es=x */
 
 	popw	%ax		/* restore first cluster number of file */
 
@@ -1855,7 +1574,10 @@ loadseg_seg_12_16:	.word	LOADSEG_12_16
 
 	pushw	%ss
 	popw	%es
-	movw	$FATBUF, %di
+	
+	/* cs=es=ss=0 ds=0x2000 */
+	
+	movw	$FATBUF, %di    /* cs=ss=es=0000 ds=di=0x2000 */
 
 	/* BX=0, CX=0 */
 2:
@@ -1874,15 +1596,8 @@ loadseg_seg_12_16:	.word	LOADSEG_12_16
 	jnc	1f
 	addb	$0x10, %dh	/* overflow. Add 0x1000 to segment value */
 1:
-
-#ifdef USE_TOTAL_CLUSTERS
-	cmpw	$0x0ff7, 0x34(%bp)	/* total clusters in the data area */
-#else
-//	cmpw	$0x1801, 0x36(%bp)	/* bytes per FAT */
-        cmpw	$0x3231, 0x39(%bp)
-#endif
-//	jnb	3f
-        jne     3f
+	cmpw	$0x3231, 0x39(%bp)
+	jne     3f
 	/******** FAT12 ********/
 
 	addw	%ax, %si	/* multiply cluster number by 3 ... */
@@ -1896,8 +1611,7 @@ loadseg_seg_12_16:	.word	LOADSEG_12_16
 	 */
 
 	jnc	1f
-	movb	$4, %cl		/* CL=4 */
-	shrw	%cl, %ax
+	shrw	$4, %ax
 1:
 	andb	$0x0f, %ah	/* mask off the highest 4 bits */
 	cmpw	$0x0ff7, %ax	/* check for EOF */
@@ -1923,12 +1637,14 @@ loadseg_seg_12_16:	.word	LOADSEG_12_16
 /****************************************************************************/
 
 	/* Load the file into memory, one cluster at a time */
+	/* cs=es=ss=0 ds=0x2000 */
 
 	popw	%es		/* ES=0x2000 */
-//	lesw	(loadseg_off_12_16 - Entry_12_16)(%bp), %bx
-//				/* ES:BX = loadseg:0 */
 	pushw	%ss
 	popw	%ds		/* DS=SS */
+	
+	/* cs=ds=ss=0 es=0x2000 */
+	
 	movw	$FATBUF, %si	/* set DS:SI to the FAT chain */
 
 1:
@@ -1938,23 +1654,18 @@ loadseg_seg_12_16:	.word	LOADSEG_12_16
 	subw	$2, %ax		/* cluster numbers start with 2 */
 	jc	1f		/* the cluster should be 0 for EOC */
 
-	movb	0x0d(%bp), %cl	/* CH=0, CX=sectors per cluster */
-	mulw	%cx
-	addw	0x30(%bp), %ax	/* data starting sector(lo) */
-	adcw	0x32(%bp), %dx	/* data starting sector(hi) */
-				/* DX:AX = first sector to read */
-
-	call	readDisk_12_16	/* CX=0, AX,DX,ES changed */
-
+	movzwl  %ax, %eax
+	movb	0x0d(%bp), %cl	/* CH=0, CX=sectors per cluster */	
+	mull	%ecx
+	addl	0x30(%bp), %eax	/* data starting sector */
+	
+	call	readDisk_12_16	/* CX=0, eax,ES changed */
 	jmp	1b		/* read next cluster */
 
 1:
 	/* EOC encountered - done */
-#ifdef	BOOTGRUB
+
 	movw	0x24(%bp), %dx	/* boot_drive and boot_partition */
-#else
-	movb	0x24(%bp), %bl	/* FreeDOS kernel uses BL, not DL, for drive */
-#endif
 	pushw	%dx		/* for loading grub.exe */
 	ljmp	*(loadseg_off_12_16 - Entry_12_16)(%bp)	/* boot it! */
 
@@ -1962,153 +1673,74 @@ loadseg_seg_12_16:	.word	LOADSEG_12_16
 
 /* Read a number of sectors into memory.
  *
- * Call with:	DS=SS
- *		DX:AX = 32-bit DOS sector number
- *		   CX = number of sectors to read
+ * Call with:	DS=SS=0
+ *		eax = 32-bit DOS sector number
+ *	        CX = number of sectors to read
  * 		ES:BX = destination buffer
  *
  * Returns:	CX=0
  *		ES increased, BX untouched
  *		ES:BX points one byte after the last byte read.
- * 		DX:AX = next sector number after read
+ * 		eax = next sector number after read
  *		All other registers preserved
  */
  
 readDisk_12_16:
 2:
-	pushfw
-	pushaw
-	xorw	%cx, %cx
-	pushw	%cx		/* hi word of hi dword */
-	pushw	%cx		/* lo word of hi dword */
-	pushw	%dx		/* hi word of lo dword */
-	pushw	%ax		/* lo word of lo dword */
+	pushal            
+	xorl	%edx, %edx
+	pushl	%edx		/* hi 32bit of sector number */  //666A00 pushd 00
+	pushl	%eax		/* lo 32bit of sector number */
 	pushw	%es		/* buffer segment */
 	pushw	%bx		/* buffer offset */
-	incw	%cx
-	pushw	%cx		/* 1 sector to read */
-	movb	$16, %cl
-	pushw	%cx		/* size of this parameter block */
-
-	xchgw	%ax, %cx	/* save AX to CX */
-
-	/*
-	 * translate sector number to BIOS parameters
-	 *
-	 * LBA = sector-1			offset in track
-	 *     + head * sectPerTrack		offset in cylinder
-	 *     + cyl * sectPerTrack * nHeads	offset in platter
-	 *
-	 */
-#if 1
-	pushw	%bx
-
-	pushw	%dx
-	movw	0x18(%bp), %ax	/* sectors per track */
-	movw	%ax, %bx
-	mulw	0x1a(%bp)	/* nHeads */
-				/* DX=0, AX=sectors per cylinder */
-	xchgw	%ax, %cx	/* restore AX from CX, and save AX to CX */
-				/* CX=nHeads * sectPerTrack <= 256*63 */
-				/* AX=LBA lo word */
-	popw	%dx		/* DX:AX=LBA */
-
-#else
-
-	pushw	%bx
-	movw	0x18(%bp), %ax	/* sectors per track */
-	movw	%ax, %bx
-	mulb	0x1a(%bp)	/* nHeads, but maybe a word value 0x100 */
-	jnz	1f
-	movb	%bl, %ah	/* nHeads=0x100, so AX=sectPerTrack*0x100 */
-1:
-	xchgw	%ax, %cx	/* restore AX from CX, and save AX to CX */
-		/* DX:AX = LBA, CX = nHeads * sectPerTrack <= 256*63 */
-#endif
-
-	divw	%cx	 /* AX = cyl, DX = sector-1 + head * sectPerTrack */
-	xchgw	%ax, %dx /* DX = cyl, AX = sector-1 + head * sectPerTrack */
-	divb	%bl	/* sectors per track */
-			 /* DX = cyl, AL = head, AH = sector-1 */
-#if 1
-	xchgb	%al, %ah /* DX = cyl, AH = head, AL = sector-1 */
-	incw	%ax	 /* DX = cyl, AH = head, AL = sector */
-	xchgw	%ax, %dx /* AX = cyl, DH = head, DL = sector */
-	xchgw	%ax, %cx /* CX = cyl, DH = head, DL = sector */
-	xchgb	%cl, %ch	/* set cyl number low 8 bits in CH */
-	rorb	$1, %cl		/* move cyl high bits into bits 7-6 */
-	rorb	$1, %cl		/*	(assumes top = 0)             */
-	orb	%dl, %cl	/* merge sector into cylinder */
-#else
-	movw	%dx, %cx /* CX = cyl, AL = head, AH = sector-1 */
-
-	/*
-	 * the following manipulations are necessary in order to properly place
-	 * parameters into registers.
-	 * CH = cylinder number low 8 bits
-	 * CL<7-6> = cylinder high two bits
-	 * CL<5-0> = sector
-	 */
-	movb	%al, %dh	/* save head into DH for BIOS */
-	xchgb	%cl, %ch	/* set cyl number low 8 bits in CH */
-	rorb	$1, %cl		/* move cyl high bits into bits 7-6 */
-	rorb	$1, %cl		/*	(assumes top = 0)	*/
-	incb	%ah		/* AH = sector number */
-	orb	%ah, %cl	/* merge sector into cylinder */
-#endif
-	popw	%bx
-	
-	movw	$0x0201, %ax	/* read 1 sector */
-ebios_12_16: /* ebios_12_16 - 1 points to 0x02 that can be changed to 0x42 */
+	pushw	$1		/* 1 sector to read */
+	pushw	$16		/* size of this parameter block */
+	cmpb	$0x42, (ebios_12_16 - 1 - Entry_12_16 + 0x7c00)
+	je      1f
+        
+	xorl	%ecx, %ecx
+	pushl	0x18(%bp)	/* lo:sectors per track, hi:number of heads */
+	popw	%cx		/* ECX = sectors per track */
+	divl	%ecx		/* residue is in EDX */
+				/* quotient is in EAX */
+	incw	%dx		/* sector number in DL */
+	popw	%cx		/* ECX = number of heads */
+	pushw	%dx		/* push sector number into stack */
+	xorw	%dx, %dx	/* EDX:EAX = cylinder * TotalHeads + head */
+	divl	%ecx		/* residue is in EDX, head number */
+				/* quotient is in EAX, cylinder number */
+	xchgb	%dl, %dh	/* head number should be in DH */
+				/* DL = 0 */
+	popw	%cx		/* pop sector number from stack */
+	xchgb	%al, %ch	/* lo 8bit cylinder should be in CH */
+				/* AL = 0 */
+	shlb	$6, %ah		/* hi 2bit cylinder ... */
+	orb	%ah, %cl	/* ... should be in CL */
+1:	
+	movw	$0x201, %ax	/* read 1 sector */
+ebios_12_16: 
 
 	movw	%sp, %si	/* DS:SI points to disk address packet */
-	movb	0x24(%bp), %dl	/* drive number */
-
-	pushw	%es
+	movb	0x24(%bp), %dl	/* hard disk drive number */
 	pushw	%ds
+	pushw	%es
 	int	$0x13
+	popw	%bx
 	popw	%ds
-
-jc_code_begin:
-	jc	disk_error_12_16	/* caller could change it to NOPs */
-jc_code_end:
-
-	/* increment ES */
-	popw	%bx		/* old ES on stack */
-	leaw	0x20(%bx), %bx	/* LEA does not touch flags */
-	movw	%bx, %es
-
+	jc	disk_error_12_16	/* disk read error, jc 1f if caller handles */	
+	leaw	0x20(%bx), %bx 	
+	movw	%bx, %es	
 	popaw			/* remove parameter block from stack */
-	popaw
-	popfw			/* restore IF, DF */
-	incw 	%ax		/* next sector */
-	jnz	1f
-	incw	%dx
-1:
+	popal
+	incl 	%eax		/* next sector */
 	loop	2b
 
 	ret
 
-//	. = . - (. - readDisk_12_16)/99
-
-
-
-//#ifdef ALTERNATIVE_KERNEL
-//filename_end_12_16:
-
-//	. = Entry_12_16 + 0x1e8
 
 loadseg_off_12_16:	.word	0
 loadseg_seg_12_16:	.word	LOADSEG_12_16
 
-//	. = Entry_12_16 + 0x1ec
-
-//boot_image_ofs_12_16:
-
-//	.word (filename_12_16 - Entry_12_16)+(filename_end_12_16 - filename_12_16 - 1)*2048
-//#endif
-
-//	. = Entry_12_16 + 0x1ee
 
 disk_error_12_16:
 
@@ -2121,17 +1753,12 @@ boot_error_12_16:
 //print_12_16:
 1:
 	lodsb	(%si), %al	/* get token */
-	//xorw	%bx, %bx	/* video page 0 */
 	movb	$0x0e, %ah	/* print it */
 	int	$0x10		/* via TTY mode */
 	cmpb	$0, %al		/* end of string? */
 	jne	1b		/* until done */
-
-	/* The caller will change this to
-	 *	ljmp	$0x9400, $(try_next_partition - _start1)
-	 */
-
-1:	jmp	1b
+1:	
+	jmp	1b
 
         . = Entry_12_16 + 0x1e0
 
@@ -2139,18 +1766,15 @@ msg_BootError_12_16:
 	.ascii	"No "
 
 filename_12_16:
-
-#ifdef	BOOTGRUB
 	.ascii	"GRLDR      \0"
-#else
-	.ascii	"KERNEL  SYS\0"
-#endif
-
+	
 msg_DiskReadError_12_16:
 	.ascii	"Disk error\0"
 
-	. = Entry_12_16 + 0x1fc
-
+	. = Entry_12_16 + 0x1fa
+	
+Loadusb_12_16:
+        .byte   0x75,0
 	.word	0, 0xAA55 /* Win9x uses all 4 bytes as magic value here */
 
 	. = Entry_12_16 + 0x200 
@@ -2202,35 +1826,20 @@ Entry_ext2:
 	 * the caller should set this byte to 0x42, otherwise, set to 0x02.
 	 */
 
-//	.byte	0x02	/* for CHS. Another possible value is 0x42 for LBA */ 
         .byte	0x90
 
 	. = Entry_ext2 + 0x03
 
-#if 0
-
-	.ascii	"ext2 grldr"
-
-#else
-
-//msg_DiskReadError_ext2:
-
-//	.ascii	"I/O error\0"
-
-        .ascii	"EXT2/3/4"
-#endif
+	.ascii	"EXT2/3/4"
 
 	. = Entry_ext2 + 0x30
 1:
 	cld			/* 0xFC */
 
 	xorw	%ax, %ax	/* 0x31, 0xC0; CF=0, ZF=1 */
-
-	/* this byte `nop' will be changed to `cwd' by bootlace for floppy */
-//	nop			/* 0x90=nop, 0x99=cwd */
-				/* cwd will set DL=0 forcibly for floppy A: */
-
 	movw	%ax, %ss	/* constant SS=0 */
+	movw	%ax, %ds
+	
 	movw	$0x7c00, %sp
 
 	movw	%sp, %bp	/* constant BP=0x7c00 */
@@ -2249,39 +1858,45 @@ Entry_ext2:
 	 */
 
 	movb	%dl, 0x24(%bp)	/* BIOS passes drive number in DL */
-
-	pushw	%ss
+	
 	movb	$0x41, %ah
 	movw	$0x55AA, %bx
+	pushw	%ds
 	int	$0x13
-	popw	%ds		/* constant DS=0 */
-	jc	1f		#; No EBIOS
-
-	//testb	$1, %cl
-	//jz	1f		#; No EBIOS
-#if 0
-	/* gcc-4.0.1 does not generate 2-byte code. */
-	rcrb	$1, %cl		#; also can be rorb $1, %cl
-#else
-	.byte	0xD0, 0xD9	#; ror cl: D0 C9
-#endif
-	jnc	1f		#; No EBIOS
+	popw	%ds
+	movb	(Loadusb_ext2 - Entry_ext2 + 0x7c00 +1), %al
+	jc	1f		# No EBIOS
+	rorb	%cl	        # ror cl: D0 C9
+	jnc	1f		# No EBIOS
 	movb	$0x42, (ebios_ext2 - 1 - Entry_ext2 + 0x7c00) 
-	jmp     2f
-1:
-	movb    $0x08, %ah      /* chs parameters obtained */
-	int     $0x13
-	movb    %dh, 0x1a(%bp)
-	andb    $0x3f, %cl
-	movb    %cl, 0x18(%bp)
-2:		
-	xorl    %eax, %eax
-	xorw    %bx, %bx
-	pushw   $0x0600
-	popw    %es
-	movw    $1, %cx
-	call    readDisk_ext2   /* Read MBR */
-	movw    $0x61c6, %si    /* Start address of the first logical sector */
+4:
+	cmpb	$2, %al			//al=2,Forced load            
+	jne	2f			//not load
+	jmp	3f
+1:        
+	cmpb	$1, %al			//al=1,When dl = 00 and does not support the expansion of reading and writing load
+	jne	4b			//Then judge al=2     
+3:	//Settings load usb drive marked
+	movb	$0xff, %dh       
+2:
+	pushw	%dx
+	movb	$0x08, %ah      /* chs parameters obtained */
+	pushw	%ds
+	int	$0x13
+	popw	%ds
+	incb	%dh
+	movb	%dh, 0x1a(%bp)
+	andb	$0x3f, %cl
+	movb	%cl, 0x18(%bp)
+	popw	%dx
+	
+	xorl	%eax, %eax
+	xorw	%bx, %bx
+	pushw	$0x0600
+	popw	%es
+	movw	$1, %cx
+	call	readDisk_ext2   /* Read MBR */
+	movw	$0x61c6, %si    /* Start address of the first logical sector */
 2:	
 	movl    (%si), %eax     /* First start logical sector */
 	movl    %eax, 0x1c(%bp)
@@ -2295,7 +1910,21 @@ Entry_ext2:
 	addw    $0x10, %si      /* check the next partition table */
 	jmp     2b	
 1:		
-	movw    $0x8000, %si
+	cmpb	$0xff, %dh
+	jne	1f
+	movl	(%si), %eax     /* First start logical sector */
+	subl	$0x0a, %eax
+	movw	$0x0a, %cx   
+	xorw	%bx, %bx        //read to 0d00:0000
+	pushw	$0x0d00
+	popw	%es
+ 	call	readDisk_ext2
+	call	$0x0d00,$0x0000
+	jc 2f
+	/* EBIOS supported */
+	movb	$0x42, (ebios_ext2 - 1 - Entry_ext2 + 0x7c00)
+1:	
+	movw	$0x8000, %si
 	movw	0x58(%si), %ax		/* AX=s_inode_size */
 	testw	%ax, %ax 
         jnz     1f
@@ -2333,22 +1962,14 @@ Entry_ext2:
 	incw	%ax
 	movl	%eax, 0x2c(%bp)
 2:
-//        movw	$0x1000, %bx
         xorl	%ecx, %ecx
 	
 	xorl	%eax, %eax	/* CF=0, ZF=1 */
 
-#if 0
-	/* the INC touches ZF flag, so use MOV instead */
-
-	incw	%ax
-	incw	%ax		/* EAX=2=inode number for root dir */
-#else
-
 	/* MOV keeps all flags untouched, so it is better than INC */
 
 	movb	$2, %al		/* EAX=2=inode number for root dir */
-#endif
+
 
 	/* CF=0, ZF=1 because MOV and PUSH do not touch Flags */
 
@@ -2413,9 +2034,6 @@ Entry_ext2:
 				/* DS:[BX+SI+8] points to the starting block number of the group inode table */
 
 	popl	%eax		/* inode number in the group */
-//	shll	$7, %eax	/* inode struct size = 0x80 */
-//				/* EAX=relative displacement of the inode struct */
-//				/* EDX=0 */
 	movw	0x26(%bp), %dx	/* EDX=inode size */
 	mull	%edx		/* EDX:EAX=relative displacement of the inode struct */
 
@@ -2465,7 +2083,7 @@ extent_fh:
 	popw	%es				/* ES=0 */
 
 	leaw	-0x58(%bx), %di			/* BX=0x1000, so DI=0x0fa8 */
-	//movw	$0x0fa8, %di
+
 	movb	$0x2c, %cl			/* 0x2c words = 0x58 bytes */
 
 	repz movsw				/* now ECX=0, BX=0x1000=DI */
@@ -2483,72 +2101,8 @@ extent_fh:
 						/* EDX=various */
 	incl	%eax
 	movl	%eax, (0x08 - 0x58)(%di)	/* total blocks for file data */
-
-	/*
-	 * 0000:1000	trebly indirect block
-	 * 0000:8000	indirect block
-	 * 0000:c000	double indirect block
-	 * 1000:0000	the file data
-	 */
-
-	/* now DS:SI points to indirect block number */
-
-	lodsl					/* indirect block number */
-	testl	%eax, %eax
-	jz	1f
-
-	//pushw	%ss
-	//popw	%es				/* ES=0 */
-	movb	$0x80, %bh			/* ES:BX=0000:8000 */
-#if 0
-	stc
-	call	read_block
-#else
-	call	read_block_c
-#endif
-						/* ES changed and > 0, BX=0x8000 */
-						/* ECX=EDX=0 */
-						/* ZF=0, CF=0 */
-
-	/* now DS:SI points to double indirect block number */
-
-	lodsl					/* double indirect block number */
-	testl	%eax, %eax
-	jz	1f
-
-#if 0
-	pushw	%ss
-	popw	%es				/* ES=0 */
-	movb	$0xc0, %bh			/* ES:BX=0000:c000 */
-	stc
-	call	read_block
-#else
-	movb	$0xc0, %bh			/* ES:BX=0000:c000 */
-	call	read_block_c
-#endif
-						/* ES changed and > 0, BX=0xc000 */
-						/* ECX=EDX=0 */
-						/* ZF=0, CF=0 */
 	
-	/* now DS:SI points to trebly indirect block number */
-
-	lodsl					/* trebly indirect block number */
-	testl	%eax, %eax			/* CF=0, TEST always clears CF */
-	jz	1f
-						/* ZF=0 */
-	//pushw	%ss
-	//popw	%es				/* ES=0 */
-	//movb	$0x10, %bh			/* ES:BX=0000:1000 */
-	//stc
-	call	read_block			/* 0000:1000 points to the block data */
-						/* ES changed and > 0, BX=0x1000 */
-						/* ECX=EDX=0 */
-						/* ZF=0, CF=0 */
-
-1:
-        jmp     qwer
-         
-               
+	jmp	asdf               
          
 /* Read sectors from disk, using LBA or CHS
  * input:	EAX   = 32-bit LBA sector number
@@ -2611,14 +2165,9 @@ readDisk_ext2:
 	 *
 	 *	0x02 for CHS
 	 */
-1:	 
-#if 0
-	movb	$0x42, %ah
-	/* ebios_ext2 - 1 points to 0x42 that can be changed to 0x02 */
-#else
+1:
 	movb	$0x02, %ah
 	/* ebios_ext2 - 1 points to 0x02 that can be changed to 0x42 */
-#endif
 ebios_ext2:
 
 	//andb	2(%bp), %ah
@@ -2642,20 +2191,60 @@ ebios_ext2:
 	//. = . - (. - readDisk_ext2)/74
 
 
+        . = Entry_ext2 + 0x1fa
+Loadusb_ext2:
+	.byte   0x75,0        
+	.word	0, 0xAA55
 
+asdf: 
 
+	/*
+	 * 0000:1000	trebly indirect block
+	 * 0000:8000	indirect block
+	 * 0000:c000	double indirect block
+	 * 1000:0000	the file data
+	 */
 
+	/* now DS:SI points to indirect block number */
 
+	lodsl					/* indirect block number */
+	testl	%eax, %eax
+	jz	1f	
 
-	. = Entry_ext2 + 0x1fe
+	movb	$0x80, %bh			/* ES:BX=0000:8000 */
+	call	read_block_c
 
-	.word	0xAA55
+						/* ES changed and > 0, BX=0x8000 */
+						/* ECX=EDX=0 */
+						/* ZF=0, CF=0 */
 
+	/* now DS:SI points to double indirect block number */
+
+	lodsl					/* double indirect block number */
+	testl	%eax, %eax
+	jz	1f
+
+	movb	$0xc0, %bh			/* ES:BX=0000:c000 */
+	call	read_block_c
+
+						/* ES changed and > 0, BX=0xc000 */
+						/* ECX=EDX=0 */
+						/* ZF=0, CF=0 */
+	
+	/* now DS:SI points to trebly indirect block number */
+
+	lodsl					/* trebly indirect block number */
+	testl	%eax, %eax			/* CF=0, TEST always clears CF */
+	jz	1f
+						/* ZF=0 */
+	call	read_block			/* 0000:1000 points to the block data */
+						/* ES changed and > 0, BX=0x1000 */
+						/* ECX=EDX=0 */
+						/* ZF=0, CF=0 */
 
 
 	/* the block at 0000:1000, which contains the indirect block numbers,
 	 * is just overwritten by the trebly indirect block */
-qwer:	
 1:
 	/* get absolute block number by block serial number */
 
@@ -2670,9 +2259,7 @@ qwer:
 
 	/* indirect block: 12 <= block serial number < 12 + 0x14(%bp) */
 
-	//addw	0x14(%bp), %bx
 	addb	$(0x70 / 4), %ah
-	//xchgw	%ax, %bx
 	jmp	8f
 
 2:
@@ -2704,7 +2291,6 @@ qwer:
 
 	movl	(%bx, %di), %eax
 
-//6:
 	movw	$0xc000, %bx			/* ES:BX=0000:c000 */
 
 	//pushw	%ss
@@ -2734,13 +2320,9 @@ qwer:
 	/* get the indirect block number from the double indirect block data */
 
 	movl	0xb000(%bx, %di), %eax
-	//movl	(%bx, %di), %eax
-//5:
+
 	movw	$0x8000, %bx			/* ES:BX=0000:8000 */
 
-	//pushw	%ss
-	//popw	%es				/* ES=0 */
-	//stc
 	call	read_block_c	/* 0000:8000 points to the block data */
 				/* ES changed and > 0, BX=0x8000 */
 				/* ECX=EDX=0 */
@@ -2802,21 +2384,10 @@ qwer:
 	xchgw	%ax, %dx	/* rec_len */
 	lodsw			/* AL=name_len, should be 5 for grldr */
 				/* AH=file_type(1 for regular file) */
-#if 0
-	cmpw	$0x0105, %ax
-	jnz	5f
-	movb	%al, %cl	/* CH is already 0 */
-	repz cmpsb
-#else
-//	decb	%ah
+
         xorb    %ah, %ah
-	//jnz	5f
 	xchgw	%ax, %cx	/* CX=name_len */
 	repz cmpsb
-//	jnz	5f
-//	xchgw	%ax, %cx	/* movb	$0, %al */
-//	scasb
-#endif
 5:
 	popl	%eax		/* This is possible inode number for grldr */
 	popw	%si
@@ -2850,16 +2421,6 @@ qwer:
 	incl	(0x0c - 0x58)(%di)
 	decl	(0x08 - 0x58)(%di)
 	jnz	1b
-
-
-#if 0
-	/* The above 2 instructions INC and DEC do not touch CF, so we
-	 * can omit this POP-PUSH pair.
-	 */
-
-	popfw
-	pushfw
-#endif
 
 	movw	$(msg_No_grldr_ext2 - Entry_ext2 + 0x7c00), %si
 
@@ -2946,7 +2507,6 @@ read_block:
 	//at this time, the gcc cannot generate 3 byte code
 	.byte	0xC4, 0x5E, 0xFA	/* lesw -6(%bp), %bx */
 					/* ES:BX=1000:0000 */
-	//. = . - (. - read_block) / 6
 1:
 	movw    $1, %cx
 	
@@ -2958,26 +2518,12 @@ read_block_e:
 	
 	
 	
-	
-//	movzbl	0x0d(%bp), %ecx	/* CX=sectors per block */
-				/* ECX high=0 */
-//	. = . - (. - 1b) / 6
-// 	mull	%ecx		/* EAX=relative sector number */
-				/* EDX=0 */
-//	. = . - (. - 1b) / 9
 	addl	0x1c(%bp), %eax	/* EAX=absolute sector number */
 
-//#if 1
-//	/* pass through, saving 4 bytes(call and ret) */
-//#else
+
 	call	readDisk_ext2
 	jb      disk_error_ext2
 	ret
-//#endif
-        
-
-
-
         
 disk_error_ext2:
 
@@ -2995,27 +2541,8 @@ boot_error_ext2:
 	int	$0x10		/* via TTY mode */
 	cmpb	$0, %al		/* end of string? */
 	jne	1b		/* until done */
-#if 1
-
-	/* The caller will change this to
-	 *	ljmp	$0x9400, $(try_next_partition - _start1)
-	 */
 
 1:	jmp	1b 
-
-
-#else
-	/* boot failed, try to hand over the control to supervisor */
-	ldsw	(1f + 3 - Entry_ext2)(%bp), %si
-	lodsl
-	cmpl	$0x9400b8fa, %eax
-1:	jnz	1b	/* no supervisor, hang up. */
-//	ljmp	$0x9400, $(try_next_partition - _start1)
-	ljmp	$0x9400, $(try_next_partition - _start1 - Entry_nt + Entry_32) 
-	
-	//. = . - (. - disk_error_ext2) / 30
-#endif  
-
 
        . = Entry_ext2 + 0x3e0
 
@@ -3027,18 +2554,12 @@ filename_ext2:
 	
 msg_DiskReadError_ext2:
 	.ascii	"Disk error\0"
-
-//filename_end_ext2:
-
-//	.word (filename_ext2 - Entry_ext2)+(filename_end_ext2 - filename_ext2 - 1)*2048 
 	
-	. = Entry_ext2 + 0x3fe
-
-	.word	0xAA55	
-	       	
+	. = Entry_ext2 + 0x3fc
+	.word	0, 0xAA55	       	
 
        . = Entry_ext2 + 0x400
-
+/* ********************  ext2_3_4_dbr end  ***************************** */	
 
 
 /* ********************  exfat_dbr start  ****************************** */	
@@ -3046,7 +2567,7 @@ msg_DiskReadError_ext2:
 /*      Original exFAT Volume Boot Record
  *      Field Name                      Offset(byte)    Size(byte)      Description/Value
  *      Jump Boot                       0               3               0xEB7690
- *      File System Name                3               8               ※EXFAT ※
+ *      File System Name                3               8               "EXFAT   "
  *      Must Be Zero                    11              53              Must be 0x00
  *      Partition Offset                64              8               Sector Address
  *      Volume Length                   72              8               Size of total volume in sectors
@@ -3058,9 +2579,9 @@ msg_DiskReadError_ext2:
  *      Volume Serial Number            100             4               Volume Serial Number
  *      File System Revision            104             2               VV.MM (01.00 for this release)
  *      Volume Flags                    106             2               Field                   Offset  bits Size       bits Description
- *                                                                      Active FAT              0       1               0每1st          1每2nd
- *                                                                      Volume Dirty            1       1               0每Clean        1-Dirty
- *                                                                      Media Failure           2       1               0每No Failures  1每Failures
+ *                                                                      Active FAT              0       1               0-1st          1-2nd
+ *                                                                      Volume Dirty            1       1               0-Clean        1-Dirty
+ *                                                                      Media Failure           2       1               0-No Failures  1-Failures
  *                                                                      Reported Clear to Zero  3       1               No Meaning
  *                                                                      Reserved                4       12
  *      Bytes Per Sector                108             1               This is a power of 2. Range: min of 29 = 512 byte
@@ -3121,26 +2642,60 @@ Entry_exfat:
 	xorw	%ax, %ax
 	movw	$0x7c00, %bp                    /* the base address */ 
         movw	%ax, %ss	                /* stack and BP-relative moves up, too */
+	movw	%ax, %ds
+	movw	%ax, %es
         movw    %bp, %sp                        /* ss:sp=0000:7c00 */
 	sti
-	
-	pushw   %ss
-	popw    %ds
+
 	movb	%dl, 0x24(%bp)	/* BIOS passes drive number in DL */
+	
+	movb	0x6c(%bp), %cl                  /* Bytes per sector (power) */
+	movw	$1, %ax
+	shlw	%cl, %ax
+	movw	%ax, 0x0b(%bp)                  /* Bytes per sector */
+	
 	movb	$0x41, %ah
 	movw	$0x55AA, %bx
+	pushw	%ds
+	pushw	%es
 	int	$0x13
-	jc	1f		#; No EBIOS
-	.byte	0xD0, 0xD9	#; ror cl: D0 C9
-	jnc	1f		#; No EBIOS
-	orb	$0x80, 02(%bp) 
-	jmp     2f
+	popw	%es
+	popw	%ds
+	movb	(Loadusb_64 - Entry_exfat + 0x7c00 +1), %al
+	jc	1f		# No EBIOS
+	rorb	%cl   	        # ror cl: D0 C9
+	jnc	1f		# No EBIOS
+	orb	$0x80, 02(%bp)  /* EBIOS supported */
+4:
+	cmpb	$2, %al		//al=2,Forced load             
+	jne	2f		//not load
+	jmp	3f
 1:
+	pushw	%ax
 	movb    $0x08, %ah
+	pushw	%ds
+	pushw	%es
 	int     $0x13
+	popw	%es
+	popw	%ds
 	movb    %dh, 0x1a(%bp)
 	andb    $0x3f, %cl
 	movb    %cl, 0x18(%bp)
+
+	popw	%ax        
+	cmpb	$1, %al         //al=1,When dl = 00 and does not support the expansion of reading and writing load
+	jne	4b              //Then judge al=2     
+3:	//Load the usb driver
+	movl	0x7c40, %eax    //Partition starting sector number
+	addl	$0x18, %eax
+	movw	$0x0a, %cx
+	xorw	%bx, %bx        //read to 0d00:0000
+	pushw	$0x0d00
+	popw	%es    
+ 	call	readDisk_64
+	call	$0x0d00,$0x0000
+	jc 2f	
+	orb	$0x80, 02(%bp)  /* EBIOS supported */
 2:	        			
 	movl    0x50(%bp), %eax
         addl    0x40(%bp), %eax
@@ -3152,14 +2707,10 @@ Entry_exfat:
         movl    0x58(%bp), %eax
         addl    0x40(%bp), %eax                       
         movl    %eax, 0x11(%bp)                 /* Data start Absolute sector */
-        movb    0x6c(%bp), %cl                  /* Bytes per sector (power) */
-        movw    $1, %ax
-        pushw   %ax
-        shlw    %cl, %ax
-        movw    %ax, 0x0b(%bp)                  /* Bytes per sector */
+
         movb    0x6d(%bp), %cl                  /* Sectors per cluster (power) */
-        popw	%ax
-        shlw    %cl, %ax
+	movb	$1, %al
+	shlb	%cl, %al
         movb    %al, 0x0d(%bp)                  /* Sectors per cluster */
         movl    0x40(%bp), %eax                 /* Sector Address */
         pushw   $0x07e0
@@ -3168,6 +2719,7 @@ Entry_exfat:
         movw    $12, %cx
 	call    readDisk_64
         jb      disk_error_64                   /* Read error display 'disk error'  */
+
         //Calculation exfat volume boot record checksum
         //si=the index entry (from 0 to cx) eax=checksum  cx=volume boot record check bytes (0x1600)
         xorw    %si, %si			//Initialize the index
@@ -3275,14 +2827,13 @@ lba_64:
         movb    $0x42, %ah      /* Extended Mode Read */
 2:      
         movb	0x24(%bp), %dl  /* hard disk drive number */
+	pushw	%ds
+	pushw	%es
 	int	$0x13
-	
+	popw	%bx
+	popw	%ds	
 	pushfw
-	movw	0x0b(%bp), %bx  /* bytes per sector */
-	shrw    $4, %bx
-	pushw   %es
-	popw    %ax
-	addw    %ax, %bx
+	leaw	0x20(%bx), %bx
 	movw    %bx, %es
 	popfw
 	
@@ -3296,11 +2847,10 @@ lba_64:
 
 
 
-
-
-	. = Entry_exfat + 0x1fe
-
-	.word	0xAA55 
+	. = Entry_exfat + 0x1fa
+Loadusb_64:
+        .byte   0x75,0	
+	.word	0,0xAA55 
 	
 
 exfat_next:        
@@ -3334,13 +2884,12 @@ exfat_next:
         movw    $5, %cx                 /* More bytes */
         movw    $(grldr_un - Entry_exfat + 0x7c00), %si /*'GRLDR' First place */
 1:      
-//      andb    $0xdf, %es:(%di)        /* Switch to uppercase */
-//      cmpsw                           /* More 'GRLDR',Unicode file names */
         orb     $0x20, %es:(%di)        /* Switch to lowercase */
         cmpsb                           /* More 'grldr',Unicode file names */
         jne     1f                      /* NO,Restore directory entry, check the next entry */
         incw    %di
         loop    1b                      /* The same, compare the next character */
+
         /* GRLDR has been found */
         popw	%di                     /* Restore directory entry */
         /* files stored continuously, Calculate the number of sectors the file */
@@ -3539,9 +3088,8 @@ grldr_un:
 msg_DiskReadError_64:
 	.ascii	"Disk error\0"  
         
-	. = Entry_exfat + 0x3fe
-
-	.word	0xAA55         
+	. = Entry_exfat + 0x3fc	
+	.word	0,0xAA55         
 
 	. = Entry_exfat + 0x0400
 	
@@ -5099,6 +4647,2325 @@ nt_sector_mark:
 
 /* ********************  ntfs_dbr_mbr end  ****************************** */
 
+#if defined(GRLDR_INSTALL)
+
+
+/* ********************  USB2DRI_dbr start  ****************************** */
+
+Entry_USB2DRI:
+                 
+	jmp Initialization
+	
+	.ascii  "USB2DRI"
+Time:
+	.word   05
+Number_of_usb_drive:
+	.byte   0
+max_id:
+	.byte   0
+id:
+	.byte   1
+lun:
+	.byte   0
+adjust_pbr:
+	.byte   0
+Save_es:
+	.word   0
+Save_di:
+	.word   0
+Save_ah:
+	.byte   0
+Count_1ms:
+	.word   0
+Count_10vs:
+	.word   0
+bus_device_function:
+	.word   0
+Register_pci:
+	.long   0
+
+
+
+
+	. = Entry_USB2DRI + 0x20
+
+
+
+qh:
+	.fill 0x1e0,1,0x00                      //QH,qTD⑹
+
+//qTD1    db      60h dup(0)
+//qTD2    db      60h dup(0)
+//qTD3    db      60h dup(0) 
+
+//QH0     db      60h dup(0)
+//QH1     db      60h dup(0)
+
+
+Cache:
+	.fill 0x40,1,0x00        
+
+cbw_qq:
+	.long   0x43425355
+	.long   0x12345678
+	.long   0
+	.byte   0
+	.byte   0
+	.byte   0x0c
+	.long   0
+	.long   0
+	.long   0
+	.long   0
+	.byte   0 
+
+csw_qq:
+	.fill 0x20,1,0x00
+
+//---------------------------------------------------------------------------- 
+
+GDT:
+
+	.word	0, 0
+	.byte	0, 0, 0, 0
+	
+                                                  
+LimitL:
+	.word   0xffff
+BaseL:
+	.word   0
+BaseM:
+	.byte   0 
+Attributes:
+	.byte   0x92
+LimitH:
+	.byte   0
+BaseH:
+	.byte   0
+
+aaaa:
+#define	GDTLen	aaaa - GDT  
+                                                
+												
+VGDTR:
+	.word	GDTLen - 1
+Base:        
+	.long	0
+	
+
+//---------------------------------------------------------------------------- 
+	.ascii  "DEV"
+
+Dev:
+DevID:
+	.byte   0
+ConProperty:
+	.byte   0
+ConAddress:
+	.byte   0
+ConSize:
+	.word   8
+InProperty:
+	.byte   0
+InAddress:
+	.byte   0
+InSize:
+	.word   0
+OutProperty:
+	.byte   0
+OutAddress:
+	.byte   0
+OutSize:
+	.word   0
+MaxLUN:
+	.byte   0
+
+bbbb:
+#define	DevLen	bbbb - Dev
+
+	.fill DevLen,1,0x00
+	.fill DevLen,1,0x00
+	.fill DevLen,1,0x00
+
+
+//---------------------------------------------------------------------------- 
+	.ascii  "DRI"
+
+Dri:
+Number:
+	.byte   0
+PBR:
+	.byte   1
+DriID:
+	.byte   0
+DriLUN:
+	.byte   0
+Capacity:
+	.long   0
+StartSector:
+	.long   0       
+SectorsPerTrack:
+	.byte   0         
+Track:                
+	.byte   0
+                
+cccc:        
+#define	DriveLen  cccc - Dri
+
+	.fill DriveLen,1,0x00
+	.fill DriveLen,1,0x00
+	.fill DriveLen,1,0x00
+	.fill DriveLen,1,0x00
+	.fill DriveLen,1,0x00
+	.fill DriveLen,1,0x00
+	.fill DriveLen,1,0x00
+        
+//----------------------------------------------------------------------------
+
+SCSI:
+Return:
+	.byte   0
+Direction:
+	.byte   0
+TSize:
+	.long   0
+TOffset:
+	.word   0
+Section:
+	.word   0
+TokenContent:
+	.byte   0,0,0,0,0,0,0,0,0,0,0,0
+
+dddd:
+#define	TokenLen  dddd - SCSI
+                                                
+
+//----------------------------------------------------------------------------
+Ability_Register_Size:
+	.word   0
+PBR1:
+	.byte   0
+ds_Linear:
+	.long   0
+old_int13:
+	.long   0
+Disk_sector:
+	.long   0 
+Start_sector:
+	.long   0      
+Disk_SectorsPerTrack:        
+	.byte   0     
+Disk_track:        
+	.byte   0
+Status:
+	.byte   0
+Error_repeat_Number:
+	.byte   0
+Single_size:
+	.word   0
+Stack_sp:
+	.word   0
+Stack_ss:
+	.word   0
+qTD1:
+	.word   0
+qTD1_Linear:
+	.long   0
+R_W:
+	.byte   0
+Direction1:        
+	.byte   0
+        
+Get_device:
+	.byte   0x80,06,00,01,00,00,0x08,00
+Get_Configuration:
+	.byte   0x80,06,00,02,00,00,0x08,00
+Get_lun:
+	.byte   0xa1,0xfe,00,00,00,00,01,00
+Set_Configuration:
+	.byte   00,0x09,01,00,00,00,00,00
+Set_device_Address:
+	.byte   00,05,00,00,00,00,00,00 
+Clear_endpoint:
+	.byte   02,01,00,00,00,00,00,00
+
+
+
+Entry_int13:
+	call Find_drive_info
+	jnb 1f
+	ljmp *%cs:(old_int13 - Entry_USB2DRI)
+1:        
+	cld               
+	pushaw                          //       ax cx dx bx sp bp si di
+	movw %sp, %bp                   //bp+    0e 0c 0a 08 06 04 02 00
+	pushw %ds
+	pushw %es
+	pushw %fs
+	pushw %gs
+	pushw $0
+	popw %fs
+	pushw $0xffff
+	popw %gs
+        //ss=ds=0 es=2000 cs=9e00  fs=000 gs=ffff
+	cmpb $00, %ah
+	je int13_00_04_16_17_18_44_47
+	cmpb $01, %ah
+	je int13_01
+	cmpb $02, %ah
+	je int13_02_03        
+	cmpb $03, %ah
+	je int13_02_03
+	cmpb $04, %ah
+	je int13_00_04_16_17_18_44_47
+	cmpb $05, %ah
+	je int13_05
+	cmpb $0x08, %ah
+	je int13_08
+	cmpb $0x15, %ah
+	je int13_15
+	cmpb $0x16, %ah
+	je int13_00_04_16_17_18_44_47
+	cmpb $0x17, %ah
+	je int13_00_04_16_17_18_44_47
+	cmpb $0x18, %ah
+	je int13_00_04_16_17_18_44_47
+	cmpb $0x41, %ah
+	je int13_41                
+	cmpb $0x42, %ah
+	je int13_42_43     
+	cmpb $0x43, %ah
+	je int13_42_43
+	cmpb $0x44, %ah
+	je int13_00_04_16_17_18_44_47       
+	cmpb $0x47, %ah
+	je int13_00_04_16_17_18_44_47
+	cmpb $0x48, %ah
+	je int13_48
+qtml:        
+	movb $01, %ah
+	jmp 4f        
+int13_00_04_16_17_18_44_47:
+	xorb %ah, %ah         
+4:  
+	testb $0x80, %dl
+	jne 1f
+	movb %ah, %fs:0x0441
+	jmp 2f
+1:	
+	movb %ah, %fs:0x0474
+2:	
+	andb $0xfe, 0x14(%bp)        	//cf=0
+	movb %ah, 0x0f(%bp)             //ah
+	orb %ah, %ah
+	je 3f
+	orb $01, 0x14(%bp)              //cf=1
+3: 
+	popw %gs
+	popw %fs
+	popw %es
+	popw %ds
+	popaw
+	iret        
+        
+
+int13_01:  
+	testb $0x80, %dl
+	jne 1f
+	xchgb %fs:0x0441, %ah
+	jmp 2b
+1:
+	xchgb %fs:0x0474, %ah        
+	jmp 2b    
+
+
+int13_02_03:
+	movb %ah, %cs:(Save_ah - Entry_USB2DRI)
+	call chs_lba
+	movb $01, %cl
+	cmpb $02, %cs:(Save_ah - Entry_USB2DRI)
+	je 1f
+	xorb %cl, %cl
+1:     
+	call Read_write
+	jnb int13_00_04_16_17_18_44_47
+	jmp qtml        
+
+int13_05:
+	movb $03, %ah
+	jmp 4b
+        
+
+int13_08:
+	pushw %dx
+	movb %cs:(Disk_SectorsPerTrack - Entry_USB2DRI), %al
+	mulb %cs:(Disk_track - Entry_USB2DRI)
+	movw %ax, %cx        
+	movw %cs:(Disk_sector - Entry_USB2DRI), %ax
+	movw %cs:(Disk_sector + 2 - Entry_USB2DRI), %dx 
+	cmpw %cx, %dx
+	jae 1f
+	divw %cx
+	decw %ax
+	cmpw $0x03FF, %ax
+	jb 2f
+1:        
+	movw $0x03FF, %ax
+2:
+	movw %ax, %cx
+	xchgb %ch, %cl
+	shlb $06, %cl
+	orb %cs:(Disk_SectorsPerTrack - Entry_USB2DRI), %cl
+	movb %cs:(Disk_track - Entry_USB2DRI), %dh
+	decb %dh
+	movb %fs:0x0475, %dl
+	movw %dx, 0x0a(%bp)
+	movw %cx, 0x0c(%bp)
+	movb $0x10, 0x08(%bp)
+	popw %dx
+	jmp int13_00_04_16_17_18_44_47        
+         
+int13_15:
+	movb %al, %fs:0x0441
+	incb %ah
+	incb %ah        
+	testb $0x80, %dl
+	je 1f
+	movb $03, %ah
+1:        
+	andb $0xfe,0x14(%bp)            //cf=0
+	movb %ah, 0x0f(%bp)             //ah
+	jmp 3b
+
+
+Find_drive_info:
+	pushal
+	pushw %ds
+	pushw %cs
+	popw %ds
+	movb (Number_of_usb_drive - Entry_USB2DRI), %cl
+	movw $(Dri - Entry_USB2DRI), %si
+1:        
+	cmpb (%si), %dl
+	je 1f
+	decb %cl
+	orb %cl, %cl
+	je 2f
+	addw $DriveLen, %si 
+	jmp 1b
+1:
+	movb 1(%si), %al 
+	movb %al, (PBR1 - Entry_USB2DRI)
+	movb 2(%si), %al 
+	movb %al, (id - Entry_USB2DRI)
+	movb 3(%si), %al 
+	movb %al, (lun - Entry_USB2DRI)
+	movl 4(%si), %eax 
+	movl %eax, (Disk_sector - Entry_USB2DRI)
+	movl 0x08(%si), %eax 
+	movl %eax, (Start_sector - Entry_USB2DRI) 
+	movb 0x0c(%si), %al
+	movb %al, (Disk_SectorsPerTrack - Entry_USB2DRI)
+	movb 0x0d(%si), %al 
+	movb %al, (Disk_track - Entry_USB2DRI)      
+	clc
+1:
+	popw %ds
+	popal
+	ret
+2:
+	stc
+	jmp 1b                 
+
+
+chs_lba:
+	movw %bx, %di
+	movzbw %al, %bx
+
+	movb %cl, %al
+	andb $0x3f, %al
+	movzbl %al, %eax
+	pushl %eax 
+                                                                 
+	xchgb %ch, %cl
+	andb $0xc0, %ch
+	rolb $02, %ch
+
+	movzbl %cs:(Disk_track - Entry_USB2DRI), %eax
+	movzwl %cx, %ecx
+	imull %ecx, %eax
+	movzbl %dh, %ecx
+	addl %ecx, %eax 
+	movzbl %cs:(Disk_SectorsPerTrack - Entry_USB2DRI), %ecx
+	imull %ecx, %eax
+	popl %ecx
+	addl %ecx, %eax        
+	decl %eax
+
+	cmpb $0, %dl
+	jne 1f
+	testb $1, %cs:(PBR1 - Entry_USB2DRI)
+	je 1f
+	addl %cs:(Start_sector - Entry_USB2DRI), %eax
+
+	cmpl %cs:(Start_sector - Entry_USB2DRI), %eax
+	jne 1f
+	orb $1, %cs:(adjust_pbr - Entry_USB2DRI)
+1:       
+	ret
+   
+
+
+
+int13_41:   
+	cmpw $0x55aa, %bx
+	jne qtml 
+	movw $0x2100, %ax               //EDD-2.1
+	notw %bx                        //bx=AA55
+	movw $5, %cx 
+	movw %bx, 0x08(%bp)
+	movw %cx, 0x0c(%bp)         
+	movw %ax, 0x0e(%bp) 
+	andb $0xfe, 0x14(%bp)           //cf=0
+	jmp 3b
+
+
+int13_42_43:
+	movb %ah, %cs:(Save_ah - Entry_USB2DRI)     
+	call Disk_package
+	movb $01, %cl
+	cmpb $0x42, %cs:(Save_ah - Entry_USB2DRI)
+	je 1f
+	xorb %cl, %cl       
+1:
+	call Read_write
+	jnb int13_00_04_16_17_18_44_47
+	jmp qtml
+
+
+Disk_package:
+	movw 02(%si), %bx
+	movw 04(%si), %di
+	movw 06(%si), %es
+	movl 0x08(%si), %eax       
+	ret
+
+
+int13_48:
+	pushw %ds
+	popw %es
+	pushw %dx
+	movw %si, %di 
+	xorb %al, %al
+	movw $0x1a, %cx
+	rep stosb
+	movb $0x1a, (%si)
+	movb $06, 02(%si)
+	movb %cs:(Disk_SectorsPerTrack - Entry_USB2DRI), %al
+	movb %al, 0x0c(%si)
+	movb %cs:(Disk_track - Entry_USB2DRI), %ah 
+	movb %ah, 0x08(%si)
+	mulb %ah
+	movzwl %ax, %ecx
+	movl %cs:(Disk_sector - Entry_USB2DRI), %eax
+	movl %eax, 0x10(%si)
+	xorl %edx, %edx
+	divl %ecx
+	movl %eax, 04(%si)        
+	movw $0x200, 0x18(%si)
+	popw %dx
+	jmp int13_00_04_16_17_18_44_47
+//------------------------------------------------------------------------------------------
+
+
+Allow_A20:
+	call observe
+	orw %ax, %ax 
+	jne 1f
+	mov $0x2401, %ax
+	int $0x15
+	call observe
+	orw %ax, %ax
+	jne 1f
+	pushfl
+	cli
+
+2:
+	inb $0x64, %al
+	testb $02, %al
+	jne 2b     
+	mov $0xd1, %al
+	outb %al, $0x64
+2:
+	inb $0x64, %al
+	testb $02, %al
+	jne 2b
+	movb $0xdf, %al
+	outb %al, $0x60
+2:
+	inb $0x64, %al
+	testb $02, %al
+	jne 2b
+	movb $0xff, %al
+	outb %al, $0x64
+2:
+	inb $0x64, %al
+	testb $02, %al
+	jne 2b
+	popfl
+1:
+	ret
+
+
+
+observe:
+	pushw %bx
+	pushw %dx
+	pushfl
+	cli
+	movw %fs:0x0000, %ax
+	movw %gs:0x0010, %bx
+	notw %ax
+	movw %ax, %gs:0x0010
+	movw %fs:0x0000, %dx
+	movw %bx, %gs:0x0010 
+	popfl
+	xorw %dx, %ax
+	popw %dx
+	popw %bx
+	ret
+
+        
+
+Delay:
+	pushl %ecx
+	pushw %dx
+	testw $0x8000, %ax
+	je 1f
+	andw $0x7fff, %ax
+	movw (Count_10vs - Entry_USB2DRI), %dx
+	jmp 2f        
+1:
+	movw (Count_1ms - Entry_USB2DRI), %dx
+2:        
+	movw %dx, %cx
+
+3:
+	cmpw %cs:0x046C, %ax 
+	jmp 1f
+1:
+	pushw %dx
+	pushw %ax
+	movw $0xcf8, %dx
+	inw %dx, %ax
+	popw %ax
+	popw %dx
+	decw %cx
+	cmpw $0, %cx
+	jne 3b
+
+	decw %ax
+	jne 2b
+	popw %dx
+	popl %ecx
+	ret
+
+
+
+Control_transfer:
+	pushal
+
+	movw (qTD1 - Entry_USB2DRI), %di
+	xorl %eax, %eax
+	movw $0x48, %cx
+	rep stosl
+
+	movl (qTD1_Linear - Entry_USB2DRI), %edx
+	addl $0x60, %edx
+	movw (qTD1 - Entry_USB2DRI), %di
+	movl %edx, (%di)
+	movl %edx, 4(%di)             
+	movl $0x00080e80, 8(%di)
+	movzwl %si, %eax
+	addl (ds_Linear - Entry_USB2DRI), %eax
+	movl %eax, 0x0c(%di)        
+              
+	movw 6(%si), %cx
+	orw %cx, %cx 
+	je 1f
+	addl $0x60, %edx
+	addw $0x60, %di
+	movb $0, %ah
+	testb $0x80, (%si)
+	je 2f
+	movb $01, %ah
+2:
+	movl %edx, (%di)
+	movl %edx, 4(%di)
+	movb $0x80, %al
+	orb $0x0c, %ah
+	orw $0x8000, %cx
+	movw %ax, 8(%di)
+	movw %cx, 0x0a(%di)
+	movl $(Cache - Entry_USB2DRI), %eax
+	addl (ds_Linear - Entry_USB2DRI), %eax
+	movl %eax, 0x0c(%di)
+
+1:
+	addw $0x60, %di
+	movb $0x81, %ah
+	testb $0x80, (%si) 
+	je 1f 
+	movb $0x80, %ah
+1:
+	movb $1, (%di)
+	movb $1, 4(%di) 
+	movb $0x80, %al
+	orb $0x0c, %ah
+	movw %ax, 8(%di)
+	movw $0x8000, 0x0a(%di)
+	movb $0, %cl
+	call Set_QH
+	popal
+	ret
+
+
+
+                                                                    
+
+Set_QH:
+	pushw %bx
+	pushw %cx
+	movb (id - Entry_USB2DRI), %bl 
+	decb %bl
+	movb $DevLen, %al
+	mulb %bl
+	movw %ax, %bx 
+
+	movw (qTD1 - Entry_USB2DRI), %di
+	addw $0x180, %di
+	pushw %di
+	xorl %eax, %eax
+	pushw %cx
+	movw $0x18, %cx
+	rep stosl
+	popw %cx
+	popw %di
+
+	movl (qTD1_Linear - Entry_USB2DRI), %eax
+	addl $0x120, %eax
+	orb $02, %al
+	movl %eax, (%di)      
+ 
+	movb $04, %al
+	mulb %cl
+	movb $02, %dl       
+	leaw (ConProperty - Entry_USB2DRI)(%bx), %si
+	addw %ax, %si 
+	movb 01(%si), %ch
+	andb $0x0f, %ch 
+	shlb $04, %dl
+	orb %dl, %ch
+	movw 02(%si), %ax
+	orb %cl, %cl
+	jne 1f
+	orw $0x0800, %ax
+	orb $0x40, %ch 
+1:
+	movb (DevID - Entry_USB2DRI)(%bx), %cl
+	andb $0x7f, %cl 
+	movb %cl, 04(%di)
+	movb %ch, 05(%di)
+	movw %ax, 06(%di)
+
+	movl (qTD1_Linear - Entry_USB2DRI), %eax
+	movl %eax, 0x0c(%di)
+	movw (qTD1 - Entry_USB2DRI), %si
+	pushw %si
+	addw $0x10, %di
+	movw $0x08, %cx
+	rep movsl
+
+	popw %di
+	addw $0x120, %di
+	movb 05(%di), %al 
+	orb $0x80, %al
+	movb %al, 05(%di)       
+
+1:
+	movw $04, %si
+	call Read_Register 
+	testl $0x2000, %eax
+	jne 1b
+
+	movl (qTD1_Linear - Entry_USB2DRI), %eax
+	addl $0x180, %eax
+	orb $02, %al 
+	movl %eax, (%di)
+	movw $0x8004, %ax
+	call Delay
+	movb 05(%di), %al              
+	andb $0x7f, %al
+	movb %al, 05(%di)    
+
+1:
+	movw $04, %si
+	call Read_Register      
+	testl $03, %eax
+	je 1b 
+
+	movw $04, %si
+	call Write_Register
+
+	testb $01, %al
+	je 1f
+
+2:
+	movw (qTD1 - Entry_USB2DRI), %di
+	addw $0x180, %di 
+	movb 0x18(%di), %al    
+	testb $0x80, %al
+	jne 2b      
+1:
+	movw %di, %si 
+	subw $0x60, %si
+	movb 05(%si), %al
+	orb $0x80, %al
+	movb %al, 05(%si)
+
+1:
+	pushw %si
+	movw $04, %si
+	call Read_Register
+	popw %si
+	testl $0x10, %eax
+	jne 1f 
+	testl $0x2000, %eax
+	jne 1b
+1:  
+	movl (qTD1_Linear - Entry_USB2DRI), %eax
+	addl $0x120, %eax
+	orb $02, %al 
+	movl %eax, (%si) 
+
+	movb 05(%si), %al
+	andb $0x7f, %al
+	movb %al, 05(%si)    
+
+	movb 0x18(%di), %al
+	movb 0x19(%di), %ah	
+	andb $0x0c, %ah 
+	orb %ah, %ah
+	je 1f
+	testb $0x40, %al
+	jne 1f 
+	testb $0x20, %al
+	jne 1f              
+	movb $00, (Status - Entry_USB2DRI)      
+2:
+	popw %cx
+	popw %bx
+	ret
+1:
+	movb $01, (Status - Entry_USB2DRI)
+	jmp 2b              
+
+        
+
+
+
+ 
+
+     
+
+
+Bulk_transfer:
+	pushw %bx
+	pushw %si
+	pushw %di
+	pushl %eax 
+	movb (id - Entry_USB2DRI), %cl 
+	decb %cl
+	movb $DevLen, %al
+	mulb %cl
+	movw %ax, %bx 
+
+	movw (qTD1 - Entry_USB2DRI), %di
+	xorl %eax, %eax
+	movw $0x48, %cx
+	rep stosl
+
+	popl %eax
+	decb %al
+	je 1f
+	decb %al
+	je 2f
+	movw $0x0d, %cx
+	movl $(csw_qq - Entry_USB2DRI), %eax
+	movw %cs, %dx
+	movzwl %dx, %edx
+	movb $01, (Direction1 - Entry_USB2DRI)  
+	jmp 3f
+1:
+	movw $0x1f, %cx
+	movl $(cbw_qq - Entry_USB2DRI), %eax
+	movw %cs, %dx
+	movzwl %dx, %edx
+	movb $0, (Direction1 - Entry_USB2DRI)
+	jmp 3f
+2:
+	movw $(SCSI - Entry_USB2DRI), %di
+	movb (Direction - SCSI)(%di), %al
+	movb %al, (Direction1 - Entry_USB2DRI)
+	movzwl (TOffset - SCSI)(%di), %eax
+	movzwl (Section - SCSI)(%di), %edx
+	movw (Single_size - Entry_USB2DRI), %cx  
+3:
+	movw (qTD1 - Entry_USB2DRI), %si
+	movb $01, (%si)
+	movb $01, 04(%si) 
+	movb $0x80, 0x08(%si) 
+	cmpw $0, %cx
+	je 1f
+	shll $04, %edx
+	addl %eax, %edx     
+	movl %edx, 0x0c(%si)
+	andl $0x0fffff000, %edx
+	addl $0x1000, %edx
+	movl %edx, 0x10(%si) 
+	addl $0x1000, %edx
+	movl %edx, 0x14(%si)
+	addl $0x1000, %edx
+	movl %edx, 0x18(%si)
+	addl $0x1000, %edx
+	movl %edx, 0x1c(%si)
+1:        
+	leaw (ConProperty - Entry_USB2DRI)(%bx), %si 
+	addw $04, %si
+	movb $01, %al
+	testb $01, (Direction1 - Entry_USB2DRI) 
+	jne 1f
+	decb %al
+	addw $04, %si
+1:
+	testb $0x80, (%si)
+	je 1f
+	orw $0x8000, %cx
+1:
+	orb $0x80, %al
+	movw (qTD1 - Entry_USB2DRI), %si
+	orb $0x0c, %al
+	movb %al, 0x09(%si)
+	movw %cx, 0x0a(%si)
+	movb $01, %cl 
+	testb $01, (Direction1 - Entry_USB2DRI)      
+	jne 1f
+
+	movb $0x81, 0x08(%si)
+	movb $02, %cl
+1:  
+	call Set_QH 
+	movw $0x8004, %ax
+	call Delay 
+	cmpb $00, (Status - Entry_USB2DRI)
+	je 2f
+
+	pushw (Status - Entry_USB2DRI)
+	movb $04, %al
+	mulb %cl
+	leaw (ConProperty - Entry_USB2DRI)(%bx), %si
+	addw %ax, %si
+	andb $0x7f, (%si) 
+	movb 01(%si), %al
+
+	movw $(Clear_endpoint - Entry_USB2DRI), %si
+	movb %al, 04(%si)
+	call Control_transfer
+	movw $03, %ax
+	call Delay
+	popw %ax
+	movb %al, (Status - Entry_USB2DRI)
+	jmp 1f
+2: 
+	movb $04, %al
+	mulb %cl
+	leaw (ConProperty - Entry_USB2DRI)(%bx), %si
+	addw %ax, %si
+	andb $0x7f, (%si)
+	movw (qTD1 - Entry_USB2DRI), %di
+	addw $0x180, %di
+	testb $0x80, 0x1b(%di)
+	je 1f 
+	orb $0x80, (%si)
+
+1:
+	popw %di
+	popw %si
+	popw %bx
+	ret
+
+
+
+SCSI_Command:
+	pushw %bx
+	pushw %si
+	pushw %di
+
+	movw $(SCSI - Entry_USB2DRI), %bx         
+	movw (TOffset - SCSI)(%bx), %cx    
+	movw (Section - SCSI)(%bx), %dx
+	movw %cx, %ax
+	shrw $04, %ax
+	addw %ax, %dx
+	andw $0x0f, %cx
+	movw %cx, (TOffset - SCSI)(%bx)
+	movw %dx, (Section - SCSI)(%bx) 
+	movw $0x4000, (Single_size - Entry_USB2DRI)
+	movb $03, (Error_repeat_Number - Entry_USB2DRI)
+
+	movw $(cbw_qq - Entry_USB2DRI), %si
+	movl (TSize - SCSI)(%bx), %eax
+	movl %eax, 0x08(%si)
+	movb (Direction - SCSI)(%bx), %al
+	testb $01, %al
+	je 1f 
+	movb $0x80, %al     
+1:        
+	movb %al, 0x0c(%si) 
+	movb (lun - Entry_USB2DRI), %al
+	movb %al, 0x0d(%si)
+	movl (TokenContent - SCSI)(%bx), %eax
+	movl %eax, 0x0f(%si) 
+	movl (TokenContent + 4 - SCSI)(%bx), %eax
+	movl %eax, 0x13(%si)
+	movl (TokenContent + 8 - SCSI)(%bx), %eax
+	movl %eax, 0x17(%si)
+
+1:      
+	movb $01, %al
+	call Bulk_transfer
+	cmpb $0, (Status - Entry_USB2DRI)
+	je 1f
+	decb (Error_repeat_Number - Entry_USB2DRI)
+	cmpb $0, (Error_repeat_Number - Entry_USB2DRI) 
+	jne 1b
+	jmp 4f
+
+1:
+	movl (TSize - SCSI)(%bx), %eax 
+	orl %eax, %eax
+	je 2f
+	movzwl (Single_size - Entry_USB2DRI), %ecx
+	cmpl %eax, %ecx
+	jbe 3f
+	movw %ax, (Single_size - Entry_USB2DRI)
+3:      
+	movb $02, %al
+	call Bulk_transfer   
+	cmpb $0, (Status - Entry_USB2DRI)
+	jne 2f
+ 
+	movzwl (Single_size - Entry_USB2DRI), %eax 
+	movw %ax, %cx 
+	movw %ax, %dx
+	andw $0x0f, %cx
+	shrw $04, %dx
+	addw %cx, (TOffset - SCSI)(%bx)
+	addw %dx, (Section - SCSI)(%bx)
+	subl %eax, (TSize - SCSI)(%bx)
+	jmp 1b
+2:
+	movb $03, (Error_repeat_Number - Entry_USB2DRI)  
+1:      
+	movb $03, %al
+	call Bulk_transfer
+	cmpb $0, (Status - Entry_USB2DRI)
+	je 2f
+	decb (Error_repeat_Number - Entry_USB2DRI)
+	cmpb $0, (Error_repeat_Number - Entry_USB2DRI)
+	jne 1b
+	jmp 4f 
+2:      
+	movw $(csw_qq - Entry_USB2DRI), %si
+	cmpl $0x53425355, (%si)
+	jne 4f
+	cmpl $0x12345678, 04(%si)
+	jne 4f
+	cmpb $0, 0x0c(%si)
+	je 1f 
+
+4:  
+	movb $01, (Return - SCSI)(%bx)
+	jmp 2f
+
+1:  
+	movb $0, (Return - SCSI)(%bx)
+2:
+	popw %di
+	popw %si
+	popw %bx
+	ret
+
+
+
+
+
+
+
+Read_write:
+	cli
+	movw %ss, %cs:(Stack_sp - Entry_USB2DRI) 
+	movw %sp, %cs:(Stack_ss - Entry_USB2DRI) 
+	movw %cs, %si
+	movw %si, %ss
+	movw $(Ending - Entry_USB2DRI), %sp
+	sti
+        
+	pushal 
+	pushw %ds
+	pushw %es
+
+	pushw %cs
+	popw %ds
+	pushw %cs
+	popw %es 
+	pushal    
+                 
+	xorb %al, %al
+	movw $(SCSI - Entry_USB2DRI), %di
+	movw $TokenLen, %cx   
+	rep stosb  
+	popal 
+        
+	popw %es 
+	pushw %es
+
+
+	testb $01, (adjust_pbr - Entry_USB2DRI)
+	je 1f 
+	movw %es, (Save_es - Entry_USB2DRI)
+	movw %di, (Save_di - Entry_USB2DRI)
+1:           
+
+	movw $(SCSI - Entry_USB2DRI), %si 
+	movb %cl, (Direction - SCSI)(%si) 
+	movb $0x28, (TokenContent - SCSI)(%si)
+	orb %cl, %cl
+	jne 1f
+	movb $0x2a, (TokenContent - SCSI)(%si)
+1:        
+	movb %al, (TokenContent + 5 - SCSI)(%si) 
+	movb %ah, (TokenContent + 4 - SCSI)(%si)
+	shrl $0x10, %eax
+	movb %al, (TokenContent + 3 - SCSI)(%si)
+	movb %ah, (TokenContent + 2 - SCSI)(%si)        
+	movb %bl, (TokenContent + 8 - SCSI)(%si)
+	movb %bh, (TokenContent + 7 - SCSI)(%si)  
+	movw $0x200, %ax 
+	mulw %bx
+	movw %dx, (TSize + 2 - SCSI)(%si)
+	movw %ax, (TSize - SCSI)(%si) 
+	movw %di, (TOffset - SCSI)(%si)      
+	movw %es, (Section - SCSI)(%si)
+	pushw %cs
+	popw %es 
+	call Allow_A20  
+	call SCSI_Command
+	movw $(SCSI - Entry_USB2DRI), %si   
+	cmpb $0, (Return - SCSI)(%si) 
+	je 1f 
+	stc        
+3:
+	popw %es
+	popw %ds
+	popal    
+	cli
+	movw %cs:(Stack_sp - Entry_USB2DRI), %ss 
+	movw %cs:(Stack_ss - Entry_USB2DRI), %sp
+	sti       
+	ret
+
+1:
+	testb $01, (adjust_pbr - Entry_USB2DRI)
+	je 1f
+
+	andb $0, (adjust_pbr - Entry_USB2DRI)
+	xorl %eax, %eax
+	movw (Save_es - Entry_USB2DRI), %es
+	movw (Save_di - Entry_USB2DRI), %di
+
+	movl %eax, %es:0x1c(%di)           
+	cmpw $0, %es:0x11(%di) 
+	je 2f
+ 
+	movb %al, %es:0x24(%di)             
+	jmp 1f
+2:
+
+	movb %al, %es:0x40(%di)
+1:        
+	clc
+	jmp 3b
+
+
+  
+Read_Base_address:
+	pushl %esi
+	movb $01, (R_W - Entry_USB2DRI) 
+	jmp 1f
+
+Read_Register:
+	pushl %esi
+	movb $01, (R_W - Entry_USB2DRI)
+2:
+	addw (Ability_Register_Size - Entry_USB2DRI), %si
+1:
+	movzwl %si, %esi
+	call Protected_Mode 
+	popl %esi
+	ret
+
+
+
+Write_Register:
+	pushl %esi
+	movb $0, (R_W - Entry_USB2DRI) 
+	jmp 2b
+
+
+Protected_Mode:  
+	pushw %es
+	pushfl
+	cli
+	pushw %ds
+	pushw %es
+	pushl %ecx
+	pushw %cs        
+	lgdt %cs:(VGDTR - Entry_USB2DRI)
+	movl %cr0, %ecx
+	pushl %ecx
+	orb $01, %cl
+	movl %ecx, %cr0 
+	jmp 1f
+1:
+	movw $0x08, %cx
+	movw %cx, %es
+	testb $01, (R_W - Entry_USB2DRI) 
+	jne 1f
+	movl %eax, %es:(%si)
+	jmp 2f
+1:        
+	movl %es:(%si), %eax
+2:        
+	popl %ecx
+	andb $0xFE, %cl
+	movl %ecx, %cr0 
+	jmp 1f
+1:      
+	pushw $(1f - Entry_USB2DRI)
+	retf
+1:
+	popl %ecx
+	popw %es
+	popw %ds
+	popfl
+	popw %es
+	ret
+
+
+//=================================================================================================================
+
+mbr_pbr:
+	.byte   0
+
+ndk:
+	.word   0
+        
+Init_cs:
+	.word   0
+
+load_ok:              
+	.ascii  "Loaded success\r\n\0"
+
+#define mem_cpbh        0x1f00 
+#define mem_old         0x2000
+#define mem_new         0x3000
+
+
+Initialization:    
+
+	pushw %cs
+	popw %cs:(Init_cs - Entry_USB2DRI)           
+	pushw %ds
+	pushw %es
+	call Determine_delay_units
+
+	call Show_Tips
+	jc 2f 
+	call Check_bus
+	jb 4f             
+	call Disk_Info
+	pushaw             
+
+	movw %fs:0x0413, %ax             
+	subw $05, %ax     
+	movw %ax, %fs:0x0413
+	shlw $06, %ax 
+
+	movw $(Ending - Entry_USB2DRI), %cx 
+	xorw %si, %si     
+	xorw %di, %di
+	movw %ax, %es
+	rep movsb   
+	pushw %ax
+	pushw $(1f - Entry_USB2DRI)
+	lret
+1:
+	popaw
+	pushw %cs
+	popw %ds    
+                
+	call host_initialization  
+	call Device_enum
+	call Test_device
+	cmpb $0, (Number_of_usb_drive - Entry_USB2DRI) 
+	je 3f
+	call Define_disk_No
+	call Set_int13       
+
+	movw $(load_ok - Entry_USB2DRI), %si
+	call Show_Character
+	clc
+	jmp 2f
+3:
+
+	movw %fs:0x413, %ax        
+	addw $05, %ax
+	movw %ax, %fs:0x413 
+4:         
+
+	movw $(load_err - Entry_USB2DRI), %si
+	call Show_Character
+	stc
+2:
+	popw %es
+	popw %ds
+	lret
+   
+
+
+Define_disk_No:   
+	pushal
+	pushw (Init_cs - Entry_USB2DRI)      
+	popw %es 
+  
+	xorw %bx, %bx 
+	movb (Number_of_usb_drive - Entry_USB2DRI), %dh 
+0:        
+	movb (DriLUN - Entry_USB2DRI)(%bx), %al
+	movb %al, (lun - Entry_USB2DRI)        
+	movb (DriID - Entry_USB2DRI)(%bx), %al
+	movb %al, (id - Entry_USB2DRI)
+	pushw %es
+	popw %ds
+      
+	pushw %bx   
+   
+	xorl %eax, %eax
+	movw $01, %bx
+	movw $mem_new, %di
+	movb $01, %cl
+	call Read_write
+
+	movw $04, %cx
+1:
+	cmpb $0x80, 0x1be(%di)
+	je 1f
+	addw $0x10, %di
+	loop 1b
+	stc
+	jmp 4f       
+1:
+	movl 0x1ca(%di), %ebp
+
+	movw $03, %bx
+	movb $01, %cl      
+	movl 0x01c6(%di), %eax
+	movw $mem_new + 0x200, %di
+	call Read_write    
+	popw %bx
+	pushw %bx
+
+	movl %eax, %cs:(StartSector - Entry_USB2DRI)(%bx)
+	movl %ebp, %cs:(Capacity - Entry_USB2DRI)(%bx) 
+
+	cmpl $0x41465845, 03(%di)
+	je 1f
+	cmpw $0xEF53, 0x438(%di)
+	jne 2f 
+1:        
+	xorw %bx, %bx 
+	jmp 1f
+2:        
+	movb 0x18(%di), %al
+	movb %al, %cs:(SectorsPerTrack - Entry_USB2DRI)(%bx)
+	movb 0x1a(%di), %al
+	movb %al, %cs:(Track - Entry_USB2DRI)(%bx) 
+	movw $0x26, %bx
+	cmpl $0x31544146, 0x36(%di)
+	je 1f
+	movw $0x42, %bx        
+1:         
+	movw $mem_cpbh, %si
+	movw $mem_old, %di
+3:        
+	cmpb $0xff, (%si)
+	je 2f 
+
+	movb $0, %cs:(mbr_pbr - Entry_USB2DRI)
+	pushw %si
+	pushw %di      
+	movw $mem_new, %si 
+	movw $0x80, %cx
+	rep cmpsl
+	popw %di
+	je 1f
+
+	movb $1, %cs:(mbr_pbr - Entry_USB2DRI)
+	pushw %di
+	movw $mem_new + 0x200, %si
+	movw $0x200, %cx
+	addw %bx, %si
+	addw %bx, %di
+	subw %bx, %cx
+	rep cmpsb
+	popw %di
+	je 1f 
+	popw %si
+
+	addw $0x200, %di
+	addw $04, %si
+	jmp 3b   
+2: 
+	popw %bx
+	movb %fs:0x0475, %cl
+	orb $0x80, %cl
+	movb %cl, %cs:(Number - Entry_USB2DRI)(%bx)
+	movb $00, %cs:(PBR - Entry_USB2DRI)(%bx) 
+	incb %fs:0x0475
+	pushaw
+	pushw %es
+	movb $0x08, %ah
+	pushw %ds
+	pushw %es   
+	int $0x13
+	popw %es
+	popw %ds
+	andb $0x3f, %cl
+	movb %cl, %cs:(SectorsPerTrack - Entry_USB2DRI)(%bx)
+	incb %dh
+	movb %dh, %cs:(Track - Entry_USB2DRI)(%bx)
+	popw %es
+	popaw        
+	jmp 2f
+1:  
+	movw %bx, %ax
+	popw %si
+	popw %bx
+	movb %cs:(mbr_pbr - Entry_USB2DRI), %cl 
+	movb %cl, %cs:(PBR - Entry_USB2DRI)(%bx) 
+	movb (%si), %cl
+	movb %cl, %cs:(Number - Entry_USB2DRI)(%bx)
+	orw %ax, %ax 
+	jne 1f 
+	incw %si
+	incw %si
+	movw (%si), %ax
+	movw %ax, %cs:(SectorsPerTrack - Entry_USB2DRI)(%bx)    
+1:        
+	cmp %dl, %cl
+	jne 2f 
+	movl %cs:(StartSector - Entry_USB2DRI)(%bx), %eax
+	movl %eax, %fs:0x7c1c        
+2:
+	pushw %cs
+	popw %ds
+
+	decb %dh
+	je 4f
+	addw $DriveLen, %bx
+	jmp 0b
+4:
+	popal
+	ret
+
+
+
+Test_device:   
+	pushal
+	xorw %bx, %bx
+	xorw %si, %si
+	movb $01, (id - Entry_USB2DRI)
+	movb $0, (lun - Entry_USB2DRI)
+0:
+
+	xorb %al, %al
+	movw $(SCSI - Entry_USB2DRI), %di
+	pushw %di
+	movw $TokenLen, %cx
+	rep stosb
+	popw %di
+       
+	call SCSI_Command
+	cmpb $0, (Return - SCSI)(%di)
+	jne 1f
+    
+	movb (id - Entry_USB2DRI), %cl
+	movb %cl, (DriID - Entry_USB2DRI)(%si) 
+
+	movb (lun - Entry_USB2DRI), %ch
+	movb %ch, (DriLUN - Entry_USB2DRI)(%si)
+	incb (Number_of_usb_drive - Entry_USB2DRI)
+	addw $DriveLen, %si     
+1:
+	movb (lun - Entry_USB2DRI), %al
+	cmpb (MaxLUN - Entry_USB2DRI)(%bx), %al 
+	je 1f
+	incb (lun - Entry_USB2DRI)
+	jmp 0b 
+1:
+	movb (id - Entry_USB2DRI), %al
+	cmpb (max_id - Entry_USB2DRI), %al
+	je 1f 
+	movb $0, (lun - Entry_USB2DRI)
+	incb (id - Entry_USB2DRI)
+	addw $DevLen, %bx 
+	jmp 0b
+1:        
+	popal
+	ret       
+
+
+
+     
+Fill_device_structure:
+	pushal
+	movw $(Get_device - Entry_USB2DRI), %si
+	movb $0x08, (ConSize - Entry_USB2DRI)(%bx)
+      
+	call Control_transfer
+	movw $03, %ax 
+	call Delay 
+	cmpb $0, (Status - Entry_USB2DRI)
+	jne 5f
+	movb (Cache + 07 - Entry_USB2DRI), %al
+	movb %al, (ConSize - Entry_USB2DRI)(%bx)
+	movb %al, (Get_Configuration + 6 - Entry_USB2DRI)                 
+	movw $(Get_Configuration - Entry_USB2DRI), %si
+     
+	call Control_transfer
+
+	movw $03, %ax
+	call Delay                                
+	movw $(Cache - Entry_USB2DRI), %di
+	movb 05(%di), %al
+	movb %al, (Set_Configuration + 2 - Entry_USB2DRI)
+	movzbw (%di), %ax
+	addw %ax, %di         
+	cmpw $0x0608, 05(%di)
+	jne 5f
+	cmpb $0x50, 07(%di)
+	jne 5f        
+	movb 04(%di), %al
+	movb %al, %ch
+	movzbw (%di), %ax
+	addw %ax, %di
+	xorb %cl, %cl
+	cmpb %cl, %ch 
+	je 4f
+1:
+	movb 02(%di), %dl
+	movw 04(%di), %bp
+	movb 03(%di), %dh
+	movb %dh, %al
+	decb %al
+	decb %al
+	jne 3f
+
+	testb $0x80, %dl 
+	je 2f 
+
+	movb %dh, (InProperty - Entry_USB2DRI)(%bx) 
+	movb %dl, (InAddress - Entry_USB2DRI)(%bx)
+	movw %bp, (InSize - Entry_USB2DRI)(%bx)
+	jmp 3f
+2:     
+	mov %dh, (OutProperty - Entry_USB2DRI)(%bx)
+	mov %dl, (OutAddress - Entry_USB2DRI)(%bx)
+	mov %bp, (OutSize - Entry_USB2DRI)(%bx) 
+3:
+	incb %cl 
+	cmpb %ch, %cl
+	je 4f
+	movzbw 07(%di), %ax
+	addw %ax, %di 
+	jmp 1b
+4:        
+	movw $(Set_device_Address - Entry_USB2DRI), %si
+	incb 02(%si)
+	call Control_transfer
+	movw $03, %ax
+	call Delay 
+	movb (Set_device_Address + 2 - Entry_USB2DRI), %al
+	movb %al, (DevID - Entry_USB2DRI)(%bx)   
+	mov $(Set_Configuration - Entry_USB2DRI), %si
+	call Control_transfer
+	movw $03, %ax 
+	call Delay       
+	mov $(Get_lun - Entry_USB2DRI), %si 
+	call Control_transfer
+	movw $03, %ax
+	call Delay
+	movb (Cache - Entry_USB2DRI), %al
+	movb %al, (MaxLUN - Entry_USB2DRI)(%bx) 
+	movw $(Clear_endpoint - Entry_USB2DRI), %si 
+	movb (InAddress - Entry_USB2DRI)(%bx), %al
+	movb %al, 04(%si)
+	call Control_transfer
+	movw $03, %ax 
+	call Delay        
+	movw $(Clear_endpoint - Entry_USB2DRI), %si 
+	movb (OutAddress - Entry_USB2DRI)(%bx), %al
+	movb %al, 04(%si)
+	call Control_transfer
+	movw $03, %ax 
+	call Delay     
+	clc
+	jmp 1f 
+5:  
+	stc
+1:      
+	popal
+	ret
+
+
+
+host_initialization:
+	pushal                       
+	call Allow_A20 
+             
+	pushw $0x10 
+	pushw (bus_device_function - Entry_USB2DRI)
+	movb $02, %al
+	call Read_Write_Configuration
+	addw $04, %sp
+	movl %eax, (Register_pci - Entry_USB2DRI)      
+
+	call Fill_descriptor
+
+	call Define_qTD1
+
+	movw $0, %si
+	call Read_Base_address 
+	movb %al, (Ability_Register_Size - Entry_USB2DRI)
+
+	movw $04, %si 
+	call Read_Base_address
+	movb %al, %bl
+	andw $0x0F, %ax
+	movw %ax, (ndk - Entry_USB2DRI)
+ 
+	movl $02, %eax
+	movw $0, %si
+	call Write_Register
+1:
+	movw $03, %ax 
+	call Delay
+    
+	movw $0, %si 
+	call Read_Register
+	testw $02, %ax
+	jne 1b 
+
+	movw $0x08, %si 
+	call Read_Base_address
+	xorw %cx, %cx
+	movb %ah, %cl
+	movw %cx, %si
+	leaw 02(%si), %dx 
+
+	pushw %dx 
+	pushw (bus_device_function - Entry_USB2DRI)
+	movb $01, %al 
+	call Read_Write_Configuration 
+	addw $04, %sp
+
+	orw $0x100, %ax
+	pushw %ax 
+	pushw %dx 
+	pushw (bus_device_function - Entry_USB2DRI)
+	movb $03, %al
+	call Read_Write_Configuration
+	addw $06, %sp
+         
+	movw $0x01F4, %cx        
+2:
+	pushw %dx 
+	pushw (bus_device_function - Entry_USB2DRI)
+	movb $01, %al 
+	call Read_Write_Configuration 
+	addw $04, %sp
+	testw $01, %ax
+	je 1f 
+	movw $0x0a, %ax
+	call Delay 
+	loop 2b
+1:
+ 
+	leaw 04(%si), %dx 
+	pushw $00 
+	pushw %dx
+	pushw (bus_device_function - Entry_USB2DRI) 
+	movb $03, %al 
+	call Read_Write_Configuration
+	addw $06, %sp               
+
+	movl (qTD1_Linear - Entry_USB2DRI), %eax
+	addl $0x120, %eax 
+	pushl %eax
+	orb $02, %al
+	movw (qTD1 - Entry_USB2DRI), %di
+	addw $0x120, %di 
+	movl %eax, (%di) 
+	movb $01, 0x10(%di)
+	movb $01, 0x14(%di)
+	movw $01, %ax 
+	call Delay
+
+	popl %eax
+	movw $0x18, %si
+	call Write_Register
+
+	movl $0x00010021, %eax
+	movw $0, %si
+	call Write_Register
+ 
+	testb $0x10, %bl
+	je 1f
+	movw (ndk - Entry_USB2DRI), %cx
+	movw $0x44, %di 
+	jmp 2f
+3: 
+	movl $0x00001000, %eax
+	movw %di, %si
+	call Write_Register
+	addw $04, %di
+	decw %cx
+2:
+	cmpw $0, %cx 
+	ja 3b
+1:        
+
+	movl $0x00000001, %eax
+	movw $0x40, %si   
+	call Write_Register 
+	movw $0x32, %ax
+	call Delay 
+	popal
+	ret
+
+
+
+Read_Write_Configuration:  
+	pushw %bp
+	movw %sp, %bp
+	pushw %bx
+	pushl %ecx
+	pushw %di
+	movw 04(%bp), %bx
+	movw 06(%bp), %di 
+	movw 0x08(%bp), %cx
+	decb %al
+	jne 1f
+	movw $0xB109, %ax 
+	int $0x1A
+	jmp 2f
+1:
+	decb %al
+	jne 1f        
+	movw $0xB10A, %ax 
+	int $0x1A
+	jmp 2f
+1:
+	movw $0xB10C, %ax
+	int $0x1A                          
+2:
+	movl %ecx, %eax
+	popw %di
+	popl %ecx
+	popw %bx
+	popw %bp
+	ret
+
+
+
+Device_enum:   
+	pushal
+	movw $0x44, %si
+	xorw %bx, %bx
+	movw (ndk - Entry_USB2DRI), %cx 
+
+1:        
+	call Read_Register
+ 
+	testb $01, %al
+	jne 1f 
+2:       
+	decw %cx 
+	je 4f
+	addw $04, %si
+	jmp 1b
+1: 
+	testb $02, %al 
+	je 3f 
+
+	movl $0x00001100, %eax      
+	call Write_Register
+	movw $0xa0, %ax
+	call Delay
+
+	movl $0x00001000, %eax  
+	call Write_Register 
+	movw $0xa0, %ax
+	call Delay
+
+	call Read_Register
+
+	testb $02, %al 
+	je 3f 
+
+	movl $0x00001007, %eax  
+	call Write_Register
+
+	call Read_Register 
+3:      
+	testb $04, %al
+	jne 3f 
+
+	movl $0x00003002, %eax  
+	call Write_Register
+	movw $03, %ax
+	call Delay 
+	jmp 2b
+3:  
+
+	call Fill_device_structure
+	jb 2b
+	incb (max_id - Entry_USB2DRI) 
+	incb (id - Entry_USB2DRI)
+	addw $DevLen, %bx
+	jmp 2b
+4:        
+	popal
+	ret        
+        
+
+
+
+Fill_descriptor:  
+
+	movw %ds, %ax
+	movzwl %ax, %eax
+	shll $04, %eax
+	movl %eax, (ds_Linear - Entry_USB2DRI) 
+
+	movl $(GDT - Entry_USB2DRI), %eax
+	addl (ds_Linear - Entry_USB2DRI), %eax
+	movl %eax, (Base - Entry_USB2DRI)
+
+	movl (Register_pci - Entry_USB2DRI), %eax 
+	movw %ax, (BaseL - Entry_USB2DRI)
+	shrl $0x10, %eax
+	movb %al, (BaseM - Entry_USB2DRI)
+	movb %ah, (BaseH - Entry_USB2DRI)
+	ret
+
+
+
+Define_qTD1:   
+	movl $(qh - Entry_USB2DRI), %eax
+	movw %ax, (qTD1 - Entry_USB2DRI) 
+	addl (ds_Linear - Entry_USB2DRI), %eax
+	movl %eax, (qTD1_Linear - Entry_USB2DRI)        
+	ret    
+
+
+
+
+Set_int13:
+	pushal
+	cli
+              
+	movl %fs:0x004c, %ebx
+	movl %ebx, %ds:(old_int13 - Entry_USB2DRI) 
+
+	movw $(Entry_int13 - Entry_USB2DRI), %bx
+	movw %bx, %fs:0x004c
+	movw %ds, %fs:0x004e 
+	sti
+	popal
+	ret        
+
+
+
+Disk_Info:
+	pushaw
+
+	movzbw %fs:0x0475, %cx
+	movw $0x80, %dx
+	movw $mem_old, %bx 
+	movw $mem_cpbh, %si 
+2:        
+
+	pushw %cx
+	movw $0x0201, %ax
+	movw $01, %cx 
+	pushw %ds
+	pushw %es   
+	int $0x13
+	popw %es
+	popw %ds
+	popw %cx       
+	movb %dl, (%si)
+	addw $0x200, %bx
+	incw %si 
+
+	pushaw
+	pushw %es
+	movb $0x08, %ah
+	pushw %ds
+	pushw %es   
+	int $0x13
+	popw %es
+	popw %ds
+	andb $0x3f, %cl
+	incw %si
+	movb %cl, (%si)
+	incb %dh
+	incw %si
+	movb %dh, (%si)
+	popw %es
+	popaw        
+	addw $03, %si 
+	incb %dl    
+	loop 2b
+	testb $0x80, %dl
+	je 1f
+
+	movzbw %fs:0x0410, %cx 
+	testb $01, %cl                     
+	je 1f
+	shrb $06, %cl
+	incb %cl 
+	xorb %dl, %dl
+	jmp 2b
+1:
+	movl $0xffffffff, (%si)
+	popaw
+	ret
+
+
+
+
+
+
+Determine_delay_units:   
+	pushal
+	pushw %cs
+	popw %ds
+	pushw %cs
+	popw %es
+
+	xorw %ax, %ax
+	movw %ax, %fs
+	decw %ax
+	movw %ax, %gs
+	sti 
+	movw %fs:0x046c, %dx
+	xorl %ecx, %ecx
+1:
+	movw %fs:0x046c, %ax 
+	cmpw %dx, %ax                
+	je 1b                      
+
+qdys_2:
+	cmpw %fs:0x046c, %ax
+	jne qdys_3 
+
+	pushw %dx
+	pushw %ax
+	movw $0xcf8, %dx
+	inw %dx, %ax
+	popw %ax
+	popw %dx
+	incl %ecx 
+	cmpl $0, %ecx
+	jmp qdys_2
+ 
+qdys_3:
+	xorl %edx, %edx
+	movl %ecx, %eax
+	movl $0x37, %ecx
+	divl %ecx         
+	movw %ax, (Count_1ms - Entry_USB2DRI) 
+	movw $0x64, %cx
+	xorw %dx, %dx
+	divw %cx
+	orw %ax, %ax
+	je 1f
+	movw %ax, (Count_10vs - Entry_USB2DRI)
+1:
+	popal
+	ret
+
+
+Check_bus:  
+	pushal
+	movw $0xB101, %ax 
+	int $0x1A
+	cmpl $0x20494350, %edx
+	jne 1f
+	movw $0, %si
+	movw $0xB103, %ax 
+	movl $0x000C0320, %ecx 
+	int $0x1A 
+	jb 1f
+	movw %bx, (bus_device_function - Entry_USB2DRI)
+	clc
+	popal
+	ret
+1:
+	stc       
+	popal
+	ret
+
+
+
+Show_Character:
+2:   
+	lodsb
+	orb %al, %al   
+	jz 1f
+	movb $0x0e, %ah
+	movw $07, %bx
+	int $0x10 
+	jmp 2b
+1:  
+	ret
+
+
+Show_Tips:   
+	pushaw
+
+	movw %fs:0x41c, %ax
+	movw %ax, %fs:0x041A
+
+	movw $(load - Entry_USB2DRI), %si
+	call Show_Character
+
+	movw (Time - Entry_USB2DRI), %cx
+	imulw $0x64, %cx 
+1:
+	movw $0x0a, %ax
+	call Delay 
+	movb $01, %ah
+	int $0x16
+	jnz 1f 
+	movb $0x11, %ah	
+	int $0x16
+	jnz 1f 
+	loop 1b
+	jmp 2f
+1:        
+	orb $0x20, %al
+	cmpb $0x73, %al
+	jne 1f
+	shlw $03, (Count_1ms - Entry_USB2DRI) 
+	shlw $03, (Count_10vs - Entry_USB2DRI) 
+2:        
+	movw $(sca - Entry_USB2DRI), %si
+	call Show_Character
+	clc        
+2:
+	popaw
+	ret
+1:
+	stc
+	jmp 2b
+
+
+
+load:
+	.ascii  "Loading USB2.0 driver\r\n" 
+	.ascii  "Press s key, slow down loading\r\n"
+	.ascii  "Press other key, does not loading\r\n\0" 
+
+sca:
+	.ascii  "\r\n... Scanning USB Devices ...\r\n\0"
+
+load_err:                                                       
+	.ascii  "Loaded failed\r\n\0" 
+
+Ending:
+	.byte   0
+
+
+        . = Entry_USB2DRI + 0x1400
+/* ********************  USB2DRI_dbr end  ****************************** */ 
+
+/* ********************  CDROM_bin start  ****************************** */ 
+
+Entry_cdrom:
+
+	cli
+	xorw	%bx, %bx
+	movw	%bx, %ss
+	movw	$0x7c00, %sp            /* temp safe stack space */
+	sti	
+	call	1f
+1:
+	popw	%bx			/* Instruction Pointer of 1b */
+	subw	$(1b - Entry_cdrom), %bx        /* CS:BX=Entry_cdrom */
+	shrw	$4, %bx
+	movw	%cs, %ax
+	addw	%ax, %bx		/* BX:0000=Entry_cdrom */
+	/* Let CS:0000=Entry_cdrom */
+	pushw	%bx
+	 pushw	$(1f - Entry_cdrom)
+	lret
+1: 
+	movw	%bx, %ds
+	movw	%bx, %es       
+        
+        //Judgment udf partition
+	movw	$0x1000, %bx                            /* buffer offset */
+	movl	$0x10, %eax                             /* lba of sectors */
+1:
+	call	load_cdrom
+	movw	$5, %cx
+	leaw	1(%bx), %si
+	movw	$(udf_tag - Entry_cdrom), %di
+	repz cmpsb
+	je	1f
+	incl	%eax
+	cmpl	$0x15, %eax
+	jae	iso     
+	jmp	1b
+
+1:      //udf        
+	movl	$0x100, %eax                            //AnchorVolume
+	call	load_cdrom
+	movl	0x14(%bx), %eax                         //MainVolume_ExtentLocation
+1:
+	call	load_cdrom
+	cmpw	$5, (%bx)                               //Partition
+	je	1f
+	incl	%eax
+	jmp	1b
+1:        
+	movl	0xbc(%bx), %eax                         //FileSet
+	movl	%eax, (udf_partition_start - Entry_cdrom)
+	call	load_cdrom
+	movl	0x194(%bx), %eax
+	addl	(udf_partition_start - Entry_cdrom), %eax       //RootDirectoryLocation 
+	call	load_cdrom
+	movw	0xa8(%bx), %si
+	movl	0xb4(%bx, %si), %eax
+	addl	(udf_partition_start - Entry_cdrom), %eax       //FileIdentifier         
+	call	load_cdrom
+5:
+	testb	$2, 0x12(%bx)                           //Directory?
+	jne	1f                                      	//yes
+	movl	0x18(%bx), %eax                         //lba
+	movw	0x24(%bx), %si                          //LengthofImplementationUse
+	movb	0x13(%bx), %cl                          //NameLength
+	orb	%cl, %cl
+	je	1f
+	decb	%cl
+	movb	$0, (utf16_tag - Entry_cdrom)           //utf8
+	cmpb	$8, 0x26(%bx, %si)                      //utf8?
+	je	2f                                      	//yes
+	orb	$1, (utf16_tag - Entry_cdrom)           	//utf16
+	shrb	$1, %cl                                 //NameLength/2
+2:        
+	cmpb	$5, %cl                                 //NameLength=5?
+	jne	1f                                      	//no
+	leaw	0x27(%bx, %si), %si                    	//Name Address
+	cmpb	$1, (utf16_tag - Entry_cdrom)           //utf16?
+	jne	2f                                      	//no
+	incw	%si
+2:        
+	movw	$(cdrom_name - Entry_cdrom), %di       
+3:	
+	andb	$0xdf, (%si)                            /* Changed to upper case */
+	cmpsb
+	jne	1f
+	cmpb	$1, (utf16_tag - Entry_cdrom)           //utf16?
+	jne	2f                                      	//no
+	incw	%si
+2:        
+	loop	3b                                     
+
+	//Found files
+	addl	(udf_partition_start - Entry_cdrom), %eax       //FileEntry
+	movw	$0x1000, %bx                            /* buffer offset */
+	call	load_cdrom
+	movw	0xa8(%bx), %si
+	movl	0xb0(%bx, %si), %ecx                    // ecx = File length in bytes */               
+	movl	0xb4(%bx, %si), %eax
+	addl	(udf_partition_start - Entry_cdrom), %eax       //lba of grldr
+	jmp	cdrom_ok        
+
+1:      //File not found
+	movzbw  0x13(%bx), %cx                      	//NameLength
+	addw	0x24(%bx), %cx                          //+LengthofImplementationUse
+	addw	%cx, %bx                                //+NameBaseAddress
+	addw	$0x26, %bx
+	movw	$5, %cx
+1: 
+	cmpw	$0x101, (%bx)                           //UDF_FileIdentifier
+	je	5b                                      	//Continue
+	incw	%bx
+	loop	1b
+	jmp	4f
+
+iso:
+	movw	$0x1000, %bx                            /* buffer offset */
+	movl	$0x10, %eax                             /* Read the main sector descriptor */
+	call	load_cdrom
+	movl	0x9e(%bx), %eax                         /* Root */
+	call	load_cdrom
+5:	                                                
+	cmpb	$0, (%bx)                               /* Record length in bytes */
+	je	4f                                      	/* End */
+	cmpb	$0, 0x19(%bx)                           /* type */
+	jne	3f
+	xorw	%si, %si
+	movw	$5, %cx                                 /* File name length */	
+	cmpb	$5, 0x20(%bx)                           /* grldr file name length */
+	je	1f
+	cmpb	$7, 0x20(%bx)
+	je	2f
+	cmpb	$8, 0x20(%bx)
+	jne	3f
+	cmpb	$0x2e, 0x26(%bx)
+	jne	3f
+	incw	%si
+2:
+	cmpw	$0x313b, 0x26(%bx,%si)
+	jne	3f
+1:        
+	leaw	0x21(%bx), %si                          /* file name */
+	movw	$(cdrom_name - Entry_cdrom), %di        /* "GRLDR.;1" */
+1:        
+	andb	$0xdf, (%si)                            /* Changed to upper case */
+	cmpsb
+	jne	3f
+	loop	1b
+	movl	0x0a(%bx), %ecx                         /* File length in bytes */
+	movl	2(%bx), %eax                            /* File logical sector */
+	jmp	cdrom_ok
+3:
+	movzbw  (%bx), %cx
+	addw	%cx, %bx                                /* First record */
+	jmp	5b
+
+
+4:
+	movw	$(msg_BootError_cd - Entry_cdrom), %si
+1:	
+	lodsb	(%si), %al	/* get token */
+	cmpb	$0, %al		/* end of string? */
+	je	1f
+	movb	$0x0e, %ah	/* print char in AL */
+	int	$0x10		/* via TTY mode */	
+	jmp	1b
+	
+1:      
+	jmp	1b
+
+
+cdrom_ok:
+	/* EAX = first sector(LBA) of GRLDR */
+	/* ECX = File number of byte */
+
+	xorw	%bx, %bx
+	movw	$0x2000, %di
+	movw	%di, %es
+1:	
+	pushw	%es
+	call	load_cdrom
+	popw	%di
+	leaw	0x80(%di), %di
+	movw	%di, %es
+	incl	%eax
+	subl	$0x800, %ecx
+	jnl	1b
+	ljmp	$0x2000, $0  
+	
+	
+load_cdrom:
+	/* input:	EAX	LBA
+	 * output:      ES:BX
+	 */
+	pushaw 
+	movw	$0xe00, %si
+	movl	$0x00010010, (%si)     /* number of sectors */
+	movw	%bx, 4(%si)            /* buffer offset */
+	movw	%es, 6(%si)            /* buffer segment */
+	movl	%eax, 8(%si)           /* LBA lo 32 bits */
+	movl	$0, 12(%si)            /* LBA hi 32 bits */ 
+	movb	$0x42, %ah
+	pushw	%ds
+	pushw	%es
+	int	$0x13
+	popw	%es
+	popw	%ds
+	popaw
+	ret	
+
+        
+        
+        
+	. = Entry_cdrom + 0x1e0       
+        
+msg_BootError_cd:
+	.ascii	"No "        
+
+cdrom_name:
+	.ascii	"GRLDR\0"
+
+udf_tag:
+	.ascii  "BEA01"  
+        
+utf16_tag:
+	.byte   0         
+        
+udf_partition_start:
+	.long   0                
+       
+
+	. = Entry_cdrom + 0x1fe
+
+	.word	0xAA55	
+        
+	. = Entry_cdrom + 0x200 	
+	
+/* ********************  CDROM_bin end  ****************************** */ 
+
+
+#endif   //defined(GRLDR_INSTALL))
+
+
 #if (! defined(GRLDR_INSTALL))
 
 /* *************** FAT12_16_FAT32_exFAT_EXT2_3_4_mbr start ****************** */
@@ -5157,6 +7024,7 @@ Entry_12_64_ext:                                    /* cs=ds=es=0000 ss=2000 */
 	movw	$0x7c00, %bp                    /* the base address */ 
         movw	%ax, %ss	                /* stack and BP-relative moves up, too */
         movw    %bp, %sp                        /* ss:sp=0000:7c00 */
+	movw	%ax, %ds
 	sti
         /* Save the drive letter */	
         /* Read all the root directory to 2000:0000 */
@@ -5363,18 +7231,16 @@ readDisk_12_64_ext:
 	jmp     2f
 1:	movb    $0x42, %ah      /* Extended Mode Read */
 2:      movb	0x24(%bp), %dl  /* hard disk drive number */
+	pushw	%ds
+	pushw	%es
 	int	$0x13
-	
+	popw	%bx
+	popw	%ds
 	pushfw
-	movw	0x0b(%bp), %bx  /* bytes per sector */
-	shrw    $4, %bx
-	pushw   %es
-	popw    %ax
-	addw    %ax, %bx
-	movw    %bx, %es
-	popfw
-	
-	popaw			/* remove parameter block from stack */
+	leaw	0x20(%bx), %bx
+	movw	%bx, %es
+	popfw	
+	popaw								/* remove parameter block from stack */
 	popal
         jc      2f              /* disk read error */
         incl 	%eax	        /* next Absolute logical sector */
@@ -6353,9 +8219,11 @@ helper_start:
 	 * and the DH returned by "int $0x13" thus be destroyed.
 	 */
 	pushaw		/* <------ at least DL,SI need to be saved */ 
+	pushw	%ds
 	pushw	%es
 	int	$0x13
 	popw	%es
+	popw	%ds
 	jc	1f		/* failed */
 	andb	$63, %cl	/* sectors per track */
 	jz	1f		/* failed */
@@ -6707,7 +8575,7 @@ fat:
 //	jns	3f			/* floppy */
 //      testb	$8, %cs:0x0a            /* Partition Table OK */
         testb   $8, %cs:(help_mark - _start1)
-        je	3f			/* not */      
+        je	3f			/* not */   
 	movl	%cs:4(%si), %eax
 	addl	%cs:8(%si), %eax
 3:
@@ -8244,7 +10112,8 @@ check_sector_readable:
 	pushaw
 	movw	%bx, %si
 	movw	%bx, %di
-	int	$0x13
+//        int $0x13
+	call	int13
 	popaw
 	ret
 
@@ -8285,7 +10154,8 @@ check_sector_readable:
 	pushaw
 	movw	%bx, %si
 	movw	%bx, %di
-	int	$0x13
+//	int	$0x13
+	call	int13
 	popaw
 	jc	1f		/* cross-track read is not supported */
 
@@ -8302,7 +10172,8 @@ check_sector_readable:
 	pushaw
 	movw	%bx, %si
 	movw	%bx, %di
-	int	$0x13
+//	int	$0x13
+	call	int13
 	popaw
 	jc	2b		/* failure */
 
@@ -8349,7 +10220,8 @@ check_sector_readable:
 	pushaw
 	movw	%bx, %si
 	movw	%bx, %di
-	int	$0x13
+//	int	$0x13
+	call	int13
 	popaw
 	jnc	1f		/* found Max head */
 	decb	%dh
@@ -8520,7 +10392,8 @@ tune_heads:
 	pushaw
 	movw	%bx, %si
 	movw	%bx, %di
-	int	$0x13
+//	int	$0x13
+	call	int13
 	popaw
 	//jc	2f		/* failure */
 	incb	%ch
@@ -8543,7 +10416,8 @@ tune_heads:
 	movw	%bx, %si
 	movw	%bx, %di
 	movb	$0, %dh
-	int	$0x13
+//	int	$0x13
+	call	int13
 	popaw
 	jc	2f		/* failure */
 
@@ -8569,7 +10443,8 @@ tune_heads:
 	movw	%bx, %si
 	movw	%bx, %di
 	movb	$0, %dh
-	int	$0x13
+//	int	$0x13
+	call	int13
 	popaw
 	jc	2f		/* failure */
 
@@ -8634,7 +10509,8 @@ tune_sectors:
 	movb	$1, %cl		/* beginning sector */
 	movw	%bx, %si
 	movw	%bx, %di
-	int	$0x13
+//	int	$0x13
+	call	int13
 	popaw
 	jc	2f		/* failure */
 
@@ -8648,7 +10524,8 @@ tune_sectors:
 	pushaw
 	movw	%bx, %si
 	movw	%bx, %di
-	int	$0x13
+//	int	$0x13
+	call	int13
 	popaw
 	//jc	2f		/* failure */
 
@@ -8682,7 +10559,8 @@ tune_sectors:
 	movw	%bx, %si
 	movw	%bx, %di
 	movb	$1, %cl		/* sector 1=the leading sector */
-	int	$0x13
+//	int	$0x13
+	call	int13
 	popaw
 	jc	2f		/* failure */
 
@@ -8765,7 +10643,8 @@ check_sector_readable:
 	movw	$0x201, %ax	/* read 1 sector */
 	movb	$0, %dh		/* head=0 */
 	pushaw
-	int	$0x13
+//	int	$0x13
+	call	int13
 	jc	1f
 	decb	%al
 	addb	$255, %al	/* set CF if returned AL != 1 */
@@ -8805,7 +10684,8 @@ check_sector_readable:
 	pushaw
 	incb	%ch	/* next cylinder */
 	movw	$GEOMTUNE_H_buf_nch0, %bx
-	int	$0x13
+//	int	$0x13
+	call	int13
 	setnc	%ah
 	cmpb	GEOMTUNE_read_ax, %al
 	sete	%al
@@ -8816,7 +10696,8 @@ check_sector_readable:
 	/* read current cylinder, head 0 */
 	pushaw
 	movw	$GEOMTUNE_H_buf_cch0, %bx
-	int	$0x13
+//	int	$0x13
+	call	int13
 	setnc	%ah
 	cmpb	GEOMTUNE_read_ax, %al
 	sete	%al
@@ -8845,7 +10726,8 @@ check_sector_readable:
 	pushaw
 	xorw	%bx, %bx	/* offset GEOMTUNE_H_buf_ct is 0 */
 	movw	GEOMTUNE_read_ax, %ax
-	int	$0x13
+//	int	$0x13
+	call	int13
 	setnc	%ah
 	cmpb	GEOMTUNE_read_ax, %al
 	sete	%al
@@ -8929,7 +10811,8 @@ check_sector_readable:
 	movw	GEOMTUNE_read_ax, %ax
 	movw	$GEOMTUNE_S_buf_ct, %bx
 	pushaw
-	int	$0x13
+//	int	$0x13
+	call	int13
 	popaw
 	jc	2f
 20:	/* track loop */
@@ -8975,7 +10858,8 @@ check_sector_readable:
 	movw	GEOMTUNE_read_ax, %ax
 	movw	$GEOMTUNE_S_buf_nt, %bx
 	pushaw
-	int	$0x13
+//	int	$0x13
+	call	int13
 	popaw
 	jc	2f
 	/* compare sector 1 with sectors 2-63 from previous track */

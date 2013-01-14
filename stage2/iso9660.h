@@ -52,9 +52,16 @@
 
 /* volume descriptor types */
 #define ISO_VD_PRIMARY 1
+#define ISO_VD_ENHANCED 2
 #define ISO_VD_END 255
+#define UDF_Anchor 2
+#define UDF_Partition 5
+#define UDF_FileSet 256
+#define UDF_FileEntry 261
+#define UDF_FileIdentifier 257
 
 #define ISO_STANDARD_ID "CD001"
+#define UDF_STANDARD_ID "BEA01"
 
 #ifndef ASM_FILE
 
@@ -132,6 +139,40 @@ struct iso_primary_descriptor {
   u_int8_t	application_data[512];
   u_int8_t	_unused5[653];
 } __attribute__ ((packed));
+
+struct udf_descriptor {
+	u_int16_t Tag;
+	u_int8_t bypass1[14];
+	u_int32_t AnchorVolume_MainVolume_ExtentLength;
+	u_int32_t AnchorVolume_MainVolume_ExtentLocation;
+	u_int8_t bypass2[88];
+	u_int8_t FileSet_LogicalVolumeIdentifier[56];
+	u_int32_t FileEntry_LengthofExtendedAttributes;
+	u_int8_t bypass3[4];															
+	u_int8_t FileEntry_BaseAddress[12];
+	u_int32_t Partition_PartitionStartingLocation;
+	u_int32_t Partition_PartitionLength;
+	u_int8_t bypass4[208];
+	u_int32_t FileSet_RootDirectoryLocation;
+	u_int8_t	_unused[1640];
+} __attribute__ ((packed));
+
+struct udf_FileIdentifier {
+	u_int16_t Tag;
+	u_int8_t bypass1[14];
+	u_int16_t FileVersion;
+	u_int8_t FileCharacteristics;
+	u_int8_t NameLength;
+	u_int32_t FileEntryLength;
+	u_int32_t FileEntryLocation;
+	u_int16_t PartitionNum;
+	u_int16_t Flag1;
+	u_int32_t UniqueID;
+	u_int16_t LengthofImplementationUse;
+	u_int8_t NameBaseAddress[474];
+} __attribute__ ((packed));
+
+
 
 struct rock_ridge {
   u_int16_t	signature;

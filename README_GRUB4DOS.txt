@@ -375,7 +375,9 @@ Update 11:	stage2 of Grub Legacy can be chainloaded in this way:
 			chainloader --force --load-segment=0 --load-offset=0x8000 --boot-cs=0 --boot-ip=0x8200 (...)/.../stage2
 
 Update 12: 	added exFAT partition.
- 		Increased to find grldr from the CD root function. Can grldr_cd.bin as cdrom boot code
+
+Update 13: 	add Universal Disk Format (UDF) and Joliet specification support. You can boot from them also.
+		Able to use grldr_cd.bin as cdrom boot code.
 
 --------------------------------------------------------
 
@@ -1196,6 +1198,9 @@ OPTIONS:
 	--install-partition=I	Install the boot record onto the boot area of
 				partition number I of the specified hard drive
 				or harddrive image DEVICE_OR_FILE.
+
+	--usb=I   		The USB2.0 driver is installed to the specified
+				drive or hard disk image ( device or file ).
 
 DEVICE_OR_FILE:	Filename of the device or the image file. For DOS, a BIOS drive
 number(hex 0xHH or decimal DDD) can be used to access the drive. BIOS drive
@@ -2381,9 +2386,7 @@ Note 5: You may access the (cd) and (cdX)'es in the blocklist way. Example:
 
 	The cdrom sectors are big sectors with a size of 2048 bytes.
 
-Note 6:	The iso9660 filesystem driver has Rock-Ridge extension support, but
-	has no Joliet extension support. So you may encounter failure when
-	you attempt to read files on a Joliet CD.
+Note 6:	The iso9660 filesystem driver has Rock-Ridge extension support.
 
 Note 7: The (cd) or (cdX)'es can be booted now. Examples:
 
@@ -3431,6 +3434,14 @@ Installing GRLDR boot code to PBR under Linux:
 	
 Note: Only a few file systems(FAT12/16/32/NTFS/ext2/ext3/ext4/exfat) are supported by now.
 
+Updated: add --usb=I parameter, usb2.0 driver can be installed. 
+	Where I represents:
+	01: Load driver only if the system does not have extended read/write ability;
+	02: Always load driver
+
+Important reminder: For Method 1, when writing USB driver to ext2 file system
+write-back position must be 0x0a sectors before boot sector!
+
 Note: grubinst has the feature of installing grldr boot code onto a
 	partition boot area.
 
@@ -3740,12 +3751,13 @@ Address		Length		Description
 0000:8288	4 (DWORD)	pxe_sip (server ip)
 0000:828C	4 (DWORD)	pxe_gip (gateway ip)
 0000:8290	8 (QWORD)	filesize (file size by last "cat --length=0")
-0000:8298	4 (DWORD)	saved_mem_upper (extended memory size in KB)
+0000:8298	4 (DWORD)	Starting from 1M contiguous memory block size (size in KB)
 0000:829C	4 (DWORD)	saved_partition (current root partition)
 0000:82A0	4 (DWORD)	saved_drive (current root drive)
 0000:82A4	4 (DWORD)	no_decompression (no auto gunzip)
 0000:82A8	8 (QWORD)	part_start (start sector of last partition)
 0000:82B0	8 (QWORD)	part_length (total sectors of last partition)
+0000:82c0	8 (QWORD)	Starting from 4G contiguous memory block size (size in KB)
 
 Note 1: Filesize can be initialised/modified by using "cat --length=0 FILE".
 Note 2: You should not write these variables by hand(should read only).
@@ -4072,3 +4084,62 @@ Some differences:
 		%~z0	expands %0 to size of file
 	6.You can find some script in below site.
 	  http://chenall.net/post/tag/grub4dos/
+
+********************************************************************************
+			Conditional Menu(iftitle)
+********************************************************************************
+Conditional menu are support since 2011-12-04, it can determine to display a menu item by specified condition.
+For distinguishing from normal menu item, it uses new keyword "iftitle".
+
+commands:
+	iftitle [<command>] Actual Title displayed\nOptional help line
+
+Note:
+	1.command must be a valid GRUB4DOS command, it supports calling external commands.
+	Note: commands like eecho/pause are disabled in conditional menu.
+	    Almost all commands are useable, and you may report bug if you encounter unusable commands.
+	2.a space before menu title is necessary.
+	3.[] is necessary.
+	4.If it is empty inside [], it acts same as title command.
+	5.You can use this function to comment out a menu item by putting invalid command inside [].
+
+******************************************************************************
+***                           About usb2.0 driver                         ***
+******************************************************************************
+When the the bios assigned drive No. 00, and the system does not support extended reading,
+Wrong CHS parameter will cause USB drives failed to boot.
+
+As a remedy, loading the usb drive to support extended reading, to re-enable USB booting.
+
+The USB drive code is located in the 11-21 sector of grldr.pbr file.
+
+The USB 2.0 driver supports: PCI Device Class 0c/03/20,
+namely EHCI (Enhanced Host Controller Interface) devices.
+
+The USB 2.0 driver supports: USB (Universal Serial Bus) Class 08 (Mass Storage devices),
+SubClass 06, Protocol 50, that is USB Thumbdrive or Portable External Hard Drives.
+
+USB driver code should be placed after the PBR sector.
+
+PBR boot program will loads the USB driver first, and then call it.
+Resident in the top of conventional memory, USB devices are read and written by intercepting INT 13h.
+
+There is a switch in the PBR offset 0x1fb.
+  01: Load driver only if the system does not have extended read/write ability;
+  02: Always load driver
+  00: USB driver is not loaded.
+
+When USB driver is loaded, it waits for 5 seconds for user input:
+  Press s key to load in slow-down mode;
+  Press other keys to skip loading driver;
+  Otherwise drive will be loaded.
+Number of seconds for waiting Offset 0x0a at waiting for the number of seconds by usb driver settings.
+
+Note: Only (FAT12/16/32/ext2/ext3/ext4/exfat) file systems are supported.
+
+Note: USB drives needs to be pre-formatted for getting MBR and BPB parameters.
+
+Tips: 1. Some USB drives are identified as USB 1.x devices under Windows and DOS usbaspi.sys , 
+         but they will be identified as USB 2.0 devices when loading in slow-down mode.
+      2. Some USB drives do not be detected when plugging into front panel,
+         but they will be detected when loading in slow-down mode.
