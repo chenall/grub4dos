@@ -15,9 +15,6 @@
 /* Define if C symbols get an underscore after compilation */
 #undef HAVE_ASM_USCORE
 
-/* Define to 1 if you have the <curses.h> header file. */
-#undef HAVE_CURSES_H
-
 /* Define if edata is defined */
 #undef HAVE_EDATA_SYMBOL
 
@@ -27,17 +24,8 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
-/* Define if you have a curses library */
-#undef HAVE_LIBCURSES
-
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
-
-/* Define to 1 if you have the <ncurses/curses.h> header file. */
-#undef HAVE_NCURSES_CURSES_H
-
-/* Define to 1 if you have the <ncurses.h> header file. */
-#undef HAVE_NCURSES_H
 
 /* Define if opendisk() in -lutil can be used */
 #undef HAVE_OPENDISK
@@ -92,6 +80,9 @@
 
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
+
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION

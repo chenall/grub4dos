@@ -15,7 +15,7 @@ COPY_FILES="COPYING README_GRUB4DOS*.txt ChangeLog_*.txt \
 	stage2/grldr stage2/grub.exe stage2/badgrub.exe stage2/grldr.mbr stage2/bootlace.com \
 	stage2/hmload.com stage2/grldr.pbr stage2/grldr_cd.bin"
 
-rm -rf *.zip *.7z *~ || exit $?
+# rm -rf *.zip *.7z *~ || exit $?
 
 if svn export . grub4dos-temp --force > /dev/null ; then
 	CURR_REVISION=""
@@ -101,7 +101,7 @@ make clean
 #	Build english version
 #############################################
 
-./configure --enable-preset-menu=preset_menu.lst || exit $?
+./configure --disable-hercules --enable-preset-menu=preset_menu.lst || exit $?
 make || exit $?
 rm -rf grub4dos-${VER}
 mkdir grub4dos-${VER} || exit $?
@@ -132,7 +132,7 @@ fi
 #############################################
 
 #patch -p1 < patch-chinese.diff || exit $?
-#make || exit $?
+#CC=/usr/bin/gcc-4.5 make || exit $?
 
 #mkdir grub4dos-${VER}/chinese || exit $?
 #cp README_GRUB4DOS_CN.txt stage2/grldr stage2/grub.exe stage2/badgrub.exe grub4dos-${VER}/chinese || exit $?
