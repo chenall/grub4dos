@@ -3080,7 +3080,7 @@ print_64:
         . = Entry_exfat + 0x3e0
 
 msg_BootError_64:
-	.ascii	"No \0"
+	.ascii	"No "
 	
 grldr_un:
         .ascii  "grldr\0"	
@@ -8624,7 +8624,8 @@ fat:
 
 	/* fix for NTFS partition: on error go back to supervisor, offset 0x01fa */
 
-	movw	$0x01fa, %di
+//	movw	$0x01fa, %di
+	movw	$0x01de, %di
 	movw	%es:(%di), %ax
 	cmpw	$0xFEEB, %ax /* EB FE is jmp back to itself(infinite loop) */
 	jnz	3f
