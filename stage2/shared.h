@@ -270,7 +270,9 @@ extern char *grub_scratch_mem;
  *    (in LSB order)
  */
 
-#include <stage1.h>
+#define COMPAT_VERSION_MAJOR	3
+#define COMPAT_VERSION_MINOR	2
+#define GRUB_INVALID_DRIVE	0xFFFFFFFF
 
 #define STAGE2_VER_MAJ_OFFS	0x6
 #define STAGE2_INSTALLPART	0x8
