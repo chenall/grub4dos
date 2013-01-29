@@ -3591,7 +3591,8 @@ configfile_func (char *arg, int flags)
   auth = 0;
   
   saved_entryno = 0;
-  *saved_dir = 0;	/* clear saved_dir */
+  /* should not clear saved_dir. see issue 109 reported by ruymbeke. */
+  // *saved_dir = 0;	/* clear saved_dir */
   //force_cdrom_as_boot_device = 0;
   if (current_drive != 0xFFFF && (current_drive != ram_drive || filemax != rd_size))
   {
@@ -10350,6 +10351,8 @@ map_func (char *arg, int flags)
 	/* && part_start */
 	&& (buf_geom.sector_size == 2048 ? (sector_count == 4) : (sector_count == 1)))
     {
+      // Fixed issue 107 by doing it early before part_length changed.
+      sector_count = (buf_geom.sector_size == 2048 ? (part_length << 2) : part_length);
       if (mem != -1ULL)
       {
 	char buf[32];
@@ -10357,11 +10360,11 @@ map_func (char *arg, int flags)
 	grub_close ();
 	//sector_count = part_length;
         grub_sprintf (buf, "(%d)%ld+%ld", to, (unsigned long long)part_start, (unsigned long long)part_length);
-        if (! grub_open (buf))
+        if (! grub_open (buf))	// This changed part_length, causing issue 107.
 		return 0;
         filepos = (skip_sectors + 1) << 9;
       }// else if (part_start)
-      sector_count = (buf_geom.sector_size == 2048 ? (part_length << 2) : part_length);
+      //sector_count = (buf_geom.sector_size == 2048 ? (part_length << 2) : part_length);
     }
     sector_count -= skip_sectors;
 
@@ -10734,16 +10737,16 @@ geometry_probe_failed:
 
 geometry_probe_ok:
   
-  if (! disable_map_info)
-  {
-    if (debug > 0)
+//  if (! disable_map_info)
+//  {
+    if (debug > 0 && ! disable_map_info)
       grub_printf ("\nprobed C/H/S = %d/%d/%d, probed total sectors = %ld\n", probed_cylinders, probed_heads, probed_sectors_per_track, (unsigned long long)probed_total_sectors);
     if (mem != -1ULL && ((long long)mem) <= 0)
     {
       if (((unsigned long long)(-mem)) < probed_total_sectors && probed_total_sectors > 1 && sector_count >= 1/* filemax >= 512 */)
 	mem = - (unsigned long long)probed_total_sectors;
     }
-  }
+//  }
   if (BPB_H || BPB_S)
 	if (BPB_H != probed_heads || BPB_S != probed_sectors_per_track)
 	{

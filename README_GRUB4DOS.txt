@@ -4141,3 +4141,21 @@ Some differences:
 		%~z0	expands %0 to size of file
 	6.You can find some script in below site.
 	  http://chenall.net/post/tag/grub4dos/
+
+********************************************************************************
+			Conditional Menu(iftitle)
+********************************************************************************
+Conditional menu are support since 2011-12-04, it can determine to display a menu item by specified condition.
+For distinguishing from normal menu item, it uses new keyword "iftitle".
+
+commands:
+	iftitle [<command>] Actual Title displayed\nOptional help line
+
+Note:
+	1.command must be a valid GRUB4DOS command, it supports calling external commands.
+	Note: commands like eecho/pause are disabled in conditional menu.
+	    Almost all commands are useable, and you may report bug if you encounter unusable commands.
+	2.a space before menu title is necessary.
+	3.[] is necessary.
+	4.If it is empty inside [], it acts same as title command.
+	5.You can use this function to comment out a menu item by putting invalid command inside [].
