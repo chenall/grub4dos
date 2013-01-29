@@ -2025,11 +2025,7 @@ VARIABLE(ROM_int13)
 ENTRY(hooked_drive_map)
 	.space	(DRIVE_MAP_SIZE + 1) * DRIVE_MAP_SLOT_SIZE
 
-	/* El Torito drive to report at 0xF8 */
-VARIABLE(eltorito_drive)
-	.byte	0
-
-	/* 7 bytes reserved at 0xF9 */
+	/* 8-byte space reserved. */
 
 	. = int13_handler + 0x100	/* real int13 handler entry at 0x100 */
 int13_handler_entry:
@@ -2057,9 +2053,35 @@ VARIABLE(safe_mbr_hook)
 	/* 2012-12-13: set to 0 according to sha0:
 	 *	http://reboot.pro/topic/17881-g4d-safe-hook-flags/
 	 *	http://www.osronline.com/ddkx/w98ddk/storage_5l6g.htm
+	 *
+	 * 2013-01-12: sometimes 0 causes Win98 boot failure, so restore
+	 *		the original value of 1. See also:
+	 *	http://www.osronline.com/ddkx/w98ddk/storage_5o6r.htm
+	 *		which says:
+	 *
+	 *	Safe MBR Hook
+	 *
+	 * To create a safe MBR hook for translation, you can either write
+	 * an MBR hooker and a corresponding VSD or just write an MBR hooker
+	 * that sets the smhflgs member to 1. In either case, the MBR hooker
+	 * must have a SafeMBRHook structure at the beginning of its hook
+	 * routine, as described in About Vendor-Supplied Drivers.
+	 *
+	 * You do not have to write a VSD if the MBR hooker only has
+	 * functionality that the Windows 95 IDE driver already supports. In
+	 * this case, the MBR hooker can set the smhflgs member to 1 on its
+	 * own so that Windows 95 can take over in protect mode.
+	 *
+	 * If the MBR hooker has functionality that is not already supported
+	 * by Windows 95, for example, encryption, you must write a VSD or
+	 * leave your MBR hooker marked as unsafe. If you write a VSD to
+	 * support the extra functionality in protect mode, the VSD is
+	 * responsible for setting the smhflgs member to 1 to indicate to
+	 * Windows 95 that it is safe to take over in protect mode.
+	 *
+	 *	Built on Friday, April 11, 2003
 	 */
-	//.long	0x00000001		/* safe MBR hook flag */
-	.long	0x00000000		/* safe MBR hook flag */
+	.long	0x00000001		/* safe MBR hook flag */
 
 	/* -----------------  SafeMBRHook structure end  ----------------- */
 	/*******************************************************************/
@@ -2290,16 +2312,6 @@ int13_new_ss:		.word	0
 //	cmpb	$0x1a, %ah	/* PS/2 low level format ESDI drive!!!! */
 //	je	error_01_disable	/* disabled in any case */
 
-	/* sha0: Is this an El Torito emulation query? */
-	cmpw	$0x4b01, %ax
-	jne	1f
-	/* Should we hook AX == 0x4B01 for all DL? */
-	cmpb	$0, %cs:(EXT_C(eltorito_drive) - int13_handler)
-	je	1f
-	/* Discard caller's DL in favour of the El Torito drive */
-	movb	%cs:(EXT_C(eltorito_drive) - int13_handler), %dl
-
-1:
 	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
 	jz	1f		/* no cdrom */
 	cmpb	%cs:(EXT_C(min_cdrom_id) - int13_handler), %dl
@@ -3312,8 +3324,6 @@ disk_address_packet_ready:
 	movb	$4, %al
 	stosw			/* sector count=4 */
 				/* CHS makes no sense for no-emu */
-	/* sha0: Restore caller's EDX */
-	movl	%cs:(int13_old_edx - int13_handler), %edx
 	popw	%di
 	popw	%es
 	xorb	%ah, %ah	/* success, CF cleared */
