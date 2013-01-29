@@ -39,6 +39,12 @@ Discussion forum(Official technical support site):
 	English:
 	http://reboot.pro/forum/66/
 
+******************************************************************************
+***                              GCC Blacklist                             ***
+******************************************************************************
+
+It is known that gcc-4.6.x creates binaries which fails to work on certain machines.
+
 ------------------------------------------------------------------------------
 
 Usage:
