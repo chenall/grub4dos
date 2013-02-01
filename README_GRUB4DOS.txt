@@ -44,6 +44,10 @@ Discussion forum(Official technical support site):
 ******************************************************************************
 
 It is known that gcc-4.6.x creates binaries which fails to work on certain machines.
+Source: http://bbs.wuyou.net/viewthread.php?tid=274070 [Chinese GBK]
+
+It is known that gcc-4.7.x creates binaries which fails to start memtest86.
+Source: http://bbs.wuyou.net/redirect.php?tid=180142&pid=2669810&goto=findpost#pid2669810 [Chinese GBK]
 
 ------------------------------------------------------------------------------
 
