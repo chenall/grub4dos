@@ -45,7 +45,8 @@ struct fat_superblock
   long long cached_fat;
   unsigned long file_cluster;
   unsigned long long contig_size;
-  unsigned long current_cluster_num;
+//  unsigned long current_cluster_num;
+	unsigned long long current_cluster_num;
   unsigned long current_cluster;
 };
 
@@ -109,12 +110,12 @@ fat_mount (void)
   
 #ifndef STAGE1_5
   /* cluster size must be <= 32768 */
-  if (FAT_SUPER->clustsize_bits > 15)
-  {
-    if (debug > 0)
-	grub_printf ("Warning! FAT cluster size(=%d) larger than 32K!\n", (1 << (FAT_SUPER->clustsize_bits)));
+//  if (FAT_SUPER->clustsize_bits > 15)
+//  {
+//    if (debug > 0)
+//	grub_printf ("Warning! FAT cluster size(=%d) larger than 32K!\n", (1 << (FAT_SUPER->clustsize_bits)));
     //return 0;
-  }
+//  }
 #endif /* STAGE1_5 */
 
   /* reserved sectors should not be 0 for fat_fs */
@@ -368,6 +369,7 @@ fat_read (unsigned long long buf, unsigned long long len, unsigned long write)
   unsigned long offset;
   unsigned long ret = 0;
   unsigned long long size;
+	unsigned long long sector;
 
   if (! len)
     return 0;
@@ -393,8 +395,9 @@ fat_read (unsigned long long buf, unsigned long long len, unsigned long write)
   
   if  ((FAT_SUPER->fat_type == 64) && (FAT_SUPER->contig_size))
   {
-      unsigned long sector;
-      sector = FAT_SUPER->data_offset + ((FAT_SUPER->file_cluster - 2)
+//      unsigned long sector;
+//      sector = FAT_SUPER->data_offset + ((FAT_SUPER->file_cluster - 2)
+			sector = (unsigned long long)FAT_SUPER->data_offset + ((unsigned long long)(FAT_SUPER->file_cluster - 2)
 		<< (FAT_SUPER->clustsize_bits - FAT_SUPER->sectsize_bits));
 
       if ( filepos >= FAT_SUPER->contig_size )
@@ -429,12 +432,14 @@ fat_read (unsigned long long buf, unsigned long long len, unsigned long write)
   
   while (len > 0)
     {
-      unsigned long sector;
+//      unsigned long sector;
       while (logical_clust > FAT_SUPER->current_cluster_num)
 	{
 	  /* calculate next cluster */
-	  unsigned long fat_entry = 
-	    FAT_SUPER->current_cluster * FAT_SUPER->fat_size;
+//	  unsigned long fat_entry = 
+//	    FAT_SUPER->current_cluster * FAT_SUPER->fat_size;
+		unsigned long long fat_entry =
+	    (unsigned long long)FAT_SUPER->current_cluster * FAT_SUPER->fat_size;
 	  unsigned long next_cluster;
 	  unsigned long cached_pos = (fat_entry - FAT_SUPER->cached_fat);
 	  
@@ -443,8 +448,10 @@ fat_read (unsigned long long buf, unsigned long long len, unsigned long write)
 	    {
 	      FAT_SUPER->cached_fat = (fat_entry & ~(2*SECTOR_SIZE - 1));
 	      cached_pos = (fat_entry - FAT_SUPER->cached_fat);
-	      sector = FAT_SUPER->fat_offset
-		+ FAT_SUPER->cached_fat / (2*SECTOR_SIZE);
+//	      sector = FAT_SUPER->fat_offset
+//		+ FAT_SUPER->cached_fat / (2*SECTOR_SIZE);
+				sector = (unsigned long long)FAT_SUPER->fat_offset
+		+ (unsigned long long)FAT_SUPER->cached_fat / (2*SECTOR_SIZE);
 	      if (!devread (sector, 0, FAT_CACHE_SIZE, (unsigned long long)(unsigned int)(char*) FAT_BUF, 0xedde0d90))
 		return 0;
 	    }
@@ -470,7 +477,8 @@ fat_read (unsigned long long buf, unsigned long long len, unsigned long write)
 	  FAT_SUPER->current_cluster_num++;
 	}
       
-      sector = FAT_SUPER->data_offset + ((FAT_SUPER->current_cluster - 2)
+//      sector = FAT_SUPER->data_offset + ((FAT_SUPER->current_cluster - 2)
+			sector = (unsigned long long)FAT_SUPER->data_offset + ((unsigned long long)(FAT_SUPER->current_cluster - 2)
 		<< (FAT_SUPER->clustsize_bits - FAT_SUPER->sectsize_bits));
       
       size = (1 << FAT_SUPER->clustsize_bits) - offset;
@@ -503,7 +511,8 @@ fat_dir (char *dirname)
   unsigned char *utf8 = (unsigned char *) UTF8_BUF; /* utf8 filename */
   int attrib = FAT_ATTRIB_DIR;
   int exfat_attrib = FAT_ATTRIB_DIR;
-  int exfat_flags = 0;
+//  int exfat_flags = 0;
+	unsigned char exfat_flags = 0;
   int exfat_secondarycount = 0;
   int exfat_namecount = 0;
   int exfat_nextentry =  EXFAT_ENTRY_FILE;
@@ -632,7 +641,8 @@ fat_dir (char *dirname)
 	    case EXFAT_ENTRY_FILE_INFO:
 		    exfat_filemax = (*(unsigned long long *)(dir_buf+8));
 		    exfat_file_cluster = (*(unsigned long *)(dir_buf+20));
-		    exfat_flags = (*(unsigned short *)(dir_buf+1));
+//		    exfat_flags = (*(unsigned short *)(dir_buf+1));
+				exfat_flags = (*(unsigned char *)(dir_buf+1));
 		    exfat_nextentry = EXFAT_ENTRY_FILE_NAME;
 		    continue;
 	    case EXFAT_ENTRY_FILE_NAME:
