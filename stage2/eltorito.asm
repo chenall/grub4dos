@@ -819,6 +819,9 @@ print_char_exit:
 		align	16, db 0
 Buffer		times	2049	db	96h
 
+		; Init will read 2 sectors at Buffer
+		times	2047	db	0
+
 ;=============================================================================
 
 Init:			;Initialization Routine
@@ -1028,7 +1031,8 @@ AboveSpace:	mov	al, [si]
 		mov	ds,ax
 		call	print_string
 
-		mov	ax,Init-2	;Last byte of driver to keep
+		;mov	ax,Init-2	;Last byte of driver to keep
+		mov	ax,Buffer+2048	;Last byte of driver to keep
 		jmp	EndAddr			;Install driver
 
 EndOfParms:
@@ -1081,34 +1085,138 @@ InitExit:
 		retn				;That's it for Init!
 
 		; *** start 1.4 changes at ded ***
-SpecGo:		mov	si,SpecPkt
+;SpecGo:		mov	si,SpecPkt
+;		int	13h
+;		retn
+
+check_eltorito:
+
+		mov	ax, 4200h	; EBIOS read sectors
+
+		mov	WORD [si],10h	; packet size and reserved byte
+		mov	WORD [si+2],2	; 2 sectors to read and reserved byte
+		mov	WORD [si+4],Buffer
+		mov	WORD [si+6],ds
+		mov	DWORD [si+8],16	; read starts at sector 16
+		mov	DWORD [si+12],0	; hi 32-bit of starting sector number
+		
+		; fill Buffer with 96h
+		push	es
+		pusha
+		mov	ax, ds
+		mov	es, ax
+		mov	di, Buffer
+		mov	cx, 4096
+		mov	al, 96h
+		cld
+		repz stosb
+		popa
+		pop	es
+
+		; read 2 sectors into Buffer
+		push	ds
+		push	es
+		pusha
 		int	13h
+		popa
+		pop	es
+		pop	ds
+
+		cmp	DWORD [Buffer], 30444301h
+		jne	FindFail_42
+		cmp	DWORD [Buffer+4], 00013130h
+		jne	FindFail_42
+		cmp	DWORD [Buffer+800h], 30444300h
+		jne	FindFail_42
+		cmp	DWORD [Buffer+804h], 45013130h
+		jne	FindFail_42
+		cmp	DWORD [Buffer+808h], 4F54204Ch
+		jne	FindFail_42
+		cmp	DWORD [Buffer+80Ch], 4F544952h
+		jne	FindFail_42
+		cmp	DWORD [Buffer+810h], 45505320h
+		jne	FindFail_42
+		cmp	DWORD [Buffer+814h], 49464943h
+		jne	FindFail_42
+		cmp	DWORD [Buffer+818h], 49544143h
+		jne	FindFail_42
+		cmp	WORD [Buffer+81Ch], 4E4Fh
+		jne	FindFail_42
+		cmp	BYTE [Buffer+81Eh], 0
+		jne	FindFail_42
+
+		; fill Buffer with 96h
+		push	es
+		pusha
+		mov	ax, ds
+		mov	es, ax
+		mov	di, Buffer
+		mov	cx, 4096
+		mov	al, 96h
+		cld
+		repz stosb
+		popa
+		pop	es
+
+		clc
+		retn
+
+FindFail_42:
+		stc
 		retn
 
 ScanDrives:	push	ax		; at df3 in 1.4
 		push	si
+		mov	si, SpecPkt
 		mov	dl, 0h		;Start at Drive 0xFF
 NextDrv:	dec	dl
 		clc
 		mov	ax,4B01h	;Get Bootable CD-ROM Status
-		mov	BYTE [SpecPkt],0	;Clear 1st byte of SpecPkt
-		call	SpecGo
+		;mov	BYTE [SpecPkt],0	;Clear 1st byte of SpecPkt
+		mov	BYTE [si],13h	;Set 1st byte to 13h on input
+		mov	BYTE [si+2],0	;Clear drive number on input
+		;call	SpecGo
+		push	ds
+		push	es
+		pusha
+		int	13h
+		popa
+		pop	es
+		pop	ds
 ; Carry is not cleared in buggy Dell BIOSes,
 ; so I'm checking packet size byte
 ; some bogus bioses (Dell Inspiron 2500) returns packet size 0xff when failed
 ; Dell Dimension XPsT returns packet size 0x14 when OK
 
-		cmp	BYTE [SpecPkt], 13h	; anything between 13h and 20h should be OK
+		cmp	BYTE [si], 13h	; anything between 13h and 20h should be OK
 		jb	FindFail
-		cmp	BYTE [SpecPkt], 20h
+		cmp	BYTE [si], 20h
 		ja	FindFail	; in 1.4 at e16
-		test	BYTE [SpecPkt+1], 0Fh	; media_type=0 means no-emulation mode
+		test	BYTE [si+1], 0Fh	; media_type=0 means no-emulation mode
 		jnz	FindFail
-		cmp	dl, [SpecPkt+2]
-		je	SendFound	; success with CF=0
+		cmp	dl, [si+2]
+		jnz	FindFail
 
-FindFail:	cmp	dl, 80h		; Check from 80h..ffh
+		; read 2 sectors to confirm the success
+		call	check_eltorito
+		jnc	SendFound	; success with CF=0
+
+FindFail:
+		cmp	dl, 80h		; Check from 80h..ffh
 		jne	NextDrv		; Next drive
+
+; The fast 4B01 scan failed, so try a slow scan of 4200 (by reading sectors).
+
+		mov	dl, 0h		;Start at Drive 0xFF
+NextDrv_42:	dec	dl
+
+		; read 2 sectors and check the contents
+		call	check_eltorito
+		jnc	SendFound	; success with CF=0
+
+		cmp	dl, 80h		; Check from 80h..ffh
+		jne	NextDrv_42	; Next drive
+
 SendFail:	xor	dl,dl
 		stc
 		;jmp	short ThingDone	; yes, this jmp can be omitted.
