@@ -2492,7 +2492,7 @@ extern int graphicsmode_func (char *, int);
 #else
 	if (! debug_in_menu_init)
 #endif
-	printf ("\rRunning menu commands(hangup means you have a problematic config)...\r");
+	printf ("\rRunning menu commands(hangup means you have a problematic config)...\n");
 
 	/* Run menu-specific commands before any other menu entry commands.  */
 
