@@ -268,7 +268,7 @@ iso9660_dir (char *dirname)
 	
 	if (iso_type == 1)
 	{	
-		unsigned long *tmp = (unsigned long)(&UDF_DESC->FileEntry_BaseAddress) + (unsigned long)UDF_DESC->FileEntry_LengthofExtendedAttributes;		
+		unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + (unsigned long long)UDF_DESC->FileEntry_LengthofExtendedAttributes);
 		size = *tmp;
 		extent = *(tmp + 1) + udf_partition_start;
 	}
@@ -291,7 +291,7 @@ iso9660_dir (char *dirname)
 //	  extent++;
 
 	  idr = (struct iso_directory_record *)DIRREC;
-	  idru = (unsigned long)DIRREC;
+	  idru = (struct udf_FileIdentifier *)DIRREC;	
 //	  for (; idr->length.l > 0;
 //	       idr = (struct iso_directory_record *)((char *)idr + idr->length.l) )
 		for (; size > 0 ;)
@@ -302,7 +302,7 @@ iso9660_dir (char *dirname)
 				if (name_len == 0) 
 					goto ssss;
 				name_len--;
-				name = (unsigned long)(&idru->NameBaseAddress) + (unsigned long)idru->LengthofImplementationUse;
+				name = (char *)(&idru->NameBaseAddress + (unsigned long long)idru->LengthofImplementationUse);
 	  		if (name[0] == 8)
 	  		{
 	  			name++;  			
@@ -312,9 +312,9 @@ iso9660_dir (char *dirname)
 	  		{
 					name++;
 					big_to_little (name, name_len);
-	  			name_len = (unsigned int)unicode_to_utf8 (name, utf8, (name_len/2));	
+	  			name_len = unicode_to_utf8 ((unsigned short *)name, utf8, (unsigned long)(name_len/2));		
 				}
-				name = utf8;
+				name = (char *)utf8;
 				file_type = (idru->FileCharacteristics & 2) ? ISO_DIRECTORY : ISO_REGULAR;
 			}		
 			else
@@ -322,7 +322,7 @@ iso9660_dir (char *dirname)
 //	      const char *name = (const char *)(idr->name);
 //	      unsigned int name_len = idr->name_len.l;
 				name_len = idr->name_len.l;
-	 			name = &idr->name;
+	 			name = (char *)(idr->name);
 
 	      file_type = (idr->flags.l & 2) ? ISO_DIRECTORY : ISO_REGULAR;
 	    }
@@ -338,8 +338,8 @@ iso9660_dir (char *dirname)
 		if (iso_type == 2)
 		{
 			big_to_little (name, name_len);
-			name_len = (unsigned int)unicode_to_utf8 (name, utf8, (name_len/2));
-			name = utf8;
+			name_len = unicode_to_utf8 ((unsigned short *)name, utf8, (unsigned long)(name_len/2));
+			name = (char *)utf8;
 			goto dddd;
 		}
 		if (iso_type == 0)
@@ -388,7 +388,7 @@ iso9660_dir (char *dirname)
 			    rr_flag &= rr_ptr.rr->u.rr.flags.l;
 			  break;
 			case RRMAGIC('N', 'M'):
-			  name = (const char *)(rr_ptr.rr->u.nm.name);
+			  name = (char *)(rr_ptr.rr->u.nm.name);
 			  name_len = rr_ptr.rr->len - (4+sizeof(struct NM));
 			  rr_flag &= ~RR_FLAG_NM;
 			  break;
@@ -489,7 +489,7 @@ iso9660_dir (char *dirname)
 			  && (unsigned char *)name < RRCONT_BUF + ISO_SECTOR_SIZE )
 			{
 			  memcpy(NAME_BUF, name, name_len);
-			  name = (const char *)NAME_BUF;
+			  name = (char *)NAME_BUF;
 			}
 		      rr_ptr.ptr = (char *)(RRCONT_BUF + ce_ptr->u.ce.offset.l);
 		      rr_len = ce_ptr->u.ce.size.l;
@@ -538,7 +538,7 @@ dddd:
 			    }
 			    if (iso_type == 1)
 			 		{
-			  		unsigned long *tmp = (unsigned long)(&UDF_DESC->FileEntry_BaseAddress) + (unsigned long)UDF_DESC->FileEntry_LengthofExtendedAttributes;
+			  		unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + (unsigned long long)UDF_DESC->FileEntry_LengthofExtendedAttributes);
 			  		INODE->file_start = *(tmp + 1);
 			  		filepos = 0;
 			  		filemax = *tmp;	  			
@@ -584,8 +584,8 @@ dddd:
 ssss:			
 		if (iso_type == 1)
 		{
-			name = (unsigned long long)(&idru->NameBaseAddress) + (unsigned long long)idru->LengthofImplementationUse + (unsigned long long)idru->NameLength;
-			int j;
+			name = (char *)(&idru->NameBaseAddress) + (unsigned long long)idru->LengthofImplementationUse + (unsigned long long)idru->NameLength;
+			//int j;
 			for (j = 0; j < 4; j++)
 			{
 				if ((name[0] == 1) && (name[1] == 1))
@@ -595,8 +595,8 @@ ssss:
 			}
 			if (j >= 4)
 				break;
-				size = (unsigned long *)size - ((unsigned long *)name - (unsigned long *)idru);
-				idru = name;						
+				size -= (unsigned long)((unsigned long long *)name - (unsigned long long *)idru);
+				idru = (struct udf_FileIdentifier *)name;
 		}
 		else
 		{
@@ -670,7 +670,7 @@ iso9660_read (unsigned long long buf, unsigned long long len, unsigned long writ
 }
 
 int
-big_to_little (unsigned char *filename, unsigned int n)	//unicode16  Tai Mei turn a small tail
+big_to_little (char *filename, unsigned int n)	//unicode16  Tai Mei turn a small tail
 {
 	unsigned int i;
 	unsigned char a;

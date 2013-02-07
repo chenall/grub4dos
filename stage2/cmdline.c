@@ -326,7 +326,7 @@ int run_line (char *heap,int flags)
 		if (status & 8)
 		{
 			if (substring(heap,"nul",1) == 0)
-				hook_buff = set_putchar_hook(0x800);
+				hook_buff = set_putchar_hook((unsigned char *)0x800);	//hook_buff = set_putchar_hook(0x800);	2013.02.07
 			else
 				hook_buff = set_putchar_hook(PRINTF_BUFFER);
 		}

@@ -154,6 +154,7 @@ void tftp_close (void);
 int iso9660_mount (void);
 unsigned long long iso9660_read (unsigned long long buf, unsigned long long len, unsigned long write);
 int iso9660_dir (char *dirname);
+int	big_to_little (char *filename, unsigned int n);
 #endif
 #else
 #define FSYS_ISO9660_NUM 0

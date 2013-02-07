@@ -724,7 +724,7 @@ print_fsys_type (void)
 
       if (fsys_type != NUM_FSYS)
       {
- 				if (fsys_table[fsys_type].name == "fat")
+ 				if (substring(fsys_table[fsys_type].name, "fat", 1) != 1)
  				{
  					switch (current_slice)
  					{
@@ -748,7 +748,7 @@ print_fsys_type (void)
  							break;	
  					}
  				}	
-      	else if (fsys_table[fsys_type].name == "iso9660")
+      	else if (substring(fsys_table[fsys_type].name, "iso9660", 1) != 1)
       	{
       		switch (iso_type)
       		{
