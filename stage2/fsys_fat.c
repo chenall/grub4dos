@@ -49,6 +49,7 @@ struct fat_superblock
 	unsigned long long current_cluster_num;
   unsigned long current_cluster;
 };
+	unsigned int fats_type;
 
 /* pointer(s) into filesystem info buffer for DOS stuff */
 #define FAT_SUPER ((struct fat_superblock *)(FSYS_BUF + 32256))/* 512 bytes long */
@@ -253,6 +254,7 @@ fat_mount (void)
   }
 #endif /* STAGE1_5 */
 
+	fats_type = FAT_SUPER->fat_type;
   FAT_SUPER->cached_fat = - 2 * FAT_CACHE_SIZE;
   return 1;
 
@@ -358,6 +360,7 @@ label_exfat:
     }
 #endif /* STAGE1_5 */
 
+	fats_type = FAT_SUPER->fat_type;
   FAT_SUPER->cached_fat = - 2 * FAT_CACHE_SIZE;
   return 1;
 }

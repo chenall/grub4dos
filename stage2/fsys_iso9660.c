@@ -238,6 +238,7 @@ iso9660_dir (char *dirname)
 	char *name;
 	int j, k;
 	struct udf_FileIdentifier *idru;
+	char tmp_name1[256];
 
   idr = &PRIMDESC->root_directory_record;
   INODE->file_start = 0;
@@ -254,11 +255,13 @@ iso9660_dir (char *dirname)
 //	;
       for (ch = tmp_name;*dirname;++dirname)
 	{
-//		if (isspace(*dirname) || *dirname == '/')
-		if (((iso_type == 1 || iso_type == 3) ? 0 : isspace(*dirname)) || *dirname == '/')
-			break;
 		if (*dirname == '\\')
-			++dirname;
+				{
+					*ch++ = *dirname++;
+					*ch++ = *dirname++;
+				}	
+				if (isspace(*dirname) || *dirname == '/')
+					break;
 		if (ch - tmp_name >= 255 || !(*ch = *dirname))
 			break;
 		++ch;
@@ -505,7 +508,25 @@ iso9660_dir (char *dirname)
 	}	//if (iso_type !== 1)
 dddd:	
 	      filemax = MAXINT;
-	      if (substring(tmp_name, name, 1) != 1)
+			for (j = 0, k = 0;j < name_len;)
+			{
+				if (name[j] == '\\')
+				{
+					tmp_name1[k++] = name[j++];
+					tmp_name1[k++] = name[j++];
+				}	
+				if (name[j] == ' ')
+				{
+					/* quote the SPACE with a backslash */
+					tmp_name1[k++] = '\\';
+					tmp_name1[k++] = name[j++];
+				}
+				else
+					tmp_name1[k++] = name[j++];
+			}
+			tmp_name1[k] = 0;
+			name_len = k;
+			if (substring(tmp_name, tmp_name1, 1) != 1)
 		{
 		  if (*dirname == '/' || !print_possibilities)
 		    {
@@ -557,8 +578,8 @@ dddd:
 		    {
 #ifndef STAGE1_5
 //		      int j, k;
-		      char ch1;
-		      char *tmp_name1 = (char *)(NAME_BUF);
+//		      char ch1;
+//		      char *tmp_name1 = (char *)(NAME_BUF);
 
 		      if (print_possibilities > 0)
 			print_possibilities = -print_possibilities;
@@ -566,15 +587,15 @@ dddd:
 		      //NAME_BUF[name_len] = '\0';
 
 		      /* copy name to tmp_name1, and quote spaces with '\\' */
-		      for (j = 0, k = 0; j < name_len; j++)
-		      {
-			if (! (ch1 = name[j]))
-				break;
-			if (ch1 == ' ')
-				tmp_name1[k++] = '\\';
-			tmp_name1[k++] = ch1;
-		      }
-		      tmp_name1[k] = 0;
+//		      for (j = 0, k = 0; j < name_len; j++)
+//		      {
+//			if (! (ch1 = name[j]))
+//				break;
+//			if (ch1 == ' ')
+//				tmp_name1[k++] = '\\';
+//			tmp_name1[k++] = ch1;
+//		      }
+//		      tmp_name1[k] = 0;
 
 		      print_a_completion (tmp_name1, 0);
 #endif

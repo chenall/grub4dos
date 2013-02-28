@@ -51,6 +51,7 @@ static int next_gpt_slice(void);
 static char open_filename[512];
 static unsigned long relative_path;
 extern unsigned int iso_type;
+extern unsigned int fats_type;
 
 #ifndef STAGE1_5
 int print_possibilities;
@@ -726,21 +727,18 @@ print_fsys_type (void)
       {
  				if (substring(fsys_table[fsys_type].name, "fat", 1) != 1)
  				{
- 					switch (current_slice)
+ 					switch (fats_type)
  					{
- 						case 1:
+ 						case 12:
  							printf ("is fat12, ");
  							break;
- 						case 4:
- 						case 6:
- 						case 0xe:		
+ 						case 16:
  							printf ("is fat16, ");
  							break;
- 						case 0xb:
- 						case 0xc:	
+ 						case 32:
  							printf ("is fat32, ");
  							break;
- 						case 7:
+ 						case 64:
  							printf ("is exfat, ");
  							break;
  						default:
