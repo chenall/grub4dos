@@ -7279,7 +7279,12 @@ startup_32:
 
 	cld				# can be omitted(already done by popfl)
 
-	pushl	%esi			# points to boot_params
+	/* save initrd address and size on stack before moving memory */
+
+	pushl	0x21C(%esi)		# initrd size
+	pushl	0x218(%esi)		# initrd base address
+
+	//pushl	%esi			# points to boot_params
 
 	/* move 3 sectors of commandline onto 0x00000800-0x00000DFF */
 
@@ -7390,17 +7395,17 @@ startup_32:
 2:
 	debug_putchar('7')
 
-	popl	%esi			# points to boot_params
+	//popl	%esi			# points to boot_params
 
 //----------------------------------------------------------------------------
 	// it is time to evaluate rd_base and rd_size now.
 	// rd_base is a long long integer at 0x82D0.
 	// rd_size is a long long integer at 0x82D8.
-	movl	0x218(%esi), %ecx
+	popl	%ecx		# initrd base address
+	popl	%eax		# initrd size
 	jecxz	1f
 	movl	%ecx, 0x82D0	# rd_base lo 32-bit
-	movl	0x21C(%esi), %ecx
-	movl	%ecx, 0x82D8	# rd_size lo 32-bit
+	movl	%eax, 0x82D8	# rd_size lo 32-bit
 	xorl	%ecx, %ecx	# ECX=0
 	movl	%ecx, 0x82D4	# clear rd_base hi 32-bit
 	movl	%ecx, 0x82DC	# clear rd_size hi 32-bit
