@@ -1,4 +1,8 @@
-﻿2012-05-16
+﻿2013-03-02
+	1.解决 Issue 117:	menu border has arrow symbol (bottom right)
+	2.让其它显示模式也可以指定菜单框颜色。color border=xx
+
+2012-05-16
 	1.取消针对ISO9660文件系统忽略大小写的控制.新的版本强制不区分大小写
 
 2012-03-19
