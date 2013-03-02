@@ -397,14 +397,15 @@ print_entries (int first, int entryno, char *menu_entries)
 {
   int i;
   //int main_menu = (menu_entries == (char *)titles);
-  if (current_term->setcolorstate)
-    current_term->setcolorstate (COLOR_STATE_NORMAL);
+
   gotoxy (MENU_BOX_E, MENU_BOX_Y);
 
 #ifdef SUPPORT_GRAPHICS
   if (!graphics_inited || graphics_mode < 0xff)
 #endif
   {
+    if (current_term->setcolorstate)
+    current_term->setcolorstate (COLOR_STATE_BORDER);
   if (first)
     grub_putchar (DISP_UP, 255);
   else
@@ -412,7 +413,8 @@ print_entries (int first, int entryno, char *menu_entries)
   }
   //if (main_menu || *menu_entries)
   //  menu_entries = get_entry (menu_entries, first);
-
+  if (current_term->setcolorstate)
+    current_term->setcolorstate (COLOR_STATE_NORMAL);
   for (i = 0; i < MENU_BOX_H/*size*/; i++)
     {
       print_entry (MENU_BOX_Y + i, entryno == i, first + i, menu_entries);
@@ -439,8 +441,9 @@ print_entries (int first, int entryno, char *menu_entries)
   gotoxy (MENU_BOX_E, MENU_BOX_Y - 1 + MENU_BOX_H/*size*/);
 
   if (current_term->setcolorstate)
-    current_term->setcolorstate (COLOR_STATE_NORMAL);
-  if (menu_entries && *menu_entries)
+    current_term->setcolorstate (COLOR_STATE_BORDER);
+  char *last_entry = get_entry(menu_entries,first+MENU_BOX_H);
+  if (last_entry && *last_entry)
     grub_putchar (DISP_DOWN, 255);
   else
     grub_putchar (DISP_VERT, 255);
@@ -715,7 +718,7 @@ restart:
 	  int i;
 
 	if (current_term->setcolorstate)
-		current_term->setcolorstate (COLOR_STATE_NORMAL);
+		current_term->setcolorstate (COLOR_STATE_BORDER);
   
 	  /* upper-left corner */
 	  gotoxy (MENU_BOX_X - 2, MENU_BOX_Y - 1);
