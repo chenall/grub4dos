@@ -15559,12 +15559,12 @@ static int read_val(char **str_ptr,unsigned long long *val)
       return 1;
 }
 
-static int
+static long long
 calc_func (char *arg, int flags)
 {
-   unsigned long long val1 = 0;
-   unsigned long long val2 = 0;
-   unsigned long long *p_result = &val1;
+   long long val1 = 0;
+   long long val2 = 0;
+   long long *p_result = &val1;
    char O;
    
   errnum = 0;
@@ -15575,7 +15575,7 @@ calc_func (char *arg, int flags)
       {
 	 return 0;
       }
-      p_result = (unsigned long long *)(int)val1;
+      p_result = (long long *)(int)val1;
       val1 = *p_result;
       while (*arg == ' ') arg++;
    }
@@ -16450,9 +16450,9 @@ static int set_func(char *arg, int flags)
 	if (convert_flag & 0x100)
 	{
 		if (convert_flag & 0x400)
-			sprintf(value,"0x%X",calc_func(arg,flags));
+			sprintf(value,"0x%lX",calc_func(arg,flags));
 		else
-			sprintf(value,"%d",calc_func(arg,flags));
+			sprintf(value,"%ld",calc_func(arg,flags));
 		errnum = 0;
 		arg = value;
 	}

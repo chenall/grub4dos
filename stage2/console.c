@@ -62,6 +62,11 @@ console_setcolorstate (color_state state)
 	if (state >= COLOR_STATE_MAX)
 		state = COLOR_STATE_STANDARD;
 	current_color = console_color[state];
+	if (state == COLOR_STATE_BORDER)
+	{
+		current_color &= 0xf;
+		current_color |= console_color[COLOR_STATE_NORMAL] & 0xf0;
+	}
 	current_color_64bit = console_color_64bit[state];
 	console_color_state = state;
 }
