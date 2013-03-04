@@ -15536,7 +15536,7 @@ builtin_cmd (char *cmd, char *arg, int flags)
 		return command_func (cmd, flags);
 }
 
-static int read_val(char **str_ptr,unsigned long long *val)
+static int read_val(char **str_ptr,long long *val)
 {
       char *p;
       char *arg = *str_ptr;
@@ -15636,9 +15636,13 @@ calc_func (char *arg, int flags)
 		 val1 *= val2;
 		 break;
 	 case '/':
+		 if ((long)val2 == 0)
+			return !(errnum = ERR_DIVISION_BY_ZERO);
 		 val1 = (long)val1 / (long)val2;
 		 break;
 	 case '%':
+		 if ((long)val2 == 0)
+			return !(errnum = ERR_DIVISION_BY_ZERO);
 		 val1 = (long)val1 % (long)val2;
 		 break;
 	 case '&':
