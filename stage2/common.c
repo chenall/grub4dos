@@ -161,6 +161,7 @@ char *err_list[] =
   [ERR_LOAD_SPLASHIMAGE] = "Failed loading splashimage.",
   [ERR_UNIFONT_FORMAT] = "Wrong unifont format.",
   [ERR_UNIFONT_RELOAD] = "Unifont already loaded.",
+  [ERR_DIVISION_BY_ZERO] = "Division by zero",
 
 };
 
