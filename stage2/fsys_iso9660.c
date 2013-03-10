@@ -179,7 +179,7 @@ iso9660_mount (void)
 	}
 	else
 	{
-		for (sector = 17 ; ; sector++)
+		for (sector = 17 ; sector < 32 ; sector++)
 	  {
 	  	emu_iso_sector_size_2048 = 1;
 			devread(sector, 0, sizeof(*PRIMDESC), (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90);
@@ -204,8 +204,7 @@ iso9660_mount (void)
     idr = (struct iso_directory_record *)DIRREC;
     idr = (struct iso_directory_record *)((char *)idr + idr->length.l);
     idr = (struct iso_directory_record *)((char *)idr + idr->length.l);   
-    if (((idr->length.l - idr->name_len.l	- sizeof(struct iso_directory_record)	+ sizeof(idr->name)) > 0)
-    	|| (idr->name_len.l > 2 && CHECK2((idr->name_len.l + &idr->name - 2), ';', '1')))
+    if ((idr->length.l - idr->name_len.l	- sizeof(struct iso_directory_record)	+ sizeof(idr->name)) > 1)
 			iso_type = 3; //iso9600_RockRidge     																					
  		if ((PRIMDESC->type.l == ISO_VD_PRIMARY)
 	  	&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, sizeof(PRIMDESC->id)))
