@@ -417,7 +417,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	     That is, copy "mem=XXX" to the end of the command-line, and
 	     avoid to copy spaces unnecessarily. Hell.  */
 	{
-	    char *src = skip_to (0, arg);
+	    char *src = arg;
 	    char *dest = linux_data_tmp_addr + LINUX_CL_OFFSET;
 	
 	    while (dest < linux_data_tmp_addr + LINUX_CL_END_OFFSET && *src)

@@ -8379,6 +8379,7 @@ static int
 kernel_func (char *arg, int flags)
 {
   int len;
+  char *cmd;
   kernel_t suggested_type = KERNEL_TYPE_NONE;
   unsigned long load_flags = 0;
 
@@ -8427,12 +8428,14 @@ kernel_func (char *arg, int flags)
       /* Try the next.  */
       arg = skip_to (0, arg);
     }
-      
-  len = grub_strlen (arg) + grub_strlen (kernel_option_video);
+  cmd = skip_to (0, arg);
+  len = parse_string(cmd);
+  cmd[len] = 0;
+  len += grub_strlen (kernel_option_video) + 1;
 
   /* Reset MB_CMDLINE.  */
   mb_cmdline = (char *) MB_CMDLINE_BUF;
-  if (len + 1 > MB_CMDLINE_BUFLEN)
+  if (len  > MB_CMDLINE_BUFLEN)
     {
       errnum = ERR_WONT_FIT;
       return 0;
@@ -8441,14 +8444,15 @@ kernel_func (char *arg, int flags)
   /* Copy the command-line to MB_CMDLINE and append the kernel_option_video
    * which might have been set by `setvbe'.
    */
-  grub_sprintf (mb_cmdline, "%s%s", arg, kernel_option_video);
+  
+  grub_sprintf (mb_cmdline, "%s%s", cmd, kernel_option_video);
 
   suggested_type = load_image (arg, mb_cmdline, suggested_type, load_flags);
   if (suggested_type == KERNEL_TYPE_NONE)
     return 0;
 
   kernel_type = suggested_type;
-  mb_cmdline += len + 1;
+  mb_cmdline += len;
   return 1;
 }
 
@@ -12514,27 +12518,24 @@ parse_string (char *arg)
 
 					p++;
 					ch = *p;
-					if (ch >= '0' && ch <= '9')
-						val = ch - '0';
-					else if (ch >= 'A' && ch <= 'F')
-						val = ch - 'A' + 10;
-					else if (ch >= 'a' && ch <= 'f')
-						val = ch - 'a' + 10;
+					if (ch <= '9' && ch >= '0')
+						val = ch & 0xf;
+					else if ((ch <= 'F' && ch >= 'A') || (ch <='f' && ch >= 'a'))
+						val = ch + 9 & 0xf;
 					else
 						return len;	/* error encountered */
-					
+
 					p++;
 					ch = *p;
-					
-					if (ch >= '0' && ch <= '9')
-						val = (val << 4) + ch - '0';
-					else if (ch >= 'A' && ch <= 'F')
-						val = (val << 4) + ch - 'A' + 10;
-					else if (ch >= 'a' && ch <= 'f')
-						val = (val << 4) + ch - 'a' + 10;
+					val <<=4;
+
+					if (ch <= '9' && ch >= '0')
+						val |= ch & 0xf;
+					else if ((ch <= 'F' && ch >= 'A') || (ch <='f' && ch >= 'a'))
+						val |= ch + 9 & 0xf;
 					else
 						p--;
-					
+
 					*arg++ = val;
 				}
 					break;
@@ -12542,16 +12543,16 @@ parse_string (char *arg)
 					if (ch >= '0' && ch <= '7')
 					{
 						/* octal */
-						int val = ch - '0';
+						int val = ch & 7;
 						int i;
 						
 						for (i=0;i<2 && p[1] >= '0' && p[1] <= '7';i++)
 						{
 							p++;
 							val <<= 3;
-							val += *p - '0';
+							val |= *p & 7;
 						}
-						
+
 						*arg++ = val;
 						break;
 					} else *arg++ = ch;
