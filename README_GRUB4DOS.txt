@@ -2727,6 +2727,12 @@ Node: The file must already exist, GRUB4DOS can not create file or change the fi
 Examples:
 	cat /test.txt > /abcd.txt
 
+2013-03-20
+	Add new operation ";;",multiple commands on one line
+Usage:
+	command1 ;; command2 ;; command..
+Description:
+	Execute multiple commands in sequence without error warning.
 
 ******************************************************************************
 ***          Three new commands is64bit, errnum and errorcheck             ***

@@ -1,4 +1,8 @@
-﻿2013-03-02
+﻿2013-03-19
+	1.新增连续命令分隔符";;",无阻碍顺序执行.
+	例子:
+	set a=abcd ;; echo %a% ;; set a=
+2013-03-02
 	1.解决 Issue 117:	menu border has arrow symbol (bottom right)
 	2.让其它显示模式也可以指定菜单框颜色。color border=xx
 
