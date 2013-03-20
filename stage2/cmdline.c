@@ -162,6 +162,8 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 		return NULL;
 	while (*(cmd = skip_to (0, cmd)))
 	{
+		if (cmd[0] == cmd[1] && cmd[2] != 0x20)
+			continue;
 		switch (*(unsigned short *)cmd)
 		{
 			case 0x2626://	operator AND "&&"
@@ -170,7 +172,7 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 			case 0x7C7C://	operator OR "||"
 				*status = 2;
 				break;
-			case 0x2021://	! 
+			case 0x2021://	! else
 				*status = 4;
 				break;
 			case 0x207C:// |
@@ -183,6 +185,12 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 			case 0x3e3e: // >>
 				*status = 8 | 3;
 				break;
+			case 0x3b3b: //;;
+				if (flags == 16)
+				{
+					*status = 16;
+					break;
+				}
 			default:
 				continue;
 		}
@@ -239,6 +247,18 @@ int expand_var(const char *str,char *out,const unsigned int len_max)
 }
 
 int run_line (char *heap,int flags)
+{
+	char *arg = heap;
+	int status = 0;
+	while(*heap && (arg = heap))
+	{
+		heap = skip_to_next_cmd(heap,&status,16);//next cmd
+		status = run_cmd_line(arg,flags);
+	}
+	return status;
+}
+
+int run_cmd_line (char *heap,int flags)
 {
 	char *arg = heap;
 #define ret *(int*)0x4cb00
