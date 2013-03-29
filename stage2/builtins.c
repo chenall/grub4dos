@@ -12521,7 +12521,7 @@ parse_string (char *arg)
 					if (ch <= '9' && ch >= '0')
 						val = ch & 0xf;
 					else if ((ch <= 'F' && ch >= 'A') || (ch <='f' && ch >= 'a'))
-						val = ch + 9 & 0xf;
+						val = (ch + 9) & 0xf;
 					else
 						return len;	/* error encountered */
 
@@ -12532,7 +12532,7 @@ parse_string (char *arg)
 					if (ch <= '9' && ch >= '0')
 						val |= ch & 0xf;
 					else if ((ch <= 'F' && ch >= 'A') || (ch <='f' && ch >= 'a'))
-						val |= ch + 9 & 0xf;
+						val |= (ch + 9) & 0xf;
 					else
 						p--;
 
