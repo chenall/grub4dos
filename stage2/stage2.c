@@ -2063,8 +2063,8 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 			info &= ~8; // not all hex digit
 	    }
 
-	    if (!(info & 4) && ((c & 0x80) || pos > 31))	/* bit 2 for argument */
-		break;
+	   // if (!(info & 4) && ((c & 0x80) || pos > 31))	/* bit 2 for argument */
+		//break;
 
 	    if (pos < max_len)
 	    {
