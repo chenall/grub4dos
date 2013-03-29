@@ -1,3 +1,5 @@
+2013-03-29 (chenall) fix issue 125,path limitation in menu.
+2013-03-28 (chenall) fix issue 126;
 2013-03-20 (chenall)Add new operator ";;";
 2013-02-28 (tinybit) re-resolved issue 74.
 2013-02-02 (tinybit)enhanced eltorito.sys for working with buggy BIOS which not supporting INT13/4B01.
