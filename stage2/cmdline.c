@@ -245,7 +245,7 @@ int expand_var(const char *str,char *out,const unsigned int len_max)
 	*out = '\0';
 	return out - out_start;
 }
-
+int run_cmd_line (char *heap,int flags);
 int run_line (char *heap,int flags)
 {
 	char *arg = heap;
@@ -276,7 +276,7 @@ int run_cmd_line (char *heap,int flags)
 	errnum = ERR_NONE;
 	while (*heap == 0x20 || *heap == '\t')
 		++heap;
-	if (*heap == 0)
+	if (*heap == 0 || *(unsigned short *)heap == 0x2023 || *(unsigned short *)heap == 0x3A3A)
 		return 1;
 	/* Invalidate the cache, because the user may exchange removable disks.  */
 	buf_drive = -1;
@@ -346,7 +346,7 @@ int run_cmd_line (char *heap,int flags)
 		if (status & 8)
 		{
 			if (substring(heap,"nul",1) == 0)
-				hook_buff = set_putchar_hook(0x800);
+				hook_buff = set_putchar_hook((unsigned char*)0x800);
 			else
 				hook_buff = set_putchar_hook(PRINTF_BUFFER);
 		}
