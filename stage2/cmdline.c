@@ -154,7 +154,12 @@ find_command (char *command)
   errnum = ERR_UNRECOGNIZED;
   return 0;
 }
-
+#define OPT_MULTI_CMD_FLAG 	0x3B3B
+#define OPT_MULTI_CMD		(1<<4)
+#define OPT_MULTI_CMD_AND_FLAG 	0x3B26
+#define OPT_MULTI_CMD_AND	(1<<5)
+#define OPT_MULTI_CMD_OR_FLAG  	0x3B7C
+#define OPT_MULTI_CMD_OR	(1<<6)
 static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 {
 //	*status = 0;
@@ -185,22 +190,25 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 			case 0x3e3e: // >>
 				*status = 8 | 3;
 				break;
-			case 0x3b3b: //;;
-				if (flags == 16)
-				{
-					*status = 16;
-					break;
-				}
+			case OPT_MULTI_CMD_FLAG: //;;
+				*status = OPT_MULTI_CMD;
+				break;
+			case OPT_MULTI_CMD_AND_FLAG:// &;
+				*status = OPT_MULTI_CMD_AND;
+				break;
+			case OPT_MULTI_CMD_OR_FLAG:// |;
+				*status = OPT_MULTI_CMD_OR;
+				break;
 			default:
 				continue;
 		}
-
-		if (flags == 0 || *status == flags)
+		if (flags == 0 || (*status & flags))
 		{
 			*(cmd - 1) = '\0';
 			cmd = skip_to (0, cmd);
 			break;
 		}
+		*status = 0;
 	}
 
 	if (*cmd == '\0')
@@ -245,20 +253,27 @@ int expand_var(const char *str,char *out,const unsigned int len_max)
 	*out = '\0';
 	return out - out_start;
 }
-int run_cmd_line (char *heap,int flags);
+static int run_cmd_line (char *heap,int flags);
 int run_line (char *heap,int flags)
 {
-	char *arg = heap;
-	int status = 0;
-	while(*heap && (arg = heap))
-	{
-		heap = skip_to_next_cmd(heap,&status,16);//next cmd
-		status = run_cmd_line(arg,flags);
-	}
-	return status;
+
+   char *arg = heap;
+   int status = 0;
+   int ret = 0;
+   while(*heap && (arg = heap))
+   {
+      heap = skip_to_next_cmd(heap,&status,OPT_MULTI_CMD_AND | OPT_MULTI_CMD_OR | OPT_MULTI_CMD);//next cmd
+      ret = run_cmd_line(arg,flags);
+      if (((status & OPT_MULTI_CMD_AND) && !ret) || ((status & OPT_MULTI_CMD_OR) && ret))
+      {
+	 errnum = ERR_NONE;
+	 heap = skip_to_next_cmd(heap,&status,OPT_MULTI_CMD);//next cmd
+      }
+   }
+   return ret;
 }
 
-int run_cmd_line (char *heap,int flags)
+static int run_cmd_line (char *heap,int flags)
 {
 	char *arg = heap;
 #define ret *(int*)0x4cb00

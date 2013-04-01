@@ -2731,8 +2731,12 @@ Examples:
 	Add new operation ";;",multiple commands on one line
 Usage:
 	command1 ;; command2 ;; command..
+
 Description:
 	Execute multiple commands in sequence without error warning.
+
+2013-04-01
+	Add new operation "&;" and "|;"
 
 ******************************************************************************
 ***          Three new commands is64bit, errnum and errorcheck             ***
