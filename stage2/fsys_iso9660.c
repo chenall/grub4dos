@@ -344,15 +344,15 @@ iso9660_dir (char *dirname)
 			name = (char *)utf8;
 			goto dddd;
 		}
-		if (iso_type == 0)
-			goto dddd;	
+
 	      if (name_len > 2 && CHECK2(name + name_len - 2, ';', '1'))
 		{
 		  name_len -= 2;	/* truncate trailing file version */
 		  if (name_len > 1 && name[name_len - 1] == '.')
 		    name_len--;		/* truncate trailing dot */
 		}
-
+		if (iso_type == 0)
+			goto dddd;	
 	      /*
 	       *  Parse Rock-Ridge extension
 	       */
@@ -623,7 +623,15 @@ ssss:
 			size -= idr->length.l;
 			idr = (struct iso_directory_record *)((char *)idr + idr->length.l);
 			if (idr->length.l == 0)
-				break;													
+			{
+				if (size < ISO_SECTOR_SIZE)
+					break;
+				unsigned short skip_bit = size%ISO_SECTOR_SIZE;
+				idr = (struct iso_directory_record *)((char *)idr + skip_bit);
+				size -= skip_bit;
+				if (idr->length.l == 0)
+					break;
+			}
 		}
 	} 	//for (; size > 0 ;)						
 //	  if (size < ISO_SECTOR_SIZE)

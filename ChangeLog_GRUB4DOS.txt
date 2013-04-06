@@ -1,3 +1,4 @@
+2013-04-06 Fixed the file missing BUG on ISO9660 file system,fsys_iso9660.c(iso9660_dir func).
 2013-03-29 (chenall) fix issue 125,path limitation in menu.
 2013-03-28 (chenall) fix issue 126;
 2013-03-20 (chenall)Add new operator ";;";
