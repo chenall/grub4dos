@@ -1427,10 +1427,20 @@ done_key_handling:
 		//printf ("  Booting \'%s\'\n\n", (((*p) & 0xF0) ? p : ++p));
 		if (! ((*p) & 0xF0))
 			p++;
+		//(for Issue 123)changed by chenall 2013-04-19 also translate variables for booting message.
+		#if 0
 		grub_putstr ("  Booting ");
 		while ((*p) && (ch = *p++) && ch != '\n') grub_putchar (ch, 255);
 		grub_putchar ('\n', 255);
 		grub_putchar ('\n', 255);
+		#else
+		char *p_t = (char *)SCRATCHADDR;
+		while(*p && *p != '\n')
+			*p_t++ = *p++;
+		*p_t++ = 0;
+		expand_var ((char *)SCRATCHADDR, p_t, 0x400);
+		printf ("  Booting \'%s\'\n\n",p_t);
+		#endif
 	}
 	else
 		printf ("  Booting command-list\n\n");
