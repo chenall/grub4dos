@@ -3462,7 +3462,7 @@ configfile_func (char *arg, int flags)
 		if (! grub_open (arg))
 				return 0;
 		grub_close();
-		return (*CMD_RUN_ON_EXIT= '\xEB');
+		return sprintf(CMD_RUN_ON_EXIT,"\xEC configfile %.128s",arg);
 	}
   char *new_config = config_file;
 
@@ -5535,6 +5535,7 @@ static int insmod_func(char *arg,int flags)
    errnum = 0;
    if (arg == NULL || *arg == '\0')
       return 0;
+   nul_terminate(arg);
    if (substring(skip_to(0,arg) - 4,".mod",1) == 0)
    {
       if (!command_open(arg,1))

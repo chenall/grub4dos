@@ -401,9 +401,12 @@ static int run_cmd_line (char *heap,int flags)
 		check_status:
 		if (*CMD_RUN_ON_EXIT == '\xEB')
 		{
-			errnum = -1;
-			sprintf(CMD_RUN_ON_EXIT,"\xEC%.224s",arg);
-			break;
+		    sprintf(CMD_RUN_ON_EXIT,"\xEC%.224s",arg);
+		}
+		if (*CMD_RUN_ON_EXIT == '\xEC')
+		{
+		    errnum = -1;
+		    break;
 		}
 		if (errnum >= 1255 || status == 0 || (status & 12))
 		{
