@@ -3257,9 +3257,6 @@ color_number (char *str)
       if (! *ptr)
 	return -1;
 
-      /* Terminate the string STR.  */
-      *ptr++ = 0;
-
       /* If STR contains the prefix "blink-", then set the `blink' bit
 	 in COLOR.  */
       if (substring ("blink-", str, 0) <= 0)
@@ -3270,7 +3267,8 @@ color_number (char *str)
 	  color = 0x80;
 	  str += 6;
 	}
-      
+      /* Terminate the string STR.  */
+      *ptr = 0;
       /* Search for the color name.  */
       for (i = 0; i < 16; i++)
 	if (grub_strcmp (color_list[i], str) == 0)
@@ -3278,7 +3276,7 @@ color_number (char *str)
 	    color |= i;
 	    break;
 	  }
-
+      *ptr++ = '/';
       if (i == 16)
 	return -1;
 
@@ -3366,12 +3364,15 @@ color_func (char *arg, int flags)
 		else
 			return 0;
 		normal = skip_to(1,arg);
+		arg = skip_to(0,normal);
 		if (!safe_parse_maxint (&normal, &new_color[state_t]))
 		{
+		    new_normal_color = (unsigned long long)(long long)color_number (normal);
+		    if ((int)new_normal_color< 0)
 			return 0;
+		    new_color[state_t] = new_normal_color ;
 		}
 		state |= 1<<state_t;
-		arg = skip_to(0,normal);
 	}
 	current_term->setcolor (state,new_color);
 	errnum = 0;
