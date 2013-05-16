@@ -16190,6 +16190,40 @@ static struct builtin builtin_if =
   "if [NOT] exist VARIABLE|FILENAME [COMMAND]"
 };
 
+
+static unsigned long var_ex_size;
+static VAR_NAME *var_ex;
+static VAR_VALUE *var_ex_value;
+#define FIND_VAR_FLAG_EXISTS 0x10000
+#define FIND_VAR_FLAG_VAR_EX 0x20000
+static long find_var(const char *ch,const int flag)
+{
+    int i,j = -1;
+    //ch[0] == '?' && ch[1] == '\0';
+    if (*(short *)ch == 0x3f || memcmp(ch,"?_UUID",7) == 0)
+	return _WENV_ | FIND_VAR_FLAG_EXISTS;
+    for( i = (*ch == '?') ?60:0 ; i < MAX_VARS && VAR[i][0]; ++i)
+    {
+	if (memcmp(VAR[i], ch, MAX_VAR_LEN) == 0)
+	    return i | FIND_VAR_FLAG_EXISTS;
+	if (j == -1 && VAR[i][0] == '@') j = i;
+    }
+    if (*ch != '?' && var_ex_size > 0)
+    {
+	int k;
+	for(k=0; k < var_ex_size && var_ex[k][0]; ++k)
+	{
+	    if (memcmp(var_ex[k], ch, MAX_VAR_LEN) == 0)
+		return k | FIND_VAR_FLAG_EXISTS | FIND_VAR_FLAG_VAR_EX;
+	    if (j == -1 && var_ex[k][0] == '@') j = k | FIND_VAR_FLAG_VAR_EX;
+	}
+	if (i == MAX_VARS && k < var_ex_size)
+	    i = k | FIND_VAR_FLAG_VAR_EX;
+    }
+    if (flag == 1 || (j == -1 && i == MAX_VARS ))
+	return -1;
+    return ((unsigned int)j < i)? j : i;
+}
 /*
 flags:
 0 add or set
@@ -16201,14 +16235,16 @@ int envi_cmd(const char *var,char * const env,int flags)
 {
 	if(flags == 3)
 	{
-		memset( (char *)BASE_ADDR, 0, 512 );
-		sprintf(VAR[_WENV_], "?_WENV");
-		sprintf(VAR[_WENV_+1], "?_BOOT");
-		QUOTE_CHAR = '\"';
-		return 1;
+	    if (var_ex_size > 0)
+		memset((char *)var_ex, 0, var_ex_size * sizeof(VAR_NAME));
+	    memset( (char *)BASE_ADDR, 0, 512 );
+	    sprintf(VAR[_WENV_], "?_WENV");
+	    sprintf(VAR[_WENV_+1], "?_BOOT");
+	    QUOTE_CHAR = '\"';
+	    return 1;
 	}
 
-	int i, j;
+	int i, j = -1;
 
 	if (flags == 2)
 	{
@@ -16220,14 +16256,28 @@ int envi_cmd(const char *var,char * const env,int flags)
 			if (var == NULL || substring(var,VAR[i],0) < 1 )
 			{
 				++count;
-				printf("%.8s=%.60s\n",VAR[i],ENVI[i]);
+				printf("%.8s=%.70s\n",VAR[i],ENVI[i]);
 			}
+		}
+		if (var_ex_size > 0)
+		{
+		    for(i=0; i < var_ex_size && var_ex[i][0]; ++i)
+		    {
+			if (var_ex[i][0] < 'A')
+			    continue;
+			if (var == NULL || substring(var,var_ex[i],0) < 1 )
+			{
+			    ++count;
+			    printf("%.8s=%.60s\n",var_ex[i],var_ex_value[i]);
+			}
+		    }
 		}
 		return count;
 	}
 
 	char ch[MAX_VAR_LEN +1] = "\0\0\0\0\0\0\0\0";
 	char *p = (char *)var;
+	char *p_name = NULL;
 	int ou_start = 0;
 	int ou_len = 0x200;
 	if (*p == '%')
@@ -16263,117 +16313,104 @@ int envi_cmd(const char *var,char * const env,int flags)
 	*/
 	if (ch[0]=='@')
 	{
-		if (flags != 1)
-			return 0;
-		p = WENV_TMP;
-		#ifndef GRUB_UTIL
-		unsigned long date,time;
-		get_datetime(&date, &time);
+	    if (flags != 1)
+		    return 0;
+	    p = WENV_TMP;
+	    #ifndef GRUB_UTIL
+	    unsigned long date,time;
+	    get_datetime(&date, &time);
 
-		if (substring(ch,"@date",1) == 0)
-		{
-			sprintf(p,"%04X-%02X-%02X",(date >> 16),(char)(date >> 8),(char)date);
-		}
-		else if (substring(ch,"@time",1) == 0)
-		{
-			sprintf(p,"%02X:%02X:%02X",(char)(time >> 24),(char)(time >> 16),(char)(time>>8));
-		}
-		else if (substring(ch,"@random",1) == 0)
-		{
-			WENV_RANDOM   =  (WENV_RANDOM * date + (*(int *)0x46c)) & 0x7fff;
-			sprintf(p,"%d",WENV_RANDOM);
-		}
-		else if (substring(ch,"@root",1) == 0)
-		{
-			print_root_device(p,0);
-			sprintf(p+strlen(p),saved_dir);
-		}
-		else if (substring(ch,"@path",1) == 0)
-		{
-			p = command_path;
-		}
-		else if (substring(ch,"@retval",1) == 0)
-			sprintf(p,"%d",*(int*)0x4CB00);
-		else
-			return 0;
-		j = i;
-		#else
-		j = 0xff;
-		#endif
+	    if (substring(ch,"@date",1) == 0)
+	    {
+		    sprintf(p,"%04X-%02X-%02X",(date >> 16),(char)(date >> 8),(char)date);
+	    }
+	    else if (substring(ch,"@time",1) == 0)
+	    {
+		    sprintf(p,"%02X:%02X:%02X",(char)(time >> 24),(char)(time >> 16),(char)(time>>8));
+	    }
+	    else if (substring(ch,"@random",1) == 0)
+	    {
+		    WENV_RANDOM   =  (WENV_RANDOM * date + (*(int *)0x46c)) & 0x7fff;
+		    sprintf(p,"%d",WENV_RANDOM);
+	    }
+	    else if (substring(ch,"@root",1) == 0)
+	    {
+		    print_root_device(p,0);
+		    sprintf(p+strlen(p),saved_dir);
+	    }
+	    else if (substring(ch,"@path",1) == 0)
+	    {
+		    p = command_path;
+	    }
+	    else if (substring(ch,"@retval",1) == 0)
+		    sprintf(p,"%d",*(int*)0x4CB00);
+	    else
+		    return 0;
+	    j = FIND_VAR_FLAG_EXISTS;
+	    #endif
 	}
-	else 
+	else
 	{
-		if (ch[0] == '?' && (ch[1] == 0 || memcmp(ch,"?_UUID",7) == 0))
-			j = i = _WENV_;
-		else
-		{
-			j = 0xFF;
-			for(i=(ch[0]=='?')?60:0;i < MAX_VARS && VAR[i][0];i++)
-			{
-				if (memcmp(VAR[i], ch, MAX_VAR_LEN) == 0)
-				{
-					j = i;
-					break;
-				}
-				if (j == 0xFF && VAR[i][0] == '@') j = i;
-			}
-		}
-		p = ENVI[i];
+	    j = find_var(ch,flags);
+
+	    if (j == -1)//not variable space
+		return 0;
+
+	    if (j & FIND_VAR_FLAG_VAR_EX)
+	    {
+		p_name = var_ex[j & 0xFFFF];
+		p = var_ex_value[ j & 0xffff];
+	    }
+	    else
+	    {
+		p = ENVI[j &0xff];
+		p_name = VAR[j & 0xff];
+	    }
 	}
-	
 	if (flags == 1)
 	{
-		if (j!=i)
-			return 0;
-		if (env == NULL)
-			return 1;
-		for(j=0;j<512 && p[j];j++)
-		{
-			;
-		}
-		if (ou_start < 0)
-		{
-			if (-ou_start < j)
-			{
-				ou_start += j;
-			}
-			else
-			{
-				ou_start = 0;
-			}
-		}
-		else if (j - ou_start < 0)
-			ou_start = j;
-		j -= ou_start;
-		if (ou_len < 0)
-		{
-			if (-ou_len <j)
-				ou_len += j;
-			else
-				ou_len=0;
-		}
-		return sprintf(env,"%.*s",ou_len,p + ou_start);
+	    if (!(j & FIND_VAR_FLAG_EXISTS))
+		return 0;
+	    if (env == NULL)
+		return 1;
+	    for(j=0;j<512 && p[j]; ++j)
+	    {
+		;
+	    }
+	    if (ou_start < 0)
+	    {
+		    if (-ou_start < j)
+		    {
+			    ou_start += j;
+		    }
+		    else
+		    {
+			    ou_start = 0;
+		    }
+	    }
+	    else if (j - ou_start < 0)
+		    ou_start = j;
+	    j -= ou_start;
+	    if (ou_len < 0)
+	    {
+		    if (-ou_len <j)
+			    ou_len += j;
+		    else
+			    ou_len=0;
+	    }
+	    return sprintf(env,"%.*s",ou_len,p + ou_start);
 	}
 	//flags = 0 set/del variables 
-	if (j == 0xFF && i >= MAX_VARS)//not variable space
-	{
-		return 0;
-	}
 	if (env == NULL || env[0] == '\0')//del
 	{
-		if(j == i)
-		{
-			VAR[i][0] = '@';
-		}
-		return 1;
+	    if (j & FIND_VAR_FLAG_EXISTS)
+		*p_name = '@';
+	    return 1;
 	}
 
-	if (j != i)
-	{
-		i = (j<i?j:i);
-		memmove(VAR[i] ,ch ,MAX_VAR_LEN);
-	}
-	return sprintf(ENVI[i],"%.512s",env);
+	if (!(j & FIND_VAR_FLAG_EXISTS))
+	    memmove(p_name ,ch ,MAX_VAR_LEN);
+	return sprintf(p,"%.512s",env);
 }
 
 static void case_convert(char *ch,int flag)
@@ -16398,7 +16435,28 @@ static int set_func(char *arg, int flags)
 	else if (strcmp(VAR[_WENV_], "?_WENV") != 0)
 		reset_env_all();
 	if (*arg == '@')
+	{
+	    if (substring("@extend",arg,1) > 1)
 		return 0;
+	    arg = skip_to(1,arg);
+	    if (*arg)
+	    {
+		unsigned long long l1;
+		unsigned long long l2;
+		if (!read_val(&arg,&l1) || !read_val(&arg,&l2))
+		    return 0;
+		if ((unsigned long)l2 > 0xFFFF)
+		    return 0;
+		l2 &= 0xffff;
+		var_ex_size = (unsigned long)l2;
+		var_ex = (VAR_NAME *)(int)l1;
+		var_ex_value = (VAR_VALUE*)(int)(l1 + ((l2 + 63) >> 6 << 9));
+		memset((char *)var_ex, 0, var_ex_size << 3);
+		return 1;
+	    }
+	    else
+		return printf("BASE:%X,%X,VARS:%d",(int)var_ex,(int)var_ex_value,var_ex_size);
+	}
 	char value[512];
 	int convert_flag=0;
 	unsigned long long wait_t = 0xffffff00;
