@@ -3973,7 +3973,7 @@ Here is a sample file echo.c:
 /*
  * compile:			
 
-gcc -nostdlib -fno-zero-initialized-in-bss -fno-function-cse -fno-jump-tables -Wl,-N -fPIE echo.c
+ gcc -Wl,--build-id=none -m32 -mno-sse -nostdlib -fno-zero-initialized-in-bss -fno-function-cse -fno-jump-tables -Wl,-N -fPIE echo.c -o echo.o
 
  * disassemble:			objdump -d a.out
  * confirm no relocation:	readelf -r a.out
