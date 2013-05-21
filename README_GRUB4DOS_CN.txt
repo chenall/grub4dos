@@ -4155,9 +4155,9 @@ is 32-bit).
  * 编译:			
  gcc -Wl,--build-id=none -m32 -mno-sse -nostdlib -fno-zero-initialized-in-bss -fno-function-cse -fno-jump-tables -Wl,-N -fPIE echo.c -o echo.o
 
- * disassemble:			objdump -d a.out
- * confirm no relocation:	readelf -r a.out
- * generate executable:		objcopy -O binary a.out echo
+ * disassemble:			objdump -d echo.o
+ * confirm no relocation:	readelf -r echo.o
+ * generate executable:		objcopy -O binary echo.o echo
  * 经过这一步之后生成的echo文件就是可以在grub4dos中运行的程序。
  * and then the resultant echo will be grub4dos executable.
  */

@@ -3975,9 +3975,9 @@ Here is a sample file echo.c:
 
  gcc -Wl,--build-id=none -m32 -mno-sse -nostdlib -fno-zero-initialized-in-bss -fno-function-cse -fno-jump-tables -Wl,-N -fPIE echo.c -o echo.o
 
- * disassemble:			objdump -d a.out
- * confirm no relocation:	readelf -r a.out
- * generate executable:		objcopy -O binary a.out b.out
+ * disassemble:			objdump -d echo.o
+ * confirm no relocation:	readelf -r echo.o
+ * generate executable:		objcopy -O binary echo.o echo
  *
  * and then the resultant b.out will be grub4dos executable.
  */
