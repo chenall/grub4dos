@@ -16256,7 +16256,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 			if (var == NULL || substring(var,VAR[i],0) < 1 )
 			{
 				++count;
-				printf("%.8s=%.70s\n",VAR[i],ENVI[i]);
+				printf("%.8s=%.512s\n",VAR[i],ENVI[i]);
 			}
 		}
 		if (var_ex_size > 0)
@@ -16268,7 +16268,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 			if (var == NULL || substring(var,var_ex[i],0) < 1 )
 			{
 			    ++count;
-			    printf("%.8s=%.60s\n",var_ex[i],var_ex_value[i]);
+			    printf("%.8s=%.512s\n",var_ex[i],var_ex_value[i]);
 			}
 		    }
 		}
