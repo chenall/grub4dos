@@ -357,7 +357,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 			gotoxy (0, j);
 			for (x = 0; x < MENU_BOX_X - 2; x++)
 				grub_putchar (' ', 255);
-			for (; fontx <= MENU_BOX_W + 2;)
+			for (; fontx <= MENU_BOX_E;)
 			{
 				if (c && c != '\n')
 				{
