@@ -215,12 +215,12 @@ get_cdinfo (int drive, struct geometry *geometry)
 
 #ifndef STAGE1_5
   if (debug > 1)
-	grub_printf (" int13/4B01(%X),", drive);
+	grub_printf ("\rget_cdinfo int13/4B01(%X), ", drive);
 #endif
   err = biosdisk_int13_extensions (0x4B01, drive, cdrp);
 #ifndef STAGE1_5
   if (debug > 1)
-	grub_printf ("err=%X,drive=%X, ", err, drive);
+	grub_printf ("err=%X, ", err);
 #endif
 
   if (drive == 0x7F && drive < (unsigned long)(cdrp->drive_no))
@@ -235,8 +235,19 @@ get_cdinfo (int drive, struct geometry *geometry)
 	geometry->sectors = 15;
 	geometry->sector_size = 2048;
 	geometry->total_sectors = 65536 * 255 * 15;
+#ifndef STAGE1_5
+	if (debug > 1)
+	  grub_printf ("drive=%d\n", drive);
+	DEBUG_SLEEP
+#endif
 	return drive;
     }
+#ifndef STAGE1_5
+  if (err)
+    grub_printf ("drive=0\n");
+  else
+    grub_printf ("\r%40s\r", " "); /* erase line if no err and drive are both 0 */
+#endif
   return 0;	/* failure */
 }
 
@@ -478,7 +489,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 
 #ifndef STAGE1_5
 	if (debug > 1)      
-		grub_printf (" int13/41(%X),", drive);
+		grub_printf ("\rget_diskinfo int13/41(%X), ", drive);
 #endif
 	version = check_int13_extensions ((unsigned char)drive);
 #ifndef STAGE1_5
@@ -495,7 +506,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 
 #ifndef STAGE1_5
 	if (debug > 1)
-		grub_printf (" int13/08(%X),", drive);
+		grub_printf ("int13/08(%X), ", drive);
 #endif
 
 	version = get_diskinfo_standard ((unsigned char)drive, &cylinders, &heads, &sectors);
@@ -507,7 +518,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 
 #ifndef STAGE1_5
 	if (debug > 1)
-		grub_printf (" int13/02(%X),", drive);
+		grub_printf ("int13/02(%X), ", drive);
 #endif
 
 	/* read the boot sector: int 13, AX=0x201, CX=1, DH=0. Use buffer 0x20000 - 0x2FFFF */
@@ -516,6 +527,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 #ifndef STAGE1_5
 	if (debug > 1)
 		grub_printf ("err=%X\n", err);
+  DEBUG_SLEEP
 #endif
 
 	//version = 0;
