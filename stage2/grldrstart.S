@@ -1010,8 +1010,21 @@ load_the_rest:
 	pushw	%cs
 	popw	%bx		/* BX=CS=old_DS=load_segment */
 //	movw	%bx, %es
+#if 0
 	/* 6144 = 0x1800 = 3 sectors > 4KB, this is for the additional 4KB-preset-menu at the end of grldr */
 	movw	$((grldr_signature - _start1 + 4 + STAGE2_SIZE - 1 + 6144) / 2048), %cx	/* sectors to load */
+#else
+	/* Now the preset-menu may be LZMAed and exceeding 4K.
+	 * So we should load as many sectors as possible.
+	 * Currently only load 32K, because the this will load onto
+	 * the first half of the stack space. We should avoid conflict
+	 * with the stack that is currently in use.
+	 * 				---- tinybit 2013-5-24
+	 */
+
+	/* 0x8000 = 32K, this is for the additional preset-menu(might be LZMAed) at the end of grldr */
+	movw	$((grldr_signature - _start1 + 4 + STAGE2_SIZE - 1 + 0x8000) / 2048), %cx	/* sectors to load */
+#endif
 1:
 	incl	%eax		/* next sector */
 	addw	$0x0080, %bx	/* buffer segment */
