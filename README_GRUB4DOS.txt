@@ -3979,7 +3979,7 @@ Here is a sample file echo.c:
  * confirm no relocation:	readelf -r echo.o
  * generate executable:		objcopy -O binary echo.o echo
  *
- * and then the resultant b.out will be grub4dos executable.
+ * and then the resultant echo will be grub4dos executable.
  */
 
 /*

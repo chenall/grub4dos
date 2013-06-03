@@ -1877,6 +1877,19 @@ _putchar (unsigned int c, unsigned int max_width)
 #endif /* ! STAGE1_5 */
 }
 
+#ifndef GRUB_UTIL
+inline void
+debug_sleep(int l_debug_boot, int line, char *file)
+{
+  if (l_debug_boot) {
+    static int count=0;
+    grub_printf("<%d press key (%s,%d)>", ++count, file, line);
+    console_getkey();
+    grub_printf("\r%*s\r", CMDLINE_WIDTH, " ");
+  }
+}
+#endif
+
 #ifndef STAGE1_5
 void
 gotoxy (int x, int y)

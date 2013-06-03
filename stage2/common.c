@@ -409,21 +409,30 @@ init_bios_info (void)
    *  Get information from BIOS on installed RAM.
    */
 #ifndef STAGE1_5
+#ifndef GRUB_UTIL
+  if (debug_boot) printf("\rDEBUG BOOT selected...");
+#endif /* ! GRUB_UTIL */
   DEBUG_SLEEP
 #ifndef GRUB_UTIL
   if (debug_boot)
 #endif /* ! GRUB_UTIL */
   printf("\rGet lower memory... ");
-#endif
+#endif /* ! STAGE1_5 */
   //saved_mem_lower = get_memsize (0);	/* int12 --------safe enough */
   saved_mem_lower = (*(unsigned short *)0x413);
 #ifndef STAGE1_5
 #ifndef GRUB_UTIL
+  if (debug_boot) grub_printf("0x%x", saved_mem_lower);
+  DEBUG_SLEEP
   if (debug_boot)
 #endif /* ! GRUB_UTIL */
   printf("\rGet upper memory... ");
-#endif
+#endif /* ! STAGE1_5 */
   saved_mem_upper = get_memsize (1);	/* int15/88 -----safe enough */
+#ifndef GRUB_UTIL
+  if (debug_boot) grub_printf("0x%x", saved_mem_upper);
+  DEBUG_SLEEP
+#endif /* ! GRUB_UTIL */
 
 #ifndef STAGE1_5
   /*
@@ -434,15 +443,13 @@ init_bios_info (void)
 
 #ifndef GRUB_UTIL
   debug = debug_boot + 1;
-  DEBUG_SLEEP
   if (debug_boot)
-  printf("\rTurning on gate A20...                          ");
+  printf("\rTurning on gate A20... ");
 #if 1
     {
 	if (gateA20 (1))			/* int15/24 -----safe enough */
 	{
-		/* wipe out the messages on success */
-		printf("\r                                                                \r");
+		printf("OK");
 	} else {
 		printf("Failure! Report bug, please!\n");
 		grub_sleep (5);	/* sleep 5 second on failure */
@@ -450,9 +457,14 @@ init_bios_info (void)
     }
 #else
   extern void grub2_gate_a20 (int on);
-  grub2_gate_a20 (1);
-  if (debug_boot)
-  printf("\r                        \r");	/* wipe out the messages */
+// No return status, so just print OK!
+//	if (grub2_gate_a20 (1))
+//	{
+		printf("OK");
+//	} else {
+//		printf("Failure! Report bug, please!\n");
+//		grub_sleep (5);	/* sleep 5 second on failure */
+//	}
 #endif
   DEBUG_SLEEP
 #endif
@@ -477,7 +489,7 @@ init_bios_info (void)
 #ifndef GRUB_UTIL
   if (debug_boot)
 #endif /* ! GRUB_UTIL */
-  printf("\rGet E820 memory...           ");
+  printf("\rGet E820 memory... ");
   do
     {
       cont = get_mmap_entry ((void *) addr, cont);	/* int15/e820 ------ will write memory! */
@@ -490,17 +502,25 @@ init_bios_info (void)
       addr += *((unsigned long *) addr) + 4;
     }
   while (cont);
+#ifndef GRUB_UTIL
+  if (debug_boot) grub_printf("0x%x", saved_mmap_length);
+  DEBUG_SLEEP
+#endif /* ! GRUB_UTIL */
 
   if (! (saved_mmap_length))
 #ifndef GRUB_UTIL
   if (debug_boot)
 #endif /* ! GRUB_UTIL */
-	printf("\rGet E801 memory...           ");
+	printf("\rGet E801 memory... ");
 
   if (saved_mmap_length)
     {
       unsigned long long max_addr;
-      
+
+#ifndef GRUB_UTIL
+      if (debug_boot) printf("\rGet MBI.MEM_{LOWER,UPPER} elements... ");
+#endif /* ! GRUB_UTIL */
+
       /*
        *  This is to get the lower memory, and upper memory (up to the
        *  first memory hole), into the MBI.MEM_{LOWER,UPPER}
@@ -560,7 +580,9 @@ init_bios_info (void)
 	  fakemap[2].Length = cont;
 	}
     }
-
+#ifndef GRUB_UTIL
+  DEBUG_SLEEP
+#endif /* ! GRUB_UTIL */
   //printf("\r                        \r");	/* wipe out the messages */
 
   mbi.mem_upper = saved_mem_upper;
@@ -650,10 +672,9 @@ init_bios_info (void)
 	{
 	    PXENV_GET_CACHED_INFO_t get_cached_info;
 
-	    printf("\rbegin pxe scan...            ");
+	    printf("\rbegin pxe scan... ");
 	    pxe_scan ();
 	    DEBUG_SLEEP
-	    printf("\r                             ");
 
 	    if (pxe_entry)
 	    {
@@ -872,8 +893,6 @@ failed_dos_boot_drive:
 	continue;	/* skip hard drives */
       
       /* Get the geometry.  */
-      if (debug > 1)
-	grub_printf ("\rget_cdinfo(%X),", drive);
       cdrom_drive = get_cdinfo (drive, &tmp_geom);
       if (cdrom_drive)
       {
@@ -944,7 +963,7 @@ failed_dos_boot_drive:
 //  }
 
   if (debug > 1)
-    grub_printf(" cdrom_drive == %X.\n", cdrom_drive);
+    grub_printf("\rcdrom_drive == %X\n", cdrom_drive);
   DEBUG_SLEEP
 #endif /* ! STAGE1_5 && ! GRUB_UTIL */
 
@@ -1018,14 +1037,17 @@ set_root:
 	}
   }
 #endif
-#ifndef GRUB_UTIL
   if (debug_boot)
-#endif /* ! GRUB_UTIL */
-  grub_printf("\rInitialize variable space...            ");
+  grub_printf("\rInitialize variable space... ");
   run_line("set ?_BOOT=%@root%",1);
   memset(ADDR_RET_STR,0,0x200);
-
+  if (!errnum) {
+    if (debug_boot) grub_printf("OK");
+  } else {
+    if (debug_boot) grub_printf("Error: 0x%x %s\n", errnum, err_list[errnum]);
+  }
 //  builtin_cmd("set","?_Boot=",1);/*Initialize variable space*/
+  DEBUG_SLEEP
 #endif /* ! STAGE1_5 */
 #endif /* ! GRUB_UTIL */
 
@@ -1043,7 +1065,7 @@ extern int font_func (char *, int);
   if (debug_boot)
 #endif /* ! STAGE1_5 */
 #endif /* ! GRUB_UTIL */
-  grub_printf("\rStarting cmain() ...                    ");
+  grub_printf("\rStarting cmain()... ");
   
 #if !defined(STAGE1_5) && !defined(GRUB_UTIL)
   DEBUG_SLEEP

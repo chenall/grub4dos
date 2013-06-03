@@ -305,7 +305,7 @@ done:
 	char *filename = pxe_tftp_name;
 	if (debug > 1)
 	{
-		grub_printf("PXE boot configfile:%s\n",(char *)pxe_tftp_open.FileName);
+		grub_printf("\rPXE boot configfile:%s\n",(char *)pxe_tftp_open.FileName);
 		DEBUG_SLEEP
 	}
 	pxe_close ();

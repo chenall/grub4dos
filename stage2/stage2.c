@@ -602,7 +602,13 @@ run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *h
    if (password_buf)//Make sure that PASSWORD is NUL-terminated.
 		pass_config = wee_skip_to(password_buf,SKIP_WITH_TERMINATE);
 
-restart:
+restart1:
+//#ifndef GRUB_UTIL
+//  if (debug_boot) {
+//    grub_printf ("\rrestart1:");
+//  }
+//  DEBUG_SLEEP
+//#endif /* ! GRUB_UTIL */
   /* Dumb terminal always use all entries for display 
      invariant for TERM_DUMB: first_entry == 0  */
   if (! (current_term->flags & TERM_DUMB))
@@ -1085,6 +1091,12 @@ restart:
 			}
 
 check_update:
+//#ifndef GRUB_UTIL
+//  if (debug_boot) {
+//    grub_printf ("\rcheck_update:");
+//  }
+//  DEBUG_SLEEP
+//#endif /* ! GRUB_UTIL */
 		  if (temp_entryno != first_entry + entryno)
 		  {
 		      /* check if entry temp_entryno is out of the screen */
@@ -1251,14 +1263,14 @@ done_key_handling:
 			{
 			  /* Now the user is superhuman.  */
 			  auth = 1;
-			  goto restart;
+			  goto restart1;
 			}
 		    }
 		  else
 		    {
 		      grub_printf ("Failed! Press any key to continue...");
 		      getkey ();
-		      goto restart;
+		      goto restart1;
 		    }
 		}
 	    }
@@ -1328,7 +1340,7 @@ done_key_handling:
 		    num_entries = new_num_entries;
 		    run_menu (heap, NULL, /*new_num_entries,*/ new_heap, 0);	/* recursive!! */
 		    num_entries = old_num_entries;
-		    goto restart;
+		    goto restart1;
 		  }
 		  //else
 		  {
@@ -1377,12 +1389,12 @@ done_key_handling:
 			}
 		  }
 
-		  goto restart;
+		  goto restart1;
 		}
 	      if (((char)c) == 'c')
 		{
 		  enter_cmdline (heap, 0);
-		  goto restart;
+		  goto restart1;
 		}
 #ifdef GRUB_UTIL
 	      if (((char)c) == 'q')
@@ -1421,7 +1433,6 @@ done_key_handling:
 	if (config_entries)
 	{
 		char *p;
-		unsigned char ch;
 
 		p = get_entry (menu_entries, first_entry + entryno);
 		//printf ("  Booting \'%s\'\n\n", (((*p) & 0xF0) ? p : ++p));
@@ -1429,6 +1440,7 @@ done_key_handling:
 			p++;
 		//(for Issue 123)changed by chenall 2013-04-19 also translate variables for booting message.
 		#if 0
+		unsigned char ch;
 		grub_putstr ("  Booting ");
 		while ((*p) && (ch = *p++) && ch != '\n') grub_putchar (ch, 255);
 		grub_putchar ('\n', 255);
@@ -1486,7 +1498,7 @@ done_key_handling:
 //      if ((*current_term->startup)() == 0)
 //          current_term = term_table; /* we know that console is first */
   show_menu = 1;
-  goto restart;
+  goto restart1;
 }
 
 // #define GFX_DEBUG
@@ -2135,7 +2147,13 @@ cmain (void)
     titles = (char * *)(init_free_mem_start + 1024);
     config_entries = (char*)init_free_mem_start + 1024 + 256 * sizeof (char *);
     /* Never return.  */
-restart:
+restart2:
+//#ifndef GRUB_UTIL
+//  if (debug_boot) {
+//    grub_printf ("\rrestart2:");
+//  }
+//  DEBUG_SLEEP
+//#endif /* ! GRUB_UTIL */
     reset ();
       
     /* Here load the configuration file.  */
@@ -2171,22 +2189,25 @@ restart:
 	    int len;
 	  
 	    if (debug > 1)
-		grub_printf("\rRead file ... ");
+		grub_printf("\rRead default file ... ");
 	    len = grub_read ((unsigned long long)(unsigned int)buf, sizeof (buf), 0xedde0d90);
 	    if (debug > 1)
-		grub_printf("len=%d \n", (unsigned long)len);
+		grub_printf("len=%d", (unsigned long)len);
 	    if (len > 0)
 	    {
 		unsigned long long ull;
 		buf[sizeof (buf) - 1] = 0;
 		safe_parse_maxint (&p, &ull);
 		saved_entryno = ull;
+		if (debug > 1)
+		  grub_printf("saved_entryno=%d", (unsigned long)saved_entryno);
 	    }
+	    DEBUG_SLEEP
 
 	    grub_close ();
 	}
 	else if (debug > 1)
-	    grub_printf("failure.\n");
+	    grub_printf("\rOpen default file %s ... failure.\n", default_file);
 	DEBUG_SLEEP
     }
     errnum = ERR_NONE;
@@ -2295,8 +2316,7 @@ restart_config:
 			if (debug_boot)
 			{
 				putchar_hooked = 0;
-				printf("IFTITLE: %s->",cmdline);
-				getkey();
+				grub_printf("IFTITLE: %s->",cmdline);
 				putchar_hooked = (unsigned char*)1;
 			}
 
@@ -2324,7 +2344,8 @@ restart_config:
 			if (debug_boot)
 			{
 				putchar_hooked = 0;
-				printf("\t %s\n",rp?"Yes":"No");
+				grub_printf("\t %s\n",rp?"Yes":"No");
+				DEBUG_SLEEP
 				putchar_hooked = (unsigned char*)1;
 			}
 
@@ -2505,16 +2526,19 @@ extern int graphicsmode_func (char *, int);
 #else
 	if (! debug_in_menu_init)
 #endif
-	printf ("\rRunning menu commands(hangup means you have a problematic config)...\n");
+  {
+    printf ("\rRunning menu commands(hangup means you have a problematic config)...\n");
+    DEBUG_SLEEP
+  }
 
 	/* Run menu-specific commands before any other menu entry commands.  */
 
 	{
-	    char *old_entry = NULL;
-	    char *heap = config_entries + config_len;
+	    static char *old_entry = NULL;
+	    static char *heap = NULL; heap = config_entries + config_len;
 
 #ifndef GRUB_UTIL
-	    int old_debug = 1;
+	    static int old_debug = 1;
 #endif /* ! GRUB_UTIL */
 
 	    /* Initialize the data.  */
@@ -2556,6 +2580,10 @@ extern int graphicsmode_func (char *, int);
 //		errnum_old = errnum;//2010-12-16 commented by chenall
 //		errnum = 0;//2010-12-16 commented by chenall
 
+		if (debug_boot) {
+		  grub_printf("\r%s\n", cur_entry);
+		}
+		//DEBUG_SLEEP  /* Only uncomment if you want to pause before processing every menu.lst line */
 		/* Copy the first string in CUR_ENTRY to HEAP.  */
 		old_entry = cur_entry;
 		while (*cur_entry++);
@@ -2610,9 +2638,8 @@ extern int graphicsmode_func (char *, int);
 #ifdef SUPPORT_GFX
 		if (num_entries && ! errnum && *graphics_file && !password_buf && show_menu && grub_timeout)
 		{
-		  unsigned long pxe_restart_config_bak = pxe_restart_config;
-
 #ifndef GRUB_UTIL
+		  unsigned long pxe_restart_config_bak = pxe_restart_config;
 		  pxe_restart_config = 1;	/* for configfile to work with gfxmenu. */
 #endif /* ! GRUB_UTIL */
 
@@ -2624,7 +2651,6 @@ extern int graphicsmode_func (char *, int);
 
 		}
 #endif
-		DEBUG_SLEEP
 
 #ifndef GRUB_UTIL
 		if (pxe_restart_config)
@@ -2649,7 +2675,7 @@ original_config:
 	    }
 #endif /* ! GRUB_UTIL */
 	    DEBUG_SLEEP
-	}
+	} /* while (1) */
 
 	/* End of menu-specific commands.  */
 
@@ -2725,5 +2751,5 @@ done_config_file:
 	#endif
 	run_menu ((char *)titles, cur_entry, /*num_entries,*/ config_entries + config_len, default_entry);
     }
-    goto restart;
+    goto restart2;
 }

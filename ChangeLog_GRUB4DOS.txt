@@ -1,3 +1,4 @@
+2013-05-21 (daven) enhanced the debug boot code (press Insert when grldr is loading to activate).
 2013-05-16 (chenall) done issue 133(add `set @extend BASE_ADDR size`).
 2013-03-29 (chenall) fix issue 125,path limitation in menu.
 2013-03-28 (chenall) fix issue 126;
