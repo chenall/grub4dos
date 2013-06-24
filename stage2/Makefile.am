@@ -133,8 +133,8 @@ bootlace.com: bootlacestart
 	-rm -f bootlace.com
 	-rm -f grldr.pbr
 	cp bootlacestart bootlace.com && chmod a+x bootlace.com
-	dd if=bootlace.com of=grldr.pbr bs=512 skip=56 count=20
-	dd if=bootlace.com of=grldr_cd.bin bs=512 skip=76 count=1
+	dd if=bootlace.com of=grldr.pbr bs=512 skip=58 count=20
+	dd if=bootlace.com of=grldr_cd.bin bs=512 skip=78 count=1
 	cat grldr.mbr >> bootlace.com
 	
 

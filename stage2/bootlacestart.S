@@ -512,6 +512,18 @@ option_floppy:
 
 option_usb:
 	.ascii	"--usb=\0"
+	
+option_grldr_usb:
+	.ascii	"--grldr-usb=\0"
+	
+option_usb_time :
+	.ascii	"--usb-time=\0"
+	
+option_usb_speed:
+	.ascii	"--usb-speed=\0"
+	
+option_usb_key:
+	.ascii	"--usb-key=\0"
 
 msg_start:
 
@@ -843,6 +855,12 @@ msg_install_partition_not:
 msg_usb_bpb_fat:
         .ascii  "\r\nError: Attempt to increase the reserved sector.\r\n\0"                              
 
+msg_grldr_usb_err:
+				.ascii  "\r\nThe GRLDR versions error.\r\n\0"	
+
+msg_grldr_usb_ok:				
+				.ascii  "\r\nThe USB option is set success.\r\n\0"	
+				
 msg_disk_Information:	
 	.ascii  "\r\nHD"
 
@@ -893,7 +911,8 @@ msg_usage:
 //      .ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --lba, --chs,\r\n"
 //      .ascii	"--fat12, --fat16, --fat32, --vfat, --ntfs, --ext2, --exfat, --serial-number=SN,\r\n"
         .ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --serial-number=SN,\r\n"
-	.ascii	"--restore-mbr, --mbr-no-bpb, --chs-no-tune, --usb=I,\r\n"
+	.ascii	"--restore-mbr, --mbr-no-bpb, --chs-no-tune, --usb=I, --grldr-usb=I,\r\n"
+	.ascii	"--usb-time=T, --usb-speed=S, --usb-key=K,\r\n"
 	.ascii	"DEVICE_OR_FILE: Filename of the device or image. For DOS, a BIOS drive number\r\n"
 	.ascii	"(in hex 0xHH or decimal DDD format)can be used to access the drive.\r\n\0"
 
@@ -1112,8 +1131,20 @@ total_partition_entries:
         .long	0
         
 usb:
-        .long	0
-       
+        .long	0xff
+				
+grldr_usb:
+        .long	0xff
+
+usb_time:
+				.long	0xff
+				
+usb_speed:			
+ 				.long	0xff
+				
+usb_key:			
+ 				.long	0xff				
+				
 	.align	16
 	
 //-------------------------------------------------------------------
@@ -1304,8 +1335,9 @@ grldr_pbr_start:
 //        0x200   1       FAT12/16
 //        0x400   2       EXT2/3/4
 //        0x800   2       EXFAT
-//        0XC00   4       NTFS
-//        0X1400  A       USB2.0					
+//        0xC00   4       NTFS
+//        0x1400  A       USB2.0
+//        0x2800  1       GRLDR_CD					
 //*******************************************************
 
 #define GRLDR_INSTALL

@@ -1010,9 +1010,94 @@
 	cmpl $0, %edi
 	je 4f
 	movl	%edi, ABS(usb) rBP
+	jmp	1b	
+3:
+
+	/* check --grldr-usb= */
+	movl	$12, %ecx
+	movl	$ABS(option_grldr_usb), %esi
+	pushl	%ebx
+	popl	%edi
+
+	cld
+	repz	cmpsb
+
+	jnz	3f
+	
+	movl	$02, %ebx
+	call	7f	/* parse_number */
+	movl	%ebx, %edi	# save EBX to EDI
+	movl	$0, %ebx	# invalid file descriptor for CLOSE below
+	movl	$ABS(msg_invalid_number), %ecx
+	jc	4f	/* error */
+	movl	%edi, ABS(grldr_usb) rBP
+	jmp	1b	
+3:
+
+	/* check --usb-time= */
+	movl	$11, %ecx
+	movl	$ABS(option_usb_time), %esi
+	pushl	%ebx
+	popl	%edi
+
+	cld
+	repz	cmpsb
+
+	jnz	3f
+	
+	movl	$60, %ebx
+	call	7f	/* parse_number */
+	movl	%ebx, %edi	# save EBX to EDI
+	movl	$0, %ebx	# invalid file descriptor for CLOSE below
+	movl	$ABS(msg_invalid_number), %ecx
+	jc	4f	/* error */
+	movl	%edi, ABS(usb_time) rBP
+	jmp	1b	
+3:
+
+	/* check --usb-speed= */
+	movl	$12, %ecx
+	movl	$ABS(option_usb_speed), %esi
+	pushl	%ebx
+	popl	%edi
+
+	cld
+	repz	cmpsb
+
+	jnz	3f
+	
+	movl	$03, %ebx
+	call	7f	/* parse_number */
+	movl	%ebx, %edi	# save EBX to EDI
+	movl	$0, %ebx	# invalid file descriptor for CLOSE below
+	movl	$ABS(msg_invalid_number), %ecx
+	jc	4f	/* error */
+	movl	%edi, ABS(usb_speed) rBP
+	jmp	1b	
+3:
+
+	/* check --usb-key= */
+	movl	$10, %ecx
+	movl	$ABS(option_usb_key), %esi
+	pushl	%ebx
+	popl	%edi
+
+	cld
+	repz	cmpsb
+
+	jnz	3f
+	
+	movl	$0xff, %ebx
+	call	7f	/* parse_number */
+	movl	%ebx, %edi	# save EBX to EDI
+	movl	$0, %ebx	# invalid file descriptor for CLOSE below
+	movl	$ABS(msg_invalid_number), %ecx
+	jc	4f	/* error */
+	movl	%edi, ABS(usb_key) rBP
 	jmp	1b
 	
 3:
+
 
 	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	movl	$ABS(msg_invalid_option), %ecx
@@ -1611,8 +1696,45 @@ sb:
 	je	4f	/* error */
 
 3:	
+
 	/* Yes, --floppy is specified */
 	/* ESI points to MBR(0) */
+	cmpl	$0xff, PRE(cs)ABS(grldr_usb) rBP
+	je	3f
+	pushl	%esi
+	movl	$MBR(0), %esi			//Point PBR
+	cmpb	$0x75, 0x01fa(iSI)
+	je	2f
+	movl	$ABS(msg_grldr_usb_err), %ecx
+	call	8f	/* linux_print */
+	popl	%esi
+	jmp	4f	/* error */
+2:
+	movb	PRE(cs)ABS(grldr_usb) rBP, %al
+	movb	%al, 0x01fb(iSI)
+	cmpl	$0xff, PRE(cs)ABS(usb_key) rBP
+	je	2f	
+	movb	PRE(cs)ABS(usb_key) rBP, %al
+	movb	%al, 0x01f9(iSI)
+2:
+	cmpl	$0xff, PRE(cs)ABS(usb_time) rBP
+	je	2f
+	movb	PRE(cs)ABS(usb_time) rBP, %al
+	movb	%al, 0x2011(iSI)
+2:
+	cmpl	$0xff, PRE(cs)ABS(usb_speed) rBP
+	je	2f
+	movb	PRE(cs)ABS(usb_speed) rBP, %al
+	movb	%al, 0x2012(iSI)
+2:
+	movl	$17, PRE(cs)ABS(sectors_to_write) rBP
+	movl	$ABS(msg_grldr_usb_ok), %ecx
+	call	8f	/* linux_print */	
+	popl	%esi
+	jmp	2f
+	
+	
+3:	
 	call	5f	/* floppy routine */
 	movl	$0, %ecx
 	jc	4f	/* error */
@@ -1763,11 +1885,11 @@ sb:
 	cmpw	$2, PRE(cs)ABS(read_only)	#; 0=read only, 2=read/write
 	jne	4f		/* read only */
 	//Determine whether ext2 partition usb drive installed
-	cmpl	$0, PRE(cs)ABS(usb) rBP	//Install usb drive?
-	je	3f										//no
-	cmpl	$ABS(msg_fstype_ext2_allow), %edx	//ext2 partition?
-	jne	3f										//no
-	subl	$0x0a, %eax	
+//	cmpl	$0, PRE(cs)ABS(usb) rBP	//Install usb drive?
+//	je	3f										//no
+//	cmpl	$ABS(msg_fstype_ext2_allow), %edx	//ext2 partition?
+//	jne	3f										//no
+//	subl	$0x0a, %eax	
 3:		
 	pushl	$0
 	pushl	%eax
@@ -3086,7 +3208,6 @@ sb:
 1:
 	/* First, try ext2 */
 
-	#; cmpw	$0xEF53, 0x438(iSI)	/* Magic signature */19c0
 	cmpw	$0xEF53, 0x438(iSI)	/* Magic signature, lo */
 	jnz	1f
 	xorl	%eax, %eax
@@ -3110,7 +3231,6 @@ sb:
 	subl	$1, %ebx		#; decl %ebx
 	jnz	1f
 
-//3:
 	/* BX = 0 */
 	/* write to ext2 boot area */
 
@@ -3125,31 +3245,31 @@ sb:
 	movl	$((0x400 - 0x30)/4), %ecx
 	movl	$MBR(0x30), %edi
 	repz	movsl PRE(cs)(iSI), (iDI)
-	cmpl	$0, PRE(cs)ABS(usb) rBP	//Install usb drive?
-	je 2f							//no
+//	cmpl	$0, PRE(cs)ABS(usb) rBP	//Install usb drive?
+//	je 2f							//no
 	//To modify usb driver loading instructions
-	movl	$MBR(0), %esi			//Point PBR
-	cmpl	$2, PRE(cs)ABS(usb) rBP	//Mandatory load usb drive?
-	je	22f
-	movb	$01, 0x01fb(iSI)				
-	jmp	3f
-22:
-	movb	$02, 0x01fb(iSI)
-3:
+//	movl	$MBR(0), %esi			//Point PBR
+//	cmpl	$2, PRE(cs)ABS(usb) rBP	//Mandatory load usb drive?
+//	je	22f
+//	movb	$01, 0x01fb(iSI)				
+//	jmp	3f
+//22:
+//	movb	$02, 0x01fb(iSI)
+//3:
 	//Move backward code
-	movl	$MBR(0x1400), %edi
-	movl	$(0x400/4), %ecx
-	repz	movsl
+//	movl	$MBR(0x1400), %edi
+//	movl	$(0x400/4), %ecx
+//	repz	movsl
 	//Install usb2.0 driver
-	movl	$ABS(grldr_pbr_start + 0x1400), %esi
-	movl	$(0x1400/4), %ecx
-	movl	$MBR(0), %edi	
-	repz	movsl PRE(cs)(iSI), (iDI)		
+//	movl	$ABS(grldr_pbr_start + 0x1400), %esi
+//	movl	$(0x1400/4), %ecx
+//	movl	$MBR(0), %edi	
+//	repz	movsl PRE(cs)(iSI), (iDI)		
 	//Write-back number of sectors
-	movl	$0x0c, %eax
-	movl	%eax, PRE(cs)ABS(sectors_to_write) rBP
-	jmp	3f
-2:	
+//	movl	$0x0c, %eax
+//	movl	%eax, PRE(cs)ABS(sectors_to_write) rBP
+//	jmp	3f
+//2:	
 	movl	$2, PRE(cs)ABS(sectors_to_write) rBP
 3:		
 	movl	$ABS(msg_fstype_ext2_allow), %ecx
@@ -3233,21 +3353,28 @@ sb:
 	movl	$MBR(0x5a), %edi
 	movl	$((0x200-0x5a)/2), %ecx
 	repz movsw PRE(cs)(iSI), (iDI)	
-	cmpl	$0, PRE(cs)ABS(usb) rBP	//Install usb drive?
+	cmpl	$0xff, PRE(cs)ABS(usb) rBP	//Install usb drive?
 	je 21f							//no
-	/Install usb drive
+	//Install usb drive
 	movl	$ABS(grldr_pbr_start + 0x1400), %esi
+	movl	$MBR(0x400), %edi
 	movl	$(0x1400/4), %ecx	
 	repz movsl PRE(cs)(iSI), (iDI)	
 	//To modify usb driver loading instructions
 	movl	$MBR(0), %esi			//Point PBR
-	cmpl	$2, PRE(cs)ABS(usb) rBP	//Mandatory load usb drive?
-	je	22f					//yes
-	movb	$01, 0x01fb(iSI)				
-	jmp	3f
-22:
-	movb	$02, 0x01fb(iSI)
-3:
+	movb	PRE(cs)ABS(usb) rBP, %al
+	movb	%al, 0x01fb(iSI)
+
+	cmpl	$0xff, PRE(cs)ABS(usb_time) rBP
+	je	23f
+	movb	PRE(cs)ABS(usb_time) rBP, %al
+	movb	%al, 0x411(iSI)
+23:
+	cmpl	$0xff, PRE(cs)ABS(usb_speed) rBP
+	je	23f
+	movb	PRE(cs)ABS(usb_speed) rBP, %al
+	movb	%al, 0x412(iSI)
+23:
 	//To determine the number of reserved sectors meets
 	movzwl	0x0e(iSI), %eax			//Number of sectors reserved
 	cmpw	$0x0c, %ax
@@ -3261,22 +3388,30 @@ sb:
 	movw	%ax, 0x0e(iSI) 					//Adjust the number of sectors reserved
 23:
 	//Modify FAT32 unique parameters
-	movw	$0x0b, 0x30(iSI)				//The sector number of the file system information, usually located in the boot sector of the next. If you do not should be set to FFFF.
+//	movw	$0x0b, 0x30(iSI)				//The sector number of the file system information, usually located in the boot sector of the next. If you do not should be set to FFFF.
 	movw	$0xffff, 0x32(iSI)			//Backup boot sector number. If you do not should be set to FFFF.
 	//FAT32 file system information sector
 	xorl	%eax, %eax
-	movl	$MBR(0x1600), %edi
+	movl	$MBR(0x200), %edi
 	movl	$0x80, %ecx
-	repz	stosl			
-	movl	$0xffffffff, %eax
-	movl	%eax, 0x17e8(iSI)								//The last known free cluster number    unknown
-	movl	%eax, 0x17ec(iSI)								//The next available free cluster number    unknown
-	movl	$0x41615252, %eax
-	movl	%eax, 0x1600(iSI)								//At the beginning of signatures
-	movl	$0x61417272, %eax
-	movl	%eax, 0x17e4(iSI)								//The fault symptoms index structure signature
-	movl	$0xAA550000, %eax
-	movl	%eax, 0x17fc(iSI)								//End of the signature
+	repz	stosl
+	movl	$0x41615252, 0x200(iSI)			//At the beginning of signatures
+	movl	$0x61417272, 0x3e4(iSI)			//The fault symptoms index structure signature	
+	movl	0x20(iSI), %eax
+	movzwl	0xe(iSI), %ecx
+	subl	%ecx, %eax
+	subl	0x24(iSI), %eax
+	cmpb	$2, 0x10(iSI)
+	jne 	231f
+	subl	0x24(iSI), %eax
+231:
+	xorl	%edx, %edx
+	movzbl	0xd(iSI), %ecx
+	divl	%ecx
+	decl	%eax
+	movl	%eax, 0x3e8(iSI)						//The last known free cluster number    unknown
+	movb	$3, 0x3ec(iSI)							//The next available free cluster number    unknown
+	movl	$0xAA550000, 0x3fc(iSI)			//End of the signature						
 	//Write-back number of sectors
 	movl	$0x0c, PRE(cs)ABS(sectors_to_write) rBP
 	jmp	3f
@@ -3362,7 +3497,7 @@ sb:
 	movl	$MBR(0x3e), %edi
 	movl	$((0x200-0x3e)/2), %ecx	
 	repz	movsw PRE(cs)(iSI), (iDI)	
-	cmpl	$0, PRE(cs)ABS(usb) rBP	//Install usb drive?
+	cmpl	$0xff, PRE(cs)ABS(usb) rBP	//Install usb drive?
 	je 21f							//no
 	//Install usb drive
 	movl	$ABS(grldr_pbr_start + 0x1400), %esi
@@ -3370,13 +3505,19 @@ sb:
 	repz movsl PRE(cs)(iSI), (iDI)	
 	//To modify usb driver loading instructions
 	movl	$MBR(0), %esi
-	cmpl	$2, PRE(cs)ABS(usb) rBP	//Mandatory load usb drive?
-	je	2f			//yes
-	movb	$01, 0x01fb(iSI)				
-	jmp	3f
+	movb	PRE(cs)ABS(usb) rBP, %al
+	movb	%al, 0x01fb(iSI)				
+
+	cmpl	$0xff, PRE(cs)ABS(usb_time) rBP
+	je	2f
+	movb	PRE(cs)ABS(usb_time) rBP, %al
+	movb	%al, 0x211(iSI)
 2:
-	movb	$02, 0x01fb(iSI)				
-3:
+	cmpl	$0xff, PRE(cs)ABS(usb_speed) rBP
+	je	2f
+	movb	PRE(cs)ABS(usb_speed) rBP, %al
+	movb	%al, 0x212(iSI)
+2:
 	//To determine the number of reserved sectors meets
 	movw	0x0e(iSI), %ax									//Number of sectors reserved
 	cmpw	$0x0c, %ax
@@ -3447,17 +3588,14 @@ sb:
 	movw	%ax, 0x5fe(%esi)
 	addl	$0x200, %esi
 	loop 3b
-	cmpl	$0, PRE(cs)ABS(usb) rBP	//Install usb drive?
+	cmpl	$0xff, PRE(cs)ABS(usb) rBP	//Install usb drive?
 	je 3f							//no
 	//To modify usb driver loading instructions
 	movl	$MBR(0), %esi
-	cmpl	$2, PRE(cs)ABS(usb) rBP	//Mandatory load usb drive?
-	je	2f
-	movb	$01, 0x01fb(iSI)				
-	jmp	3f
-2:
-	movb	$02, 0x01fb(iSI)
+	movb	PRE(cs)ABS(usb) rBP, %al	//Mandatory load usb drive?
+	movb	%al, 0x01fb(iSI)
 3:
+
 //Calculation exfat volume boot record checksum
 //si=the index entry (from 0 to cx) eax=checksum  cx=volume boot record check bytes (0x1600)
 //	xorw	%si, %si	//Initialize the index
@@ -3484,14 +3622,26 @@ sb:
 	movl	$0x600, %ecx
 	movl	$MBR(0), %esi
 	repz movsl
-	cmpl	$0, PRE(cs)ABS(usb) rBP	//Install usb drive?
+	cmpl	$0xff, PRE(cs)ABS(usb) rBP	//Install usb drive?
 	je 21f							//no
 	//Install usb drive
 	movl	$ABS(grldr_pbr_start + 0x1400), %esi
 	movl	$(0x1400/4), %ecx	
 	repz	movsl PRE(cs)(iSI), (iDI)
+	
+	movl	$MBR(0), %esi
+	cmpl	$0xff, PRE(cs)ABS(usb_time) rBP
+	je	2f
+	movb	PRE(cs)ABS(usb_time) rBP, %al
+	movb	%al, 0x3011(iSI)
+2:
+	cmpl	$0xff, PRE(cs)ABS(usb_speed) rBP
+	je	2f
+	movb	PRE(cs)ABS(usb_speed) rBP, %al
+	movb	%al, 0x3012(iSI)
+2:	
 	//Write-back number of sectors
-	movl	$0x22, %eax
+	movl	$34, %eax
 	movl	%eax, PRE(cs)ABS(sectors_to_write) rBP
 	jmp	3f
 21:
