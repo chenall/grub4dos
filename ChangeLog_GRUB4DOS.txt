@@ -1,3 +1,4 @@
+2013-06-24 (tinybit) Improved startup message fighting against hangups due to wrong menu setup by users.
 2013-05-24 (tinybit) Fix no-emulation-mode boot code so as to load 32K of preset-menu.
 2013-05-21 (daven) enhanced the debug boot code (press Insert when grldr is loading to activate).
 2013-05-16 (chenall) done issue 133(add `set @extend BASE_ADDR size`).
