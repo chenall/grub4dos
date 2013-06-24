@@ -23,38 +23,16 @@
 /* indicates whether or not the next char printed will be highlighted */
 unsigned long is_highlight = 0;
 
-#ifdef GRUB_UTIL
-
-grub_jmp_buf restart_env;
-
-/* The preset_menu variable is referenced by asm.S */
-# if defined(PRESET_MENU_STRING)
-const char *preset_menu = PRESET_MENU_STRING;
-# elif defined(SUPPORT_DISKLESS)
-/* Execute the command "bootp" automatically.  */
-const char *preset_menu = "bootp\n";
-#else /* ! SUPPORT_DISKLESS */
-/* The preset_menu variable is always available. This is for the loader, which
- * loads GRUB, to define a new preset menu before transferring control to GRUB.
- */
-const char *preset_menu = 0;
-# endif /* ! SUPPORT_DISKLESS */
-#else /* ! GRUB_UTIL */
 /* preset_menu is defined in asm.S */
 #define	preset_menu *(const char **)0x307FFC
-#endif /* GRUB_UTIL */
 
 static unsigned long preset_menu_offset;
 
 static int
 open_preset_menu (void)
 {
-//#ifdef GRUB_UTIL
-  /* Unless the user explicitly requests to use the preset menu,
-     always opening the preset menu fails in the grub shell.  */
   if (! use_preset_menu)
     return 0;
-//#endif /* GRUB_UTIL */
 
   if (preset_menu != (const char *)0x800)
 	  goto lzma;
@@ -90,30 +68,6 @@ lzma:
   return grub_read ((unsigned long long)(unsigned int)buf, max_len, 0xedde0d90);
 }
 
-#ifdef GRUB_UTIL
-#undef	DISP_UL		//218
-#undef	DISP_UR		//191
-#undef	DISP_LL		//192
-#undef	DISP_LR		//217
-#undef	DISP_HORIZ	//196
-#undef	DISP_VERT	//179
-#undef	DISP_LEFT	//0x1b
-#undef	DISP_RIGHT	//0x1a
-#undef	DISP_UP		//0x18
-#undef	DISP_DOWN	//0x19
-
-#define DISP_UL		ACS_ULCORNER	/* 0xDA , '+' */
-#define DISP_UR		ACS_URCORNER	/* 0xBF , '+' */
-#define DISP_LL		ACS_LLCORNER	/* 0xC0 , '+' */
-#define DISP_LR		ACS_LRCORNER	/* 0xD9 , '+' */
-#define DISP_HORIZ	ACS_HLINE	/* 0xC4 , '-' */
-#define DISP_VERT	ACS_VLINE	/* 0xB3 , '|' */
-#define DISP_LEFT	ACS_LARROW	/* 0x1B , '<' */
-#define	DISP_RIGHT	ACS_RARROW	/* 0x1A , '>' */
-#define DISP_UP		ACS_UARROW	/* 0x18 , '^' */
-#define DISP_DOWN	ACS_DARROW	/* 0x19 , 'v' */
-#endif
-
 #define MENU_BOX_X	(menu_border.menu_box_x)
 //#define MENU_BOX_W	(menu_border.menu_box_w)
 //#define MENU_BOX_W	(menu_border.menu_box_w ? menu_border.menu_box_w : current_term->chars_per_line - 4)
@@ -131,9 +85,7 @@ lzma:
 static long temp_entryno;
 static short temp_num;
 static char * *titles;	/* title array, point to 256 strings. */
-#ifndef GRUB_UTIL
 extern int (*hotkey_func)(char *titles,int flags);
-#endif
 static unsigned short *title_boot;
 static int default_help_message_destoyed = 1;
 /*
@@ -285,9 +237,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   is_highlight = highlight;
 
   gotoxy (MENU_BOX_X - 1, y);
-  #ifndef GRUB_UTIL
   grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,0x10) : ' ', 255);
-  #endif
   if (entry)
   {
 	if (config_entries == (char*)titles)
@@ -295,7 +245,6 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		c = *entry++;
 		expand_var (entry, (char *)SCRATCHADDR, 0x400);
 		entry = (char *)SCRATCHADDR;
-		#ifndef GRUB_UTIL
 		if (menu_num_ctrl[0])
 		{
 			if (!(c & menu_num_ctrl[0]) || !*entry || *entry == '\n')
@@ -303,7 +252,6 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 			else
 				printf("%2d%c",(menu_num_ctrl[0] > 1)?entryno:title_boot[entryno],menu_num_ctrl[1]);
 		}
-		#endif
 	}
 	c = *entry;
   }
@@ -603,12 +551,6 @@ run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *h
 		pass_config = wee_skip_to(password_buf,SKIP_WITH_TERMINATE);
 
 restart1:
-//#ifndef GRUB_UTIL
-//  if (debug_boot) {
-//    grub_printf ("\rrestart1:");
-//  }
-//  DEBUG_SLEEP
-//#endif /* ! GRUB_UTIL */
   /* Dumb terminal always use all entries for display 
      invariant for TERM_DUMB: first_entry == 0  */
   if (! (current_term->flags & TERM_DUMB))
@@ -785,9 +727,7 @@ restart1:
       else
 	print_entries (first_entry, entryno, menu_entries);
     }
-#ifndef GRUB_UTIL
    if (menu_init_script_file[0] != 0 )	command_func(menu_init_script_file,BUILTIN_MENU);
-#endif
   /* XX using RT clock now, need to initialize value */
   while ((time1 = getrtsecs()) == 0xFF);
 
@@ -858,7 +798,6 @@ restart1:
 	     hang in GETKEY */
 	  if (current_term->flags & TERM_DUMB)
 	    grub_printf ("\r    Highlighted entry is %d: ", entryno);
-	  #ifndef GRUB_UTIL
 	  if (config_entries && hotkey_func)
 	  {
 			putchar_hooked = (unsigned char*)0x800;
@@ -875,7 +814,6 @@ restart1:
 			}
 	  }
 	  else
-	  #endif
 		c = /*ASCII_CHAR*/ (getkey ());
 
 	  if (! old_c_count_end)
@@ -1061,7 +999,6 @@ restart1:
 // If menu items are numbered then there must be no unnumbered items in the first few entries
 // e.g. if you have 35 menu items, then menu entries 0 - 3 must all numbered - otherwise double-digit user entry will not work - e.g. 34 will not work
 			int j;
-			#ifndef GRUB_UTIL
 			if (menu_num_ctrl[0])
 			{
 				if (menu_num_ctrl[0] == 1)
@@ -1076,7 +1013,6 @@ restart1:
 				}
 			}
 			else
-			#endif
 			{
 				for (j = 0; j < num_entries; ++j)
 				{
@@ -1091,12 +1027,6 @@ restart1:
 			}
 
 check_update:
-//#ifndef GRUB_UTIL
-//  if (debug_boot) {
-//    grub_printf ("\rcheck_update:");
-//  }
-//  DEBUG_SLEEP
-//#endif /* ! GRUB_UTIL */
 		  if (temp_entryno != first_entry + entryno)
 		  {
 		      /* check if entry temp_entryno is out of the screen */
@@ -1396,13 +1326,6 @@ done_key_handling:
 		  enter_cmdline (heap, 0);
 		  goto restart1;
 		}
-#ifdef GRUB_UTIL
-	      if (((char)c) == 'q')
-		{
-		  /* The same as ``quit''.  */
-		  stop ();
-		}
-#endif
 	    }
 	}
     }
@@ -2103,8 +2026,6 @@ get_line_from_config (char *cmdline, int max_len, int preset)
     return pos;
 }
 
-//void
-//reset (void);
 int config_len;
 static char *config_entries, *cur_entry;
 
@@ -2122,9 +2043,7 @@ reset (void)
   fallback_entryno = -1;
   fallback_entries[0] = -1;
   grub_timeout = -1;
-  #ifndef GRUB_UTIL
   menu_num_ctrl[0] = 0;
-  #endif
 }
   
 extern struct builtin builtin_title;
@@ -2135,25 +2054,12 @@ static unsigned long attr = 0;
 void
 cmain (void)
 {
-#ifdef GRUB_UTIL
-    /* Initialize the environment for restarting Stage 2.  */
-    grub_setjmp (restart_env);
-#endif /* GRUB_UTIL */
-  
-#ifndef GRUB_UTIL
     debug = debug_boot + 1;
-#endif /* ! GRUB_UTIL */
     title_boot = (unsigned short *) init_free_mem_start;
     titles = (char * *)(init_free_mem_start + 1024);
     config_entries = (char*)init_free_mem_start + 1024 + 256 * sizeof (char *);
     /* Never return.  */
 restart2:
-//#ifndef GRUB_UTIL
-//  if (debug_boot) {
-//    grub_printf ("\rrestart2:");
-//  }
-//  DEBUG_SLEEP
-//#endif /* ! GRUB_UTIL */
     reset ();
       
     /* Here load the configuration file.  */
@@ -2213,13 +2119,9 @@ restart2:
     errnum = ERR_NONE;
 #endif
 
-#ifndef GRUB_UTIL
     pxe_restart_config = 0;
-#endif /* ! GRUB_UTIL */
 
-#ifndef GRUB_UTIL
 restart_config:
-#endif /* ! GRUB_UTIL */
 
     {
 	/* STATE 0: Menu init, i.e., before any title command.
@@ -2231,9 +2133,7 @@ restart_config:
 	unsigned long debug_in_menu_init = 0;
 	char *cmdline;
 	int is_preset;
-	#ifndef GRUB_UTIL
-	 menu_init_script_file[0] = 0;
-	#endif
+	menu_init_script_file[0] = 0;
 	{
 	    int is_opened;
 
@@ -2247,24 +2147,15 @@ restart_config:
 	    if (! is_opened)
 	    {
 		/* Try config_file */
-#ifndef GRUB_UTIL
 		if (*config_file)
 			is_opened = (configfile_opened || grub_open (config_file));
-#else
-		if (*config_file)
-			is_opened = grub_open (config_file);
-#endif /* ! GRUB_UTIL */
 	    }
 	    errnum = ERR_NONE;
-#ifndef GRUB_UTIL
 	    configfile_opened = 0;
-#endif /* ! GRUB_UTIL */
 	    if (! is_opened)
 	    {
-#ifndef GRUB_UTIL
 		if (pxe_restart_config)
 			goto original_config;
-#endif /* ! GRUB_UTIL */
 
 		/* Try the preset menu. This will succeed at most once,
 		 * because the preset menu will be disabled(see below).  */
@@ -2294,7 +2185,6 @@ restart_config:
 	  
 	    if ((int)builtin != -1 && builtin->flags == 0)	/* title command */
 	    {
-	    #ifndef GRUB_UTIL
 		if (builtin != &builtin_title)/*If title*/
 		{
 			unsigned long tmp_filpos;
@@ -2359,7 +2249,6 @@ restart_config:
 				continue;
 			}
 		}
-		#endif
 		/* Finish the menu init commands or previous menu items.  */
 
 		if (state & 2)
@@ -2447,7 +2336,6 @@ restart_config:
 	 * below may also use the GRUB_OPEN command.  */
 	if (is_preset)
 	{
-#ifndef STAGE1_5
 #ifdef SUPPORT_GRAPHICS
 extern int font_func (char *, int);
 extern int graphicsmode_func (char *, int);
@@ -2464,9 +2352,7 @@ extern int graphicsmode_func (char *, int);
 		    /* font exists, automatically enter graphics mode. */
 		    if (! graphicsmode_in_menu_init)
 		    {
-#ifndef GRUB_UTIL
 			if (debug_boot)
-#endif /* ! GRUB_UTIL */
 				grub_printf ("\rSwitch to graphics mode ...             \r");
 			graphicsmode_func ("-1 -1 -1 24:32", 0);
 		    }
@@ -2474,7 +2360,6 @@ extern int graphicsmode_func (char *, int);
 		font_func (NULL, 0);	/* clear the font */
 	    }
 #endif /* SUPPORT_GRAPHICS */
-#endif /* ! STAGE1_5 */
 
 	    if (preset_menu != (const char *)0x800)
 		grub_close ();
@@ -2484,14 +2369,12 @@ extern int graphicsmode_func (char *, int);
 	{
 	    grub_close ();
 	    /* before showing menu, try loading font in the tail of config_file */
-#ifndef STAGE1_5
 #ifdef SUPPORT_GRAPHICS
 	    extern int font_func (char *, int);
 	    font_func (NULL, 0);	/* clear the font */
 	    font_func (config_file, 0);
 	    font_func (NULL, 0);	/* clear the font */
 #endif /* SUPPORT_GRAPHICS */
-#endif /* ! STAGE1_5 */
 	}
 
 	if (state & 2)
@@ -2521,15 +2404,34 @@ extern int graphicsmode_func (char *, int);
 	/* Display this info if the debug command is not present in the
 	 * menu-init command set.
 	 */
-#ifndef GRUB_UTIL
 	if (debug_boot || ! debug_in_menu_init)
-#else
-	if (! debug_in_menu_init)
+	{
+#include "grub4dos_version.h"
+
+#ifdef GRUB4DOS_VERSION
+	    if ((unsigned long)saved_partition == 0xFFFFFF)
+		printf ("\rGRUB4DOS " GRUB4DOS_VERSION
+			", root is (0x%X)%s\n",
+			(unsigned long)saved_drive,
+			saved_dir);
+	    else
+		printf ("\rGRUB4DOS " GRUB4DOS_VERSION
+			", root is (0x%X,%d)%s\n",
+			(unsigned long)saved_drive,
+			(unsigned char)(saved_partition >> 16),
+			saved_dir);
 #endif
-  {
-    printf ("\rRunning menu commands(hangup means you have a problematic config)...\n");
-    DEBUG_SLEEP
-  }
+	    if (is_preset)
+	    {
+		if (preset_menu == (const char *)0x800)
+		    printf ("\rProcessing the preset-menu ...\n");
+		else
+		    printf ("\rProcessing the LZMA preset-menu ...\n");
+	    }
+	    else
+		printf ("\rProcessing menu file %s ...\n", config_file);
+	    DEBUG_SLEEP
+	}
 
 	/* Run menu-specific commands before any other menu entry commands.  */
 
@@ -2537,9 +2439,7 @@ extern int graphicsmode_func (char *, int);
 	    static char *old_entry = NULL;
 	    static char *heap = NULL; heap = config_entries + config_len;
 
-#ifndef GRUB_UTIL
 	    static int old_debug = 1;
-#endif /* ! GRUB_UTIL */
 
 	    /* Initialize the data.  */
 	    //saved_drive = boot_drive;
@@ -2555,26 +2455,10 @@ extern int graphicsmode_func (char *, int);
 //		char *arg;
 //		grub_error_t errnum_old;//2010-12-16 commented by chenall
 
-#ifndef GRUB_UTIL
 		pxe_restart_config = 0;
-#endif /* ! GRUB_UTIL */
 
 #ifdef SUPPORT_GFX
 		*graphics_file = 0;
-#endif
-
-#if 0
-#ifndef GRUB_UTIL
-		/* pxe_detect should be done before any other command. */
-		if (! *config_entries)
-		{
-			if (pxe_entry && ! pxe_inited)
-			{
-			    if (pxe_detect (0, 0))
-				goto restart_config;
-			}
-		}
-#endif /* ! GRUB_UTIL */
 #endif
 
 //		errnum_old = errnum;//2010-12-16 commented by chenall
@@ -2600,66 +2484,33 @@ extern int graphicsmode_func (char *, int);
 		    /* Otherwise, the command boot is run implicitly.  */
 		    grub_memmove (heap, "boot", 5);
 		}
-//commented out by chenall, 2010-12-16
-#if 0
-		/* Find a builtin.  */
-		builtin = find_command (heap);
-		if (! builtin)
-		{
-		    grub_printf ("%s\n", old_entry);
-		    continue;
-		}
-#endif
-#if 0
-#ifndef GRUB_UTIL
-		/* pxe_detect should be done before any other command. */
-		if ((builtin->func) != pxe_func && old_entry == config_entries)
-		{
-			if (pxe_entry && ! pxe_inited)
-			{
-			    if (pxe_detect (0, 0))
-				goto restart_config;
-			}
-		}
-#endif /* ! GRUB_UTIL */
-#endif
 
 		run_line (heap , BUILTIN_MENU);
 		/* if the INSERT key was pressed at startup, debug is not allowed to be turned off. */
-#ifndef GRUB_UTIL
 		if (debug_boot)
 		    if ((unsigned int)debug < 2)	/* debug == 0 or 1 */
 		    {
 			old_debug = debug;	/* save the new debug in old_debug */
 			debug = 2;
 		    }
-#endif /* ! GRUB_UTIL */
 
 #ifdef SUPPORT_GFX
 		if (num_entries && ! errnum && *graphics_file && !password_buf && show_menu && grub_timeout)
 		{
-#ifndef GRUB_UTIL
 		  unsigned long pxe_restart_config_bak = pxe_restart_config;
 		  pxe_restart_config = 1;	/* for configfile to work with gfxmenu. */
-#endif /* ! GRUB_UTIL */
 
 		  run_graphics_menu((char *)titles, cur_entry, /*num_entries,*/ config_entries + config_len, default_entry);
 
-#ifndef GRUB_UTIL
 		  pxe_restart_config = pxe_restart_config_bak;	/* restore the original value. */
-#endif /* ! GRUB_UTIL */
 
 		}
 #endif
 
-#ifndef GRUB_UTIL
 		if (pxe_restart_config)
 			goto restart_config;
-#endif /* ! GRUB_UTIL */
 
-#ifndef GRUB_UTIL
 original_config:
-#endif /* ! GRUB_UTIL */
 
 		if (! *old_entry)
 		    break;
@@ -2667,13 +2518,11 @@ original_config:
 
 	    kernel_type = KERNEL_TYPE_NONE;
 
-#ifndef GRUB_UTIL
 	    if (debug_boot)
 	    {
-		debug = old_debug;	/* restore user-specified debug level. */
+		debug = old_debug; /* restore user-specified debug level. */
 		grub_printf ("\n\nEnd of menu init commands. Press any key to enter command-line or run menu...");
 	    }
-#endif /* ! GRUB_UTIL */
 	    DEBUG_SLEEP
 	} /* while (1) */
 
@@ -2721,9 +2570,7 @@ done_config_file:
 
 	use_preset_menu = 0;	/* Disable the preset menu.  */
 
-#ifndef GRUB_UTIL
 	pxe_restart_config = 1;	/* pxe_detect will use configfile to run menu */
-#endif /* ! GRUB_UTIL */
 
     /* go ahead and make sure the terminal is setup */
     if (current_term->startup)
@@ -2737,18 +2584,10 @@ done_config_file:
     }
     else
     {
-//#ifdef SUPPORT_GFX
-//      if (*graphics_file && !password && show_menu && grub_timeout)
-//	{
-//	  run_graphics_menu((char *)titles, cur_entry, num_entries, config_entries + config_len, default_entry);
-//	}
-//#endif
 	/* Run menu interface.  */
 	/* cur_entry point to the first menu item command. */
-	#ifndef GRUB_UTIL
 	if (hotkey_func)
 		hotkey_func(0,0);
-	#endif
 	run_menu ((char *)titles, cur_entry, /*num_entries,*/ config_entries + config_len, default_entry);
     }
     goto restart2;
