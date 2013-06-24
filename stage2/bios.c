@@ -243,10 +243,12 @@ get_cdinfo (int drive, struct geometry *geometry)
 	return drive;
     }
 #ifndef STAGE1_5
-  if (err)
-    grub_printf ("drive=0\n");
-  else
-    grub_printf ("\r%40s\r", " "); /* erase line if no err and drive are both 0 */
+  if (debug > 1) {
+    if (err)
+      grub_printf ("drive=0\n");
+    else
+      grub_printf ("\r%40s\r", " "); /* erase line if no err and drive are both 0 */
+  }
 #endif
   return 0;	/* failure */
 }
