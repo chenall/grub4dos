@@ -1023,7 +1023,8 @@ load_the_rest:
 	 */
 
 	/* 0x8000 = 32K, this is for the additional preset-menu(might be LZMAed) at the end of grldr */
-	movw	$((grldr_signature - _start1 + 4 + STAGE2_SIZE - 1 + 0x8000) / 2048), %cx	/* sectors to load */
+#define PRESET_MENU_SIZE 0x8000
+	movw	$((grldr_signature - _start1 + 4 + STAGE2_SIZE - 1 + PRESET_MENU_SIZE) / 2048), %cx	/* sectors to load */
 #endif
 1:
 	incl	%eax		/* next sector */
@@ -1035,8 +1036,9 @@ load_the_rest:
 
 	/* loading is completed. BX=segment of the last sector. */
 
-	subw	$0x0181, %bx	/* decw	%bx */
+	subw	$((PRESET_MENU_SIZE >> 4) + 1), %bx	/* decw	%bx */
 	movw	%bx, %ds
+#undef PRESET_MENU_SIZE
 
 	popl	%eax
 //	subl	$((grldr_signature - _start1 + 4 + STAGE2_SIZE - 1 + 6144) / 2048), %eax
