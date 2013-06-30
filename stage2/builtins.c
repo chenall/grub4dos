@@ -16796,8 +16796,9 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			return 0;
 		}
 	}
-	else if (bat_script_debug)
-		printf("%s [%d]\n",filename,prog_pid);
+
+	if (bat_script_debug)
+	    printf("%s [%d]\n",filename,prog_pid);
 
 	char **p_entry = bat_entry + i;
 
@@ -16806,7 +16807,14 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	char *p_rep;
 	char *p_buff;//buff for command_line
 	char *cmd_buff;
-	if ((cmd_buff = grub_malloc(0x1000)) == NULL)
+	unsigned long arg_len = grub_strlen(arg) + 1;
+	if (arg_len > 0x8000)
+	{
+	    errnum = ERR_WONT_FIT;
+	    return 0;
+	}
+
+	if ((cmd_buff = grub_malloc(arg_len + 0x800)) == NULL)
 	{
 		return 0;
 	}
@@ -16817,13 +16825,12 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	p_buff = cmd_buff + ((i+16) & ~0xf);
 	s[0] = cmd_buff;
 	/*copy arg to buff*/
-	i = grub_strlen(arg);
-	grub_memmove(p_buff, arg, i+1);
+	grub_memmove(p_buff, arg, arg_len);
 	arg = p_buff;
-	p_buff = p_buff + ((i+16) & ~0xf);
+	p_buff = p_buff + ((arg_len + 16) & ~0xf);
 
 	/*build args %1-%9*/
-	for (i = 1;i < 9;i++)
+	for (i = 1;i < 9; ++i)
 	{
 		s[i] = arg;
 		if (*arg)
