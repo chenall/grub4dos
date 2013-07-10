@@ -5153,9 +5153,18 @@ static int command_path_len = 15;
 #define GRUB_MOD_ADDR (SYSTEM_RESERVED_MEMORY - 0x100000)
 #define UTF8_BAT_SIGN 0x54414221BFBBEFULL
 #define BAT_SIGN 0x54414221UL
+#define LONG_MOD_NAME_FLAG 0xEb
 struct exec_array
 {
-	char name[12];
+	union
+	{
+	    char sn[12];
+	    struct
+	    {
+		unsigned long flag;
+		unsigned long len;
+	    } ln;
+	} name;
 	unsigned long len;
 	char data[];
 } *p_exec;
@@ -5164,41 +5173,64 @@ unsigned int mod_end = GRUB_MOD_ADDR;
 
 static struct exec_array *grub_mod_find(const char *name)
 {
-	struct exec_array *p_mod = (struct exec_array *)GRUB_MOD_ADDR;
-	while ((unsigned int)p_mod < mod_end)
+    struct exec_array *p_mod = (struct exec_array *)GRUB_MOD_ADDR;
+    char *pn;
+    unsigned long mod_len;
+    while ((unsigned int)p_mod < mod_end)
+    {
+	mod_len = p_mod->len;
+	if (p_mod->name.ln.flag == LONG_MOD_NAME_FLAG)
 	{
-		if (substring(name,p_mod->name,1) == 0)
-			return p_mod;
-		p_mod = (struct exec_array *)((unsigned int)(p_mod->data + p_mod->len + 0xf) & ~0xf);
+	    pn = p_mod->data + p_mod->len;
+	    mod_len += p_mod->name.ln.len;
 	}
-	return 0;
+	else
+	    pn = p_mod->name.sn;
+	
+	if (substring(name,pn,1) == 0)
+	    return p_mod;
+	p_mod = (struct exec_array *)((unsigned int)(p_mod->data + mod_len + 0xf) & ~0xf);
+    }
+    return 0;
 }
 
 static int grub_mod_add (struct exec_array *mod)
 {
-   if (grub_mod_find(mod->name) == NULL)
+   char *name;
+   unsigned long data_len = 16;
+   if (mod->name.ln.flag == LONG_MOD_NAME_FLAG)
+    {
+	name = mod->data + mod->len;
+	data_len +=  mod->name.ln.len;
+    }
+    else
+	name = mod->name.sn;
+
+   if (grub_mod_find(name) == NULL)
    {
+
       if (debug > 1)
-         grub_printf("insmod:%s...\n",mod->name);
+         grub_printf("insmod:%s...\n",name);
       unsigned long long rd_base_bak = rd_base;
       unsigned long long rd_size_bak = rd_size;
       rd_base = (unsigned long long)(unsigned int)mod->data;
       rd_size = (unsigned long long)mod->len;
       buf_drive = -1;
       grub_open("(rd)+1");
-      if ((mod_end + filemax) >= GRUB_MOD_ADDR + 0x100000)
+      data_len += filemax;
+      if ((mod_end + data_len) >= GRUB_MOD_ADDR + 0x100000)
       {
-         grub_close();
+	 grub_close();
          errnum = ERR_WONT_FIT;
          return 0;
       }
       struct exec_array *p_mod = (struct exec_array *)mod_end;
-      grub_strcpy(p_mod->name,mod->name);
       p_mod->len = filemax;
       grub_read((unsigned long long)(unsigned int)p_mod->data,-1,GRUB_READ);
       grub_close();
       rd_base = rd_base_bak;
       rd_size = rd_size_bak;
+
       if (*(unsigned long long *)(int)(p_mod->data + p_mod->len - 8) != 0xBCBAA7BA03051805ULL
          && *(unsigned long *)(int)p_mod->data != BAT_SIGN
          && (*(unsigned long long *)(int)p_mod->data & 0xFFFFFFFFFFFFFFULL) != UTF8_BAT_SIGN) //!BAT with utf-8 BOM 0xBFBBEF
@@ -5206,29 +5238,43 @@ static int grub_mod_add (struct exec_array *mod)
          errnum = ERR_EXEC_FORMAT;
          return 0;
       }
-      mod_end = ((unsigned int)p_mod->data + p_mod->len + 0xf) & ~0xf;
+      memmove((void *)p_mod->name.sn,(void*)mod->name.sn,sizeof(mod->name));
+      if (p_mod->name.ln.flag == LONG_MOD_NAME_FLAG)
+         memmove((void*)(p_mod->data + p_mod->len),(void*)(mod->data + mod->len),p_mod->name.ln.len);
+      mod_end = ((unsigned int)mod_end + data_len + 0xf) & ~0xf;
       if (debug > 0)
-	 grub_printf("%s loaded\n",mod->name);
+	 grub_printf("%s loaded\n",name);
    }
    else
       if (debug > 0)
-         grub_printf("%s already loaded\n",mod->name);
+         grub_printf("%s already loaded\n",name);
    return 1;
 }
 
 static int grub_mod_list(const char *name)
 {
    struct exec_array *p_mod = (struct exec_array *)GRUB_MOD_ADDR;
+   char *pn;
+   unsigned long mod_len;
    int ret = 0;
    while ((unsigned int)p_mod < mod_end)
    {
-      if (*name == '\0' || substring(name,p_mod->name,1) == 0)
+	mod_len = p_mod->len;
+	if (p_mod->name.ln.flag == LONG_MOD_NAME_FLAG)
+	{
+	    pn = p_mod->data + p_mod->len;
+	    mod_len += p_mod->name.ln.len;
+	}
+	else
+	    pn = p_mod->name.sn;
+
+      if (*name == '\0' || substring(name,pn,1) == 0)
       {
          if (debug > 0)
-            grub_printf(" %s\n",p_mod->name);
+            grub_printf(" %s\n",pn);
          ret++;
       }
-      p_mod = (struct exec_array *)((unsigned int)(p_mod->data + p_mod->len + 0xf) & ~0xf);
+      p_mod = (struct exec_array *)((unsigned int)(p_mod->data + mod_len + 0xf) & ~0xf);
    }
    return ret;
 }
@@ -5236,11 +5282,21 @@ static int grub_mod_list(const char *name)
 static int grub_mod_del(const char *name)
 {
    struct exec_array *p_mod;
-   for (p_mod = (struct exec_array *)GRUB_MOD_ADDR; (unsigned int)p_mod < mod_end; p_mod = (struct exec_array *)((unsigned int)(p_mod->data + p_mod->len + 0xf) & ~0xf))
+   char *pn;
+   unsigned long mod_len;
+   for (p_mod = (struct exec_array *)GRUB_MOD_ADDR; (unsigned int)p_mod < mod_end; p_mod = (struct exec_array *)((unsigned int)(p_mod->data + mod_len + 0xf) & ~0xf))
    {
-      if (substring(name,p_mod->name,1) == 0)
+ 	mod_len = p_mod->len;
+	if (p_mod->name.ln.flag == LONG_MOD_NAME_FLAG)
+	{
+	    pn = p_mod->data + p_mod->len;
+	    mod_len += p_mod->name.ln.len;
+	}
+	else
+	    pn = p_mod->name.sn;
+      if (substring(name,pn,1) == 0)
       {
-         unsigned int next_mod = ((unsigned int)p_mod->data + p_mod->len + 0xf) & ~0xf;
+         unsigned int next_mod = ((unsigned int)p_mod->data + mod_len + 0xf) & ~0xf;
          if (next_mod == mod_end)
             mod_end = (unsigned int)p_mod;
          else
@@ -5557,7 +5613,7 @@ static int insmod_func(char *arg,int flags)
       char *buff_end = buff+filemax;
       struct exec_array *p_mod = (struct exec_array *)buff;
       //skip grub4dos moduld head.
-      if (strcmp(p_mod->name,"\x05\x18\x05\x03\xBA\xA7\xBA\xBC") == 0)
+      if (strcmp(p_mod->name.sn,"\x05\x18\x05\x03\xBA\xA7\xBA\xBC") == 0)
         ++p_mod;
       while ((char *)p_mod < buff_end && grub_mod_add(p_mod))
       {
@@ -5576,11 +5632,18 @@ static int insmod_func(char *arg,int flags)
          return 0;
       default:
          {
-            struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array));
+            struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array) + 32);
             char *filename = skip_to(1,arg);
             int ret = 0;
-            if (p_mod == NULL || grub_read((unsigned long long)(unsigned int)p_mod->data,-1,GRUB_READ) != filemax)
-               goto exit;
+            if (p_mod == NULL)
+		return 0;
+	    if (grub_read((unsigned long long)(unsigned int)p_mod->data,-1,GRUB_READ) != filemax)
+            {
+		grub_close();
+		grub_free(p_mod);
+		return 0;
+            }
+            grub_close();
             p_mod->len = filemax;
             if (!*filename)
             {
@@ -5594,19 +5657,15 @@ static int insmod_func(char *arg,int flags)
                   }
                }
             }
-            if (strlen(filename) > 11)
+            if (strlen(filename) < 12)
+		grub_strcpy(p_mod->name.sn,filename);
+	    else
             {
-               grub_printf("\nFilename of %s too long.\n", filename);
-	       errnum = ERR_BAD_ARGUMENT;
-            }
-            else
-            {
-               grub_strcpy(p_mod->name,filename);
-               ret = grub_mod_add(p_mod);
+		p_mod->name.ln.flag = LONG_MOD_NAME_FLAG;
+		p_mod->name.ln.len = sprintf(p_mod->data + filemax,"%s",filename);
             }
 
-            exit:
-            grub_close();
+            ret = grub_mod_add(p_mod);
             grub_free(p_mod);
             return ret;
          }
@@ -15546,7 +15605,7 @@ static int read_val(char **str_ptr,long long *val)
       p = arg;
       if (*arg == '*') arg++;
       
-      if (! safe_parse_maxint_with_suffix (&arg, val, 0))
+      if (! safe_parse_maxint_with_suffix (&arg,(unsigned long long *)(int)val, 0))
       {
 	 return 0;
       }
@@ -15562,7 +15621,7 @@ static int read_val(char **str_ptr,long long *val)
 }
 
 static long long
-calc_func (char *arg, int flags)
+s_calc (char *arg, int flags)
 {
    long long val1 = 0;
    long long val2 = 0;
@@ -15573,7 +15632,7 @@ calc_func (char *arg, int flags)
    if (*arg == '*')
    {
       arg++;
-      if (! safe_parse_maxint_with_suffix (&arg, &val1, 0))
+      if (! safe_parse_maxint_with_suffix (&arg, (unsigned long long*)(int)&val1, 0))
       {
 	 return 0;
       }
@@ -15672,6 +15731,12 @@ calc_func (char *arg, int flags)
 	if (p_result != &val1)
 	   *p_result = val1;
    return val1;
+}
+
+static int
+calc_func (char *arg, int flags)
+{
+    return (int)s_calc(arg,flags);
 }
 
 static struct builtin builtin_calc =
@@ -16440,8 +16505,8 @@ static int set_func(char *arg, int flags)
 	    arg = skip_to(1,arg);
 	    if (*arg)
 	    {
-		unsigned long long l1;
-		unsigned long long l2;
+		long long l1;
+		long long l2;
 		if (!read_val(&arg,&l1) || !read_val(&arg,&l2))
 		    return 0;
 		if ((unsigned long)l2 > 0xFFFF)
@@ -16514,9 +16579,9 @@ static int set_func(char *arg, int flags)
 	if (convert_flag & 0x100)
 	{
 		if (convert_flag & 0x400)
-			sprintf(value,"0x%lX",calc_func(arg,flags));
+			sprintf(value,"0x%lX",s_calc(arg,flags));
 		else
-			sprintf(value,"%ld",calc_func(arg,flags));
+			sprintf(value,"%ld",s_calc(arg,flags));
 		errnum = 0;
 		arg = value;
 	}
@@ -16808,11 +16873,11 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	char *p_buff;//buff for command_line
 	char *cmd_buff;
 	unsigned long arg_len = grub_strlen(arg) + 1;
-	if (arg_len > 0x8000)
-	{
-	    errnum = ERR_WONT_FIT;
-	    return 0;
-	}
+	//if (arg_len > 0x8000)
+	//{
+	//    errnum = ERR_WONT_FIT;
+	//    return 0;
+	//}
 
 	if ((cmd_buff = grub_malloc(arg_len + 0x800)) == NULL)
 	{
@@ -17023,7 +17088,7 @@ static int call_func(char *arg,int flags)
 	if (*(short *)arg == 0x6E46)
 	{
 		unsigned int func;
-		unsigned long long ull;
+		long long ull;
 		int i;
 		char *ch[10]={0};
 		arg += 3;
@@ -17064,7 +17129,7 @@ static struct builtin builtin_call =
 
 static int exit_func(char *arg, int flags)
 {
-	unsigned long long t = 0;
+	long long t = 0;
 	read_val(&arg, &t);
 	errnum = 1000 + t;
 	return errnum;
