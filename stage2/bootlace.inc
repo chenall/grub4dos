@@ -1720,12 +1720,12 @@ sb:
 	cmpl	$0xff, PRE(cs)ABS(usb_time) rBP
 	je	2f
 	movb	PRE(cs)ABS(usb_time) rBP, %al
-	movb	%al, 0x2011(iSI)
+	movb	%al, 0x21a1(iSI)
 2:
 	cmpl	$0xff, PRE(cs)ABS(usb_speed) rBP
 	je	2f
 	movb	PRE(cs)ABS(usb_speed) rBP, %al
-	movb	%al, 0x2012(iSI)
+	movb	%al, 0x21a2(iSI)
 2:
 	movl	$17, PRE(cs)ABS(sectors_to_write) rBP
 	movl	$ABS(msg_grldr_usb_ok), %ecx

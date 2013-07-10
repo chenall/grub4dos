@@ -133,10 +133,12 @@ bootlace.com: bootlacestart
 	-rm -f bootlace.com
 	-rm -f grldr.pbr
 	cp bootlacestart bootlace.com && chmod a+x bootlace.com
-	dd if=bootlace.com of=grldr.pbr bs=512 skip=58 count=20
-	dd if=bootlace.com of=grldr_cd.bin bs=512 skip=78 count=1
-	cat grldr.mbr >> bootlace.com
-	
+	dd if=bootlace.com of=grldr.pbr bs=512 skip=58 count=10
+	dd if=bootlace.com of=grldr_cd.bin bs=512 skip=68 count=1
+	dd if=grldr of=grldr.pbr bs=1 skip=8592 seek=5120 count=5120
+	dd if=grldr of=bootlace.com bs=1 skip=8592 seek=34816 count=5120
+	cat grldr.mbr >> grldr.pbr	
+	cat grldr.mbr >> bootlace.com	
 
 hmloadstart_exec_SOURCES = hmloadstart.S
 hmloadstart_exec_CCASFLAGS = $(STAGE2_COMPILE)

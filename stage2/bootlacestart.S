@@ -154,8 +154,8 @@ _ph_offset:
 	                                        # p_vaddr
         .long	(_start_linux - _start + 0x00400000)
 	                                        # p_paddr
-        .long	(grldr_mbr_start + 0x2000 - _start_linux)  # p_filesz
-        .long	(grldr_mbr_start + 0x2000 - _start_linux + (0xBE00 + 0x200))  # p_memszz
+        .long	(grldr_mbr_start + 0x2000 - _start_linux + (0x1400 - 0x200))  # p_filesz
+        .long	(grldr_mbr_start + 0x2000 - _start_linux + (0xBE00 + 0x200) + (0x1400 - 0x200))  # p_memszz
 	.long	7				# p_flags
 	.long	0x200				# p_align
 
@@ -206,7 +206,7 @@ _sh_offset:
 	.long	(_start_linux - _start)
 					# sh_offset(from beginning of file)
 
-	.long	(grldr_mbr_start + 0x2000 - _start_linux)
+	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0x1400 - 0x200))
 					# sh_size
 
 	.long	0			# sh_link
@@ -220,10 +220,10 @@ _sh_offset:
 	.long	1			# sh_type = SHT_PROGBITS
 	.long	3			# sh_flags = WRITE, ALLOC
 
-	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000)
+	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000 + (0x1400 - 0x200))
 					# sh_addr(in process space)
 
-	.long	(grldr_mbr_start + 0x2000 - _start)
+	.long	(grldr_mbr_start + 0x2000 - _start + (0x1400 - 0x200))
 					# sh_offset(from beginning of file)
 
 	.long	0			# sh_size (no data present)
@@ -238,10 +238,10 @@ _sh_offset:
 	.long	8			# sh_type = SHT_NOBITS
 	.long	3			# sh_flags = WRITE, ALLOC
 
-	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000)
+	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000 + (0x1400 - 0x200))
 					# sh_addr(in process space)
 
-	.long	(grldr_mbr_start + 0x2000 - _start)
+	.long	(grldr_mbr_start + 0x2000 - _start + (0x1400 - 0x200))
 					# sh_offset(from beginning of file)
 
 	.long	(0xbe00 + 0x200)	# sh_size	//mbr_63_sectors
@@ -266,9 +266,9 @@ _ph_offset_64:
 	.long	(_start_linux - _start + 0x00400000)
 						# p_paddr
 	.long	0				# ... hi
-	.long	(grldr_mbr_start + 0x2000 - _start_linux)	# p_filesz
+	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0x1400 - 0x200))	# p_filesz
 	.long	0				# ... hi
-	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0xBE00 + 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0xBE00 + 0x200) + (0x1400 - 0x200))
 						# p_memszz //mbr_63_sectors
 	.long	0				# ... hi
 	.long	0x200				# p_align
@@ -336,7 +336,7 @@ _sh_offset_64:
 					# sh_offset(from beginning of file)
 	.long	0			# ... hi
 
-	.long	(grldr_mbr_start + 0x2000 - _start_linux)
+	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0x1400 - 0x200))
 					# sh_size
 	.long	0			# ... hi
 
@@ -354,11 +354,11 @@ _sh_offset_64:
 	.long	3			# sh_flags = WRITE, ALLOC
 	.long	0			# ... hi
 
-	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000)
+	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000 + (0x1400 - 0x200))
 					# sh_addr(in process space)
 	.long	0			# ... hi
 
-	.long	(grldr_mbr_start + 0x2000 - _start)
+	.long	(grldr_mbr_start + 0x2000 - _start + (0x1400 - 0x200))
 					# sh_offset(from beginning of file)
 	.long	0			# ... hi
 
@@ -378,11 +378,11 @@ _sh_offset_64:
 	.long	3			# sh_flags = WRITE, ALLOC
 	.long	0			# ... hi
 
-	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000)
+	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000 + (0x1400 - 0x200))
 					# sh_addr(in process space)
 	.long	0			# ... hi
 
-	.long	(grldr_mbr_start + 0x2000 - _start)
+	.long	(grldr_mbr_start + 0x2000 - _start + (0x1400 - 0x200))
 					# sh_offset(from beginning of file)
 	.long	0			# ... hi
 
@@ -1336,13 +1336,24 @@ grldr_pbr_start:
 //        0x400   2       EXT2/3/4
 //        0x800   2       EXFAT
 //        0xC00   4       NTFS
-//        0x1400  A       USB2.0
-//        0x2800  1       GRLDR_CD					
+//        0x1400  1       GRLDR_CD
 //*******************************************************
 
 #define GRLDR_INSTALL
 #include "grldrstart.S" 
 
+grldr_usb_start:
 
+//*******************************************************
+//        Offset  Sector  Partition type
+//    -------------------------------------
+//        0x1400  A       USB2.0				
+//*******************************************************
 
 grldr_mbr_start:
+
+//*******************************************************
+//        Offset  Sector  Partition type
+//    -------------------------------------
+//        0x2800  10      GRLDR_MBR				
+//*******************************************************
