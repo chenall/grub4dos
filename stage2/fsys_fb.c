@@ -278,7 +278,6 @@ int fb_dir (char *dirname)
 	}
 	tmp_name[k] = 0;
 
-#ifndef STAGE1_5
       if (print_possibilities)
 	{
 	  if (substring (dirname, tmp_name/*cur_file->name*/, 1) <= 0)
@@ -288,7 +287,6 @@ int fb_dir (char *dirname)
 	    }
 	}
       else
-#endif
 	if (substring (dirname, tmp_name/*cur_file->name*/, 1) == 0)
 	  {
 	    found = 1;

@@ -42,8 +42,6 @@ typedef enum
   COLOR_STATE_MAX
 } color_state;
 
-#ifndef STAGE1_5
-
 /* Flags for representing the capabilities of a terminal.  */
 /* Some notes about the flags:
    - These flags are used by higher-level functions but not terminals
@@ -104,12 +102,9 @@ extern struct term_entry term_table[];
    a single terminal is enabled normally.  */
 extern struct term_entry *current_term;
 
-#endif /* ! STAGE1_5 */
-
 /* The console stuff.  */
 unsigned int console_putchar (unsigned int c, unsigned int max_width);
 
-#ifndef STAGE1_5
 int console_checkkey (void);
 int console_getkey (void);
 int console_getxy (void);
@@ -118,7 +113,6 @@ void console_cls (void);
 void console_setcolorstate (color_state state);
 void console_setcolor(unsigned long state,unsigned long long color[]);
 void console_setcursor (unsigned long on);
-#endif
 
 #ifdef SUPPORT_SERIAL
 unsigned int serial_putchar (unsigned int c, unsigned int max_width);

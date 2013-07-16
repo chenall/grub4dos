@@ -20,11 +20,6 @@
 
 #include <shared.h>
 
-#ifdef SUPPORT_DISKLESS
-# define GRUB	1
-# include <etherboot.h>
-#endif
-
 //grub_jmp_buf restart_cmdline_env;
 
 char *
@@ -438,7 +433,6 @@ enter_cmdline (char *heap, int forever)
 {
   int debug_old = debug;
   debug = 1;
-  //grub_setjmp (restart_cmdline_env);
 
   /* show cursor and disable splashimage. */
   setcursor (1);
@@ -451,17 +445,10 @@ enter_cmdline (char *heap, int forever)
   errorcheck = 1;	/* errorcheck on */
   init_page ();
   grub_putchar ('\n', 255);
-#ifdef SUPPORT_DISKLESS
-  print_network_configuration ();
-  grub_putchar ('\n', 255);
-#endif
   print_cmdline_message (forever);
   
   while (1)
     {
-
-//      struct builtin *builtin;
-//      char *arg;
       grub_error_t errnum_old;
 
       errnum_old = errnum;
@@ -487,32 +474,10 @@ enter_cmdline (char *heap, int forever)
       /* If there was no command, grab a new one. */
       if (! heap[0])
 	continue;
-/*commented by chenall 2010-12-16,will do it in run_line*/
-#if 0
-      /* Find a builtin.  */
-      builtin = find_command (heap);
-      if (! builtin)
-	continue;
-
-      /* If BUILTIN cannot be run in the command-line, skip it.  */
-      if ((int)builtin != -1 && ! (builtin->flags & BUILTIN_CMDLINE))
-	{
-	  errnum = ERR_UNRECOGNIZED;
-	  continue;
-	}
-
-      /* Invalidate the cache, because the user may exchange removable
-	 disks.  */
-      buf_drive = -1;
-#endif
       /* Start to count lines, only if the internal pager is in use.  */
       if (use_pager)
 	count_lines = 0;
-/*commented by chenall 2010-12-16,will do it in run_line
-      if ((int)builtin != -1)
-      if ((builtin->func) == errnum_func || (builtin->func) == checkrange_func)
-	errnum = errnum_old;
-*/
+
 	errnum = errnum_old;
 	if (memcmp(heap,"clear",5))
 	    putchar('\n',255);

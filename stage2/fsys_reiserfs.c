@@ -366,13 +366,11 @@ struct fsys_reiser_info
 #define JOURNAL_START    ((__u32 *) (INFO + 1))
 #define JOURNAL_END      ((__u32 *) (FSYS_BUF + FSYS_BUFLEN))
 
-#ifndef GRUB_UTIL
 static struct reiserfs_super_block *super = (struct reiserfs_super_block *)0x600;	//struct size 202.
 static struct reiserfs_journal_desc *desc = (struct reiserfs_journal_desc *)(FSYS_BUF - 0x2000);	//struct size 4K
 static struct reiserfs_journal_commit *commit = (struct reiserfs_journal_commit *)(FSYS_BUF - 0x1000);//struct size 4K
 static char *linkbuf = (char *)(FSYS_BUF - PATH_MAX);	/* buffer for following symbolic links */
 static char *tmp_name = (char *)(FSYS_BUF - 0x1000);	/* 2048 bytes used */
-#endif
 
 //static __inline__ unsigned long
 //log2_tmp (unsigned long word)
@@ -430,12 +428,6 @@ block_read (int blockNr, int start, int len, unsigned long long buffer, unsigned
 	  /* This is the end of cached journal marker.  The remaining
 	   * transactions are still on disk.
 	   */
-#ifdef GRUB_UTIL
-	  struct reiserfs_journal_desc   desc1;		//struct size 4K. Too bad!!
-	  struct reiserfs_journal_commit commit1;	//struct size 4K. Too bad!!
-	  struct reiserfs_journal_desc   *desc = &desc1;
-	  struct reiserfs_journal_commit *commit = &commit1;
-#endif
 
 	  if (! journal_read (desc_block, sizeof (struct reiserfs_journal_desc), (char *) desc))
 	    return 0;
@@ -489,12 +481,6 @@ journal_init (void)
   unsigned int commit_block;
   unsigned int next_trans_id;
   struct reiserfs_journal_header header;	//struct size 12
-#ifdef GRUB_UTIL
-  struct reiserfs_journal_desc   desc1;		//struct size 4K. Too bad!!
-  struct reiserfs_journal_commit commit1;	//struct size 4K. Too bad!!
-  struct reiserfs_journal_desc   *desc = &desc1;
-  struct reiserfs_journal_commit *commit = &commit1;
-#endif
   __u32 *journal_table = JOURNAL_START;
 
   journal_read (block_count, sizeof (header), (char *) &header);
@@ -584,10 +570,6 @@ journal_init (void)
 int
 reiserfs_mount (void)
 {
-#ifdef GRUB_UTIL
-  struct reiserfs_super_block super1;	// size=202 bytes
-  struct reiserfs_super_block *super = &super1;
-#endif
   int superblock = REISERFS_DISK_OFFSET_IN_BYTES >> SECTOR_BITS;
 
   if ((unsigned long)part_length < superblock + (sizeof (struct reiserfs_super_block) >> SECTOR_BITS)
@@ -1016,14 +998,8 @@ reiserfs_dir (char *dirname)
   struct reiserfs_de_head *de_head;
   char *rest, ch;
   __u32 dir_id, objectid, parent_dir_id = 0, parent_objectid = 0;
-//#ifndef STAGE1_5
 //  unsigned long do_possibilities = 0;
-//#endif /* ! STAGE1_5 */
 
-#ifdef GRUB_UTIL
-//PATH_MAX=1024 is too long for the stack!
-  char linkbuf[PATH_MAX];	/* buffer for following symbolic links */
-#endif
   unsigned long link_count = 0;
   unsigned long mode;
 
@@ -1166,10 +1142,8 @@ reiserfs_dir (char *dirname)
 
       *rest = 0;
       
-//# ifndef STAGE1_5
 //      if (print_possibilities && ch != '/')
 //	do_possibilities = 1;
-//# endif /* ! STAGE1_5 */
       
       while (1)
 	{
@@ -1200,9 +1174,6 @@ reiserfs_dir (char *dirname)
 	      int j, k;
 	      char ch1;
 	      //char *tmp_name = NAME_BUF;
-#ifdef GRUB_UTIL
-	      char tmp_name[2048];
-#endif
 
 	      /* Name length = name_end - filename */
 
@@ -1229,7 +1200,6 @@ reiserfs_dir (char *dirname)
 		  //*name_end = 0;
 		  cmp = substring (dirname, tmp_name, 0);
 		  //*name_end = tmp;
-# ifndef STAGE1_5
 		  if (print_possibilities && ch != '/')
 		    {
 		      if (cmp <= 0)
@@ -1242,7 +1212,6 @@ reiserfs_dir (char *dirname)
 			}
 		    }
 		  else
-# endif /* ! STAGE1_5 */
 		    if (cmp == 0)
 		      goto found;
 		}
@@ -1254,10 +1223,8 @@ reiserfs_dir (char *dirname)
 	    }
 	}
       
-# ifndef STAGE1_5
       if (print_possibilities < 0)
 	return 1;
-# endif /* ! STAGE1_5 */
       
       errnum = ERR_FILE_NOT_FOUND;
       *rest = ch;
@@ -1278,10 +1245,6 @@ reiserfs_dir (char *dirname)
 unsigned long
 reiserfs_embed (unsigned long *start_sector, unsigned long needed_sectors)
 {
-#ifdef GRUB_UTIL
-  struct reiserfs_super_block super1;	//struct size 202. Too many!!
-  struct reiserfs_super_block *super = &super1;
-#endif
   unsigned long num_sectors;
   
   if (! devread (REISERFS_DISK_OFFSET_IN_BYTES >> SECTOR_BITS, 0, 

@@ -129,14 +129,6 @@
 
 #include "filesys.h"
 
-#include "decomp.h"
-
-/* so we can disable decompression  */
-#ifdef GRUB_UTIL
-int no_decompression = 0;
-unsigned long long gzip_filemax;
-#endif
-
 /* used to tell if "read" should be redirected to "gunzip_read" */
 int compressed_file;
 
@@ -1068,22 +1060,12 @@ init_dynamic_block (void)
   bl = lbits;
   if ((i = huft_build (ll, na, 257, cplens, cplext, &tl, &bl)) != 0)
     {
-#if 0
-      if (i == 1)
-	printf ("gunzip: incomplete literal tree\n");
-#endif
-
       errnum = ERR_BAD_GZIP_DATA;
       return;
     }
   bd = dbits;
   if ((i = huft_build (ll + na, nd, 0, cpdist, cpdext, &td, &bd)) != 0)
     {
-#if 0
-      if (i == 1)
-	printf ("gunzip: incomplete distance tree\n");
-#endif
-
       errnum = ERR_BAD_GZIP_DATA;
       return;
     }

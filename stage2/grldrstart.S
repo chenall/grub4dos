@@ -32,11 +32,7 @@
 #include <shared.h>
 #define ASM_FILE
 	
-#ifndef STAGE1_5
 #include <stage2_size.h>
-#else
-#error cannot compile with STAGE1_5
-#endif
 
 #ifdef GRLDR_MBR
 	.file	"mbrstart.S"	

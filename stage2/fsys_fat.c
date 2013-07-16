@@ -73,9 +73,7 @@ fat_mount (void)
 {
   struct fat_bpb bpb;
   __u32  first_fat;
-#ifndef STAGE1_5
   __u32  magic;
-#endif /* STAGE1_5 */
   
   /* Check partition type for harddisk */
 //  if (((current_drive & 0x80) || (current_slice != 0))
@@ -109,7 +107,6 @@ fat_mount (void)
   FAT_SUPER->clustsize_bits
     = FAT_SUPER->sectsize_bits + log2_tmp (bpb.sects_per_clust);
   
-#ifndef STAGE1_5
   /* cluster size must be <= 32768 */
 //  if (FAT_SUPER->clustsize_bits > 15)
 //  {
@@ -117,7 +114,6 @@ fat_mount (void)
 //	grub_printf ("Warning! FAT cluster size(=%d) larger than 32K!\n", (1 << (FAT_SUPER->clustsize_bits)));
     //return 0;
 //  }
-#endif /* STAGE1_5 */
 
   /* reserved sectors should not be 0 for fat_fs */
   if (FAT_CVT_U16 (bpb.reserved_sects) == 0)
@@ -220,30 +216,23 @@ fat_mount (void)
   if (FAT_SUPER->fat_size == 8)
     {
       first_fat &= 0x0fffffff;
-#ifndef STAGE1_5
       magic = 0x0fffff00;
-#endif /* STAGE1_5 */
     }
   else if (FAT_SUPER->fat_size == 4)
     {
       first_fat &= 0x0000ffff;
-#ifndef STAGE1_5
       magic = 0xff00;
-#endif /* STAGE1_5 */
     }
   else
     {
       first_fat &= 0x00000fff;
-#ifndef STAGE1_5
       magic = 0x0f00;
-#endif /* STAGE1_5 */
     }
 
   /* Ignore the 3rd bit, because some BIOSes assigns 0xF0 to the media
      descriptor, even if it is a so-called superfloppy (e.g. an USB key).
      The check may be too strict for this kind of stupid BIOSes, as
      they overwrite the media descriptor.  */
-#ifndef STAGE1_5
 //  if ((first_fat | 0x8) != (magic | bpb.media | 0x8))
 //  if ((first_fat | 0x8) != (magic | 0xF8))
   if ((first_fat | 0xF) != (magic | 0xFF))
@@ -252,7 +241,6 @@ fat_mount (void)
 	grub_printf ("Warning! Invalid first FAT entry(=0x%X)!\n", first_fat);
     //return 0;
   }
-#endif /* STAGE1_5 */
 
 	fats_type = FAT_SUPER->fat_type;
   FAT_SUPER->cached_fat = - 2 * FAT_CACHE_SIZE;
@@ -282,7 +270,6 @@ label_exfat:
     if (FAT_SUPER->clustsize_bits > 25)
       return 0;
 
-#ifndef STAGE1_5
     /* cluster size must be <= 32768 */
     if (FAT_SUPER->clustsize_bits > 15)
     {
@@ -290,7 +277,6 @@ label_exfat:
 	grub_printf ("Warning! FAT cluster size(=%d) larger than 32K!\n", (1 << (FAT_SUPER->clustsize_bits)));
       //return 0;
     }
-#endif /* STAGE1_5 */
 
     /* Number of FATs(nearly always 1, 2 is for TexFAT only).  */
     if ((unsigned char)(bpb.fat_count - 1) > 1)
@@ -351,14 +337,12 @@ label_exfat:
 	(unsigned long long)(unsigned int)(char *)&first_fat, 0xedde0d90))
       return 0;
     
-#ifndef STAGE1_5
     if (first_fat != 0xfffffff8)
     {
       if (debug > 0)
   	grub_printf ("Warning! Invalid first FAT entry(=0x%X)!\n", first_fat);
       //return 0;
     }
-#endif /* STAGE1_5 */
 
 	fats_type = FAT_SUPER->fat_type;
   FAT_SUPER->cached_fat = - 2 * FAT_CACHE_SIZE;
@@ -522,9 +506,7 @@ fat_dir (char *dirname)
   unsigned long long exfat_filemax = 0;
   unsigned long exfat_file_cluster = 0;
   
-//#ifndef STAGE1_5
 //  int do_possibilities = 0;
-//#endif
   
   /* XXX I18N:
    * the positions 2,4,6 etc are high bytes of a 16 bit unicode char 
@@ -586,10 +568,8 @@ fat_dir (char *dirname)
   
   *rest = 0;
   
-//# ifndef STAGE1_5
 //  if (print_possibilities && ch != '/')
 //    do_possibilities = 1;
-//# endif
   
   while (1)
     {
@@ -600,17 +580,12 @@ fat_dir (char *dirname)
 	{
 	  if (errnum == 0)
 	    {
-# ifndef STAGE1_5
 	      if (print_possibilities < 0)
 		{
 		  /* previously succeeded, so return success */
-#if 0
-		  putchar ('\n');
-#endif
 		  *rest = ch;	/* XXX: Should restore the byte? */
 		  return 1;
 		}
-# endif /* STAGE1_5 */
 	      
 	      errnum = ERR_FILE_NOT_FOUND;
 	    }
@@ -723,10 +698,8 @@ fat_dir (char *dirname)
 	  if (sum == alias_checksum)
 	    {
 	      goto valid_filename;
-//# ifndef STAGE1_5
 //	      if (do_possibilities)
 //		goto print_filename;
-//# endif /* STAGE1_5 */
 //	      
 //	      if (substring (dirname, filename, 1) == 0)
 //		break;
@@ -754,7 +727,6 @@ short_name:
 valid_filename:
       unicode_to_utf8 (filename, utf8, 832);
 
-# ifndef STAGE1_5
       if (print_possibilities && ch != '/')
 	{
 //	print_filename:
@@ -766,7 +738,6 @@ valid_filename:
 	    }
 	  continue;
 	}
-# endif /* STAGE1_5 */
       
       if (substring (dirname, (char *)utf8, 1) == 0)
 	break;

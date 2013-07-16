@@ -84,10 +84,4 @@ unsigned short serial_hw_get_port (int unit);
 int serial_hw_init (unsigned short port, unsigned int speed,
 		    int word_len, int parity, int stop_bit_len);
 
-#ifdef GRUB_UTIL
-/* Set the file name of a serial device (or a pty device). This is a
-   function specific to the grub shell.  */
-void serial_set_device (const char *device);
-#endif /* GRUB_UTIL */
-
 #endif /* ! GRUB_SERIAL_HEADER */

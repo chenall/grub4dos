@@ -34,15 +34,8 @@
 # define EXT_C(sym) sym
 #endif
 
-/* Maybe redirect memory requests through grub_scratch_mem. */
-#ifdef GRUB_UTIL
-extern char *grub_scratch_mem;
-# define RAW_ADDR(x) ((x) + (int) grub_scratch_mem)
-# define RAW_SEG(x) (RAW_ADDR ((x) << 4) >> 4)
-#else
 # define RAW_ADDR(x) (x)
 # define RAW_SEG(x) (x)
-#endif
 
 /*
  *  Integer sizes
@@ -70,14 +63,9 @@ extern char *grub_scratch_mem;
 #define NEW_HEAPSIZE 1500
 
 /* 512-byte scratch area */
-#ifdef GRUB_UTIL
-#define SCRATCHADDR  RAW_ADDR (0x78000)
-#define SCRATCHSEG   RAW_SEG (0x7800)
-#else
 /* more than 1 sector used! See chainloader code. */
 #define SCRATCHADDR  RAW_ADDR (0x1F000)
 #define SCRATCHSEG   RAW_SEG (0x1F00)
-#endif
 
 /*
  *  This is the location of the raw device buffer.  It is 31.5K
@@ -85,16 +73,10 @@ extern char *grub_scratch_mem;
  */
 
 /* BUFFERLEN must be a power of two, i.e., 2^n, or 2**n */
-#ifdef GRUB_UTIL
-#define BUFFERLEN   0x8000
-#define BUFFERADDR  RAW_ADDR (0x70000)
-#define BUFFERSEG   RAW_SEG (0x7000)
-#else
 /* BUFFERLEN must be 64K for now! */
 #define BUFFERLEN   0x10000
 #define BUFFERADDR  RAW_ADDR (0x30000)
 #define BUFFERSEG   RAW_SEG (0x3000)
-#endif
 
 #define BOOT_PART_TABLE	RAW_ADDR (0x07be)
 
@@ -114,13 +96,8 @@ extern char *grub_scratch_mem;
  *  It is 32K in size, do not overrun!
  */
 
-#ifdef GRUB_UTIL
-#define FSYS_BUFLEN  0x8000
-#define FSYS_BUF RAW_ADDR (0x68000)
-#else
 #define FSYS_BUFLEN  0x8000
 #define FSYS_BUF RAW_ADDR (0x3E0000)
-#endif
 
 /* Paging structure : PML4, PDPT, PD  4096-bytes each */
 /* Memory area from 0x50000 to the end of low memory is used by gfxmenu. So we
@@ -139,13 +116,8 @@ extern char *grub_scratch_mem;
 /* Command-line buffer for Multiboot kernels and modules. This area
    includes the area into which Stage 1.5 and Stage 1 are loaded, but
    that's no problem.  */
-#ifndef STAGE1_5
 #define MB_CMDLINE_BUF		RAW_ADDR (0x7000)
 #define MB_CMDLINE_BUFLEN	0x1000
-#else
-#define MB_CMDLINE_BUF		RAW_ADDR (0x2000)
-#define MB_CMDLINE_BUFLEN	0x6000
-#endif
 
 //#define FSYS_BUF		0x3E0000
 //#define FSYS_BUFLEN		0x008000
@@ -283,47 +255,8 @@ extern char *grub_scratch_mem;
 
 /* Stage 2 identifiers */
 #define STAGE2_ID_STAGE2		0
-#define STAGE2_ID_FFS_STAGE1_5		1
-#define STAGE2_ID_E2FS_STAGE1_5		2
-#define STAGE2_ID_FAT_STAGE1_5		3
-#define STAGE2_ID_MINIX_STAGE1_5	4
-#define STAGE2_ID_REISERFS_STAGE1_5	5
-#define STAGE2_ID_VSTAFS_STAGE1_5	6
-#define STAGE2_ID_JFS_STAGE1_5		7
-#define STAGE2_ID_XFS_STAGE1_5		8
-#define STAGE2_ID_ISO9660_STAGE1_5	9
-#define STAGE2_ID_UFS2_STAGE1_5		10
-#define STAGE2_ID_NTFS_STAGE1_5		11
 
-#ifndef STAGE1_5
-# define STAGE2_ID	STAGE2_ID_STAGE2
-#else
-# if defined(FSYS_FFS)
-#  define STAGE2_ID	STAGE2_ID_FFS_STAGE1_5
-# elif defined(FSYS_EXT2FS)
-#  define STAGE2_ID	STAGE2_ID_E2FS_STAGE1_5
-# elif defined(FSYS_FAT)
-#  define STAGE2_ID	STAGE2_ID_FAT_STAGE1_5
-# elif defined(FSYS_NTFS)
-#  define STAGE2_ID	STAGE2_ID_NTFS_STAGE1_5
-# elif defined(FSYS_MINIX)
-#  define STAGE2_ID	STAGE2_ID_MINIX_STAGE1_5
-# elif defined(FSYS_REISERFS)
-#  define STAGE2_ID	STAGE2_ID_REISERFS_STAGE1_5
-# elif defined(FSYS_VSTAFS)
-#  define STAGE2_ID	STAGE2_ID_VSTAFS_STAGE1_5
-# elif defined(FSYS_JFS)
-#  define STAGE2_ID	STAGE2_ID_JFS_STAGE1_5
-# elif defined(FSYS_XFS)
-#  define STAGE2_ID	STAGE2_ID_XFS_STAGE1_5
-# elif defined(FSYS_ISO9660)
-#  define STAGE2_ID	STAGE2_ID_ISO9660_STAGE1_5
-# elif defined(FSYS_UFS2)
-#  define STAGE2_ID	STAGE2_ID_UFS2_STAGE1_5
-# else
-#  error "unknown Stage 2"
-# endif
-#endif
+#define STAGE2_ID	STAGE2_ID_STAGE2
 
 /*
  *  defines for use when switching between real and protected mode
@@ -381,38 +314,19 @@ extern char *grub_scratch_mem;
 
 /* Codes for getchar. */
 #define ASCII_CHAR(x)   ((x) & 0xFF)
-#if !defined(GRUB_UTIL) || !defined(HAVE_LIBCURSES)
-# define KEY_LEFT        0x4B00
-# define KEY_RIGHT       0x4D00
-# define KEY_UP          0x4800
-# define KEY_DOWN        0x5000
-# define KEY_IC          0x5200	/* insert char */
-# define KEY_DC          0x5300	/* delete char */
-# define KEY_BACKSPACE   0x0E08
-# define KEY_HOME        0x4700
-# define KEY_END         0x4F00
-# define KEY_NPAGE       0x5100
-# define KEY_PPAGE       0x4900
-# define A_NORMAL        0x7
-# define A_REVERSE       0x70
-#elif defined(HAVE_NCURSES_CURSES_H)
-# include <ncurses/curses.h>
-#elif defined(HAVE_NCURSES_H)
-# include <ncurses.h>
-#elif defined(HAVE_CURSES_H)
-# include <curses.h>
-#else
-#define KEY_HOME        0x0106 /*0x4700*/
-#define KEY_END         0x0168 /*0x4F00*/
-#define KEY_LEFT        0x0104 /*0x4B00*/
-#define KEY_RIGHT       0x0105 /*0x4D00*/
-#define KEY_UP          0x0153 /*0x4800*/
-#define KEY_DOWN        0x0152 /*0x5000*/
-#define KEY_DC          0x014A /*0x5300*/
-#define KEY_BACKSPACE   0x0107 /*0x0E08*/
-#define KEY_PPAGE       0x4900
+#define KEY_LEFT        0x4B00
+#define KEY_RIGHT       0x4D00
+#define KEY_UP          0x4800
+#define KEY_DOWN        0x5000
+#define KEY_IC          0x5200	/* insert char */
+#define KEY_DC          0x5300	/* delete char */
+#define KEY_BACKSPACE   0x0E08
+#define KEY_HOME        0x4700
+#define KEY_END         0x4F00
 #define KEY_NPAGE       0x5100
-#endif
+#define KEY_PPAGE       0x4900
+#define A_NORMAL        0x7
+#define A_REVERSE       0x70
 
 /* In old BSD curses, A_NORMAL and A_REVERSE are not defined, so we
    define them here if they are undefined.  */
@@ -830,28 +744,6 @@ struct malloc_array *malloc_array_start;
 /* If not using config file, this variable is set to zero,
    otherwise non-zero.  */
 extern int use_config_file;
-#ifdef GRUB_UTIL
-/* If using the preset menu, this variable is set to non-zero,
-   otherwise zero.  */
-extern unsigned long use_preset_menu;
-/* If not using curses, this variable is set to zero, otherwise non-zero.  */
-extern int use_curses;
-/* The flag for verbose messages.  */
-extern int verbose;
-/* The flag for read-only.  */
-extern int read_only;
-/* The number of floppies to be probed.  */
-extern int floppy_disks;
-/* The map between BIOS drives and UNIX device file names.  */
-extern char **device_map;
-/* The filename which stores the information about a device map.  */
-extern char *device_map_file;
-/* The array of geometries.  */
-extern struct geometry *disks;
-/* Assign DRIVE to a device name DEVICE.  */
-extern void assign_device_name (int drive, const char *device);
-#define DEBUG_SLEEP {}
-#else
 #define	use_preset_menu *(unsigned long *)0x307FF8
 /* print debug message on startup if the DEBUG_KEY is pressed. */
 extern int debug_boot;
@@ -862,7 +754,6 @@ extern int map_func (char *arg, int flags);
 //#define SLEEP {unsigned long i;for (i=0;i<0xFFFFFFFF;i++);}
 #define DEBUG_SLEEP {debug_sleep(debug_boot,__LINE__,__FILE__);}
 extern inline void debug_sleep(int debug_boot, int line, char *file);
-#endif
 
 extern void hexdump(unsigned long,char*,int);
 extern int builtin_cmd (char *cmd, char *arg, int flags);
@@ -891,7 +782,6 @@ typedef char VAR_VALUE[MAX_ENV_LEN];
 extern int envi_cmd(const char *var,char * const env,int flags);
 
 
-#ifndef STAGE1_5
 /* GUI interface variables. */
 # define MAX_FALLBACK_ENTRIES	8
 extern int fallback_entries[MAX_FALLBACK_ENTRIES];
@@ -975,7 +865,6 @@ extern char commands[];
 /* For `more'-like feature.  */
 extern int count_lines;
 extern int use_pager;
-#endif
 
 #ifndef NO_DECOMPRESSION
 extern int no_decompression;
@@ -986,10 +875,8 @@ extern int compressed_file;
 extern void (*disk_read_hook) (unsigned long long, unsigned long, unsigned long);
 extern void (*disk_read_func) (unsigned long long, unsigned long, unsigned long);
 
-#ifndef STAGE1_5
 /* The flag for debug mode.  */
 extern int debug;
-#endif /* STAGE1_5 */
 
 extern unsigned long current_drive;
 extern unsigned long current_partition;
@@ -1025,9 +912,7 @@ extern unsigned long current_slice;
 extern unsigned long dos_drive_geometry;
 extern unsigned long dos_part_start;
 
-#ifndef GRUB_UTIL
 extern unsigned long force_geometry_tune;
-#endif
 
 extern int buf_drive;
 extern int buf_track;
@@ -1065,10 +950,6 @@ extern unsigned long reg_base_addr_append;
 extern unsigned long init_atapi(void);
 extern unsigned char min_cdrom_id;	/* MINIMUM ATAPI CDROM DRIVE NUMBER */
 extern unsigned long cdrom_drive;
-//extern unsigned long cdrom_drives[];
-//#ifndef cdrom_drive
-//#define cdrom_drive (*cdrom_drives)
-//#endif
 extern unsigned long force_cdrom_as_boot_device;
 extern unsigned long ram_drive;
 extern unsigned long long rd_base;
@@ -1078,14 +959,10 @@ extern unsigned long saved_mem_upper;
 extern unsigned long saved_mem_lower;
 extern unsigned long saved_mmap_addr;
 extern unsigned long saved_mmap_length;
-#ifndef STAGE1_5
 extern unsigned long extended_memory;
 extern unsigned long init_free_mem_start;
 extern int config_len;
-#endif
-#ifndef GRUB_UTIL
 extern char menu_init_script_file[32];
-#endif
 /*
  *  Error variables.
  */
@@ -1234,11 +1111,7 @@ int getrtsecs (void);
 /* Get current date and time */
 void get_datetime(unsigned long *date, unsigned long *time);
 
-#ifdef GRUB_UTIL
-int currticks (void);
-#else
 #define currticks()	(*(unsigned long *)0x46C)
-#endif
 
 /* Clear the screen. */
 void cls (void);
@@ -1278,7 +1151,6 @@ int biosdisk (int subfunc, int drive, struct geometry *geometry,
 void stop_floppy (void);
 
 /* Command-line interface functions. */
-#ifndef STAGE1_5
 
 /* The flags for the builtins.  */
 #define BUILTIN_CMDLINE		0x1	/* Run in the command-line.  */
@@ -1327,9 +1199,7 @@ kernel_t;
 extern kernel_t kernel_type;
 extern int show_menu;
 extern int silent_hiddenmenu;
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
 extern char *mbr;
-#endif
 extern int grub_timeout;
 
 char *wee_skip_to (char *cmdline, int flags);
@@ -1346,7 +1216,6 @@ int run_line (char *heap,int flags);
 struct builtin *find_command (char *command);
 void print_cmdline_message (int forever);
 void enter_cmdline (char *heap, int forever);
-#endif
 
 /* C library replacement functions with identical semantics. */
 //void grub_printf (const char *format,...);
@@ -1365,9 +1234,7 @@ char *grub_strtok (char *s, const char *delim);
 int grub_memcmp (const char *s1, const char *s2, int n);
 int grub_strcmp (const char *s1, const char *s2);
 int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitive);
-#ifndef GRUB_UTIL
 #define strncmp(s1,s2,n) strncmpx(s1,s2,n,0)
-#endif
 #define strnicmp(s1,s2,n) strncmpx(s1,s2,n,1)
 #define strncmpi strnicmp
 int grub_strlen (const char *str);
@@ -1381,27 +1248,7 @@ int grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsi
 //void grub_memmove64 (unsigned long long to, const unsigned long long from, unsigned long long len);
 int mem64 (int func, unsigned long long dest, unsigned long long src, unsigned long long len);
 
-#ifndef GRUB_UTIL
-typedef unsigned long grub_jmp_buf[6];
-#else
-/* In the grub shell, use the libc jmp_buf instead.  */
-# include <setjmp.h>
-# define grub_jmp_buf jmp_buf
-#endif
-
-#ifdef GRUB_UTIL
-# define grub_setjmp	setjmp
-# define grub_longjmp	longjmp
-#else /* ! GRUB_UTIL */
-int grub_setjmp (grub_jmp_buf env);
-void grub_longjmp (grub_jmp_buf env, int val);
 extern unsigned long configfile_opened;
-#endif /* ! GRUB_UTIL */
-
-/* The environment for restarting Stage 2.  */
-extern grub_jmp_buf restart_env;
-/* The environment for restarting the command-line interface.  */
-//extern grub_jmp_buf restart_cmdline_env;
 
 /* misc */
 void init_page (void);
@@ -1433,6 +1280,19 @@ unsigned int grub_sleep (unsigned int seconds);
 
 #ifndef NO_DECOMPRESSION
 /* Compression support. */
+struct decomp_entry
+{
+  char *name;
+  int (*open_func) (void);
+  void (*close_func) (void);
+  unsigned long long (*read_func) (unsigned long long buf, unsigned long long len, unsigned long write);
+};
+
+#define NUM_DECOM 2
+
+extern struct decomp_entry decomp_table[NUM_DECOM];
+extern int decomp_type;
+
 int gunzip_test_header (void);
 void gunzip_close (void);
 unsigned long long gunzip_read (unsigned long long buf, unsigned long long len, unsigned long write);
@@ -1499,7 +1359,6 @@ int print_completions (int is_filename, int is_completion);
 /* Copies the current partition data to the desired address. */
 void copy_current_part_entry (char *buf);
 
-#ifndef STAGE1_5
 void bsd_boot (kernel_t type, int bootdev, char *arg)
      __attribute__ ((noreturn));
 
@@ -1514,7 +1373,6 @@ int load_module (char *module, char *arg);
 int load_initrd (char *initrd);
 
 int check_password(char* expected, password_t type);
-#endif
 extern int biosdisk_standard (int ah, int drive,
 			      int coff, int hoff, int soff,
 			      int nsec, int segment);

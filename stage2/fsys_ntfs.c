@@ -142,11 +142,7 @@ typedef struct {
 //#else
 //#define dbg_printf	if (0) printf
 //#endif
-#ifndef STAGE1_5
 #define dbg_printf	if (((unsigned long)debug) >= 0x7FFFFFFF) printf
-#else
-#define dbg_printf	if (0) printf
-#endif /* STAGE1_5 */
 
 static int fixup(char* buf,int len,char* magic)
 {
@@ -1112,10 +1108,8 @@ static int list_file(char* cur_mft,char *fn,char *pos)
                 {
                   //if ((i) || ((utf8[0]!='$') && ((utf8[0]!='.') || (ns!=1))))
                     {
-#ifndef STAGE1_5
                       if (print_possibilities>0)
                         print_possibilities=-print_possibilities;
-#endif
 //                    for (i=1;i<ns;i++)
 //                      np[i]=np[i*2];
 //                    np[ns]=0;
@@ -1353,15 +1347,12 @@ int ntfs_mount (void)
 int ntfs_dir (char *dirname)
 {
   int ret;
-//#ifndef STAGE1_5
 //  int is_print=print_possibilities;
-//#endif
 
   filepos=filemax=0;
 
   if (*dirname=='/')
     dirname++;
-#ifndef STAGE1_5
   if ((*dirname=='#') && (dirname[1]>='0') && (dirname[1]<='9'))
     {
       unsigned long long mftno;
@@ -1371,7 +1362,6 @@ int ntfs_dir (char *dirname)
         return 0;
       return init_file(cmft,(unsigned long)mftno);
     }
-#endif
 
   if (! init_file(cmft,FILE_ROOT))
     return 0;
@@ -1394,15 +1384,11 @@ int ntfs_dir (char *dirname)
       }
 
       *next = 0;
-//#ifndef STAGE1_5
 //      print_possibilities=(ch=='/')?0:is_print;
-//#endif
 
       ret=scan_dir(cmft,dirname);
 
-//#ifndef STAGE1_5
 //  print_possibilities=is_print;
-//#endif
       *next=ch;
 
       if (! ret)

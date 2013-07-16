@@ -18,33 +18,15 @@
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-/* Include stdio.h before shared.h, because we can't define
-   WITHOUT_LIBC_STUBS here.  */
-#ifdef GRUB_UTIL
-# include <stdio.h>
-#endif
-
 #include <shared.h>
 #include <filesys.h>
 #include <term.h>
 #include "iamath.h"
 
-#ifdef SUPPORT_NETBOOT
-# define GRUB	1
-# include <etherboot.h>
-#endif
-
 #ifdef SUPPORT_SERIAL
 # include <serial.h>
 # include <terminfo.h>
 #endif
-
-#ifdef GRUB_UTIL
-# include <device.h>
-#else /* ! GRUB_UTIL */
-# include <apic.h>
-//# include <smp-imps.h>
-#endif /* ! GRUB_UTIL */
 
 #ifdef USE_MD5_PASSWORDS
 # include <md5.h>
@@ -58,18 +40,6 @@ static kernel_t kernel_type_orig;
 
 /* The boot device.  */
 static int bootdev = 0;
-
-#ifdef GRUB_UTIL
-/* 0 for silent, 1 for normal, 2..MAX_UINT for verbose.
- * if debug == MAX_UINT or debug < 0, then filesystem debug mode is on.
- * (MAX_UINT is 0x7FFFFFFF)
- */
-int debug = 1;
-
-int use_config_file = 1;
-unsigned long free_mem_start;
-unsigned long free_mem_end;
-#endif
 
 /* The default entry.  */
 int default_entry = 0;
@@ -100,32 +70,20 @@ int show_menu = 1;
 int silent_hiddenmenu = 0;
 
 unsigned long pxe_restart_config = 0;
-#ifndef GRUB_UTIL
 unsigned long configfile_in_menu_init = 0;
-#endif /* ! GRUB_UTIL */
 
-//extern unsigned long i;
-//extern char *mbr;
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
 /* The first sector of stage2 can be reused as a tmp buffer.
  * Do NOT write more than 512 bytes to this buffer!
  * The stage2-body, i.e., the pre_stage2, starts at 0x8200!
  * Do NOT overwrite the pre_stage2 code at 0x8200!
  */
 extern char *mbr /* = (char *)0x8000 */; /* 512-byte buffer for any use. */
-#else
-extern char mbr[SECTOR_SIZE];
-#endif /* STAGE1_5 || GRUB_UTIL */
 
-#ifndef STAGE1_5
 extern int dir (char *dirname);
-#endif /* STAGE1_5 */
 
 #ifdef SUPPORT_GRAPHICS
 extern int outline;
 #endif /* SUPPORT_GRAPHICS */
-
-#ifndef GRUB_UTIL
 
 /* Whether the drive map hook is on.  */
 //static int int13_on_hook = 0;
@@ -156,7 +114,6 @@ extern unsigned long chain_bx_set;
 extern unsigned long chain_cx;
 extern unsigned long chain_cx_set;
 extern char HMA_start[];
-#endif /* ! GRUB_UTIL */
 
 static int chainloader_load_segment = 0;
 static int chainloader_load_segment_orig = 0;
@@ -204,7 +161,6 @@ static char chainloader_file_orig[256];
 
 static const char *warning_defaultfile = "# WARNING: If you want to edit this file directly, do not remove any line";
 
-#ifndef GRUB_UTIL
 int
 drive_map_slot_empty (struct drive_map_slot item)
 {
@@ -239,7 +195,6 @@ drive_map_slot_equal (struct drive_map_slot a, struct drive_map_slot b)
 }
 int map_func (char *arg, int flags);
 int disable_map_info = 0;
-#endif /* ! GRUB_UTIL */
 
 /* Prototypes for allowing straightfoward calling of builtins functions
    inside other functions.  */
@@ -359,11 +314,6 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 static int
 blocklist_func (char *arg, int flags)
 {
-//#ifdef GRUB_UTIL
-//  char *dummy = (char *) RAW_ADDR (0x100000);
-//#else
-//  char *dummy = (char *) RAW_ADDR (0x400000);
-//#endif
   char *dummy = NULL;
   int err;
 #ifndef NO_DECOMPRESSION
@@ -490,7 +440,6 @@ static struct builtin builtin_blocklist =
   "Print the blocklist notation of the file FILE."
 };
 
-#if ! defined(GRUB_UTIL) && ! defined (STAGE1_5)
 /* WinME support by bean. Thanks! */
 
 // The following routines are used to decompress IO.SYS from WinME
@@ -672,23 +621,13 @@ static long expand_file(char* src,char* dst)
         }
     }
 }
-#endif /* ! defined(GRUB_UTIL) && ! defined (STAGE1_5) */
 
-#ifndef GRUB_UTIL
 /* boot */
 static int
 boot_func (char *arg, int flags)
 {
   int old_cursor, old_errnum;
   struct term_entry *prev_term = current_term;
-
-#if 0
-  /* Clear the int15 handler if we can boot the kernel successfully.
-     This assumes that the boot code never fails only if KERNEL_TYPE is
-     not KERNEL_TYPE_NONE. Is this assumption is bad?  */
-  if (kernel_type != KERNEL_TYPE_NONE)
-    unset_int15_handler ();
-#endif
 
    /* if our terminal needed initialization, we should shut it down
     * before booting the kernel, but we want to save what it was so
@@ -704,11 +643,6 @@ boot_func (char *arg, int flags)
     pxe_unload();
 #endif
 
-#ifdef SUPPORT_NETBOOT
-  /* Shut down the networking.  */
-  cleanup_net ();
-#endif
-  
   old_cursor = setcursor (1);
   errnum = 0;
 
@@ -782,7 +716,6 @@ boot_func (char *arg, int flags)
        */
       boot_drive = saved_drive;
 
-#ifndef GRUB_UTIL
       /* extended chainloader */
       if (chainloader_load_length > 512 || chainloader_boot_CS > 0 ||
 		chainloader_skip_length ||
@@ -1080,7 +1013,6 @@ boot_func (char *arg, int flags)
 		((void (*)(void))HMA_ADDR)();	/* no return */
 		break;
 	}
-#endif
       if (chainloader_disable_A20)
       {
 	if (gateA20 (0))
@@ -1136,27 +1068,13 @@ boot_func (char *arg, int flags)
       /* Get the ROM configuration table by INT 15, AH=C0h.  */
       mbi.config_table = get_rom_config_table ();
 
-#if 0
-      /* Get the APM BIOS table.  */
-      get_apm_info ();
-      if (apm_bios_info.version)
-      {
-	mbi.apm_table = (unsigned long) &apm_bios_info;
-	mbi.flags |= MB_INFO_APM_TABLE;
-      }
-#endif
-
 	/* Get the drive info.  */
 	mbi.drives_length = 0;
 	mbi.drives_addr = (unsigned long)(saved_mmap_addr + saved_mmap_length);
 
 	/* XXX: Too many drives will possibly use a piece of memory starting at 0x10000(64K). */
 
-#ifdef GRUB_UTIL
-#define FIND_DRIVES 8
-#else
 #define FIND_DRIVES (*((char *)0x475))
-#endif
       {
 	unsigned int drive;
 	unsigned long addr = mbi.drives_addr;
@@ -1225,56 +1143,6 @@ static struct builtin builtin_boot =
   "Boot the OS/chain-loader which has been loaded."
   "with option \"-1\" will boot to local via INT 18.",
 };
-#endif /* ! GRUB_UTIL */
-
-
-#ifdef SUPPORT_NETBOOT
-#ifndef GRUB_UTIL
-/* bootp */
-static int
-bootp_func (char *arg, int flags)
-{
-  int with_configfile = 0;
-
-  errnum = 0;
-  if (grub_memcmp (arg, "--with-configfile", sizeof ("--with-configfile") - 1)
-      == 0)
-    {
-      with_configfile = 1;
-      arg = skip_to (0, arg);
-    }
-  
-  if (! bootp ())
-    {
-      if (errnum == ERR_NONE)
-	errnum = ERR_DEV_VALUES;
-
-      return 0;
-    }
-
-  /* Notify the configuration.  */
-  print_network_configuration ();
-
-  /* XXX: this can cause an endless loop, but there is no easy way to
-     detect such a loop unfortunately.  */
-  if (with_configfile)
-    configfile_func (config_file, flags);
-  
-  return 1;
-}
-
-static struct builtin builtin_bootp =
-{
-  "bootp",
-  bootp_func,
-  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
-  "bootp [--with-configfile]",
-  "Initialize a network device via BOOTP. If the option `--with-configfile'"
-  " is given, try to load a configuration file specified by the 150 vendor"
-  " tag."
-};
-#endif /* ! GRUB_UTIL */
-#endif /* SUPPORT_NETBOOT */
 
 void hexdump(unsigned long ofs,char* buf,int len)
 {
@@ -1602,8 +1470,6 @@ static struct builtin builtin_cat =
   "--number  use with --locate,the max number for locate",
 };
 
-
-#if ! defined(GRUB_UTIL) && ! defined (STAGE1_5)
 /* cdrom */
 static int
 cdrom_func (char *arg, int flags)
@@ -1659,7 +1525,6 @@ static struct builtin builtin_cdrom =
   " The high word of P specifies the base register of the control block registers, and"
   " the low word of P specifies the base register of the command block registers."
 };
-#endif /* ! defined(GRUB_UTIL) && ! defined (STAGE1_5) */
 
 
 /* chainloader */
@@ -1932,10 +1797,10 @@ chainloader_func (char *arg, int flags)
 	if (! chainloader_edx_set)
 	{
 		#ifdef FSYS_FB
-	  if (current_drive == 0xFFFF || current_drive == ram_drive)
+		if (current_drive == 0xFFFF || current_drive == ram_drive)
 		{
-			chainloader_edx = (saved_drive == FB_DRIVE ? fb_status >> 8 & 0xff :
-								saved_drive | ((saved_partition >> 8) & 0xFF00));
+			chainloader_edx = (saved_drive == FB_DRIVE ? (fb_status >> 8) & 0xff :
+						saved_drive | ((saved_partition >> 8) & 0xFF00));
 			chainloader_edx_set=1;
 		}
 		else if (current_drive == FB_DRIVE)
@@ -1953,7 +1818,6 @@ chainloader_func (char *arg, int flags)
 	}
 
 
-#ifndef GRUB_UTIL
   /* check bootable cdrom */
   if (*filename == 0 || *filename == ' ' || *filename == '\t')
   {
@@ -2395,7 +2259,6 @@ chainloader_func (char *arg, int flags)
 	return ! (errnum = 0);
 
   }
-#endif /* ! GRUB_UTIL */
 
   /* Open the file.  */
   grub_open (arg);
@@ -3467,7 +3330,6 @@ configfile_func (char *arg, int flags)
 	}
   char *new_config = config_file;
 
-#ifndef GRUB_UTIL
 	if (*arg == 0 && *config_file)
 	{
 	    if	(pxe_restart_config == 0)
@@ -3482,7 +3344,6 @@ configfile_func (char *arg, int flags)
 	    *saved_dir = 0;	/* clear saved_dir */
 	    arg = config_file;
 	}
-#endif /* ! GRUB_UTIL */
 
   if (grub_strlen(saved_dir) + grub_strlen(arg) + 20 >= sizeof(chainloader_file_orig))
 	return ! (errnum = ERR_WONT_FIT);
@@ -3540,13 +3401,8 @@ configfile_func (char *arg, int flags)
   nul_terminate (arg);
 
   /* check possible filename overflow */
-#ifdef GRUB_UTIL
-  if (grub_strlen (arg) >= 0x70 /*sizeof (config_file)*/)
-	return ! (errnum = ERR_WONT_FIT);
-#else
   if (grub_strlen (arg) >= ((char *)0x8270 - new_config))
 	return ! (errnum = ERR_WONT_FIT);
-#endif
   
   /* Check if the file ARG is present.  */
   if (! grub_open (arg))
@@ -3559,34 +3415,20 @@ configfile_func (char *arg, int flags)
 	/* Copy ARG to CONFIG_FILE.  */
 	while ((*new_config++ = *arg++));
   
-#ifndef GRUB_UTIL
 	if (current_drive == cdrom_drive)
 		configfile_opened = 1;
 	else
-#endif /* ! GRUB_UTIL */
 		grub_close ();
   }
 
-//#ifndef GRUB_UTIL
-//	if (pxe_restart_config == 0)
-//	{
-//		if (configfile_in_menu_init)
-//			return 1;
-//	}
-//#endif /* ! GRUB_UTIL */
-
-//#ifdef GRUB_UTIL
   /* Force to load the configuration file.  */
   use_config_file = 1;
-//#endif
 
-#ifndef GRUB_UTIL
 	if (pxe_restart_config == 0)
 	{
 		pxe_restart_config = /* configfile_in_menu_init = */ 1;
 		return 1;
 	}
-#endif /* ! GRUB_UTIL */
 
   /* Make sure that the user will not be authoritative.  */
   auth = 0;
@@ -3600,17 +3442,6 @@ configfile_func (char *arg, int flags)
     boot_drive = current_drive;
     install_partition = current_partition;
   }
-#ifdef GRUB_UTIL
-  buf_drive = -1;	/* invalidate disk cache. */
-  buf_track = -1;	/* invalidate disk cache. */
-  current_drive = GRUB_INVALID_DRIVE;
-  current_partition = 0xFFFFFF;
-  fsys_type = NUM_FSYS;
-  boot_part_addr = 0;
-  current_slice = 0;
-  /* Restart cmain.  */
-  grub_longjmp (restart_env, 0);
-#else
   ///* Restart pre_stage2.  */
   //(*(char *)0x8205) |= 2;	/* disable keyboard intervention */
   //chain_stage1(0, 0x8200, boot_part_addr);
@@ -3623,7 +3454,6 @@ configfile_func (char *arg, int flags)
   asm volatile ("call cmain");
   asm volatile ("jmp stop");
 #endif
-#endif /* ! GRUB_UTIL */
 
   /* Never reach here.  */
   return 1;
@@ -3639,7 +3469,6 @@ static struct builtin builtin_configfile =
 };
 
 
-#ifndef GRUB_UTIL
 /* dd if=IF of=OF */
 static int
 dd_func (char *arg, int flags)
@@ -3972,7 +3801,6 @@ dd_func (char *arg, int flags)
 
 	/* check if it is a mapped memdrive */
 	j = DRIVE_MAP_SIZE;		/* real drive */
-#ifndef GRUB_UTIL
 	if (! unset_int13_handler (1))	/* map is hooked */
 	    for (j = 0; j < DRIVE_MAP_SIZE; j++)
 	    {
@@ -3985,7 +3813,6 @@ dd_func (char *arg, int flags)
 		if (out_drive == hooked_drive_map[j].from_drive && hooked_drive_map[j].to_drive == 0xFF && !(hooked_drive_map[j].to_cylinder & 0x4000))
 			break;			/* memdrive */
 	    }
-#endif /* ! GRUB_UTIL */
 
 	if (j == DRIVE_MAP_SIZE)	/* real drive */
 	{
@@ -4140,7 +3967,6 @@ static struct builtin builtin_dd =
 };
 
 
-#endif	/* ! GRUB_UTIL */
 /* debug */
 static int bat_script_debug = 0;
 static int
@@ -4202,19 +4028,14 @@ default_func (char *arg, int flags)
   unsigned long long ull;
   int len;
   char *p;
-#if defined(STAGE1_5) || defined(GRUB_UTIL)
-//  char mbr[SECTOR_SIZE];
-#endif
   //char *default_file = (char *) DEFAULT_FILE_BUF;
 
   errnum = 0;
-#ifndef SUPPORT_DISKLESS
   if (grub_memcmp (arg, "saved", 5) == 0)
     {
       default_entry = saved_entryno;
       return 1;
     }
-#endif /* SUPPORT_DISKLESS */
   
   if (safe_parse_maxint (&arg, &ull))
     {
@@ -4288,75 +4109,8 @@ static struct builtin builtin_default =
   " saved in the specified file FILE. When FILE is specified, all subsequent"
   " `savedefault\' commands will save default entry numbers into"
   " FILE."
-#if 0
-  "default [NUM | `saved']",
-  "Set the default entry to entry number NUM (if not specified, it is"
-  " 0, the first entry) or the entry number saved by savedefault."
-#endif
 };
 
-
-#ifdef GRUB_UTIL
-/* device */
-static int
-device_func (char *arg, int flags)
-{
-  char *drive = arg;
-  char *device;
-
-  /* Get the drive number from DRIVE.  */
-  if (! set_device (drive))
-    return 0;
-
-  /* Get the device argument.  */
-  device = skip_to (0, drive);
-  
-  /* Terminate DEVICE.  */
-  nul_terminate (device);
-
-  if (! *device || ! check_device (device))
-    {
-      errnum = ERR_FILE_NOT_FOUND;
-      return 0;
-    }
-
-  assign_device_name (current_drive, device);
-  
-  return 1;
-}
-
-static struct builtin builtin_device =
-{
-  "device",
-  device_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "device DRIVE DEVICE",
-  "Specify DEVICE as the actual drive for a BIOS drive DRIVE. This command"
-  " can be used only in the grub shell."
-};
-#endif /* GRUB_UTIL */
-
-
-#ifdef SUPPORT_NETBOOT
-/* dhcp */
-static int
-dhcp_func (char *arg, int flags)
-{
-  /* For now, this is an alias for bootp.  */
-  return bootp_func (arg, flags);
-}
-
-static struct builtin builtin_dhcp =
-{
-  "dhcp",
-  dhcp_func,
-  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
-  "dhcp",
-  "Initialize a network device via DHCP."
-};
-#endif /* SUPPORT_NETBOOT */
-
-
 static int terminal_func (char *arg, int flags);
 
 #ifdef SUPPORT_GRAPHICS
@@ -4555,7 +4309,7 @@ static struct builtin builtin_checkrange =
   "checkrange RANGE COMMAND",
   "Return true if the return value of COMMAND is in RANGE and false otherwise."
 };
-#ifndef GRUB_UTIL
+
 /* checktime */
 static int
 checktime_func(char *arg, int flags)
@@ -4695,7 +4449,6 @@ static struct builtin builtin_checktime =
   "checktime min hour dom month dow",
   "Check time."
 };
-#endif
 
 /* clear */
 static int 
@@ -4718,50 +4471,6 @@ static struct builtin builtin_clear =
   "Clear the screen"
 };
 
-
-#if 0
-/* displayapm */
-static int
-displayapm_func (char *arg, int flags)
-{
-  if (mbi.flags & MB_INFO_APM_TABLE)
-    {
-      grub_printf ("APM BIOS information:\n"
-		   " Version:          0x%x\n"
-		   " 32-bit CS:        0x%x\n"
-		   " Offset:           0x%x\n"
-		   " 16-bit CS:        0x%x\n"
-		   " 16-bit DS:        0x%x\n"
-		   " 32-bit CS length: 0x%x\n"
-		   " 16-bit CS length: 0x%x\n"
-		   " 16-bit DS length: 0x%x\n",
-		   (unsigned) apm_bios_info.version,
-		   (unsigned) apm_bios_info.cseg,
-		   apm_bios_info.offset,
-		   (unsigned) apm_bios_info.cseg_16,
-		   (unsigned) apm_bios_info.dseg_16,
-		   (unsigned) apm_bios_info.cseg_len,
-		   (unsigned) apm_bios_info.cseg_16_len,
-		   (unsigned) apm_bios_info.dseg_16_len);
-      return 1;
-    }
-
-  grub_printf ("No APM BIOS found or probe failed\n");
-
-  return 0;
-}
-
-static struct builtin builtin_displayapm =
-{
-  "displayapm",
-  displayapm_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "displayapm",
-  "Display APM BIOS information."
-};
-#endif
-
-
 /* displaymem */
 static int
 displaymem_func (char *arg, int flags)
@@ -4814,215 +4523,6 @@ static struct builtin builtin_displaymem =
   " machine is, including all regions of physical RAM installed."
 };
 
-
-/* dump FROM TO */
-#ifdef GRUB_UTIL
-static int
-dump_func (char *arg, int flags)
-{
-  char *from, *to;
-  FILE *fp;
-  char c;
-  
-  from = arg;
-  to = skip_to (0, arg);
-  if (! *from || ! *to)
-    {
-      errnum = ERR_BAD_ARGUMENT;
-      return 0;
-    }
-
-  nul_terminate (from);
-  nul_terminate (to);
-  
-  if (! grub_open (from))
-    return 0;
-
-  fp = fopen (to, "w");
-  if (! fp)
-    {
-      errnum = ERR_WRITE;
-      return 0;
-    }
-
-  while (grub_read ((unsigned long long)(unsigned int)&c, 1, 0xedde0d90))
-    if (fputc (c, fp) == EOF)
-      {
-	errnum = ERR_WRITE;
-	fclose (fp);
-	return 0;
-      }
-
-  if (fclose (fp) == EOF)
-    {
-      errnum = ERR_WRITE;
-      return 0;
-    }
-
-  grub_close ();
-  return 1;
-}
-
-static struct builtin builtin_dump =
-  {
-    "dump",
-    dump_func,
-    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
-    "dump FROM TO",
-    "Dump the contents of the file FROM to the file TO. FROM must be"
-    " a GRUB file and TO must be an OS file."
-  };
-#endif /* GRUB_UTIL */
-
-
-#ifdef GRUB_UTIL
-static char embed_info[32];
-/* embed */
-/* Embed a Stage 1.5 in the first cylinder after MBR or in the
-   bootloader block in a FFS.  */
-static int
-embed_func (char *arg, int flags)
-{
-  char *stage1_5;
-  char *device;
-  char *stage1_5_buffer = (char *) RAW_ADDR (0x100200);
-  unsigned long len, size;
-  unsigned long sector;
-  
-  stage1_5 = arg;
-  device = skip_to (0, stage1_5);
-
-  /* Open a Stage 1.5.  */
-  if (! grub_open (stage1_5))
-    return 0;
-
-  /* Read the whole of the Stage 1.5.  */
-  len = grub_read ((unsigned long long)(unsigned int)stage1_5_buffer, -1ULL, 0xedde0d90);
-  grub_close ();
-  
-  if (errnum)
-    return 0;
-  
-  size = (len + SECTOR_SIZE - 1) / SECTOR_SIZE;
-  
-  /* Get the device where the Stage 1.5 will be embedded.  */
-  set_device (device);
-  if (errnum)
-    return 0;
-
-  if (current_partition == 0xFFFFFF)
-    {
-      /* Embed it after the MBR.  */
-
-//#if defined(STAGE1_5) || defined(GRUB_UTIL)	    
-      //char mbr[SECTOR_SIZE];
-#define mbr ((char *) RAW_ADDR (0x100000))
-//#endif
-#if 0	/* !!!! The obsolete EZ-BIOS no longer supported !!!! */
-      char ezbios_check[2*SECTOR_SIZE];
-#endif
-      int i;
-      
-      /* Open the partition.  */
-      if (! open_partition ())
-	return 0;
-
-      /* No floppy has MBR.  */
-      if (! (current_drive & 0x80))
-	{
-	  errnum = ERR_DEV_VALUES;
-	  return 0;
-	}
-      
-      /* Read the MBR of CURRENT_DRIVE.  */
-      //printf ("current_drive=%X, mbr=%X\n", current_drive, mbr);
-      if (! rawread (current_drive, PC_MBR_SECTOR, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)mbr, 0xedde0d90))
-	return 0;
-      
-      //printf ("current_drive=%X, mbr=%X\n", current_drive, mbr);
-      /* Sanity check.  */
-      if (! PC_MBR_CHECK_SIG (mbr))
-	{
-	  errnum = ERR_BAD_PART_TABLE;
-	  return 0;
-	}
-
-      /* Check if the disk can store the Stage 1.5.  */
-      for (i = 0; i < 4; i++)
-	if (PC_SLICE_TYPE (mbr, i) && PC_SLICE_START (mbr, i) - 1 < size)
-	  {
-	    errnum = ERR_NO_DISK_SPACE;
-	    return 0;
-	  }
-      
-#if 0	/* !!!! The obsolete EZ-BIOS no longer supported !!!! */
-      
-      /* Check for EZ-BIOS signature. It should be in the third
-       * sector, but due to remapping it can appear in the second, so
-       * load and check both.  
-       */
-      if (! rawread (current_drive, 1, 0, 2 * SECTOR_SIZE, ezbios_check))
-	return 0;
-
-      if (! memcmp (ezbios_check + 3, "AERMH", 5)
-	  || ! memcmp (ezbios_check + 512 + 3, "AERMH", 5))
-	{
-	  /* The space after the MBR is used by EZ-BIOS which we must 
-	   * not overwrite.
-	   */
-	  errnum = ERR_NO_DISK_SPACE;
-	  return 0;
-	}
-#endif
-
-      sector = 1;
-#undef mbr
-    }
-  else
-    {
-      /* Embed it in the bootloader block in the filesystem.  */
-      unsigned long start_sector;
-      
-      /* Open the partition.  */
-      if (! open_device ())
-	return 0;
-
-      /* Check if the current slice supports embedding.  */
-      if (fsys_table[fsys_type].embed_func == 0
-	  || ! fsys_table[fsys_type].embed_func (&start_sector, size))
-	{
-	  errnum = ERR_DEV_VALUES;
-	  return 0;
-	}
-
-      sector = part_start + start_sector;
-    }
-
-  /* Clear the cache.  */
-  buf_track = -1;
-
-  /* Now perform the embedding.  */
-  if (! devwrite ((unsigned long)(sector - part_start), size, (unsigned long long)(unsigned int)stage1_5_buffer))
-    return 0;
-  
-  grub_printf (" %d sectors are embedded.\n", (unsigned long)size);
-  grub_sprintf (embed_info, "%d+%d", (unsigned long)(sector - part_start), (unsigned long)size);
-  return 1;
-}
-
-static struct builtin builtin_embed =
-{
-  "embed",
-  embed_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
-  "embed STAGE1_5 DEVICE",
-  "Embed the Stage 1.5 STAGE1_5 in the sectors after MBR if DEVICE"
-  " is a drive, or in the \"bootloader\" area if DEVICE is a FFS partition."
-  " Print the number of sectors which STAGE1_5 occupies if successful."
-};
-#endif /* GRUB_UTIL */
-
-
 /* errnum */
 int
 errnum_func (char *arg, int flags)
@@ -5041,7 +4541,6 @@ static struct builtin builtin_errnum =
   "Return the error number."
 };
 
-
 /* errorcheck */
 static int
 errorcheck_func (char *arg, int flags)
@@ -5079,7 +4578,6 @@ static struct builtin builtin_errorcheck =
   "Turn on/off or display the error check mode, or toggle it if no argument."
 };
 
-
 /* fallback */
 static int
 fallback_func (char *arg, int flags)
@@ -5136,17 +4634,14 @@ static struct builtin builtin_fallback =
   "fallback",
   fallback_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-#if 1
   "fallback NUM...",
   "Go into unattended boot mode: if the default boot entry has any"
   " errors, instead of waiting for the user to do anything, it"
   " immediately starts over using the NUM entry (same numbering as the"
   " `default' command). This obviously won't help if the machine"
   " was rebooted by a kernel that GRUB loaded."
-#endif
 };
 
-
 /* command */
 static char command_path[128]="(bd)/BOOT/GRUB/";
 static int command_path_len = 15;
@@ -5454,7 +4949,6 @@ command_func (char *arg, int flags)
 			if (! errnum)
 				errnum = ERR_EXEC_FORMAT;
 		}
-		#ifndef GRUB_UTIL
 		else if (*end_signature == 0x85848F8D0C010512ULL)
 		{
 			if (filemax < 512 || filemax > 0x80000)
@@ -5527,7 +5021,6 @@ command_func (char *arg, int flags)
 				return ret;
 			}
 		}
-		#endif
 		else if (*end_signature != 0xBCBAA7BA03051805ULL && 
 				  *(unsigned long *)program != BAT_SIGN &&
 				  (*(unsigned long long *)program & 0xFFFFFFFFFFFFFFULL) != UTF8_BAT_SIGN)
@@ -5710,7 +5203,6 @@ static struct builtin builtin_delmod =
    "delete the module loaded by insmod."
 };
 
-
 /* commandline */
 int
 commandline_func (char *arg, int flags)
@@ -5729,13 +5221,10 @@ static struct builtin builtin_commandline =
   "commandline",
   commandline_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
-#if 1
   "commandline",
   "Enter command-line prompt mode."
-#endif
 };
 
-
 extern int bsd_evil_hack;
 
 extern unsigned long next_partition_drive;
@@ -5760,9 +5249,6 @@ set_partition_hidden_flag (int hidden)
   unsigned long part = 0xFFFFFF;
   unsigned long start, len, offset, ext_offset1;
   unsigned long type, entry1;
-#ifdef GRUB_UTIL
-//  char mbr[512];
-#endif
   
 #if 0
   /* The drive must be a hard disk.  */
@@ -5851,13 +5337,11 @@ set_partition_hidden_flag (int hidden)
 }
 
 
-
 static int real_root_func (char *arg1, int attempt_mnt);
 /* find */
 /* Search for the filename ARG in all of partitions and optionally make that
  * partition root("--set-root", Thanks to Chris Semler <csemler@mail.com>).
  */
-//static void print_root_device (char *buffer);
 static int find_check(char *filename,struct builtin *builtin1,char *arg,int flags)
 {
 	saved_drive = current_drive;
@@ -6051,14 +5535,6 @@ find_func (char *arg, int flags)
 					continue;
 				break;
 #endif
-#ifdef SUPPORT_NETBOOT
-			case 'n':
-				if (network_ready)
-					current_drive = NETWORK_DRIVE;
-				else
-					continue;
-				break;
-#endif /* SUPPORT_NETBOOT */
 #ifdef FSYS_PXE
 			case 'p':
 				if (pxe_entry)
@@ -6070,22 +5546,15 @@ find_func (char *arg, int flags)
 			case 'c':/*Only search first cdrom*/
 				if (cdrom_drive != GRUB_INVALID_DRIVE)
 					current_drive = cdrom_drive;
-#ifndef GRUB_UTIL
 				else if (atapi_dev_count)
 					current_drive = min_cdrom_id;
-#endif
 				else
 					continue;
 				break;
 			case 'h':
 			case 'f':
-				#ifdef GRUB_UTIL
-				#define FIND_HD_DRIVES 8
-				#define FIND_FD_DRIVES 4
-				#else
 				#define FIND_HD_DRIVES  (*((char *)0x475))
 				#define FIND_FD_DRIVES  (((*(char*)0x410) & 1)?(((*(char*)0x410) >> 6) & 3 ) + 1 : 0)
-				#endif
 				FIND_DRIVES = (*devtype == 'h') ? 0x80 + FIND_HD_DRIVES : FIND_FD_DRIVES;
 				for (drive = (*devtype == 'h')?0x80:0; drive < FIND_DRIVES; drive++)
 				{
@@ -6136,21 +5605,6 @@ find_func (char *arg, int flags)
 						} /*end if*/
 					} /*while next_partition*/
 
-					#if 0
-					saved_drive = current_drive = drive;
-					saved_partition = current_partition = 0xFFFFFF;
-					if ((*devtype == 'h') && open_device()) //if is a partition 
-					{
-						if ((tmp_drive != current_drive || tmp_partition != current_partition) && find_check(filename,builtin1,arg,flags) == 1)
-						{
-							got_file = 1;
-							if (set_root)
-								goto found;
-						}
-						//continue;
-					}
-					#endif
-
 				/* next_partition always sets ERRNUM in the last call, so clear it.  */
 					errnum = ERR_NONE;
 				}
@@ -6169,105 +5623,6 @@ find_func (char *arg, int flags)
 				goto found;
 		}
 	}
-#if 0
-#ifdef FSYS_FB
-	if (fb_status && tmp_drive != FB_DRIVE)
-	{
-		current_drive = FB_DRIVE;
-		current_partition = 0xFFFFFF;
-		if (find_check(filename,builtin1,arg,flags) == 1)
-		{
-			got_file = 1;
-			if (set_root)
-					goto found;
-		}
-	}
-#endif
-
-	/* CD-ROM.  */
-	if (cdrom_drive != GRUB_INVALID_DRIVE && ! ignore_cd && tmp_drive != cdrom_drive)
-	{
-		current_drive = cdrom_drive;
-		current_partition = 0xFFFFFF;
-
-		if (find_check(filename,builtin1,arg,flags) == 1)
-		{
-			got_file = 1;
-			if (set_root)
-				goto found;
-		}
-	}
-
-  /* Hard disks. Search in hard disks first, since floppies are slow */
-#ifdef GRUB_UTIL
-#define FIND_HD_DRIVES 8
-#define FIND_FD_DRIVES 8
-#else
-#define FIND_HD_DRIVES  (*((char *)0x475))
-#define FIND_FD_DRIVES  (((*(char*)0x410) & 1)?((*(char*)0x410) >> 6) + 1 : 0)
-#endif
-	for (current_drive = 0x80; /*drive < 0x80 + FIND_DRIVES*/; current_drive++)
-	{
-		unsigned long part = 0xFFFFFF;
-		unsigned long start, len, offset, ext_offset1;
-		unsigned long type, entry1;
-
-		/* Floppies.  */
-		if (current_drive >= 0x80 + FIND_HD_DRIVES)
-		{
-			if (ignore_floppies)
-				break;
-			current_drive = 0;	/* begin floppy */
-		}
-
-		if (current_drive < 0x80 && current_drive >= FIND_FD_DRIVES)
-		{
-				break;	/* end floppy */
-		}
-
-		current_partition = part;
-		if (open_device()) //if is a partition 
-		{
-			if (find_check(filename,builtin1,arg,flags) == 1)
-			{
-				got_file = 1;
-				if (set_root)
-					goto found;
-			}
-			continue;
-		}
-
-		while ((	next_partition_drive		= current_drive,
-			next_partition_dest		= 0xFFFFFF,
-			next_partition_partition	= &part,
-			next_partition_type		= &type,
-			next_partition_start		= &start,
-			next_partition_len		= &len,
-			next_partition_offset		= &offset,
-			next_partition_entry		= &entry1,
-			next_partition_ext_offset	= &ext_offset1,
-			next_partition_buf		= mbr,
-			next_partition ()))
-		{
-			if (type != PC_SLICE_TYPE_NONE
-				&& ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
-				&& ! IS_PC_SLICE_TYPE_BSD (type)
-				&& ! IS_PC_SLICE_TYPE_EXTENDED (type))
-			{
-				current_partition = part;
-				if (find_check(filename,builtin1,arg,flags) == 1)
-				{
-					got_file = 1;
-					if (set_root)
-						goto found;
-				}
-			} /*end if*/
-		} /*while next_partition*/
-
-		/* next_partition always sets ERRNUM in the last call, so clear it.  */
-		errnum = ERR_NONE;
-	}
-#endif
 	saved_drive = tmp_drive;
 	saved_partition = tmp_partition;
 found:
@@ -6745,11 +6100,7 @@ uuid_func (char *arg, int flags)
 
   errnum = 0;
   /* Search in hard disks first, since floppies are slow */
-#ifdef GRUB_UTIL
-#define FIND_DRIVES 8
-#else
 #define FIND_DRIVES (*((char *)0x475))
-#endif
   for (drive = 0x80; drive < 0x80 + FIND_DRIVES; drive++)
 #undef FIND_DRIVES
     {
@@ -6826,11 +6177,7 @@ uuid_func (char *arg, int flags)
     }
 
   /* Floppies.  */
-#ifdef GRUB_UTIL
-#define FIND_DRIVES 8
-#else
 #define FIND_DRIVES (((*(char*)0x410) & 1)?((*(char*)0x410) >> 6) + 1 : 0)
-#endif
   for (drive = 0; drive < 0 + FIND_DRIVES; drive++)
 #undef FIND_DRIVES
     {
@@ -7063,11 +6410,7 @@ geometry_func (char *arg, int flags)
 //  struct geometry tmp_geom;
   char *msg;
 //  char *device = arg;
-//#ifdef GRUB_UTIL
-//  char *ptr;
-//#endif
 
-#ifndef GRUB_UTIL
   int sync = 0;
 
   force_geometry_tune = 0;
@@ -7093,7 +6436,6 @@ geometry_func (char *arg, int flags)
 	break;
     arg = skip_to (0, arg);
   }
-#endif
 
   /* Get the drive and the partition.  */
   if (! *arg || *arg == ' ' || *arg == '\t')
@@ -7115,86 +6457,18 @@ geometry_func (char *arg, int flags)
   /* Check for the geometry.  */
   if (get_diskinfo (current_drive, &tmp_geom))
     {
-#ifndef GRUB_UTIL
       force_geometry_tune = 0;
-#endif
       errnum = ERR_NO_DISK;
       return 0;
     }
-#ifndef GRUB_UTIL
   force_geometry_tune = 0;
-#endif
 
-#if 0
-	/* The situation described as follows should never occur. So comment
-	 * out. Another reason to comment out: the SCRATCHSEG has only 512
-	 * byte room and it cannot hold a large 2048-byte cdrom sector.
-	 *
-	 *		Commented out 2008-09-30 by Tinybit.
-	 */
-
-  /* Attempt to read the first sector, because some BIOSes turns out not
-     to support LBA even though they set the bit 0 in the support
-     bitmap, only after reading something actually.  */
-#ifdef GRUB_UTIL
-  if (current_drive != cdrom_drive)
-#else
-  if (current_drive != cdrom_drive && (current_drive < (unsigned char)min_cdrom_id || current_drive >= (unsigned char)(min_cdrom_id + atapi_dev_count)))
-#endif /* GRUB_UTIL */
-  {
-    if (biosdisk (BIOSDISK_READ, current_drive, &tmp_geom, 0, 1, SCRATCHSEG))
-    {
-	if (debug > 1)
-		printf("biosdisk read first sector of drive 0x%X: failure! errnum=%d\n", current_drive, errnum);
-	errnum = 0;
-//	errnum = ERR_READ;
-//	return 0;
-    }
-  }
-#endif
-
-#ifdef GRUB_UTIL
-  arg/*ptr*/ = skip_to (0, arg/*device*/);
-  if (*arg/*ptr*/)
-    {
-      char *cylinder, *head, *sector, *total_sector;
-      unsigned long long num_cylinder, num_head, num_sector, num_total_sector;
-
-      cylinder = arg/*ptr*/;
-      head = skip_to (0, cylinder);
-      sector = skip_to (0, head);
-      total_sector = skip_to (0, sector);
-      if (! safe_parse_maxint (&cylinder, &num_cylinder)
-	  || ! safe_parse_maxint (&head, &num_head)
-	  || ! safe_parse_maxint (&sector, &num_sector))
-	return 0;
-
-      disks[current_drive].cylinders = num_cylinder;
-      disks[current_drive].heads = num_head;
-      disks[current_drive].sectors = num_sector;
-
-      if (safe_parse_maxint (&total_sector, &num_total_sector))
-	disks[current_drive].total_sectors = num_total_sector;
-      else
-	disks[current_drive].total_sectors
-	  = num_cylinder * num_head * num_sector;
-      errnum = 0;
-
-      tmp_geom = disks[current_drive];
-      buf_drive = -1;
-    }
-#endif /* GRUB_UTIL */
-
-#ifdef GRUB_UTIL
-  msg = device_map[current_drive];
-#else
   if (tmp_geom.flags & BIOSDISK_FLAG_BIFURCATE)
     msg = "BIF";
   else if (tmp_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION)
     msg = "LBA";
   else
     msg = "CHS";
-#endif
 
   grub_printf ("drive 0x%02X(%s): C/H/S=%d/%d/%d, Sector Count/Size=%ld/%d\n",
 	       current_drive, msg,
@@ -7203,18 +6477,15 @@ geometry_func (char *arg, int flags)
 
   if (tmp_geom.sector_size != 512)
   {
-#ifndef GRUB_UTIL
 	if (sync)
 	{
 		grub_printf ("Cannot sync CD-ROM.\n");
 		errnum = ERR_BAD_ARGUMENT;
 		return 0; /* failure */
 	}
-#endif
 	return 1; /* success */
   }
 
-#ifndef GRUB_UTIL
   if (sync)
   {
 #define	BS	((struct master_and_dos_boot_sector *)mbr)
@@ -7352,16 +6623,8 @@ geometry_func (char *arg, int flags)
     //return 1;
 #undef BS
   }
-#endif
 
   errnum = 0;
-//#ifdef GRUB_UTIL
-//  if (current_drive != cdrom_drive)
-//#else
-//  if (current_drive != cdrom_drive && (current_drive < (unsigned char)min_cdrom_id || current_drive >= (unsigned char)(min_cdrom_id + atapi_dev_count)))
-//#endif /* GRUB_UTIL */
-    //if (current_drive & 0x80)
-//      real_open_partition (1);
 
   if (tmp_geom.sector_size == 512)
   {
@@ -7395,16 +6658,6 @@ static struct builtin builtin_geometry =
   "geometry",
   geometry_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-#ifdef GRUB_UTIL
-  "geometry [DRIVE] [CYLINDER HEAD SECTOR [TOTAL_SECTOR]]",
-  "Print the information for drive DRIVE or the current root device if DRIVE"
-  " is not specified. In the grub shell, you can"
-  " set the geometry of the drive arbitrarily. The number of the cylinders,"
-  " the one of the heads, the one of the sectors and the one of the total"
-  " sectors are set to CYLINDER, HEAD, SECTOR and TOTAL_SECTOR,"
-  " respectively. If you omit TOTAL_SECTOR, then it will be calculated based"
-  " on the C/H/S values automatically."
-#else
   "geometry [--tune] [--bios] [--sync] [DRIVE]",
   "Print the information for drive DRIVE or the current root device if DRIVE"
   " is not specified."
@@ -7414,7 +6667,6 @@ static struct builtin builtin_geometry =
   " of DRIVE and H/S values in BPB of each primary partition of DRIVE"
   "(or BPB of floppy DRIVE) will be updated according to the current"
   " geometry of DRIVE in use."
-#endif /* GRUB_UTIL */
 };
 
 
@@ -7599,7 +6851,7 @@ static struct builtin builtin_help =
   " aren't shown without the option `--all'."
 };
 
-
+
 /* hiddenmenu */
 static int
 hiddenmenu_func (char *arg, int flags)
@@ -7621,11 +6873,11 @@ hiddenmenu_func (char *arg, int flags)
       }
       else if (grub_memcmp (arg, "--chkpass", 9) == 0)
       {
-			unsigned long long t = 0x11bLL;
-			arg = skip_to(1,arg);
-			safe_parse_maxint(&arg,&t);
-			errnum = 0;
-      	silent_hiddenmenu = t;
+	unsigned long long t = 0x11bLL;
+	arg = skip_to(1,arg);
+	safe_parse_maxint(&arg,&t);
+	errnum = 0;
+	silent_hiddenmenu = t;
       }
     arg = skip_to (0, arg);
   }
@@ -7644,7 +6896,7 @@ static struct builtin builtin_hiddenmenu =
 #endif
 };
 
-
+
 /* hide */
 static int
 hide_func (char *arg, int flags)
@@ -7719,96 +6971,6 @@ static struct builtin builtin_hiddenflag =
 };
 
 
-#ifdef SUPPORT_NETBOOT
-/* ifconfig */
-static int
-ifconfig_func (char *arg, int flags)
-{
-  char *svr = 0, *ip = 0, *gw = 0, *sm = 0;
-  
-  errnum = 0;
-  if (! eth_probe ())
-    {
-      grub_printf ("No ethernet card found.\n");
-      errnum = ERR_DEV_VALUES;
-      return 0;
-    }
-  
-  while (*arg) 
-    {
-      if (! grub_memcmp ("--server=", arg, sizeof ("--server=") - 1))
-	svr = arg + sizeof("--server=") - 1;
-      else if (! grub_memcmp ("--address=", arg, sizeof ("--address=") - 1))
-	ip = arg + sizeof ("--address=") - 1;
-      else if (! grub_memcmp ("--gateway=", arg, sizeof ("--gateway=") - 1))
-	gw = arg + sizeof ("--gateway=") - 1;
-      else if (! grub_memcmp ("--mask=", arg, sizeof("--mask=") - 1))
-	sm = arg + sizeof ("--mask=") - 1;
-      else
-	{
-	  errnum = ERR_BAD_ARGUMENT;
-	  return 0;
-	}
-      
-      arg = skip_to (0, arg);
-    }
-  
-  if (! ifconfig (ip, sm, gw, svr))
-    {
-      errnum = ERR_BAD_ARGUMENT;
-      return 0;
-    }
-  
-  print_network_configuration ();
-  return 1;
-}
-
-static struct builtin builtin_ifconfig =
-{
-  "ifconfig",
-  ifconfig_func,
-  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
-  "ifconfig [--address=IP] [--gateway=IP] [--mask=MASK] [--server=IP]",
-  "Configure the IP address, the netmask, the gateway and the server"
-  " address or print current network configuration."
-};
-#endif /* SUPPORT_NETBOOT */
-
-
-#if 0
-/* impsprobe */
-static int
-impsprobe_func (char *arg, int flags)
-{
-#ifdef GRUB_UTIL
-  /* In the grub shell, we cannot probe IMPS.  */
-  errnum = ERR_UNRECOGNIZED;
-  return 0;
-#else /* ! GRUB_UTIL */
-  if (!imps_probe ())
-  {
-    if (debug > 0)
-      printf (" No MPS information found or probe failed\n");
-    return 0;
-  }
-
-  return 1;
-#endif /* ! GRUB_UTIL */
-}
-
-static struct builtin builtin_impsprobe =
-{
-  "impsprobe",
-  impsprobe_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
-  "impsprobe",
-  "Probe the Intel Multiprocessor Specification 1.1 or 1.4"
-  " configuration table and boot the various CPUs which are found into"
-  " a tight loop."
-};
-#endif
-
-
 /* initrd */
 static int
 initrd_func (char *arg, int flags)
@@ -7841,582 +7003,6 @@ static struct builtin builtin_initrd =
   " 2.6+ kernels, multiple cpio files can be loaded."
 };
 
-
-#ifdef GRUB_UTIL
-//#ifdef GRUB_UTIL
-//#define installaddr (*(unsigned long *)RAW_ADDR (0x100000))
-//#define installlist (*(unsigned long *)RAW_ADDR (0x100004))
-//#define stage2_first_buffer (*(char **)RAW_ADDR (0x100008))
-//#else
-static unsigned long installaddr, installlist;
-static char *stage2_first_buffer;
-//#endif
-static void disk_read_blocklist_func1 (unsigned long long sector, unsigned long offset, unsigned long length);
-
-  /* Write SECTOR to INSTALLLIST, and update INSTALLADDR and
-     INSTALLSECT.  */
-static void
-disk_read_blocklist_func1 (unsigned long long sector, unsigned long offset, unsigned long length)
-{
-      if (((unsigned long)debug) >= 0x7FFFFFFF)
-	printf("[%ld]", sector);
-
-      if (offset != 0 || blklst_last_length != SECTOR_SIZE)
-	{
-	  /* We found a non-sector-aligned data block. */
-	  errnum = ERR_UNALIGNED;
-	  return;
-	}
-
-      blklst_last_length = length;
-
-      if (*((unsigned long *) (installlist - 4))
-	  + *((unsigned short *) installlist) != sector
-	  || installlist == (unsigned long) stage2_first_buffer + SECTOR_SIZE + 4)
-	{
-	  installlist -= 8;
-
-	  if (*((unsigned long *) (installlist - 8)))
-	    errnum = ERR_WONT_FIT;
-	  else
-	    {
-	      *((unsigned short *) (installlist + 2)) = (installaddr >> 4);
-	      *((unsigned long *) (installlist - 4)) = sector;
-	    }
-	}
-
-      *((unsigned short *) installlist) += 1;
-      installaddr += 512;
-}
-
-//#ifdef GRUB_UTIL
-//#define saved_sector (*(unsigned long *)RAW_ADDR (0x10000C))
-//#else
-static unsigned long long saved_sector;
-//#endif
-static void disk_read_savesect_func (unsigned long long sector, unsigned long offset, unsigned long length);
-  
-  /* Save the first sector of Stage2 in STAGE2_SECT.  */
-static void
-disk_read_savesect_func (unsigned long long sector, unsigned long offset, unsigned long length)
-{
-      if (((unsigned long)debug) >= 0x7FFFFFFF)
-	printf ("[%ld]", sector);
-
-      /* ReiserFS has files which sometimes contain data not aligned
-         on sector boundaries.  Returning an error is better than
-         silently failing. */
-      if (offset != 0 || length != SECTOR_SIZE)
-	errnum = ERR_UNALIGNED;
-
-      saved_sector = sector;
-}
-
-/* install */
-static int
-install_func (char *arg, int flags)
-{
-  char *stage1_file, *dest_dev, *file, *addr;
-  char *stage1_buffer = (char *) RAW_ADDR (0x100200);
-  char *stage2_buffer = stage1_buffer + SECTOR_SIZE;
-  char *old_sect = stage2_buffer + SECTOR_SIZE;
-  char *stage2_second_buffer;
-  /* XXX: Probably SECTOR_SIZE is reasonable.  */
-  char *config_filename;
-  char *dummy;
-  unsigned long new_drive = GRUB_INVALID_DRIVE;
-  unsigned long dest_drive;
-  unsigned long dest_partition;
-  //unsigned long dest_sector;
-  unsigned long src_drive, src_partition, src_part_start;
-  unsigned long i;
-//struct geometry dest_geom, src_geom;
-  unsigned long stage2_first_sector, stage2_second_sector;
-  char *ptr;
-  /* Point to the location of the name of a configuration file in Stage 2.  */
-  char *config_file_location;
-  /* If FILE is a Stage 1.5?  */
-  int is_stage1_5 = 0;
-  /* Must call grub_close?  */
-  int is_open = 0;
-  /* If LBA is forced?  */
-  int is_force_lba = 0;
-#ifndef NO_DECOMPRESSION
-  int no_decompression_bak = no_decompression;
-#endif
-  /* Was the last sector full? */
-  blklst_last_length = SECTOR_SIZE;
-  
-  stage2_first_buffer = old_sect + SECTOR_SIZE;
-  stage2_second_buffer = stage2_first_buffer + SECTOR_SIZE;
-  config_filename = stage2_second_buffer + SECTOR_SIZE;
-  dummy = config_filename + SECTOR_SIZE;
-  
-#ifdef GRUB_UTIL
-  /* If the Stage 2 is in a partition mounted by an OS, this will store
-     the filename under the OS.  */
-  char *stage2_os_file = 0;
-#endif /* GRUB_UTIL */
-  
-  /* First, check the GNU-style long option.  */
-  while (1)
-    {
-      if (grub_memcmp ("--force-lba", arg, sizeof ("--force-lba") - 1) == 0)
-	{
-	  is_force_lba = 1;
-	  arg = skip_to (0, arg);
-	}
-#ifdef GRUB_UTIL
-      else if (grub_memcmp ("--stage2=", arg, sizeof ("--stage2=") - 1) == 0)
-	{
-	  stage2_os_file = arg + sizeof ("--stage2=") - 1;
-	  arg = skip_to (0, arg);
-	  nul_terminate (stage2_os_file);
-	}
-#endif /* GRUB_UTIL */
-      else
-	break;
-    }
-  
-  stage1_file = arg;
-  dest_dev = skip_to (0, stage1_file);
-  if (*dest_dev == 'd')
-    {
-      new_drive = 0;
-      dest_dev = skip_to (0, dest_dev);
-    }
-  file = skip_to (0, dest_dev);
-  addr = skip_to (0, file);
-
-  /* Get the installation address.  */
-  {
-	unsigned long long ull;
-	if (! safe_parse_maxint (&addr, &ull))
-	{
-		/* ADDR is not specified.  */
-		installaddr = 0;
-		ptr = addr;
-		errnum = 0;
-	}
-	else
-	{
-		installaddr = ull;
-		ptr = skip_to (0, addr);
-	}
-  }
-
-#ifndef NO_DECOMPRESSION
-  /* Do not decompress Stage 1 or Stage 2.  */
-  no_decompression = 1;
-#endif
-
-  /* Read Stage 1.  */
-  is_open = grub_open (stage1_file);
-  if (! is_open
-      || ! grub_read ((unsigned long long)(unsigned int)stage1_buffer, SECTOR_SIZE, 0xedde0d90) == SECTOR_SIZE)
-    goto fail;
-
-  /* Read the old sector from DEST_DEV.  */
-  if (! set_device (dest_dev)
-      || ! open_partition ()
-      || ! devread (0, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)old_sect, 0xedde0d90))
-    goto fail;
-
-  /* Store the information for the destination device.  */
-  dest_drive = current_drive;
-  dest_partition = current_partition;
-//dest_geom = buf_geom;
-  //dest_sector = (unsigned long)part_start;
-
-  /* Copy the possible DOS BPB, 59 bytes at byte offset 3.  */
-  grub_memmove (stage1_buffer + BOOTSEC_BPB_OFFSET,
-		old_sect + BOOTSEC_BPB_OFFSET,
-		BOOTSEC_BPB_LENGTH);
-
-  /* If for a hard disk, copy the possible MBR/extended part table.  */
-  if (dest_drive & 0x80)
-    grub_memmove (stage1_buffer + STAGE1_WINDOWS_NT_MAGIC,
-		  old_sect + STAGE1_WINDOWS_NT_MAGIC,
-		  STAGE1_PARTEND - STAGE1_WINDOWS_NT_MAGIC);
-
-  /* Check for the version and the signature of Stage 1.  */
-  if (*((short *)(stage1_buffer + STAGE1_VER_MAJ_OFFS)) != COMPAT_VERSION
-      || (*((unsigned short *) (stage1_buffer + BOOTSEC_SIG_OFFSET))
-	  != BOOTSEC_SIGNATURE))
-    {
-      errnum = ERR_BAD_VERSION;
-      goto fail;
-    }
-
-  /* This below is not true any longer. But should we leave this alone?  */
-  
-  /* If DEST_DRIVE is a floppy, Stage 2 must have the iteration probe
-     routine.  */
-  if (! (dest_drive & 0x80)
-      && (*((unsigned char *) (stage1_buffer + BOOTSEC_PART_OFFSET)) == 0x80
-	  || stage1_buffer[BOOTSEC_PART_OFFSET] == 0))
-    {
-      errnum = ERR_BAD_VERSION;
-      goto fail;
-    }
-
-  grub_close ();
-  
-  /* Open Stage 2.  */
-  is_open = grub_open (file);
-  if (! is_open)
-    goto fail;
-
-  src_drive = current_drive;
-  src_partition = current_partition;
-  src_part_start = (unsigned long)part_start;
-//src_geom = buf_geom;
-  
-  if (! new_drive)
-    new_drive = src_drive;
-  else if (src_drive != dest_drive)
-    grub_printf ("Warning: the option `d' was not used, but the Stage 1 will"
-		 " be installed on a\ndifferent drive than the drive where"
-		 " the Stage 2 resides.\n");
-
-  /* Set the boot drive.  */
-  *((unsigned char *) (stage1_buffer + STAGE1_BOOT_DRIVE)) = new_drive;
-
-  /* Set the "force LBA" flag.  */
-  *((unsigned char *) (stage1_buffer + STAGE1_FORCE_LBA)) = is_force_lba;
-
-  /* If DEST_DRIVE is a hard disk, enable the workaround, which is
-     for buggy BIOSes which don't pass boot drive correctly. Instead,
-     they pass 0x00 or 0x01 even when booted from 0x80.  */
-  if (dest_drive & BIOS_FLAG_FIXED_DISK)
-    /* Replace the jmp (2 bytes) with double nop's.  */
-    *((unsigned short *) (stage1_buffer + STAGE1_BOOT_DRIVE_CHECK))
-      = 0x9090;
-  
-  /* Read the first sector of Stage 2.  */
-  disk_read_hook = disk_read_savesect_func;
-  if (grub_read ((unsigned long long)(unsigned int)stage2_first_buffer, SECTOR_SIZE, 0xedde0d90) != SECTOR_SIZE)
-    goto fail;
-
-  stage2_first_sector = saved_sector;
-  
-  /* Read the second sector of Stage 2.  */
-  if (grub_read ((unsigned long long)(unsigned int)stage2_second_buffer, SECTOR_SIZE, 0xedde0d90) != SECTOR_SIZE)
-    goto fail;
-
-  stage2_second_sector = saved_sector;
-  
-  /* Check for the version of Stage 2.  */
-  if (*((short *) (stage2_second_buffer + STAGE2_VER_MAJ_OFFS))
-      != COMPAT_VERSION)
-    {
-      errnum = ERR_BAD_VERSION;
-      goto fail;
-    }
-
-  /* Check for the Stage 2 id.  */
-  if (stage2_second_buffer[STAGE2_STAGE2_ID] != STAGE2_ID_STAGE2)
-    is_stage1_5 = 1;
-
-  /* If INSTALLADDR is not specified explicitly in the command-line,
-     determine it by the Stage 2 id.  */
-  if (! installaddr)
-    {
-      if (! is_stage1_5)
-	/* Stage 2.  */
-	installaddr = 0x8000;
-      else
-	/* Stage 1.5.  */
-	installaddr = 0x2000;
-    }
-
-  *((unsigned long *) (stage1_buffer + STAGE1_STAGE2_SECTOR))
-    = stage2_first_sector;
-  *((unsigned short *) (stage1_buffer + STAGE1_STAGE2_ADDRESS))
-    = installaddr;
-  *((unsigned short *) (stage1_buffer + STAGE1_STAGE2_SEGMENT))
-    = installaddr >> 4;
-
-  i = (unsigned long) stage2_first_buffer + SECTOR_SIZE - 4;
-  while (*((unsigned long *) i))
-    {
-      if (i < (int) stage2_first_buffer
-	  || (*((int *) (i - 4)) & 0x80000000)
-	  || *((unsigned short *) i) >= 0xA00
-	  || *((short *) (i + 2)) == 0)
-	{
-	  errnum = ERR_BAD_VERSION;
-	  goto fail;
-	}
-
-      *((int *) i) = 0;
-      *((int *) (i - 4)) = 0;
-      i -= 8;
-    }
-
-  installlist = (int) stage2_first_buffer + SECTOR_SIZE + 4;
-  installaddr += SECTOR_SIZE;
-  
-  /* Read the whole of Stage2 except for the first sector.  */
-  filepos = SECTOR_SIZE;
-
-  disk_read_hook = disk_read_blocklist_func1;
-  if (! grub_read ((unsigned long long)(unsigned int)dummy, -1ULL, 0xedde0d90))
-    goto fail;
-  
-  disk_read_hook = 0;
-  
-  /* Find a string for the configuration filename.  */
-  config_file_location = stage2_second_buffer + STAGE2_VER_STR_OFFS;
-  while (*(config_file_location++))
-    ;
-
-  /* Set the "force LBA" flag for Stage2.  */
-  *((unsigned char *) (stage2_second_buffer + STAGE2_FORCE_LBA))
-    = is_force_lba;
-  
-  if (*ptr == 'p')
-    {
-      *((long *) (stage2_second_buffer + STAGE2_INSTALLPART))
-	= src_partition;
-      if (is_stage1_5)
-	{
-	  /* Reset the device information in FILE if it is a Stage 1.5.  */
-	  unsigned long device = 0xFFFFFFFF;
-
-	  grub_memmove (config_file_location, (char *) &device,
-			sizeof (device));
-	}
-
-      ptr = skip_to (0, ptr);
-    }
-
-  if (*ptr)
-    {
-      grub_strcpy (config_filename, ptr);
-      nul_terminate (config_filename);
-	
-      if (! is_stage1_5)
-	/* If it is a Stage 2, just copy PTR to CONFIG_FILE_LOCATION.  */
-	grub_strcpy (config_file_location, ptr);
-      else
-	{
-	  char *real_config;
-	  unsigned long device;
-
-	  /* Translate the external device syntax to the internal device
-	     syntax.  */
-	  if (! (real_config = set_device (ptr)))
-	    {
-	      /* The Stage 2 PTR does not contain the device name, so
-		 use the root device instead.  */
-	      errnum = ERR_NONE;
-	      current_drive = saved_drive;
-	      current_partition = saved_partition;
-	      real_config = ptr;
-	    }
-	  
-	  if (current_drive == src_drive)
-	    {
-	      /* If the drive where the Stage 2 resides is the same as
-		 the one where the Stage 1.5 resides, do not embed the
-		 drive number.  */
-	      current_drive = GRUB_INVALID_DRIVE;
-	    }
-
-	  device = (current_drive << 24) | current_partition;
-	  grub_memmove (config_file_location, (char *) &device,
-			sizeof (device));
-	  grub_strcpy (config_file_location + sizeof (device),
-		       real_config);
-	}
-
-      /* If a Stage 1.5 is used, then we need to modify the Stage2.  */
-      if (is_stage1_5)
-	{
-	  char *real_config_filename = skip_to (0, ptr);
-	  
-	  is_open = grub_open (config_filename);
-	  if (! is_open)
-	    goto fail;
-
-	  /* Skip the first sector.  */
-	  filepos = SECTOR_SIZE;
-	  
-	  disk_read_hook = disk_read_savesect_func;
-	  if (grub_read ((unsigned long long)(unsigned int)stage2_buffer, SECTOR_SIZE, 0xedde0d90) != SECTOR_SIZE)
-	    goto fail;
-	  
-	  disk_read_hook = 0;
-	  grub_close ();
-	  is_open = 0;
-	  
-	  /* Sanity check.  */
-	  if (*(stage2_buffer + STAGE2_STAGE2_ID) != STAGE2_ID_STAGE2)
-	    {
-	      errnum = ERR_BAD_VERSION;
-	      goto fail;
-	    }
-
-	  /* Set the "force LBA" flag for Stage2.  */
-	  *(stage2_buffer + STAGE2_FORCE_LBA) = is_force_lba;
-
-	  /* If REAL_CONFIG_FILENAME is specified, copy it to the Stage2.  */
-	  if (*real_config_filename)
-	    {
-	      /* Specified */
-	      char *location;
-	      
-	      /* Find a string for the configuration filename.  */
-	      location = stage2_buffer + STAGE2_VER_STR_OFFS;
-	      while (*(location++))
-		;
-	      
-	      /* Copy the name.  */
-	      grub_strcpy (location, real_config_filename);
-	    }
-	  
-	  /* Write it to the disk.  */
-	  buf_track = -1;
-
-#ifdef GRUB_UTIL
-	  /* In the grub shell, access the Stage 2 via the OS filesystem
-	     service, if possible.  */
-	  if (stage2_os_file)
-	    {
-	      FILE *fp;
-
-	      fp = fopen (stage2_os_file, "r+");
-	      if (! fp)
-		{
-		  errnum = ERR_FILE_NOT_FOUND;
-		  goto fail;
-		}
-
-	      if (fseek (fp, SECTOR_SIZE, SEEK_SET) != 0)
-		{
-		  fclose (fp);
-		  errnum = ERR_BAD_VERSION;
-		  goto fail;
-		}
-
-	      if (fwrite (stage2_buffer, 1, SECTOR_SIZE, fp)
-		  != SECTOR_SIZE)
-		{
-		  fclose (fp);
-		  errnum = ERR_WRITE;
-		  goto fail;
-		}
-
-	      fclose (fp);
-	    }
-	  else
-#endif /* GRUB_UTIL */
-	    {
-	      if (! devwrite ((unsigned long)(saved_sector - part_start), 1, (unsigned long long)(unsigned int)stage2_buffer))
-		goto fail;
-	    }
-	}
-    }
-
-  /* Clear the cache.  */
-  buf_track = -1;
-
-  /* Write the modified sectors of Stage2 to the disk.  */
-#ifdef GRUB_UTIL
-  if (! is_stage1_5 && stage2_os_file)
-    {
-      FILE *fp;
-
-      fp = fopen (stage2_os_file, "r+");
-      if (! fp)
-	{
-	  errnum = ERR_FILE_NOT_FOUND;
-	  goto fail;
-	}
-
-      if (fwrite (stage2_first_buffer, 1, SECTOR_SIZE, fp) != SECTOR_SIZE)
-	{
-	  fclose (fp);
-	  errnum = ERR_WRITE;
-	  goto fail;
-	}
-
-      if (fwrite (stage2_second_buffer, 1, SECTOR_SIZE, fp) != SECTOR_SIZE)
-	{
-	  fclose (fp);
-	  errnum = ERR_WRITE;
-	  goto fail;
-	}
-
-      fclose (fp);
-    }
-  else
-#endif /* GRUB_UTIL */
-    {
-      /* The first.  */
-      current_drive = src_drive;
-      current_partition = src_partition;
-
-      if (! open_partition ())
-	goto fail;
-
-      if (! devwrite (stage2_first_sector - src_part_start, 1,
-		      (unsigned long long)(unsigned int)stage2_first_buffer))
-	goto fail;
-
-      if (! devwrite (stage2_second_sector - src_part_start, 1,
-		      (unsigned long long)(unsigned int)stage2_second_buffer))
-	goto fail;
-    }
-  
-  /* Write the modified sector of Stage 1 to the disk.  */
-  current_drive = dest_drive;
-  current_partition = dest_partition;
-  if (! open_partition ())
-    goto fail;
-
-  devwrite (0, 1, (unsigned long long)(unsigned int)stage1_buffer);
-
- fail:
-  if (is_open)
-    grub_close ();
-  
-  disk_read_hook = 0;
-  
-#ifndef NO_DECOMPRESSION
-  no_decompression = no_decompression_bak;
-#endif
-
-//  if (debug > 0)
-//    grub_printf ("\n\nNotice: the two commands SETUP and INSTALL will be removed soon! Please use the\nOS utility of BOOTLACE.COM to install GRLDR boot record to the MBR or to the\nboot area of a specified partition.\n\n");
-  return ! errnum;
-}
-
-static struct builtin builtin_install =
-{
-  "install",
-  install_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
-  "install [--stage2=STAGE2_FILE] [--force-lba] STAGE1 [d] DEVICE\n STAGE2 [ADDR] [p] [CONFIG_FILE] [REAL_CONFIG_FILE]",
-  "Install STAGE1 on DEVICE, and install a blocklist for loading STAGE2"
-  " as a Stage 2. If the option `d' is present, the Stage 1 will always"
-  " look for the disk where STAGE2 was installed, rather than using"
-  " the booting drive. The Stage 2 will be loaded at address ADDR, which"
-  " will be determined automatically if you don't specify it. If"
-  " the option `p' or CONFIG_FILE is present, then the first block"
-  " of Stage 2 is patched with new values of the partition and name"
-  " of the configuration file used by the true Stage 2 (for a Stage 1.5,"
-  " this is the name of the true Stage 2) at boot time. If STAGE2 is a Stage"
-  " 1.5 and REAL_CONFIG_FILE is present, then the Stage 2 CONFIG_FILE is"
-  " patched with the configuration filename REAL_CONFIG_FILE."
-  " If the option `--force-lba' is specified, disable some sanity checks"
-  " for LBA mode. If the option `--stage2' is specified, rewrite the Stage"
-  " 2 via your OS's filesystem instead of the raw device."
-};
-#endif /* GRUB_UTIL */
-
-
 /* is64bit */
 static int
 is64bit_func (char *arg, int flags)
@@ -8556,8 +7142,7 @@ static struct builtin builtin_lock =
   "Break a command execution unless the user is authenticated."
 };
   
-
-#ifndef STAGE1_5
+
 /* ls */
 static int
 ls_func (char *arg, int flags)
@@ -8586,9 +7171,8 @@ static struct builtin builtin_ls =
   "ls [FILE_OR_DIR]",
   "List file or directory."
 };
-#endif /* STAGE1_5 */
 
-
+
 /* makeactive */
 static int
 makeactive_func (char *arg, int flags)
@@ -8702,8 +7286,7 @@ static struct builtin builtin_makeactive =
   " This command is limited to _primary_ PC partitions on a hard disk."
 };
 
-
-#ifndef GRUB_UTIL
+
 static unsigned long long start_sector, sector_count;
 unsigned long long initrd_start_sector;
 
@@ -8728,17 +7311,13 @@ print_bios_total_drives(void)
 			(((*(char*)0x410) & 1)?((*(char*)0x410) >> 6) + 1 : 0), (*(char*)0x475));
 }
 
-#endif
-  
+ 
 unsigned long probed_total_sectors;
 unsigned long probed_total_sectors_round;
 unsigned long probed_heads;
 unsigned long probed_sectors_per_track;
 unsigned long probed_cylinders;
 unsigned long sectors_per_cylinder;
-#ifdef GRUB_UTIL
-int filesystem_type = 0;
-#endif
 
 #if 0
     /* matrix of coefficients of linear equations
@@ -9605,9 +8184,6 @@ err_print_hex:
   return ret_val;
 }
 
-//#include "fat.h"
-
-#ifndef GRUB_UTIL
 
 static unsigned long long map_mem_min = 0x100000;
 static unsigned long long map_mem_max = (-4096ULL);
@@ -9671,13 +8247,11 @@ map_func (char *arg, int flags)
 			}
 			return 0;
 		}
-#ifndef GRUB_UTIL
 //	if (debug > 0)
 	{
 	  print_bios_total_drives();
 	  printf ("\nNumber of ATAPI CD-ROMs: %d\n", atapi_dev_count);
 	}
-#endif
 
 	if (rd_base != -1ULL)
 	    grub_printf ("\nram_drive=0x%X, rd_base=0x%lX, rd_size=0x%lX\n", ram_drive, rd_base, rd_size); 
@@ -9971,11 +8545,9 @@ map_func (char *arg, int flags)
 		return 0;
 	if (floppies > 2)
 		return ! (errnum = ERR_INVALID_FLOPPIES);
-#ifndef GRUB_UTIL
 	*((char *)0x410) &= 0x3e;
 	if (floppies)
 		*((char *)0x410) |= (floppies == 1) ? 1 : 0x41;
-#endif
 	return 1;
       }
     else if (grub_memcmp (arg, "--harddrives=", 13) == 0)
@@ -9986,9 +8558,7 @@ map_func (char *arg, int flags)
 		return 0;
 	if (harddrives > 127)
 		return ! (errnum = ERR_INVALID_HARDDRIVES);
-#ifndef GRUB_UTIL
 	*((char *)0x475) = harddrives;
-#endif
 	return 1;
       }
     else if (grub_memcmp (arg, "--ram-drive=", 12) == 0)
@@ -10945,7 +9515,6 @@ map_whole_drive:
   j = i;	/* save i into j */
 //grub_printf ("\n debug 4 start_sector=%lX, part_start=%lX, part_length=%lX, sector_count=%lX, filemax=%lX\n", start_sector, part_start, part_length, sector_count, filemax);
   
-#ifndef GRUB_UTIL
   /* how much memory should we use for the drive emulation? */
   if (mem != -1ULL)
     {
@@ -11164,10 +9733,10 @@ map_whole_drive:
       //	return 0;
 	
       /* the first sector already read at BS */
-      #if 0
+#if 0
       if ((to != 0xffff && to != ram_drive) || ((long long)mem) <= 0)
 	{
-		#endif
+#endif
 	  /* if image is in memory and not compressed, we can simply move it. */
 	  if ((to == 0xffff || to == ram_drive) && !compressed_file)
 	  {
@@ -11206,7 +9775,7 @@ map_whole_drive:
 	    }
 	  }
 	  grub_close ();
-	 #if 0
+#if 0
 	}
       else if (/*(to == 0xffff || to == ram_drive) && */!compressed_file)
 	{
@@ -11220,7 +9789,7 @@ map_whole_drive:
         grub_read (bytes_needed + SECTOR_SIZE, -1ULL, 0xedde0d90);
         grub_close ();
       }
-	#endif
+#endif
       start_sector = base >> SECTOR_BITS;
       to = 0xFFFF/*GRUB_INVALID_DRIVE*/;
 
@@ -11323,7 +9892,6 @@ map_whole_drive:
 	return 1;
       }
     }
-#endif	/* GRUB_UTIL */
 
   if (in_situ)
 	bios_drive_map[j].to_cylinder = (in_situ_flags << 8) | (
@@ -11394,7 +9962,6 @@ map_whole_drive:
   bios_drive_map[i].sector_count = sector_count;//(sector_count & 0xfffffffe) | fake_write | ! unsafe_boot;
   //bios_drive_map[i].sector_count_hi = 0;	/* currently only low 32 bits are used. */
 
-#ifndef GRUB_UTIL
   /* increase the floppies or harddrives if needed */
   if (from & 0x80)
   {
@@ -11413,7 +9980,6 @@ map_whole_drive:
 			print_bios_total_drives();
 	}
   }
-#endif	/* GRUB_UTIL */
   return 1;
   
 delete_drive_map_slot:
@@ -11436,7 +10002,6 @@ delete_drive_map_slot:
 
 #undef	BS
 
-#ifndef GRUB_UTIL
   /* Search for the Max floppy drive number in the drive map table.  */
   from = 0;
   for (i = 0; i < DRIVE_MAP_SIZE; i++)
@@ -11478,7 +10043,6 @@ delete_drive_map_slot:
 			print_bios_total_drives();
 	}
 
-#endif	/* ! GRUB_UTIL */
   return 1;
 }
 
@@ -11507,7 +10071,6 @@ static struct builtin builtin_map =
   "\nif RESERV is used and > 0,the memdrive will occupy the mem area starting at absolute physical address RESERV in 512-byte-sectors and ending at the end of this mem"
   " block(usually the end of physical mem)."
 };
-#endif	/* ! GRUB_UTIL */
 
 
 #ifdef USE_MD5_PASSWORDS
@@ -11531,11 +10094,7 @@ md5crypt_func (char *arg, int flags)
   grub_memmove (crypted, "$1$", 3);
 
   /* Create the length of a salt.  */
-#ifdef GRUB_UTIL
-  seed = currticks ();
-#else
   seed = *(unsigned int *)0x46C;
-#endif
 
   /* Generate a salt.  */
   for (i = 0; i < 8 && seed; i++)
@@ -11770,9 +10329,6 @@ partnew_func (char *arg, int flags)
   char *filename;
   unsigned long entry1, i;
   unsigned long active = -1;
-#if defined(STAGE1_5) || defined(GRUB_UTIL)	    
-//  char mbr[512];
-#endif
 
   errnum = 0;
   if (grub_memcmp (arg, "--active", 8) == 0)
@@ -12071,9 +10627,6 @@ parttype_func (char *arg, int flags)
   unsigned long part = 0xFFFFFF;
   unsigned long start, len, offset, ext_offset1;
   unsigned long type, entry1;
-#if defined(STAGE1_5) || defined(GRUB_UTIL)	    
-//  char mbr[512];
-#endif
 
   /* Get the drive and the partition.  */
 
@@ -12209,7 +10762,7 @@ password_func (char *arg, int flags)
 
   if ((flags & (BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_BAT_SCRIPT)) != 0)
     {
-    	#if 0
+#if 0
       /* Do password check! */
       char entered[32];
       
@@ -12221,7 +10774,7 @@ password_func (char *arg, int flags)
       get_cmdline_str.readline = 0;
       get_cmdline_str.cmdline = entered;
       get_cmdline ();
-	#endif
+#endif
       nul_terminate (arg);
       if ((len = check_password (arg, type)) != 0)
 	{
@@ -12354,27 +10907,6 @@ static struct builtin builtin_pxe =
 #endif
 
 
-#ifdef GRUB_UTIL
-/* quit */
-static int
-quit_func (char *arg, int flags)
-{
-  errnum = 0;
-  stop ();
-  
-  /* Never reach here.  */
-  return 1;
-}
-
-static struct builtin builtin_quit =
-{
-  "quit",
-  quit_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
-  "quit",
-  "Exit from the GRUB shell."
-};
-#else
 /* quit */
 static int
 quit_func (char *arg, int flags)
@@ -12472,42 +11004,7 @@ static struct builtin builtin_quit =
   "quit [--disable-a20]",
   "Go back to DOS if GRUB was previously launched from DOS."
 };
-#endif /* GRUB_UTIL */
 
-
-#ifdef SUPPORT_NETBOOT
-#ifndef GRUB_UTIL
-/* rarp */
-static int
-rarp_func (char *arg, int flags)
-{
-  errnum = 0;
-  if (! rarp ())
-    {
-      if (errnum == ERR_NONE)
-	errnum = ERR_DEV_VALUES;
-
-      return 0;
-    }
-
-  /* Notify the configuration.  */
-  print_network_configuration ();
-  return 1;
-}
-
-static struct builtin builtin_rarp =
-{
-  "rarp",
-  rarp_func,
-  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
-  "rarp",
-  "Initialize a network device via RARP."
-};
-#endif /* ! GRUB_UTIL */
-#endif /* SUPPORT_NETBOOT */
-
-
-#ifndef GRUB_UTIL
 static int
 read_func (char *arg, int flags)
 {
@@ -12532,7 +11029,6 @@ static struct builtin builtin_read =
   "Read a 32-bit value from memory at address ADDR and"
   " display it in hex format."
 };
-#endif /* ! GRUB_UTIL */
 
 
 int
@@ -12757,7 +11253,6 @@ parse_string (char *arg)
   return len;
 }
 
-#ifndef GRUB_UTIL
 static int
 write_func (char *arg, int flags)
 {
@@ -12840,7 +11335,6 @@ write_func (char *arg, int flags)
 
 		/* check if it is a mapped memdrive */
 		j = DRIVE_MAP_SIZE;		/* real drive */
-#ifndef GRUB_UTIL
 		if (! unset_int13_handler (1))	/* map is hooked */
 		    for (j = 0; j < DRIVE_MAP_SIZE; j++)
 		    {
@@ -12853,7 +11347,6 @@ write_func (char *arg, int flags)
 			if (current_drive == hooked_drive_map[j].from_drive && hooked_drive_map[j].to_drive == 0xFF && !(hooked_drive_map[j].to_cylinder & 0x4000))
 				break;			/* memdrive */
 		    }
-#endif /* ! GRUB_UTIL */
 
 		if (j == DRIVE_MAP_SIZE)	/* real drive */
 		{
@@ -12983,7 +11476,6 @@ static struct builtin builtin_reboot =
   "reboot",
   "Reboot your system."
 };
-#endif /* ! GRUB_UTIL */
 
 
 /* Print the root device information to buffer.
@@ -12996,10 +11488,10 @@ print_root_device (char *buffer,int flag)
 {
 	unsigned long tmp_drive = flag?current_drive:saved_drive;
 	unsigned long tmp_partition = flag?current_partition:saved_partition;
-	unsigned char *tmp_hooked;
+	unsigned char *tmp_hooked = NULL;
 	if (buffer)
 	{
-		tmp_hooked  = set_putchar_hook((unsigned char*)buffer);
+		tmp_hooked = set_putchar_hook((unsigned char*)buffer);
 	}
 	else
 		putchar(' ',255);
@@ -13015,11 +11507,6 @@ print_root_device (char *buffer,int flag)
 			grub_printf("(pd)");
 			break;
 	#endif /* PXE drive. */
-	#ifdef SUPPORT_NETBOOT
-		case NETWORK_DRIVE:
-			grub_printf("(nd)");
-			break;
-	#endif /* SUPPORT_NETBOOT */
 		default:
 			if (tmp_drive == cdrom_drive)
 			{
@@ -13343,7 +11830,6 @@ static int time2;
 
 char default_file[60];
 
-#if !defined(SUPPORT_DISKLESS) && !defined(GRUB_UTIL)
 static unsigned long long saved_sectors[2];
 static unsigned long saved_offsets[2];
 static unsigned long saved_lengths[2];
@@ -13422,14 +11908,12 @@ prompt_user (void)
 	}
 
 }
-	    
-#endif /* ! SUPPORT_DISKLESS && ! GRUB_UTIL */
-  
+
+
 /* savedefault */
 static int
 savedefault_func (char *arg, int flags)
 {
-#if !defined(SUPPORT_DISKLESS) && !defined(GRUB_UTIL)
   unsigned long tmp_drive = saved_drive;
   unsigned long tmp_partition = saved_partition;
 
@@ -13510,9 +11994,6 @@ savedefault_func (char *arg, int flags)
     {
       unsigned long len, len1;
       char buf[12];
-#ifdef STAGE1_5
-      char mbr[512];
-#endif
       
       if (compressed_file)
 	{
@@ -13655,10 +12136,6 @@ savedefault_func (char *arg, int flags)
   }
 
   return ! errnum;
-#else /* ! SUPPORT_DISKLESS && ! GRUB_UTIL */
-  errnum = ERR_UNRECOGNIZED;
-  return 0;
-#endif /* ! SUPPORT_DISKLESS && ! GRUB_UTIL */
 }
 
 static struct builtin builtin_savedefault =
@@ -13781,22 +12258,6 @@ serial_func (char *arg, int flags)
 	      return 0;
 	    }
 	}
-# ifdef GRUB_UTIL
-      /* In the grub shell, don't use any port number but open a tty
-	 device instead.  */
-      else if (grub_memcmp (arg, "--device=", sizeof ("--device=") - 1) == 0)
-	{
-	  char *p = arg + sizeof ("--device=") - 1;
-	  char dev[256];	/* XXX */
-	  char *q = dev;
-	  
-	  while (*p && ! grub_isspace (*p))
-	    *q++ = *p++;
-	  
-	  *q = 0;
-	  serial_set_device (dev);
-	}
-# endif /* GRUB_UTIL */
       else
 	break;
 
@@ -14154,44 +12615,6 @@ setkey_func (char *arg, int flags)
 	//}
     }
   
-#if 0
-  if (map_in_interrupt)
-    {
-      int i;
-      
-      /* Find an empty slot.  */
-      for (i = 0; i < KEY_MAP_SIZE; i++)
-	{
-	  if ((bios_key_map[i] & 0xff) == from_code)
-	    /* Perhaps the user wants to overwrite the map.  */
-	    break;
-	  
-	  if (! bios_key_map[i])
-	    break;
-	}
-      
-      if (i == KEY_MAP_SIZE)
-	{
-	  errnum = ERR_WONT_FIT;
-	  return 0;
-	}
-      
-      if (to_code == from_code)
-	/* If TO is equal to FROM, delete the entry.  */
-	grub_memmove ((char *) &bios_key_map[i],
-		      (char *) &bios_key_map[i + 1],
-		      sizeof (unsigned short) * (KEY_MAP_SIZE - i));
-      else
-	bios_key_map[i] = (to_code << 8) | from_code;
-      
-#ifndef GRUB_UTIL
-      /* Ugly but should work.  */
-      unset_int15_handler ();
-      set_int15_handler ();
-#endif
-    }
-  else
-#endif
     {
       int i;
       
@@ -14240,339 +12663,6 @@ static struct builtin builtin_setkey =
   " is a digit), and delete. If no argument is specified, reset key"
   " mappings."
 };
-
-
-#ifdef GRUB_UTIL
-struct stage1_5_map {
-    char *fsys;
-    char *name;
-};
-static struct stage1_5_map stage1_5_map[] =
-{
-    {"ext2fs",   "/e2fs_stage1_5"},
-    {"fat",      "/fat_stage1_5"},
-    {"ntfs",     "/ntfs_stage1_5"},
-    {"ufs2",     "/ufs2_stage1_5"},
-    {"ffs",      "/ffs_stage1_5"},
-    {"iso9660",  "/iso9660_stage1_5"},
-    {"jfs",      "/jfs_stage1_5"},
-    {"minix",    "/minix_stage1_5"},
-    {"reiserfs", "/reiserfs_stage1_5"},
-    {"vstafs",   "/vstafs_stage1_5"},
-    {"xfs",      "/xfs_stage1_5"}
-};
-
-#ifdef GRUB_UTIL
-static int check_file (char *file);
-static void sprint_device (int drive, int partition);
-static int embed_stage1_5 (char *stage1_5, int drive, int partition, int flags);
-static char device[16];
-static char tmp[16];
-static char stage15[64];
-static char cmd_arg[256];
-static char stage1[64];
-static char stage2[64];
-static char config_filename[64];
-static char real_config_filename[64];
-#else
-static char *device = (char *)0x700;	// use only 16 bytes at 0x700
-static char *tmp = (char *)0x710;	// use only 16 bytes at 0x710
-static char *stage15 = (char *)0x780;	// use only 64 bytes at 0x780
-/* we cannot use 0x8000 because it is for mbr. So we use 1 sector below 0x2B0000 instead. */
-static char *cmd_arg = (char *)(HMA_ADDR - 0x200);//(char *)0x8000;	// use 256 bytes at 0x8000
-static char *stage1 = (char *)(HMA_ADDR - 0x100);//(char *)0x8100;	// use 64 bytes at 0x8100
-static char *stage2 = (char *)(HMA_ADDR - 0xC0);//(char *)0x8140;	// use 64 bytes at 0x8140
-static char *config_filename = (char *)(HMA_ADDR - 0x80);//(char *)0x8180;	// use 64 bytes at 0x8180
-static char *real_config_filename = (char *)(HMA_ADDR - 0x40);//(char *)0x81C0;	// use 64 bytes at 0x81C0
-#endif
-static char *buffer;
-
-  /* Check if the file FILE exists like Autoconf.  */
-static int
-check_file (char *file)
-{
-      int ret;
-      
-      grub_printf (" Checking if \"%s\" exists... ", file);
-      ret = grub_open (file);
-      if (ret)
-	{
-	  grub_close ();
-	  grub_printf ("yes\n");
-	}
-      else
-	grub_printf ("no\n");
-
-      return ret;
-}
-  
-  /* Construct a device name in DEVICE.  */
-static void
-sprint_device (int drive, int partition)
-{
-      grub_sprintf (device, "(%cd%d",
-		    ((drive & 0x80) ? 'h' : 'f'),
-		    (drive & ~0x80));
-      if ((partition & 0xFF0000) != 0xFF0000)
-	{
-	  //char tmp[16];
-	  grub_sprintf (tmp, ",%d", (unsigned long)(unsigned char)(partition >> 16));
-	  grub_strncat (device, tmp, 16);
-	}
-      if ((partition & 0x00FF00) != 0x00FF00)
-	{
-	  //char tmp[16];
-	  grub_sprintf (tmp, ",%c", (unsigned long)(unsigned char)('a' + (partition >> 8)));
-	  grub_strncat (device, tmp, 16);
-	}
-      grub_strncat (device, ")", 16);
-}
-  
-static int
-embed_stage1_5 (char *stage1_5, int drive, int partition, int flags)
-{
-      /* We install GRUB into the MBR, so try to embed the
-	 Stage 1.5 in the sectors right after the MBR.  */
-      sprint_device (drive, partition);
-      grub_sprintf (cmd_arg, "%s %s", stage1_5, device);
-	      
-      /* Notify what will be run.  */
-      grub_printf (" Running \"embed %s\"... ", cmd_arg);
-      
-      embed_func (cmd_arg, flags);
-      if (! errnum)
-	{
-	  /* Construct the blocklist representation.  */
-	  grub_sprintf (buffer, "%s%s", device, embed_info);
-	  grub_printf ("succeeded\n");
-	  return 1;
-	}
-      else
-	{
-	  grub_printf ("failed (this is not fatal)\n");
-	  return 0;
-	}
-}
-	  
-/* setup */
-static int
-setup_func (char *arg, int flags)
-{
-  /* Point to the string of the installed drive/partition.  */
-  char *install_ptr;
-  /* Point to the string of the drive/parition where the GRUB images
-     reside.  */
-  char *image_ptr;
-  unsigned long installed_drive, installed_partition;
-  unsigned long image_drive, image_partition;
-  unsigned long tmp_drive, tmp_partition;
-  int is_force_lba = 0;
-  char *stage2_arg = 0;
-  char *prefix = 0;
-
-  errnum = 0;
-  tmp_drive = saved_drive;
-  tmp_partition = saved_partition;
-
-  buffer = (char *) RAW_ADDR (0x100000);
-
-  /* Check if the user specifies --force-lba.  */
-  while (1)
-    {
-      if (grub_memcmp ("--force-lba", arg, sizeof ("--force-lba") - 1) == 0)
-	{
-	  is_force_lba = 1;
-	  arg = skip_to (0, arg);
-	}
-      else if (grub_memcmp ("--prefix=", arg, sizeof ("--prefix=") - 1) == 0)
-	{
-	  prefix = arg + sizeof ("--prefix=") - 1;
-	  arg = skip_to (0, arg);
-	  nul_terminate (prefix);
-	}
-#ifdef GRUB_UTIL
-      else if (grub_memcmp ("--stage2=", arg, sizeof ("--stage2=") - 1) == 0)
-	{
-	  stage2_arg = arg;
-	  arg = skip_to (0, arg);
-	  nul_terminate (stage2_arg);
-	}
-#endif /* GRUB_UTIL */
-      else
-	break;
-    }
-  
-  install_ptr = arg;
-  image_ptr = skip_to (0, install_ptr);
-
-  /* Make sure that INSTALL_PTR is valid.  */
-  set_device (install_ptr);
-  if (errnum)
-    goto fail;//    return 1;
-
-  installed_drive = current_drive;
-  installed_partition = current_partition;
-  
-  /* Mount the drive pointed by IMAGE_PTR.  */
-  if (*image_ptr)
-    {
-      /* If the drive/partition where the images reside is specified,
-	 get the drive and the partition.  */
-      set_device (image_ptr);
-      if (errnum)
-	goto fail;//    return 1;
-    }
-  else
-    {
-      /* If omitted, use SAVED_PARTITION and SAVED_DRIVE.  */
-      current_drive = saved_drive;
-      current_partition = saved_partition;
-    }
-
-  image_drive = saved_drive = current_drive;
-  image_partition = saved_partition = current_partition;
-
-  /* Open it.  */
-  if (! open_device ())
-    goto fail;
-
-  /* Check if stage1 exists. If the user doesn't specify the option
-     `--prefix', attempt /boot/grub and /grub.  */
-  /* NOTE: It is dangerous to run this command without `--prefix' in the
-     grub shell, since that affects `--stage2'.  */
-  if (! prefix)
-    {
-      prefix = "/boot/grub";
-      grub_sprintf (stage1, "%s%s", prefix, "/stage1");
-      if (! check_file (stage1))
-	{
-	  errnum = ERR_NONE;
-	  prefix = "/grub";
-	  grub_sprintf (stage1, "%s%s", prefix, "/stage1");
-	  if (! check_file (stage1))
-	    goto fail;
-	}
-    }
-  else
-    {
-      grub_sprintf (stage1, "%s%s", prefix, "/stage1");
-      if (! check_file (stage1))
-	goto fail;
-    }
-
-  /* The prefix was determined.  */
-  grub_sprintf (stage2, "%s%s", prefix, "/stage2");
-  grub_sprintf (config_filename, "%s%s", prefix, "/menu.lst");
-  *real_config_filename = 0;
-
-  /* Check if stage2 exists.  */
-  if (! check_file (stage2))
-    goto fail;
-
-  {
-    char *fsys = fsys_table[fsys_type].name;
-    int i;
-    int size = sizeof (stage1_5_map) / sizeof (stage1_5_map[0]);
-    
-    /* Iterate finding the same filesystem name as FSYS.  */
-    for (i = 0; i < size; i++)
-      if (grub_strcmp (fsys, stage1_5_map[i].fsys) == 0)
-	{
-	  /* OK, check if the Stage 1.5 exists.  */
-	  //char stage15[64];
-	  
-	  grub_sprintf (stage15, "%s%s", prefix, stage1_5_map[i].name);
-	  if (check_file (stage15))
-	    {
-	      if (embed_stage1_5 (stage15, installed_drive, installed_partition, flags)
-		  || embed_stage1_5 (stage15, image_drive, image_partition, flags))
-		{
-		  grub_strcpy (real_config_filename, config_filename);
-		  sprint_device (image_drive, image_partition);
-		  grub_sprintf (config_filename, "%s%s", device, stage2);
-		  grub_strcpy (stage2, buffer);
-		}
-	    }
-	  errnum = 0;
-	  break;
-	}
-  }
-
-  /* Construct a string that is used by the command "install" as its
-     arguments.  */
-  sprint_device (installed_drive, installed_partition);
-  
-#if 1
-  /* Don't embed a drive number unnecessarily.  */
-  grub_sprintf (cmd_arg, "%s%s%s%s %s%s %s p %s %s",
-		(is_force_lba? "--force-lba " : ""),
-		(stage2_arg? stage2_arg : ""),
-		(stage2_arg? " " : ""),
-		stage1,
-		((installed_drive != image_drive) ? "d " : ""),
-		device,
-		stage2,
-		config_filename,
-		real_config_filename);
-#else /* NOT USED */
-  /* This code was used, because we belived some BIOSes had a problem
-     that they didn't pass a booting drive correctly. It turned out,
-     however, stage1 could trash a booting drive when checking LBA support,
-     because some BIOSes modified the register %dx in INT 13H, AH=48H.
-     So it becamed unclear whether GRUB should use a pre-defined booting
-     drive or not. If the problem still exists, it would be necessary to
-     switch back to this code.  */
-  grub_sprintf (cmd_arg, "%s%s%s%s d %s %s p %s %s",
-		(is_force_lba? "--force-lba " : ""),
-		(stage2_arg? stage2_arg : ""),
-		(stage2_arg? " " : ""),
-		stage1,
-		device,
-		stage2,
-		config_filename,
-		real_config_filename);
-#endif /* NOT USED */
-  
-  /* Notify what will be run.  */
-  grub_printf (" Running \"install %s\"... ", cmd_arg);
-
-  /* Make sure that SAVED_DRIVE and SAVED_PARTITION are identical
-     with IMAGE_DRIVE and IMAGE_PARTITION, respectively.  */
-  saved_drive = image_drive;
-  saved_partition = image_partition;
-  
-  /* Run the command.  */
-  if (install_func (cmd_arg, flags))
-    grub_printf ("succeeded\nDone.\n");
-  else
-    grub_printf ("failed\n");
-
- fail:
-  saved_drive = tmp_drive;
-  saved_partition = tmp_partition;
-//  if (debug > 0)
-//    grub_printf ("\n\nNotice: the two commands SETUP and INSTALL will be removed soon! Please use the\nOS utility of BOOTLACE.COM to install GRLDR boot record to the MBR or to the\nboot area of a specified partition.\n\n");
-  return ! errnum;
-}
-
-static struct builtin builtin_setup =
-{
-  "setup",
-  setup_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
-  "setup [--prefix=DIR] [--stage2=STAGE2_FILE] [--force-lba]\n INSTALL_DEVICE [IMAGE_DEVICE]",
-  "Set up the installation of GRUB automatically. This command uses"
-  " the more flexible command \"install\" in the backend and installs"
-  " GRUB into the device INSTALL_DEVICE. If IMAGE_DEVICE is specified,"
-  " then find the GRUB images in the device IMAGE_DEVICE, otherwise"
-  " use the current \"root device\", which can be set by the command"
-  " \"root\". If you know that your BIOS should support LBA but GRUB"
-  " doesn't work in LBA mode, specify the option `--force-lba'."
-  " If you install GRUB under the grub shell and you cannot unmount the"
-  " partition where GRUB images reside, specify the option `--stage2'"
-  " to tell GRUB the file name under your OS."
-};
-#endif /* GRUB_UTIL */
 
 
 #if defined(SUPPORT_SERIAL) || defined(SUPPORT_HERCULES) || defined(SUPPORT_GRAPHICS)
@@ -14796,24 +12886,6 @@ static struct builtin builtin_terminal =
 
 #ifdef SUPPORT_SERIAL
 
-#ifdef GRUB_UTIL
-static struct terminfo term1;		//struct takes up 200 bytes!!
-static struct terminfo *term = &term1;
-
-static struct
-      {
-	const char *name;
-	char *var;
-      }
-      options[] =
-	{
-	  {"--name=", term1.name},
-	  {"--cursor-address=", term1.cursor_address},
-	  {"--clear-screen=", term1.clear_screen},
-	  {"--enter-standout-mode=", term1.enter_standout_mode},
-	  {"--exit-standout-mode=", term1.exit_standout_mode}
-	};
-#else
 static struct terminfo *term = (struct terminfo *)0x8000;	//use 200 bytes
 
 static struct
@@ -14829,7 +12901,6 @@ static struct
 	  {"--enter-standout-mode=", ((struct terminfo *)0x8000)->enter_standout_mode},
 	  {"--exit-standout-mode=", ((struct terminfo *)0x8000)->exit_standout_mode}
 	};
-#endif
 
 static int
 terminfo_func (char *arg, int flags)
@@ -15001,15 +13072,8 @@ static struct builtin builtin_testload =
 #endif
 
 
-#ifdef GRUB_UTIL
-static struct vbe_controller controller1;	//struct size 512
-static struct vbe_mode mode1;			//struct size 255
-static struct vbe_controller *controller = &controller1;
-static struct vbe_mode *mode = &mode1;
-#else
 static struct vbe_controller *controller = (struct vbe_controller *)0x8000;//use 512 bytes
 static struct vbe_mode *mode = (struct vbe_mode *)0x700;//use 255 bytes
-#endif
 /* testvbe MODE */
 static int
 testvbe_func (char *arg, int flags)
@@ -15277,33 +13341,6 @@ static struct builtin builtin_setvbe =
 };
 
 
-#ifdef SUPPORT_NETBOOT
-/* tftpserver */
-static int
-tftpserver_func (char *arg, int flags)
-{
-  errnum = 0;
-  if (! *arg || ! ifconfig (0, 0, 0, arg))
-    {
-      errnum = ERR_BAD_ARGUMENT;
-      return 0;
-    }
-
-  print_network_configuration ();
-  return 1;
-}
-
-static struct builtin builtin_tftpserver =
-{
-  "tftpserver",
-  tftpserver_func,
-  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
-  "tftpserver IPADDR",
-  "Override the TFTP server address."
-};
-#endif /* SUPPORT_NETBOOT */
-
-
 /* timeout */
 static int
 timeout_func (char *arg, int flags)
@@ -15375,7 +13412,6 @@ struct builtin builtin_title =
 };
 
 
-#if ! defined(GRUB_UTIL) && ! defined (STAGE1_5)
 extern int tpm_init(void);
 /* tpm */
 static int
@@ -15404,7 +13440,6 @@ static struct builtin builtin_tpm =
   "tpm --init",
   "Initialise TPM."
 };
-#endif /* ! defined(GRUB_UTIL) && ! defined (STAGE1_5) */
 
 
 /* unhide */
@@ -15750,7 +13785,6 @@ static struct builtin builtin_calc =
   "\nNote: this is a Simple Calculator and From left to right only."
 };
 
-#ifndef GRUB_UTIL
 /* graphicsmode */
 int
 graphicsmode_func (char *arg, int flags)
@@ -15978,11 +14012,10 @@ struct builtin builtin_graphicsmode =
   "Display/set the graphics mode number for the next graphics init."
   "Return the current graphics mode setting."
 };
-#endif /* ! GRUB_UTIL */
-
-#ifndef GRUB_UTIL
-/* init_file */
+
+
 char menu_init_script_file[32];
+
 static int
 initscript_func (char *arg, int flags)
 {
@@ -16002,8 +14035,10 @@ static struct builtin builtin_initscript =
   initscript_func,
   BUILTIN_MENU,
 };
-
-static int echo_func (char *arg,int flags)
+
+
+static int
+echo_func (char *arg,int flags)
 {
    unsigned int xy_changed = 0;
    unsigned int saved_x = 0;
@@ -16172,7 +14207,6 @@ static struct builtin builtin_echo =
    "$[ABCD] the color for MESSAGE.(console only). "
    "A blink-, B light-, C BG, D FG."
 };
-#endif
 
 static int if_func(char *arg,int flags)
 {
@@ -16377,41 +14411,41 @@ int envi_cmd(const char *var,char * const env,int flags)
 	*/
 	if (ch[0]=='@')
 	{
+	    unsigned long date, time;
+
 	    if (flags != 1)
-		    return 0;
+		return 0;
+
 	    p = WENV_TMP;
-	    #ifndef GRUB_UTIL
-	    unsigned long date,time;
 	    get_datetime(&date, &time);
 
 	    if (substring(ch,"@date",1) == 0)
 	    {
-		    sprintf(p,"%04X-%02X-%02X",(date >> 16),(char)(date >> 8),(char)date);
+		sprintf(p,"%04X-%02X-%02X",(date >> 16),(char)(date >> 8),(char)date);
 	    }
 	    else if (substring(ch,"@time",1) == 0)
 	    {
-		    sprintf(p,"%02X:%02X:%02X",(char)(time >> 24),(char)(time >> 16),(char)(time>>8));
+		sprintf(p,"%02X:%02X:%02X",(char)(time >> 24),(char)(time >> 16),(char)(time>>8));
 	    }
 	    else if (substring(ch,"@random",1) == 0)
 	    {
-		    WENV_RANDOM   =  (WENV_RANDOM * date + (*(int *)0x46c)) & 0x7fff;
-		    sprintf(p,"%d",WENV_RANDOM);
+		WENV_RANDOM   =  (WENV_RANDOM * date + (*(int *)0x46c)) & 0x7fff;
+		sprintf(p,"%d",WENV_RANDOM);
 	    }
 	    else if (substring(ch,"@root",1) == 0)
 	    {
-		    print_root_device(p,0);
-		    sprintf(p+strlen(p),saved_dir);
+		print_root_device(p,0);
+		sprintf(p+strlen(p),saved_dir);
 	    }
 	    else if (substring(ch,"@path",1) == 0)
 	    {
-		    p = command_path;
+		p = command_path;
 	    }
 	    else if (substring(ch,"@retval",1) == 0)
-		    sprintf(p,"%d",*(int*)0x4CB00);
+		sprintf(p,"%d",*(int*)0x4CB00);
 	    else
-		    return 0;
+		return 0;
 	    j = FIND_VAR_FLAG_EXISTS;
-	    #endif
 	}
 	else
 	{
@@ -17247,52 +15281,26 @@ struct builtin *builtin_table[] =
   &builtin_background,
 #endif
   &builtin_blocklist,
-#ifndef GRUB_UTIL
   &builtin_boot,
-#ifdef SUPPORT_NETBOOT
-  &builtin_bootp,
-#endif /* SUPPORT_NETBOOT */
-#endif /* ! GRUB_UTIL */
   &builtin_calc,
   &builtin_call,
   &builtin_cat,
-#if ! defined(GRUB_UTIL) && ! defined (STAGE1_5)
   &builtin_cdrom,
-#endif
   &builtin_chainloader,
   &builtin_checkrange,
-#ifndef GRUB_UTIL
   &builtin_checktime,
-#endif
   &builtin_clear,
   &builtin_cmp,
   &builtin_color,
   &builtin_command,
   &builtin_commandline,
   &builtin_configfile,
-#ifndef GRUB_UTIL
   &builtin_dd,
-#endif
   &builtin_debug,
   &builtin_default,
   &builtin_delmod,
-#ifdef GRUB_UTIL
-  &builtin_device,
-#endif /* GRUB_UTIL */
-#ifdef SUPPORT_NETBOOT
-  &builtin_dhcp,
-#endif /* SUPPORT_NETBOOT */
-//  &builtin_displayapm,
   &builtin_displaymem,
-#ifdef GRUB_UTIL
-  &builtin_dump,
-#endif /* GRUB_UTIL */
-#ifndef GRUB_UTIL
   &builtin_echo,
-#endif
-#ifdef GRUB_UTIL
-  &builtin_embed,
-#endif /* GRUB_UTIL */
   &builtin_endlocal,
   &builtin_errnum,
   &builtin_errorcheck,
@@ -17309,39 +15317,23 @@ struct builtin *builtin_table[] =
   &builtin_gfxmenu,
 #endif
   &builtin_goto,
-#ifndef GRUB_UTIL
   &builtin_graphicsmode,
-#endif /* ! GRUB_UTIL */
   &builtin_halt,
   &builtin_help,
   &builtin_hiddenflag,
   &builtin_hiddenmenu,
   &builtin_hide,
   &builtin_if,
-#ifdef SUPPORT_NETBOOT
-  &builtin_ifconfig,
-#endif /* SUPPORT_NETBOOT */
   &builtin_iftitle,
-//  &builtin_impsprobe,
   &builtin_initrd,
-#ifndef GRUB_UTIL
   &builtin_initscript,
-#endif
   &builtin_insmod,
-#ifdef GRUB_UTIL
-  &builtin_install,
-#endif /* GRUB_UTIL */
-//  &builtin_ioprobe,
   &builtin_is64bit,
   &builtin_kernel,
   &builtin_lock,
-#ifndef STAGE1_5
   &builtin_ls,
-#endif /* STAGE1_5 */
   &builtin_makeactive,
-#ifndef GRUB_UTIL
   &builtin_map,
-#endif /* ! GRUB_UTIL */
 #ifdef USE_MD5_PASSWORDS
   &builtin_md5crypt,
 #endif /* USE_MD5_PASSWORDS */
@@ -17358,16 +15350,9 @@ struct builtin *builtin_table[] =
 #ifdef FSYS_PXE
   &builtin_pxe,
 #endif
-//#ifdef GRUB_UTIL
   &builtin_quit,
-//#endif /* GRUB_UTIL */
-#ifndef GRUB_UTIL
-#ifdef SUPPORT_NETBOOT
-  &builtin_rarp,
-#endif /* SUPPORT_NETBOOT */
   &builtin_read,
   &builtin_reboot,
-#endif /* ! GRUB_UTIL */
   &builtin_root,
   &builtin_rootnoverify,
   &builtin_savedefault,
@@ -17377,9 +15362,6 @@ struct builtin *builtin_table[] =
   &builtin_set,
   &builtin_setkey,
   &builtin_setlocal,
-#ifdef GRUB_UTIL
-  &builtin_setup,
-#endif /* GRUB_UTIL */
   &builtin_setvbe,
   &builtin_shift,
 #ifdef SUPPORT_GRAPHICS
@@ -17391,22 +15373,13 @@ struct builtin *builtin_table[] =
 #ifdef SUPPORT_SERIAL
   &builtin_terminfo,
 #endif /* SUPPORT_SERIAL */
-//  &builtin_testload,
   &builtin_testvbe,
-#ifdef SUPPORT_NETBOOT
-  &builtin_tftpserver,
-#endif /* SUPPORT_NETBOOT */
   &builtin_timeout,
   &builtin_title,
-#if ! defined(GRUB_UTIL) && ! defined (STAGE1_5)
   &builtin_tpm,
-#endif /* ! defined(GRUB_UTIL) && ! defined (STAGE1_5) */
   &builtin_unhide,
-//  &builtin_uppermem,
   &builtin_uuid,
   &builtin_vbeprobe,
-#ifndef GRUB_UTIL
   &builtin_write,
-#endif /* ! GRUB_UTIL */
   0
 };

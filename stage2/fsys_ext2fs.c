@@ -399,11 +399,7 @@ struct ext4_extent_header
 #define S_ISREG(m)      (((m) & S_IFMT) == S_IFREG)
 #define S_ISDIR(m)      (((m) & S_IFMT) == S_IFDIR)
 
-#ifndef GRUB_UTIL
 static char *linkbuf = (char *)(FSYS_BUF - PATH_MAX);	/* buffer for following symbolic links */
-#else
-static char linkbuf[PATH_MAX];	/* buffer for following symbolic links */
-#endif
 
 /* include/asm-i386/bitops.h */
 /*
@@ -1092,15 +1088,10 @@ ext2fs_dir (char *dirname)
 	     give up */
 	  if (loc >= INODE->i_size)
 	    {
-# ifndef STAGE1_5
 	      if (print_possibilities < 0)
 		{
-# if 0
-		  putchar ('\n');
-# endif
 		  return 1;
 		}
-# endif /* STAGE1_5 */
 	      
 	      errnum = ERR_FILE_NOT_FOUND;
 	      *rest = ch;
@@ -1170,7 +1161,6 @@ ext2fs_dir (char *dirname)
 	      //dp->name[dp->name_len] = 0;
 	      str_chk = substring (dirname, tmp_name, 0);
 
-# ifndef STAGE1_5
 	      if (print_possibilities && ch != '/'
 		  && (!*dirname || str_chk <= 0))
 		{
@@ -1178,7 +1168,6 @@ ext2fs_dir (char *dirname)
 		    print_possibilities = -print_possibilities;
 		  print_a_completion (tmp_name, 0);
 		}
-# endif
 
 	      //dp->name[dp->name_len] = saved_c;
 	    }

@@ -153,11 +153,7 @@ vstafs_dir (char *dirname)
 	{
 	  int j, k;
 	  char ch1;
-#ifdef GRUB_UTIL
-	  char tmp_name[512];
-#else
 	  char *tmp_name = NAME_BUF;	/* MAXNAMLEN is 255, so 512 byte buffer is needed. */
-#endif
 
 	  if (d->name[0] == 0/* || d->name[0] & 0x80*/)
 	    continue;
@@ -173,7 +169,6 @@ vstafs_dir (char *dirname)
 	  }
 	  tmp_name[k] = 0;
 
-#ifndef STAGE1_5
 	  if (print_possibilities && ch != '/'
 	      && (! *dirname || strcmp (dirname, tmp_name) <= 0))
 	    {
@@ -182,7 +177,6 @@ vstafs_dir (char *dirname)
 	      
 	      print_a_completion (tmp_name, 0);
 	    }
-#endif
 	  if (! grub_strcmp (dirname, tmp_name))
 	    {
 	      f_sector = d->start;

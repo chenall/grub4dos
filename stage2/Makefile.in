@@ -136,7 +136,6 @@ am_pre_stage2_exec_OBJECTS = pre_stage2_exec-asm.$(OBJEXT) \
 	pre_stage2_exec-gunzip.$(OBJEXT) \
 	pre_stage2_exec-hercules.$(OBJEXT) \
 	pre_stage2_exec-md5.$(OBJEXT) pre_stage2_exec-serial.$(OBJEXT) \
-	pre_stage2_exec-smp-imps.$(OBJEXT) \
 	pre_stage2_exec-stage2.$(OBJEXT) \
 	pre_stage2_exec-terminfo.$(OBJEXT) \
 	pre_stage2_exec-tparm.$(OBJEXT) \
@@ -319,17 +318,17 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 
 # For test target.
-TESTS = size_test
+#TESTS = size_test
+TESTS = 
 noinst_SCRIPTS = $(TESTS)
 
 # For dist target.
-noinst_HEADERS = apic.h defs.h dir.h disk_inode.h disk_inode_ffs.h \
-	ntfs.h fat.h filesys.h freebsd.h fs.h hercules.h i386-elf.h \
-	imgact_aout.h iso9660.h jfs.h mb_header.h mb_info.h md5.h \
-	nbi.h pc_slice.h serial.h shared.h smp-imps.h term.h \
-	terminfo.h tparm.h nbi.h ufs2.h vstafs.h xfs.h pxe.h graphics.h
+noinst_HEADERS = fat.h filesys.h freebsd.h hercules.h \
+	iso9660.h jfs.h mb_header.h mb_info.h md5.h \
+	pc_slice.h serial.h shared.h term.h \
+	terminfo.h tparm.h ufs2.h vstafs.h xfs.h pxe.h graphics.h
 
-EXTRA_DIST = setjmp.S apm.S $(noinst_SCRIPTS)
+EXTRA_DIST = $(noinst_SCRIPTS)
 
 # Stage 2 and Stage 1.5's.
 datalibdir = $(libdir)/$(PACKAGE)/$(host_cpu)-$(host_vendor)
@@ -356,7 +355,7 @@ pre_stage2_exec_SOURCES = asm.S bios.c boot.c builtins.c char_io.c \
 	cmdline.c common.c console.c dec_lzma.c disk_io.c fsys_ext2fs.c \
 	fsys_fat.c fsys_ntfs.c fsys_ffs.c fsys_iso9660.c fsys_jfs.c fsys_minix.c \
 	fsys_reiserfs.c fsys_ufs2.c fsys_vstafs.c fsys_xfs.c fsys_pxe.c fsys_fb.c gunzip.c \
-	hercules.c md5.c serial.c smp-imps.c stage2.c terminfo.c tparm.c graphics.c
+	hercules.c md5.c serial.c stage2.c terminfo.c tparm.c graphics.c
 
 pre_stage2_exec_CFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)
 pre_stage2_exec_CCASFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)
@@ -493,7 +492,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-hercules.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-md5.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-serial.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-smp-imps.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-stage2.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-terminfo.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-tparm.Po@am__quote@
@@ -989,20 +987,6 @@ pre_stage2_exec-serial.obj: serial.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-serial.obj `if test -f 'serial.c'; then $(CYGPATH_W) 'serial.c'; else $(CYGPATH_W) '$(srcdir)/serial.c'; fi`
 
-pre_stage2_exec-smp-imps.o: smp-imps.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-smp-imps.o -MD -MP -MF $(DEPDIR)/pre_stage2_exec-smp-imps.Tpo -c -o pre_stage2_exec-smp-imps.o `test -f 'smp-imps.c' || echo '$(srcdir)/'`smp-imps.c
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/pre_stage2_exec-smp-imps.Tpo $(DEPDIR)/pre_stage2_exec-smp-imps.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='smp-imps.c' object='pre_stage2_exec-smp-imps.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-smp-imps.o `test -f 'smp-imps.c' || echo '$(srcdir)/'`smp-imps.c
-
-pre_stage2_exec-smp-imps.obj: smp-imps.c
-@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-smp-imps.obj -MD -MP -MF $(DEPDIR)/pre_stage2_exec-smp-imps.Tpo -c -o pre_stage2_exec-smp-imps.obj `if test -f 'smp-imps.c'; then $(CYGPATH_W) 'smp-imps.c'; else $(CYGPATH_W) '$(srcdir)/smp-imps.c'; fi`
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/pre_stage2_exec-smp-imps.Tpo $(DEPDIR)/pre_stage2_exec-smp-imps.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='smp-imps.c' object='pre_stage2_exec-smp-imps.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-smp-imps.obj `if test -f 'smp-imps.c'; then $(CYGPATH_W) 'smp-imps.c'; else $(CYGPATH_W) '$(srcdir)/smp-imps.c'; fi`
-
 pre_stage2_exec-stage2.o: stage2.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-stage2.o -MD -MP -MF $(DEPDIR)/pre_stage2_exec-stage2.Tpo -c -o pre_stage2_exec-stage2.o `test -f 'stage2.c' || echo '$(srcdir)/'`stage2.c
 @am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/pre_stage2_exec-stage2.Tpo $(DEPDIR)/pre_stage2_exec-stage2.Po
@@ -1385,10 +1369,7 @@ stage2_size.h: pre_stage2
 	set dummy `ls -l pre_stage2`; \
 	echo "#define STAGE2_SIZE $$6" > stage2_size.h
 
-dosstart_exec-dosstart.$(OBJEXT): stage2_size.h edd.S video.S \
-	linux/autoconf.h linux/compile.h linux/config.h linux/edd.h \
-	linux/linkage.h linux/version.h asm/boot.h asm/e820.h asm/linkage.h \
-	asm/page.h asm/segment.h asm/setup.h
+dosstart_exec-dosstart.$(OBJEXT): stage2_size.h
 
 grub.exe: pre_stage2 dosstart
 	-rm -f grub.exe
@@ -1396,10 +1377,7 @@ grub.exe: pre_stage2 dosstart
 	if [ -f ../preset_menu_used ]; then cat ../preset_menu_used >> grub.exe ;fi
 	dd if=/dev/zero bs=4128 count=1 >> grub.exe
 
-badgrubstart_exec-badgrubstart.$(OBJEXT): stage2_size.h edd.S video.S \
-	linux/autoconf.h linux/compile.h linux/config.h linux/edd.h \
-	linux/linkage.h linux/version.h asm/boot.h asm/e820.h asm/linkage.h \
-	asm/page.h asm/segment.h asm/setup.h dosstart.S
+badgrubstart_exec-badgrubstart.$(OBJEXT): stage2_size.h dosstart.S
 
 badgrub.exe: pre_stage2 badgrubstart
 	-rm -f badgrub.exe

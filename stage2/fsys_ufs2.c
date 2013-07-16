@@ -214,11 +214,7 @@ ufs2_dir (char *dirname)
   struct direct *dp;
   int j, k;
   char ch1;
-#ifdef GRUB_UTIL
-  char tmp_name[512];
-#else
   char *tmp_name = (char *)(NAME_BUF);	/* MAXNAMLEN is 255, so 512 byte buffer is needed. */
-#endif
 
 /* main loop to find destination inode */
 loop:
@@ -316,7 +312,6 @@ loop:
 	}
 	tmp_name[k] = 0;
 
-#ifndef STAGE1_5
       if (dp->d_ino && print_possibilities && ch != '/'
 	  && (!*dirname || substring (dirname, tmp_name, 0) <= 0))
 	{
@@ -325,7 +320,6 @@ loop:
 
 	  print_a_completion (tmp_name, 0);
 	}
-#endif /* STAGE1_5 */
     }
   while (!dp->d_ino || (substring (dirname, dp->d_name, 0) != 0
 			|| (print_possibilities && ch != '/')));

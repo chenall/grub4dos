@@ -1061,74 +1061,6 @@ trampoline:
 
 start_of_setup:
 
-#ifdef	OLD_LOADER_SUPPORT
-# Set %ds = %cs, we know that SETUPSEG = %cs at this point
-	movw	%cs, %ax		# aka SETUPSEG
-	movw	%ax, %ds
-
-# Check signature at end of setup
-	cmpl	$0x5A5AAA55, setup_sig1 - start
-	je	good_sig
-
-# We now have to find the rest of the setup code/data
-
-	movw	%cs, %ax		# SETUPSEG
-	subw	$0x20, %ax		# INITSEG
-	movw	%ax, %ds
-	xorb	%bh, %bh
-	movb	(497), %bl		# get setup sect from bootsect
-	subw	$4, %bx			# LILO loads 4 sectors of setup
-	shlw	$8, %bx			# convert to words (1sect=2^8 words)
-	movw	%bx, %cx
-	shrw	$3, %bx			# convert to segment
-	addw	$0x1000, %bx		# SYSSEG
-	movw	%bx, %cs:(start_sys_seg - start)
-# Move rest of setup code/data to here
-	movw	$2048, %di		# LILO loaded 4 sectors
-	subw	%si, %si
-	pushw	%cs
-	popw	%es
-	movw	$0x1000, %ax		# SYSSEG
-	movw	%ax, %ds
-	cld
-	rep
-	movsw
-	movw	%cs, %ax		# SETUPSEG
-	movw	%ax, %ds
-	cmpl	$0x5A5AAA55, setup_sig1 - start
-	je	good_sig
-
-	lea	no_sig_mess - start, %si
-
-no_sig_prtstr:
-	call	prtstr
-no_sig_loop:
-	hlt
-	jmp	no_sig_loop
-
-no_sig_mess: .string	"No setup signature found ..."
-
-good_sig:
-
-	movw	%cs, %ax		# aka SETUPSEG
-	subw	$0x20, %ax	 	# aka INITSEG
-	movw	%ax, %ds
-
-# Check if an old loader tries to load a big-kernel
-	cmpb	$0, %cs:type_of_loader - start	# Do we have a loader that
-					# can deal with us?
-	jnz	loader_ok		# Yes, continue.
-
-	pushw	%cs			# No, we have an old loader,
-	popw	%ds			# die. 
-	lea	loader_panic_mess - start, %si
-	jmp	no_sig_prtstr
-
-loader_panic_mess: .string "Wrong loader, giving up..."
-
-loader_ok:
-#endif
-
 # Now we want to move to protected mode ...
 
 # call this just before protected mode transition
@@ -1143,60 +1075,6 @@ loader_ok:
 # (loader may have changed it)
 	movl	code32_start - start, %eax
 	movl	%eax, code32 - start
-
-#ifdef	OLD_LOADER_SUPPORT
-# Check whether we need to be downward compatible with version <=201
-	cmpl	$0, cmd_line_ptr - start
-	jne	end_move_self		# loader uses version >=202 features
-	cmpb	$0x20, type_of_loader - start
-	je	end_move_self		# bootsect loader, we know of it
-
-# Boot loader doesnt support boot protocol version 2.02.
-# If we have our code not at 0x90000, we need to move it there now.
-# We also then need to move the params behind it (commandline)
-# Because we would overwrite the code on the current IP, we move
-# it in two steps, jumping high after the first one.
-	movw	%cs, %ax
-	cmpw	$0x9020, %ax		# SETUPSEG
-	je	end_move_self
-
-	cli				# make sure we really have
-					# interrupts disabled !
-					# because after this the stack
-					# should not be used
-	subw	$0x20, %ax		# aka INITSEG
-	movw	%ss, %dx
-	cmpw	%ax, %dx
-	jb	move_self_1
-
-	addw	$0x9000, %dx		# INITSEG
-	subw	%ax, %dx		# this will go into %ss after
-					# the move
-move_self_1:
-	movw	%ax, %ds
-	movw	$0x9000, %ax		# real INITSEG
-	movw	%ax, %es
-	movw	%cs:setup_move_size - start, %cx
-	std				# we have to move up, so we use
-					# direction down because the
-					# areas may overlap
-	movw	%cx, %di
-	decw	%di
-	movw	%di, %si
-	subw	$(move_self_here - start+0x200), %cx
-	rep
-	movsb
-	ljmp	$0x9020, $(move_self_here - start)
-
-move_self_here:
-	movw	$(move_self_here - start+0x200), %cx
-	rep
-	movsb
-	movw	$0x9020, %ax		# SETUPSEG
-	movw	%ax, %ds
-	movw	%dx, %ss
-end_move_self:				# now we are at the right place
-#endif
 
 #
 # Enable A20.  This is at the very best an annoying procedure.
@@ -5680,11 +5558,6 @@ gdt_48:
 # Include video setup & detection code
 
 #;#include "video.S"
-
-#ifdef	OLD_LOADER_SUPPORT
-# Setup signature to ensure LILO loaded us right -- must be last
-setup_sig1:	.long	0x5A5AAA55
-#endif
 
 # After this point, there is some free space which is used by the video mode
 # handling code to store the temporary mode table (not used by the kernel).
