@@ -214,11 +214,7 @@ struct fsys_entry
   unsigned long (*embed_func) (unsigned long *start_sector, unsigned long needed_sectors);
 };
 
-#ifdef STAGE1_5
-# define print_possibilities 0
-#else
 extern int print_possibilities;
-#endif
 
 extern unsigned long long fsmax;
 extern struct fsys_entry fsys_table[NUM_FSYS + 1];

@@ -79,10 +79,8 @@ iso9660_devread (unsigned long sector, unsigned long byte_offset, unsigned long 
 		: "Ic"((int8_t)(ISO_SECTOR_BITS - sector_size_lg2)),
 		"0"(sector));
 
-#if !defined(STAGE1_5)
   if (disk_read_hook && debug)
     printf ("<%d, %d, %d>", sector, byte_offset, byte_len);
-#endif /* !STAGE1_5 */
 
   return rawread (current_drive, part_start + sector, byte_offset, byte_len, buf);
 }
@@ -219,14 +217,12 @@ iso9660_dir (char *dirname)
 		{
 		  if (rr_ptr.rr->version != 1)
 		    {
-#ifndef STAGE1_5
 		      if (((unsigned long)debug) >= 0x7FFFFFFF)
 			printf(
 			       "Non-supported version (%d) RockRidge chunk "
 			       "`%c%c'\n", rr_ptr.rr->version,
 			       (unsigned long)(unsigned char)rr_ptr.rr->signature,
 			       (unsigned long)(unsigned char)(rr_ptr.rr->signature >> 8));
-#endif
 		      rr_flag = 0;
 		    }
 		  else
@@ -386,7 +382,6 @@ iso9660_dir (char *dirname)
 		    }
 		  else	/* Completion */
 		    {
-#ifndef STAGE1_5
 		      int j, k;
 		      char ch1;
 		      char *tmp_name1 = (char *)(NAME_BUF);
@@ -408,7 +403,6 @@ iso9660_dir (char *dirname)
 		      tmp_name1[k] = 0;
 
 		      print_a_completion (tmp_name1, 0);
-#endif
 		    }
 		}
 	    } /* for */

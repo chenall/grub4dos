@@ -23,16 +23,54 @@
 #include "filesys.h"
 #include "pxe.h"
 
-#include "etherboot.h"
+#if !defined(__constant_htonl)
+#define __constant_htonl(x) \
+        ((unsigned long int)((((unsigned long int)(x) & 0x000000ffU) << 24) | \
+                             (((unsigned long int)(x) & 0x0000ff00U) <<  8) | \
+                             (((unsigned long int)(x) & 0x00ff0000U) >>  8) | \
+                             (((unsigned long int)(x) & 0xff000000U) >> 24)))
+#endif
+#if !defined(__constant_htons)
+#define __constant_htons(x) \
+        ((unsigned short int)((((unsigned short int)(x) & 0x00ff) << 8) | \
+                              (((unsigned short int)(x) & 0xff00) >> 8)))
+#endif
 
-#ifdef GRUB_UTIL
+#define ntohl(x) \
+(__builtin_constant_p(x) ? \
+ __constant_htonl((x)) : \
+ __swap32(x))
+#define htonl(x) \
+(__builtin_constant_p(x) ? \
+ __constant_htonl((x)) : \
+ __swap32(x))
+#define ntohs(x) \
+(__builtin_constant_p(x) ? \
+ __constant_htons((x)) : \
+ __swap16(x))
+#define htons(x) \
+(__builtin_constant_p(x) ? \
+ __constant_htons((x)) : \
+ __swap16(x))
 
-int pxe_mount (void) { return 0; }
-unsigned long pxe_read (char *buf, unsigned long len, unsigned long write) { return -1; }
-int pxe_dir (char *dirname) { return 0; }
-void pxe_close (void) {}
+static inline unsigned long int __swap32(unsigned long int x)
+{
+	__asm__("xchgb %b0,%h0\n\t"
+		"rorl $16,%0\n\t"
+		"xchgb %b0,%h0"
+		: "=q" (x)
+		: "0" (x));
+	return x;
+}
 
-#else
+static inline unsigned short int __swap16(unsigned short int x)
+{
+	__asm__("xchgb %b0,%h0"
+		: "=q" (x)
+		: "0" (x));
+	return x;
+}
+
 
 #ifndef TFTP_PORT
 #define TFTP_PORT	69
@@ -931,7 +969,5 @@ bad_argument:
     }
   return 1;
 }
-
-#endif
 
 #endif

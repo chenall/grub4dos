@@ -22,51 +22,19 @@
 #include <iso9660.h>
 #include "pxe.h"
 
-#ifdef SUPPORT_DISKLESS
-# define GRUB	1
-# include <etherboot.h>
-#endif
-
 /*
  *  Shared BIOS/boot data.
  */
 
-#ifdef GRUB_UTIL
-struct multiboot_info mbi;
-unsigned long saved_drive;
-unsigned long saved_partition;
-#endif
 char saved_dir[256];
-#ifdef GRUB_UTIL
-unsigned long force_cdrom_as_boot_device = 1;
-//unsigned long cdrom_drives[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-unsigned long cdrom_drive = GRUB_INVALID_DRIVE;
-unsigned long ram_drive = 0x7F;	/* default is a floppy. */
-unsigned long long rd_base = 0;	/* Note the rd_base value of -1 invalidates the ram drive. */
-unsigned long long rd_size = 0x100000000ULL;	/* default is 4G */
-unsigned long long saved_mem_higher = 0;
-unsigned long saved_mem_upper = 0;
-unsigned long saved_mmap_addr;
-unsigned long saved_mmap_length = 0;
-#endif
 unsigned long saved_mem_lower;
 
-#ifndef STAGE1_5
-/* This saves the maximum size of extended memory (in KB).  */
-unsigned long extended_memory;
-#endif
-#ifdef GRUB_UTIL
-unsigned long init_free_mem_start;
-int is64bit = 0;
-grub_error_t errnum = ERR_NONE;
-#endif
+unsigned long extended_memory;	/* extended memory in KB */
 int errorcheck = 1;
 
 /*
  *  Error code stuff.
  */
-
-#ifndef STAGE1_5
 
 char *err_list[] =
 {
@@ -210,10 +178,7 @@ mmap_avail_at (unsigned long long bottom)
   
   return top - bottom;
 }
-#endif /* ! STAGE1_5 */
 
-#ifndef GRUB_UTIL
-#ifndef STAGE1_5
 unsigned int
 grub_sleep (unsigned int seconds)
 {
@@ -298,8 +263,6 @@ int check_64bit_and_PAE ()
     return x;
 }
 
-#endif /* ! STAGE1_5 */
-#endif /* ! GRUB_UTIL */
 unsigned int prog_pid = 0;
 void *grub_malloc(unsigned long size)
 {
@@ -379,23 +342,12 @@ void grub_free(void *ptr)
 void
 init_bios_info (void)
 {
-#ifndef STAGE1_5
   unsigned long cont, memtmp, addr;
   int drive;
-#endif
-#ifndef GRUB_UTIL
-#ifndef STAGE1_5
   unsigned long force_pxe_as_boot_device;
-#endif /* ! STAGE1_5 */
-#endif /* ! GRUB_UTIL */
 
-#ifndef GRUB_UTIL
-#ifndef STAGE1_5
   is64bit = check_64bit_and_PAE ();
-#endif /* ! STAGE1_5 */
-#endif /* ! GRUB_UTIL */
 
-#ifndef GRUB_UTIL
   /* initialize mem alloc array */
   grub_memset(mem_alloc_array_start,0,(int)(mem_alloc_array_end - mem_alloc_array_start));
   mem_alloc_array_start[0].addr = free_mem_start;
@@ -403,49 +355,31 @@ init_bios_info (void)
   malloc_array_start = (struct malloc_array *)mem_alloc_array_start + 10;
   malloc_array_start->addr = free_mem_start + 0x400000;
   malloc_array_start->next = (struct malloc_array *)&free_mem_end;
-#endif /* ! GRUB_UTIL */
 
   /*
    *  Get information from BIOS on installed RAM.
    */
-#ifndef STAGE1_5
-#ifndef GRUB_UTIL
   if (debug_boot) printf("DEBUG BOOT selected...\n");
-#endif /* ! GRUB_UTIL */
 
-#ifndef GRUB_UTIL
-  if (debug_boot)
-#endif /* ! GRUB_UTIL */
-  printf("Get lower memory... ");
-#endif /* ! STAGE1_5 */
   //saved_mem_lower = get_memsize (0);	/* int12 --------safe enough */
   saved_mem_lower = (*(unsigned short *)0x413);
-#ifndef STAGE1_5
-#ifndef GRUB_UTIL
   if (debug_boot) grub_printf("0x%x", saved_mem_lower);
   DEBUG_SLEEP
   if (debug_boot)
-#endif /* ! GRUB_UTIL */
   printf("Get upper memory... ");
-#endif /* ! STAGE1_5 */
   saved_mem_upper = get_memsize (1);	/* int15/88 -----safe enough */
-#ifndef GRUB_UTIL
   if (debug_boot) grub_printf("0x%x", saved_mem_upper);
   DEBUG_SLEEP
-#endif /* ! GRUB_UTIL */
 
-#ifndef STAGE1_5
   /*
    *  We need to call this somewhere before trying to put data
    *  above 1 MB, since without calling it, address line 20 will be wired
    *  to 0.  Not too desirable.
    */
 
-#ifndef GRUB_UTIL
   debug = debug_boot + 1;
   if (debug_boot)
   printf("Turning on gate A20... ");
-#if 1
     {
 	if (gateA20 (1))			/* int15/24 -----safe enough */
 	{
@@ -457,13 +391,7 @@ init_bios_info (void)
 		grub_sleep (5);	/* sleep 5 second on failure */
 	}
     }
-#else
-  extern void grub2_gate_a20 (int on);
-  grub2_gate_a20 (1);
-
-#endif
   DEBUG_SLEEP
-#endif
 
   /* Store the size of extended memory in EXTENDED_MEMORY, in order to
      tell it to non-Multiboot OSes.  */
@@ -476,15 +404,10 @@ init_bios_info (void)
    *  unused by GRUB.
    */
 
-#ifdef GRUB_UTIL
-  saved_mmap_addr = get_code_end ();
-#endif
   addr = saved_mmap_addr;
   cont = 0;
 
-#ifndef GRUB_UTIL
   if (debug_boot)
-#endif /* ! GRUB_UTIL */
   printf("Get E820 memory... ");
   do
     {
@@ -498,24 +421,18 @@ init_bios_info (void)
       addr += *((unsigned long *) addr) + 4;
     }
   while (cont);
-#ifndef GRUB_UTIL
   if (debug_boot) grub_printf("0x%x", saved_mmap_length);
   DEBUG_SLEEP
-#endif /* ! GRUB_UTIL */
 
   if (! (saved_mmap_length))
-#ifndef GRUB_UTIL
   if (debug_boot)
-#endif /* ! GRUB_UTIL */
 	printf("Get E801 memory...\n");
 
   if (saved_mmap_length)
     {
       unsigned long long max_addr;
 
-#ifndef GRUB_UTIL
       if (debug_boot) printf("Get MBI.MEM_{LOWER,UPPER} elements...\n");
-#endif /* ! GRUB_UTIL */
 
       /*
        *  This is to get the lower memory, and upper memory (up to the
@@ -576,9 +493,7 @@ init_bios_info (void)
 	  fakemap[2].Length = cont;
 	}
     }
-#ifndef GRUB_UTIL
   DEBUG_SLEEP
-#endif /* ! GRUB_UTIL */
   //printf("\r                        \r");	/* wipe out the messages */
 
   mbi.mem_upper = saved_mem_upper;
@@ -586,66 +501,7 @@ init_bios_info (void)
   mbi.mmap_addr = saved_mmap_addr;
   mbi.mmap_length = saved_mmap_length;
 
-#if 0
-  /* Get the drive info.  */
-  /* FIXME: This should be postponed until a Multiboot kernel actually
-     requires it, because this could slow down the start-up
-     unreasonably.  */
-  mbi.drives_length = 0;
-  mbi.drives_addr = addr;
-
-  /* For now, GRUB doesn't probe floppies, since it is trivial to map
-     floppy drives to BIOS drives.  */
-#ifdef GRUB_UTIL
-#define FIND_DRIVES 8
-#else
-#define FIND_DRIVES (*((char *)0x475))
-#endif
-  if (debug > 1)
-	grub_printf ("hard drives: %d, int13: %X, int15: %X\n", FIND_DRIVES, *(unsigned long *)0x4C, *(unsigned long *)0x54);
-  DEBUG_SLEEP
-
-  for (drive = 0x80; drive < 0x80 + FIND_DRIVES; drive++)
-    {
-      struct drive_info *info = (struct drive_info *) addr;
-//      unsigned short *port;
-      
-      /* Get the geometry. This ensures that the drive is present.  */
-
-      if (debug > 1)
-	grub_printf ("get_diskinfo(%X), ", drive);
-
-      if (get_diskinfo (drive, &tmp_geom))
-	continue;//break;
-
-      if (debug > 1)
-	grub_printf (" %sC/H/S=%d/%d/%d, Sector Count/Size=%ld/%d\n",
-		((tmp_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION) ? "LBA, " : ""),
-		tmp_geom.cylinders, tmp_geom.heads, tmp_geom.sectors,
-		(unsigned long long)tmp_geom.total_sectors, tmp_geom.sector_size);
-      
-      /* Set the information.  */
-      info->drive_number = drive;
-      info->drive_mode = ((tmp_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION)
-			  ? MB_DI_LBA_MODE : MB_DI_CHS_MODE);
-      info->drive_cylinders = tmp_geom.cylinders;
-      info->drive_heads = tmp_geom.heads;
-      info->drive_sectors = tmp_geom.sectors;
-
-      addr += sizeof (struct drive_info);
-
-      info->size = addr - (unsigned long) info;
-      mbi.drives_length += info->size;
-    }
-#endif
-
-#ifdef GRUB_UTIL
-  init_free_mem_start = addr;
-#else
   init_free_mem_start = get_code_end ();
-#endif
-
-  //DEBUG_SLEEP
 
   /*
    *  Initialize other Multiboot Info flags.
@@ -654,11 +510,7 @@ init_bios_info (void)
   mbi.flags = (MB_INFO_MEMORY | MB_INFO_CMDLINE | MB_INFO_BOOTDEV | MB_INFO_DRIVE_INFO | MB_INFO_CONFIG_TABLE | MB_INFO_BOOT_LOADER_NAME);
   if (saved_mmap_length)
     mbi.flags |= MB_INFO_MEM_MAP;
-  
-#endif /* STAGE1_5 */
 
-#ifndef GRUB_UTIL
-#ifndef STAGE1_5
 #ifdef FSYS_PXE
     force_pxe_as_boot_device = 0;
     if (! ((*(char *)0x8205) & 0x01))	/* if it is not disable pxe */
@@ -733,10 +585,6 @@ pxe_init_fail:
     }
 pxe_init_done:
 #endif /* FSYS_PXE */
-#endif /* ! STAGE1_5 */
-#endif /* ! GRUB_UTIL */
-
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
 
     /* setup boot_drive and install_partition for dos boot drive */
 redo_dos_geometry:
@@ -799,11 +647,7 @@ failed_dos_boot_drive:
 
   /* Set cdrom drive.  */
     
-#ifdef GRUB_UTIL
-#define FIND_DRIVES 8
-#else
 #define FIND_DRIVES (*((char *)0x475))
-#endif
     /* Get the geometry.  */
 
     if ((((unsigned char)boot_drive) >= 0x80 + FIND_DRIVES)
@@ -864,10 +708,7 @@ failed_dos_boot_drive:
     if (debug > 1)
 	printf("boot drive=%X, %s\n", boot_drive,(cdrom_drive == GRUB_INVALID_DRIVE ? "Not CD":"Is CD"));
   DEBUG_SLEEP
-#endif
   
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
-
   if (cdrom_drive == GRUB_INVALID_DRIVE
      && ! ((*(char *)0x8205) & 0x10))	/* if it is not disable startup cdrom drive look-up. */
   {
@@ -875,11 +716,7 @@ failed_dos_boot_drive:
     int version;
     struct drive_parameters *drp = (struct drive_parameters *)0x600;
 
-#ifdef GRUB_UTIL
-#define FIND_DRIVES 8
-#else
 #define FIND_DRIVES (*((char *)0x475))
-#endif
 	/* Drive 7F causes hang on motherboard "jetway 694AS/TAS", as reported
 	 * by renfeide112@126.com, 2009-09-30. So no more play with 7F. */
     for (drive = 0xFF; drive > 0x7F; drive--)
@@ -965,7 +802,6 @@ failed_dos_boot_drive:
   if (debug > 1)
     grub_printf("\rcdrom_drive == %X\n", cdrom_drive);
   DEBUG_SLEEP
-#endif /* ! STAGE1_5 && ! GRUB_UTIL */
 
   /* check if the no-emulation-mode bootable cdrom exists. */
   
@@ -981,8 +817,6 @@ failed_dos_boot_drive:
 	/* force it to be "whole drive" without partition table */
 	install_partition = 0xFFFFFF;
 
-#ifndef GRUB_UTIL
-#ifndef STAGE1_5
 set_root:
 
   if (force_pxe_as_boot_device)
@@ -990,16 +824,12 @@ set_root:
 	boot_drive = PXE_DRIVE;
 	install_partition = 0xFFFFFF;
   }
-#endif /* ! STAGE1_5 */
-#endif /* ! GRUB_UTIL */
 
   /* Set root drive and partition.  */
   saved_drive = boot_drive;
   saved_partition = install_partition;
   force_cdrom_as_boot_device = 0;
 
-#ifndef GRUB_UTIL
-#ifndef STAGE1_5
 //  if (fb_status)//set boot_drive to fb_drive when boot from fbinst.
 //     boot_drive = FB_DRIVE;
 
@@ -1042,27 +872,16 @@ set_root:
   run_line("set ?_BOOT=%@root%",1);
   memset(ADDR_RET_STR,0,0x200);
 //  builtin_cmd("set","?_Boot=",1);/*Initialize variable space*/
-#endif /* ! STAGE1_5 */
-#endif /* ! GRUB_UTIL */
 
-#ifndef STAGE1_5
 #ifdef SUPPORT_GRAPHICS
 extern int font_func (char *, int);
   font_func (NULL, 0);	/* clear the font */
 #endif /* SUPPORT_GRAPHICS */
-#endif /* ! STAGE1_5 */
 
   /* Start main routine here.  */
   
-#ifndef GRUB_UTIL
-#ifndef STAGE1_5
   if (debug_boot)
-#endif /* ! STAGE1_5 */
-#endif /* ! GRUB_UTIL */
   grub_printf("\rStarting cmain()... ");
   
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
   DEBUG_SLEEP
-#endif /* ! STAGE1_5 && ! GRUB_UTIL */
-//  cmain ();	/* moved into asm.S and asmstub.c */
 }

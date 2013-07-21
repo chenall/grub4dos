@@ -340,11 +340,7 @@ next_dentry (xfs_ino_t *ino)
 	char *name = usual[0];
 	int j, k;
 	char ch1;
-//#ifdef GRUB_UTIL
-//	char tmp_name[512];
-//#else
 	char *tmp_name = NAME_BUF;	/* MAXNAMLEN is 255, so 512 byte buffer is needed. */
-//#endif
 
 	if (xfs.dirpos >= xfs.dirmax) {
 		if (xfs.forw == 0)
@@ -472,12 +468,7 @@ first_dentry (xfs_ino_t *ino)
 int
 xfs_mount (void)
 {
-#ifdef GRUB_UTIL
-	xfs_sb_t super1;		/* struct size 188 */
-	xfs_sb_t *super = &super1;
-#else
 	xfs_sb_t *super = (xfs_sb_t *)0x600;
-#endif
 
 	if (!devread (0, 0, sizeof(xfs_sb_t), (unsigned long long)(unsigned int)(char *)super, 0xedde0d90)
 	    || (le32(super->sb_magicnum) != XFS_SB_MAGIC)
@@ -588,11 +579,7 @@ xfs_dir (char *dirname)
 	unsigned long n, link_count;
 	char *rest, *name, ch;
 
-#ifdef GRUB_UTIL
-	char linkbuf[xfs.bsize];
-#else
 	char *linkbuf = (char *)(FSYS_BUF - xfs.bsize);
-#endif
 
 	parent_ino = ino = xfs.rootino;
 	link_count = 0;
@@ -654,13 +641,11 @@ xfs_dir (char *dirname)
 		name = first_dentry (&new_ino);
 		for (;;) {
 			cmp = (!*dirname) ? -1 : substring (dirname, name, 0);
-#ifndef STAGE1_5
 			if (print_possibilities && ch != '/' && cmp <= 0) {
 				if (print_possibilities > 0)
 					print_possibilities = -print_possibilities;
 				print_a_completion (name, 0);
 			} else
-#endif
 			if (cmp == 0) {
 				parent_ino = ino;
 				if (new_ino)

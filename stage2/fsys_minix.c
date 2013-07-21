@@ -157,11 +157,7 @@ struct minix_dir_entry {
 #define PATH_MAX                1024	/* include/linux/limits.h */
 #define MAX_LINK_COUNT             5	/* number of symbolic links to follow */
 
-#ifndef GRUB_UTIL
 static char *linkbuf = (char *)(FSYS_BUF - PATH_MAX);	/* buffer for following symbolic links */
-#else
-static char linkbuf[PATH_MAX];	/* buffer for following symbolic links */
-#endif
 
 /* check filesystem types and read superblock into memory buffer */
 int
@@ -550,7 +546,6 @@ minix_dir (char *dirname)
 	      //dp->name[namelen] = 0;
 	      str_chk = substring (dirname, tmp_name, 0);
 
-# ifndef STAGE1_5
 	      if (print_possibilities && ch != '/'
 		  && (!*dirname || str_chk <= 0))
 		{
@@ -558,7 +553,6 @@ minix_dir (char *dirname)
 		    print_possibilities = -print_possibilities;
 		  print_a_completion (tmp_name, 0);
 		}
-# endif
 
 	      //dp->name[namelen] = saved_c;
 	    }

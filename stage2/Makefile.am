@@ -1,14 +1,14 @@
 # For test target.
-TESTS = size_test
+#TESTS = size_test
+TESTS = 
 noinst_SCRIPTS = $(TESTS)
 
 # For dist target.
-noinst_HEADERS = apic.h defs.h dir.h disk_inode.h disk_inode_ffs.h \
-	ntfs.h fat.h filesys.h freebsd.h fs.h hercules.h i386-elf.h \
-	imgact_aout.h iso9660.h jfs.h mb_header.h mb_info.h md5.h \
-	nbi.h pc_slice.h serial.h shared.h smp-imps.h term.h \
-	terminfo.h tparm.h nbi.h ufs2.h vstafs.h xfs.h pxe.h graphics.h
-EXTRA_DIST = setjmp.S apm.S $(noinst_SCRIPTS)
+noinst_HEADERS = fat.h filesys.h freebsd.h hercules.h \
+	iso9660.h jfs.h mb_header.h mb_info.h md5.h \
+	pc_slice.h serial.h shared.h term.h \
+	terminfo.h tparm.h ufs2.h vstafs.h xfs.h pxe.h graphics.h
+EXTRA_DIST = $(noinst_SCRIPTS)
 
 # Stage 2 and Stage 1.5's.
 datalibdir = $(libdir)/$(PACKAGE)/$(host_cpu)-$(host_vendor)
@@ -57,7 +57,7 @@ pre_stage2_exec_SOURCES = asm.S bios.c boot.c builtins.c char_io.c \
 	cmdline.c common.c console.c dec_lzma.c disk_io.c fsys_ext2fs.c \
 	fsys_fat.c fsys_ntfs.c fsys_ffs.c fsys_iso9660.c fsys_jfs.c fsys_minix.c \
 	fsys_reiserfs.c fsys_ufs2.c fsys_vstafs.c fsys_xfs.c fsys_pxe.c fsys_fb.c gunzip.c \
-	hercules.c md5.c serial.c smp-imps.c stage2.c terminfo.c tparm.c graphics.c
+	hercules.c md5.c serial.c stage2.c terminfo.c tparm.c graphics.c
 pre_stage2_exec_CFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)
 pre_stage2_exec_CCASFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)
 pre_stage2_exec_LDFLAGS = $(PRE_STAGE2_LINK)
@@ -73,10 +73,7 @@ dosstart_exec_SOURCES = dosstart.S
 dosstart_exec_CCASFLAGS = $(STAGE2_COMPILE)
 dosstart_exec_LDFLAGS = $(START_LINK)
 
-dosstart_exec-dosstart.$(OBJEXT): stage2_size.h edd.S video.S \
-	linux/autoconf.h linux/compile.h linux/config.h linux/edd.h \
-	linux/linkage.h linux/version.h asm/boot.h asm/e820.h asm/linkage.h \
-	asm/page.h asm/segment.h asm/setup.h
+dosstart_exec-dosstart.$(OBJEXT): stage2_size.h
 
 grub.exe: pre_stage2 dosstart
 	-rm -f grub.exe
@@ -88,10 +85,7 @@ badgrubstart_exec_SOURCES = badgrubstart.S
 badgrubstart_exec_CCASFLAGS = $(STAGE2_COMPILE)
 badgrubstart_exec_LDFLAGS = $(START_LINK)
 
-badgrubstart_exec-badgrubstart.$(OBJEXT): stage2_size.h edd.S video.S \
-	linux/autoconf.h linux/compile.h linux/config.h linux/edd.h \
-	linux/linkage.h linux/version.h asm/boot.h asm/e820.h asm/linkage.h \
-	asm/page.h asm/segment.h asm/setup.h dosstart.S
+badgrubstart_exec-badgrubstart.$(OBJEXT): stage2_size.h dosstart.S
 
 badgrub.exe: pre_stage2 badgrubstart
 	-rm -f badgrub.exe

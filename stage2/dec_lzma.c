@@ -26,7 +26,6 @@
 #ifndef NO_DECOMPRESSION
 
 #include "shared.h"
-#include "decomp.h"
 
 /* Types.h -- Basic types
 2010-03-11 : Igor Pavlov : Public domain */

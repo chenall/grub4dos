@@ -39,17 +39,12 @@
 #include "filesys.h"
 #include "shared.h"
 
-#ifdef STAGE1_5
-# define	ABS(x)	((x) - EXT_C(main) + 0x2200)
-#else
 # define	ABS(x)	((x) - EXT_C(main) + 0x8200)
-#endif
 
 	.file	"asm.S"
 
 	.text
 
-#ifndef STAGE1_5
 	/*
 	 * In stage2, do not link start.S with the rest of the source
 	 * files directly, so define the start symbols here just to
@@ -58,7 +53,6 @@
 	.globl	start, _start
 start:
 _start:
-#endif /* ! STAGE1_5 */
 
 ENTRY(main)
 
@@ -96,9 +90,6 @@ VARIABLE(install_partition)
 	. = EXT_C(main) + 0xC
 
 VARIABLE(saved_entryno)
-#if defined(STAGE1_5) /* || ! defined(PRESET_MENU_STRING) */
-	.long	0
-#else
 	/* Note: GRUB for DOS uses this for the commandline preset_menu.
 	 * A preset_menu can be embedded in the commandline of GRUB.EXE.
 	 * This new preset_menu overrides the built-in preset_menu.
@@ -112,7 +103,6 @@ VARIABLE(saved_entryno)
 	/* Some external utilities use this to locate the preset_menu. */
 	.long	ABS(preset_menu_old)
 	//.long	preset_menu	/* it is now at a fixed address 0x307FFC */
-#endif
 
 	. = EXT_C(main) + 0x10
 
@@ -128,7 +118,6 @@ VARIABLE(version_string)
 	.string VERSION
 
 VARIABLE(config_file)
-#ifndef STAGE1_5
 	.string "/boot/grub/menu.lst"
 
 	. = EXT_C(main) + 0x34
@@ -144,11 +133,6 @@ VARIABLE(config_file)
 	.word	0x7273
 	.word	0x63
 
-#else
-	.long	0xffffffff
-	.string "/boot/grub/stage2"
-#endif
-
 	/* Utilities may use this to locate the bss starting address,
 	 * where the "bootlace" signature is placed and preset-menu
 	 * follows.
@@ -157,7 +141,6 @@ VARIABLE(config_file)
 	. = EXT_C(main) + 0x6C  #; bss starting address
 
 preset_menu_old:
-#ifndef STAGE1_5
 #if defined(HAVE_USCORE_USCORE_BSS_START_SYMBOL)
 	.long	__bss_start - 0x300000
 #elif defined(HAVE_USCORE_EDATA_SYMBOL)
@@ -166,7 +149,6 @@ preset_menu_old:
 	.long	edata - 0x300000
 #else
 #error no bss starting address
-#endif
 #endif
 
 	. = EXT_C(main) + 0x70
@@ -191,11 +173,7 @@ VARIABLE(hotkey_func)
 	. = EXT_C(main) + 0x80
 
 VARIABLE(boot_drive)
-#ifdef SUPPORT_DISKLESS
-	.long	NETWORK_DRIVE
-#else
 	.long	0xFFFFFFFF	/* can be setup by external programs. */
-#endif
 
 VARIABLE(pxe_yip)
 	.long	0
@@ -296,18 +274,10 @@ VARIABLE(saved_mmap_length)	/* system memory map length */
 	. = EXT_C(main) + 0x100
 
 VARIABLE(addr_system_functions)
-#ifndef STAGE1_5
 	.long	ABS(EXT_C(system_functions))
-#else
-	.long	0
-#endif /* !STAGE1_5 */
 
 VARIABLE(addr_system_variables)
-#ifndef STAGE1_5
 	.long	ABS(EXT_C(system_variables))
-#else
-	.long	0
-#endif /* !STAGE1_5 */
 
 	. = EXT_C(main) + 0x110
 
@@ -334,6 +304,10 @@ VARIABLE(filepos)
 	. = EXT_C(main) + 0x130
 
 VARIABLE(debug)
+	/* 0 for silent, 1 for normal, 2..MAX_UINT for verbose.
+	 * if debug == MAX_UINT or debug < 0, then filesystem debug mode is on.
+	 * (MAX_UINT is 0x7FFFFFFF)
+	 */
 	.long	0
 
 VARIABLE(current_slice)
@@ -372,8 +346,6 @@ real_codestart:
 	movl	$STACKOFF, %esp
 
 	sti		/* added 2008-08-04 */
-
-#ifndef STAGE1_5
 
 	/* check for fb structure  */
 	cmpl	$0x46424246, (0x21b4)
@@ -470,15 +442,11 @@ real_codestart:
 	xorw	%ax, %ax
 	movw	%ax, %es			/* ES=0 */
 
-#endif /* !STAGE1_5 */
-
 	pushw	%dx		/* DL=boot drive */
 
 	xorw	%ax, %ax
 	movw	%ax, %ds
 	movw	%ax, %es
-
-#ifndef STAGE1_5
 
 	sti
 
@@ -557,14 +525,10 @@ real_codestart:
 	jnz	1f
 	movl	$0, ABS(EXT_C(use_config_file))
 1:
-#endif /* !STAGE1_5 */
-
 	popw	%dx		/* DL=boot drive */
 
-#ifndef SUPPORT_DISKLESS
 	movzbl	%dl, %eax
 	movl	%eax, ABS(EXT_C(boot_drive))
-#endif
 
 	xorw	%ax, %ax
 	movw	%ax, %ds
@@ -591,7 +555,6 @@ real_codestart:
 
 4:
 
-#ifndef STAGE1_5
 	/* Oops! I forgot to enable A20. Thanks to zw2312914. */
 	
 	movw	$0x00ff, %cx		# try so many times on failure
@@ -613,14 +576,11 @@ bootup_a20_failure:
 	.ascii	"\r\ngrub4dos: A20 failure. Please report with error code(if any in the above line).\r\n\0"
 
 1:
-#endif /* !STAGE1_5 */
 
 	/* transition to protected mode */
 	call EXT_C(real_to_prot)
 
 	.code32
-
-#ifndef STAGE1_5
 
 	/* enable preset_menu */
 	movl	$1, use_preset_menu
@@ -701,7 +661,6 @@ bootup_a20_failure:
 3:
 	movl	$0x0800, preset_menu	/* use new menu at 0x800 */
 4:
-#endif /* !STAGE1_5 */
 
 //	/* if force_cdrom_as_boot_device==0, we are running by configfile, so we do not clear bss */
 //	cmpl	$0, ABS(EXT_C(force_cdrom_as_boot_device))
@@ -762,7 +721,6 @@ bootup_a20_failure:
 	/* clean out */
 	rep stosl
 
-#ifndef STAGE1_5
 	/* initialize IDT */
 
 	movl	$0x300000, %edi
@@ -812,7 +770,6 @@ bootup_a20_failure:
 	stosw
 	incl	%ebx
 	loop	2b
-#endif /* !STAGE1_5 */
 
 1:
 	call	EXT_C(prot_to_real)
@@ -867,7 +824,6 @@ VARIABLE(use_config_file)
 	.long	1
 VARIABLE(configfile_opened)
 	.long	0
-#ifndef STAGE1_5
 
 /* If preset_menu == __bss_start, the new menu at end of pre_stage2 will be used. */
 
@@ -890,7 +846,6 @@ VARIABLE(preset_menu)
 
 VARIABLE(debug_boot)
 	.long	0
-#endif /* ! STAGE1_5 */
 
 #if 0
 	/* real mode print string */
@@ -927,8 +882,6 @@ ENTRY(bios_id)
 
 	.code32
 
-
-#ifndef STAGE1_5
 
 #ifdef FSYS_PXE
 /* unsigned long pxe_scan(void)
@@ -1246,7 +1199,7 @@ ENTRY(stop_floppy)
 	.code16
 	sti	#; added 2006-11-30
 	xorb	%dl, %dl
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -2117,8 +2070,6 @@ VARIABLE(saved_pxe_mac)
 
 	. = int13_handler + 0x140
 
-#endif /* ! STAGE1_5 */
-
 	/* GDT used by int13_handler RAM disk (32-bit protected mode, PAE
 	 * paging, and 64-bit long mode).
 	 * Linear address will be set by set_int13_handler routine.
@@ -2164,8 +2115,6 @@ int13_prev_DL:		// used in 64-bit code
 OldGDTdesc:
 	.word	0
 	.long	0
-
-#ifndef STAGE1_5
 
 	.align 4
 int13_prev_CR0:
@@ -8139,64 +8088,6 @@ ENTRY(chain_stage1)
 	DATA32	ADDR32	ljmp	*(offset)
 #endif
 
-#endif /* ! STAGE1_5 */
-
-
-#ifdef STAGE1_5
-/*
- * chain_stage2(segment, offset, second_sector)
- *
- *  This starts another stage2 loader, at segment:offset.  It presumes
- *  that the other one starts with this same "asm.S" file, and passes
- *  parameters by writing the embedded install variables.
- */
-
-ENTRY(chain_stage2)
-
-	.code32
-
-	/* no need to save anything, just use %esp */
-
-	/* store new offset */
-	movl	0x8(%esp), %eax
-	movl	%eax, offset
-	movl	%eax, %ebx
-
-	/* store new segment */
-	movw	0x4(%esp), %ax
-	movw	%ax, segment
-	shll	$4, %eax
-
-	/* generate linear address */
-	addl	%eax, %ebx
-
-	/* set up to pass the partition where stage2 is located in */
-	movl	EXT_C(current_partition), %eax
-	movl	%eax, (EXT_C(install_partition)-EXT_C(main))(%ebx)
-
-	/* set up to pass the drive where stage2 is located in */
-	movb	EXT_C(current_drive), %dl
-
-	/* set up to pass the second sector of stage2 */
-	movl	0xc(%esp), %ecx
-
-	call	EXT_C(prot_to_real)
-
-	.code16
-
-	//sti		/* it is not bad keeping interrupt off */
-	sti		/* for hardware interrupt or watchdog */
-
-	movl	%ecx, %ebp
-
-#ifdef ABSOLUTE_WITHOUT_ASTERISK
-	DATA32	ADDR32	ljmp	(offset)
-#else
-	DATA32	ADDR32	ljmp	*(offset)
-#endif
-
-#endif /* STAGE1_5 */
-
 
 /*
  *  These next two routines, "real_to_prot" and "prot_to_real" are structured
@@ -8331,7 +8222,6 @@ realcseg:
 	DATA32	ret		/* 32-bit RET!! */
 
 
-#ifndef STAGE1_5
 /*
  *   int mem64 (int func, __u64 dest, __u64 src, __u64 len)
  *
@@ -8579,8 +8469,6 @@ ENTRY(mem64)
 
 	ret
 
-#endif /* ! STAGE1_5 */
-
 /*
  *   int biosdisk_int13_extensions (int ax, int drive, void *dap)
  *
@@ -8642,7 +8530,7 @@ ENTRY(biosdisk_int13_extensions)
 	movw	%si, %di
 	movw	%si, %bx
 
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -8664,7 +8552,6 @@ ENTRY(biosdisk_int13_extensions)
 	xorw	%ax, %ax
 	movw	%ax, %ds
 	movw	%ax, %es
-#ifndef STAGE1_5
 
 	/* if it is not read/write operation, we can skip the A20 code. */
 
@@ -8687,7 +8574,6 @@ ENTRY(biosdisk_int13_extensions)
 
 	popal
 1:
-#endif /* ! STAGE1_5 */
 	/* back to protected mode */
 	call	EXT_C(real_to_prot)
 	.code32
@@ -8757,7 +8643,7 @@ ENTRY(biosdisk_standard)
 	pushw	%dx
 	xorw	%bx, %bx
 	movw	%di, %ax
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -8789,7 +8675,7 @@ ENTRY(biosdisk_standard)
 	pushw	%cx
 	pushw	%dx
 	xorw	%ax, %ax
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -8804,7 +8690,6 @@ ENTRY(biosdisk_standard)
 4:
 	movb	$1, %bl		/* set error */
 2:
-#ifndef STAGE1_5
 	/* ensure A20 is on when we come back to protected mode. */
 
 	pushal
@@ -8819,7 +8704,6 @@ ENTRY(biosdisk_standard)
 	//sete	%dl			# DL=1 means success
 
 	popal
-#endif /* ! STAGE1_5 */
 	/* back to protected mode */
 	call	EXT_C(real_to_prot)
 	.code32
@@ -8869,7 +8753,7 @@ ENTRY(check_int13_extensions)
 
 	movb	$0x41, %ah
 	movw	$0x55aa, %bx
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -8977,7 +8861,7 @@ ENTRY(get_diskinfo_standard)
 2:
 	xorw	%cx, %cx
 	movb	$0x8, %ah
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -9050,7 +8934,7 @@ ENTRY(get_diskinfo_standard)
 
 	ret
 
-#if !defined(STAGE1_5) && defined(USE_DEBUG_DUMP)
+#if defined(USE_DEBUG_DUMP)
 	.code16
 debug_dump_regs_format:
 	.ascii "di%4X si%4X bp%4X sp%4X bx%4X dx%4X cx%4X ax%4X f%4X ip%4X ln%u\r\n\0"
@@ -9209,7 +9093,7 @@ check_sector_readable:
 	pushaw
 	movw	%bx, %si
 	movw	%bx, %di
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -9258,7 +9142,7 @@ check_sector_readable:
 	pushaw
 	movw	%bx, %si
 	movw	%bx, %di
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -9277,7 +9161,7 @@ check_sector_readable:
 	pushaw
 	movw	%bx, %si
 	movw	%bx, %di
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -9322,7 +9206,7 @@ check_sector_readable:
 	pushaw
 	movw	%bx, %si
 	movw	%bx, %di
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -9491,7 +9375,7 @@ tune_heads:
 	pushaw
 	movw	%bx, %si
 	movw	%bx, %di
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -9515,7 +9399,7 @@ tune_heads:
 	movw	%bx, %si
 	movw	%bx, %di
 	movb	$0, %dh
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -9542,7 +9426,7 @@ tune_heads:
 	movw	%bx, %si
 	movw	%bx, %di
 	movb	$0, %dh
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -9609,7 +9493,7 @@ tune_sectors:
 	movw	%bx, %si
 	movw	%bx, %di
 	movb	$1, %cl		/* beginning sector */
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -9627,7 +9511,7 @@ tune_sectors:
 	pushaw
 	movw	%bx, %si
 	movw	%bx, %di
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -9662,7 +9546,7 @@ tune_sectors:
 	movw	%bx, %si
 	movw	%bx, %di
 	movb	$1, %cl		/* sector 1=the leading sector */
-#if defined(STAGE1_5) || 1
+#if 1
 	int	$0x13
 #else
 	call	safe_int13
@@ -10099,13 +9983,8 @@ ENTRY(get_memsize)
 
 1:
 	movb	$0x88, %ah
-#ifdef STAGE1_5
-	int	$0x15
-#else
 	pushfw
 	lcall	*ABS(EXT_C(ROM_int15))
-#endif
-
 2:
 	movw	%ax, %bx
 
@@ -10121,8 +10000,6 @@ ENTRY(get_memsize)
 	popl	%ebp
 	ret
 
-
-#ifndef STAGE1_5
 
 /*
  *
@@ -11697,8 +11574,6 @@ ENTRY(toggle_blinking)
 	popl	%ebp
 	ret
 
-#endif /* ! STAGE1_5 */
-
 
 /*
  * unsigned int console_putchar (unsigned int c, unsigned int max_width)
@@ -11723,16 +11598,10 @@ ENTRY(console_putchar)
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
-#ifdef STAGE1_5
-	movb	$0x07, %bl
-#else
 	movl	EXT_C(current_color), %ebx
-#endif
 
-#ifndef STAGE1_5
 	movb	EXT_C(fontx), %cl
 	movb	EXT_C(fonty), %ch
-#endif /* ! STAGE1_5 */
 
 
 	call	EXT_C(prot_to_real)
@@ -11743,7 +11612,6 @@ ENTRY(console_putchar)
 	movb	%dl, %al
 	xorb	%bh, %bh
 
-#ifndef STAGE1_5
 	cmpb	$80, %cl
 	jb	5f
 	movb	$0, %cl
@@ -11854,17 +11722,14 @@ ENTRY(console_putchar)
 	int	$0x10
 	popaw
 	jmp	3f
-#endif /* ! STAGE1_5 */
 
 1:
 	movb	$0x0e, %ah
 	int	$0x10
-#ifndef STAGE1_5
 	/* update fontx, fonty */
 	xorb	%bh, %bh                /* set page to 0 */
 	movb	$0x3, %ah
 	int	$0x10			/* get cursor position */
-#endif /* ! STAGE1_5 */
 
 3:
 	call	EXT_C(real_to_prot)
@@ -11874,12 +11739,10 @@ ENTRY(console_putchar)
 
 	/* EAX = 0 */
 
-#ifndef STAGE1_5
 	movb	%dl, %al
 	movl	%eax, EXT_C(fontx)
 	movb	%dh, %al
 	movl	%eax, EXT_C(fonty)
-#endif /* ! STAGE1_5 */
 
 	popl	%edi
 	popl	%esi
@@ -11888,8 +11751,6 @@ ENTRY(console_putchar)
 	movl	$0x00000001, %eax	/* always return 1 char printed. */
 	ret
 
-
-#ifndef STAGE1_5
 
 /*
  * remap_ascii_char remaps the ascii code %dl to another if the code is
@@ -12297,15 +12158,12 @@ ENTRY(console_cls)
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
-#ifndef STAGE1_5
 	movb	EXT_C(current_color), %bh
-#endif
 	call	EXT_C(prot_to_real)
 
 	.code16
 
 	sti		/* for hardware interrupt or watchdog */
-#ifndef STAGE1_5
 /*
 * BIOS call "INT 10H Function 06h" to Scroll up window
 *	Call with	%AH = 0x06
@@ -12322,19 +12180,6 @@ ENTRY(console_cls)
 	movb 0x484, %dh //40:0084   maximum valid row value
 	int	$0x10
 	xorb	%bh, %bh
-#else
-	/* move the cursor to the beginning */
-	movb	$0x02, %ah
-	xorb	%bh, %bh
-	xorw	%dx, %dx
-	int	$0x10
-
-	/* write spaces to the entire screen */
-	movw	$0x0920, %ax
-	movw	$0x07, %bx
-	movw	$(80 * 25), %cx
-        int	$0x10
-#endif
 	/* move back the cursor */
 	xorw	%dx, %dx
 	movb	$0x02, %ah
@@ -12954,7 +12799,6 @@ ENTRY(multi_boot)
 	/* error */
 	call	EXT_C(stop)
 
-#endif /* ! STAGE1_5 */
 
 /*
  *  This is the area for all of the special variables.
@@ -13235,8 +13079,6 @@ VARIABLE(end_of_low_16bit_code)
 /************************* 32-bit functions follow **************************/
 /****************************************************************************/
 
-
-#ifndef STAGE1_5
 
 	.space	0x300000	/* !!!! insert 3M !!!! */
 
@@ -13871,10 +13713,6 @@ default_iret:
 	iret
 
 
-#endif /* ! STAGE1_5 */
-
-#ifndef STAGE1_5
-
 /*
  * The C code for a grub4dos executable may have defines as follows:
  *
@@ -14103,7 +13941,6 @@ VARIABLE(putchar_hooked)
 	.long 0
 VARIABLE(init_free_mem_start)
 	.long 0
-#endif /* ! STAGE1_5 */
 
 
 /*

@@ -21,18 +21,8 @@
 
 #include <shared.h>
 #include <filesys.h>
-#include <decomp.h>
 #include <iso9660.h>
 #include "iamath.h"
-
-#ifdef SUPPORT_NETBOOT
-# define GRUB	1
-# include <etherboot.h>
-#endif
-
-#ifdef GRUB_UTIL
-# include <device.h>
-#endif
 
 /* function declaration */
 unsigned long long
@@ -51,7 +41,6 @@ static int next_gpt_slice(void);
 static char open_filename[512];
 static unsigned long relative_path;
 
-#ifndef STAGE1_5
 int print_possibilities;
 
 /* patch about cur_part_start and cur_part_entry was suggested by Icecube:
@@ -100,12 +89,10 @@ static enum
   PART_CHOSEN,
 }
 part_choice;
-#endif /* ! STAGE1_5 */
 
 
 //unsigned long i;
 
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
 /* The first sector of stage2 can be reused as a tmp buffer.
  * Do NOT write more than 512 bytes to this buffer!
  * The stage2-body, i.e., the pre_stage2, starts at 0x8200!
@@ -123,20 +110,6 @@ extern unsigned long *next_partition_offset;
 extern unsigned long *next_partition_entry;
 extern unsigned long *next_partition_ext_offset;
 extern char *next_partition_buf;
-#else
-char mbr[SECTOR_SIZE];
-
-unsigned long next_partition_drive;
-unsigned long next_partition_dest;
-unsigned long *next_partition_partition;
-unsigned long *next_partition_type;
-unsigned long *next_partition_start;
-unsigned long *next_partition_len;
-unsigned long *next_partition_offset;
-unsigned long *next_partition_entry;
-unsigned long *next_partition_ext_offset;
-char *next_partition_buf;
-#endif
 
 static unsigned long dest_partition;
 static unsigned long part_offset;
@@ -197,20 +170,9 @@ struct fsys_entry fsys_table[NUM_FSYS + 1] =
   {0, 0, 0, 0, 0, 0}
 };
 
-
-/* These have the same format as "boot_drive" and "install_partition", but
-   are meant to be working values. */
-#ifdef GRUB_UTIL
-unsigned long current_drive = GRUB_INVALID_DRIVE;
-unsigned long current_partition;
-unsigned long current_slice;
-#endif
-
-#ifndef STAGE1_5
 /* The register ESI should contain the address of the partition to be
    used for loading a chain-loader when chain-loading the loader.  */
 unsigned long boot_part_addr = 0;
-#endif
 
 /*
  *  Global variables describing details of the filesystem
@@ -221,22 +183,7 @@ unsigned long boot_part_addr = 0;
 int bsd_evil_hack;
 
 /* filesystem type */
-//#ifdef GRUB_UTIL
 int fsys_type = NUM_FSYS;
-//fsys_type = NUM_FSYS;
-//#endif
-
-/* these are the translated numbers for the open partition */
-#ifdef GRUB_UTIL
-unsigned long long part_start;
-unsigned long long part_length;
-#endif
-
-/* disk buffer parameters */
-#ifdef GRUB_UTIL
-int buf_drive = -1;
-int buf_track = -1;
-#endif
 
 struct geometry buf_geom;
 struct geometry tmp_geom;	/* tmp variable used in many functions. */
@@ -244,13 +191,6 @@ struct geometry fd_geom[4];
 struct geometry hd_geom[8];
 
 int rawread_ignore_memmove_overflow = 0;/* blocklist_func() set this to 1 */
-
-/* filesystem common variables */
-#ifdef GRUB_UTIL
-unsigned long long filepos;
-unsigned long long filemax;
-unsigned long long filesize;
-#endif
 
 unsigned long emu_iso_sector_size_2048 = 0;
 
@@ -552,10 +492,8 @@ devread (unsigned long long sector, unsigned long byte_offset, unsigned long lon
   sector += byte_offset >> sector_size_bits;
   byte_offset &= buf_geom.sector_size - 1;
 
-#if !defined(STAGE1_5)
   if (disk_read_hook && (((unsigned long)debug) >= 0x7FFFFFFF))
     printf ("<%ld, %ld, %ld>", (unsigned long long)sector, (unsigned long long)byte_offset, (unsigned long long)byte_len);
-#endif /* !STAGE1_5 */
 
   /*  Call RAWREAD, which is very similar, but:
    *  --  It takes an extra parameter, the drive number.
@@ -566,7 +504,6 @@ devread (unsigned long long sector, unsigned long byte_offset, unsigned long lon
 }
 
 
-#ifndef STAGE1_5
 /* Write 1 sector at BUF onto sector number SECTOR on drive DRIVE.
  * Only a 512-byte sector should be written with this function.
  * Return:
@@ -617,26 +554,10 @@ rawwrite (unsigned long drive, unsigned long long sector, unsigned long long buf
 
   return 1;
 }
-#endif /* ! STAGE1_5 */
 
-#ifndef STAGE1_5
 int
 devwrite (unsigned long long sector, unsigned long long sector_count, unsigned long long buf)
 {
-#if defined(GRUB_UTIL) && defined(__linux__)
-  if (current_partition != 0xFFFFFF
-      && is_disk_device (device_map, current_drive))
-    {
-      /* If the grub shell is running under Linux and the user wants to
-	 embed a Stage 1.5 into a partition instead of a MBR, use system
-	 calls directly instead of biosdisk, because of the bug in
-	 Linux. *sigh*  */
-      return write_to_partition (device_map, current_drive, current_partition,
-		(unsigned long)sector, (unsigned long)sector_count, (char *)(int)buf);
-    }
-  else
-#endif /* GRUB_UTIL && __linux__ */
-    {
       unsigned long i;
 
       for (i = 0; i < sector_count; i++)
@@ -645,12 +566,9 @@ devwrite (unsigned long long sector, unsigned long long sector_count, unsigned l
 	      return 0;
 	}
       return 1;
-    }
 }
-#endif /* ! STAGE1_5 */
 
 
-#ifndef STAGE1_5
 #if 1
 int
 set_bootdev (int hdbias)
@@ -706,10 +624,8 @@ set_bootdev (int hdbias)
   return MAKEBOOTDEV (j, (i >> 4), (i & 0xF), ((current_drive - hdbias) & 0x7F), ((current_partition >> 8) & 0xFF));
 }
 #endif
-#endif /* STAGE1_5 */
 
 
-#ifndef STAGE1_5
 /*
  *  This prints the filesystem type or gives relevant information.
  */
@@ -732,7 +648,6 @@ print_fsys_type (void)
 	printf ("partition type 0x%02X\n", (unsigned long)(unsigned char)current_slice);
     }
 }
-#endif /* ! STAGE1_5 */
 
 
   /* Get next BSD partition in current PC slice.  */
@@ -780,11 +695,9 @@ next_bsd_partition (/*unsigned long drive, unsigned long *partition, int *type, 
 	      *next_partition_len = BSD_PART_LENGTH (next_partition_buf, i);
 	      *next_partition_partition = (*next_partition_partition & 0xFF00FF) | (i << 8);
 
-#ifndef STAGE1_5
 	      /* XXX */
 	      if ((next_partition_drive & 0x80) && BSD_LABEL_DTYPE (next_partition_buf) == DTYPE_SCSI)
 		bsd_evil_hack = 4;
-#endif /* ! STAGE1_5 */
 
 	      return 1;
 	    }
@@ -1055,10 +968,8 @@ next_partition (/*unsigned long drive, unsigned long dest,
 {
   /* Start the body of this function.  */
 
-#ifndef STAGE1_5
   if ((current_drive == NETWORK_DRIVE) || (current_drive == PXE_DRIVE) || (current_drive == FB_DRIVE))
     return 0;
-#endif
 
   /* If previous partition is a BSD partition or a PC slice which
      contains BSD partitions...  */
@@ -1088,7 +999,6 @@ next_partition (/*unsigned long drive, unsigned long dest,
 static void
 attempt_mount (void)
 {
-#ifndef STAGE1_5
   int cdrom = (current_drive != NETWORK_DRIVE && current_drive != PXE_DRIVE && current_drive != FB_DRIVE && buf_geom.sector_size == 2048);
 
   for (fsys_type = 0; fsys_type < NUM_FSYS; fsys_type++)
@@ -1102,14 +1012,6 @@ attempt_mount (void)
 
   if (fsys_type == NUM_FSYS && errnum == ERR_NONE)
     errnum = ERR_FSYS_MOUNT;
-#else
-  fsys_type = 0;
-  if ((*(fsys_table[fsys_type].mount_func)) () != 1)
-    {
-      fsys_type = NUM_FSYS;
-      errnum = ERR_FSYS_MOUNT;
-    }
-#endif
 }
 
 
@@ -1154,7 +1056,6 @@ next_part (void)
 }
 
 
-#ifndef STAGE1_5
 static void
 check_and_print_mount (void)
 {
@@ -1166,21 +1067,14 @@ check_and_print_mount (void)
     print_fsys_type ();
   print_error ();
 }
-#endif /* ! STAGE1_5 */
 
 
 /* Open a partition.  */
 int
 real_open_partition (int flags)
 {
-#if defined(STAGE1_5) || defined(GRUB_UTIL)
-//  char mbr[SECTOR_SIZE];
-#endif
-//  int bsd_part, pc_slice;
-
   dest_partition = current_partition;
 
-#ifndef STAGE1_5
   cur_part_offset = 0;
   /* network drive */
   if ((current_drive == NETWORK_DRIVE) || (current_drive==PXE_DRIVE))
@@ -1200,7 +1094,6 @@ real_open_partition (int flags)
 
   if (! sane_partition ())
     return 0;
-#endif
 
   bsd_evil_hack = 0;
   current_slice = 0;
@@ -1234,19 +1127,16 @@ real_open_partition (int flags)
 
   while (next_part ())
     {
-#ifndef STAGE1_5
     loop_start:
 
       cur_part_offset = part_offset;
       cur_part_addr = BOOT_PART_TABLE + (entry << 4);
       cur_part_start = part_start;
       cur_part_entry = entry;
-#endif /* ! STAGE1_5 */
 
       /* If this is a valid partition...  */
       if (current_slice)
 	{
-#ifndef STAGE1_5
 	  /* Display partition information.  */
 	  if (flags && ! IS_PC_SLICE_TYPE_EXTENDED (current_slice))
 	    {
@@ -1320,7 +1210,6 @@ real_open_partition (int flags)
 	    }
 
 	  errnum = ERR_NONE;
-#endif /* ! STAGE1_5 */
 
 	  /* Check if this is the destination partition.  */
 	  if (! flags
@@ -1331,7 +1220,6 @@ real_open_partition (int flags)
 	}
     }
 
-#ifndef STAGE1_5
   if (flags)
     {
       if (! (current_drive & 0x80))
@@ -1343,7 +1231,6 @@ real_open_partition (int flags)
       errnum = ERR_NONE;
       return 1;
     }
-#endif /* ! STAGE1_5 */
 
   return 0;
 }
@@ -1356,7 +1243,6 @@ open_partition (void)
 }
 
 
-#ifndef STAGE1_5
 static int
 sane_partition (void)
 {
@@ -1381,33 +1267,12 @@ sane_partition (void)
   errnum = ERR_DEV_VALUES;
   return 0;
 }
-#endif /* ! STAGE1_5 */
 
 
 /* Parse a device string and initialize the global parameters. */
 char *
 set_device (char *device)
 {
-#ifdef STAGE1_5
-    /* In Stage 1.5, the first 4 bytes of FILENAME has a device number.  */
-  unsigned long dev = *((unsigned long *) device);
-  unsigned long drive = (dev >> 24) & 0xFF;
-  unsigned long partition = dev & 0xFFFFFF;
-
-  /* If DRIVE is disabled, use SAVED_DRIVE instead.  */
-  if (drive == 0xFF/*GRUB_INVALID_DRIVE*/)
-    current_drive = saved_drive;
-  else
-    current_drive = drive;
-
-  /* The `partition' part must always have a valid number.  */
-  current_partition = partition;
-
-  errnum = 0;
-  return device + sizeof (unsigned long);
-
-#else /* ! STAGE1_5 */
-
   int result = 0;
 
   errnum = 0;
@@ -1432,17 +1297,10 @@ set_device (char *device)
 	{
 	  char ch = *device;
 	  if (*device == 'f' || *device == 'h' || *device == 'm' || *device == 'r' || *device == 'b' 
-#ifdef SUPPORT_NETBOOT
-	      || (*device == 'n' && network_ready)
-#endif /* SUPPORT_NETBOOT */
 #ifdef FSYS_PXE
 	      || (*device == 'p' && pxe_entry)
 #endif /* FSYS_PXE */
-#ifndef GRUB_UTIL
 	      || (*device == 'c' && (cdrom_drive != GRUB_INVALID_DRIVE || atapi_dev_count)))
-#else
-	      || (*device == 'c' && cdrom_drive != GRUB_INVALID_DRIVE))
-#endif
 	    {
 	      /* user has given '([fhn]', check for resp. add 'd' and
 		 let disk_choice handle what disks we have */
@@ -1462,28 +1320,16 @@ set_device (char *device)
 	      || *device == 'm'
 	      || *device == 'r'
 	      || *device == 'b'
-#ifdef SUPPORT_NETBOOT
-	      || (*device == 'n' && network_ready)
-#endif
 #ifdef FSYS_PXE
 	      || (*device == 'p' && pxe_entry)
 #endif
 #ifdef FSYS_FB
               || (*device == 'u' && fb_status)
 #endif
-#ifndef GRUB_UTIL
 	      || (*device == 'c' && (cdrom_drive != GRUB_INVALID_DRIVE || atapi_dev_count)))
-#else
-	      || (*device == 'c' && cdrom_drive != GRUB_INVALID_DRIVE))
-#endif
 	      && *(++device, device++) != 'd')
 	    errnum = ERR_NUMBER_PARSING;
 
-#ifdef SUPPORT_NETBOOT
-	  if (ch == 'n' && network_ready)
-	    current_drive = NETWORK_DRIVE;
-	  else
-#endif /* SUPPORT_NETBOOT */
 #ifdef FSYS_PXE
 	  if (ch == 'p' && pxe_entry)
 	    current_drive = PXE_DRIVE;
@@ -1507,13 +1353,11 @@ set_device (char *device)
          current_drive = boot_drive;
          return device + 1;
          }
-#ifndef GRUB_UTIL
 	      else if (ch == 'h' && (*device == ',' || *device == ')'))
 		{
 			/* it is (hd) for the next new drive that can be added. */
 			current_drive = (unsigned char)(0x80 + (*(unsigned char *)0x475));
 		}
-#endif
 	      else
 		{
 		  unsigned long long ull;
@@ -1523,7 +1367,6 @@ set_device (char *device)
 		  disk_choice = 0;
 		  if (ch == 'h')
 		  {
-#ifndef GRUB_UTIL
 			if ((long long)ull < 0)
 			{
 				if ((-ull) <= (unsigned long long)(*(unsigned char *)0x475))
@@ -1531,10 +1374,8 @@ set_device (char *device)
 				else
 					return (char *)!(errnum = ERR_DEV_FORMAT);
 			} else
-#endif
 				current_drive |= 0x80;
 		  }
-#ifndef GRUB_UTIL
 		  //else if (ch == 'c' && cdrom_drive != GRUB_INVALID_DRIVE && current_drive < 8)
 		  //{
 		  //  if (cdrom_drives[current_drive] != GRUB_INVALID_DRIVE)
@@ -1544,7 +1385,6 @@ set_device (char *device)
 		  {
 		    current_drive += min_cdrom_id;
 		  }
-#endif
 		}
 	    }
 	}
@@ -1621,30 +1461,12 @@ set_device (char *device)
     }
 
   return 0;
-
-#endif /* ! STAGE1_5 */
 }
 
 static char *
 setup_part (char *filename)
 {
   relative_path = 1;
-#ifdef STAGE1_5
-
-  if (! (filename = set_device (filename)))
-    {
-      current_drive = GRUB_INVALID_DRIVE;
-      return 0;
-    }
-
-# ifndef NO_BLOCK_FILES
-  if (*filename != '/')
-    open_partition ();
-  else
-# endif /* ! NO_BLOCK_FILES */
-    open_device ();
-
-#else /* ! STAGE1_5 */
 
   if (*filename == '(')
     {
@@ -1678,23 +1500,18 @@ setup_part (char *filename)
 	open_device ();
     }
 
-#endif /* ! STAGE1_5 */
-
   if (errnum && (*filename == '/' || errnum != ERR_FSYS_MOUNT))
     return 0;
   else
     errnum = 0;
 
-#ifndef STAGE1_5
   if (!sane_partition ())
     return 0;
-#endif
 
   return filename;
 }
 
 
-#ifndef STAGE1_5
 ///* Reposition a file offset.  */
 //unsigned long
 //grub_seek (unsigned long offset)
@@ -1743,10 +1560,8 @@ dir (char *dirname)
 
   return (*(fsys_table[fsys_type].dir_func)) (open_filename);
 }
-#endif /* STAGE1_5 */
 
 
-#ifndef STAGE1_5
 /* If DO_COMPLETION is true, just print NAME. Otherwise save the unique
    part into UNIQUE_STRING.  */
 void
@@ -1855,9 +1670,6 @@ print_completions (int is_filename, int is_completion)
 
 	      if (!ptr
 		  || *(ptr-1) != 'd' || (
-#ifdef SUPPORT_NETBOOT
-		  *(ptr-2) != 'n' &&
-#endif /* SUPPORT_NETBOOT */
 		  *(ptr-2) != 'c' &&
 		  *(ptr-2) != 'm' &&
 		  *(ptr-2) != 'r'))
@@ -1869,11 +1681,7 @@ print_completions (int is_filename, int is_completion)
 		    {
 #define HARD_DRIVES (*((char *)0x475))
 #define FLOPPY_DRIVES ((*(char*)0x410 & 1)?(*(char*)0x410 >> 6) + 1 : 0)
-#ifdef GRUB_UTIL
-		      for (j = 0; j < 8; j++)
-#else
 		      for (j = 0; j < (k ? HARD_DRIVES : FLOPPY_DRIVES); j++)
-#endif
 #undef HARD_DRIVES
 #undef FLOPPY_DRIVES
 			{
@@ -1905,7 +1713,6 @@ print_completions (int is_filename, int is_completion)
 		      || (*(ptr-1) == 'd' && *(ptr-2) == 'c')))
 		print_a_completion ("cd", 0);
 
-#ifndef GRUB_UTIL
 	      if (atapi_dev_count  && (!ptr || *(ptr-1) == '(' || (*(ptr-1) == 'd' && *(ptr-2) == 'c')))
 	      {
 		for (j = 0; j < (unsigned long)atapi_dev_count; j++)
@@ -1917,16 +1724,6 @@ print_completions (int is_filename, int is_completion)
 			print_a_completion (dev_name, 0);
 		    }
 	      }
-#endif
-
-# ifdef SUPPORT_NETBOOT
-	      if (network_ready
-		  && (disk_choice || NETWORK_DRIVE == current_drive)
-		  && (!ptr
-		      || *(ptr-1) == '('
-		      || (*(ptr-1) == 'd' && *(ptr-2) == 'n')))
-		print_a_completion ("nd", 0);
-# endif /* SUPPORT_NETBOOT */
 
 # ifdef FSYS_PXE
 	      if (pxe_entry
@@ -2057,7 +1854,6 @@ print_completions (int is_filename, int is_completion)
   else
     return unique - 1;
 }
-#endif /* ! STAGE1_5 */
 
 
 #ifndef NO_BLOCK_FILES
@@ -2201,33 +1997,10 @@ block_file:
   if (!errnum && fsys_type == NUM_FSYS)
     errnum = ERR_FSYS_MOUNT;
 
-#ifndef STAGE1_5
   /* set "dir" function to open a file */
   print_possibilities = 0;
   if (!set_filename(filename))
 		return 0;
-#else
-
-  if (relative_path)
-  {
-    if (grub_strlen(saved_dir) + grub_strlen(filename) >= sizeof(open_filename))
-      errnum = ERR_WONT_FIT;
-  }
-  else
-  {
-    if (grub_strlen(filename) >= sizeof(open_filename))
-      errnum = ERR_WONT_FIT;
-  }
-
-  if (errnum)
-    return 0;
-
-  if (relative_path)
-    grub_sprintf (open_filename, "%s%s", saved_dir, filename);
-  else
-    grub_sprintf (open_filename, "%s", filename);
-  nul_terminate (open_filename);
-#endif
   if (!errnum && (*(fsys_table[fsys_type].dir_func)) (open_filename))
     {
 #ifdef NO_DECOMPRESSION

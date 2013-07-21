@@ -29,7 +29,6 @@
 # include <serial.h>
 #endif
 
-#ifndef STAGE1_5
 struct term_entry term_table[] =
   {
     {
@@ -112,23 +111,11 @@ struct term_entry term_table[] =
 
 int count_lines = -1;
 int use_pager = 1;
-#endif
-#ifdef GRUB_UTIL
-/* This must be console.  */
-struct term_entry *current_term = term_table;
-int quit_print;
-#endif
 void
 print_error (void)
 {
   if (errnum > ERR_NONE && errnum < MAX_ERR_NUM)
-#ifndef STAGE1_5
-{
     grub_printf ("\nError %u: %s\n", errnum, err_list[errnum]);
-}
-#else /* STAGE1_5 */
-    grub_printf ("Error %u\n", errnum);
-#endif /* STAGE1_5 */
 }
 
 char *
@@ -568,7 +555,6 @@ find_specifier:
 }
 
 
-#ifndef STAGE1_5
 #include "grub4dos_version.h"
 
 #ifdef GRUB4DOS_VERSION
@@ -1309,15 +1295,6 @@ real_get_cmdline (void)
 	  }
 	else		/* insert printable character into line */
 	  {
-#ifdef GRUB_UTIL
-	    if (c >= ' ' && c <= '~')
-	    {
-	      char str[2];
-
-	      *(short *)str = (short)c;
-	      cl_insert (str);
-	    }
-#else
 	    if ((char)c >= ' ' && (char)c <= '~')
 	    {
 	      char str[2];
@@ -1326,7 +1303,6 @@ real_get_cmdline (void)
 	      str[1] = 0;
 	      cl_insert (str);
 	    }
-#endif
 	  }
     }
 
@@ -1675,7 +1651,6 @@ safe_parse_maxint (char **str_ptr, unsigned long long *myint_ptr)
   return 1;
 }
 #endif
-#endif /* STAGE1_5 */
 
 int
 grub_tolower (int c)
@@ -1720,7 +1695,6 @@ grub_memcmp (const char *s1, const char *s2, int n)
   return 0;
 }
 
-#ifndef STAGE1_5
 int
 grub_strncat (char *s1, const char *s2, int n)
 {
@@ -1739,7 +1713,6 @@ grub_strncat (char *s1, const char *s2, int n)
 
   return 1;
 }
-#endif /* ! STAGE1_5 */
 
 /* XXX: This below is an evil hack. Certainly, we should change the
    strategy to determine what should be defined and what shouldn't be
@@ -1747,7 +1720,6 @@ grub_strncat (char *s1, const char *s2, int n)
    a static library supporting minimal standard C functions and link
    each image with the library. Complicated things should be left to
    computer, definitely. -okuji  */
-#if !defined(STAGE1_5) || defined(FSYS_VSTAFS)
 int
 grub_strcmp (const char *s1, const char *s2)
 {
@@ -1763,9 +1735,7 @@ grub_strcmp (const char *s1, const char *s2)
 
   return 0;
 }
-#endif /* ! STAGE1_5 || FSYS_VSTAFS */
 
-#ifndef STAGE1_5
 /* Wait for a keypress and return its code.  */
 int
 getkey (void)
@@ -1780,22 +1750,12 @@ checkkey (void)
   return current_term->checkkey ();
 }
 
-#ifndef GRUB_UTIL
 unsigned char *set_putchar_hook(unsigned char *hooked)
 {
 	unsigned char *re = putchar_hooked;
 	putchar_hooked = hooked;
 	return re;
 }
-#else
-unsigned char *putchar_hooked = 0;
-unsigned char *set_putchar_hook(unsigned char *hooked)
-{
-	return 0;
-}
-#endif
-
-#endif /* ! STAGE1_5 */
 
 /* FIXME: this is problematic! it could cause memory conflicts! */
 /* Display an ASCII character.  */
@@ -1803,24 +1763,12 @@ unsigned int
 _putchar (unsigned int c, unsigned int max_width)
 {
   /* if it is a Line Feed, we insert a Carriage Return. */
-#ifdef STAGE1_5
-
-  /* In Stage 1.5, only the normal console is supported.  */
-  
-  if (c == '\n')
-    //grub_putchar ('\r');	/* recursive, bad!! */
-    console_putchar ('\r', max_width);
-  return console_putchar (c, max_width);
-  
-#else /* ! STAGE1_5 */
-#ifndef GRUB_UTIL
 	if (putchar_hooked)
 	{
 		if ((unsigned int)putchar_hooked > 0x800)
 			*(unsigned long*)putchar_hooked++ = (unsigned char)c;
 		return 1;
 	}
-#endif
 
 	if (c == '\t'/* && current_term->getxy*/)
 	{
@@ -1873,11 +1821,8 @@ _putchar (unsigned int c, unsigned int max_width)
 		}
 	}
 	return i;
-
-#endif /* ! STAGE1_5 */
 }
 
-#ifndef GRUB_UTIL
 inline void
 debug_sleep(int l_debug_boot, int line, char *file)
 {
@@ -1888,9 +1833,7 @@ debug_sleep(int l_debug_boot, int line, char *file)
     //grub_printf("\r%*s\r", CMDLINE_WIDTH, " ");
   }
 }
-#endif
 
-#ifndef STAGE1_5
 void
 gotoxy (int x, int y)
 {
@@ -1924,7 +1867,6 @@ setcursor (unsigned long on)
 
   return old_state;
 }
-#endif /* ! STAGE1_5 */
 /* strncmpx Enhanced string comparison function by chenall 2011-12-13
 	int strncmpx (const char * s1, const char * s2, unsigned long n, int case_insensitive)
 	Compare two strings s1, s2. Length: n,
@@ -2010,7 +1952,6 @@ nul_terminate (char *str)
   return ch;
 }
 
-#ifndef STAGE1_5
 char *
 grub_strstr (const char *s1, const char *s2)
 {
@@ -2032,7 +1973,6 @@ grub_strstr (const char *s1, const char *s2)
 
   return 0;
 }
-#endif /* ! STAGE1_5 */
 
 int
 grub_strlen (const char *str)
@@ -2049,13 +1989,8 @@ int
 memcheck (unsigned long long addr, unsigned long long len)
 {
   errnum = 0;
-#ifdef GRUB_UTIL
-  if (! addr)
-    errnum = ERR_WONT_FIT;
-#else
   if (! addr || (! is64bit && (addr >= 0x100000000ULL || addr + len > 0x100000000ULL)))
     errnum = ERR_WONT_FIT;
-#endif /* GRUB_UTIL */
 
   return ! errnum;
 }
@@ -2225,16 +2160,13 @@ grub_memset (void *start, int c, int len)
   return errnum ? NULL : start;
 }
 
-#ifndef STAGE1_5
 char *
 grub_strcpy (char *dest, const char *src)
 {
   grub_memmove (dest, src, grub_strlen (src) + 1);
   return dest;
 }
-#endif /* ! STAGE1_5 */
 
-#ifndef STAGE1_5
 /* The strtok.c comes from reactos. It follows GPLv2. */
 
 /* Copyright (C) 1994 DJ Delorie, see COPYING.DJ for details */
@@ -2285,24 +2217,19 @@ grub_strtok(char *s, const char *delim)
   }
   /* NOTREACHED */
 }
-#endif /* ! STAGE1_5 */
 
-#ifndef GRUB_UTIL
 # undef memcpy
 /* GCC emits references to memcpy() for struct copies etc.  */
 void *memcpy (void *dest, const void *src, int n)  __attribute__ ((alias ("grub_memmove")));
-#endif
 
 #if 0
 int
 grub_memcmp64_lm (const unsigned long long s1, const unsigned long long s2, unsigned long long n)
 {
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
 	if (((unsigned long *)&s1)[1] || ((unsigned long *)&s2)[1] || ((unsigned long *)&n)[1] || (s1 + n) > 0x100000000ULL || (s2 + n) > 0x100000000ULL)
 	{
 		return mem64 (2, s1, s2, n);	/* 2 for CMP */
 	}
-#endif /* ! STAGE1_5 && ! GRUB_UTIL */
 
 	return grub_memcmp ((char *)(unsigned int)s1, (char *)(unsigned int)s2, n);
 }
@@ -2310,11 +2237,9 @@ grub_memcmp64_lm (const unsigned long long s1, const unsigned long long s2, unsi
 void
 grub_memmove64 (unsigned long long to, const unsigned long long from, unsigned long long len)
 {
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
 	if (((unsigned long *)&to)[1] || ((unsigned long *)&from)[1] || ((unsigned long *)&len)[1] || (to + len) > 0x100000000ULL || (from + len) > 0x100000000ULL)
 	{
 	}
-#endif /* ! STAGE1_5 && ! GRUB_UTIL */
 
 	grub_memmove ((void *)(unsigned int)to, (void *)(unsigned int)from, len);
 }
@@ -2322,20 +2247,16 @@ grub_memmove64 (unsigned long long to, const unsigned long long from, unsigned l
 void
 grub_memset64 (unsigned long long start, unsigned long long c, unsigned long long len)
 {
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
 	if (((unsigned long *)&start)[1] || ((unsigned long *)&len)[1] || (start + len) > 0x100000000ULL)
 	{
 		mem64 (3, start, c, len);	/* 3 for SET */
 		return;
 	}
-#endif /* ! STAGE1_5 && ! GRUB_UTIL */
 
 	grub_memset ((void *)(unsigned int)start, c, len);
 }
 
 #endif
-
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
 
 #define PAGING_PML4_ADDR (PAGING_TABLES_BUF+0x0000)
 #define PAGING_PDPT_ADDR (PAGING_TABLES_BUF+0x1000)
@@ -2452,8 +2373,6 @@ void memory_paging_disable()
 	:"memory");
 }
 
-#endif /* ! STAGE1_5 && ! GRUB_UTIL */
-
 /*
 Transfer data in memory.
 Limitation:
@@ -2482,7 +2401,6 @@ grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigne
 	    _memcpy_forward(pdst, psrc, len);
 	errnum = 0; return dst_addr;
     }
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
     else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_AMD64) && !DISABLE_AMD64)
     { // AMD64/IA32-e paging
 	mem64 (1, dst_addr, src_addr, len);	/* 1 for MOVE */
@@ -2512,7 +2430,6 @@ grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigne
 	memory_paging_disable();
 	errnum = 0; return dst_addr;
     }
-#endif /* ! STAGE1_5 && ! GRUB_UTIL */
     else
     {
 	errnum = ERR_WONT_FIT; return 0;
@@ -2530,7 +2447,6 @@ grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long
 	_memset((void*)(unsigned long)dst_addr, data, len);
 	errnum = 0; return dst_addr;
     }
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
     else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_AMD64) && !DISABLE_AMD64)
     { // AMD64/IA32-e paging
 	mem64 (3, dst_addr, data, len);	/* 3 for SET */
@@ -2557,7 +2473,6 @@ grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long
 	memory_paging_disable();
 	errnum = 0; return dst_addr;
     }
-#endif /* ! STAGE1_5 && ! GRUB_UTIL */
     else
     {
 	errnum = ERR_WONT_FIT; return 0;
@@ -2576,7 +2491,6 @@ grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned
 	return _memcmp((const char*)(unsigned long)str1addr,
 	    (const char*)(unsigned long)str2addr, (unsigned long)len);
     }
-#if !defined(STAGE1_5) && !defined(GRUB_UTIL)
     else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_AMD64) && !DISABLE_AMD64)
     { // AMD64/IA32-e paging
 	return mem64 (2, str1addr, str2addr, len);	/* 2 for CMP */
@@ -2605,7 +2519,6 @@ grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned
 	memory_paging_disable();
 	return r;
     }
-#endif /* ! STAGE1_5 && ! GRUB_UTIL */
     else
     {
 	errnum = ERR_WONT_FIT; return 0;

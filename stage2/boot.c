@@ -23,8 +23,145 @@
 #include <term.h>
 
 #include "freebsd.h"
-#include "imgact_aout.h"
-#include "i386-elf.h"
+
+struct exec
+  {
+    unsigned long a_midmag;	/* htonl(flags<<26 | mid<<16 | magic) */
+    unsigned long a_text;	/* text segment size */
+    unsigned long a_data;	/* initialized data size */
+    unsigned long a_bss;	/* uninitialized data size */
+    unsigned long a_syms;	/* symbol table size */
+    unsigned long a_entry;	/* entry point */
+    unsigned long a_trsize;	/* text relocation size */
+    unsigned long a_drsize;	/* data relocation size */
+  };
+#define ntohl(x) ((x << 24) | ((x & 0xFF00) << 8) | ((x >> 8) & 0xFF00) | (x >> 24))
+#define htonl(x) ntohl(x)
+#define N_GETMAGIC(ex) 	( (ex).a_midmag & 0xffff )
+#define N_GETMAGIC_NET(ex) 	(ntohl((ex).a_midmag) & 0xffff)
+#define	OMAGIC          0x107	/* 0407 old impure format */
+#define	NMAGIC          0x108	/* 0410 read-only text */
+#define	ZMAGIC          0x10b	/* 0413 demand load format */
+#define QMAGIC          0xcc	/* 0314 "compact" demand load format */
+#define	N_BADMAG(ex) \
+	(N_GETMAGIC(ex) != OMAGIC && N_GETMAGIC(ex) != NMAGIC && \
+	 N_GETMAGIC(ex) != ZMAGIC && N_GETMAGIC(ex) != QMAGIC && \
+	 N_GETMAGIC_NET(ex) != OMAGIC && N_GETMAGIC_NET(ex) != NMAGIC && \
+	 N_GETMAGIC_NET(ex) != ZMAGIC && N_GETMAGIC_NET(ex) != QMAGIC)
+#define __LDPGSZ 0x1000
+#define	N_TXTOFF(ex) \
+	(N_GETMAGIC(ex) == ZMAGIC ? __LDPGSZ : (N_GETMAGIC(ex) == QMAGIC || \
+	N_GETMAGIC_NET(ex) == ZMAGIC) ? 0 : sizeof(struct exec))
+
+/* ELF header */
+typedef struct
+{
+  
+#define EI_NIDENT 16
+  
+  /* first four characters are defined below */
+#define EI_MAG0		0
+#define ELFMAG0		0x7f
+#define EI_MAG1		1
+#define ELFMAG1		'E'
+#define EI_MAG2		2
+#define ELFMAG2		'L'
+#define EI_MAG3		3
+#define ELFMAG3		'F'
+  
+#define EI_CLASS	4	/* data sizes */
+#define ELFCLASS32	1	/* i386 -- up to 32-bit data sizes present */
+  
+#define EI_DATA		5	/* data type and ordering */
+#define ELFDATA2LSB	1	/* i386 -- LSB 2's complement */
+  
+#define EI_VERSION	6	/* version number.  "e_version" must be the same */
+#define EV_CURRENT      1	/* current version number */
+
+#define EI_OSABI	7	/* operating system/ABI indication */
+#define ELFOSABI_FREEBSD	9
+  
+#define EI_ABIVERSION	8	/* ABI version */
+  
+#define EI_PAD		9	/* from here in is just padding */
+  
+#define EI_BRAND	8	/* start of OS branding (This is
+				   obviously illegal against the ELF
+				   standard.) */
+  
+  unsigned char e_ident[EI_NIDENT];	/* basic identification block */
+  
+#define ET_EXEC		2	/* we only care about executable types */
+  unsigned short e_type;		/* file types */
+  
+#define EM_386		3	/* i386 -- obviously use this one */
+  unsigned short e_machine;	/* machine types */
+  unsigned long e_version;	/* use same as "EI_VERSION" above */
+  unsigned long e_entry;	/* entry point of the program */
+  unsigned long e_phoff;	/* program header table file offset */
+  unsigned long e_shoff;	/* section header table file offset */
+  unsigned long e_flags;	/* flags */
+  unsigned short e_ehsize;		/* elf header size in bytes */
+  unsigned short e_phentsize;	/* program header entry size */
+  unsigned short e_phnum;		/* number of entries in program header */
+  unsigned short e_shentsize;	/* section header entry size */
+  unsigned short e_shnum;		/* number of entries in section header */
+  
+#define SHN_UNDEF       0
+#define SHN_LORESERVE   0xff00
+#define SHN_LOPROC      0xff00
+#define SHN_HIPROC      0xff1f
+#define SHN_ABS         0xfff1
+#define SHN_COMMON      0xfff2
+#define SHN_HIRESERVE   0xffff
+  unsigned short e_shstrndx;	/* section header table index */
+}
+Elf32_Ehdr;
+
+
+#define BOOTABLE_I386_ELF(h) \
+ ((h.e_ident[EI_MAG0] == ELFMAG0) & (h.e_ident[EI_MAG1] == ELFMAG1) \
+  & (h.e_ident[EI_MAG2] == ELFMAG2) & (h.e_ident[EI_MAG3] == ELFMAG3) \
+  & (h.e_ident[EI_CLASS] == ELFCLASS32) & (h.e_ident[EI_DATA] == ELFDATA2LSB) \
+  & (h.e_ident[EI_VERSION] == EV_CURRENT) & (h.e_type == ET_EXEC) \
+  & (h.e_machine == EM_386) & (h.e_version == EV_CURRENT))
+
+typedef struct
+{
+  unsigned long	sh_name;		/* Section name (string tbl index) */
+  unsigned long sh_type;		/* Section type */
+  unsigned long	sh_flags;		/* Section flags */
+  unsigned long	sh_addr;		/* Section virtual addr at execution */
+  unsigned long	sh_offset;		/* Section file offset */
+  unsigned long	sh_size;		/* Section size in bytes */
+  unsigned long	sh_link;		/* Link to another section */
+  unsigned long	sh_info;		/* Additional section information */
+  unsigned long	sh_addralign;		/* Section alignment */
+  unsigned long	sh_entsize;		/* Entry size if section holds table */
+}
+Elf32_Shdr;
+
+typedef struct
+{
+  unsigned long p_type;
+  unsigned long p_offset;
+  unsigned long p_vaddr;
+  unsigned long p_paddr;
+  unsigned long p_filesz;
+  unsigned long p_memsz;
+  unsigned long p_flags;
+  unsigned long p_align;
+}
+Elf32_Phdr;
+
+#define PT_NULL		0
+#define PT_LOAD		1
+#define PT_DYNAMIC	2
+#define PT_INTERP	3
+#define PT_NOTE		4
+#define PT_SHLIB	5
+#define PT_PHDR		6
+
 
 unsigned long cur_addr;
 entry_func entry_addr;
@@ -63,11 +200,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
   pu;
   /* presuming that MULTIBOOT_SEARCH is large enough to encompass an
      executable header */
-#ifndef GRUB_UTIL
   unsigned char *buffer = (unsigned char *)(FSYS_BUF - MULTIBOOT_SEARCH);
-#else
-  unsigned char buffer[MULTIBOOT_SEARCH];
-#endif
 
   if (free_mem_start > (unsigned long)linux_bzimage_tmp_addr)
   {
@@ -827,9 +960,7 @@ load_initrd (char *initrd)
   unsigned long long moveto;
   unsigned long long tmp;
   unsigned long long top_addr;
-#ifndef GRUB_UTIL
   char *arg = initrd;
-#endif
 #ifndef NO_DECOMPRESSION
   int no_decompression_bak = no_decompression;
 #endif
@@ -899,7 +1030,6 @@ next_file:
   }
   len += tmp;
 
-#ifndef GRUB_UTIL
   {
 	char map_tmp[64];
 	tmp = top_addr - moveto;
@@ -961,9 +1091,6 @@ next_file1:
 	buf_drive = -1;
 	buf_track = -1;
   }
-#else
-  top_addr = moveto;
-#endif
   if (debug > 0)
       printf ("   [Linux-initrd @ 0x%x, 0x%x bytes]\n", (unsigned long)top_addr, (unsigned long)len);
 
@@ -981,17 +1108,6 @@ next_file1:
 }
 
 
-#ifdef GRUB_UTIL
-/* Dummy function to fake the *BSD boot.  */
-static void
-bsd_boot_entry (int flags, int bootdev, int sym_start, int sym_end,
-		int mem_upper, int mem_lower)
-{
-  stop ();
-}
-#endif
-
-
 /*
  *  All "*_boot" commands depend on the images being loaded into memory
  *  correctly, the variables in this file being set up correctly, and
@@ -1006,14 +1122,8 @@ bsd_boot (kernel_t type, int bootdev, char *arg)
   char *str;
   int clval = 0, i;
 
-#ifdef GRUB_UTIL
-  struct bootinfo bi1;	//this takes up too much stack!
-  struct bootinfo *bi = &bi1;
-  entry_addr = (entry_func) bsd_boot_entry;
-#else
   struct bootinfo *bi = (struct bootinfo *)mbr;	// tmp. use mbr
   stop_floppy ();
-#endif
 
   while (*(++arg) && *arg != ' ');
   str = arg;

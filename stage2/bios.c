@@ -133,10 +133,8 @@ biosdisk (int read, int drive, struct geometry *geometry,
       /* bootable CD-ROM specification has no standard CHS-mode call */
       if (geometry->flags & BIOSDISK_FLAG_CDROM)
       {
-#ifndef STAGE1_5
 	if (debug > 1)
 	  grub_printf ("biosdisk_int13_extensions read=%d, drive=0x%x, dap=%x, err=0x%x\n", read, drive, dap, err);
-#endif
 	return err;
       }
 
@@ -213,15 +211,11 @@ get_cdinfo (int drive, struct geometry *geometry)
   grub_memset (cdrp, 0, sizeof (struct iso_spec_packet));
   cdrp->size = sizeof (struct iso_spec_packet) - 16;
 
-#ifndef STAGE1_5
   if (debug > 1)
 	grub_printf ("\rget_cdinfo int13/4B01(%X), ", drive);
-#endif
   err = biosdisk_int13_extensions (0x4B01, drive, cdrp);
-#ifndef STAGE1_5
   if (debug > 1)
 	grub_printf ("err=%X, ", err);
-#endif
 
   if (drive == 0x7F && drive < (unsigned long)(cdrp->drive_no))
 	drive = cdrp->drive_no;
@@ -235,21 +229,17 @@ get_cdinfo (int drive, struct geometry *geometry)
 	geometry->sectors = 15;
 	geometry->sector_size = 2048;
 	geometry->total_sectors = 65536 * 255 * 15;
-#ifndef STAGE1_5
 	if (debug > 1)
 	  grub_printf ("drive=%d\n", drive);
 	DEBUG_SLEEP
-#endif
 	return drive;
     }
-#ifndef STAGE1_5
   if (debug > 1) {
     if (err)
       grub_printf ("drive=0\n");
     else
       grub_printf ("\r%40s\r", " "); /* erase line if no err and drive are both 0 */
   }
-#endif
   return 0;	/* failure */
 }
 
@@ -259,9 +249,7 @@ static unsigned long heads;
 static unsigned long sectors;
 static unsigned long heads_ok;
 static unsigned long sectors_ok;
-#ifndef GRUB_UTIL
 unsigned long force_geometry_tune = 0;
-#endif
 
 /* Return the geometry of DRIVE in GEOMETRY. If an error occurs, return
    non-zero, otherwise zero.  */
@@ -332,11 +320,7 @@ get_diskinfo (int drive, struct geometry *geometry)
       }
     }
 
-#if defined(GRUB_UTIL) || defined(STAGE1_5)
-  if (drive == cdrom_drive)
-#else
   if (drive == cdrom_drive || (drive >= (unsigned char)min_cdrom_id && drive < (unsigned char)(min_cdrom_id + atapi_dev_count)))
-#endif
   {
 	/* No-emulation mode bootable CD-ROM */
 	geometry->flags = BIOSDISK_FLAG_LBA_EXTENSION | BIOSDISK_FLAG_CDROM;
@@ -353,11 +337,7 @@ get_diskinfo (int drive, struct geometry *geometry)
   heads_ok = 0;
   sectors_ok = 0;
 
-#ifdef GRUB_UTIL
-#define FIND_DRIVES 8
-#else
 #define FIND_DRIVES (*((char *)0x475))
-#endif
       if (((unsigned char)drive) >= 0x80 + FIND_DRIVES /* || (version && (drive & 0x80)) */ )
 	{
 	  /* Possible CD-ROM - check the status.  */
@@ -365,7 +345,6 @@ get_diskinfo (int drive, struct geometry *geometry)
 	    return 0;
 	}
       
-#if (! defined(GRUB_UTIL)) && (! defined(STAGE1_5))
     //if (! force_geometry_tune)
     {
 	unsigned long j;
@@ -487,17 +466,12 @@ get_diskinfo (int drive, struct geometry *geometry)
 	    }
 	}
     }
-#endif
 
-#ifndef STAGE1_5
 	if (debug > 1)      
 		grub_printf ("\rget_diskinfo int13/41(%X), ", drive);
-#endif
 	version = check_int13_extensions ((unsigned char)drive);
-#ifndef STAGE1_5
 	if (debug > 1)      
 		grub_printf ("version=%X, ", version);
-#endif
 
 	/* Set the LBA flag.  */
 	if (version & 1) /* support functions 42h-44h, 47h-48h */
@@ -506,31 +480,23 @@ get_diskinfo (int drive, struct geometry *geometry)
 	}
 	total_sectors = 0;
 
-#ifndef STAGE1_5
 	if (debug > 1)
 		grub_printf ("int13/08(%X), ", drive);
-#endif
 
 	version = get_diskinfo_standard ((unsigned char)drive, &cylinders, &heads, &sectors);
 
-#ifndef STAGE1_5
 	if (debug > 1)
 		grub_printf ("version=%X, C/H/S=%d/%d/%d, ", version, cylinders, heads, sectors);
-#endif
 
-#ifndef STAGE1_5
 	if (debug > 1)
 		grub_printf ("int13/02(%X), ", drive);
-#endif
 
 	/* read the boot sector: int 13, AX=0x201, CX=1, DH=0. Use buffer 0x20000 - 0x2FFFF */
 	err = biosdisk_standard (0x02, (unsigned char)drive, 0, 0, 1, 1, 0x2F00/*SCRATCHSEG*/);
 
-#ifndef STAGE1_5
 	if (debug > 1)
 		grub_printf ("err=%X\n", err);
   DEBUG_SLEEP
-#endif
 
 	//version = 0;
 
@@ -619,8 +585,6 @@ get_diskinfo (int drive, struct geometry *geometry)
 
 	/* successfully read boot sector */
 
-#ifndef STAGE1_5
-	
 	if (force_geometry_tune != 2) /* if not force BIOS geometry */
 	{
 	    if (drive & 0x80)
@@ -678,7 +642,6 @@ get_diskinfo (int drive, struct geometry *geometry)
 	}
 failure_probe_boot_sector:
 	
-#ifndef GRUB_UTIL
 #if 1
 	if (flags & BIOSDISK_FLAG_GEOMETRY_OK)
 	{
@@ -712,7 +675,6 @@ failure_probe_boot_sector:
 			grub_printf ("\nNotice: sectors-per-track for drive %X tuned from %d to %d.\n", drive, version, geometry->sectors);
 		}
 	}
-#endif
 #endif
 
 	/* if C/H/S=0/0/0, use a safe default one. */
@@ -760,11 +722,9 @@ failure_probe_boot_sector:
 	total_sectors = geometry->cylinders * geometry->heads * geometry->sectors;
 	if (geometry->total_sectors < total_sectors)
 	    geometry->total_sectors = total_sectors;
-#endif	/* ! STAGE1_5 */
 
   /* backup the geometry into array hd_geom or fd_geom. */
 
-#if (! defined(GRUB_UTIL)) && (! defined(STAGE1_5))
     {
 	unsigned long j;
 	unsigned long d;
@@ -834,7 +794,6 @@ failure_probe_boot_sector:
 			geometry->total_sectors = 65536 * 255 * 15;
 		}
 	}
-#endif
 
   return 0;
 }

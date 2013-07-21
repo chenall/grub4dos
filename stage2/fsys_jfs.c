@@ -52,12 +52,8 @@ static struct jfs_info jfs;
 #define iNode		((dinode_t *)((char *)FSYS_BUF + 8192 + sizeof(dinode_t)))
 #define dtRoot		((dtroot_t *)(&iNode->di_xtroot))
 
-#ifndef GRUB_UTIL
 static char *linkbuf = (char *)(FSYS_BUF - JFS_PATH_MAX);	/* buffer for following symbolic links */
 static char *namebuf = (char *)(FSYS_BUF - JFS_PATH_MAX - JFS_NAME_MAX - 1);
-#else
-static char namebuf[JFS_NAME_MAX + 1], linkbuf[JFS_PATH_MAX];
-#endif
 
 static ldtentry_t de_always[2] = {
 	{1, -1, 2, {'.', '.'}},
@@ -393,14 +389,12 @@ jfs_dir (char *dirname)
 			}
 
 			cmp = (!*dirname) ? -1 : substring (dirname, namebuf, 0);
-#ifndef STAGE1_5
 			if (print_possibilities && ch != '/'
 			    && cmp <= 0) {
 				if (print_possibilities > 0)
 					print_possibilities = -print_possibilities;
 				print_a_completion (namebuf, 0);
 			} else
-#endif
 			if (cmp == 0) {
 				parent_inum = inum;
 				inum = de->inumber;
