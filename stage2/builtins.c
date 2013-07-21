@@ -5085,7 +5085,7 @@ static int insmod_func(char *arg,int flags)
    errnum = 0;
    if (arg == NULL || *arg == '\0')
       return 0;
-   nul_terminate(arg);
+   char *name = skip_to(1|SKIP_WITH_TERMINATE,arg);
    if (substring(skip_to(0,arg) - 4,".mod",1) == 0)
    {
       if (!command_open(arg,1))
@@ -5126,7 +5126,7 @@ static int insmod_func(char *arg,int flags)
       default:
          {
             struct exec_array *p_mod = grub_malloc(filemax + sizeof(struct exec_array) + 32);
-            char *filename = skip_to(1,arg);
+            
             int ret = 0;
             if (p_mod == NULL)
 		return 0;
@@ -5138,24 +5138,24 @@ static int insmod_func(char *arg,int flags)
             }
             grub_close();
             p_mod->len = filemax;
-            if (!*filename)
+            if (!*name)
             {
-               filename = arg;
+               name = arg;
                if (*arg == '(' || *arg == '/')
                {
                   while (*arg)
                   {
                      if (*arg++ == '/')
-                        filename = arg;
+                        name = arg;
                   }
                }
             }
-            if (strlen(filename) < 12)
-		grub_strcpy(p_mod->name.sn,filename);
+            if (strlen(name) < 12)
+		grub_strcpy(p_mod->name.sn,name);
 	    else
             {
 		p_mod->name.ln.flag = LONG_MOD_NAME_FLAG;
-		p_mod->name.ln.len = sprintf(p_mod->data + filemax,"%s",filename);
+		p_mod->name.ln.len = sprintf(p_mod->data + filemax,"%s",name);
             }
 
             ret = grub_mod_add(p_mod);
