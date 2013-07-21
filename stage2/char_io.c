@@ -1893,7 +1893,7 @@ int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitiv
 			return c;
 		if (c)
 		{
-			if (!case_insensitive || (unsigned char)((*s1 | 0x20) - 'a') >= 26 || (*s1|0x20) - (*s2|0x20))
+			if (!case_insensitive || (unsigned char)((*s1 | 0x20) - 'a') >= 26 || (unsigned char)((*s2 | 0x20) - 'a') >= 26 ||  (c = (*s1|0x20) - (*s2|0x20)))
 			{
 				return c;
 			}
