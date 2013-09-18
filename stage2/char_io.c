@@ -1655,8 +1655,13 @@ safe_parse_maxint (char **str_ptr, unsigned long long *myint_ptr)
 int
 grub_tolower (int c)
 {
+#if 0
   if (c >= 'A' && c <= 'Z')
     return (c + ('a' - 'A'));
+#else
+  if ((unsigned int)(c - 'A') < 26)
+    return c|0x20;
+#endif
 
   return c;
 }
@@ -1893,7 +1898,7 @@ int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitiv
 			return c;
 		if (c)
 		{
-			if (!case_insensitive || (unsigned char)((*s1 | 0x20) - 'a') >= 26 || (unsigned char)((*s2 | 0x20) - 'a') >= 26 ||  (c = (*s1|0x20) - (*s2|0x20)))
+			if (!case_insensitive || (c = tolower(*s1) - tolower(*s2)))
 			{
 				return c;
 			}
