@@ -1,3 +1,4 @@
+2013-09-17 (tinybit) workaround for ASRock ConRoe865PE (issue 153).
 2013-07-12 (tinybit) code cleanup against unused GRUB_UTIL, STAGE1_5, NETBOOT, DISKLESS.
 2013-06-24 (tinybit) Improved startup message fighting against hangups due to wrong menu setup by users.
 2013-05-24 (tinybit) Fix no-emulation-mode boot code so as to load 32K of preset-menu.
