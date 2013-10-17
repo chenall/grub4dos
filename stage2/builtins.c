@@ -11011,6 +11011,13 @@ read_func (char *arg, int flags)
   unsigned long long addr, val;
 
   errnum = 0;
+  if (*(long *)arg == 0x2E524156)//VAR. 
+  {//for Fast access to system variables.(defined in asm.s)
+    arg += sizeof(long);
+    if (! safe_parse_maxint (&arg, &addr))
+	return 0;
+    return (*(long **)0x8304)[addr];
+  }
   if (! safe_parse_maxint (&arg, &addr))
     return 0;
 

@@ -803,6 +803,8 @@ restart1:
 			putchar_hooked = (unsigned char*)0x800;
 			c = hotkey_func(0,-1);
 			putchar_hooked = 0;
+			if (c == -1)
+			    goto restart1;
 			if (c>>16)
 			{
 				temp_entryno = (long)(unsigned char)(c>>16);
