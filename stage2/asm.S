@@ -10856,7 +10856,6 @@ ENTRY(check_int13_extensions)
 	//sti	#; check_int13_extensions won't require sti
 	sti	#; added 2006-11-30
 
-	pushw	%cx
 	pushw	%dx
 
 	movb	$0x41, %ah
@@ -10866,6 +10865,7 @@ ENTRY(check_int13_extensions)
 #else
 	call	safe_int13
 #endif
+	popw	%dx
 
 	/* check the result */
 	jc	1f
@@ -10890,6 +10890,84 @@ ENTRY(check_int13_extensions)
 #else
 	andb	$0x01, %al	/* only use bit 0 for FORCE_LBA */
 	orb	%al, %cl
+	/*****************************************************************/
+	/* workaround for ASRock's ConRoe865PE mainboard. See issue 153. */
+	testb	$0x01, %cl
+	jnz	3f
+	/* read a sector with function 42h */
+	/* no need to save segment registers */
+	pushw	%bx
+	pushw	%cx
+	/* first, clear the buffer */
+	movw	$0x2000, %cx	/* GEOMTUNE_SEG */
+	movw	%cx, %ds
+	movw	%cx, %es
+	movw	$0x100, %cx	/* 1 sector */
+	xorw	%ax, %ax	/* fill the first buffer with zeroes */
+	xorw	%di, %di
+	cld
+	rep stosw
+	movw	$0x100, %cx	/* 1 sector */
+	decw	%ax		/* fill the second buffer with 0xFF's */
+	rep stosw
+	/* read the boot sector at 2000:0000 */
+	/* disk address packet at 2000:8000 */
+	movw	$0x8000, %di
+	movw	%di, %si
+	movw	$0x0010, (%di)	/* packet size and reserved byte */
+	movw	$0x0001, 2(%di)	/* number of blocks to read */
+	movw	$0x0000, 4(%di)	/* buffer offset */
+	movw	$0x2000, 6(%di)	/* buffer segment = GEOMTUNE_SEG */
+	movl	$0, 8(%di)	/* lo 32 bits of starting block number */
+	movl	$0, 12(%di)	/* hi 32 bits of starting block number */
+	movw	$0x4200, %ax
+	pushw	%ds
+	pushw	%es
+	pushw	%dx
+#if 1
+	int	$0x13
+#else
+	call	safe_int13
+#endif
+	popw	%dx
+	popw	%es
+	popw	%ds
+	/* read the boot sector again at 2000:0200 */
+	/* disk address packet at 2000:8000 */
+	movw	$0x8000, %di
+	movw	%di, %si
+	movw	$0x0010, (%di)	/* packet size and reserved byte */
+	movw	$0x0001, 2(%di)	/* number of blocks to read */
+	movw	$0x0200, 4(%di)	/* buffer offset */
+	movw	$0x2000, 6(%di)	/* buffer segment = GEOMTUNE_SEG */
+	movl	$0, 8(%di)	/* lo 32 bits of starting block number */
+	movl	$0, 12(%di)	/* hi 32 bits of starting block number */
+	movw	$0x4200, %ax
+	pushw	%ds
+	pushw	%es
+	pushw	%dx
+#if 1
+	int	$0x13
+#else
+	call	safe_int13
+#endif
+	popw	%dx
+	popw	%es
+	popw	%ds
+	/* compare the two buffers */
+	movw	$0x0000, %si
+	movw	$0x0200, %di
+	movw	$0x100, %cx
+	cld
+	repe cmpsw
+	/* if equal, account as "extended disk access functions supported" */
+	sete	%al
+	popw	%cx
+	orb	%al, %cl
+	popw	%bx
+3:
+	/* end of workaround */
+	/*****************************************************************/
 	jmp	2f
 #endif
 
@@ -10899,9 +10977,6 @@ ENTRY(check_int13_extensions)
 2:
 	roll	$16, %ebx	#; version number in high word
 	movw	%cx, %bx	#; API subset support bitmap in low word
-
-	popw	%dx
-	popw	%cx
 
 	/* back to protected mode */
 	call	EXT_C(real_to_prot)
