@@ -4808,6 +4808,18 @@ static int grub_mod_del(const char *name)
 }
 
 static int grub_exec_run(char *program, int flags);
+static int test_open(char *path)
+{
+    if (debug > 1)
+	printf("CHECK: %s\n",path + command_path_len - 1);
+    if (grub_open(path + command_path_len - 1))
+	return 1;
+    if (debug > 1)
+	printf("CHECK: %s\n",path);
+    if (grub_open(path))
+	return 3;
+    return 0;
+}
 static int command_open(char *arg,int flags)
 {
    if (*arg == '(' || *arg == '/')
@@ -4817,11 +4829,52 @@ static int command_open(char *arg,int flags)
       return 0;
    if (flags == 0 && (p_exec = grub_mod_find(arg)))
       return 2;
-   char t_path[512];
-   grub_sprintf(t_path,"%s%s",command_path,arg);
-   if (grub_open(t_path + command_path_len - 1))
-      return 1;
-   return grub_open(t_path)?3:0;
+    char t_path[512];
+
+    int len = strlen(arg) + command_path_len;
+    if ((len + 1) >= sizeof(t_path))
+    {
+	errnum = ERR_WONT_FIT;
+	return 0;
+    }
+    memmove(t_path,command_path,command_path_len + 1);
+    memmove(t_path + command_path_len,arg,strlen(arg) + 1);
+
+    int ret = test_open(t_path);
+    if (ret)
+	return ret;
+#ifdef PATHEXT
+    if(!PATHEXT[0])
+	return 0;
+   while(*arg++)//Find ExtName;
+   {
+	if (*arg == '.')
+	    return 0;
+   }
+
+    int i = 0;
+    arg = PATHEXT;
+    while(1)
+    {
+	if (*arg == ';' || *arg == 0)
+	{
+	    if (i > 0)
+	    {
+		sprintf(t_path + len ,"%.*s" ,i , arg-i);
+		ret = test_open(t_path);
+		if (ret)
+		    return ret;
+		i = 0;
+	    }
+	}
+	else
+	    ++i;
+	if (*arg == 0)
+	    break;
+	++arg;
+    }
+#endif
+    return 0;
 }
 
 int
@@ -4846,36 +4899,50 @@ command_func (char *arg, int flags)
    if (*arg <= ' ')
    {
       if (debug > 0)
+      {
 	 printf("Current default path: %s\n",command_path);
+	 #ifdef PATHEXT
+	 if (PATHEXT[0])
+	    printf("PATHEXT: %s\n",PATHEXT);
+	 #endif
+      }
       return 20;
    }
-	
-   if (grub_memcmp (arg, "--set-path=", 11) == 0)
+
+    if (*(short*)arg == 0x2d2d && *(long*)(arg+2) == 0x2d746573)// -- set-
+    {
+	arg += 6;
+	if (grub_memcmp(arg,"path=",5) == 0)
 	{
-		arg += 11;
+	    arg += 5;
+	    if (! *arg)
+	    {
+		command_path_len = 15;
+		return grub_sprintf(command_path,"(bd)/BOOT/GRUB/");
+	    }
 
-		if (! *arg)
-		{
-			command_path_len = 15;
-			return grub_sprintf(command_path,"(bd)/BOOT/GRUB/");
-		}
+	    int j = grub_strlen(arg);
 
-		int j = grub_strlen(arg);
+	    if (j >= 0x60)
+	    {
+		if (debug > 0)
+		    printf("Set default command path error: PATH is too long \n");
+		return 0;
+	    }
 
-		if (j >= 0x60)
-		{
-			if (debug > 0)
-				printf("Set default command path error: PATH is too long \n");
-			return 0;
-		}
-
-		grub_memmove(command_path, arg, j + 1);
-		if (command_path[j-1] != '/')
-			command_path[j++] = '/';
-		command_path[j] = 0;
-		command_path_len = j;
-		return 1;
+	    grub_memmove(command_path, arg, j + 1);
+	    if (command_path[j-1] != '/')
+		command_path[j++] = '/';
+	    command_path[j] = 0;
+	    command_path_len = j;
+	    return 1;
 	}
+	#ifdef PATHEXT
+	if (grub_memcmp(arg,"ext=",4) == 0)
+	    return sprintf(PATHEXT,"%.63s",arg + 4);
+	#endif
+	arg -= 6;
+    }
 
   /* open the command file. */
   char *filename = arg;
@@ -5075,9 +5142,10 @@ static struct builtin builtin_command =
   "command",
   command_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING | BUILTIN_IFTITLE,
-  "command [--set-path=PATH] FILE [ARGS]",
+  "command [--set-path=PATH|--set-ext=EXTENSIONS] FILE [ARGS]",
   "Run executable file FILE with arguments ARGS."
   "--set-path sets a search PATH for executable files,default is (bd)/boot/grub."
+  "--set-ext sets default extensions for executable files."
 };
 
 static int insmod_func(char *arg,int flags)
@@ -14450,6 +14518,10 @@ int envi_cmd(const char *var,char * const env,int flags)
 	    }
 	    else if (substring(ch,"@retval",1) == 0)
 		sprintf(p,"%d",*(int*)0x4CB00);
+	    #ifdef PATHEXT
+	    else if (substring(ch,"@pathext",1) == 0)
+		sprintf(p,"%s",PATHEXT);
+	    #endif
 	    else
 		return 0;
 	    j = FIND_VAR_FLAG_EXISTS;
