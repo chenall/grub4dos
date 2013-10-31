@@ -132,6 +132,7 @@ iso9660_mount (void)
 //
 //  return 0;
 //}
+    iso_type = 0;
 	//Test UDF system
 	for (sector = 16 ; sector < 32 ; sector++)
  	{
@@ -142,6 +143,7 @@ iso9660_mount (void)
   	if ( ! memcmp ((char *)(PRIMDESC->id), UDF_STANDARD_ID, 5))	//UDF_STANDARD_ID="BEA01"
    	{
    		iso_type = 1;	
+	  	INODE->file_start = 0;
 			break;
 		}
 	}   
@@ -149,12 +151,14 @@ iso9660_mount (void)
 	{
 		sector = 0x100;
 		//The reading anchor Volume Descriptor Pointer
+        emu_iso_sector_size_2048 = 1;
 		devread(sector, 0, 0x800, (unsigned long long)(unsigned int)(char *)UDF_DESC, 0xedde0d90);
 		if (UDF_DESC->Tag != UDF_Anchor)
 			return 0;
 		sector = UDF_DESC->AnchorVolume_MainVolume_ExtentLocation;
 		for (;;)	//Reading partition descriptor, file set descriptor, file entry descriptor
 		{
+			emu_iso_sector_size_2048 = 1;
 			devread(sector, 0, 0x800, (unsigned long long)(unsigned int)(char *)UDF_DESC, 0xedde0d90);
 			switch (UDF_DESC->Tag)
 			{
@@ -198,6 +202,7 @@ iso9660_mount (void)
 		devread(16, 0, sizeof(*PRIMDESC), (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90);
     size = idr->size.l;
 		extent = idr->extent.l;
+    emu_iso_sector_size_2048 = 1;
     devread (extent, 0, size, (unsigned long long)(unsigned int)(char *)DIRREC, 0xedde0d90);
     idr = (struct iso_directory_record *)DIRREC;
     idr = (struct iso_directory_record *)((char *)idr + idr->length.l);
@@ -207,7 +212,8 @@ iso9660_mount (void)
  		if ((PRIMDESC->type.l == ISO_VD_PRIMARY)
 	  	&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, sizeof(PRIMDESC->id)))
 		{
-	 		ISO_SUPER->vol_sector = sector;
+//	 		ISO_SUPER->vol_sector = sector;
+        ISO_SUPER->vol_sector = 16;
 	  	INODE->file_start = 0;
 	  	fsmax = PRIMDESC->volume_space_size.l;
 			return 1;

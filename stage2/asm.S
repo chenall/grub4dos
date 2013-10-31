@@ -338,26 +338,31 @@ VARIABLE(buf_drive)
 real_codestart:
 
 /* ********************  USB2DRI start  ****************************** */
+	xorw	%ax, %ax
+	movw	%ax, %ds
+	movw	%ax, %es
+  movb	(GRLDR_BOOT << 4 + 0x1fb), %cl
+  testb   $4, %cl     //pxe boot?
+  jne 2f              //yes
 	movb	$1, %ah
 	int	$0x16
 	jz	1f
-	cmpb	(0x7ff9), %ah					//F2
+	cmpb	(GRLDR_BOOT << 4 + 0x1f9), %ah					//F2
 	je 3f
 1:	
-	movb	(0x7ffb), %al
-	decb %al				//al=1,When dl = 00 load
+  decb    %cl         //cl=1,When dl = 00 load
 	jne 1f						
-	cmpb	%al, %dl	//dl=0?
+	cmpb	%cl, %dl	//dl=0?
 	je	3f
 	cmpb	$0x23, %dl
 	jne 1f
-	cmpb	%al, %ss:0x21AF
+	cmpb	%cl, (0x21AF)
 	je	3f
 1:
-	decb	%al				//al=2,Forced load 
+	decb    %cl	        //cl=2,Forced load 
 	jne 2f							
-3:	//Load the usb driver
-	movw	$(Entry_USB2DRI - start + 0x8200), %si
+3:	//Load the usb driver, Maximum size 0x3600
+	movw	$(Entry_USB2DRI - EXT_C(main) + 0x8200), %si
 	movw	$0x4200, %di
 	movw	$(USB_size - Entry_USB2DRI)/2, %cx
 	rep movsw
@@ -365,7 +370,7 @@ real_codestart:
 2:
 	jmp	USB_size
 	
-	. = real_codestart + 0x40
+	. = EXT_C(main) + 0x1a0		//Affect bootlace.inc and Makefile
 
 Entry_USB2DRI:
 
@@ -408,7 +413,7 @@ Direction1:
 
 
 qh:
-	.fill 0x110,1,0x00                      //QH,qTDÇø
+	.fill 0x110,1,0x00                      //QH,qTD
 
 //qTD1    db      40h dup(0)
 //qTD2    db      40h dup(0)
@@ -556,7 +561,9 @@ Start_sector:
 	.long   0
 Status:
 	.byte   0
-Error_repeat_Number:
+Error_repeat_Number_Bulk:
+	.byte   0
+Error_repeat_Number_Con:
 	.byte   0
 scsi_repeat_Number:
 	.byte   0
@@ -597,12 +604,6 @@ Bulk_Reset:
 Entry_int13:
 	call Find_drive_info
 	jnb 1f
-	cmpb $0, %cs:(map_num - Entry_USB2DRI)
-	je 2f
-	cmpb %dl, %cs:(map_num - Entry_USB2DRI)
-	jne 2f
-	movb $0x80, %dl
-2:	
 	ljmp *%cs:(old_int13 - Entry_USB2DRI)
 1:        
 	cld               
@@ -625,19 +626,11 @@ Entry_int13:
 	je int13_02_03        
 	cmpb $03, %ah
 	je int13_02_03
-	cmpb $04, %ah
-	je int13_00_04_16_17_18_44_47
-	cmpb $05, %ah
-	je int13_05
 	cmpb $0x08, %ah
 	je int13_08
 	cmpb $0x15, %ah
 	je int13_15
 	cmpb $0x16, %ah
-	je int13_00_04_16_17_18_44_47
-	cmpb $0x17, %ah
-	je int13_00_04_16_17_18_44_47
-	cmpb $0x18, %ah
 	je int13_00_04_16_17_18_44_47
 	cmpb $0x41, %ah
 	je int13_41                
@@ -645,10 +638,6 @@ Entry_int13:
 	je int13_42_43     
 	cmpb $0x43, %ah
 	je int13_42_43
-	cmpb $0x44, %ah
-	je int13_00_04_16_17_18_44_47       
-	cmpb $0x47, %ah
-	je int13_00_04_16_17_18_44_47
 	cmpb $0x48, %ah
 	je int13_48
 	cmpw $0x4b01, %ax
@@ -702,11 +691,6 @@ int13_02_03:
 	call Read_write_usb
 	jnb int13_00_04_16_17_18_44_47
 	jmp qtml        
-
-int13_05:
-	movb $03, %ah
-	jmp 4b
-        
 
 int13_08:
 	pushw %dx
@@ -987,7 +971,7 @@ Remove_qTD:
 	
 
 Control_transfer:
-	movb	$3, (Error_repeat_Number - Entry_USB2DRI)
+	movb	$3, (Error_repeat_Number_Con - Entry_USB2DRI)
 3:
 	pushaw
 
@@ -1042,8 +1026,8 @@ Control_transfer:
 	popaw
 	cmpb	$0, (Status - Entry_USB2DRI)
 	je 1f
-	decb (Error_repeat_Number - Entry_USB2DRI)
-	cmpb $0, (Error_repeat_Number - Entry_USB2DRI)
+	decb (Error_repeat_Number_Con - Entry_USB2DRI)
+	cmpb $0, (Error_repeat_Number_Con - Entry_USB2DRI)
 	jne 3b	
 1:							
 	ret
@@ -1122,11 +1106,6 @@ Set_QH:
 	je 2f
 	jmp 4f
 1:
-	pushw %ax
-	movw $0x0e67, %ax
-	int $0x10
-	popw %ax
-1:
 	testb $0x10, %al
 	je 2f
 	movw $3, %ax
@@ -1188,7 +1167,7 @@ Get_current_endpoint:
 	
 
 Bulk_transfer:
-	movb $3, (Error_repeat_Number - Entry_USB2DRI)
+	movb $3, (Error_repeat_Number_Bulk - Entry_USB2DRI)
 4:
 	pushaw
 	
@@ -1287,8 +1266,8 @@ Bulk_transfer:
 	popaw
 	cmpb $2, %al
 	je 3f
-	decb (Error_repeat_Number - Entry_USB2DRI)
-	cmpb $0, (Error_repeat_Number - Entry_USB2DRI)
+	decb (Error_repeat_Number_Bulk - Entry_USB2DRI)
+	cmpb $0, (Error_repeat_Number_Bulk - Entry_USB2DRI)
 	je 3f
 	jmp 4b 				
 2: 
@@ -1399,8 +1378,6 @@ SCSI_Command:
 	je 5f 
 	cmpb $2, 0x0c(%si)
 	jne 4f
-	movw $0x0e66, %ax
-	int $0x10
 	call Reset_Recovery
 4:
 	decb (scsi_repeat_Number - Entry_USB2DRI)
@@ -1427,8 +1404,8 @@ Read_write_usb:
 	cli
 	movw %ss, %cs:(Stack_sp - Entry_USB2DRI) 
 	movw %sp, %cs:(Stack_ss - Entry_USB2DRI) 
-	movw %cs, %si
-	movw %si, %ss
+	pushw %cs
+	popw %ss
 	movw $CodeSize - 1, %sp
 	sti
         
@@ -1576,22 +1553,22 @@ Init_cs:
 	.word   0
 Save_dl:
 	.byte		0
-
 Register_pci:
 	.long   0
-ehci_reg_add:
-	.word   0
-ehci_reg_val_6a:
-	.word   0
-ehci_reg_val_6c:	
-	.word   0	
+fb_boot:
+  .byte   0
+fd_num:
+  .byte   0
+hd_num:
+	.byte		0
 	
 load_ok:              
 	.ascii  "\r\nLoaded success\r\n\0"
 
-#define mem_cpbh        0x1f00 
-#define mem_old         0x2000
-#define mem_new         0x3000
+#define mem_mbr         0x1800
+#define mem_pbr         0x1a00
+#define mem_fd          0x1c00
+#define mem_hd          0x2000
 
 
 
@@ -1616,8 +1593,12 @@ Initialization:
 	call Show_Tips
 	jc 2f 
 	call Check_bus
-	jb 4f             
-	call Disk_Info            
+	movw $0x0e30, %ax
+	int $0x10
+    jb 4f
+	call Disk_Info 
+	movw $0x0e31, %ax
+	int $0x10
 
 	movw %fs:0x0413, %ax             
 	subw $05, %ax     
@@ -1637,20 +1618,20 @@ Initialization:
 	popw %ds    
                 
 	call host_initialization
-	movw $0x0e30, %ax
+	movw $0x0e32, %ax
 	int $0x10
 	call Device_enum
-	movw $0x0e31, %ax
+	movw $0x0e33, %ax
 	int $0x10
 	cmpb $0, (max_id - Entry_USB2DRI)
 	je 3f	
 	call Test_device
-	movw $0x0e32, %ax
+	movw $0x0e34, %ax
 	int $0x10
 	cmpb $0, (max_dri - Entry_USB2DRI) 
 	je 3f
 	call Define_disk_No
-	movw $0x0e33, %ax
+	movw $0x0e35, %ax
 	int $0x10
 	call Set_int13       
 
@@ -1666,36 +1647,12 @@ Initialization:
 	popw %ds
 	lret
 3:
-	movw $0x0e34, %ax
-	int $0x10
 	addw $5, %fs:0x0413
-	movw (ehci_reg_add - Entry_USB2DRI), %dx
-	movw (ehci_reg_val_6c - Entry_USB2DRI), %ax
-	pushw %ax 
-	pushw %dx
-	pushw (bus_device_function - Entry_USB2DRI)
-	movb $3, %al
-	call Read_Write_Configuration
-	addw $6, %sp
-	decw %dx
-	decw %dx
-	movw (ehci_reg_val_6a - Entry_USB2DRI), %ax
-	andw $0xfffe, %ax
-	pushw %ax 
-	pushw %dx
-	pushw (bus_device_function - Entry_USB2DRI)
-	movb $3, %al
-	call Read_Write_Configuration
-	addw $6, %sp
-	
-	
 4:
-	movw $0x0e35, %ax
-	int $0x10
-	movw $0xbb8, %ax
-	call Delay 
 	movw $(load_err - Entry_USB2DRI), %si
 	call Show_Character
+	movw $0xbb8, %ax
+	call Delay 
 2:
 	stc
 	jmp 5b
@@ -1796,40 +1753,96 @@ Set_int13:
 
 
 Sector_comparison:
+  pushw %si
+  pushw %di
+  pushw %cx
 	movw $0x200, %cx
 1:				
 	repz cmpsb
 	je 2f
 	cmpw $0x01db, %cx
 	je 1b
-	cmpw $0x01fb, %cx
+	cmpw $0x01bf, %cx
 	je 1b
 	cmpw $0x01e3, %cx
 	jne 3f
 	addw $3, %cx
 	jmp 1b
-3:
-	stc
-	ret
 2:
 	clc
-	ret	
+1:
+	popw %cx
+  popw %di
+  popw %si
+  ret
+3:
+	stc
+	jmp 1b
+
+	
 	
 	
 Search_drive:
-	movb %fs:(0x475), %cl
-	orb $0x80, %cl    
-	incb %fs:(0x475)
-	ret		
+	movb %fs:0x0475, %cl
+	orb $0x80, %cl
+	incb %fs:0x0475
+	ret	
 	
 	
+read_hdd:
+	pushw %bx
+	movw $1, %bx
+	movb $1, %cl
+	call Read_write_usb
+	popw %bx
+	ret
 	
-Define_disk_No:   
+
+read_int13:				
+	pushw %ds
+	pushw %es
+	int $0x13
+	popw %es
+	popw %ds
+	ret			
+	
+	
+
+read_dri:
+	pushaw
+	movw $2, %si
+1:        
+	movw $0x0201, %ax    
+	xorb %dh, %dh
+	movw $1, %cx
+	call read_int13  
+	jnb 1f
+	decw %si
+	je 1f
+	movb $0, %ah
+	call read_int13
+	jmp 1b
+1:
+	popaw
+	ret
+				
+
+Get_dri:
+	movb %cs:(Save_dl - Entry_USB2DRI), %dl
+	cmpb $0x23, %dl
+	jne 1f
+	movb %fs:0x21af, %dl
+1:				
+	ret	
+	
+	
+Define_disk_No: 
 	pushw (Init_cs - Entry_USB2DRI)      
 	popw %es 
   
-	xorw %bx, %bx 
-	movb (max_dri - Entry_USB2DRI), %dh 
+	xorw %bx, %bx
+	movb (max_dri - Entry_USB2DRI), %dh
+  call Get_dri 
 0:        
 	movb (DriLUN - Entry_USB2DRI)(%bx), %al
 	movb %al, (_lun - Entry_USB2DRI)        
@@ -1839,21 +1852,22 @@ Define_disk_No:
 	movb %al, (_type - Entry_USB2DRI)
 	pushw %es
 	popw %ds
-      
-	pushw %bx 
 
 	cmpb $5, %al
 	jne 1f
 							
-	movb $0xff, %cs:(Number - Entry_USB2DRI)(%bx)
+	cmpb $0x90, %dl
+  jb 2f
+  movb %dl, %cs:(Number - Entry_USB2DRI)(%bx)
+  jmp 3f
+2:     
+  movb $0xff, %cs:(Number - Entry_USB2DRI)(%bx)
+3:
 	movl $0x11, %eax
-	movw $1, %bx
-	movw $mem_new, %di
-	movb $1, %cl
-	call Read_write_usb
+	movw $mem_mbr, %di
+	call read_hdd
 	movl 0x47(%di), %eax
-	call Read_write_usb
-	popw %bx
+	call read_hdd
 	cmpw $0xAA55, 0x1e(%di)
 	jne 5f
 	movb 0x21(%di), %al
@@ -1868,10 +1882,8 @@ Define_disk_No:
  
 1:   
 	xorl %eax, %eax
-	movw $01, %bx
-	movw $mem_new, %di
-	movb $01, %cl
-	call Read_write_usb
+	movw $mem_mbr, %di
+	call read_hdd
 
 	movw $04, %cx
 1:
@@ -1879,85 +1891,68 @@ Define_disk_No:
 	je 1f
 	addw $0x10, %di
 	loop 1b
-	popw %bx
-	stc
-	jmp 4f       
+	jmp 2f       
 1:
-	popw %bx
-	push %bx
-	movl 0x1ca(%di), %eax
-	movl %eax, %cs:(Capacity - Entry_USB2DRI)(%bx) 
+  testb $0x3f, (0x1be+2)(%di)
+  je 2f
+  testb $0x3f, (0x1be+6)(%di)
+  je 2f
+  cmpl $0, (0x1be+8)(%di)
+  je 2f
+  cmpl $0, (0x1be+0xc)(%di)
+  je 2f
+	movl 0x1ca(%di), %ecx
 	movl 0x01c6(%di), %eax
+  movw $mem_pbr, %di
+  call read_hdd
+  jmp 1f
+2:
+  movw $mem_mbr, %di
+  movw 0x13(%di), %cx
+  cmpw $0x3231, 0x39(%di)
+  je 2f
+  movl 0x20(%di), %ecx
+2:
+  movl 0x1c(%di), %eax
+1:
+  movl %ecx, %cs:(Capacity - Entry_USB2DRI)(%bx) 
 	movl %eax, %cs:(StartSector - Entry_USB2DRI)(%bx)
-	movw $mem_cpbh, %si
-	cmpb $0, (%si)
-	jne not_FBBF
-	movw $mem_old, %si
-	cmpl $0x46424246, 0x01b4(%si)
-	jne not_FBBF
-	movzbl 0x01ae(%si), %eax 
-not_FBBF:	
-	movw $01, %bx
-	movb $01, %cl      
-	
-	movw $mem_new + 0x200, %di
-	call Read_write_usb 
-	movw $mem_cpbh, %si
-	movw $mem_old, %di
-3:        
-	cmpb $0xff, (%si)
-	je 2f 
-	
-	pushw %si
-	pushw	%di      
-	movw $mem_new, %si 
-	call Sector_comparison
-	popw %di
-	jnc 1f
 
-	pushw %di
-	movw $mem_new + 0x200, %si
+  movb %cs:(fd_num - Entry_USB2DRI), %ch
+  cmpb $0, %ch
+  je 2f
+  xorb %cl, %cl
+  movw $mem_fd, %si
+1:
+  movw $mem_mbr, %di
 	call Sector_comparison
-	popw %di
-	jnc 1f
-	popw %si
-
-	addw $0x200, %di
-	incw %si
-	jmp 3b   
-2: 
-	popw %bx
-21:
-	call Search_drive
-	movb %cl, %cs:(Number - Entry_USB2DRI)(%bx)    
-	jmp 5f
-1:  
-	popw %si
-	popw %bx
-	movb (%si), %cl
-	cmpb $0, %cl
-	jne 1f
-	movb %cs:(Save_dl - Entry_USB2DRI), %ch
-	cmpb $0x23, %ch
-	jne not_ud
-	movb %fs:0x21af, %ch
-not_ud:	
-	cmpb $0x80, %ch
-	je 21b
-	movb $0x80, %cs:(Number - Entry_USB2DRI)(%bx)
-	cmpb $0x23, %cs:(Save_dl - Entry_USB2DRI)
-	jne 2f
-	movb $0x80, %fs:0x21af
-	jmp 3f
-2:	
-	movb $0x80, %cs:(Save_dl - Entry_USB2DRI)
+	jnc 3f
+  movw $mem_pbr, %di
+  call Sector_comparison
+	jnc 3f
+  decb %ch
+  je 2f
+  addw $0x200, %si
+  incb %cl
+  jmp 1b
+2:
+  movb %cs:(hd_num - Entry_USB2DRI), %ch
+  cmpb $0, %ch
+  je 2f
+  movb $0x80, %cl
+  movw $mem_hd, %si
+  movw $mem_mbr, %di
+1:
+  call Sector_comparison
+  jnc 3f
+  decb %ch
+  je 2f
+  addw $0x200, %si
+  incb %cl
+  jmp 1b
+2:
+  call Search_drive
 3:
-	call Search_drive
-	movb %cl, %cs:(map_num - Entry_USB2DRI)
-	movl %cs:(StartSector - Entry_USB2DRI)(%bx), %eax
-	movl %eax, %fs:0x7c1c
-	jmp 5f
-1:				
 	movb %cl, %cs:(Number - Entry_USB2DRI)(%bx)
 5:
 	pushw %cs
@@ -1967,7 +1962,13 @@ not_ud:
 	je 4f
 	addw $DriveLen, %bx
 	jmp 0b
-4:	
+4:
+  testb $1, (fb_boot - Entry_USB2DRI)
+  je 1f
+  movb (Number - Entry_USB2DRI),%cl
+  movb %cl, (Save_dl - Entry_USB2DRI)
+	andb $0x3e, %fs:0x0410
+1:
 	ret	
 	
 	
@@ -1986,6 +1987,8 @@ Test_device:
 	movb $0x12, (TokenContent - SCSI)(%di)	
 	movb $0x24, (TokenContent + 4 - SCSI)(%di)
 	call SCSI_Command
+	cmpb $0, (Return - SCSI)(%di)
+    jne 1f
 	movb (Cache - Entry_USB2DRI), %al	
 	andb $0x1f, %al
 	cmpb $0x1f, %al
@@ -2020,6 +2023,8 @@ csdyd:
 	movb %al, (DriType - Entry_USB2DRI)(%si)
 	
 	incb (max_dri - Entry_USB2DRI)
+    cmpb $8, (max_dri - Entry_USB2DRI)
+    jae 2f
 	addw $DriveLen, %si     
 1:
 	movb (_lun - Entry_USB2DRI), %al
@@ -2030,12 +2035,12 @@ csdyd:
 1:
 	movb (_id - Entry_USB2DRI), %al
 	cmpb (max_id - Entry_USB2DRI), %al
-	jae 1f 
+	jae 2f 
 	movb $0, (_lun - Entry_USB2DRI)
 	incb (_id - Entry_USB2DRI)
 	addw $DevLen, %bx 
 	jmp 0b
-1:        
+2:        
 	ret       	
 
 	
@@ -2058,7 +2063,7 @@ Fill_device_structure:
 	call Delay
 	movw 2(%di), %ax
 	cmpw $0x100, %ax
-	ja 5f
+	jae 5f
 	movb %al, (Get_Configuration + 6 - Entry_USB2DRI) 	
 	call Control_transfer
 	movw $03, %ax
@@ -2146,10 +2151,7 @@ Device_enum:
 	addw $04, %si
 	jmp 1b
 1: 
-	testb $02, %al 
-	je 3f
-	call Port_Reset
-3:      
+	call Port_Reset    
 	testb $04, %al
 	jne 3f 
 
@@ -2162,7 +2164,9 @@ Device_enum:
 	movw %si, (PORTSC - Entry_USB2DRI)(%bx)
 	call Fill_device_structure
 	jb 2b
-	incb (max_id - Entry_USB2DRI) 
+	incb (max_id - Entry_USB2DRI)
+    cmpb $4, (max_id - Entry_USB2DRI)
+    jae 4f
 	incb (_id - Entry_USB2DRI)
 	addw $DevLen, %bx
 	jmp 2b
@@ -2249,7 +2253,6 @@ host_initialization:
 	movb $01, %al 
 	call Read_Write_Configuration 
 	addw $04, %sp
-	movw %ax, (ehci_reg_val_6a - Entry_USB2DRI)
 
 	orw $0x100, %ax
 	pushw %ax 
@@ -2274,14 +2277,6 @@ host_initialization:
 1:
  
 	leaw 04(%si), %dx 
-	movw %dx, (ehci_reg_add - Entry_USB2DRI)
-	
-	pushw %dx 
-	pushw (bus_device_function - Entry_USB2DRI)
-	movb $01, %al 
-	call Read_Write_Configuration 
-	addw $04, %sp
-	movw %ax, (ehci_reg_val_6c - Entry_USB2DRI) 
 	
 	pushw $00 
 	pushw %dx
@@ -2335,40 +2330,59 @@ host_initialization:
 	
 	
 Disk_Info:
-	movw $mem_old, %bx 
-	movw $mem_cpbh, %si 
-	
-	movzbw %fs:0x0410, %cx 
-	testb $01, %cl                     
-	je 3f
-	shrb $06, %cl
-	incb %cl 
-	xorw %dx, %dx
-2:        
-	pushw %cx
-	movw $0x0201, %ax
-	movw $01, %cx 
-	pushw %ds
-	pushw %es   
-	int $0x13
-	popw %es
-	popw %ds
-	popw %cx       
-	movb %dl, (%si)
-	addw $0x200, %bx
-	incw %si 
-	incb %dl    
-	loop 2b
-	testb $0x80, %dl
-	jne 1f
-3:
-	movzbw %fs:0x0475, %cx
-	movw $0x80, %dx
-	jmp 2b
+	call Get_dri
+  movb %fs:0x410, %cl
+  testb $1, %cl
+  jne 1f
+  xorb %cl, %cl
+  cmpb $0, %dl
+  jne 2f
+  orb $1, %fs:0x410
+  andb $0x3f, %fs:0x410
 1:
-	movb $0xff, (%si)
-	ret	
-	
+  shrb $6, %cl
+  incb %cl
+2:
+  cmpb $2, %cl
+  jbe 1f
+  movb $2, %cl
+1:
+  movb %cl, (fd_num - Entry_USB2DRI)
+  cmpb $0, %cl
+  je 1f
+  xorb %dl, %dl
+	movw $mem_fd, %bx
+	call 2f
+1:
+	movb $10, %cl 
+  cmpb $10, %fs:0x0475
+	ja 1f
+  movb %fs:0x0475, %cl
+1:
+	movb %cl, (hd_num - Entry_USB2DRI)
+  cmpb $0, %cl
+  je 1f
+  movb $0x80, %dl
+	movw $mem_hd, %bx
+	call 2f
+1:							
+	ret
+
+2:
+  call read_dri
+  jnc 1f
+  cmpb $0, %dl
+  jne 1f
+  orb $1, (fb_boot - Entry_USB2DRI)
+1:
+  decb %cl
+  je 1f
+  addw $0x200, %bx
+  incb %dl
+  jmp 2b
+1:
+  ret
+  
 	
 Check_bus:  
 	movw $0xB101, %ax 
@@ -2441,6 +2455,8 @@ load_err:
 Ending:
 	.byte   0
 
+	
+	. = EXT_C(main) + 0x1a0 + 0x1400
 USB_size:				
 /* ********************  USB2DRI end  ****************************** */ 
 

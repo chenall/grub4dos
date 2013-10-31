@@ -5632,7 +5632,8 @@ find_func (char *arg, int flags)
 
 					saved_drive = current_drive = drive;
 					saved_partition = current_partition = part;
-					if ((*devtype == 'f') && open_device()) //if is a partition 
+//					if ((*devtype == 'f') && open_device()) //if is a partition 
+                    if (open_device()) //if is a partition 
 					{
 						if ((tmp_drive != current_drive || tmp_partition != current_partition) && find_check(filename,builtin1,arg,flags) == 1)
 						{
@@ -5656,6 +5657,23 @@ find_func (char *arg, int flags)
 							next_partition_buf		= mbr,
 							next_partition ()))
 					{
+            if ((start == 0) || (len == 0) || 
+              ((type != PC_SLICE_TYPE_FAT16_LT32M) &&       //4
+               (type != PC_SLICE_TYPE_EXTENDED) &&          //5
+               (type != PC_SLICE_TYPE_FAT16_GT32M) &&       //6
+               (type != PC_SLICE_TYPE_EXFAT) &&             //7
+               (type != PC_SLICE_TYPE_FAT32) &&             //b
+               (type != PC_SLICE_TYPE_FAT32_LBA) &&         //c
+               (type != PC_SLICE_TYPE_FAT16_LBA) &&         //e
+               (type != PC_SLICE_TYPE_WIN95_EXTENDED) &&    //f
+               (type != PC_SLICE_TYPE_EXTENDED_HIDDEN) &&   //15
+               (type != PC_SLICE_TYPE_WIN95_EXT_HIDDEN) &&  //1f
+               (type != PC_SLICE_TYPE_LINUX_SWAP) &&        //82
+               (type != PC_SLICE_TYPE_EXT2FS) &&            //83
+               (type != PC_SLICE_TYPE_LINUX_EXTENDED) &&    //85
+               (type != PC_SLICE_TYPE_LINUX_LOG_VOL)))      //8e
+              continue;
+                            
 						if (type != PC_SLICE_TYPE_NONE
 							&& ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
 							&& ! IS_PC_SLICE_TYPE_BSD (type)

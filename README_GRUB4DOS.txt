@@ -1209,9 +1209,6 @@ OPTIONS:
 				partition number I of the specified hard drive
 				or harddrive image DEVICE_OR_FILE.
 
-	--usb=I   		The USB2.0 driver is installed to the specified
-				drive or hard disk image ( device or file ).
-
 	--grldr-usb=I		Loaded usb2.0 option  in grldr.
 
 	--usb-time=T		Information display time
@@ -3462,12 +3459,6 @@ Installing GRLDR boot code to PBR under Linux:
 	
 Note: Only a few file systems(FAT12/16/32/NTFS/ext2/ext3/ext4/exfat) are supported by now.
 
-Updated: add --usb=I parameter, usb2.0 driver can be installed in FAT16/32/exfat. 
-	Where I represents:
-	01: When the boot device is recognition as a floppy disk, loading;
-	02: Unconditional loading
-
-
 Note: grubinst has the feature of installing grldr boot code onto a
 	partition boot area.
 
@@ -3783,6 +3774,8 @@ Address		Length		Description
 0000:82A4	4 (DWORD)	no_decompression (no auto gunzip)
 0000:82A8	8 (QWORD)	part_start (start sector of last partition)
 0000:82B0	8 (QWORD)	part_length (total sectors of last partition)
+0000:82B8	4 (DWORD)	UD Partition: Number of heads,Sectors per track,
+				Real BIOS drive number, Maximum Sectors per track(low bit)
 0000:82c0	8 (QWORD)	Starting from 4G contiguous memory block size (size in KB)
 
 Note 1: Filesize can be initialised/modified by using "cat --length=0 FILE".
@@ -4132,12 +4125,7 @@ Note:
 ******************************************************************************
 ***                           About usb2.0 driver                         ***
 ******************************************************************************
-When the the bios assigned drive No. 00, and the system does not support extended reading,
-Drive letter changed from 00 to 80, Wrong CHS parameter will cause USB drives failed to boot.
-
-As a remedy, loading the usb drive to support extended reading, to re-enable USB booting.
-
-The USB drive code is located in the 11-21 sector of grldr.pbr file.
+GRLDR includes usb2.0 drive.
 
 The USB 2.0 driver supports: PCI Device Class 0c/03/20,
 namely EHCI (Enhanced Host Controller Interface) devices.
@@ -4145,45 +4133,32 @@ namely EHCI (Enhanced Host Controller Interface) devices.
 The USB 2.0 driver supports: USB (Universal Serial Bus) Class 08 (Mass Storage devices),
 SubClass 06, Protocol 50, that is USB Thumbdrive or Portable External Hard Drives.
 
-Support USB-HDD, USB-cdrom mode.
+Support USB-FDD, USB-HDD, USB-cdrom mode.
 
-USB driver code on the back of the PBR sector.
-For FAT16/FAT32/exFAT,they in partition LBA(1)/LBA(2)/LBA(24).
+There is a switch in the GRLDR offset 0x1f9.
+  Press F2 to load unconditionally.
 
-PBR boot program will first loading the USB driver into xxx0:0000 (Requires 0x3400 bytes), 
-and then use the far call.Resident in the top of conventional memory, 
-USB devices are read and written by intercepting INT 13h.
-
-There is a switch in the PBR offset 0x1fb.
-  01: When the boot device is recognition as a floppy disk, loading;
-  02: Unconditional loading;
-  00: not loading.
-
+There is a switch in the GRLDR offset 0x1fb.
+  00: not loading;
+  01: When the boot device is recognition as a floppy disk loading;
+  02: Always load.
+  
 When USB driver is loaded, it waits for 5 seconds for user input:
   Press s key to load in slow-down mode;
-  Press Spacebar to skip loading driver;
-  Loaded by default.
-Number of seconds for waiting Offset 17 at waiting for the number of seconds by usb driver settings.
+  Press Spacebar to skip loading driver.
+The number of seconds to wait by the offset 0x21b1 grldr set at.
+Speed by the offset 0x21b2 grldr set at. (0=full, 1=full/2, 2=full/4, 3=full/8)
 
-The number of seconds to wait through the usb driver  of offset 17 settings.
-
-Speed ??setting through the usb driver  of offset 18 settings.
-(0=full, 1=full/2, 2=full/4, 3=full/8)
-
+Set up:
+	--grldr-usb=I	I was loaded switch (this option must have)
 	--usb-time=T 	T The number of seconds to wait
 	--usb-speed=S	S Speed setting
+	--usb-key=K	K Scan Code
 
-Note: Only (FAT16/FAT32/exFAT) file systems are supported.
-
-Note: USB drives needs to be pre-formatted for getting MBR and BPB parameters.
+Example: bootlace --floppy --grldr-usb=2 --usb-time=3 grldr
 
 Tips: 1. Some USB drives are identified as USB 1.x devices under Windows or DOS usbaspi.sys , 
          but they will be identified as USB 2.0 devices when loading in slow-down mode.
       2. Some USB drives do not be detected when plugging into front panel,
          but they will be detected when loading in slow-down mode.
       3. Fails to load, press the s key to try.
-
-Update: GRLDR includes usb2.0 drive, loading conditions  such as the PBR. By --grldr-usb=I set up. 
-	F2 key Unconditional loading(can be re-set by offset 0x1f9).
-	--usb-key=K	K Scan Code
-Example: bootlace --grldr-usb=2 grldr

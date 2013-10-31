@@ -433,6 +433,7 @@
 #define gfx_ofs_v2_args_list		0x84
 #define gfx_ofs_v2_args_entry_len	0x88
 #define gfx_ofs_v2_timeout		0x8c
+#define GRLDR_BOOT   0x780
 
 #ifndef ASM_FILE
 /*

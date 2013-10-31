@@ -700,20 +700,22 @@ grldr_real_start:
 	
 	/* BX:0000 = pre_stage2_start */
 	////////////////////////////////////////////////
-	//old_stack	1					0x580
-	//old_stack	2					0x68400  For compatibility Virtual PC 
-	//Buffer							0x580	- 0x59f					0x20		
-	//int13/AH=42 pack		0x5a0 - 0x5af					0x10
-	//pre_stage2					0x8200 - 0x681ff			0x60000
-	//grldr_boot					0x7800 - 0x7bff				0x400
-	//new_stack						0x2000
+	//old_stack	1                   0x580
+	//old_stack	2                   0x68400                                     For Compatible with  Virtual PC 
+	//Buffer                        0x580 - 0x59f           0x20		
+	//int13/AH=42 pack              0x5a0 - 0x5af           0x10
+	//pre_stage2                    0x8200 - 0x681ff        0x60000
+	//grldr_boot                    0x7800 - 0x7bff         0x400               Affect USB2DRI in asm.S
+	//new_stack                     0x2000
 	////////////////////////////////////////////////
 
-//	cmpw	$0x7C0, %bp
-//	jne	1f
-//	cmpw	%bp, %cx
+	cmpw	$0x7C0, %bp
+	jne	1f
+	cmpw	%bp, %cx
 //	je	2f
-//1:
+	jne 1f
+	orb	$4, (GRLDR_BOOT << 4 + 0x1fb)	 /* pxe boot */
+1:
     //orb	$0x01, (pre_stage2_start - _start1 + 5) /* disable pxe */
 	
 //2:      
@@ -721,9 +723,7 @@ grldr_real_start:
 //	jb	2f
 
 //       movw	$((0x8200 - (pre_stage2_start - _start1) - 0x400) >> 4), %cx
-	movw	$0x780, %cx
-	
-	/* Now CS(=DS) >= CX+0x40 */
+	movw	$GRLDR_BOOT, %cx	//0x780
 
 	movw	%cx, %es
 	xorw	%di, %di
@@ -745,17 +745,17 @@ grldr_real_start:
 
 //	cld
 
-	movw	%bx, %ds			//0x2340
+	movw	%bx, %ds			//0x2200 or 0x9c0
 	movw	$0x820, %bx
 	movw	%bx, %es			//0x820
 
 	xorw	%si, %si
 	xorw	%di, %di
 
-	movw	$6, %bx		/* 6*64K pages: 0x23400 - 0x833ff 	6*64K = 384K  */
+	movw	$6, %bx		/* 6*64K pages: 0x22000 - 0x81fff 	6*64K = 384K  */
 1:
 	movw	$0x8000, %cx
-	repz movsw					//(0x23400 - 0x833ff) ->  (0x8200 - 0x681ff)
+	repz movsw					//(0x22000 - 0x81fff) or (0x9c00 - 0x69bff) ->  (0x8200 - 0x681ff)
 	movw	%ds, %ax
 	addw	$0x1000, %ax
 	movw	%ax, %ds
@@ -1028,33 +1028,34 @@ Entry_32:
 	/* EBIOS supported */
 	movb	$0x42, (ebios_32 - 1 - Entry_32 + 0x7c00)
 1:
-	movb	(Loadusb_32 - Entry_32 + 0x7c00 +1), %al
-	decb %al				//al=1,When dl = 00 load
-	jne 1f						
-	cmpb	%al, %dl	//dl=0?
-	je	3f
-1:
-	decb %al				//al=2,Forced load 
-	jne 2f							
-3:	//Load the usb driver
-	pushw $0x0d00
-	popw %es				//read to 0d00:0000
-	movl	0x7c1c, %eax
- 	incl	%eax
-	incl	%eax
-	movw	$0x0a, %cx 
-1:	
- 	call	readDisk_32
- 	loop	1b
-	call	$0x0d00,$0x0000
-	jc 2f
-	movb	%dl, 0x40(%bp)  /* BIOS passes drive number in DL */
-	movb	$0x42, (ebios_32 - 1 - Entry_32 + 0x7c00)
-2:
+//	movb	(Loadusb_32 - Entry_32 + 0x7c00 +1), %al
+//	decb %al				//al=1,When dl = 00 load
+//	jne 1f						
+//	cmpb	%al, %dl	//dl=0?
+//	je	3f
+//1:
+//	decb %al				//al=2,Forced load 
+//	jne 2f							
+//3:	//Load the usb driver
+//	pushw $0x0d00
+//	popw %es				//read to 0d00:0000
+//	movl	0x7c1c, %eax
+// 	incl	%eax
+//	incl	%eax
+//	movw	$0x0a, %cx 
+//1:	
+// 	call	readDisk_32
+// 	loop	1b
+//	call	$0x0d00,$0x0000
+//	jc 2f
+//	movb	%dl, 0x40(%bp)  /* BIOS passes drive number in DL */
+//	movb	$0x42, (ebios_32 - 1 - Entry_32 + 0x7c00)
+//2:
 
 /* figure out where FAT and DATA area starts
  * (modifies EAX EDX, sets fat_start and data_start variables)
  */
+  xorw %bx, %bx
 	xorl	%eax, %eax
 	movl	%eax, 0x44(%bp)	/* init buffer status */
 
@@ -1215,7 +1216,7 @@ readDisk_32:
 	pushl	%edx		/* hi 32bit of sector number */
 	pushl	%eax		/* lo 32bit of sector number */
 	pushw	%es		/* buffer segment */
-	pushw	$0		/* buffer offset */
+	pushw	%dx		/* buffer offset */
 	pushw	$1		/* 1 sector to read */
 	pushw	$16		/* size of this parameter block */
 
@@ -1288,10 +1289,12 @@ filename_32:
 msg_DiskReadError_32:
 	.ascii	"Disk error\0" 
 	
-	. = Entry_32 + 0x1fa
+//	. = Entry_32 + 0x1fa
 	
-Loadusb_32:
-        .byte   0x75,0
+//Loadusb_32:
+//        .byte   0x75,0
+
+	. = Entry_32 + 0x1fc
 	.word	0, 0xAA55 /* Win9x uses all 4 bytes as magic value here */
 
 	. = Entry_32 + 0x200  
@@ -1460,28 +1463,27 @@ Entry_12_16:
 	/* EBIOS supported */
 	movb	$0x42, (ebios_12_16 - 1 - Entry_12_16 + 0x7c00)
 1:
-	movb	(Loadusb_12_16 - Entry_12_16 + 0x7c00 +1), %al
-	decb %al				//al=1,When dl = 00 load
-	jne 1f						
-	cmpb	%al, %dl	//dl=0?
-	je	3f
-1:
-	decb %al				//al=2,Forced load 
-	jne 2f							
-3:	//Load the usb driver
-	movl	0x7c1c, %eax
-	incl	%eax
-	movw	$0x0a, %cx
-	movw	$0xd000, %bx    //read to 0000:d000
- 	call	readDisk_12_16
-	call	$0x0d00,$0x0000
-	jc 2f
-	/* EBIOS supported */
-	movb	%dl, 0x24(%bp)  /* BIOS passes drive number in DL */	
-	movb	$0x42, (ebios_12_16 - 1 - Entry_12_16 + 0x7c00)
-2:	
+//	movb	(Loadusb_12_16 - Entry_12_16 + 0x7c00 +1), %al
+//	decb %al				//al=1,When dl = 00 load
+//	jne 1f						
+//	cmpb	%al, %dl	//dl=0?
+//	je	3f
+//1:
+//	decb %al				//al=2,Forced load 
+//	jne 2f							
+//3:	//Load the usb driver
+//	movl	0x7c1c, %eax
+//	incl	%eax
+//	movw	$0x0a, %cx
+//	movw	$0xd000, %bx    //read to 0000:d000
+// 	call	readDisk_12_16
+//	call	$0x0d00,$0x0000
+//	jc 2f
+//	/* EBIOS supported */
+//	movb	%dl, 0x24(%bp)  /* BIOS passes drive number in DL */	
+//	movb	$0x42, (ebios_12_16 - 1 - Entry_12_16 + 0x7c00)
+//2:	
 	/* GET DRIVE PARMS: Calculate start of some disk areas */
-
 	movzwl	0x0e(%bp), %ebx	/* reserved sectors */
 	addl	0x1c(%bp), %ebx	/* hidden sectors */
 	movl	%ebx, 0x28(%bp)	/* ---- FAT start */
@@ -1781,10 +1783,12 @@ filename_12_16:
 msg_DiskReadError_12_16:
 	.ascii	"Disk error\0"
 
-	. = Entry_12_16 + 0x1fa
+//	. = Entry_12_16 + 0x1fa
 	
-Loadusb_12_16:
-        .byte   0x75,0
+//Loadusb_12_16:
+//        .byte   0x75,0
+
+	. = Entry_12_16 + 0x1fc
 	.word	0, 0xAA55 /* Win9x uses all 4 bytes as magic value here */
 
 	. = Entry_12_16 + 0x200 
@@ -2211,9 +2215,10 @@ filename_ext2:
 msg_DiskReadError_ext2:
 	.ascii	"Disk error\0"
 
-        . = Entry_ext2 + 0x1fa
-Loadusb_ext2:
-	.byte   0x75,0        
+//        . = Entry_ext2 + 0x1fa
+//Loadusb_ext2:
+//	.byte   0x75,0 
+  . = Entry_ext2 + 0x1fc       
 	.word	0, 0xAA55
 
 asdf: 
@@ -2682,27 +2687,26 @@ Entry_exfat:
 //	popw	%ax
 2:
 	popw	%ds
-	movb	(Loadusb_64 - Entry_exfat + 0x7c00 +1), %al
-	decb %al				//al=1,When dl = 00 load
-	jne 1f						
-	cmpb	%al, %dl	//dl=0?
-	je	3f
-1:
-	decb %al				//al=2,Forced load 
-	jne 2f	
-3:	//Load the usb driver
-	movl	0x7c40, %eax    //Partition starting sector number
-	addl	$0x18, %eax
-	movw	$0x0a, %cx
-//	xorw	%bx, %bx        //read to 0d00:0000
-	pushw	$0x0d00
-	popw	%es    
- 	call	readDisk_64
-	call	$0x0d00,$0x0000
-	jc	2f
-	movb	%dl, 0x24(%bp)	/* BIOS passes drive number in DL */
-	orb	$0x80, 02(%bp)  /* EBIOS supported */
-2:
+//	movb	(Loadusb_64 - Entry_exfat + 0x7c00 +1), %al
+//	decb %al				//al=1,When dl = 00 load
+//	jne 1f						
+//	cmpb	%al, %dl	//dl=0?
+//	je	3f
+//1:
+//	decb %al				//al=2,Forced load 
+//	jne 2f	
+//3:	//Load the usb driver
+//	movl	0x7c40, %eax    //Partition starting sector number
+//	addl	$0x18, %eax
+//	movw	$0x0a, %cx
+//	pushw	$0x0d00        //read to 0d00:0000
+//	popw	%es    
+// 	call	readDisk_64
+//	call	$0x0d00,$0x0000
+//	jc	2f
+//	movb	%dl, 0x24(%bp)	/* BIOS passes drive number in DL */
+//	orb	$0x80, 02(%bp)  /* EBIOS supported */
+//2:
 
 	        			
 	movl    0x50(%bp), %eax
@@ -2772,8 +2776,15 @@ Entry_exfat:
         movb	$0x02, (chs_64 + 2 - Entry_exfat + 0x7c00)
         movb	$0x42, (lba_64 + 1 - Entry_exfat + 0x7c00)
 1:
-        
-        jmp     exfat_next
+  pushw   %ds
+  popw    %es
+  movw    $0x8000, %si
+  movw    $0x7e00, %di
+  movw    $0x80, %cx
+  repz    movsl                   //0x200 byte        
+  movl    0x60(%bp), %eax         /* Root clusters */
+	call    cluster_to_lba_64       /* Calculate the absolute sector from the cluster */
+  jmp     exfat_next
 
 
 /* Read a sector from disk, using LBA or CHS
@@ -2848,21 +2859,14 @@ grldr_un:
 msg_DiskReadError_64:
 	.ascii	"Disk error\0"  
 	
-	. = Entry_exfat + 0x1fa
-Loadusb_64:
-        .byte   0x75,0	
+//	. = Entry_exfat + 0x1fa
+//Loadusb_64:
+//        .byte   0x75,0	
+	. = Entry_exfat + 0x1fc
 	.word	0,0xAA55 
 	
 
 exfat_next: 
-				pushw   %ds
-        popw    %es
-        movw    $0x8000, %si
-        movw    $0x7e00, %di
-        movw    $0x80, %cx
-        repz    movsl                           //0x200 byte        
-        movl    0x60(%bp), %eax        /* Root clusters */
-	call    cluster_to_lba_64                               /* Calculate the absolute sector from the cluster */
         /* Read all the root directory to 2000:0000 */
         lesw	(loadseg_off_64 - Entry_exfat)(%bp), %bx	/* load to loadseg:0 */ 
         movl    %eax, %esi
@@ -3024,7 +3028,7 @@ Read_Discontinuous:
 /* Otput: eax=next cluster number, Less than=Normal */
 /* [bp+2d]=The current cluster in the absolute sector fat table */
 NextCluster:    
-//        pushw   %bx
+        pushw   %bx
         pushw   %es
         lesw	(FAT_Address - Entry_exfat)(%bp), %bx           /* es:bx=0060:0000 */
         /* Computing bytes per cluster */
@@ -3050,7 +3054,7 @@ NextCluster:
         movzwl  %es:(%bx), %eax                                 /* fat12/16 Next cluster number */
         cmpl    $0xfffffff8, %eax
         popw	%es 
-//        popw	%bx
+        popw	%bx
         ret
    
 /* Calculate the absolute sector from the cluster
@@ -3589,7 +3593,7 @@ print_ntfs:
 	/* The caller will change this to
 	 *	ljmp	$0x9400, $(try_next_partition - _start1)
 	 */
-
+error_go_back:
 1:	jmp	1b
 
         . = Entry_nt + 0x1e0
@@ -6313,7 +6317,7 @@ fat:
 	/* fix for NTFS partition: on error go back to supervisor, offset 0x01fa */
 
 //	movw	$0x01fa, %di
-	movw	$0x01de, %di
+  movw $(error_go_back - Entry_nt), %di
 	movw	%es:(%di), %ax
 	cmpw	$0xFEEB, %ax /* EB FE is jmp back to itself(infinite loop) */
 	jnz	3f
