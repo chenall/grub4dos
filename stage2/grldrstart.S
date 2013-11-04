@@ -714,7 +714,7 @@ grldr_real_start:
 	cmpw	%bp, %cx
 //	je	2f
 	jne 1f
-	orb	$4, (GRLDR_BOOT << 4 + 0x1fb)	 /* pxe boot */
+	orb	$4, (0x1fb)	 /* pxe boot */
 1:
     //orb	$0x01, (pre_stage2_start - _start1 + 5) /* disable pxe */
 	
