@@ -5938,10 +5938,8 @@ close_file:
 
   grub_close();
 
-  /* if any error occurred, restore the default VGA font. */
-  //if (errnum)
-  if (! valid_lines)
-    goto build_default_VGA_font;
+  if (! valid_lines)	// if no valid lines,
+    return valid_lines;	// simply fail without loading ROM font.
 
   errnum = 0;
   /* determine narrow_char_indicator */
@@ -5956,7 +5954,10 @@ loop:
 	goto loop; /* the i already used by a new wide char, failed */
     /* now the i is not used by all new wide chars */
     if (i == old_narrow_char_indicator)
+    {
+	*(unsigned long *)UNIFONT_START = i;	// disable next font command.
 	return valid_lines;	/* nothing need to change, success */
+    }
     /* old wide chars should not use this i as leading integer */
     for (j = 0x80; j < 0x10000; j++)
     {
