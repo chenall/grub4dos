@@ -2341,7 +2341,12 @@ restart_config:
 #ifdef SUPPORT_GRAPHICS
 extern int font_func (char *, int);
 extern int graphicsmode_func (char *, int);
-	    font_func (NULL, 0);	/* clear the font */
+	    //font_func (NULL, 0);	/* clear the font */
+	    /* Since ROM VGA font already loaded in init_bios_info(), we
+	     * should not load it again here. The same as below.
+	     * See issue 160. */
+	    /* Clear the narrow_char_indicator for the NULL char only. */
+	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
 	    if (use_preset_menu/* != (const char *)0x800*/)
 	    {
 		/* load the font embedded in preset menu. */
@@ -2359,7 +2364,9 @@ extern int graphicsmode_func (char *, int);
 			graphicsmode_func ("-1 -1 -1 24:32", 0);
 		    }
 		}
-		font_func (NULL, 0);	/* clear the font */
+		//font_func (NULL, 0);	/* clear the font */
+		/* Clear the narrow_char_indicator for the NULL char only. */
+		*(unsigned long *)UNIFONT_START = 0;//Enable next font command.
 	    }
 #endif /* SUPPORT_GRAPHICS */
 
@@ -2373,9 +2380,13 @@ extern int graphicsmode_func (char *, int);
 	    /* before showing menu, try loading font in the tail of config_file */
 #ifdef SUPPORT_GRAPHICS
 	    extern int font_func (char *, int);
-	    font_func (NULL, 0);	/* clear the font */
+	    //font_func (NULL, 0);	/* clear the font */
+	    /* Clear the narrow_char_indicator for the NULL char only. */
+	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
 	    font_func (config_file, 0);
-	    font_func (NULL, 0);	/* clear the font */
+	    //font_func (NULL, 0);	/* clear the font */
+	    /* Clear the narrow_char_indicator for the NULL char only. */
+	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
 #endif /* SUPPORT_GRAPHICS */
 	}
 
