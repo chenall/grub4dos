@@ -1088,7 +1088,7 @@ boot_func (char *arg, int flags)
 	    if (debug > 1)
 		grub_printf ("get_diskinfo(%X), ", drive);
 
-	    if (get_diskinfo (drive, &tmp_geom))
+	    if (get_diskinfo (drive, &tmp_geom, 0))
 		continue;//break;
 
 	    if (debug > 1)
@@ -1799,13 +1799,13 @@ chainloader_func (char *arg, int flags)
 		#ifdef FSYS_FB
 		if (current_drive == 0xFFFF || current_drive == ram_drive)
 		{
-			chainloader_edx = (saved_drive == FB_DRIVE ? (fb_status >> 8) & 0xff :
+			chainloader_edx = (saved_drive == FB_DRIVE ? (unsigned char)(fb_status >> 8) :
 						saved_drive | ((saved_partition >> 8) & 0xFF00));
 			chainloader_edx_set=1;
 		}
 		else if (current_drive == FB_DRIVE)
 		{
-			chainloader_edx = fb_status >> 8 & 0xff;
+			chainloader_edx = (unsigned char)(fb_status >> 8);
 			chainloader_edx_set=1;
 		}
 		#else
@@ -1832,7 +1832,7 @@ chainloader_func (char *arg, int flags)
 	/* check bootable type of drive (tmp) */
 
 	/* Get the geometry. This ensures that the drive is present.  */
-	if (get_diskinfo (tmp, &tmp_geom))
+	if (get_diskinfo (tmp, &tmp_geom, 0))
 	{
 		errnum = ERR_NO_DISK;
 		goto failure;
@@ -4028,13 +4028,48 @@ default_func (char *arg, int flags)
   unsigned long long ull;
   int len;
   char *p;
-  //char *default_file = (char *) DEFAULT_FILE_BUF;
 
   errnum = 0;
   if (grub_memcmp (arg, "saved", 5) == 0)
     {
-      default_entry = saved_entryno;
-      return 1;
+	if (! *config_file)
+	{
+		default_entry = saved_entryno;
+		return 1;
+	}
+
+	*default_file = 0;	/* initialise default_file */
+	grub_strncat (default_file, config_file, sizeof (default_file));
+	{
+	    int i;
+	    for (i = grub_strlen (default_file); i >= 0; i--)
+		if (default_file[i] == '/')
+			break;
+	    default_file[++i] = 0;
+	    grub_strncat (default_file + i, "default", sizeof (default_file) - i);
+	}
+
+	if (grub_open (default_file))
+	{
+	    char buf[10]; /* This is good enough.  */
+	  
+	    p = buf;
+	    len = grub_read ((unsigned long long)(unsigned int)buf, sizeof (buf), 0xedde0d90);
+	    if (debug > 1)
+		grub_printf("len=%d", (unsigned long)len);
+	    if (len > 0)
+	    {
+		//unsigned long long ull;
+		buf[sizeof (buf) - 1] = 0;
+		safe_parse_maxint (&p, &ull);
+		saved_entryno = ull;
+	    }
+
+	    grub_close ();
+	}
+
+	default_entry = saved_entryno;
+	return 1;
     }
   
   if (safe_parse_maxint (&arg, &ull))
@@ -4045,7 +4080,6 @@ default_func (char *arg, int flags)
 
   errnum = ERR_NONE;
   
-//printf("default_func open %s\n", arg);
   /* Open the file.  */
   if (! grub_open (arg))
     return ! errnum;
@@ -4059,27 +4093,20 @@ default_func (char *arg, int flags)
   len = grub_read ((unsigned long long)(unsigned long)mbr, SECTOR_SIZE, 0xedde0d90);
   grub_close ();
   
-//printf("default_func errnum=%d\n", errnum);
-
   if (len < 180 || filemax > 2048)
     return ! (errnum = ERR_DEFAULT_FILE);
 
-//printf("default_func errnum=%d\n", errnum);
   /* check file content for safety */
   p = mbr;
   while (p < mbr + len - 100 && grub_memcmp (++p, warning_defaultfile, 73));
 
-//printf("default_func errnum=%d\n", errnum);
-  //grub_printf ("p=%x, mbr=%x, len=%x, mbr + len - 160 = %x\n", p, mbr, len, mbr + len - 160);
   if (p > mbr + len - 160)
     return ! (errnum = ERR_DEFAULT_FILE);
 
-//printf("default_func errnum=%d\n", errnum);
   len = grub_strlen (arg);
-  if (len >= sizeof (default_file) /* DEFAULT_FILE_BUFLEN */)
+  if (len >= sizeof (default_file))
     return ! (errnum = ERR_WONT_FIT);
   
-//printf("default_func errnum=%d\n", errnum);
   grub_memmove (default_file, arg, len);
   default_file[len] = 0;
   boot_drive = current_drive;
@@ -4092,7 +4119,6 @@ default_func (char *arg, int flags)
       return 1;
     }
 
-//printf("default_func errnum=%d\n", errnum);
   errnum = 0;		/* ignore error */
   return errnum;	/* return false */
 }
@@ -5462,7 +5488,7 @@ find_func (char *arg, int flags)
 //  char root_found[16];
   errnum = 0;
 #ifdef FSYS_FB
-  if (saved_drive == FB_DRIVE && !(fb_status >> 8 & 0xff))
+  if (saved_drive == FB_DRIVE && !(unsigned char)(fb_status >> 8))
   {
 	*(unsigned long *)&find_devices[3]=0x686366;
   }
@@ -5632,7 +5658,8 @@ find_func (char *arg, int flags)
 
 					saved_drive = current_drive = drive;
 					saved_partition = current_partition = part;
-					if ((*devtype == 'f') && open_device()) //if is a partition 
+//					if ((*devtype == 'f') && open_device()) //if is a partition 
+                    if (open_device()) //if is a partition 
 					{
 						if ((tmp_drive != current_drive || tmp_partition != current_partition) && find_check(filename,builtin1,arg,flags) == 1)
 						{
@@ -5656,6 +5683,26 @@ find_func (char *arg, int flags)
 							next_partition_buf		= mbr,
 							next_partition ()))
 					{
+            if ((start == 0) || (len == 0)
+#if 0
+		|| ((type != PC_SLICE_TYPE_FAT16_LT32M) &&	//4
+		    (type != PC_SLICE_TYPE_EXTENDED) &&		//5
+		    (type != PC_SLICE_TYPE_FAT16_GT32M) &&	//6
+		    (type != PC_SLICE_TYPE_EXFAT) &&		//7
+		    (type != PC_SLICE_TYPE_FAT32) &&		//b
+		    (type != PC_SLICE_TYPE_FAT32_LBA) &&	//c
+		    (type != PC_SLICE_TYPE_FAT16_LBA) &&	//e
+		    (type != PC_SLICE_TYPE_WIN95_EXTENDED) &&	//f
+		    (type != PC_SLICE_TYPE_EXTENDED_HIDDEN) &&	//15
+		    (type != PC_SLICE_TYPE_WIN95_EXT_HIDDEN) &&	//1f
+		    (type != PC_SLICE_TYPE_LINUX_SWAP) &&	//82
+		    (type != PC_SLICE_TYPE_EXT2FS) &&		//83
+		    (type != PC_SLICE_TYPE_LINUX_EXTENDED) &&	//85
+		    (type != PC_SLICE_TYPE_LINUX_LOG_VOL))	//8e
+#endif
+	       )
+              continue;
+                            
 						if (type != PC_SLICE_TYPE_NONE
 							&& ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
 							&& ! IS_PC_SLICE_TYPE_BSD (type)
@@ -6480,7 +6527,8 @@ geometry_func (char *arg, int flags)
   char *msg;
 //  char *device = arg;
 
-  int sync = 0;
+  unsigned long sync = 0;
+  unsigned long lba1sector = 0;
 
   force_geometry_tune = 0;
   for (;;)
@@ -6500,6 +6548,18 @@ geometry_func (char *arg, int flags)
     else if (grub_memcmp (arg, "--sync", 6) == 0)
     {
       sync = 1;
+    }
+    else if (grub_memcmp (arg, "--lba1sector", 12) == 0)
+    {
+      if (lba1sector)
+	return 0;	/* cannot set both --lba1sector and --lba127sector */
+      lba1sector = 1;
+    }
+    else if (grub_memcmp (arg, "--lba127sector", 14) == 0)
+    {
+      if (lba1sector)
+	return 0;	/* cannot set both --lba1sector and --lba127sector */
+      lba1sector = 0x80;
     }
     else
 	break;
@@ -6523,19 +6583,32 @@ geometry_func (char *arg, int flags)
 //  if (errnum)
 //    return 0;
 
+  if (fb_status && current_drive == FB_DRIVE)
+  {
+	current_drive = (unsigned char)(fb_status >> 8);
+	current_partition = 0xFFFFFF;
+  }
+
   /* Check for the geometry.  */
-  if (get_diskinfo (current_drive, &tmp_geom))
+  if (get_diskinfo (current_drive, &tmp_geom, lba1sector))
     {
       force_geometry_tune = 0;
       errnum = ERR_NO_DISK;
       return 0;
     }
+  if (lba1sector)
+	return 1; /* success */
   force_geometry_tune = 0;
 
   if (tmp_geom.flags & BIOSDISK_FLAG_BIFURCATE)
     msg = "BIF";
   else if (tmp_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION)
-    msg = "LBA";
+  {
+	if (tmp_geom.flags & BIOSDISK_FLAG_LBA_1_SECTOR)
+	    msg = "1BA";
+	else
+	    msg = "LBA";
+  }
   else
     msg = "CHS";
 
@@ -8897,7 +8970,7 @@ map_func (char *arg, int flags)
   
   to = current_drive;
   if (to == FB_DRIVE)
-    to = (unsigned char)(fb_status >> 8)/* & 0xff*/;
+    to = (unsigned char)(fb_status >> 8);
   if (! (to & 0x80) && in_situ)
 	return ! (errnum = ERR_IN_SITU_FLOPPY);
 
@@ -9990,7 +10063,7 @@ map_whole_drive:
 		//	to_o = to;
 		/* Get the geometry. This ensures that the drive is present.  */
 		//if (to_o != PXE_DRIVE && get_diskinfo (to_o, &tmp_geom))
-		if (to != PXE_DRIVE && get_diskinfo (to, &tmp_geom))
+		if (to != PXE_DRIVE && get_diskinfo (to, &tmp_geom, 0))
 		{
 			return ! (errnum = ERR_NO_DISK);
 		}
@@ -11999,7 +12072,6 @@ savedefault_func (char *arg, int flags)
   errnum = 0;
   blklst_num_sectors = 0;
   wait = 0;
-  //default_file = (char *) DEFAULT_FILE_BUF;
   time2 = -1;
   deny_write = 0;
   

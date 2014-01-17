@@ -4179,3 +4179,21 @@ Note:
 	3.[] is necessary.
 	4.If it is empty inside [], it acts same as title command.
 	5.You can use this function to comment out a menu item by putting invalid command inside [].
+
+****************************************************************************** 
+*****		Buggy BIOS without multi-sector EBIOS accessibility	 *****
+******************************************************************************
+
+Reportedly a Benq notebook will hang up at a multi-sector EBIOS read. For such
+a machine, you have to disable multi-sector EBIOS accessibility by using
+
+	geometry --lba1sector [ DRIVE ]
+
+before any attempt to access sectors (in DRIVE). For normal machines, you can
+use
+
+	geometry --lba127sector [ DRIVE ]
+
+to enable multi-sector EBIOS accessibility (for DRIVE).
+
+

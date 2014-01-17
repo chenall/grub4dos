@@ -112,7 +112,8 @@ VARIABLE(stage2_id)
 VARIABLE(force_lba)
 	/* only bit 0 is now used for force_lba. */
 	/* bit 1=1 means we are booting as a Linux kernel. */
-	.byte	0
+	/* bit 2=0 enable single-key-selection feature. */
+	.byte	0x04
 
 VARIABLE(version_string)
 	.string VERSION
@@ -8470,7 +8471,7 @@ ENTRY(mem64)
 	ret
 
 /*
- *   int biosdisk_int13_extensions (int ax, int drive, void *dap)
+ *   int biosdisk_int13_extensions (unsigned ax, unsigned drive, void *dap, unsigned ssize)
  *
  *   Call IBM/MS INT13 Extensions (int 13 %ax=AX) for DRIVE. DAP
  *   is passed for disk address packet. If an error occurs, return
@@ -8484,6 +8485,7 @@ ENTRY(biosdisk_int13_extensions)
 	pushl	%ebp
 	movl	%esp, %ebp
 
+	#; +20	ssize
 	#; +16	dap
 	#; +12	drive
 	#;  +8	 ax
@@ -8493,6 +8495,8 @@ ENTRY(biosdisk_int13_extensions)
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
+
+	movl	0x14(%ebp), %ecx	#; sector size(512 or 2048)
 
 	/* compute the address of disk_address_packet */
 	movl	0x10(%ebp), %eax	#; linear address of dap
@@ -8507,7 +8511,7 @@ ENTRY(biosdisk_int13_extensions)
 	xorw	%ax, %ax
 	shrl	$5, %eax		#; segment value in AX
 	addw	$0x40, %ax
-	movw	%ax, %cx	/* save the segment to cx */
+	movw	%ax, %di	/* save the segment to cx */
 
 	/* drive */
 	movb	0xc(%ebp), %dl
@@ -8518,25 +8522,109 @@ ENTRY(biosdisk_int13_extensions)
 
 	.code16
 
-	sti	#; cli should also work for biosdisk_int13_extensions
+	sti
 
 	movw	%bx, %ax
-	movw	%cx, %ds
+	movw	%di, %ds
 
 	/* set additional registers to serve buggy BIOSes. */
-	pushw	%di
+	pushw	%ds
+	pushw	%si
+	pushw	%dx
+	pushw	%cx
 	pushw	%bx
-	movw	%cx, %es
-	movw	%si, %di
-	movw	%si, %bx
+	//movw	%cx, %es
+	//movw	%si, %di
+	//movw	%si, %bx
 
+	andb	$0xFE, %bh
+	cmpb	$0x42, %bh	/* is it read/write? */
+	jne	2f
+#if 0
+	testb	%cl, %cl	/* single sector access? */
+	jz	2f		/* no */
+	cmpb	$0x2, %ch	/* is it normal sector size? */
+#else
+	cmpw	$0x201, %cx
+#endif
+	stc
+	je	1f
+2:
 #if 1
 	int	$0x13
 #else
 	call	safe_int13
 #endif
+
+1:
 	popw	%bx
-	popw	%di
+	popw	%cx
+	popw	%dx
+	popw	%si
+	popw	%ds
+
+	jnc	1f
+	movw	%bx, %ax	/* read(0x42) or write(0x43) */	
+	andb	$0xFE, %ah
+	cmpb	$0x42, %ah	/* is it read/write? */
+	jne	2f
+	cmpb	$0x2, %ch	/* is it normal sector size? */
+	jne	2f
+	/* try reading sectors one by one */
+	movw	2(%si), %cx	/* number of sectors to read/write */
+	cmpw	$2, %cx
+	jb	2f
+	cmpw	$0x7F, %cx
+	ja	2f
+	lesw	4(%si), %di	/* get buffer address in ES:DI */
+	subw	$0x200, %di
+	movl	8(%si), %eax	/* starting sector number lo */
+	movl	12(%si), %ebp	/* starting sector number hi */
+	decl	%eax
+	cmpl	$-1, %eax
+	jne	3f
+	decl	%ebp
+3:
+	addw	$0x200, %di
+	incl	%eax
+	jnz	4f
+	incl	%ebp
+4:
+	pushw	%ds
+	pushw	%es
+	pushal
+	
+	pushl	%ebp		/* sector number hi */
+	pushl	%eax		/* sector number lo */
+	pushw	%es		/* buffer segment */
+	pushw	%di		/* buffer offset */
+	pushw	$0x0001		/* read/write only one sector */
+	pushw	$0x0010		/* packet size */
+
+	xorw	%si, %si
+	movw	%si, %ds	/* DS=SS=0 */
+	movw	%sp, %si	/* DS:SI points to packet */
+
+	movw	%bx, %ax	/* read(0x42) or write(0x43) */	
+	/* set additional registers to serve buggy BIOSes. */
+	movw	%di, %bx
+#if 1
+	int	$0x13
+#else
+	call	safe_int13
+#endif
+	popaw			/* discard packet on the stack */
+
+	popal
+	popw	%es
+	popw	%ds
+
+	jc	1f
+	loop	3b
+	jmp	1f		/* CF=0, success */
+2:
+	stc
+1:
 
 #if 1
 	/* some buggy USB BIOSes fail to clear AH on success */
@@ -8721,10 +8809,15 @@ ENTRY(biosdisk_standard)
 
 
 /*
- *   int check_int13_extensions (int drive)
+ *   int check_int13_extensions (unsigned drive, unsigned lba1sector)
  *
  *   Check if LBA is supported for DRIVE. If it is supported, then return
  *   the major version and API support bits of extensions, otherwise zero.
+ *   On return:
+ *	EAX bit 0 = 1, LBA supported
+ *		bit 8 = 0, with 127-sector readability
+ *		bit 8 = 1, without 127-sector readability
+ *	EAX bit 0 = 0, no LBA support
  */
 
 ENTRY(check_int13_extensions)
@@ -8738,17 +8831,17 @@ ENTRY(check_int13_extensions)
 	pushl	%esi
 	pushl	%edi
 
-	/* drive */
-	movb	0x8(%ebp), %dl
+	movw	0xC(%ebp), %di		// lba1sector
+	movb	0x8(%ebp), %dl		// drive
 	/* enter real mode */
 	call	EXT_C(prot_to_real)
 
 	.code16
 
-	//sti	#; check_int13_extensions won't require sti
 	sti	#; added 2006-11-30
 
 	pushw	%dx
+	pushw	%di
 
 	movb	$0x41, %ah
 	movw	$0x55aa, %bx
@@ -8757,6 +8850,7 @@ ENTRY(check_int13_extensions)
 #else
 	call	safe_int13
 #endif
+	popw	%di
 	popw	%dx
 
 	/* check the result */
@@ -8788,6 +8882,7 @@ ENTRY(check_int13_extensions)
 	jnz	3f
 	/* read a sector with function 42h */
 	/* no need to save segment registers */
+	pushw	%di
 	pushw	%bx
 	pushw	%cx
 	/* first, clear the buffer */
@@ -8857,6 +8952,7 @@ ENTRY(check_int13_extensions)
 	popw	%cx
 	orb	%al, %cl
 	popw	%bx
+	popw	%di
 3:
 	/* end of workaround */
 	/*****************************************************************/
@@ -8867,9 +8963,183 @@ ENTRY(check_int13_extensions)
 	xorw	%bx, %bx
 	xorw	%cx, %cx
 2:
-	roll	$16, %ebx	#; version number in high word
-	movw	%cx, %bx	#; API subset support bitmap in low word
+	shll	$16, %ebx	#; version number in high word
+	movb	%cl, %bl	#; API subset support bitmap in low word
 
+	testb	$1, %bl		// support LBA?
+	jz	1f		// no
+	/* make sure if it could read 127 sectors at a time */
+	/* first, check sector size */
+	/* fill the 2048-byte buffer with FF's */
+	movw	$0x2000, %cx	/* GEOMTUNE_SEG */
+	movw	%cx, %ds
+	movw	%cx, %es
+	movw	$0x400, %cx	/* 4 sectors */
+	xorw	%ax, %ax
+	decw	%ax		/* fill the buffer with 0xFF's */
+	pushw	%di
+	xorw	%di, %di
+	cld
+	rep stosw
+	popw	%di
+
+	pushw	%ds
+	pushw	%es
+	pushal
+	xorl	%eax, %eax
+	pushl	%eax		/* sector hi */
+	pushl	%eax		/* sector lo */
+	pushw	$0x2000		/* buffer segment = GEOMTUNE_SEG */
+	pushw	%ax		/* offset=0 */
+	pushw	$0x0001		/* read 1 sector */
+	pushw	$0x0010		/* packet size */
+	movw	%ax, %ds	/* DS=SS=0 */
+	movw	%sp, %si
+	movw	$0x4200, %ax
+#if 1
+	int	$0x13
+#else
+	call	safe_int13
+#endif
+	popaw			/* discard packet on the stack */
+	popal
+	popw	%es
+	popw	%ds
+	jnc	2f
+	andb	$0xFE, %bl	/* no LBA */
+	jmp	1f
+2:
+	pushw	%di
+	movw	$0x600, %cx
+	movw	$0x200, %di
+	cld
+	repz scasb
+	popw	%di
+	jne	1f		/* big 2048-byte sector */
+	/* try again, fill the 2048-byte buffer with 00's */
+	movw	$0x2000, %cx	/* GEOMTUNE_SEG */
+	movw	%cx, %ds
+	movw	%cx, %es
+	movw	$0x400, %cx	/* 4 sectors */
+	xorw	%ax, %ax	/* fill the buffer with 00's */
+	pushw	%di
+	movw	$0x8000, %di
+	cld
+	rep stosw
+	popw	%di
+
+	pushw	%ds
+	pushw	%es
+	pushal
+	xorl	%eax, %eax
+	pushl	%eax		/* sector hi */
+	pushl	%eax		/* sector lo */
+	pushw	$0x2000		/* buffer segment = GEOMTUNE_SEG */
+	pushw	$0x8000		/* offset=0x8000 */
+	pushw	$0x0001		/* read 1 sector */
+	pushw	$0x0010		/* packet size */
+	movw	%ax, %ds	/* DS=SS=0 */
+	movw	%sp, %si
+	movw	$0x4200, %ax
+#if 1
+	int	$0x13
+#else
+	call	safe_int13
+#endif
+	popaw			/* discard packet on the stack */
+	popal
+	popw	%es
+	popw	%ds
+	jnc	2f
+	andb	$0xFE, %bl	/* no LBA */
+	jmp	1f
+2:
+	pushw	%di
+	movw	$0x600, %cx
+	movw	$0x8200, %di
+	cld
+	repz scasb
+	popw	%di
+	jne	1f		/* big 2048-byte sector */
+
+	/* now it is 512-byte sector size */
+
+	testw	%di, %di
+	jz	2f
+	testw	$0x0080, %di	/* lba127sector */
+	jnz	2f
+	movb	$1, %bh		/* failure, cannot read 127 sectors */
+	jmp	1f
+2:
+#if 0
+	/* detailed check for all possibilities */
+	movw	$0x7F, %cx
+	xorw	%di, %di
+
+lba_check_loop:
+	incw	%di		/* number of sectors to read */
+
+	pushal
+	pushw	%di
+	pushw	$ABS(LBA_read_sectors_message)
+	call	realmode_printf
+	popw	%ax
+	popw	%di
+	popal
+#else
+	movw	$3, %cx		/* try it for 3 times. */
+	/* only check 127-sector accessibility */
+	movw	$127, %di	/* number of sectors to read */
+
+lba_try_again:
+
+	pushal
+	xorb	%dh, %dh
+	pushw	%dx		/* drive number */
+	pushw	$ABS(LBA_read_sectors_message)
+	call	realmode_printf
+	popw	%ax
+	popw	%dx
+	popal
+#endif
+
+	pushw	%ds
+	pushw	%es
+	pushal
+	xorl	%eax, %eax
+	pushl	%eax		/* sector hi */
+	pushl	%eax		/* sector lo */
+	pushw	$0x2000		/* buffer segment = GEOMTUNE_SEG */
+	pushw	%ax		/* offset=0 */
+	pushw	%di		/* sectors to read */
+	pushw	$0x0010		/* packet size */
+	movw	%ax, %ds	/* DS=SS=0 */
+	movw	%sp, %si
+	movw	$0x4200, %ax
+#if 1
+	int	$0x13
+#else
+	call	safe_int13
+#endif
+	popaw			/* discard packet on the stack */
+	popal
+	popw	%es
+	popw	%ds
+#if 0
+	loop	lba_check_loop
+	setc	%bh		/* failure, cannot read 127 sectors */
+#else
+	jnc	2f
+	loop	lba_try_again
+2:
+	setc	%bh		/* failure, cannot read 127 sectors */
+	pushal
+	pushw	$ABS(LBA_read_sectors_message_wipe)
+	call	realmode_printf
+	popw	%ax
+	popal
+#endif
+1:
 	/* back to protected mode */
 	call	EXT_C(real_to_prot)
 	.code32
@@ -8885,8 +9155,17 @@ ENTRY(check_int13_extensions)
 
 	ret
 
+LBA_read_sectors_message:
+#if 0
+	.ascii "\r\nTry reading %d sectors ...   \0"
+#else
+	.ascii "\r\nIf hangup, use \'geometry --lba1sector (%d)\' at the beginning of preset menu. \0"
+LBA_read_sectors_message_wipe:
+	.ascii "\r                                                                               \r\0"
+#endif
+
 /*
- *   int get_diskinfo_standard (int drive, unsigned long *cylinders,
+ *   int get_diskinfo_standard (unsigned long drive, unsigned long *cylinders,
  *                              unsigned long *heads, unsigned long *sectors)
  *
  *   if bit 8-15 of drive(dh) != 0 on call, then geometry_tune will be used.

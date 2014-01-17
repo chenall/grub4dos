@@ -90,6 +90,7 @@
 #define BIOSDISK_FLAG_CDROM		0x2
 #define BIOSDISK_FLAG_BIFURCATE		0x4	/* accessibility acts differently between chs and lba */
 #define BIOSDISK_FLAG_GEOMETRY_OK	0x8
+#define BIOSDISK_FLAG_LBA_1_SECTOR	0x10
 
 /*
  *  This is the filesystem (not raw device) buffer.
@@ -1034,6 +1035,7 @@ struct drive_map_slot
 
 extern struct drive_map_slot   bios_drive_map[DRIVE_MAP_SIZE + 1];
 extern struct drive_map_slot hooked_drive_map[DRIVE_MAP_SIZE + 1];
+extern int drive_map_slot_empty (struct drive_map_slot item);
 
 /* Copy MAP to the drive map and set up int13_handler.  */
 void set_int13_handler (struct drive_map_slot *map);
@@ -1144,11 +1146,11 @@ int getkey (void);
 int checkkey (void);
 
 /* Low-level disk I/O */
-extern int biosdisk_int13_extensions (int ax, int drive, void *dap);
-int get_cdinfo (int drive, struct geometry *geometry);
-int get_diskinfo (int drive, struct geometry *geometry);
-int biosdisk (int subfunc, int drive, struct geometry *geometry,
-	      unsigned long long sector, unsigned long nsec, int segment);
+extern int biosdisk_int13_extensions (unsigned ax, unsigned drive, void *dap, unsigned ssize);
+int get_cdinfo (unsigned long drive, struct geometry *geometry);
+int get_diskinfo (unsigned long drive, struct geometry *geometry, unsigned long lba1sector);
+int biosdisk (unsigned long subfunc, unsigned long drive, struct geometry *geometry,
+	      unsigned long long sector, unsigned long nsec, unsigned long segment);
 void stop_floppy (void);
 
 /* Command-line interface functions. */
@@ -1374,9 +1376,9 @@ int load_module (char *module, char *arg);
 int load_initrd (char *initrd);
 
 int check_password(char* expected, password_t type);
-extern int biosdisk_standard (int ah, int drive,
-			      int coff, int hoff, int soff,
-			      int nsec, int segment);
+extern int biosdisk_standard (unsigned ah, unsigned drive,
+			      unsigned coff, unsigned hoff, unsigned soff,
+			      unsigned nsec, unsigned segment);
 void init_bios_info (void);
 
 struct master_and_dos_boot_sector {
@@ -1451,7 +1453,7 @@ extern unsigned long bios_id;	/* 1 for bochs, 0 for unknown. */
 int probe_bpb (struct master_and_dos_boot_sector *BS);
 int probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, unsigned long sector_count1, unsigned long part_start1);
 
-extern int check_int13_extensions (int drive);
+extern int check_int13_extensions (unsigned drive, unsigned lba1sector);
 
 struct drive_parameters
 {

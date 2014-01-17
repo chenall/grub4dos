@@ -343,7 +343,7 @@ void
 init_bios_info (void)
 {
   unsigned long cont, memtmp, addr;
-  int drive;
+  unsigned long drive;
   unsigned long force_pxe_as_boot_device;
 
   is64bit = check_64bit_and_PAE ();
@@ -511,8 +511,16 @@ init_bios_info (void)
   if (saved_mmap_length)
     mbi.flags |= MB_INFO_MEM_MAP;
 
-#ifdef FSYS_PXE
     force_pxe_as_boot_device = 0;
+    /* if booted by fbinst, we can skip tons of checks ... */
+    if (fb_status)
+    {
+	boot_drive = FB_DRIVE;
+	install_partition = 0xFFFFFF;
+	goto set_root;
+    }
+
+#ifdef FSYS_PXE
     if (! ((*(char *)0x8205) & 0x01))	/* if it is not disable pxe */
     {
 	//pxe_detect();
@@ -634,12 +642,13 @@ succeeded_dos_boot_drive:
 	if (probe_bpb((struct master_and_dos_boot_sector *)0x7C00))
 		goto failed_dos_boot_drive;
 	dos_part_start = *((unsigned long *) (0x7C00 + 0x1C));
-	j = (dos_part_start ? 0x80 : 0);
+	//j = (dos_part_start ? 0x80 : 0);
+	j = boot_drive;
 	k = ( j | ((*(unsigned short *)(0x7C00 + 0x1A) - 1) << 8)
 		| ((*(unsigned short *)(0x7C00 + 0x18)) << 16) );
 	if (! k)
 		goto failed_dos_boot_drive;
-	boot_drive = j;
+	//boot_drive = j;
 	dos_drive_geometry = k;
 	goto redo_dos_geometry;
     }
@@ -683,7 +692,7 @@ failed_dos_boot_drive:
 
 		/* set a known value */
 		grub_memset ((char *)0x5F800, 0xEC, 0x1000);
-		biosdisk_int13_extensions (0x4200, (unsigned char)boot_drive, dap);
+		biosdisk_int13_extensions (0x4200, (unsigned char)boot_drive, dap, 0);
 		/* check ISO9660 Primary Volume Descriptor */
 		if (! memcmp ((char *)0x5F800, "\1CD001\1\0", 8))
 		/* check the EL Torito Volume Descriptor */
@@ -764,7 +773,7 @@ failed_dos_boot_drive:
 
       if (drive >= 0x80)
       {
-	version = check_int13_extensions (drive);
+	version = check_int13_extensions (drive, 0);
 
 	if (! (version & 1)) /* not support functions 42h-44h, 47h-48h */
 	    continue;	/* failure, try next drive. */
@@ -774,7 +783,7 @@ failed_dos_boot_drive:
 	  
 	drp->size = sizeof (struct drive_parameters) - 16;
 	  
-	err = biosdisk_int13_extensions (0x4800, drive, drp);
+	err = biosdisk_int13_extensions (0x4800, drive, drp, 0);
 	if (! err && drp->bytes_per_sector == ISO_SECTOR_SIZE)
 	{
 	    /* mount the drive, confirm the media exists. */

@@ -627,8 +627,8 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
   mbi.syms.a.addr = 0;
   mbi.syms.a.pad = 0;
 #ifdef FSYS_FB
-	if (mbi.boot_device>>24 == FB_DRIVE)
-		mbi.boot_device = fb_status << 16 | 0xFFFFFF;
+	if ((mbi.boot_device>>24) == FB_DRIVE)
+		mbi.boot_device = (fb_status << 16) | 0xFFFFFF;
 #endif
 
   if (debug > 0)
@@ -1185,7 +1185,7 @@ bsd_boot (kernel_t type, int bootdev, char *arg)
 //	  struct geometry tmp_geom;
 
 	  /* XXX Should check the return value.  */
-	  get_diskinfo (i + 0x80, &tmp_geom);
+	  get_diskinfo (i + 0x80, &tmp_geom, 0);
 	  /* FIXME: If HEADS or SECTORS is greater than 255, then this will
 	     break the geometry information. That is a drawback of BSD
 	     but not of GRUB.  */
