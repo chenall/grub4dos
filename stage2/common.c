@@ -639,6 +639,15 @@ succeeded_dos_boot_drive:
 		| ((*(unsigned short *)(0x7C00 + 0x18)) << 16) );
 	if (! k)
 		goto failed_dos_boot_drive;
+	if (boot_drive != j)	
+	if (j == 0)
+	{
+		shield_drive = boot_drive;
+		map_func ("(0x80) (0x00)", 0);
+		map_func ("--rehook", 0);
+		if (debug > 0)
+			grub_printf ("Since the hidden sector is zero, so the boot drive from 0x%x mapped to 0x%x.\n",boot_drive,j);
+	}
 	boot_drive = j;
 	dos_drive_geometry = k;
 	goto redo_dos_geometry;

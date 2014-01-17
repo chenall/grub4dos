@@ -47,6 +47,9 @@ biosdisk (int read, int drive, struct geometry *geometry,
   unsigned long max_sec, count, seg;
   unsigned long long start;
 
+	if ((drive == shield_drive) && (shield_drive != 0xff))			//2014.01.09
+		return 1;
+
   if ((fb_status) && (drive == ((fb_status >> 8) & 0xff)))
     max_sec = fb_status & 0xff;
   else

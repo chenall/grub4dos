@@ -141,7 +141,7 @@ struct iso_primary_descriptor {
 } __attribute__ ((packed));
 
 struct udf_descriptor {
-	u_int16_t Tag;
+	unsigned short Tag;
 	u_int8_t bypass1[14];
 	u_int32_t AnchorVolume_MainVolume_ExtentLength;
 	u_int32_t AnchorVolume_MainVolume_ExtentLocation;
@@ -158,17 +158,17 @@ struct udf_descriptor {
 } __attribute__ ((packed));
 
 struct udf_FileIdentifier {
-	u_int16_t Tag;
+	unsigned short Tag;
 	u_int8_t bypass1[14];
-	u_int16_t FileVersion;
+	unsigned short FileVersion;
 	u_int8_t FileCharacteristics;
 	u_int8_t NameLength;
 	u_int32_t FileEntryLength;
 	u_int32_t FileEntryLocation;
-	u_int16_t PartitionNum;
-	u_int16_t Flag1;
+	unsigned short PartitionNum;
+	unsigned short Flag1;
 	u_int32_t UniqueID;
-	u_int16_t LengthofImplementationUse;
+	unsigned short LengthofImplementationUse;
 	u_int8_t NameBaseAddress[474];
 } __attribute__ ((packed));
 

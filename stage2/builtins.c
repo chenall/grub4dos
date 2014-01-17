@@ -5632,8 +5632,7 @@ find_func (char *arg, int flags)
 
 					saved_drive = current_drive = drive;
 					saved_partition = current_partition = part;
-//					if ((*devtype == 'f') && open_device()) //if is a partition 
-                    if (open_device()) //if is a partition 
+					if ((*devtype == 'f') && open_device()) //if is a partition
 					{
 						if ((tmp_drive != current_drive || tmp_partition != current_partition) && find_check(filename,builtin1,arg,flags) == 1)
 						{
@@ -5657,6 +5656,7 @@ find_func (char *arg, int flags)
 							next_partition_buf		= mbr,
 							next_partition ()))
 					{
+#if 0
             if ((start == 0) || (len == 0) || 
               ((type != PC_SLICE_TYPE_FAT16_LT32M) &&       //4
                (type != PC_SLICE_TYPE_EXTENDED) &&          //5
@@ -5672,8 +5672,10 @@ find_func (char *arg, int flags)
                (type != PC_SLICE_TYPE_EXT2FS) &&            //83
                (type != PC_SLICE_TYPE_LINUX_EXTENDED) &&    //85
                (type != PC_SLICE_TYPE_LINUX_LOG_VOL)))      //8e
-              continue;
-                            
+#else
+						if (probe_mbr((struct master_and_dos_boot_sector *)mbr,0,1,0))		//2014.01.09 modify
+#endif
+							continue;                            
 						if (type != PC_SLICE_TYPE_NONE
 							&& ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
 							&& ! IS_PC_SLICE_TYPE_BSD (type)
@@ -7436,6 +7438,7 @@ unsigned long Z;
 int
 probe_bpb (struct master_and_dos_boot_sector *BS)
 {
+#if 0
   unsigned long i;
 
   /* first, check ext2 grldr boot sector */
@@ -7537,7 +7540,71 @@ failed_ext2_grldr:
 
   /* BPB probe success */
   return 0;
+	
+#else		//2014.01.09 modify
+  /* first, check ext2 grldr boot sector */		
+	if (*(unsigned long *)((char *)BS + 03) != 0x32545845)						//'EXT2'
+		goto failed_ext2_grldr;
+	filesystem_type = 5;
+	goto fat_ntfs_out_0; 	
 
+failed_ext2_grldr:
+	/* Second, check exfat grldr boot sector */
+	if (*(unsigned long long *)((char *)BS + 03) != 0x2020205441465845)//'EXFAT   '
+		goto failed_exfat_grldr; 
+	filesystem_type = 6;
+	probed_total_sectors = *(unsigned long *)((char *)BS + 0x48);
+	goto fat_ntfs_out_1; 
+	
+failed_exfat_grldr:
+	/* Second, check FAT12/16/32/exFAT_mbr grldr boot sector */
+	if (*(unsigned short *)((char *)BS + 0x16) != 0x14EF)							//'EF14'
+		goto failed_mbr_grldr;
+	filesystem_type = 7;
+	goto fat_ntfs_out_0; 
+		
+failed_mbr_grldr:
+	/* Second, check FAT12/16/32/NTFS grldr boot sector */
+	if (*(unsigned long *)((char *)BS + 0x38) != 0x20323154)					//'FAT12   '
+		goto failed_fat12_grldr;	
+	filesystem_type = 1;
+	probed_total_sectors = BS->total_sectors_short;
+	goto fat_ntfs_out_1;
+
+	
+failed_fat12_grldr:
+	if (*(unsigned long *)((char *)BS + 0x38) != 0x20363154)					//'FAT16   '
+		goto failed_fat16_grldr;
+	filesystem_type = 2;
+	
+fat_ntfs_out_0: 
+	probed_total_sectors = BS->total_sectors_long;
+fat_ntfs_out_1: 	
+	probed_heads = BS->total_heads;	
+  probed_sectors_per_track = BS->sectors_per_track;	
+  sectors_per_cylinder = probed_heads * probed_sectors_per_track;
+  probed_cylinders = (probed_total_sectors + sectors_per_cylinder - 1) / sectors_per_cylinder;
+
+  /* BPB probe success */
+  return 0;
+
+failed_fat16_grldr:
+	if (*(unsigned long long *)((char *)BS + 0x52) != 0x2020203233544146)	//'FAT32   '
+		goto failed_fat32_grldr;
+	filesystem_type = 3;																							//fat32
+	goto fat_ntfs_out_0; 
+	
+failed_fat32_grldr:
+	if (*(unsigned long long *)((char *)BS + 0x52) != 0x202020205346544e)	//'NTFS    '
+		goto failed_ntfs_grldr;
+	filesystem_type = 4;																							//ntfs
+	probed_total_sectors = BS->total_sectors_long_long;
+	goto fat_ntfs_out_1; 	
+	
+failed_ntfs_grldr:
+  return 1;	
+	
+#endif
 }
 
 #if 0
@@ -13564,6 +13631,77 @@ static struct builtin builtin_unhide =
   " root device."
 };
 
+/* usb */
+static int
+usb_func (char *arg, int flags)
+{
+  errnum = 0;
+  for (;;)
+  {
+    if (grub_memcmp (arg, "--delay=", 8) == 0)
+		{
+			char *p;
+			unsigned long long tmp;
+			p = arg + 8;
+			if (! safe_parse_maxint (&p, &tmp))
+				return 0;
+			usb_delay = tmp;
+			return 1;
+		}
+    else if (grub_memcmp (arg, "--init", 6) == 0)
+		{
+			printf("\r... Scanning USB devices ...   ");
+			init_usb(); 
+			if (usb_count_error < 0x80)
+			{
+				if (debug > 0)
+				{
+					int i; 
+					printf("\rFound %d USB devices. Device Num:", usb_count_error);
+					for (i = 0; i < usb_count_error ; i++)
+					{
+						printf(" 0x%x;", usb_drive_num[i]);
+					}
+				}	
+			} else {
+				if (debug > 0)
+				{
+					printf("\rError %x. No USB device found. ", (usb_count_error));
+					switch (usb_count_error)
+					{
+						case 0x80:
+							printf("BIOS does not support the use of INT1A PCI installation check. \n");
+							break;
+						case 0x81:
+							printf("USB device enumeration failed. Try to restart. \n");
+							break;
+						case 0x82:
+							printf("USB device is not ready.  \n");
+							break;
+					}
+				pause_func ("--wait=10", flags);
+				}	
+			}
+			return 1;
+		}
+    else
+      return ! (errnum = ERR_BAD_ARGUMENT);
+			arg = skip_to (0, arg);
+  }
+  return 1;
+}
+
+static struct builtin builtin_usb =
+{
+  "usb",
+  usb_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  "usb --delay=P | --init",
+  "Initialise usb2.0 device."
+  " P specifies delay. 0=basic, 1=basic*2, 2=basic*4, 3=basic*8."
+};
+
+
 
 #if 0
 /* uppermem */
@@ -15476,6 +15614,7 @@ struct builtin *builtin_table[] =
   &builtin_title,
   &builtin_tpm,
   &builtin_unhide,
+  &builtin_usb,
   &builtin_uuid,
   &builtin_vbeprobe,
   &builtin_write,

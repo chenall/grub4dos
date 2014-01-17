@@ -433,7 +433,6 @@
 #define gfx_ofs_v2_args_list		0x84
 #define gfx_ofs_v2_args_entry_len	0x88
 #define gfx_ofs_v2_timeout		0x8c
-#define GRLDR_BOOT   0x780
 
 #ifndef ASM_FILE
 /*
@@ -949,6 +948,11 @@ extern unsigned long safe_mbr_hook;	/* safe mbr hook flags used by Win9x */
 extern unsigned long int13_scheme;	/* controls disk access methods in emulation */
 extern unsigned char atapi_dev_count;	/* ATAPI CDROM DRIVE COUNT */
 extern unsigned long reg_base_addr_append;
+extern unsigned char usb_delay;
+extern unsigned char usb_count_error;
+extern unsigned char usb_drive_num[8];
+extern unsigned char shield_drive;
+extern unsigned long init_usb(void);
 extern unsigned long init_atapi(void);
 extern unsigned char min_cdrom_id;	/* MINIMUM ATAPI CDROM DRIVE NUMBER */
 extern unsigned long cdrom_drive;

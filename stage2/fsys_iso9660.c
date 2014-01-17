@@ -60,8 +60,8 @@ struct iso_inode_info {
 #define DIRREC					((struct iso_directory_record *)(FSYS_BUF + 8192))
 #define UDF_DIRREC   		((struct udf_FileIdentifier *)(FSYS_BUF + 8192))
 
-int iso_type = 0;		//0/1/2/3=iso9600/udf/iso9600_Joliet/iso9600_RockRidge
-unsigned long udf_partition_start = 0;
+int iso_type;		//0/1/2/3=iso9600/udf/iso9600_Joliet/iso9600_RockRidge
+unsigned long udf_partition_start;
 
 #if 0
 static int
@@ -133,6 +133,7 @@ iso9660_mount (void)
 //  return 0;
 //}
     iso_type = 0;
+		udf_partition_start = 0;
 	//Test UDF system
 	for (sector = 16 ; sector < 32 ; sector++)
  	{
@@ -274,7 +275,7 @@ iso9660_dir (char *dirname)
 	
 	if (iso_type == 1)
 	{	
-		unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + (unsigned long long)UDF_DESC->FileEntry_LengthofExtendedAttributes);
+		unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + (unsigned long)UDF_DESC->FileEntry_LengthofExtendedAttributes);
 		size = *tmp;
 		extent = *(tmp + 1) + udf_partition_start;
 	}
@@ -308,7 +309,7 @@ iso9660_dir (char *dirname)
 				if (name_len == 0) 
 					goto ssss;
 				name_len--;
-				name = (char *)(&idru->NameBaseAddress + (unsigned long long)idru->LengthofImplementationUse);
+				name = (char *)(&idru->NameBaseAddress + (unsigned short)idru->LengthofImplementationUse);
 	  		if (name[0] == 8)
 	  		{
 	  			name++;  			
@@ -560,7 +561,7 @@ dddd:
 			    }
 			    if (iso_type == 1)
 			 		{
-			  		unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + (unsigned long long)UDF_DESC->FileEntry_LengthofExtendedAttributes);
+						unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + (unsigned long)UDF_DESC->FileEntry_LengthofExtendedAttributes);
 			  		INODE->file_start = *(tmp + 1);
 			  		filepos = 0;
 			  		filemax = *tmp;	  			
@@ -604,7 +605,7 @@ dddd:
 ssss:			
 		if (iso_type == 1)
 		{
-			name = (char *)(&idru->NameBaseAddress) + (unsigned long long)idru->LengthofImplementationUse + (unsigned long long)idru->NameLength;
+			name = (char *)(&idru->NameBaseAddress) + (unsigned short)idru->LengthofImplementationUse + (unsigned char)idru->NameLength;
 			//int j;
 			for (j = 0; j < 4; j++)
 			{

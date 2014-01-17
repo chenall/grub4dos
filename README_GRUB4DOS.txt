@@ -549,8 +549,10 @@ Offset	Length	Description
 
 02h	1	0x90
 
-03h	10	OEM name string (of OS which formatted the disk).
+03h	8	OEM name string (of OS which formatted the disk).
 		Update: This field is now being used for partitioning message "EXT2/3/4"
+
+0Bh	2	Bytes per sector. Must be 512.
 
 0Dh	1	Sectors per block. Valid values are 2, 4, 8, 16 and 32.
 
@@ -595,8 +597,6 @@ Offset	Length	Description
 		4, 5, 6, ... are logical partitions in the extended partition.
 
 		0xff is for whole drive. So for floppies, it should be 0xff.
-
-		Update: This field is ignored
 
 26h	2	inode size in bytes. (Notice! We use the formerly reserved
 		word here for inode size!)
@@ -900,36 +900,55 @@ Otherwise, Windows will think that the partition is not formatted.
 
 Offset	Length	Description
 ======	======	==============================================================
-0	3 	0xEB7690
-3   	8 	※EXFAT ※
-11  	53 	Must be 0x00
-64 	8 	Sector Address
-72 	8	Size of total volume in sectors
-80  	4   	Sector address of 1st FAT
-84  	4   	Size of FAT in Sectors
-88	4   	Sector address of the Data Region
-92 	4   	Number of clusters in the Cluster Heap
-96  	4   	Cluster address of the Root Directory
-100 	4  	Volume Serial Number
-104 	2   	VV.MM (01.00 for this release)
-106 	2   	Field                   Offset  bits Size       bits Description
+00h	3 	0xEB7690	Jump instruction
+03h	8 	"EXFAT   "	Signature
+	
+++++++++ The new increase ++++++++
+0bh	2    	Bytes per sector
+0dh	1    	Sectors per cluster
+0eh	4   	Data start Absolute sector
+12h	4	The current cluster the absolute sector in fat table
+16h	2    	EIOS Mark		Bit 7   EIOS
+18h	2    	Sectors per track
+1ah	2    	Number of heads
+1ch	4   	Retention
+20h	4   	Retention
+24h	1    	Drive numbe
+25h	1    	Partition number
+26h	2    	Retention
+28h	4   	FAT table start absolute sector number
+
+2ch	4   	Retention
+++++++++ The new increase ++++++++
+ 
+30h	16 	Must be 0x00
+40h	8 	Sector Address
+48h 	8	Size of total volume in sectors
+50h  	4   	Sector address of 1st FAT
+54h  	4   	Size of FAT in Sectors
+58h	4   	Sector address of the Data Region
+5ch 	4   	Number of clusters in the Cluster Heap
+60h  	4   	Cluster address of the Root Directory
+64h 	4  	Volume Serial Number
+68h 	2   	VV.MM (01.00 for this release)
+6ah 	2   	Field                   Offset  bits Size       bits Description
  		Active FAT              0       1               0每1st          1每2nd
 		Volume Dirty            1       1               0每Clean        1-Dirty
 		Media Failure           2       1               0每No Failures  1每Failures
 		Reported Clear to Zero  3       1               No Meaning
 		Reserved                4       12
-108	1	This is a power of 2. Range: min of 29 = 512 byte
+6ch	1	This is a power of 2. Range: min of 29 = 512 byte
 		cluster size, and a max of 212 = 4096.
-109  	1  	This is a power of 2. Range: Min of 21=512. The maximum Cluster size is 32 MiB,
+6dh  	1  	This is a power of 2. Range: Min of 21=512. The maximum Cluster size is 32 MiB,
 		so the Values in Bytes per Sector + Sectors Per Cluster cannot exceed 25.
-110 	1 	This number is either 1 or 2, and is only 2 if TexFAT is in use.
-111  	1      	Used by INT 13
-112   	1    	Percentage of Heap in use
-113  	7	Retention
-120  	390  	The Boot Program
-510   	2   	0xAA55
-512  	510	The Boot Program
-1022	2	0xAA55
+6eh 	1 	This number is either 1 or 2, and is only 2 if TexFAT is in use.
+6fh  	1      	Used by INT 13
+70h   	1    	Percentage of Heap in use
+71h  	7	Retention
+78h  	390  	The Boot Program
+1feh   	2   	0xAA55
+200h  	510	The Boot Program
+3feh	2	0xAA55
 
 
 6. MBR boot code in the FAT12/16/32/exFAT/EXT2 merger, take a little more than 2 sectors.
@@ -939,34 +958,42 @@ Offset	Length	Description
 
 Offset  Type    Description
 ======	======	==============================================================
-00h	Word    EB 2E   Jump instruction
-02h     Byte    Partition type / EIOS Mark
-             	Bit 0   FAT12
-           	Bit 1   FAT16
-              	Bit 2   FAT32
-             	Bit 3   exFAT
-             	Bit 4   EXT2
-             	Bit 5   Retention
-		Bit 6	EXT4 64-bit file system
-             	Bit 7   EIOS
-03h     DWord   Root directory
-07h     DWord   Home directory of the absolute starting sector (fat12/16)
-0bh     Word    Bytes per sector
-0dh     Byte    Sectors per cluster
-0eh     Word    Reserved
-10h     Byte    Retention
-11h     DWord   Data start Absolute sector 
-15h     Byte    Retention
-16h     Word    Retention
-18h     Word    Sectors per track
-1ah     Word    Number of heads
-1ch     DWord   Partition start Absolute sector
-20h     DWord   The current cluster the absolute sector in fat table
-24h     Byte    Drive number
-25h     Byte    Retention
-26h     Word    Retention
-28h     DWord   FATs absolute starting sector
-2ch     DWord   Root cluster  
+00      2    	EB 2E   Jump instruction
+
+02      1	Partition type / EIOS Mark
+
+		Bit 0   FAT12
+		Bit 1   FAT16
+		Bit 2   FAT32
+
+		Bit 3   exFAT
+
+		Bit 4   EXT2
+
+		Bit 5   Retention
+		Bit 6   EXT2  filesystem size of 2^64 blocks
+		Bit 7   EIOS
+
+03      4	Root directory
+07      4	Home directory of the absolute starting sector (fat12/16)
+0b      2	Bytes per sector
+0d      1	Sectors per cluster
+
+0e      4	Data start Absolute sector
+12      4	The current cluster the absolute sector in fat table
+16      2	Retention
+
+18      2	Sectors per track
+1a      2	Number of heads
+1c      4	Partiti	on start Absolute sector
+
+20      4	The total number of sectors partition
+24      1	Drive number
+25      1	Partition number
+26      2	Retention
+
+28      4	FAT table start absolute sector number
+2c      4	Root cluster  
 
 
 
@@ -1208,14 +1235,6 @@ OPTIONS:
 	--install-partition=I	Install the boot record onto the boot area of
 				partition number I of the specified hard drive
 				or harddrive image DEVICE_OR_FILE.
-
-	--grldr-usb=I		Loaded usb2.0 option  in grldr.
-
-	--usb-time=T		Information display time
-
-	--usb-speed=S		Speed setting
-
-	--usb-key=K		Forced to load scan code
 
 DEVICE_OR_FILE:	Filename of the device or the image file. For DOS, a BIOS drive
 number(hex 0xHH or decimal DDD) can be used to access the drive. BIOS drive
@@ -4135,30 +4154,12 @@ SubClass 06, Protocol 50, that is USB Thumbdrive or Portable External Hard Drive
 
 Support USB-FDD, USB-HDD, USB-cdrom mode.
 
-There is a switch in the GRLDR offset 0x1f9.
-  Press F2 to load unconditionally.
-
-There is a switch in the GRLDR offset 0x1fb.
-  00: not loading;
-  01: When the boot device is recognition as a floppy disk loading;
-  02: Always load.
-  
-When USB driver is loaded, it waits for 5 seconds for user input:
-  Press s key to load in slow-down mode;
-  Press Spacebar to skip loading driver.
-The number of seconds to wait by the offset 0x21b1 grldr set at.
-Speed by the offset 0x21b2 grldr set at. (0=full, 1=full/2, 2=full/4, 3=full/8)
-
-Set up:
-	--grldr-usb=I	I was loaded switch (this option must have)
-	--usb-time=T 	T The number of seconds to wait
-	--usb-speed=S	S Speed setting
-	--usb-key=K	K Scan Code
-
-Example: bootlace --floppy --grldr-usb=2 --usb-time=3 grldr
+In the menu or the command line to load usb2.0 driver: usb --init
+Optional parameters: usb --delay=P
+P is controlled transmission delay index. 0=General; 1=2*General; 2=4*General; 3=8*General
 
 Tips: 1. Some USB drives are identified as USB 1.x devices under Windows or DOS usbaspi.sys , 
-         but they will be identified as USB 2.0 devices when loading in slow-down mode.
+         However, the device will re-identified as usb2.0 delay after the increase.
       2. Some USB drives do not be detected when plugging into front panel,
-         but they will be detected when loading in slow-down mode.
-      3. Fails to load, press the s key to try.
+         However, the increase will be identified after delay.
+      3. When loading failure, Select --delay=P parameter try.

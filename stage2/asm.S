@@ -334,2131 +334,19 @@ VARIABLE(buf_drive)
 	.long	0	/* padding */
 
 	. = EXT_C(main) + 0x150
-
+	
+VARIABLE(usb_count_error)		//bit 7:   0 = usb_count; 1 = usb_error
+	.byte	0
+VARIABLE(usb_drive_num)	
+	.byte	0,0,0,0,0,0,0,0
+VARIABLE(usb_md_address)
+	.word	0
+VARIABLE(shield_drive)
+	.byte	0xff	
+	
+	. = EXT_C(main) + 0x160	
+	
 real_codestart:
-
-/* ********************  USB2DRI start  ****************************** */
-	xorw	%ax, %ax
-	movw	%ax, %ds
-	movw	%ax, %es
-  movb	(GRLDR_BOOT << 4 + 0x1fb), %cl
-  testb   $4, %cl     //pxe boot?
-  jne 2f              //yes
-	movb	$1, %ah
-	int	$0x16
-	jz	1f
-	cmpb	(GRLDR_BOOT << 4 + 0x1f9), %ah					//F2
-	je 3f
-1:	
-  decb    %cl         //cl=1,When dl = 00 load
-	jne 1f						
-	cmpb	%cl, %dl	//dl=0?
-	je	3f
-	cmpb	$0x23, %dl
-	jne 1f
-	cmpb	%cl, (0x21AF)
-	je	3f
-1:
-	decb    %cl	        //cl=2,Forced load 
-	jne 2f							
-3:	//Load the usb driver, Maximum size 0x3600
-	movw	$(Entry_USB2DRI - EXT_C(main) + 0x8200), %si
-	movw	$0x4200, %di
-	movw	$(USB_size - Entry_USB2DRI)/2, %cx
-	rep movsw
-	call	$0x420,$0
-2:
-	jmp	USB_size
-	
-	. = EXT_C(main) + 0x1a0		//Affect bootlace.inc and Makefile
-
-Entry_USB2DRI:
-
-	jmp Initialization
-	
-	.ascii  "USB20DRI"
-map_num:
-	.byte   0	
-max_id:
-	.byte   0	
-max_dri:
-	.byte   0	
-_id:
-	.byte   1
-_lun:
-	.byte   0
-_type:
-	.byte   0	
-Time:
-	.byte   05
-Speed:
-	.byte   0
-Save_ah:
-	.byte   0
-Count_1ms:
-	.word   0
-Single_size:
-	.word   0
-bus_device_function:
-	.word   0
-R_W_Mark:
-	.byte   0
-old_int13:
-	.long   0
-Direction1:
-	.byte   0
-	
-	. = Entry_USB2DRI + 0x20
-
-
-
-qh:
-	.fill 0x110,1,0x00                      //QH,qTD
-
-//qTD1    db      40h dup(0)
-//qTD2    db      40h dup(0)
-//qTD3    db      40h dup(0) 
-
-//QH0     db      40h dup(0)
-//				db		  10h dup(0)    
-
-cbw_qq:
-	.long   0x43425355
-	.long   0x12345678
-	.long   0
-	.byte   0
-	.byte   0
-	.byte   0x0c
-	.long   0
-	.long   0
-	.long   0
-	.long   0
-	.byte   0 
-
-csw_qq:
-	.fill 0x20,1,0x00
-
-//---------------------------------------------------------------------------- 
-
-GDT:
-
-	.word	0, 0
-	.byte	0, 0, 0, 0
-	
-
-LimitL:
-	.word   0xffff
-BaseL:
-	.word   0
-BaseM:
-	.byte   0 
-Attributes:
-	.byte   0x92
-LimitH:
-	.byte   0
-BaseH:
-	.byte   0
-
-aaaa:
-#define	GDTLen	aaaa - GDT  
-
-
-VGDTR:
-	.word	GDTLen - 1
-Base:        
-	.long	0
-	
-
-//---------------------------------------------------------------------------- 
-	.ascii  "DEV"
-
-Dev:
-DevID:
-	.byte   0
-ConProperty:
-	.byte   0
-ConAddress:
-	.byte   0
-ConSize:
-	.word   8
-InProperty:
-	.byte   0
-InAddress:
-	.byte   0
-InSize:
-	.word   0
-OutProperty:
-	.byte   0
-OutAddress:
-	.byte   0
-OutSize:
-	.word   0
-MaxLUN:
-	.byte   0
-PORTSC:
-	.word   0
-
-bbbb:
-#define	DevLen	bbbb - Dev
-
-	.fill DevLen,1,0x00
-	.fill DevLen,1,0x00
-	.fill DevLen,1,0x00
-
-
-//---------------------------------------------------------------------------- 
-	.ascii  "DRI"
-
-Dri:
-Number:
-	.byte   0
-DriID:
-	.byte   0
-DriLUN:
-	.byte   0
-DriType:
-	.byte   0	
-Capacity:
-	.long   0
-StartSector:
-	.long   0       
-
-cccc:        
-#define	DriveLen  cccc - Dri
-
-	.fill DriveLen,1,0x00
-	.fill DriveLen,1,0x00
-	.fill DriveLen,1,0x00
-	.fill DriveLen,1,0x00
-	.fill DriveLen,1,0x00
-	.fill DriveLen,1,0x00
-	.fill DriveLen,1,0x00
-
-//----------------------------------------------------------------------------
-
-SCSI:
-Return:
-	.byte   0
-Direction:
-	.byte   0
-TSize:
-	.long   0
-TOffset:
-	.word   0
-TSection:
-	.word   0
-TokenContent:
-	.byte   0,0,0,0,0,0,0,0,0,0,0,0
-
-dddd:
-#define	TokenLen  dddd - SCSI
-
-
-//----------------------------------------------------------------------------
-Disk_sector:
-	.long   0
-Start_sector:
-	.long   0
-Status:
-	.byte   0
-Error_repeat_Number_Bulk:
-	.byte   0
-Error_repeat_Number_Con:
-	.byte   0
-scsi_repeat_Number:
-	.byte   0
-Stack_sp:
-	.word   0
-Stack_ss:
-	.word   0
-qTD1:
-	.word   0
-qTD1_Linear:
-	.long   0
-Media_types:	
-	.byte   0
-Ability_Register_Size:
-	.word   0
-ds_Linear:
-	.long   0      
-
-	
-#define CodeSize				0x1400
-
-	
-Get_device:
-	.byte   0x80,06,00,01,00,00,0x08,00
-Get_Configuration:
-	.byte   0x80,06,00,02,00,00,0x08,00
-Get_lun:
-	.byte   0xa1,0xfe,00,00,00,00,01,00
-Set_Configuration:
-	.byte   00,0x09,01,00,00,00,00,00
-Set_device_Address:
-	.byte   00,05,00,00,00,00,00,00 
-Clear_endpoint:
-	.byte   02,01,00,00,00,00,00,00
-Bulk_Reset:
-	.byte   0x21,0xff,00,00,00,00,00,00
-
-Entry_int13:
-	call Find_drive_info
-	jnb 1f
-	ljmp *%cs:(old_int13 - Entry_USB2DRI)
-1:        
-	cld               
-	pushaw                          //       ax cx dx bx sp bp si di
-	movw %sp, %bp                   //bp+    0e 0c 0a 08 06 04 02 00
-	pushw %ds
-	pushw %es
-	pushw %fs
-	pushw %gs
-	pushw $0
-	popw %fs
-	pushw $0xffff
-	popw %gs
-        //ss=ds=0 es=2000 cs=9e00  fs=000 gs=ffff
-	cmpb $00, %ah
-	je int13_00_04_16_17_18_44_47
-	cmpb $01, %ah
-	je int13_01
-	cmpb $02, %ah
-	je int13_02_03        
-	cmpb $03, %ah
-	je int13_02_03
-	cmpb $0x08, %ah
-	je int13_08
-	cmpb $0x15, %ah
-	je int13_15
-	cmpb $0x16, %ah
-	je int13_00_04_16_17_18_44_47
-	cmpb $0x41, %ah
-	je int13_41                
-	cmpb $0x42, %ah
-	je int13_42_43     
-	cmpb $0x43, %ah
-	je int13_42_43
-	cmpb $0x48, %ah
-	je int13_48
-	cmpw $0x4b01, %ax
-	je int13_4b01	
-
-qtml:        
-	movb $01, %ah
-	jmp 4f        
-int13_00_04_16_17_18_44_47:
-	xorb %ah, %ah         
-4:  
-	testb $0x80, %dl
-	jne 1f
-	movb %ah, %fs:0x0441
-	jmp 2f
-1:	
-	movb %ah, %fs:0x0474
-2:	
-	andb $0xfe, 0x14(%bp)        		//cf=0
-	movb %ah, 0x0f(%bp)             //ah
-	orb %ah, %ah
-	je 3f
-	orb $01, 0x14(%bp)              //cf=1
-3: 
-	popw %gs
-	popw %fs
-	popw %es
-	popw %ds
-	popaw
-	iret        
-        
-
-int13_01:  
-	testb $0x80, %dl
-	jne 1f
-	xchgb %fs:0x0441, %ah
-	jmp 2b
-1:
-	xchgb %fs:0x0474, %ah        
-	jmp 2b    
-
-
-int13_02_03:
-	movb %ah, %cs:(Save_ah - Entry_USB2DRI)
-	call chs_lba
-	movb $01, %cl
-	cmpb $02, %cs:(Save_ah - Entry_USB2DRI)
-	je 1f
-	xorb %cl, %cl
-1:     
-	call Read_write_usb
-	jnb int13_00_04_16_17_18_44_47
-	jmp qtml        
-
-int13_08:
-	pushw %dx
-	movw $0x3ec1, %cx        
-	movw %cs:(Disk_sector - Entry_USB2DRI), %ax
-	movw %cs:(Disk_sector + 2 - Entry_USB2DRI), %dx 
-	cmpw %cx, %dx
-	jae 1f
-	divw %cx
-	decw %ax
-	cmpw $0x03FF, %ax
-	jb 2f
-1:        
-	movw $0x03FF, %ax
-2:
-	movw %ax, %cx
-	xchgb %ch, %cl
-	shlb $06, %cl
-	orb $0x3f, %cl
-	movb $0xfe, %dh
-	movb %fs:0x0475, %dl
-	movw %dx, 0x0a(%bp)
-	movw %cx, 0x0c(%bp)
-	movb $0x10, 0x08(%bp)
-	popw %dx
-	jmp int13_00_04_16_17_18_44_47        
-         
-int13_15:
-	movb %al, %fs:0x0441
-	movb $02, %ah        
-	testb $0x80, %dl
-	je 1f
-	movb $03, %ah
-1:        
-	andb $0xfe,0x14(%bp)            //cf=0
-	movb %ah, 0x0f(%bp)             //ah
-	jmp 3b
-
-
-Find_drive_info:
-	pushal
-	pushw %ds
-	pushw %cs
-	popw %ds
-	movb (max_dri - Entry_USB2DRI), %cl
-	movw $(Dri - Entry_USB2DRI), %si
-1:        
-	cmpb (Number - Dri)(%si), %dl
-	je 1f
-	decb %cl
-	orb %cl, %cl
-	je 2f
-	addw $DriveLen, %si 
-	jmp 1b
-1:
-	movb (DriID - Dri)(%si), %al 
-	movb %al, (_id - Entry_USB2DRI)
-	movb (DriLUN - Dri)(%si), %al 
-	movb %al, (_lun - Entry_USB2DRI)
-	movb (DriType - Dri)(%si), %al
-	movb %al, (_type - Entry_USB2DRI)
-	movl (Capacity - Dri)(%si), %eax 
-	movl %eax, (Disk_sector - Entry_USB2DRI)
-	movl (StartSector - Dri)(%si), %eax 
-	movl %eax, (Start_sector - Entry_USB2DRI)      
-	clc
-1:
-	popw %ds
-	popal
-	ret
-2:
-	stc
-	jmp 1b                 
-
-
-chs_lba:
-	movw %bx, %di
-	movzbw %al, %bx
-
-	movb %cl, %al
-	andb $0x3f, %al
-	movzbl %al, %eax
-	pushl %eax 
-
-	xchgb %ch, %cl
-	andb $0xc0, %ch
-	rolb $02, %ch
-
-	movl $0xff, %eax
-	movzwl %cx, %ecx
-	imull %ecx, %eax
-	movzbl %dh, %ecx
-	addl %ecx, %eax 
-	movl $0x3f, %ecx
-	imull %ecx, %eax
-	popl %ecx
-	addl %ecx, %eax        
-	decl %eax
-   
-	ret
-   
-
-
-
-int13_41:   
-	cmpw $0x55aa, %bx
-	jne qtml 
-	movw $0x2100, %ax               //EDD-2.1
-	notw %bx                        //bx=AA55
-	movw $5, %cx 
-	movw %bx, 0x08(%bp)
-	movw %cx, 0x0c(%bp)         
-	movw %ax, 0x0e(%bp) 
-	andb $0xfe, 0x14(%bp)           //cf=0
-	jmp 3b
-
-
-int13_42_43:
-	movb %ah, %cs:(Save_ah - Entry_USB2DRI)     
-	call Disk_package
-	movb $01, %cl
-	cmpb $0x42, %cs:(Save_ah - Entry_USB2DRI)
-	je 1f
-	xorb %cl, %cl       
-1:
-	call Read_write_usb
-	jnb int13_00_04_16_17_18_44_47
-	jmp qtml
-
-
-Disk_package:
-	movw 02(%si), %bx
-	movw 04(%si), %di
-	movw 06(%si), %es
-	movl 0x08(%si), %eax       
-	ret
-
-
-int13_48:
-	pushw %ds
-	popw %es
-	pushw %dx
-	movw %si, %di 
-	xorb %al, %al
-	movw $0x1a, %cx
-	rep stosb
-	movb $0x1a, (%si)
-	movb $06, 02(%si)
-	movb $0x3f, 0x0c(%si)
-	movb $0xff, 0x08(%si)
-	movl $0x3ec1, %ecx
-	movl %cs:(Disk_sector - Entry_USB2DRI), %eax
-	movl %eax, 0x10(%si)
-	xorl %edx, %edx
-	divl %ecx
-	movl %eax, 04(%si)        
-	movw $0x200, 0x18(%si)
-	popw %dx
-	jmp int13_00_04_16_17_18_44_47
-	
-int13_4b01:			
-	movb $0x13, (%si)
-	movb %cs:(Media_types - Entry_USB2DRI), %al
-	movb %al, 1(%si)
-	movb $0xff, 2(%si)
-	movb $1, 3(%si)
-	movl %cs:(Start_sector - Entry_USB2DRI), %eax
-	movl %eax, 4(%si)
-	movw %cs:(bus_device_function - Entry_USB2DRI), %ax
-	movb %cs:(_lun - Entry_USB2DRI) ,%al
-	movw %ax, 8(%si)
-	movw $0, 0x0a(%si)
-	movw %cs:(Disk_sector - Entry_USB2DRI), %ax
-	movw %ax, 0x0c(%si)
-	movw %cs:(Disk_sector + 2 - Entry_USB2DRI), %ax
-	movw %ax, 0x0e(%si)
-	movw $0, 0x10(%si)
-	movb $0, 0x12(%si)	
-	jmp int13_00_04_16_17_18_44_47
-	
-//------------------------------------------------------------------------------------------
-
-
-Allow_A20:
-	call observe
-	orw %ax, %ax 
-	jne 1f
-	mov $0x2401, %ax
-	int $0x15
-	call observe
-	orw %ax, %ax
-	jne 1f
-	pushfl
-	cli
-
-2:
-	inb $0x64, %al
-	testb $02, %al
-	jne 2b     
-	mov $0xd1, %al
-	outb %al, $0x64
-2:
-	inb $0x64, %al
-	testb $02, %al
-	jne 2b
-	movb $0xdf, %al
-	outb %al, $0x60
-2:
-	inb $0x64, %al
-	testb $02, %al
-	jne 2b
-	movb $0xff, %al
-	outb %al, $0x64
-2:
-	inb $0x64, %al
-	testb $02, %al
-	jne 2b
-	popfl
-1:
-	ret
-
-
-
-observe:
-	pushw %bx
-	pushw %dx
-	pushfl
-	cli
-	movw %fs:0x0000, %ax
-	movw %gs:0x0010, %bx
-	notw %ax
-	movw %ax, %gs:0x0010
-	movw %fs:0x0000, %dx
-	movw %bx, %gs:0x0010 
-	popfl
-	xorw %dx, %ax
-	popw %dx
-	popw %bx
-	ret
-
-        
-
-Delay:
-	pushl %ecx
-	pushw %dx
-	movw (Count_1ms - Entry_USB2DRI), %dx
-2:        
-	movw %dx, %cx
-
-3:
-	cmpw %cs:0x046C, %ax 
-	jmp 1f
-1:
-	pushw %dx
-	pushw %ax
-	movw $0xcf8, %dx
-	inw %dx, %ax
-	popw %ax
-	popw %dx
-	decw %cx
-	cmpw $0, %cx
-	jne 3b
-
-	decw %ax
-	jne 2b
-	popw %dx
-	popl %ecx
-	ret
-
-
-Remove_qTD:				
-	movw	(qTD1 - Entry_USB2DRI), %di
-  xorw	%ax, %ax
-	movw	$0x60, %cx
-	rep	stosw				
-	ret	
-	
-	
-
-Control_transfer:
-	movb	$3, (Error_repeat_Number_Con - Entry_USB2DRI)
-3:
-	pushaw
-
-	call Remove_qTD
-
-	movl (qTD1_Linear - Entry_USB2DRI), %edx
-	addl $0x40, %edx
-	movw (qTD1 - Entry_USB2DRI), %di
-	movl %edx, (%di)
-	movl %edx, 4(%di)             
-	movl $0x00080e80, 8(%di)
-	movzwl %si, %eax
-	addl (ds_Linear - Entry_USB2DRI), %eax
-	movl %eax, 0x0c(%di)        
-              
-	movw 6(%si), %cx
-	orw %cx, %cx 
-	je 1f
-	addl $0x40, %edx
-	addw $0x40, %di
-	movb $0, %ah
-	testb $0x80, (%si)
-	je 2f
-	movb $01, %ah
-2:
-	movl %edx, (%di)
-	movl %edx, 4(%di)
-	movb $0x80, %al
-	orb $0x0c, %ah
-	orw $0x8000, %cx
-	movw %ax, 8(%di)
-	movw %cx, 0x0a(%di)
-	movl $(Cache - Entry_USB2DRI), %eax
-	addl (ds_Linear - Entry_USB2DRI), %eax
-	movl %eax, 0x0c(%di)
-
-1:
-	addw $0x40, %di
-	movb $0x81, %ah
-	testb $0x80, (%si) 
-	je 1f 
-	movb $0x80, %ah
-1:
-	movb $1, (%di)
-	movb $1, 4(%di) 
-	movb $0x80, %al
-	orb $0x0c, %ah
-	movw %ax, 8(%di)
-	movw $0x8000, 0x0a(%di)
-	movb $0, %cl
-	call Set_QH
-	popaw
-	cmpb	$0, (Status - Entry_USB2DRI)
-	je 1f
-	decb (Error_repeat_Number_Con - Entry_USB2DRI)
-	cmpb $0, (Error_repeat_Number_Con - Entry_USB2DRI)
-	jne 3b	
-1:							
-	ret
-
-
-Port_Reset:
-	movl $0x00001100, %eax      
-	call Write_Register
-	movw $100, %ax
-	call Delay
-
-	movl $0x00001000, %eax  
-	call Write_Register 
-	movw $200, %ax
-	call Delay
-
-	movl $0x00001007, %eax  
-	call Write_Register
-
-	call Read_Register
-	ret
-	
-	
-Determine_device_address:
-	movb	(_id - Entry_USB2DRI), %bl
-	decb	%bl
-	movb	$DevLen, %al
-	mulb	%bl
-	movw	%ax, %bx 
-	ret	
-	
-
-
-Set_QH:
-	pushw %bx
-	pushw %cx
-	
-	call Determine_device_address
-	movw (qTD1 - Entry_USB2DRI), %di
-	addw $0xc0, %di
-	movb $2, %dl
-	call Get_current_endpoint
-	movb 01(%si), %ch
-	andb $0x0f, %ch 
-	shlb $04, %dl
-	orb %dl, %ch
-	movw 02(%si), %ax
-	orb %cl, %cl
-	jne 1f
-	orw $0x0800, %ax
-	orb $0x40, %ch 
-1:
-	orb $0x80, %ch
-	movb (DevID - Entry_USB2DRI)(%bx), %cl
-	andb $0x7f, %cl 
-	movb %cl, 04(%di)
-	movb %ch, 05(%di)
-	movw %ax, 06(%di)
-
-	movl (qTD1_Linear - Entry_USB2DRI), %eax
-	movl %eax, 0x0c(%di)
-	movw (qTD1 - Entry_USB2DRI), %si
-	pushw %di
-	addw $0x10, %di
-	movw $0x10, %cx
-	rep movsw
-	popw %di			
-
-	movw (PORTSC - Entry_USB2DRI)(%bx), %si  
-	call Read_Register		
-	testb $0x20, %al
-	jne 1f
-	testb $0x80, %al
-	jne 2f
-	testb $4, %al
-	je 2f
-	jmp 4f
-1:
-	testb $0x10, %al
-	je 2f
-	movw $3, %ax
-	call Delay			
-	call Read_Register
-	jmp 1b
-2:	
-	call Port_Reset
-	movb $2, (Status - Entry_USB2DRI)
-	jmp 3f
-4:				
-	movl $0x10021, %eax
-	movw $0, %si	
-	call Write_Register
-1:	
-	movw $04, %si
-	call Read_Register
-	testb $03, %al
-	je 1b
-2:
-	movw $04, %si
-	call Write_Register
-	test $01, %al
-	je 1f 
-2:
-	movb 0x18(%di), %al    
-	testb $0x80, %al
-	jne 2b      
-1:
-	movl $0x10001, %eax
-	movw $0, %si
-	call Write_Register  
-
-	movb 0x18(%di), %al
-	movb 0x19(%di), %ah	
-	andb $0x0c, %ah 
-	orb %ah, %ah
-	je 5f
-	testb $0x40, %al
-	jne 5f 
-	testb $0x20, %al
-	jne 5f              
-	movb $00, (Status - Entry_USB2DRI)      
-3:
-	popw %cx
-	popw %bx
-	ret
-5:
-	movb $01, (Status - Entry_USB2DRI)
-	jmp 3b
-	
-	
-Get_current_endpoint:
-	movb $4, %al
-	mulb %cl
-	leaw (ConProperty - Entry_USB2DRI)(%bx), %si
-	addw %ax, %si
-	ret
-	
-
-Bulk_transfer:
-	movb $3, (Error_repeat_Number_Bulk - Entry_USB2DRI)
-4:
-	pushaw
-	
-	pushw %ax 
-	call Determine_device_address 
-	call Remove_qTD
-	popw %ax
-	
-	decb %al
-	je 1f
-	decb %al
-	je 2f
-	
-	movw $0x0d, %cx
-	movl $(csw_qq - Entry_USB2DRI), %eax
-	movb $01, (Direction1 - Entry_USB2DRI)  
-	jmp 3f
-1:
-	movw $0x1f, %cx
-	movl $(cbw_qq - Entry_USB2DRI), %eax
-	movb $0, (Direction1 - Entry_USB2DRI)
-3:
-	movw %cs, %dx
-	movzwl %dx, %edx
-	shll $4, %edx
-	addl %eax, %edx
-	jmp 3f
-2:
-	movw $(SCSI - Entry_USB2DRI), %di
-	movb (Direction - SCSI)(%di), %al
-	movb %al, (Direction1 - Entry_USB2DRI)
-	movl (TOffset - SCSI)(%di), %edx
-	movw (Single_size - Entry_USB2DRI), %cx  
-3:
-	movw (qTD1 - Entry_USB2DRI), %si
-	movb $01, (%si)
-	movb $01, 04(%si) 
-	movb $0x80, 0x08(%si) 
-	cmpw $0, %cx
-	je 1f
-	movl $0x1000, %eax    
-	movl %edx, 0x0c(%si)
-	andl $0x0fffff000, %edx
-	addl %eax, %edx
-	movl %edx, 0x10(%si) 
-	addl %eax, %edx
-	movl %edx, 0x14(%si)
-	addl %eax, %edx
-	movl %edx, 0x18(%si)
-	addl %eax, %edx
-	movl %edx, 0x1c(%si)
-1:        
-	leaw (ConProperty - Entry_USB2DRI)(%bx), %si 
-	addw $04, %si
-	movb $01, %al
-	testb $01, (Direction1 - Entry_USB2DRI) 
-	jne 1f
-	decb %al
-	addw $04, %si
-1:
-	testb $0x80, (%si)
-	je 1f
-	orw $0x8000, %cx
-1:
-	orb $0x80, %al
-	movw (qTD1 - Entry_USB2DRI), %si
-	orb $0x0c, %al
-	movb %al, 0x09(%si)
-	movw %cx, 0x0a(%si)
-	movb $01, %cl 
-	testb $01, (Direction1 - Entry_USB2DRI)      
-	jne 1f
-
-	movb $0x81, 0x08(%si)
-	movb $02, %cl
-1:  
-	call Set_QH 
-	call Get_current_endpoint
-	andb $0x7f, (%si) 
-	cmpb $0, (Status - Entry_USB2DRI)
-	je 2f
-	cmpb $2, (Status - Entry_USB2DRI)
-	je 1f
-
-	pushw (Status - Entry_USB2DRI)
-	movb 01(%si), %al
-
-	movw $(Clear_endpoint - Entry_USB2DRI), %si
-	movb %al, 04(%si)
-	call Control_transfer
-	movw $03, %ax
-	call Delay
-	popw %ax
-	movb %al, (Status - Entry_USB2DRI)
-	
-	popaw
-	cmpb $2, %al
-	je 3f
-	decb (Error_repeat_Number_Bulk - Entry_USB2DRI)
-	cmpb $0, (Error_repeat_Number_Bulk - Entry_USB2DRI)
-	je 3f
-	jmp 4b 				
-2: 
-	movw (qTD1 - Entry_USB2DRI), %di
-	addw $0xc0, %di
-	testb $0x80, 0x1b(%di)
-	je 1f 
-	orb $0x80, (%si)
-1:
-	popaw
-3:
-	ret
-
-
-Reset_Recovery:
-	movw $(Bulk_Reset - Entry_USB2DRI), %si
-	call Control_transfer	
-	movw $3, %ax
-	call Delay
-
-	movw $(Clear_endpoint - Entry_USB2DRI), %si
-	movb (InAddress - Entry_USB2DRI)(%bx), %al
-	movb %al, 4(%si)
-	call Control_transfer	
-	movw $3, %ax
-	call Delay   	
-
-	mov $(Clear_endpoint - Entry_USB2DRI), %si
-	mov (OutAddress - Entry_USB2DRI)(%bx), %al
-	movb %al, 4(%si)
-	call Control_transfer	
-	movw $3, %ax
-	call Delay			
-	ret			
-	
-
-SCSI_Command:
-	movb $3, (scsi_repeat_Number - Entry_USB2DRI)
-6:
-	pushw %bx
-	pushw %si
-	pushw %di
-
-	movw $(SCSI - Entry_USB2DRI), %bx         
-	movzwl (TOffset - SCSI)(%bx), %eax   
-	movzwl (TSection - SCSI)(%bx), %edx
-	shll $04, %edx
-	addl %eax, %edx
-	movl %edx, (TOffset - SCSI)(%bx)
-	movw $0x4000, (Single_size - Entry_USB2DRI)
-
-	movw $(cbw_qq - Entry_USB2DRI), %si
-	movl (TSize - SCSI)(%bx), %eax
-	movl %eax, 0x08(%si)
-	movb (Direction - SCSI)(%bx), %al
-	testb $01, %al
-	je 1f 
-	movb $0x80, %al     
-1:        
-	movb %al, 0x0c(%si) 
-	movb (_lun - Entry_USB2DRI), %al
-	movb %al, 0x0d(%si)
-	movl (TokenContent - SCSI)(%bx), %eax
-	movl %eax, 0x0f(%si) 
-	movl (TokenContent + 4 - SCSI)(%bx), %eax
-	movl %eax, 0x13(%si)
-	movl (TokenContent + 8 - SCSI)(%bx), %eax
-	movl %eax, 0x17(%si)
-1:      
-	movb $01, %al
-	call Bulk_transfer
-	cmpb $0, (Status - Entry_USB2DRI)
-	jne 4f
-1:
-	movl (TSize - SCSI)(%bx), %eax 
-	orl %eax, %eax
-	je 2f
-	movzwl (Single_size - Entry_USB2DRI), %ecx
-	cmpl %eax, %ecx
-	jbe 3f
-	movw %ax, (Single_size - Entry_USB2DRI)
-3:      
-	movb $02, %al
-	call Bulk_transfer 
-	cmpb $2, (Status - Entry_USB2DRI)
-	je 4f 
-	cmpb $0, (Status - Entry_USB2DRI)
-	jne 2f
- 
-	movzwl (Single_size - Entry_USB2DRI), %eax 
-	addl %eax, (TOffset - SCSI)(%bx)
-	subl %eax, (TSize - SCSI)(%bx)
-	jmp 1b
-2:  
-	movb $03, %al
-	call Bulk_transfer
-	cmpb $0, (Status - Entry_USB2DRI)
-	jne 4f
-  
-	movw $(csw_qq - Entry_USB2DRI), %si
-	cmpl $0x53425355, (%si)
-	jne 4f
-	cmpl $0x12345678, 04(%si)
-	jne 4f
-	cmpb $0, 0x0c(%si)
-	je 1f 
-	cmpb $1, 0x0c(%si)
-	je 5f 
-	cmpb $2, 0x0c(%si)
-	jne 4f
-	call Reset_Recovery
-4:
-	decb (scsi_repeat_Number - Entry_USB2DRI)
-	cmpb $0, (scsi_repeat_Number - Entry_USB2DRI)
-	je 5f	
-	popw %di
-	popw %si
-	popw %bx		
-	jmp 6b		
-	
-5:  
-	movb $1, (Return - SCSI)(%bx)
-	jmp 2f
-1:  
-	movb $0, (Return - SCSI)(%bx)
-2:
-	popw %di
-	popw %si
-	popw %bx
-	ret
-
-
-Read_write_usb:
-	cli
-	movw %ss, %cs:(Stack_sp - Entry_USB2DRI) 
-	movw %sp, %cs:(Stack_ss - Entry_USB2DRI) 
-	pushw %cs
-	popw %ss
-	movw $CodeSize - 1, %sp
-	sti
-        
-	pushal 
-	pushw %ds
-	pushw %es
-
-	pushw %cs
-	popw %ds
-	pushw %cs
-	popw %es 
-
-	pushw %di
-	call Remove
-	popw %di
-        
-	popw %es 
-	pushw %es
-
-1:
-	movw $(SCSI - Entry_USB2DRI), %si 
-	movb %cl, (Direction - SCSI)(%si) 
-	movb $0x28, (TokenContent - SCSI)(%si)
-	orb %cl, %cl
-	jne 1f
-	movb $0x2a, (TokenContent - SCSI)(%si)
-1:        
-	movb %al, (TokenContent + 5 - SCSI)(%si) 
-	movb %ah, (TokenContent + 4 - SCSI)(%si)
-	shrl $0x10, %eax
-	movb %al, (TokenContent + 3 - SCSI)(%si)
-	movb %ah, (TokenContent + 2 - SCSI)(%si)        
-	movb %bl, (TokenContent + 8 - SCSI)(%si)
-	movb %bh, (TokenContent + 7 - SCSI)(%si)  
-	movw $0x200, %ax
-	cmpb $5, (_type - Entry_USB2DRI)
-	jne no_cd
-	movw $0x800, %ax
-no_cd:
-	mulw %bx
-	movw %dx, (TSize + 2 - SCSI)(%si)
-	movw %ax, (TSize - SCSI)(%si) 
-	movw %di, (TOffset - SCSI)(%si)      
-	movw %es, (TSection - SCSI)(%si)
-	pushw %cs
-	popw %es 
-	call Allow_A20  
-	call SCSI_Command
-	movw $(SCSI - Entry_USB2DRI), %si   
-	cmpb $0, (Return - SCSI)(%si) 
-	je 1f 
-	stc        
-3:
-	popw %es
-	popw %ds
-	popal    
-	cli
-	movw %cs:(Stack_sp - Entry_USB2DRI), %ss 
-	movw %cs:(Stack_ss - Entry_USB2DRI), %sp
-	sti       
-	ret
-
-1:
-	clc
-	jmp 3b
-
-
-  
-Read_Base_address:
-	pushl %esi
-	movb $01, (R_W_Mark - Entry_USB2DRI) 
-	jmp 1f
-
-Read_Register:
-	pushl %esi
-	movb $01, (R_W_Mark - Entry_USB2DRI)
-2:
-	addw (Ability_Register_Size - Entry_USB2DRI), %si
-1:
-	movzwl %si, %esi
-	call Protected_Mode 
-	popl %esi
-	ret
-
-
-Write_Register:
-	pushl %esi
-	movb $0, (R_W_Mark - Entry_USB2DRI) 
-	jmp 2b
-
-
-Protected_Mode:  
-	pushw %es
-	pushfl
-	cli
-	pushw %ds
-	pushw %es
-	pushl %ecx
-	pushw %cs        
-	lgdt %cs:(VGDTR - Entry_USB2DRI)
-	movl %cr0, %ecx
-	pushl %ecx
-	orb $01, %cl
-	movl %ecx, %cr0 
-	jmp 1f
-1:
-	movw $0x08, %cx
-	movw %cx, %es
-	testb $01, (R_W_Mark - Entry_USB2DRI) 
-	jne 1f
-	movl %eax, %es:(%si)
-	jmp 2f
-1:        
-	movl %es:(%si), %eax
-2:        
-	popl %ecx
-	andb $0xFE, %cl
-	movl %ecx, %cr0 
-	jmp 1f
-1:      
-	pushw $(1f - Entry_USB2DRI)
-	retf
-1:
-	popl %ecx
-	popw %es
-	popw %ds
-	popfl
-	popw %es
-	ret
-
-Remove:
-	movw $(SCSI - Entry_USB2DRI), %di
-	pushaw
-	xorb %al, %al	
-	movw $TokenLen, %cx   
-	rep stosb 
-	popaw
-	ret	
-	
-
-//=================================================================================================================
-ndk:
-	.word   0       
-Init_cs:
-	.word   0
-Save_dl:
-	.byte		0
-Register_pci:
-	.long   0
-fb_boot:
-  .byte   0
-fd_num:
-  .byte   0
-hd_num:
-	.byte		0
-	
-load_ok:              
-	.ascii  "\r\nLoaded success\r\n\0"
-
-#define mem_mbr         0x1800
-#define mem_pbr         0x1a00
-#define mem_fd          0x1c00
-#define mem_hd          0x2000
-
-
-
-Initialization:
-	pushw %ds
-	pushw %es
-	pushw	%fs
-	pushw	%gs
-	pushal
-
-	pushw %cs
-	popw %cs:(Init_cs - Entry_USB2DRI) 
-	movb %dl, %cs:(Save_dl - Entry_USB2DRI)
-
-	pushw %cs
-	popw %ds
-	pushw %cs
-	popw %es
-	
-	call Determine_delay_units
-
-	call Show_Tips
-	jc 2f 
-	call Check_bus
-	movw $0x0e30, %ax
-	int $0x10
-    jb 4f
-	call Disk_Info 
-	movw $0x0e31, %ax
-	int $0x10
-
-	movw %fs:0x0413, %ax             
-	subw $05, %ax     
-	movw %ax, %fs:0x0413
-	shlw $06, %ax 
-
-	movw $(Ending - Entry_USB2DRI), %cx 
-	xorw %si, %si     
-	xorw %di, %di
-	movw %ax, %es
-	rep movsb   
-	pushw %ax
-	pushw $(1f - Entry_USB2DRI)
-	lret
-1:
-	pushw %cs
-	popw %ds    
-                
-	call host_initialization
-	movw $0x0e32, %ax
-	int $0x10
-	call Device_enum
-	movw $0x0e33, %ax
-	int $0x10
-	cmpb $0, (max_id - Entry_USB2DRI)
-	je 3f	
-	call Test_device
-	movw $0x0e34, %ax
-	int $0x10
-	cmpb $0, (max_dri - Entry_USB2DRI) 
-	je 3f
-	call Define_disk_No
-	movw $0x0e35, %ax
-	int $0x10
-	call Set_int13       
-
-	movw $(load_ok - Entry_USB2DRI), %si
-	call Show_Character
-	clc
-5:	
-	popal
-	movb %cs:(Save_dl - Entry_USB2DRI), %dl
-	popw %gs
-	popw %fs
-	popw %es
-	popw %ds
-	lret
-3:
-	addw $5, %fs:0x0413
-4:
-	movw $(load_err - Entry_USB2DRI), %si
-	call Show_Character
-	movw $0xbb8, %ax
-	call Delay 
-2:
-	stc
-	jmp 5b
-	
-
-Show_Character:
-2:   
-	lodsb
-	orb %al, %al   
-	jz 1f
-	movb $0x0e, %ah
-	movw $07, %bx
-	int $0x10 
-	jmp 2b
-1:  
-	ret
-
-
-Show_Tips:   
-	movw %fs:0x41c, %ax
-	movw %ax, %fs:0x041A
-
-	movw $(load - Entry_USB2DRI), %si
-	call Show_Character
-
-	movzbw (Time - Entry_USB2DRI), %cx
-	imulw $0x64, %cx 
-1:
-	movw $0x0a, %ax
-	call Delay 
-	movb $01, %ah
-	int $0x16
-	jnz 1f 
-	movb $0x11, %ah	
-	int $0x16
-	jnz 1f 
-	loop 1b
-	jmp 2f
-1:        
-	cmpb $0x20, %al
-	je 1f
-	orb $0x20, %al
-	cmpb $0x73, %al
-	jne 2f
-	shlw $03, (Count_1ms - Entry_USB2DRI) 
-2:        
-	movw $(sca - Entry_USB2DRI), %si
-	call Show_Character
-	clc        
-	ret
-1:
-	stc
-	ret
-
-	
-Read_Write_Configuration:  
-	pushw %bp
-	movw %sp, %bp
-	pushw %bx
-	pushl %ecx
-	pushw %di
-	movw 04(%bp), %bx
-	movw 06(%bp), %di 
-	movw 0x08(%bp), %cx
-	decb %al
-	jne 1f
-	movw $0xB109, %ax 
-	int $0x1A
-	jmp 2f
-1:
-	decb %al
-	jne 1f        
-	movw $0xB10A, %ax 
-	int $0x1A
-	jmp 2f
-1:
-	movw $0xB10C, %ax
-	int $0x1A                          
-2:
-	movl %ecx, %eax
-	popw %di
-	popl %ecx
-	popw %bx
-	popw %bp
-	ret	
-	
-	
-Set_int13:
-	cli
-	movl %fs:0x004c, %ebx
-	movl %ebx, %ds:(old_int13 - Entry_USB2DRI) 
-
-	movw $(Entry_int13 - Entry_USB2DRI), %bx
-	movw %bx, %fs:0x004c
-	movw %ds, %fs:0x004e 
-	sti
-	ret 	
-
-
-Sector_comparison:
-  pushw %si
-  pushw %di
-  pushw %cx
-	movw $0x200, %cx
-1:				
-	repz cmpsb
-	je 2f
-	cmpw $0x01db, %cx
-	je 1b
-	cmpw $0x01bf, %cx
-	je 1b
-	cmpw $0x01e3, %cx
-	jne 3f
-	addw $3, %cx
-	jmp 1b
-2:
-	clc
-1:
-	popw %cx
-  popw %di
-  popw %si
-  ret
-3:
-	stc
-	jmp 1b
-
-	
-	
-	
-Search_drive:
-	movb %fs:0x0475, %cl
-	orb $0x80, %cl
-	incb %fs:0x0475
-	ret	
-	
-	
-read_hdd:
-	pushw %bx
-	movw $1, %bx
-	movb $1, %cl
-	call Read_write_usb
-	popw %bx
-	ret
-	
-
-read_int13:				
-	pushw %ds
-	pushw %es
-	int $0x13
-	popw %es
-	popw %ds
-	ret			
-	
-	
-
-read_dri:
-	pushaw
-	movw $2, %si
-1:        
-	movw $0x0201, %ax    
-	xorb %dh, %dh
-	movw $1, %cx
-	call read_int13  
-	jnb 1f
-	decw %si
-	je 1f
-	movb $0, %ah
-	call read_int13
-	jmp 1b
-1:
-	popaw
-	ret
-				
-
-Get_dri:
-	movb %cs:(Save_dl - Entry_USB2DRI), %dl
-	cmpb $0x23, %dl
-	jne 1f
-	movb %fs:0x21af, %dl
-1:				
-	ret	
-	
-	
-Define_disk_No: 
-	pushw (Init_cs - Entry_USB2DRI)      
-	popw %es 
-  
-	xorw %bx, %bx
-	movb (max_dri - Entry_USB2DRI), %dh
-  call Get_dri 
-0:        
-	movb (DriLUN - Entry_USB2DRI)(%bx), %al
-	movb %al, (_lun - Entry_USB2DRI)        
-	movb (DriID - Entry_USB2DRI)(%bx), %al
-	movb %al, (_id - Entry_USB2DRI)
-	movb (DriType - Entry_USB2DRI)(%bx), %al
-	movb %al, (_type - Entry_USB2DRI)
-	pushw %es
-	popw %ds
-
-	cmpb $5, %al
-	jne 1f
-							
-	cmpb $0x90, %dl
-  jb 2f
-  movb %dl, %cs:(Number - Entry_USB2DRI)(%bx)
-  jmp 3f
-2:     
-  movb $0xff, %cs:(Number - Entry_USB2DRI)(%bx)
-3:
-	movl $0x11, %eax
-	movw $mem_mbr, %di
-	call read_hdd
-	movl 0x47(%di), %eax
-	call read_hdd
-	cmpw $0xAA55, 0x1e(%di)
-	jne 5f
-	movb 0x21(%di), %al
-	movb %al, %cs:(Media_types - Entry_USB2DRI)
-	movw 0x22(%di), %ax
-	movw %ax, %cs:(Capacity - Entry_USB2DRI)(%bx)
-	movw 0x26(%di), %ax
-	movw %ax, %cs:(Capacity + 2 - Entry_USB2DRI)(%bx)
-	movl 0x28(%di), %eax
-	movl %eax, %cs:(StartSector - Entry_USB2DRI)(%bx)			
-	jmp 5f
- 
-1:   
-	xorl %eax, %eax
-	movw $mem_mbr, %di
-	call read_hdd
-
-	movw $04, %cx
-1:
-	cmpb $0x80, 0x1be(%di)
-	je 1f
-	addw $0x10, %di
-	loop 1b
-	jmp 2f       
-1:
-  testb $0x3f, (0x1be+2)(%di)
-  je 2f
-  testb $0x3f, (0x1be+6)(%di)
-  je 2f
-  cmpl $0, (0x1be+8)(%di)
-  je 2f
-  cmpl $0, (0x1be+0xc)(%di)
-  je 2f
-	movl 0x1ca(%di), %ecx
-	movl 0x01c6(%di), %eax
-  movw $mem_pbr, %di
-  call read_hdd
-  jmp 1f
-2:
-  movw $mem_mbr, %di
-  movw 0x13(%di), %cx
-  cmpw $0x3231, 0x39(%di)
-  je 2f
-  movl 0x20(%di), %ecx
-2:
-  movl 0x1c(%di), %eax
-1:
-  movl %ecx, %cs:(Capacity - Entry_USB2DRI)(%bx) 
-	movl %eax, %cs:(StartSector - Entry_USB2DRI)(%bx)
-
-  movb %cs:(fd_num - Entry_USB2DRI), %ch
-  cmpb $0, %ch
-  je 2f
-  xorb %cl, %cl
-  movw $mem_fd, %si
-1:
-  movw $mem_mbr, %di
-	call Sector_comparison
-	jnc 3f
-  movw $mem_pbr, %di
-  call Sector_comparison
-	jnc 3f
-  decb %ch
-  je 2f
-  addw $0x200, %si
-  incb %cl
-  jmp 1b
-2:
-  movb %cs:(hd_num - Entry_USB2DRI), %ch
-  cmpb $0, %ch
-  je 2f
-  movb $0x80, %cl
-  movw $mem_hd, %si
-  movw $mem_mbr, %di
-1:
-  call Sector_comparison
-  jnc 3f
-  decb %ch
-  je 2f
-  addw $0x200, %si
-  incb %cl
-  jmp 1b
-2:
-  call Search_drive
-3:
-	movb %cl, %cs:(Number - Entry_USB2DRI)(%bx)
-5:
-	pushw %cs
-	popw %ds
-
-	decb %dh
-	je 4f
-	addw $DriveLen, %bx
-	jmp 0b
-4:
-  testb $1, (fb_boot - Entry_USB2DRI)
-  je 1f
-  movb (Number - Entry_USB2DRI),%cl
-  movb %cl, (Save_dl - Entry_USB2DRI)
-	andb $0x3e, %fs:0x0410
-1:
-	ret	
-	
-	
-Test_device:   
-	xorw %bx, %bx
-	xorw %si, %si
-	movb $01, (_id - Entry_USB2DRI)
-	movb $0, (_lun - Entry_USB2DRI)
-0:
-	call Remove
-	movb $1, (Direction - SCSI)(%di)			
-	movw $0x24, (TSize - SCSI)(%di)			
-	movw $(Cache - Entry_USB2DRI), %ax		
-	movw %ax, (TOffset - SCSI)(%di)	
-	movw %ds, (TSection - SCSI)(%di)
-	movb $0x12, (TokenContent - SCSI)(%di)	
-	movb $0x24, (TokenContent + 4 - SCSI)(%di)
-	call SCSI_Command
-	cmpb $0, (Return - SCSI)(%di)
-    jne 1f
-	movb (Cache - Entry_USB2DRI), %al	
-	andb $0x1f, %al
-	cmpb $0x1f, %al
-	je 1f		
-	movb %al, (_type - Entry_USB2DRI)
-	pushw %si
-	movw $900, %si
-	cmpb $5, %al
-	je csdyd
-	movw $5, %si
-csdyd:	
-	call Remove
-	call SCSI_Command
-	cmpb $0, (Return - SCSI)(%di)
-	je 2f
-	decw %si
-	je 3f
-	movw $100, %ax
-	call Delay
-	jmp csdyd	
-3:
-	popw %si
-	jmp 1f
-2:
-	popw	%si
-	movb (_id - Entry_USB2DRI), %al
-	movb %al, (DriID - Entry_USB2DRI)(%si) 
-
-	movb (_lun - Entry_USB2DRI), %al
-	movb %al, (DriLUN - Entry_USB2DRI)(%si)
-	movb (_type - Entry_USB2DRI), %al
-	movb %al, (DriType - Entry_USB2DRI)(%si)
-	
-	incb (max_dri - Entry_USB2DRI)
-    cmpb $8, (max_dri - Entry_USB2DRI)
-    jae 2f
-	addw $DriveLen, %si     
-1:
-	movb (_lun - Entry_USB2DRI), %al
-	cmpb (MaxLUN - Entry_USB2DRI)(%bx), %al 
-	jae 1f
-	incb (_lun - Entry_USB2DRI)
-	jmp 0b 
-1:
-	movb (_id - Entry_USB2DRI), %al
-	cmpb (max_id - Entry_USB2DRI), %al
-	jae 2f 
-	movb $0, (_lun - Entry_USB2DRI)
-	incb (_id - Entry_USB2DRI)
-	addw $DevLen, %bx 
-	jmp 0b
-2:        
-	ret       	
-
-	
-Fill_device_structure:
-	pushaw
-	movw $(Cache - Entry_USB2DRI), %di
-	movw $(Get_device - Entry_USB2DRI), %si
-	movb $0x08, (ConSize - Entry_USB2DRI)(%bx)
-      
-	call Control_transfer
-	movw $03, %ax 
-	call Delay 
-	cmpb $0, (Status - Entry_USB2DRI)
-	jne 5f
-	movb 07(%di), %al
-	movb %al, (ConSize - Entry_USB2DRI)(%bx)              
-	movw $(Get_Configuration - Entry_USB2DRI), %si  
-	call Control_transfer
-	movw $03, %ax
-	call Delay
-	movw 2(%di), %ax
-	cmpw $0x100, %ax
-	jae 5f
-	movb %al, (Get_Configuration + 6 - Entry_USB2DRI) 	
-	call Control_transfer
-	movw $03, %ax
-	call Delay	
-	movb 05(%di), %al
-	movb %al, (Set_Configuration + 2 - Entry_USB2DRI)
-	movzbw (%di), %ax
-	addw %ax, %di         
-	cmpw $0x0608, 05(%di)
-	jne 5f
-	cmpb $0x50, 07(%di)
-	jne 5f        
-	movb 04(%di), %al
-	movb %al, %ch
-	movzbw (%di), %ax
-	addw %ax, %di
-	xorb %cl, %cl
-	cmpb %cl, %ch 
-	je 4f
-1:
-	movb 02(%di), %dl
-	movw 04(%di), %bp
-	movb 03(%di), %dh
-	movb %dh, %al
-	decb %al
-	decb %al
-	jne 3f
-
-	testb $0x80, %dl 
-	je 2f 
-
-	movb %dh, (InProperty - Entry_USB2DRI)(%bx) 
-	movb %dl, (InAddress - Entry_USB2DRI)(%bx)
-	movw %bp, (InSize - Entry_USB2DRI)(%bx)
-	jmp 3f
-2:     
-	mov %dh, (OutProperty - Entry_USB2DRI)(%bx)
-	mov %dl, (OutAddress - Entry_USB2DRI)(%bx)
-	mov %bp, (OutSize - Entry_USB2DRI)(%bx) 
-3:
-	incb %cl 
-	cmpb %ch, %cl
-	je 4f
-	movzbw 07(%di), %ax
-	addw %ax, %di 
-	jmp 1b
-4:        
-	movw $(Set_device_Address - Entry_USB2DRI), %si
-	incb 02(%si)
-	call Control_transfer
-	movw $03, %ax
-	call Delay 
-	movb (Set_device_Address + 2 - Entry_USB2DRI), %al
-	movb %al, (DevID - Entry_USB2DRI)(%bx)   
-	mov $(Set_Configuration - Entry_USB2DRI), %si
-	call Control_transfer
-	movw $03, %ax 
-	call Delay       
-	mov $(Get_lun - Entry_USB2DRI), %si 
-	call Control_transfer
-	movw $03, %ax
-	call Delay
-	movb (Cache - Entry_USB2DRI), %al
-	movb %al, (MaxLUN - Entry_USB2DRI)(%bx)  
-	clc
-	jmp 1f 
-5:  
-	stc
-1:      
-	popaw
-	ret	
-	
-	
-Device_enum:   
-	movw $0x44, %si
-	xorw %bx, %bx
-	movw (ndk - Entry_USB2DRI), %cx 
-1:        
-	call Read_Register
-	testb $01, %al
-	jne 1f 
-2:       
-	decw %cx 
-	je 4f
-	addw $04, %si
-	jmp 1b
-1: 
-	call Port_Reset    
-	testb $04, %al
-	jne 3f 
-
-	movl $0x00003002, %eax  
-	call Write_Register
-	movw $03, %ax
-	call Delay 
-	jmp 2b
-3:  
-	movw %si, (PORTSC - Entry_USB2DRI)(%bx)
-	call Fill_device_structure
-	jb 2b
-	incb (max_id - Entry_USB2DRI)
-    cmpb $4, (max_id - Entry_USB2DRI)
-    jae 4f
-	incb (_id - Entry_USB2DRI)
-	addw $DevLen, %bx
-	jmp 2b
-4:        
-	ret        	
-	
-	
-Cache:
-	.byte		0
-	
-	
-	
-Define_qTD1:   
-	movl $(qh - Entry_USB2DRI), %eax
-	movw %ax, (qTD1 - Entry_USB2DRI) 
-	addl (ds_Linear - Entry_USB2DRI), %eax
-	movl %eax, (qTD1_Linear - Entry_USB2DRI)        
-	ret 	
-	
-	
-Fill_descriptor:  
-	movw %ds, %ax
-	movzwl %ax, %eax
-	shll $04, %eax
-	movl %eax, (ds_Linear - Entry_USB2DRI) 
-
-	movl $(GDT - Entry_USB2DRI), %eax
-	addl (ds_Linear - Entry_USB2DRI), %eax
-	movl %eax, (Base - Entry_USB2DRI)
-
-	movl (Register_pci - Entry_USB2DRI), %eax 
-	movw %ax, (BaseL - Entry_USB2DRI)
-	shrl $0x10, %eax
-	movb %al, (BaseM - Entry_USB2DRI)
-	movb %ah, (BaseH - Entry_USB2DRI)
-	ret	
-	
-	
-host_initialization:                     
-	call Allow_A20 
-             
-	pushw $0x10 
-	pushw (bus_device_function - Entry_USB2DRI)
-	movb $02, %al
-	call Read_Write_Configuration
-	addw $04, %sp
-	movl %eax, (Register_pci - Entry_USB2DRI)      
-
-	call Fill_descriptor
-
-	call Define_qTD1
-
-	movw $0, %si
-	call Read_Base_address 
-	movb %al, (Ability_Register_Size - Entry_USB2DRI)
-
-	movw $04, %si 
-	call Read_Base_address
-	movb %al, %bl
-	andw $0x0F, %ax
-	movw %ax, (ndk - Entry_USB2DRI)
- 
-	movl $02, %eax
-	movw $0, %si
-	call Write_Register
-1:
-	movw $03, %ax 
-	call Delay
-    
-	movw $0, %si 
-	call Read_Register
-	testw $02, %ax
-	jne 1b 
-
-	movw $0x08, %si 
-	call Read_Base_address
-	xorw %cx, %cx
-	movb %ah, %cl
-	movw %cx, %si
-	leaw 02(%si), %dx 
-	
-	pushw %dx 
-	pushw (bus_device_function - Entry_USB2DRI)
-	movb $01, %al 
-	call Read_Write_Configuration 
-	addw $04, %sp
-
-	orw $0x100, %ax
-	pushw %ax 
-	pushw %dx 
-	pushw (bus_device_function - Entry_USB2DRI)
-	movb $03, %al
-	call Read_Write_Configuration
-	addw $06, %sp
-         
-	movw $0x01F4, %cx        
-2:
-	pushw %dx 
-	pushw (bus_device_function - Entry_USB2DRI)
-	movb $01, %al 
-	call Read_Write_Configuration 
-	addw $04, %sp
-	testw $01, %ax
-	je 1f 
-	movw $0x0a, %ax
-	call Delay 
-	loop 2b
-1:
- 
-	leaw 04(%si), %dx 
-	
-	pushw $00 
-	pushw %dx
-	pushw (bus_device_function - Entry_USB2DRI) 
-	movb $03, %al 
-	call Read_Write_Configuration
-	addw $06, %sp               
-
-	movl (qTD1_Linear - Entry_USB2DRI), %eax
-	addl $0xc0, %eax 
-	pushl %eax
-	orb $02, %al
-	movw (qTD1 - Entry_USB2DRI), %di
-	addw $0xc0, %di 
-	movl %eax, (%di) 
-	movb $01, 0x10(%di)
-	movb $01, 0x14(%di)
-
-	popl %eax
-	movw $0x18, %si
-	call Write_Register
-
-	movl $0x00010001, %eax
-	movw $0, %si
-	call Write_Register
- 
-	testb $0x10, %bl
-	je 1f
-	movw (ndk - Entry_USB2DRI), %cx
-	movw $0x44, %di 
-	jmp 2f
-3: 
-	movl $0x00001000, %eax
-	movw %di, %si
-	call Write_Register
-	addw $04, %di
-	decw %cx
-2:
-	cmpw $0, %cx 
-	ja 3b
-	movw $50, %ax
-	call Delay
-1:        
-
-	movl $0x00000001, %eax
-	movw $0x40, %si   
-	call Write_Register 
-	movw $0x32, %ax
-	call Delay 
-	ret	
-	
-	
-Disk_Info:
-	call Get_dri
-  movb %fs:0x410, %cl
-  testb $1, %cl
-  jne 1f
-  xorb %cl, %cl
-  cmpb $0, %dl
-  jne 2f
-  orb $1, %fs:0x410
-  andb $0x3f, %fs:0x410
-1:
-  shrb $6, %cl
-  incb %cl
-2:
-  cmpb $2, %cl
-  jbe 1f
-  movb $2, %cl
-1:
-  movb %cl, (fd_num - Entry_USB2DRI)
-  cmpb $0, %cl
-  je 1f
-  xorb %dl, %dl
-	movw $mem_fd, %bx
-	call 2f
-1:
-	movb $10, %cl 
-  cmpb $10, %fs:0x0475
-	ja 1f
-  movb %fs:0x0475, %cl
-1:
-	movb %cl, (hd_num - Entry_USB2DRI)
-  cmpb $0, %cl
-  je 1f
-  movb $0x80, %dl
-	movw $mem_hd, %bx
-	call 2f
-1:							
-	ret
-
-2:
-  call read_dri
-  jnc 1f
-  cmpb $0, %dl
-  jne 1f
-  orb $1, (fb_boot - Entry_USB2DRI)
-1:
-  decb %cl
-  je 1f
-  addw $0x200, %bx
-  incb %dl
-  jmp 2b
-1:
-  ret
-  
-	
-Check_bus:  
-	movw $0xB101, %ax 
-	int $0x1A
-	cmpl $0x20494350, %edx
-	jne 1f
-	movw $0, %si
-	movw $0xB103, %ax 
-	movl $0x000C0320, %ecx 
-	int $0x1A 
-	jb 1f
-	movw %bx, (bus_device_function - Entry_USB2DRI)
-	clc
-	ret
-1:
-	stc       
-	ret	
-	
-
-Determine_delay_units:   
-	xorw %ax, %ax
-	movw %ax, %fs
-	decw %ax
-	movw %ax, %gs
-	sti 
-	movw %fs:0x046c, %dx
-	xorl %ecx, %ecx
-1:
-	movw %fs:0x046c, %ax 
-	cmpw %dx, %ax                
-	je 1b                      
-
-qdys_2:
-	cmpw %fs:0x046c, %ax
-	jne qdys_3 
-
-	pushw %dx
-	pushw %ax
-	movw $0xcf8, %dx
-	inw %dx, %ax
-	popw %ax
-	popw %dx
-	incl %ecx 
-	cmpl $0, %ecx
-	jmp qdys_2
- 
-qdys_3:
-	xorl %edx, %edx
-	movl %ecx, %eax
-	movl $0x37, %ecx
-	divl %ecx
-	movb (Speed - Entry_USB2DRI), %cl
-	shlw %cl, %ax
-	movw %ax, (Count_1ms - Entry_USB2DRI) 
-1:
-	ret
-
-
-load:
-	.ascii  "Loading USB2.0 driver\r\n" 
-	.ascii  "Press s key, slow down loading\r\n"
-	.ascii  "Press spacebar not loading\r\n\0" 
-
-sca:
-	.ascii  "\r\n... Scanning USB Devices ...\r\n\0"
-
-load_err:                                                       
-	.ascii  "\r\nLoaded failed\r\n" 
-
-Ending:
-	.byte   0
-
-	
-	. = EXT_C(main) + 0x1a0 + 0x1400
-USB_size:				
-/* ********************  USB2DRI end  ****************************** */ 
 
 	cli
 	cld
@@ -9684,6 +7572,2304 @@ int13_handler_end:
 	//. = . - (int13_handler_end - int13_handler)/0x2F01
 
 #;============================================================================
+/* unsigned long
+ * init_usb() : return number of usb devices.
+ */
+
+ENTRY(init_usb)
+
+	.code32
+
+	pushl	%ebp
+	pushl	%ebx
+
+	call	EXT_C(prot_to_real)	/* enter real mode */
+
+	.code16
+
+	sti		/* enable interrupt for USB */
+
+	cld
+
+	/* set CS base to be Entry_USB2DRI */
+	.byte	0xEA
+	.word	1f - EXT_C(main) + 0x8200
+	.word	0
+1:
+	pushaw
+	pushw	%es
+	pushw	%ds
+
+	pushw	%cs
+	popw	%ds
+	pushw	%cs
+	popw	%es
+	xorw	%ax, %ax
+
+	//Load the usb driver, Maximum size 0x3600
+	movw	$(Entry_USB2DRI - EXT_C(main) + 0x8200), %si
+	movw	$0x4200, %di
+	movw	$(USB_size - Entry_USB2DRI)/2, %cx
+	rep movsw
+	call	$0x420,$0
+	
+	movl	0x4C, %eax
+	movl	%eax, ABS(EXT_C(ROM_int13))
+	movl	%eax, ABS(EXT_C(ROM_int13_dup))
+
+	popw	%ds
+	popw	%es
+
+	movw	%sp, %bp
+	movw	%cx, 8(%bp)	#; 8(%bp) is old BX on stack !
+	popaw
+
+	ljmp	$0, $ABS(1f)
+1:
+
+	call	EXT_C(real_to_prot)
+	.code32
+
+	sti
+
+	movzwl	%bx, %eax
+
+	popl	%ebx
+	popl	%ebp
+	ret
+
+/* ********************  USB2DRI start  ****************************** */
+	.align	16
+
+Entry_USB2DRI:
+
+	.code16
+	
+
+	jmp Initialization
+	
+	.ascii  "USB2DRI "
+retention:
+	.byte   0	
+max_id:
+	.byte   0	
+ENTRY(max_dri)
+	.byte   0	
+_id:
+	.byte   1
+_lun:
+	.byte   0
+_type:
+	.byte   0	
+lba1sector:
+	.byte   0
+ENTRY(usb_delay)
+	.byte   0
+Save_ah:
+	.byte   0
+Count_1ms:
+	.word   0
+Single_size:
+	.word   0
+bus_device_function:
+	.word   0
+R_W_Mark:
+	.byte   0
+old_int13:
+	.long   0
+Direction1:
+	.byte   0
+	
+	. = Entry_USB2DRI + 0x20
+
+
+
+qh:
+	.fill 0x110,1,0x00                      //QH,qTD
+
+//qTD1    db      40h dup(0)
+//qTD2    db      40h dup(0)
+//qTD3    db      40h dup(0) 
+
+//QH0     db      40h dup(0)
+//				db		  10h dup(0)    
+
+cbw_qq:
+	.long   0x43425355
+	.long   0x12345678
+	.long   0
+	.byte   0
+	.byte   0
+	.byte   0x0c
+	.long   0
+	.long   0
+	.long   0
+	.long   0
+	.byte   0 
+
+csw_qq:
+	.fill 0x20,1,0x00
+
+//---------------------------------------------------------------------------- 
+
+GDT:
+
+	.word	0, 0
+	.byte	0, 0, 0, 0
+	
+
+LimitL:
+	.word   0xffff
+BaseL:
+	.word   0
+BaseM:
+	.byte   0 
+Attributes:
+	.byte   0x92
+LimitH:
+	.byte   0
+BaseH:
+	.byte   0
+
+aaaa:
+#define	GDTLen	aaaa - GDT  
+
+
+VGDTR:
+	.word	GDTLen - 1
+Base:        
+	.long	0
+	
+
+//---------------------------------------------------------------------------- 
+	.ascii  "DEV"
+
+Dev:
+DevID:
+	.byte   0
+ConProperty:
+	.byte   0
+ConAddress:
+	.byte   0
+ConSize:
+	.word   12
+InProperty:
+	.byte   0
+InAddress:
+	.byte   0
+InSize:
+	.word   0
+OutProperty:
+	.byte   0
+OutAddress:
+	.byte   0
+OutSize:
+	.word   0
+MaxLUN:
+	.byte   0
+Port_Num_Reg:
+	.byte   0
+HUB_id:
+	.byte   0
+InterfaceNum:
+	.byte   0
+InterfaceValue:
+	.byte   0
+	
+bbbb:
+#define	DevLen	bbbb - Dev
+
+	.fill DevLen,1,0x00
+	.fill DevLen,1,0x00
+	.fill DevLen,1,0x00
+	.fill DevLen,1,0x00
+	.fill DevLen,1,0x00
+	.fill DevLen,1,0x00
+	.fill DevLen,1,0x00
+
+//---------------------------------------------------------------------------- 
+	.ascii  "DRI"
+
+Dri:
+Number:
+	.byte   0
+DriID:
+	.byte   0
+DriLUN:
+	.byte   0
+DriType:
+	.byte   0	
+Capacity:
+	.long   0
+StartSector:
+	.long   0       
+
+cccc:        
+#define	DriveLen  cccc - Dri
+
+	.fill DriveLen,1,0x00
+	.fill DriveLen,1,0x00
+	.fill DriveLen,1,0x00
+	.fill DriveLen,1,0x00
+	.fill DriveLen,1,0x00
+	.fill DriveLen,1,0x00
+	.fill DriveLen,1,0x00
+
+//----------------------------------------------------------------------------
+
+SCSI:
+Return:
+	.byte   0
+Direction:
+	.byte   0
+TSize:
+	.long   0
+TOffset:
+	.word   0
+TSection:
+	.word   0
+TokenContent:
+	.byte   0,0,0,0,0,0,0,0,0,0,0,0
+
+dddd:
+#define	TokenLen  dddd - SCSI
+
+
+//----------------------------------------------------------------------------
+Disk_sector:
+	.long   0
+Start_sector:
+	.long   0
+Status:
+	.byte   0
+Error_repeat_Number_Bulk:
+	.byte   0
+Error_repeat_Number_Con:
+	.byte   0
+Read_write_repeat_Number:
+	.byte   0
+Stack_sp:
+	.word   0
+Stack_ss:
+	.word   0
+qTD1:
+	.word   0
+qTD1_Linear:
+	.long   0
+Media_types:	
+	.byte   0
+Ability_Register_Size:
+	.word   0
+ds_Linear:
+	.long   0      
+
+	
+#define CodeSize				0x1600
+
+	
+Get_device:
+	.byte   0x80,06,00,01,00,00,0x12,00
+Get_Configuration:
+	.byte   0x80,06,00,02,00,00,0x09,00
+Get_lun:
+	.byte   0xa1,0xfe,00,00,00,00,01,00
+Set_Configuration:
+	.byte   00,0x09,01,00,00,00,00,00
+Set_device_Address:
+	.byte   00,05,00,00,00,00,00,00 
+Clear_endpoint:
+	.byte   02,01,00,00,00,00,00,00
+Bulk_Reset:
+	.byte   0x21,0xff,00,00,00,00,00,00
+Set_Interface:
+	.byte   01,0x0b,00,00,00,00,00,00
+Get_Hub:
+	.byte   0xa0,06,00,0x29,00,00,0x10,00
+Set_Hub_Power:
+	.byte   0x23,03,0x08,00,00,00,00,00
+Get_Hub_Status:
+	.byte   0xa0,00,00,00,00,00,04,00
+Get_Port_Status:
+	.byte   0xa3,00,00,00,00,00,04,00
+Clear_Hub_Conne:
+	.byte   0x23,01,0x10,00,00,00,00,00
+Set_Hub_Reset:
+	.byte   0x23,03,04,00,00,00,00,00
+Clear_Hub_Reset:
+	.byte   0x23,01,0x14,00,00,00,00,00
+
+Entry_int13:
+	call Find_drive_info
+	jnb 1f
+	ljmp *%cs:(old_int13 - Entry_USB2DRI)
+1:        
+	cld               
+	pushal                          //       eax ecx edx ebx esp ebp esi edi  cf 
+	movw %sp, %bp                   //bp+    1c  18  14  10  0c  08  04  00   24
+	pushw %ds
+	pushw %es
+	pushw %fs
+	pushw %gs
+	pushw $0
+	popw %fs
+	pushw $0xffff
+	popw %gs
+        //ss=ds=0 es=2000 cs=9e00  fs=000 gs=ffff
+	cmpb $00, %ah
+	je int13_00_04_16_17_18_44_47
+	cmpb $01, %ah
+	je int13_01
+	cmpb $02, %ah
+	je int13_02_03        
+	cmpb $03, %ah
+	je int13_02_03
+	cmpb $0x08, %ah
+	je int13_08
+	cmpb $0x15, %ah
+	je int13_15
+	cmpb $0x16, %ah
+	je int13_00_04_16_17_18_44_47
+	cmpb $0x41, %ah
+	je int13_41                
+	cmpb $0x42, %ah
+	je int13_42_43     
+	cmpb $0x43, %ah
+	je int13_42_43
+	cmpb $0x48, %ah
+	je int13_48
+	cmpw $0x4b01, %ax
+	je int13_4b01	
+
+qtml:        
+	movb $01, %ah
+	jmp 4f        
+int13_00_04_16_17_18_44_47:
+	xorb %ah, %ah         
+4:  
+	testb $0x80, %dl
+	jne 1f
+	movb %ah, %fs:0x0441
+	jmp 2f
+1:	
+	movb %ah, %fs:0x0474
+2:	
+	andb $0xfe, 0x24(%bp)        		//cf=0
+	movb %ah, 0x1d(%bp)             //ah
+	orb %ah, %ah
+	je 3f
+	orb $01, 0x24(%bp)              //cf=1
+3: 
+	popw %gs
+	popw %fs
+	popw %es
+	popw %ds
+	popal
+	iret        
+        
+
+int13_01:  
+	testb $0x80, %dl
+	jne 1f
+	xchgb %fs:0x0441, %ah
+	jmp 2b
+1:
+	xchgb %fs:0x0474, %ah        
+	jmp 2b    
+
+
+int13_02_03:
+	movb %ah, %cs:(Save_ah - Entry_USB2DRI)
+	call chs_lba
+	cmpl %cs:(Disk_sector - Entry_USB2DRI), %eax
+	ja 2f
+	movb $01, %cl
+	cmpb $02, %cs:(Save_ah - Entry_USB2DRI)
+	je 1f
+	xorb %cl, %cl
+1:     
+	call Read_write_usb
+	jnb int13_00_04_16_17_18_44_47
+2:
+	jmp qtml        
+
+int13_08:
+	pushw %dx
+	movw $0x3ec1, %cx        
+	movw %cs:(Disk_sector - Entry_USB2DRI), %ax
+	movw %cs:(Disk_sector + 2 - Entry_USB2DRI), %dx 
+	cmpw %cx, %dx
+	jae 1f
+	divw %cx
+	decw %ax
+	cmpw $0x03FF, %ax
+	jb 2f
+1:        
+	movw $0x03FF, %ax
+2:
+	movw %ax, %cx
+	xchgb %ch, %cl
+	shlb $06, %cl
+	orb $0x3f, %cl
+	movb $0xfe, %dh
+	movb %fs:0x0475, %dl
+	movw %dx, 0x14(%bp)
+	movw %cx, 0x18(%bp)
+	movb $0x10, 0x10(%bp)
+	popw %dx
+	jmp int13_00_04_16_17_18_44_47        
+         
+int13_15:
+	movb %al, %fs:0x0441
+	movb $02, %ah        
+	testb $0x80, %dl
+	je 1f
+	movb $03, %ah
+1:        
+	andb $0xfe,0x24(%bp)            //cf=0
+	movb %ah, 0x1d(%bp)             //ah
+	jmp 3b
+
+
+Find_drive_info:
+	pushal
+	pushw %ds
+	pushw %cs
+	popw %ds
+	movb (EXT_C(max_dri) - Entry_USB2DRI), %cl
+	movw $(Dri - Entry_USB2DRI), %si
+1:        
+	cmpb (Number - Dri)(%si), %dl
+	je 1f
+	decb %cl
+	orb %cl, %cl
+	je 2f
+	addw $DriveLen, %si 
+	jmp 1b
+1:
+	movb (DriID - Dri)(%si), %al 
+	movb %al, (_id - Entry_USB2DRI)
+	movb (DriLUN - Dri)(%si), %al 
+	movb %al, (_lun - Entry_USB2DRI)
+	movb (DriType - Dri)(%si), %al
+	movb %al, (_type - Entry_USB2DRI)
+	movl (Capacity - Dri)(%si), %eax 
+	movl %eax, (Disk_sector - Entry_USB2DRI)
+	movl (StartSector - Dri)(%si), %eax 
+	movl %eax, (Start_sector - Entry_USB2DRI)      
+	clc
+1:
+	popw %ds
+	popal
+	ret
+2:
+	stc
+	jmp 1b                 
+
+
+chs_lba:
+	movw %bx, %di
+	movzbw %al, %bx
+
+	movb %cl, %al
+	andb $0x3f, %al
+	movzbl %al, %eax
+	pushl %eax 
+
+	xchgb %ch, %cl
+	andb $0xc0, %ch
+	rolb $02, %ch
+
+	movl $0xff, %eax
+	movzwl %cx, %ecx
+	imull %ecx, %eax
+	movzbl %dh, %ecx
+	addl %ecx, %eax 
+	movl $0x3f, %ecx
+	imull %ecx, %eax
+	popl %ecx
+	addl %ecx, %eax        
+	decl %eax
+   
+	ret
+   
+
+
+
+int13_41:   
+	cmpw $0x55aa, %bx
+	jne qtml 
+	movw $0x2100, %ax               //EDD-2.1
+	notw %bx                        //bx=AA55
+	movw $5, %cx 
+	movw %bx, 0x10(%bp)
+	movw %cx, 0x18(%bp)         
+	movw %ax, 0x1c(%bp) 
+	andb $0xfe, 0x24(%bp)           //cf=0
+	jmp 3b
+
+
+int13_42_43:
+	movb %ah, %cs:(Save_ah - Entry_USB2DRI)     
+	call Disk_package
+	cmpl %cs:(Disk_sector - Entry_USB2DRI), %eax
+	ja 2f
+	movb $01, %cl
+	cmpb $0x42, %cs:(Save_ah - Entry_USB2DRI)
+	je 1f
+	xorb %cl, %cl       
+1:
+	call Read_write_usb
+	jnb int13_00_04_16_17_18_44_47
+2:
+	jmp qtml
+
+
+Disk_package:
+	movw 02(%si), %bx
+	movw 04(%si), %di
+	movw 06(%si), %es
+	movl 0x08(%si), %eax       
+	ret
+
+
+int13_48:
+	pushw %ds
+	popw %es
+	pushw %dx
+	movw %si, %di 
+	xorb %al, %al
+	movw $0x1a, %cx
+	rep stosb
+	movb $0x1a, (%si)
+	movb $06, 02(%si)
+	movb $0x3f, 0x0c(%si)
+	movb $0xff, 0x08(%si)
+	movl $0x3ec1, %ecx
+	movl %cs:(Disk_sector - Entry_USB2DRI), %eax
+	movl %eax, 0x10(%si)
+	xorl %edx, %edx
+	divl %ecx
+	movl %eax, 04(%si)        
+	movw $0x200, 0x18(%si)
+	popw %dx
+	jmp int13_00_04_16_17_18_44_47
+	
+int13_4b01:			
+	movb $0x13, (%si)
+	movb %cs:(Media_types - Entry_USB2DRI), %al
+	movb %al, 1(%si)
+	movb $0xff, 2(%si)
+	movb $1, 3(%si)
+	movl %cs:(Start_sector - Entry_USB2DRI), %eax
+	movl %eax, 4(%si)
+	movw %cs:(bus_device_function - Entry_USB2DRI), %ax
+	movb %cs:(_lun - Entry_USB2DRI) ,%al
+	movw %ax, 8(%si)
+	movw $0, 0x0a(%si)
+	movw %cs:(Disk_sector - Entry_USB2DRI), %ax
+	movw %ax, 0x0c(%si)
+	movw %cs:(Disk_sector + 2 - Entry_USB2DRI), %ax
+	movw %ax, 0x0e(%si)
+	movw $0, 0x10(%si)
+	movb $0, 0x12(%si)	
+	jmp int13_00_04_16_17_18_44_47
+	
+//------------------------------------------------------------------------------------------
+
+
+Allow_A20:
+	call observe
+	orw %ax, %ax 
+	jne 1f
+	mov $0x2401, %ax
+	int $0x15
+	call observe
+	orw %ax, %ax
+	jne 1f
+	pushfl
+	cli
+
+2:
+	inb $0x64, %al
+	testb $02, %al
+	jne 2b     
+	mov $0xd1, %al
+	outb %al, $0x64
+2:
+	inb $0x64, %al
+	testb $02, %al
+	jne 2b
+	movb $0xdf, %al
+	outb %al, $0x60
+2:
+	inb $0x64, %al
+	testb $02, %al
+	jne 2b
+	movb $0xff, %al
+	outb %al, $0x64
+2:
+	inb $0x64, %al
+	testb $02, %al
+	jne 2b
+	popfl
+1:
+	ret
+
+
+
+observe:
+	pushw %bx
+	pushw %dx
+	pushfl
+	cli
+	movw %fs:0x0000, %ax
+	movw %gs:0x0010, %bx
+	notw %ax
+	movw %ax, %gs:0x0010
+	movw %fs:0x0000, %dx
+	movw %bx, %gs:0x0010 
+	popfl
+	xorw %dx, %ax
+	popw %dx
+	popw %bx
+	ret
+
+        
+
+Delay:
+	pushl %ecx
+	pushw %dx
+	movw (Count_1ms - Entry_USB2DRI), %dx
+2:        
+	movw %dx, %cx
+
+3:
+	cmpw %cs:0x046C, %ax 
+	jmp 1f
+1:
+	pushw %dx
+	pushw %ax
+	movw $0xcf8, %dx
+	inw %dx, %ax
+	popw %ax
+	popw %dx
+	decw %cx
+	cmpw $0, %cx
+	jne 3b
+
+	decw %ax
+	jne 2b
+	popw %dx
+	popl %ecx
+	ret
+
+
+Remove_qTD:				
+	movw	(qTD1 - Entry_USB2DRI), %di
+  xorw	%ax, %ax
+	movw	$0x60, %cx
+	rep	stosw				
+	ret	
+	
+	
+Control_transfer_hub:
+	movb %cl, 4(%si)
+Control_transfer:
+	movb	$3, (Error_repeat_Number_Con - Entry_USB2DRI)
+3:
+	pushaw
+
+	call Remove_qTD
+
+	movl (qTD1_Linear - Entry_USB2DRI), %edx
+	addl $0x40, %edx
+	movw (qTD1 - Entry_USB2DRI), %di
+	movl %edx, (%di)
+	movl %edx, 4(%di)             
+	movl $0x00080e80, 8(%di)
+	movzwl %si, %eax
+	addl (ds_Linear - Entry_USB2DRI), %eax
+	movl %eax, 0x0c(%di)        
+              
+	movw 6(%si), %cx
+	orw %cx, %cx 
+	je 1f
+	addl $0x40, %edx
+	addw $0x40, %di
+	movb $0, %ah
+	testb $0x80, (%si)
+	je 2f
+	movb $01, %ah
+2:
+	movl %edx, (%di)
+	movl %edx, 4(%di)
+	movb $0x80, %al
+	orb $0x0c, %ah
+	orw $0x8000, %cx
+	movw %ax, 8(%di)
+	movw %cx, 0x0a(%di)
+	movl $(Cache - Entry_USB2DRI), %eax
+	addl (ds_Linear - Entry_USB2DRI), %eax
+	movl %eax, 0x0c(%di)
+
+1:
+	addw $0x40, %di
+	movb $0x81, %ah
+	testb $0x80, (%si) 
+	je 1f 
+	movb $0x80, %ah
+1:
+	movb $1, (%di)
+	movb $1, 4(%di) 
+	movb $0x80, %al
+	orb $0x0c, %ah
+	movw %ax, 8(%di)
+	movw $0x8000, 0x0a(%di)
+	movb $0, %cl
+	call Set_QH
+	popaw
+	cmpb	$0, (Status - Entry_USB2DRI)
+	je 1f
+	decb (Error_repeat_Number_Con - Entry_USB2DRI)
+	cmpb $0, (Error_repeat_Number_Con - Entry_USB2DRI)
+	jne 3b	
+1:							
+	ret
+
+
+Port_Reset:
+	movl $0x00001100, %eax      
+	call Write_Register
+	movw $100, %ax
+	call Delay
+
+	movl $0x00001000, %eax  
+	call Write_Register 
+	movw $200, %ax
+	call Delay
+
+	movl $0x00001007, %eax  
+	call Write_Register
+
+	call Read_Register
+	ret
+	
+	
+Determine_device_address:
+	movb	(_id - Entry_USB2DRI), %bl
+	decb	%bl
+	movb	$DevLen, %al
+	mulb	%bl
+	movw	%ax, %bx 
+	ret	
+	
+
+
+Set_QH:
+	pushw %bx
+	pushw %cx
+	
+	call Determine_device_address
+	movw (qTD1 - Entry_USB2DRI), %di
+	addw $0xc0, %di
+	movb $2, %dl
+	call Get_current_endpoint
+	movb 01(%si), %ch
+	andb $0x0f, %ch 
+	shlb $04, %dl
+	orb %dl, %ch
+	movw 02(%si), %ax
+	orb %cl, %cl
+	jne 1f
+	orw $0x0800, %ax
+	orb $0x40, %ch 
+1:
+	orb $0x80, %ch
+	movb (DevID - Entry_USB2DRI)(%bx), %cl
+	andb $0x7f, %cl 
+	movb %cl, 04(%di)
+	movb %ch, 05(%di)
+	movw %ax, 06(%di)
+
+	movl (qTD1_Linear - Entry_USB2DRI), %eax
+	movl %eax, 0x0c(%di)
+	movw (qTD1 - Entry_USB2DRI), %si
+	pushw %di
+	addw $0x10, %di
+	movw $0x10, %cx
+	rep movsw
+	popw %di			
+
+	movl $0x10021, %eax
+	movw $0, %si	
+	call Write_Register
+	movl $0x00800000, %ecx 
+1:	
+	movw $04, %si
+	call Read_Register
+	testb $03, %al
+	jne 2f
+	loopl 1b
+	jmp 5f
+2:
+	movw $04, %si
+	call Write_Register
+	test $01, %al
+	je 1f 
+2:
+	movb 0x18(%di), %al    
+	testb $0x80, %al
+	jne 2b      
+1:
+	movl $0x10001, %eax
+	movw $0, %si
+	call Write_Register 
+
+	testb $8, 7(%di)
+	je 1f
+	movw $50, %ax
+	call Delay	
+1:
+	movb 0x18(%di), %al
+	movb 0x19(%di), %ah	
+	andb $0x0c, %ah 
+	orb %ah, %ah
+	je 5f
+	testb $0x40, %al
+	jne 5f 
+	testb $0x20, %al
+	jne 5f              
+	movb $00, (Status - Entry_USB2DRI)      
+3:
+	popw %cx
+	popw %bx
+	ret
+5:
+	movb $01, (Status - Entry_USB2DRI)
+	jmp 3b
+	
+	
+Get_current_endpoint:
+	movb $4, %al
+	mulb %cl
+	leaw (ConProperty - Entry_USB2DRI)(%bx), %si
+	addw %ax, %si
+	ret
+	
+
+Bulk_transfer:
+	movb $3, (Error_repeat_Number_Bulk - Entry_USB2DRI)
+4:
+	pushaw
+	
+	pushw %ax 
+	call Determine_device_address 
+	call Remove_qTD
+	popw %ax
+	
+	decb %al
+	je 1f
+	decb %al
+	je 2f
+	
+	movw $0x0d, %cx
+	movl $(csw_qq - Entry_USB2DRI), %eax
+	movb $01, (Direction1 - Entry_USB2DRI)  
+	jmp 3f
+1:
+	movw $0x1f, %cx
+	movl $(cbw_qq - Entry_USB2DRI), %eax
+	movb $0, (Direction1 - Entry_USB2DRI)
+3:
+	movw %cs, %dx
+	movzwl %dx, %edx
+	shll $4, %edx
+	addl %eax, %edx
+	jmp 3f
+2:
+	movw $(SCSI - Entry_USB2DRI), %di
+	movb (Direction - SCSI)(%di), %al
+	movb %al, (Direction1 - Entry_USB2DRI)
+	movl (TOffset - SCSI)(%di), %edx
+	movw (Single_size - Entry_USB2DRI), %cx  
+3:
+	movw (qTD1 - Entry_USB2DRI), %si
+	movb $01, (%si)
+	movb $01, 04(%si) 
+	movb $0x80, 0x08(%si) 
+	cmpw $0, %cx
+	je 1f
+	movl $0x1000, %eax    
+	movl %edx, 0x0c(%si)
+	andl $0x0fffff000, %edx
+	addl %eax, %edx
+	movl %edx, 0x10(%si) 
+	addl %eax, %edx
+	movl %edx, 0x14(%si)
+	addl %eax, %edx
+	movl %edx, 0x18(%si)
+	addl %eax, %edx
+	movl %edx, 0x1c(%si)
+1:        
+	leaw (ConProperty - Entry_USB2DRI)(%bx), %si 
+	addw $04, %si
+	movb $01, %al
+	testb $01, (Direction1 - Entry_USB2DRI) 
+	jne 1f
+	decb %al
+	addw $04, %si
+1:
+	testb $0x80, (%si)
+	je 1f
+	orw $0x8000, %cx
+1:
+	orb $0x80, %al
+	movw (qTD1 - Entry_USB2DRI), %si
+	orb $0x0c, %al
+	movb %al, 0x09(%si)
+	movw %cx, 0x0a(%si)
+	movb $01, %cl 
+	testb $01, (Direction1 - Entry_USB2DRI)      
+	jne 1f
+
+	movb $0x81, 0x08(%si)
+	movb $02, %cl
+1:  
+	call Set_QH 
+	call Get_current_endpoint
+	andb $0x7f, (%si) 
+	cmpb $0, (Status - Entry_USB2DRI)
+	je 2f
+
+	pushw (Status - Entry_USB2DRI)
+	movb 01(%si), %cl
+
+	movw $(Clear_endpoint - Entry_USB2DRI), %si
+	call Control_transfer_hub
+	popw %ax
+	movb %al, (Status - Entry_USB2DRI)
+	
+	popaw
+	cmpb $2, %al
+	je 3f
+	decb (Error_repeat_Number_Bulk - Entry_USB2DRI)
+	cmpb $0, (Error_repeat_Number_Bulk - Entry_USB2DRI)
+	je 3f
+	jmp 4b 				
+2: 
+	movw (qTD1 - Entry_USB2DRI), %di
+	addw $0xc0, %di
+	testb $0x80, 0x1b(%di)
+	je 1f 
+	orb $0x80, (%si)
+1:
+	popaw
+3:
+	ret
+
+
+Reset_Recovery:
+	movw $(Bulk_Reset - Entry_USB2DRI), %si
+	call Control_transfer	
+
+	movw $(Clear_endpoint - Entry_USB2DRI), %si
+	movb (InAddress - Entry_USB2DRI)(%bx), %cl
+	call Control_transfer_hub		
+
+	mov $(Clear_endpoint - Entry_USB2DRI), %si
+	mov (OutAddress - Entry_USB2DRI)(%bx), %cl
+	call Control_transfer_hub	
+	pushw %bx
+	call Determine_device_address
+	andb $0x7f, (InProperty - Entry_USB2DRI)(%bx)
+	andb $0x7f, (OutProperty - Entry_USB2DRI)(%bx)
+	popw %bx				
+	ret			
+	
+
+SCSI_Command:
+	pushw %bx
+	pushw %si
+	pushw %di
+
+	movw $(SCSI - Entry_USB2DRI), %bx         
+	movzwl (TOffset - SCSI)(%bx), %eax   
+	movzwl (TSection - SCSI)(%bx), %edx
+	shll $04, %edx
+	addl %eax, %edx
+	movl %edx, (TOffset - SCSI)(%bx)
+	movw $0x4000, (Single_size - Entry_USB2DRI)
+
+	movw $(cbw_qq - Entry_USB2DRI), %si
+	movl (TSize - SCSI)(%bx), %eax
+	movl %eax, 0x08(%si)
+	movb (Direction - SCSI)(%bx), %al
+	testb $01, %al
+	je 1f 
+	movb $0x80, %al     
+1:        
+	movb %al, 0x0c(%si) 
+	movb (_lun - Entry_USB2DRI), %al
+	movb %al, 0x0d(%si)
+	movl (TokenContent - SCSI)(%bx), %eax
+	movl %eax, 0x0f(%si) 
+	movl (TokenContent + 4 - SCSI)(%bx), %eax
+	movl %eax, 0x13(%si)
+	movl (TokenContent + 8 - SCSI)(%bx), %eax
+	movl %eax, 0x17(%si)
+1:      
+	movb $01, %al
+	call Bulk_transfer
+	cmpb $0, (Status - Entry_USB2DRI)
+	jne 4f
+1:
+	movl (TSize - SCSI)(%bx), %eax 
+	orl %eax, %eax
+	je 2f
+	movzwl (Single_size - Entry_USB2DRI), %ecx
+	cmpl %eax, %ecx
+	jbe 3f
+	movw %ax, (Single_size - Entry_USB2DRI)
+3:      
+	movb $02, %al
+	call Bulk_transfer 
+	cmpb $0, (Status - Entry_USB2DRI)
+	jne 2f
+ 
+	movzwl (Single_size - Entry_USB2DRI), %eax 
+	addl %eax, (TOffset - SCSI)(%bx)
+	subl %eax, (TSize - SCSI)(%bx)
+	jmp 1b
+2:  
+	movb $03, %al
+	call Bulk_transfer
+	cmpb $0, (Status - Entry_USB2DRI)
+	jne 4f
+  
+	movw $(csw_qq - Entry_USB2DRI), %si
+	cmpl $0x53425355, (%si)
+	jne 4f
+	cmpl $0x12345678, 04(%si)
+	jne 4f
+	cmpb $0, 0x0c(%si)
+	je 1f 
+	cmpb $1, 0x0c(%si)
+	je 4f 
+	cmpb $2, 0x0c(%si)
+	jne 4f
+	call Reset_Recovery
+4:
+	movb $1, (Return - SCSI)(%bx)
+	jmp 2f
+1:  
+	movb $0, (Return - SCSI)(%bx)
+2:
+	popw %di
+	popw %si
+	popw %bx
+	ret
+
+
+Read_write_usb:
+	cli
+	movw %ss, %cs:(Stack_sp - Entry_USB2DRI) 
+	movw %sp, %cs:(Stack_ss - Entry_USB2DRI) 
+	pushw %cs
+	popw %ss
+	movw $(CodeSize - 1), %sp
+	sti
+        
+	pushal 
+	pushw %ds
+	pushw %es
+
+	pushw %cs
+	popw %ds
+	pushw %cs
+	popw %es 
+
+	pushw %di
+	call Remove_scsi
+	popw %di
+        
+	popw %es 
+	pushw %es
+	
+	movb $3, (Read_write_repeat_Number - Entry_USB2DRI) 
+	movl %eax, (_eax - Entry_USB2DRI)
+	movw %bx, (_bx - Entry_USB2DRI)
+	movw %es, (_es - Entry_USB2DRI)
+	movb %cl, (_cl - Entry_USB2DRI)
+5:
+	testb $1, (lba1sector - Entry_USB2DRI) 
+	je 1f
+	movw $1, %bx
+1:
+	movw $(SCSI - Entry_USB2DRI), %si 
+	movb %cl, (Direction - SCSI)(%si) 
+	movb $0x28, (TokenContent - SCSI)(%si)
+	orb %cl, %cl
+	jne 1f
+	movb $0x2a, (TokenContent - SCSI)(%si)
+1:        
+	movb %al, (TokenContent + 5 - SCSI)(%si) 
+	movb %ah, (TokenContent + 4 - SCSI)(%si)
+	shrl $0x10, %eax
+	movb %al, (TokenContent + 3 - SCSI)(%si)
+	movb %ah, (TokenContent + 2 - SCSI)(%si)        
+	movb %bl, (TokenContent + 8 - SCSI)(%si)
+	movb %bh, (TokenContent + 7 - SCSI)(%si)  
+	movw $0x200, %ax
+	cmpb $5, (_type - Entry_USB2DRI)
+	jne 1f
+	movw $0x800, %ax
+1:
+	mulw %bx
+	movw %dx, (TSize + 2 - SCSI)(%si)
+	movw %ax, (TSize - SCSI)(%si) 
+	movw %di, (TOffset - SCSI)(%si)      
+	movw %es, (TSection - SCSI)(%si)
+	pushw %cs
+	popw %es 
+	call Allow_A20  
+	call SCSI_Command 
+	cmpb $0, (Return - SCSI)(%si) 
+	je 6f 
+	
+	call Determine_device_address
+	movw (Port_Num_Reg - Entry_USB2DRI)(%bx), %cx
+	orb %ch, %ch
+	jne 2f
+	
+	movw %cx, %si
+	call Read_Register
+	testb $4, %al
+	je 1f
+	testb $1, %al
+	jne 4f
+1:				
+	call Port_Reset
+	jmp 3f
+	
+2:
+	pushw (_id - Entry_USB2DRI)
+	movb %ch, (_id - Entry_USB2DRI)
+	movw  $(Get_Port_Status - Entry_USB2DRI), %si
+	call Control_transfer_hub
+	movw (Cache - Entry_USB2DRI), %ax
+	testb $2, %al
+	je 1f
+	testb $1, %al
+	jne 4f
+1:	
+	pushaw
+	movw $0x4f03, %ax
+	int $0x10
+	movw $3, %ax	
+	int $0x10
+	movw $(pull_usb - Entry_USB2DRI), %si
+	call Show_Character
+2:
+	movb $1, %ah
+	int $0x16
+	jnz 1f
+	movb $0x11, %ah
+ 	int $0x16
+	jz 2b
+1:
+	movw $0x4f02, %ax
+	int $0x10
+	movw %fs:0x041c, %ax 
+	movw %ax, %fs:0x041A
+	popaw
+	call Port_Reset_hub		
+	popw (_id - Entry_USB2DRI)
+3:
+	movb $0, (DevID - Entry_USB2DRI)(%bx)
+	call szsbdz
+	call Reset_Recovery 
+	orb $1, (lba1sector - Entry_USB2DRI) 
+4:				
+	movl (_eax - Entry_USB2DRI), %eax
+	movw (_bx - Entry_USB2DRI), %bx
+	movw (_es - Entry_USB2DRI), %es
+	movb (_cl - Entry_USB2DRI), %cl
+				
+	decb (Read_write_repeat_Number - Entry_USB2DRI)
+	cmpb $0, (Read_write_repeat_Number - Entry_USB2DRI)
+	jne 5b	
+	
+	stc        
+3:
+	popw %es
+	popw %ds
+	popal    
+	cli
+	movw %cs:(Stack_sp - Entry_USB2DRI), %ss 
+	movw %cs:(Stack_ss - Entry_USB2DRI), %sp
+	sti       
+	ret
+
+6:
+	testb $1, (lba1sector - Entry_USB2DRI) 
+	je 1f
+	decw (_bx - Entry_USB2DRI) 
+	je 1f
+	addw $0x200, %di
+	incl (_eax - Entry_USB2DRI) 
+	movl (_eax - Entry_USB2DRI), %eax 
+	movb (_cl - Entry_USB2DRI), %cl 
+	movw (_es - Entry_USB2DRI), %es 
+	jmp 5b
+1:
+	clc
+	jmp 3b
+
+
+  
+Read_Base_address:
+	pushl %esi
+	movb $01, (R_W_Mark - Entry_USB2DRI) 
+	jmp 1f
+
+Read_Register:
+	pushl %esi
+	movb $01, (R_W_Mark - Entry_USB2DRI)
+2:
+	addw (Ability_Register_Size - Entry_USB2DRI), %si
+1:
+	movzwl %si, %esi
+	call Protected_Mode 
+	popl %esi
+	ret
+
+
+Write_Register:
+	pushl %esi
+	movb $0, (R_W_Mark - Entry_USB2DRI) 
+	jmp 2b
+
+
+Protected_Mode:  
+	pushw %es
+	pushfl
+	cli
+	pushw %ds
+	pushw %es
+	pushl %ecx
+	pushw %cs        
+	lgdt %cs:(VGDTR - Entry_USB2DRI)
+	movl %cr0, %ecx
+	pushl %ecx
+	orb $01, %cl
+	movl %ecx, %cr0 
+	jmp 1f
+1:
+	movw $0x08, %cx
+	movw %cx, %es
+	testb $01, (R_W_Mark - Entry_USB2DRI) 
+	jne 1f
+	movl %eax, %es:(%si)
+	jmp 2f
+1:        
+	movl %es:(%si), %eax
+2:        
+	popl %ecx
+	andb $0xFE, %cl
+	movl %ecx, %cr0 
+	jmp 1f
+1:      
+	pushw $(1f - Entry_USB2DRI)
+	retf
+1:
+	popl %ecx
+	popw %es
+	popw %ds
+	popfl
+	popw %es
+	ret
+
+Remove_scsi:
+	movw $(SCSI - Entry_USB2DRI), %di
+	pushaw
+	xorb %al, %al	
+	movw $TokenLen, %cx   
+	rep stosb 
+	popaw
+	ret	
+	
+
+//=================================================================================================================
+n_ports:
+	.word   0       
+Init_cs:
+	.word   0
+Register_pci:
+	.long   0
+fd_num:
+  .byte   0
+hd_num:
+	.byte		0
+hub_num:
+	.byte		0
+Interface_num:	
+	.word		0
+_eax:
+	.long		0
+_bx:
+	.word		0
+_cl:
+	.byte		0
+_es:
+	.word		0
+dev_count:
+	.byte		0
+
+pull_usb:
+	.ascii  "Flash drive: pull out, and then insert, Press any key to continue.\0"
+
+#define mem_mbr         0x1800
+#define mem_pbr         0x1a00
+#define mem_fd          0x1c00
+#define mem_hd          0x2000
+
+
+
+Initialization:
+	pushw %ds
+	pushw %es
+	pushw	%fs
+	pushw	%gs
+	pushal
+
+	pushw %cs
+	popw %cs:(Init_cs - Entry_USB2DRI) 
+
+	pushw %cs
+	popw %ds
+	pushw %cs
+	popw %es
+	
+	call Determine_delay_units
+	call Check_bus
+	movb $0x80,%fs:0x8350
+	jb 4f
+	call Disk_Info 
+
+	movw %fs:0x0413, %ax             
+	subw $06, %ax     
+	movw %ax, %fs:0x0413
+	shlw $06, %ax 
+
+	movw $(Ending - Entry_USB2DRI), %cx 
+	xorw %si, %si     
+	xorw %di, %di
+	movw %ax, %es
+	rep movsb   
+	pushw %ax
+	pushw $(1f - Entry_USB2DRI)
+	lret
+1:
+	pushw %cs
+	popw %ds    
+	
+	shrw $5, %ax
+	movw %ax, %fs:0x8359
+                
+	call host_initialization
+	call Device_enum
+	movb $0x81,%fs:0x8350
+	cmpb $0, (dev_count - Entry_USB2DRI)
+	je 3f	
+	call Test_device
+	movb $0x82, %fs:0x8350			//usb_error
+	cmpb $0, (EXT_C(max_dri) - Entry_USB2DRI) 
+	je 3f 
+	
+	call Define_disk_No
+	movb (EXT_C(max_dri) - Entry_USB2DRI), %al
+	movb %al, %fs:0x8350				//usb_count
+	movw $(Number - Entry_USB2DRI), %si
+	movw $0x8351, %bx
+1:				
+	movb (%si), %ah
+	movb %ah, %fs:(%bx)
+	decb %al
+	je 1f
+	addw $DriveLen, %si 
+	incw %bx
+	jmp 1b
+1:       	
+	
+	call Set_int13       
+
+	clc
+5:	
+	popal
+	popw %gs
+	popw %fs
+	popw %es
+	popw %ds
+	lret
+3:
+	addw $6, %fs:0x0413
+4:
+	stc
+	jmp 5b
+	
+
+Show_Character:
+2:   
+	lodsb
+	orb %al, %al   
+	jz 1f
+	movb $0x0e, %ah
+	int $0x10 
+	jmp 2b
+1:
+	ret
+
+	
+Read_Write_Configuration:  
+	pushw %bp
+	movw %sp, %bp
+	pushw %bx
+	pushl %ecx
+	pushw %di
+	movw 04(%bp), %bx
+	movw 06(%bp), %di 
+	movw 0x08(%bp), %cx
+	decb %al
+	jne 1f
+	movw $0xB109, %ax 
+	int $0x1A
+	jmp 2f
+1:
+	decb %al
+	jne 1f        
+	movw $0xB10A, %ax 
+	int $0x1A
+	jmp 2f
+1:
+	movw $0xB10C, %ax
+	int $0x1A                          
+2:
+	movl %ecx, %eax
+	popw %di
+	popl %ecx
+	popw %bx
+	popw %bp
+	ret	
+	
+	
+Set_int13:
+	cli
+	movl %fs:0x004c, %ebx
+	movl %ebx, %ds:(old_int13 - Entry_USB2DRI) 
+
+	movw $(Entry_int13 - Entry_USB2DRI), %bx
+	movw %bx, %fs:0x004c
+	movw %ds, %fs:0x004e 
+	sti
+	ret 	
+
+
+Sector_comparison:
+  pushw %si
+  pushw %di
+  pushw %cx
+	movw $0x200, %cx
+1:				
+	repz cmpsb
+	je 2f
+	cmpw $0x01db, %cx
+	je 1b
+	cmpw $0x01bf, %cx
+	je 1b
+	cmpw $0x01e3, %cx
+	jne 3f
+	addw $3, %cx
+	jmp 1b
+2:
+	clc
+1:
+	popw %cx
+  popw %di
+  popw %si
+  ret
+3:
+	stc
+	jmp 1b
+
+	
+	
+	
+Search_drive:
+	movb %fs:0x0475, %cl
+	orb $0x80, %cl
+	incb %fs:0x0475
+	ret	
+	
+	
+read_hdd:
+	pushw %bx
+	movw $1, %bx
+	movb $1, %cl
+	call Read_write_usb
+	popw %bx
+	ret
+	
+
+read_int13:				
+	pushw %ds
+	pushw %es
+	int $0x13
+	popw %es
+	popw %ds
+	ret			
+	
+	
+
+read_dri:
+	pushaw
+	movw $2, %si
+1:        
+	movw $0x0201, %ax    
+	xorb %dh, %dh
+	movw $1, %cx
+	call read_int13  
+	jnb 1f
+	decw %si
+	je 1f
+	movb $0, %ah
+	call read_int13
+	jmp 1b
+1:
+	popaw
+	ret
+				
+
+Get_dri:
+	movb %fs:0x8280, %dl 
+	cmpb $0x23, %dl
+	jne 1f
+	movb %fs:0x21af, %dl
+1:				
+	ret	
+
+
+pdfqb:
+	pushaw
+	movw $4, %cx
+2:
+	cmpb $0x80, 0x1be(%di)
+	je 1f
+	addw $0x10, %di
+	loop 2b
+	jmp 2f
+1:
+	testb $0x3f, 0x1c0(%di)
+	je 2f
+	testb $0x3f, 0x1c4(%di)
+	je 2f
+	cmpl $0, 0x1c6(%di)
+	je 2f
+	cmpl $0, 0x1ca(%di)
+	je 2f 
+	clc
+1:
+	popaw
+	ret
+2:
+	stc
+	jmp 1b
+	
+	
+Define_disk_No: 
+	pushw (Init_cs - Entry_USB2DRI)      
+	popw %es 
+  
+	xorw %bx, %bx
+	movb (EXT_C(max_dri) - Entry_USB2DRI), %dh
+  call Get_dri 
+0:        
+	movb (DriLUN - Entry_USB2DRI)(%bx), %al
+	movb %al, (_lun - Entry_USB2DRI)        
+	movb (DriID - Entry_USB2DRI)(%bx), %al
+	movb %al, (_id - Entry_USB2DRI)
+	movb (DriType - Entry_USB2DRI)(%bx), %al
+	movb %al, (_type - Entry_USB2DRI)
+	pushw %es
+	popw %ds
+
+	cmpb $5, %al
+	jne 1f
+							
+	cmpb $0x90, %dl
+  jb 2f
+  movb %dl, %cs:(Number - Entry_USB2DRI)(%bx)
+  jmp 3f
+2:     
+  movb $0xff, %cs:(Number - Entry_USB2DRI)(%bx)
+3:
+	movl $0x11, %eax
+	movw $mem_mbr, %di
+	call read_hdd
+	jc 5f
+	movl 0x47(%di), %eax
+	call read_hdd
+	cmpw $0xAA55, 0x1e(%di)
+	jne 5f
+	movb 0x21(%di), %al
+	movb %al, %cs:(Media_types - Entry_USB2DRI)
+	movw 0x22(%di), %ax
+	movw %ax, %cs:(Capacity - Entry_USB2DRI)(%bx)
+	movw 0x26(%di), %ax
+	movw %ax, %cs:(Capacity + 2 - Entry_USB2DRI)(%bx)
+	movl 0x28(%di), %eax
+	movl %eax, %cs:(StartSector - Entry_USB2DRI)(%bx)			
+	jmp 5f
+ 
+1:   
+	xorl %eax, %eax
+	movw $mem_mbr, %di
+	call read_hdd
+	jc 5f
+	call pdfqb
+	jc 2f
+
+	movl 0x1ca(%di), %ecx
+	movl 0x01c6(%di), %eax
+  movw $mem_pbr, %di
+  call read_hdd
+  jmp 1f
+2:
+  movw $mem_mbr, %di
+  movw 0x13(%di), %cx
+  cmpw $0x3231, 0x39(%di)
+  je 2f
+  movl 0x20(%di), %ecx
+2:
+  movl 0x1c(%di), %eax
+1:
+  movl %ecx, %cs:(Capacity - Entry_USB2DRI)(%bx) 
+	movl %eax, %cs:(StartSector - Entry_USB2DRI)(%bx)
+
+  orb %dl, %dl
+	jne 2f
+	movb %cs:(fd_num - Entry_USB2DRI), %ch
+  cmpb $0, %ch
+  je 2f
+  xorb %cl, %cl
+  movw $mem_fd, %si
+1:
+  movw $mem_mbr, %di
+	call Sector_comparison
+	jnc 3f
+  movw $mem_pbr, %di
+  call Sector_comparison
+	jnc 3f
+  decb %ch
+  je 2f
+  addw $0x200, %si
+  incb %cl
+  jmp 1b
+2:
+  movb %cs:(hd_num - Entry_USB2DRI), %ch
+  cmpb $0, %ch
+  je 2f
+  movb $0x80, %cl
+  movw $mem_hd, %si
+  movw $mem_mbr, %di
+1:
+  call Sector_comparison
+  jnc 3f
+  decb %ch
+  je 2f
+  addw $0x200, %si
+  incb %cl
+  jmp 1b
+2:
+  call Search_drive
+3:
+	movb %cl, %cs:(Number - Entry_USB2DRI)(%bx)
+5:
+	pushw %cs
+	popw %ds
+
+	decb %dh
+	je 4f
+	addw $DriveLen, %bx
+	jmp 0b
+4:
+	ret	
+	
+	
+Test_device:   
+	xorw %bx, %bx
+	xorw %si, %si
+	movb $1, (_id - Entry_USB2DRI)
+	movb $0, (_lun - Entry_USB2DRI)
+	movb $0, (EXT_C(max_dri) - Entry_USB2DRI)
+0:
+	cmpb $0xff, (MaxLUN - Entry_USB2DRI)(%bx)
+	jne 1f
+	incb (_id - Entry_USB2DRI)
+	addw $DevLen, %bx
+	jmp 0b
+1:
+	call Remove_scsi
+	movb $1, (Direction - SCSI)(%di)			
+	movw $0x24, (TSize - SCSI)(%di)			
+	movw $(Cache - Entry_USB2DRI), %ax		
+	movw %ax, (TOffset - SCSI)(%di)	
+	movw %ds, (TSection - SCSI)(%di)
+	movb $0x12, (TokenContent - SCSI)(%di)	
+	movb $0x24, (TokenContent + 4 - SCSI)(%di)
+	call SCSI_Command
+	cmpb $0, (Return - SCSI)(%di)
+    jne 1f
+	movb (Cache - Entry_USB2DRI), %al	
+	andb $0x1f, %al
+	cmpb $0x1f, %al
+	je 1f		
+	movb %al, (_type - Entry_USB2DRI)
+	pushw %si
+	movw $900, %si
+	cmpb $5, %al
+	je csdyd
+	movw $5, %si
+csdyd:	
+	call Remove_scsi
+	call SCSI_Command
+	cmpb $0, (Return - SCSI)(%di)
+	je 2f
+	decw %si
+	je 3f
+	movw $100, %ax
+	call Delay
+	jmp csdyd	
+3:
+	popw %si
+	jmp 1f
+2:
+	popw	%si
+	movb (_id - Entry_USB2DRI), %al
+	movb %al, (DriID - Entry_USB2DRI)(%si) 
+
+	movb (_lun - Entry_USB2DRI), %al
+	movb %al, (DriLUN - Entry_USB2DRI)(%si)
+	movb (_type - Entry_USB2DRI), %al
+	movb %al, (DriType - Entry_USB2DRI)(%si)
+	
+	incb (EXT_C(max_dri) - Entry_USB2DRI)
+    cmpb $8, (EXT_C(max_dri) - Entry_USB2DRI)
+    jae 2f
+	addw $DriveLen, %si     
+1:
+	movb (_lun - Entry_USB2DRI), %al
+	cmpb (MaxLUN - Entry_USB2DRI)(%bx), %al 
+	jae 1f
+	incb (_lun - Entry_USB2DRI)
+	jmp 0b 
+1:
+	movb (_id - Entry_USB2DRI), %al
+	cmpb (max_id - Entry_USB2DRI), %al
+	jae 2f 
+	movb $0, (_lun - Entry_USB2DRI)
+	incb (_id - Entry_USB2DRI)
+	addw $DevLen, %bx 
+	jmp 0b
+2:        
+	ret       	
+
+
+szsbdz:				     
+	movw $(Set_device_Address - Entry_USB2DRI), %si
+	movb (_id - Entry_USB2DRI), %al
+	movb %al, 2(%si)
+	call Control_transfer
+	movb %al, (DevID - Entry_USB2DRI)(%bx)
+	movw $(Set_Configuration - Entry_USB2DRI), %si
+	call Control_transfer
+	movw $30, %ax
+	call Delay
+	movw $(Set_Interface - Entry_USB2DRI), %si
+	movb (InterfaceNum - Entry_USB2DRI)(%bx), %al
+	movb %al, 4(%si)
+	movb (InterfaceValue - Entry_USB2DRI)(%bx), %al
+	movb %al, 2(%si)
+	call Control_transfer			
+	ret
+
+
+Port_Reset_hub:	
+	movw $(Clear_Hub_Conne - Entry_USB2DRI), %si
+	call Control_transfer_hub
+	mov $(Set_Hub_Reset - Entry_USB2DRI), %si
+	call Control_transfer_hub	
+	movw $200, %ax
+	call Delay
+	movw $(Clear_Hub_Reset - Entry_USB2DRI), %si
+	call Control_transfer_hub
+	ret
+
+
+usb_probe:
+	pushw %cx
+	movb $0xff, (MaxLUN - Entry_USB2DRI)(%bx)
+	incb (max_id - Entry_USB2DRI)
+	cmpb $8, (max_id - Entry_USB2DRI)
+	jae 1f
+	movb (_id - Entry_USB2DRI), %al
+	movb %al, (hub_num - Entry_USB2DRI)
+	movw $(Cache - Entry_USB2DRI), %di								
+	movw $(Get_Hub - Entry_USB2DRI), %si
+	call Control_transfer
+	movzbw 2(%di), %cx
+	movw %cx, (n_ports - Entry_USB2DRI)
+2:
+	movw $(Set_Hub_Power - Entry_USB2DRI), %si
+	call Control_transfer_hub 
+	movw $200, %ax
+	call Delay
+	loop 2b
+	movw $200, %ax
+	call Delay
+	movw (n_ports - Entry_USB2DRI), %cx
+2:
+	movw $(Get_Port_Status - Entry_USB2DRI), %si
+	call Control_transfer_hub 
+	testw $1, (%di)
+	jne 4f		
+3:
+	decw %cx
+	jne 2b
+	jmp 1f
+4:
+	call Port_Reset_hub
+	movw $(Get_Port_Status - Entry_USB2DRI), %si
+	call Control_transfer_hub
+	testw $2, (%di)
+	je 3b
+	testw $0x400,(%di)
+	je 3b
+				
+	pushw (_id - Entry_USB2DRI)
+	pushw (Interface_num - Entry_USB2DRI)
+	call Fill_device_structure
+	popw (Interface_num - Entry_USB2DRI)
+	popw (_id - Entry_USB2DRI)
+	movw $(Cache - Entry_USB2DRI), %di	
+	movb (_id - Entry_USB2DRI), %al
+	movb %al, (hub_num - Entry_USB2DRI)
+	jmp 3b
+1:
+	popw %cx
+	jmp jk_pd
+
+	
+Fill_device_structure:
+	pushw %cx
+	movb (max_id - Entry_USB2DRI), %dl
+	incb %dl
+	movb %dl, (_id - Entry_USB2DRI)
+	call Determine_device_address
+	cmpw $0x60, %si
+	ja 1f
+	movw %si, (Port_Num_Reg - Entry_USB2DRI)(%bx)
+	jmp 2f
+1:				
+	movb (hub_num - Entry_USB2DRI), %al
+	movb %cl, (Port_Num_Reg - Entry_USB2DRI)(%bx)
+	movb %al, (HUB_id - Entry_USB2DRI)(%bx)
+2:					
+	movw $(Cache - Entry_USB2DRI), %di
+	movw $(Get_device - Entry_USB2DRI), %si
+	movb $0x12, (ConSize - Entry_USB2DRI)(%bx)
+	call Control_transfer
+	cmpb $0, (Status - Entry_USB2DRI)
+	jne 5f
+	movb 7(%di), %al
+	movb %al, (ConSize - Entry_USB2DRI)(%bx)              
+	movw $(Get_Configuration - Entry_USB2DRI), %si  
+	call Control_transfer
+	movw 2(%di), %ax
+	cmpw $0x100, %ax
+	jae 5f
+	movb %al, (Get_Configuration + 6 - Entry_USB2DRI) 	
+	call Control_transfer	
+	movb 4(%di), %al
+	movb %al, (Interface_num - Entry_USB2DRI)
+jk_cf:	
+	movzbw (%di), %ax
+	addw %ax, %di 
+	cmpw $9, 05(%di)
+	je 4f
+	cmpw $0x0608, 05(%di)
+	jne jk_pd
+	cmpb $0x50, 07(%di)
+	jne jk_pd
+	movb 2(%di), %al
+	movb %al, (InterfaceNum - Entry_USB2DRI)(%bx)
+	movb 3(%di), %al
+	movb %al, (InterfaceValue - Entry_USB2DRI)(%bx)
+	movb 4(%di), %ch
+	xorb %cl, %cl
+zscl:	
+	cmpb %cl, %ch
+	je 4f
+	movzbw (%di), %ax
+	addw %ax, %di
+1:
+	movb 02(%di), %dl
+	movw 04(%di), %bp
+	movb 03(%di), %dh
+	cmpb $2, %dh
+	jne 3f
+
+	testb $0x80, %dl 
+	je 2f 
+
+	movb %dh, (InProperty - Entry_USB2DRI)(%bx) 
+	movb %dl, (InAddress - Entry_USB2DRI)(%bx)
+	movw %bp, (InSize - Entry_USB2DRI)(%bx)
+	jmp 3f
+2:     
+	mov %dh, (OutProperty - Entry_USB2DRI)(%bx)
+	mov %dl, (OutAddress - Entry_USB2DRI)(%bx)
+	mov %bp, (OutSize - Entry_USB2DRI)(%bx) 
+3:
+	incb %cl 
+	jmp zscl
+4: 
+	call szsbdz
+	cmpb $0, (OutProperty - Entry_USB2DRI)(%bx) 
+	je usb_probe
+       
+	mov $(Get_lun - Entry_USB2DRI), %si 
+	call Control_transfer
+	movb (Cache - Entry_USB2DRI), %al
+	movb %al, (MaxLUN - Entry_USB2DRI)(%bx) 
+
+	incb (dev_count - Entry_USB2DRI)
+	incb (max_id - Entry_USB2DRI)
+	cmpb $8, (max_id - Entry_USB2DRI)
+	jae 5f
+jk_pd:
+	cmpb $0, (Interface_num - Entry_USB2DRI)
+	je 5f
+	decb (Interface_num - Entry_USB2DRI)
+	jne jk_cf	
+5:       
+	popw %cx
+	ret	
+	
+	
+Device_enum:   
+	movw $0x44, %si
+	movw (n_ports - Entry_USB2DRI), %cx 
+1:        
+	call Read_Register
+	testb $01, %al
+	jne 1f 
+2:       
+	decw %cx 
+	je 4f
+	addw $04, %si
+	jmp 1b
+1: 
+	call Port_Reset    
+	testb $04, %al
+	jne 3f 
+
+	movl $0x00003002, %eax  
+	call Write_Register
+	movw $03, %ax
+	call Delay 
+	jmp 2b
+3:  
+	pushw %si
+	call Fill_device_structure
+	popw %si
+	jmp 2b
+4:        
+	ret        	
+	
+	
+Cache:
+	.byte		0
+	
+	
+	
+Define_qTD1:   
+	movl $(qh - Entry_USB2DRI), %eax
+	movw %ax, (qTD1 - Entry_USB2DRI) 
+	addl (ds_Linear - Entry_USB2DRI), %eax
+	movl %eax, (qTD1_Linear - Entry_USB2DRI)        
+	ret 	
+	
+	
+Fill_descriptor:  
+	movw %ds, %ax
+	movzwl %ax, %eax
+	shll $04, %eax
+	movl %eax, (ds_Linear - Entry_USB2DRI) 
+
+	movl $(GDT - Entry_USB2DRI), %eax
+	addl (ds_Linear - Entry_USB2DRI), %eax
+	movl %eax, (Base - Entry_USB2DRI)
+
+	movl (Register_pci - Entry_USB2DRI), %eax 
+	movw %ax, (BaseL - Entry_USB2DRI)
+	shrl $0x10, %eax
+	movb %al, (BaseM - Entry_USB2DRI)
+	movb %ah, (BaseH - Entry_USB2DRI)
+	ret	
+	
+	
+host_initialization:                     
+	call Allow_A20 
+             
+	pushw $0x10 
+	pushw (bus_device_function - Entry_USB2DRI)
+	movb $02, %al
+	call Read_Write_Configuration
+	addw $04, %sp
+	movl %eax, (Register_pci - Entry_USB2DRI)      
+
+	call Fill_descriptor
+
+	call Define_qTD1
+
+	movw $0, %si
+	call Read_Base_address 
+	movb %al, (Ability_Register_Size - Entry_USB2DRI)
+
+	movw $04, %si 
+	call Read_Base_address
+	movb %al, %bl
+	andw $0x0F, %ax
+	movw %ax, (n_ports - Entry_USB2DRI)
+ 
+	movl $02, %eax
+	movw $0, %si
+	call Write_Register
+1:
+	movw $3, %ax 
+	call Delay
+    
+	movw $0, %si 
+	call Read_Register
+	testw $02, %ax
+	jne 1b 
+
+	movw $0x08, %si 
+	call Read_Base_address
+	xorw %cx, %cx
+	movb %ah, %cl
+	movw %cx, %si
+	leaw 02(%si), %dx 
+	
+	pushw %dx 
+	pushw (bus_device_function - Entry_USB2DRI)
+	movb $01, %al 
+	call Read_Write_Configuration 
+	addw $04, %sp
+
+	orw $0x100, %ax
+	pushw %ax 
+	pushw %dx 
+	pushw (bus_device_function - Entry_USB2DRI)
+	movb $03, %al
+	call Read_Write_Configuration
+	addw $06, %sp
+         
+	movw $0x01F4, %cx        
+2:
+	pushw %dx 
+	pushw (bus_device_function - Entry_USB2DRI)
+	movb $01, %al 
+	call Read_Write_Configuration 
+	addw $04, %sp
+	testw $01, %ax
+	je 1f 
+	movw $10, %ax
+	call Delay 
+	loop 2b
+1:
+ 
+	leaw 04(%si), %dx 
+	
+	pushw $00 
+	pushw %dx
+	pushw (bus_device_function - Entry_USB2DRI) 
+	movb $03, %al 
+	call Read_Write_Configuration
+	addw $06, %sp               
+
+	movl (qTD1_Linear - Entry_USB2DRI), %eax
+	addl $0xc0, %eax 
+	pushl %eax
+	orb $02, %al
+	movw (qTD1 - Entry_USB2DRI), %di
+	addw $0xc0, %di 
+	movl %eax, (%di) 
+	movb $01, 0x10(%di)
+	movb $01, 0x14(%di)
+
+	popl %eax
+	movw $0x18, %si
+	call Write_Register
+
+	movl $0x00010001, %eax
+	movw $0, %si
+	call Write_Register
+ 
+	testb $0x10, %bl
+	je 1f
+	movw (n_ports - Entry_USB2DRI), %cx
+	movw $0x44, %di 
+	jmp 2f
+3: 
+	movl $0x00001000, %eax
+	movw %di, %si
+	call Write_Register
+	addw $04, %di
+	decw %cx
+2:
+	cmpw $0, %cx 
+	ja 3b
+	movw $100, %ax
+	call Delay
+1:        
+
+	movl $0x00000001, %eax
+	movw $0x40, %si   
+	call Write_Register 
+	movw $50, %ax
+	call Delay 
+	ret	
+	
+
+set_410_1:
+	orb $1, %fs:0x0410
+	andb $0x3f, %fs:0x0410
+	ret
+
+
+Disk_Info:
+	call Get_dri
+	movb %dl, %dh
+	orb %dl, %dl
+	je 1f
+	andb $0x3e, %fs:0x0410
+	jmp bf_hd
+1:	
+  movb %fs:0x410, %cl
+  testb $1, %cl
+  jne 1f
+  xorb %cl, %cl
+	call set_410_1
+1:
+  shrb $6, %cl
+  incb %cl
+2:
+  cmpb $2, %cl
+  jbe 1f
+  movb $2, %cl
+1:
+  movb %cl, (fd_num - Entry_USB2DRI)
+  xorb %dl, %dl
+	movw $mem_fd, %bx
+	call xh_hd
+bf_hd:
+	movb $10, %cl 
+  cmpb $10, %fs:0x0475
+	ja 1f
+  movb %fs:0x0475, %cl
+1:
+	movb %cl, (hd_num - Entry_USB2DRI)
+  cmpb $0, %cl
+  je 1f
+  movb $0x80, %dl
+	movw $mem_hd, %bx
+	call xh_hd
+1:							
+	ret
+
+xh_hd:
+  call read_dri
+  decb %cl
+  je 1f
+  addw $0x200, %bx
+  incb %dl
+  jmp xh_hd
+1:
+  ret
+  
+	
+Check_bus:  
+	movw $0xB101, %ax 
+	int $0x1A
+	cmpl $0x20494350, %edx
+	jne 1f
+	movw $0, %si
+	movw $0xB103, %ax 
+	movl $0x000C0320, %ecx 
+	int $0x1A 
+	jb 1f
+	movw %bx, (bus_device_function - Entry_USB2DRI)
+	clc
+	ret
+1:
+	stc       
+	ret	
+	
+
+Determine_delay_units:   
+	xorw %ax, %ax
+	movw %ax, %fs
+	decw %ax
+	movw %ax, %gs
+	sti 
+	movw %fs:0x046c, %dx
+	xorl %ecx, %ecx
+1:
+	movw %fs:0x046c, %ax 
+	cmpw %dx, %ax                
+	je 1b                      
+1:
+	cmpw %fs:0x046c, %ax
+	jne 2f 
+	pushw %dx
+	pushw %ax
+	movw $0xcf8, %dx
+	inw %dx, %ax
+	popw %ax
+	popw %dx
+	incl %ecx 
+	cmpl $0, %ecx
+	jmp 1b
+2:
+	xorl %edx, %edx
+	movl %ecx, %eax
+	movl $0x37, %ecx
+	divl %ecx
+	movb (EXT_C(usb_delay) - Entry_USB2DRI), %cl
+	shlw %cl, %ax
+	movw %ax, (Count_1ms - Entry_USB2DRI) 
+	ret
+
+Ending:
+	.byte   0
+
+	
+	. = Entry_USB2DRI + 0x1600
+USB_size:				
+/* ********************  USB2DRI end  ****************************** */ 
+
+
 
 #define CDROM_INIT
 #ifdef CDROM_INIT

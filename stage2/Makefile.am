@@ -129,9 +129,6 @@ bootlace.com: bootlacestart                                             #Note: S
 	cp bootlacestart bootlace.com && chmod a+x bootlace.com
 	dd if=bootlace.com of=grldr.pbr bs=512 skip=55 count=10             #skip(1):  "EB 58 90 00" position in the bootlace.com
 	dd if=bootlace.com of=grldr_cd.bin bs=512 skip=65 count=1           #skip(2):   = skip(1) + 10
-#	dd if=grldr of=grldr.pbr bs=1 skip=8608 seek=5120 count=5120        #Related to asm.S ". = EXT_C(main) + 0x1a0"  0x2000+0x1a0=0x21a0=8608
-#	dd if=grldr of=bootlace.com bs=1 skip=8608 seek=34816 count=5120    #Related to asm.S ". = EXT_C(main) + 0x1a0"  0x2000+0x1a0=0x21a0=8608
-	cat grldr.mbr >> grldr.pbr
 	cat grldr.mbr >> bootlace.com
 	
 hmloadstart_exec_SOURCES = hmloadstart.S

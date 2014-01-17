@@ -520,14 +520,7 @@ cdrom_check:
 	.word	0xAA55
 
 #else	
-	. = _start1 + 0x1f9
-	
-usb_key:	
-	.byte   0x3c			//F2
-	
-Loadusb_grldr:
-        .byte   0x75,1
-	
+
 #endif //(defined(GRLDR_MBR))
 	. = _start1 + 0x200 
 
@@ -690,7 +683,7 @@ grldr_real_start:
 	pushw	%cx		/* new IP */
 	lret
 1:
-	movw	%ds, %cx	/* CX==BP==0x7C0 for pxe enabled */
+//	movw	%ds, %cx	/* CX==BP==0x7C0 for pxe enabled */
 	pushw	%cs
 	popw	%ds
 
@@ -702,28 +695,24 @@ grldr_real_start:
 	////////////////////////////////////////////////
 	//old_stack	1                   0x580
 	//old_stack	2                   0x68400                                     For Compatible with  Virtual PC 
+	//new_stack                     0x2000
 	//Buffer                        0x580 - 0x59f           0x20		
 	//int13/AH=42 pack              0x5a0 - 0x5af           0x10
-	//pre_stage2                    0x8200 - 0x681ff        0x60000
-	//grldr_boot                    0x7800 - 0x7bff         0x400               Affect USB2DRI in asm.S
-	//new_stack                     0x2000
+	//GRLDR head										0x5eo - 0x7df						0x200
+	//pre_stage2                    0x8200 - 0x681ff        0x60000	
 	////////////////////////////////////////////////
 
-	cmpw	$0x7C0, %bp
-	jne	1f
-	cmpw	%bp, %cx
+//	cmpw	$0x7C0, %bp
+//	jne	1f
+//	cmpw	%bp, %cx
 //	je	2f
-	jne 1f
-	orb	$4, (0x1fb)	 /* pxe boot */
-1:
+//1:
     //orb	$0x01, (pre_stage2_start - _start1 + 5) /* disable pxe */
-	
-//2:      
-//	cmpw	$0x820, %bx       
-//	jb	2f
+2:      
+	cmpw	$0x820, %bx       
+	jb	2f
 
-//       movw	$((0x8200 - (pre_stage2_start - _start1) - 0x400) >> 4), %cx
-	movw	$GRLDR_BOOT, %cx	//0x780
+	movw	$((0x8200 - (pre_stage2_start - _start1) - 0x400) >> 4), %cx		//0x5e0
 
 	movw	%cx, %es
 	xorw	%di, %di
@@ -731,13 +720,10 @@ grldr_real_start:
 
 	movw	$0x200, %cx	/* move 2 sectors */ 
 	cld
-	repz movsw					//grldr_boot
-	
-	cmpw	$0x820, %bx       
-	jb	2f	
+	repz movsw
 	
 	pushw	%es		/* ES:0000 = _start */
-        pushw	$(1f - _start1)
+	pushw	$(1f - _start1)
 	lret			/* CS=ES, CS:0000 = _start1 */
 1:
 
@@ -1007,6 +993,17 @@ Entry_32:
 1:
 	cli
 	cld
+	testb	$0x80, %dl
+	jne	1f
+	movb	$0xff, %dh
+	jmp 2f
+1:
+	cmpw	$0x7c00, %sp
+	jne	2f
+	subw	$0x1be, %bp
+	xchgw	%bp, %ax
+	movb	%ah, %dh
+2:
 	xorw	%ax, %ax
 	movw	$0x7c00, %bp
 	movw	%bp, %sp        
@@ -1015,7 +1012,7 @@ Entry_32:
 	
 	/* cs=ss=ds=es=0, bp=0x7C00 */
 	pushw	%ax
-	movb	%dl, 0x40(%bp)  /* BIOS passes drive number in DL */
+	movw	%dx, 0x40(%bp)  /* BIOS passes drive number in DL */
 	movb	$0x41, %ah
 	movw	$0x55AA, %bx
 	int	$0x13
@@ -1288,11 +1285,6 @@ filename_32:
 
 msg_DiskReadError_32:
 	.ascii	"Disk error\0" 
-	
-//	. = Entry_32 + 0x1fa
-	
-//Loadusb_32:
-//        .byte   0x75,0
 
 	. = Entry_32 + 0x1fc
 	.word	0, 0xAA55 /* Win9x uses all 4 bytes as magic value here */
@@ -1436,7 +1428,18 @@ Entry_12_16:
 	. = Entry_12_16 + 0x3e
 1:
 	cli
-	cld 
+	cld
+	testb	$0x80, %dl
+	jne	1f
+	movb	$0xff, %dh
+	jmp 2f
+1:
+	cmpw	$0x7c00, %sp
+	jne	2f
+	subw	$0x1be, %bp
+	xchgw	%bp, %ax
+	movb	%ah, %dh
+2:
 	xorw	%ax, %ax
 	movw	$0x7c00, %bp
 	movw	%bp, %sp        
@@ -1447,7 +1450,7 @@ Entry_12_16:
 
 	/* cs=ss=ds=es=0, bp=0x7C00 */
  
-	movb	%dl, 0x24(%bp)  /* BIOS passes drive number in DL */
+	movw	%dx, 0x24(%bp)  /* BIOS passes drive number in DL */
 	movb	$0x41, %ah
 	movw	$0x55AA, %bx
 	pushw	%ds
@@ -1463,26 +1466,6 @@ Entry_12_16:
 	/* EBIOS supported */
 	movb	$0x42, (ebios_12_16 - 1 - Entry_12_16 + 0x7c00)
 1:
-//	movb	(Loadusb_12_16 - Entry_12_16 + 0x7c00 +1), %al
-//	decb %al				//al=1,When dl = 00 load
-//	jne 1f						
-//	cmpb	%al, %dl	//dl=0?
-//	je	3f
-//1:
-//	decb %al				//al=2,Forced load 
-//	jne 2f							
-//3:	//Load the usb driver
-//	movl	0x7c1c, %eax
-//	incl	%eax
-//	movw	$0x0a, %cx
-//	movw	$0xd000, %bx    //read to 0000:d000
-// 	call	readDisk_12_16
-//	call	$0x0d00,$0x0000
-//	jc 2f
-//	/* EBIOS supported */
-//	movb	%dl, 0x24(%bp)  /* BIOS passes drive number in DL */	
-//	movb	$0x42, (ebios_12_16 - 1 - Entry_12_16 + 0x7c00)
-//2:	
 	/* GET DRIVE PARMS: Calculate start of some disk areas */
 	movzwl	0x0e(%bp), %ebx	/* reserved sectors */
 	addl	0x1c(%bp), %ebx	/* hidden sectors */
@@ -1783,11 +1766,6 @@ filename_12_16:
 msg_DiskReadError_12_16:
 	.ascii	"Disk error\0"
 
-//	. = Entry_12_16 + 0x1fa
-	
-//Loadusb_12_16:
-//        .byte   0x75,0
-
 	. = Entry_12_16 + 0x1fc
 	.word	0, 0xAA55 /* Win9x uses all 4 bytes as magic value here */
 
@@ -1814,6 +1792,38 @@ msg_DiskReadError_12_16:
 #undef DEBUG
 
 	//. = _start1 + 0x800
+	
+//Offset	Length	Description
+//======	======	==============================================================
+//00h			2				Machine code for short jump over the data.
+//02h			1				0x90
+//03h			8				Partitioning message "EXT2/3/4"
+//0Bh			2				Bytes per sector. Must be 512.
+//0Dh			1				Sectors per block. Valid values are 2, 4, 8, 16 and 32.
+//0Eh			2				Bytes per block. Valid values are 0x400, 0x800, 0x1000, 0x2000 and 0x4000.
+//10h			4				Pointers in pointers-per-block blocks, that is, number of blocks covered by a double-indirect block.
+//								Valid values are 0x10000, 0x40000, 0x100000, 0x400000 and	0x1000000.
+//14h			4				Pointers per block, that is, number of blocks covered by an	indirect block.
+//								Valid values are 0x100, 0x200, 0x400, 0x800, 0x1000.
+//18h			2				Sectors per track.
+//1Ah			2				Number of heads/sides.
+//1Ch			4				Number of hidden sectors (those preceding the boot sector).
+//								Also referred to as the starting sector of the partition.	For floppies, it should be 0.
+//20h			4				Total number of sectors in the filesystem(or in the partition).
+//24h			1				BIOS drive number of the boot device.
+//								Actually this byte is ignored for read. The boot code will write DL onto this byte. 
+//								The BIOS or the caller should set	drive number in DL.
+//								We assume all BIOSes pass correct drive number in DL.	Buggy BIOSes are not supported!!
+//25h			1				Partition number of this partition on the boot drive.
+//								0, 1, 2, 3 are primary partitions.
+//								4, 5, 6, ... are logical partitions in the extended partition.
+//								0xff is for whole drive. So for floppies, it should be 0xff.
+//26h			2				inode size in bytes. (Notice! We use the formerly reserved word here for inode size!)
+//28h			4				Number of inodes per group.	Normally a 1.44M floppy has only one group, and the total number of inodes is 184. 
+//								So the value should be	184 or greater.
+//2Ch			4				The block number for group descriptors.	Valid values are 2 for 1024-byte blocks, and 1 otherwise.
+//								The value here is equal to (s_first_data_block + 1).	
+	
 
 Entry_ext2:
 
@@ -1872,27 +1882,18 @@ Entry_ext2:
 	 */
 
 	movb	%dl, 0x24(%bp)	/* BIOS passes drive number in DL */
+	movw	$0x200, 0xb(%bp)
 	
 	movb	$0x41, %ah
 	movw	$0x55AA, %bx
 	pushw	%ds
 	int	$0x13
 	popw	%ds
-//	movb	(Loadusb_ext2 - Entry_ext2 + 0x7c00 +1), %al
 	jc	1f		# No EBIOS
 	rorb	%cl	        # ror cl: D0 C9
 	jnc	1f		# No EBIOS
 	movb	$0x42, (ebios_ext2 - 1 - Entry_ext2 + 0x7c00) 
-//4:
-//	cmpb	$2, %al			//al=2,Forced load            
-//	jne	2f			//not load
-//	jmp	3f
-1:        
-//	cmpb	$1, %al			//al=1,When dl = 00 and does not support the expansion of reading and writing load
-//	jne	4b			//Then judge al=2     
-//3:	//Settings load usb drive marked
-//	movb	$0xff, %dh       
-//2:
+1:
 	pushw	%dx
 	movb	$0x08, %ah      /* chs parameters obtained */
 	pushw	%ds
@@ -1910,9 +1911,21 @@ Entry_ext2:
 	popw	%es
 	movw	$1, %cx
 	call	readDisk_ext2   /* Read MBR */
-	movw	$0x61c6, %si    /* Start address of the first logical sector */
-2:	
-	movl    (%si), %eax     /* First start logical sector */
+	
+	movw	$0x61be, %si
+	movw	$4, %cx
+1:
+	cmpb	$0x80, (%si)
+	je	2f
+	addw	$0x10, %si
+	loop	1b
+2:
+	subw	$4, %cx
+	negw	%cx
+	movb	%cl, 0x25(%bp)		//Partition number
+	movl    0xc(%si), %eax	//The total number of sectors	
+	movl    %eax, 0x20(%bp)
+	movl    8(%si), %eax    /* First start logical sector */
 	movl    %eax, 0x1c(%bp)
 	incl    %eax            /* Read from the second sector */ 
 	pushw   $0x07e0
@@ -1923,20 +1936,6 @@ Entry_ext2:
 	je      1f              /* yes */
 	addw    $0x10, %si      /* check the next partition table */
 	jmp     2b	
-//1:		
-//	cmpb	$0xff, %dh
-//	jne	1f
-//	movl	(%si), %eax     /* First start logical sector */
-//	subl	$0x0a, %eax
-//	movw	$0x0a, %cx   
-//	xorw	%bx, %bx        //read to 0d00:0000
-//	pushw	$0x0d00
-//	popw	%es
-// 	call	readDisk_ext2
-//	call	$0x0d00,$0x0000
-//	jc 2f
-//	/* EBIOS supported */
-//	movb	$0x42, (ebios_ext2 - 1 - Entry_ext2 + 0x7c00)
 1:	
 	movw	$0x8000, %si
 	movw	0x58(%si), %ax		/* AX=s_inode_size */
@@ -2072,51 +2071,7 @@ Entry_ext2:
 	                                /* rather than the original direct_indirect index model to store data? */
 	jne     extent                  /* yes */
 	
-extent_fh:
-	
-	
-
-	/* Move the inode struct to a known safe area(0000:0fa8 - 0000:0fff),
-	 * that is, 0x58 bytes immediately before 0000:1000. We care about only
-	 * the beginning 0x58 bytes of the 0x80-byte inode struct, the last
-	 * 0x28 bytes are ignored. The area from 0xfa8+0x28 to 0xfa8+0x57
-	 * stores 12 direct block pointers.
-	 *  
-	 *  
-	 * At address   Initial value               Stores what?
-	 * ==========   =============   ======================================
-	 * 0xfa8+0x04      (const)           the size of the file in bytes
-	 * 
-	 * 0xfa8+0x08    total blocks           blocks left to read
-	 * 
-	 * 0xfa8+0x0c         0           serial number of the block to read
-	 * 
-	 */
-
-	pushw	%ss
-	popw	%es				/* ES=0 */
-
-	leaw	-0x58(%bx), %di			/* BX=0x1000, so DI=0x0fa8 */
-
-	movb	$0x2c, %cl			/* 0x2c words = 0x58 bytes */
-
-	repz movsw				/* now ECX=0, BX=0x1000=DI */
-
-	movl	%ecx, (0x0c - 0x58)(%di)	/* block serial number of the file */
-						/* ECX=0 means first block */
-						/* DI=0x1000 */
-
-	movl	(0x04 - 0x58)(%di), %eax	/* i_size, the file size */
-	decl	%eax
-        
-        cdq
-        
-	divl	0x0e(%bp)			/* bytes per block */
-						/* EDX=various */
-	incl	%eax
-	movl	%eax, (0x08 - 0x58)(%di)	/* total blocks for file data */
-	
-	jmp	asdf               
+	jmp extent_fh              
          
 /* Read sectors from disk, using LBA or CHS
  * input:	EAX   = 32-bit LBA sector number
@@ -2210,18 +2165,55 @@ msg_No_grldr_ext2:
 	.ascii	"No "
 
 filename_ext2:
-	.ascii	"grldr\0"
+	.ascii	"GRLDR\0\0\0\0\0\0\0\0"
 	
 msg_DiskReadError_ext2:
 	.ascii	"Disk error\0"
 
-//        . = Entry_ext2 + 0x1fa
-//Loadusb_ext2:
-//	.byte   0x75,0 
   . = Entry_ext2 + 0x1fc       
 	.word	0, 0xAA55
 
-asdf: 
+extent_fh:
+	
+	/* Move the inode struct to a known safe area(0000:0fa8 - 0000:0fff),
+	 * that is, 0x58 bytes immediately before 0000:1000. We care about only
+	 * the beginning 0x58 bytes of the 0x80-byte inode struct, the last
+	 * 0x28 bytes are ignored. The area from 0xfa8+0x28 to 0xfa8+0x57
+	 * stores 12 direct block pointers.
+	 *  
+	 *  
+	 * At address   Initial value               Stores what?
+	 * ==========   =============   ======================================
+	 * 0xfa8+0x04      (const)           the size of the file in bytes
+	 * 
+	 * 0xfa8+0x08    total blocks           blocks left to read
+	 * 
+	 * 0xfa8+0x0c         0           serial number of the block to read
+	 * 
+	 */
+
+	pushw	%ss
+	popw	%es				/* ES=0 */
+
+	leaw	-0x58(%bx), %di			/* BX=0x1000, so DI=0x0fa8 */
+
+	movb	$0x2c, %cl			/* 0x2c words = 0x58 bytes */
+
+	repz movsw				/* now ECX=0, BX=0x1000=DI */
+
+	movl	%ecx, (0x0c - 0x58)(%di)	/* block serial number of the file */
+						/* ECX=0 means first block */
+						/* DI=0x1000 */
+
+	movl	(0x04 - 0x58)(%di), %eax	/* i_size, the file size */
+	decl	%eax
+        
+        cdq
+        
+	divl	0x0e(%bp)			/* bytes per block */
+						/* EDX=various */
+	incl	%eax
+	movl	%eax, (0x08 - 0x58)(%di)	/* total blocks for file data */
 
 	/*
 	 * 0000:1000	trebly indirect block
@@ -2401,6 +2393,21 @@ asdf:
 	pushw	%ds		/* DS=0 */
 	movw	%di, %ds	/* DS=0x1000 */
 	movw	$(filename_ext2 - Entry_ext2 + 0x7c00), %di
+	
+	pushw %di
+102:
+	cmpb $0, %es:(%di)
+	je 101f
+	cmpb $0x41, %es:(%di)
+	jb 103f
+	cmpb $0x5a, %es:(%di)
+	ja 103f
+	orb $0x20, %es:(%di)								/* Switch to lowercase */
+103:
+	incw %di
+	jmp 102b
+101:
+	popw %di
 
 	pushw	%si
 	lodsl			/* This is possible inode number for grldr */
@@ -2409,7 +2416,6 @@ asdf:
 	xchgw	%ax, %dx	/* rec_len */
 	lodsw			/* AL=name_len, should be 5 for grldr */
 				/* AH=file_type(1 for regular file) */
-
         xorb    %ah, %ah
 	xchgw	%ax, %cx	/* CX=name_len */
 	repz cmpsb
@@ -2422,10 +2428,14 @@ asdf:
 	movw	%ds, %di	/* DI=0x1000 */
 	popw	%ds		/* DS=0 */
 
-	stc			/* indicates the new inode is for grldr */
+//	stc			/* indicates the new inode is for grldr */
 
-	jz	4b		/* grldr is found with EAX=inode number */
-
+//	jz	4b		/* grldr is found with EAX=inode number */
+	jne 101f
+	cmpb $0, %es:(%di)
+	stc
+	je 4b
+101:
 	addw	%dx, %si
 	cmpw	0x0e(%bp), %si	/* bytes per block */
 	jb	2b
@@ -2620,21 +2630,17 @@ boot_error_ext2:
         Offset  Type    Description
         --------------------------------------------------------------------
         00      Word    EB 76   Jump instruction
-        02      Byte    EIOS Mark
-                        Bit 7   EIOS
-        03      DWord   Retention
-        07      DWord   Retention
+        02      Byte    90
+        03      DWord   "EXFAT   "
         0b      Word    Bytes per sector
         0d      byte    Sectors per cluster
-        0e      Word    Retention
-        10      Byte    Retention
-        11      DWord   Data start Absolute sector 
-        15      Byte    Retention
-        16      Word    Retention
+        0e      DWord   Data start Absolute sector
+        12      DWord   The current cluster the absolute sector in fat table
+        16      Word    EIOS Mark		Bit 7   EIOS
         18      Word    Sectors per track
         1a      Word    Number of heads
         1c      DWord   Retention
-        20      DWord   The current cluster the absolute sector in fat table
+        20      DWord   Retention
         24      Byte    Drive number
         25      Byte    Partition number
         26      Word    Retention
@@ -2653,6 +2659,17 @@ Entry_exfat:
         
         cli
 	cld
+	testb	$0x80, %dl
+	jne	1f
+	movb	$0xff, %dh
+	jmp 2f
+1:
+	cmpw	$0x7c00, %sp
+	jne	2f
+	subw	$0x1be, %bp
+	xchgw	%bp, %ax
+	movb	%ah, %dh
+2:
 	xorw	%ax, %ax
 	movw	$0x7c00, %bp                    /* the base address */ 
         movw	%ax, %ss	                /* stack and BP-relative moves up, too */
@@ -2662,7 +2679,7 @@ Entry_exfat:
 	sti
 	pushw	%ax
 
-	movb	%dl, 0x24(%bp)	/* BIOS passes drive number in DL */
+	movw	%dx, 0x24(%bp)	/* BIOS passes drive number in DL */
 	
 	movb	0x6c(%bp), %cl                  /* Bytes per sector (power) */
 	movw	$1, %ax
@@ -2675,39 +2692,16 @@ Entry_exfat:
 	jc	1f		# No EBIOS
 	rorb	%cl   	        # ror cl: D0 C9
 	jnc	1f		# No EBIOS
-	orb	$0x80, 02(%bp)  /* EBIOS supported */
+	orb	$0x80, 0x16(%bp)  /* EBIOS supported */
 	jmp	2f
 1:
-//	pushw	%ax
 	movb		$0x08, %ah
 	int			$0x13
 	movb    %dh, 0x1a(%bp)
 	andb    $0x3f, %cl
 	movb    %cl, 0x18(%bp)
-//	popw	%ax
 2:
 	popw	%ds
-//	movb	(Loadusb_64 - Entry_exfat + 0x7c00 +1), %al
-//	decb %al				//al=1,When dl = 00 load
-//	jne 1f						
-//	cmpb	%al, %dl	//dl=0?
-//	je	3f
-//1:
-//	decb %al				//al=2,Forced load 
-//	jne 2f	
-//3:	//Load the usb driver
-//	movl	0x7c40, %eax    //Partition starting sector number
-//	addl	$0x18, %eax
-//	movw	$0x0a, %cx
-//	pushw	$0x0d00        //read to 0d00:0000
-//	popw	%es    
-// 	call	readDisk_64
-//	call	$0x0d00,$0x0000
-//	jc	2f
-//	movb	%dl, 0x24(%bp)	/* BIOS passes drive number in DL */
-//	orb	$0x80, 02(%bp)  /* EBIOS supported */
-//2:
-
 	        			
 	movl    0x50(%bp), %eax
         addl    0x40(%bp), %eax
@@ -2718,7 +2712,7 @@ Entry_exfat:
         movl    %eax, 0x28(%bp)                 /* FAT table start absolute sector number */ 
         movl    0x58(%bp), %eax
         addl    0x40(%bp), %eax                       
-        movl    %eax, 0x11(%bp)                 /* Data start Absolute sector */
+        movl    %eax, 0x0e(%bp)                 /* Data start Absolute sector */
 
         movb    0x6d(%bp), %cl                  /* Sectors per cluster (power) */
 	movb	$1, %al
@@ -2727,7 +2721,6 @@ Entry_exfat:
         movl    0x40(%bp), %eax                 /* Sector Address */
         pushw   $0x07e0
         popw    %es	
-//	xorw    %bx, %bx
         movw    $12, %cx
 	call    readDisk_64
         jb      disk_error_64                   /* Read error display 'disk error'  */
@@ -2806,7 +2799,7 @@ readDisk_64:
 	pushw	$1		/* 1 sector to read */
 	pushw	$16		/* size of this parameter block */
         movw	%sp, %si	        /* DS:SI points to disk address packet */
-        testb   $0x80, 2(%bp)           /* Support the expansion of reading? */
+        testb   $0x80, 0x16(%bp)           /* Support the expansion of reading? */
         jne     1f                      /* yes */
         /* C/H/S mode read */ 
         movzwl  0x18(%bp), %ecx /* sectors per track */
@@ -2854,14 +2847,11 @@ msg_BootError_64:
 	.ascii	"No "
 	
 grldr_un:
-        .ascii  "grldr\0"	
+        .ascii  "GRLDR\0\0\0\0\0\0\0\0"	
 
 msg_DiskReadError_64:
 	.ascii	"Disk error\0"  
 	
-//	. = Entry_exfat + 0x1fa
-//Loadusb_64:
-//        .byte   0x75,0	
 	. = Entry_exfat + 0x1fc
 	.word	0,0xAA55 
 	
@@ -2888,20 +2878,26 @@ exfat_next:
         cmpb    $0xc0, %es:(%di)        /* Stream Directory */
         jne     6b                      /* Not */
         /* Determine the length of the file name */
-        cmpb    $5, %es:3(%di)          /* File name length is equal to 5? */
-        jne     6b                      /* NO, Check next entry */
+				movb %es:3(%di), %cl          	/* File name length */
         pushw   %di                     /* Save the current directory entry */
         addw    $0x22, %di              /* Filename address */                                                   
-        movw    $5, %cx                 /* More bytes */
+				pushl %esi
         movw    $(grldr_un - Entry_exfat + 0x7c00), %si /*'GRLDR' First place */
-1:      
-        orb     $0x20, %es:(%di)        /* Switch to lowercase */
-        cmpsb                           /* More 'grldr',Unicode file names */
+1:    
+				cmpb $0x61, %es:(%di)
+				jb 101f
+				cmpb $0x7a, %es:(%di)
+				ja 101f
+        andb $0xdf, %es:(%di)						/* lowercase to Switch */
+101:        
+				cmpsb                           /* More 'grldr',Unicode file names */
         jne     1f                      /* NO,Restore directory entry, check the next entry */
         incw    %di
         loop    1b                      /* The same, compare the next character */
-
+				cmpb $0, (%si)
+				jne 1f
         /* GRLDR has been found */
+				popl %esi
         popw	%di                     /* Restore directory entry */
         /* files stored continuously, Calculate the number of sectors the file */
         movl    %es:0x18(%di), %eax     /* 32-bit low byte file */
@@ -2914,12 +2910,12 @@ exfat_next:
         /* Read file to 2000:0000 */        
         movl    %es:0x14(%di), %eax     /* Starting cluster file */
         call    cluster_to_lba_64       /* Calculate the absolute sector from the cluster */
-//        xorw    %bx, %bx                /* Target offset */
         popw	%cx                     /* File number of sectors */
         call    readDisk_64             /* Read file GRLDR to 2000:0000 */
         jmp     5f        
 1:      
         /* Restore directory entry, check the next entry */
+				popl %esi
         popw	%di                     /* NO,Restore directory entry */
         jmp     6b                      /* Check the next entry */                         
 2:      
@@ -2948,7 +2944,7 @@ read_2_sectors:
         call    readDisk_64                     /* Read sectors */
         jb      4f
         pushl   %eax                            /* The second absolutely logical sector */
-        subl    0x11(%bp), %eax                 /* The first relatively logical sector */
+        subl    0x0e(%bp), %eax                 /* The first relatively logical sector */  /* Data start Absolute sector */
         xorl    %edx, %edx
         movzbl  0x0d(%bp), %ecx                 /* sectors per cluster */
         divl    %ecx                            /* eax=Cluster number  edx=Sector offset */    
@@ -3041,10 +3037,10 @@ NextCluster:
         addl    0x28(%bp), %eax                                 /* FAT table start absolute sector number */
         pushw   %dx                                             /* byte offset */
         /* Determine whether or not to read the fat table */
-        cmpl    %eax, 0x20(%bp)
+        cmpl    %eax, 0x12(%bp)																	//The current cluster the absolute sector in fat table
         je      1f                                              /* Does not read the fat table */
         /* read the fat table */
-        movl    %eax, 0x20(%bp)                                 /* Save the current address of fat table */                
+        movl    %eax, 0x12(%bp)                                 /* Save the current address of fat table */ //The current cluster the absolute sector in fat table               
         movw    $1, %cx                                         /* Read 1 sector */ 
         pushw   %es
         call    readDisk_64                                     /* Reading FAT table */
@@ -3067,7 +3063,7 @@ cluster_to_lba_64:
 	decl	%eax 
         movb    0x6d(%bp), %cl          /* Sectors per cluster (power) */
         shll    %cl, %eax 
-        addl	0x11(%bp), %eax         /* Absolute sector */
+        addl	0x0e(%bp), %eax         /* Absolute sector */   /* Data start Absolute sector */
 	ret
 
 
@@ -3602,7 +3598,7 @@ msg_NTFS_Not_Found_Error:
 	.ascii "No "
 
 nt_boot_image:
-	.ascii "grldr\0"
+	.ascii "GRLDR\0\0\0\0\0\0\0\0"
 
 msg_DiskReadError_nt:
 	.ascii	"0\0" 
@@ -3816,7 +3812,8 @@ ntfs_find_grldr:
 1:
 	//incw	nt_file_count
 
-	xorb	%ch, %ch
+//	xorb	%ch, %ch
+	xorw %cx, %cx
 
 	pushw	%si
 	leaw	(nt_boot_image - Entry_nt)(%bp), %si
@@ -3825,11 +3822,14 @@ ntfs_find_grldr:
 1:
 	lodsb	(%si), %al
 	movb	(%bx), %ah
-	cmpb	$'A', %ah
+//	cmpb	$'A', %ah
+	cmpb	$'a', %ah
 	jb	2f
-	cmpb	$'Z', %ah
+//	cmpb	$'Z', %ah
+	cmpb	$'z', %ah
 	ja	2f
-	addb	$('a'-'A'), %ah		// Convert to lowercase
+//	addb	$('a'-'A'), %ah		// Convert to lowercase
+	subb	$('a'-'A'), %ah		// Convert to Switch
 2:
 
 	cmpb	%ah, %al
@@ -4692,15 +4692,13 @@ nt_sector_mark:
         07      DWord   Home directory of the absolute starting sector (fat12/16)
         0b      Word    Bytes per sector
         0d      byte    Sectors per cluster
-        0e      Word    Retention
-        10      Byte    Retention
-        11      DWord   Data start Absolute sector 
-        15      Byte    Retention
+        0e      DWord   Data start Absolute sector 
+        12      DWord   The current cluster the absolute sector in fat table
         16      Word    Retention
         18      Word    Sectors per track
         1a      Word    Number of heads
         1c      DWord   Partition start Absolute sector
-        20      DWord   The current cluster the absolute sector in fat table
+        20      DWord   The total number of sectors partition
         24      Byte    Drive number
         25      Byte    Partition number
         26      Word    Retention
@@ -4723,7 +4721,7 @@ Entry_12_64_ext:                                    /* cs=ds=es=0000 ss=2000 */
         lesw	(loadseg_off_12_64_ext - Entry_12_64_ext + 0x30)(%bp), %bx	/* load to loadseg:0 */ 
         testb   $0x10, 02(%bp)                                  /* ext2? */          
         jne     Entry_ext2_mbr                                  /* yes */ 
-        movb    $0xff, 0x20(%bp)                                /* The current cluster  the absolute sector in fat table */       
+        movb    $0xff, 0x12(%bp)                                /* The current cluster  the absolute sector in fat table */   //The current cluster the absolute sector in fat table    
         testb   $1, 02(%bp)                                     /* fat12? */          
         jne 1f                                                  /* yes */
         testb   $2, 02(%bp)                                     /* fat16? */
@@ -4738,7 +4736,7 @@ Entry_12_64_ext:                                    /* cs=ds=es=0000 ss=2000 */
         jmp     2f                                              /* ok */
 1:      /* Read fat12/16 Home directory */
         movl    0x07(%bp), %eax                                 /* Home directory of the absolute starting sector (fat12/16) */
-        movl    0x11(%bp), %ecx                                 /* Data start Absolute sector */
+        movl    0x0e(%bp), %ecx                                 /* Data start Absolute sector */
         subl    %eax, %ecx                                      /* sectors  number of  the main directory */
         pushw   %es
         call    readDisk_12_64_ext                              /* Read all the Home directory to 2000:0000 */
@@ -4760,13 +4758,9 @@ Entry_12_64_ext:                                    /* cs=ds=es=0000 ss=2000 */
         je      grldr_error_12_64_ext   /* yes */ 
         movw    $0xb, %cx               /* More bytes*/
         movw    $(filename_12_64_ext - Entry_12_64_ext + 0x7c30), %si      /*'GRLDR' First place */         
-//      repz    cmpsb                   /* More 'GRLDR' */
-
-2:      orb     $0x20, %es:(%di)        /* Switch to lowercase */
-        cmpsb
+				repz    cmpsb                   /* More 'GRLDR' */
         jne     1b                      /* NO,Restore directory entry, check the next entry */
-        loop    2b                      /* No, continue search */
-1:
+
         /* GRLDR has been found */
         movw    %es:0x11(%di), %ax      /* 16-bit low byte file */
         movw    %es:0x13(%di), %dx      /* 16-bit high byte file */
@@ -4795,20 +4789,26 @@ Entry_12_64_ext:                                    /* cs=ds=es=0000 ss=2000 */
         cmpb    $0xc0, %es:(%di)        /* Stream Directory */
         jne     6b                      /* Not */
         /* Determine the length of the file name */
-        cmpb    $5, %es:3(%di)          /* File name length is equal to 5? */
-        jne     6b                      /* NO, Check next entry */
+//        cmpb    $5, %es:3(%di)          /* File name length is equal to 5? */
+//        jne     6b                      /* NO, Check next entry */
+				movzbw  %es:3(%di), %cx        	/* File name length */
         pushw   %di                     /* Save the current directory entry */
         addw    $0x22, %di              /* Filename address */                                                   
-        movw    $5, %cx                 /* More bytes */
+//        movw    $5, %cx                 /* More bytes */
         movw    $(grldr_un_12_64_ext - Entry_12_64_ext + 0x7c30), %si /*'GRLDR' First place */
 1:      
-//      andb    $0xdf, %es:(%di)        /* Switch to uppercase */
-//      cmpsw                           /* More 'GRLDR',Unicode file names */
-        orb     $0x20, %es:(%di)        /* Switch to lowercase */
-        cmpsb
+				cmpb $0x61, %es:(%di)
+				jb 101f
+				cmpb $0x7a, %es:(%di)
+				ja 101f
+        andb $0xdf, %es:(%di)        		/* lowercase to lowercase */
+101:        
+				cmpsb
         jne     1f                      /* NO,Restore directory entry, check the next entry */
         incw    %di
         loop    1b                      /* The same, compare the next character */
+				cmpb $0, (%si)
+				jne 1f
         /* GRLDR has been found */
         popw	%di                     /* Restore directory entry */
         /* files stored continuously, Calculate the number of sectors the file */
@@ -4852,7 +4852,7 @@ cluster_to_lba_12_64_ext:
 	decl	%eax 
 	movzbl	0x0d(%bp), %edx		/* sectors per cluster */
 	mull	%edx			/* EDX = 0 */
-        addl	0x11(%bp), %eax         /* Absolute sector */
+        addl	0x0e(%bp), %eax         /* Absolute sector */  /* Data start Absolute sector */
 	ret
 
 
@@ -4956,7 +4956,7 @@ read_2_sectors_12_64_ext:
         call    readDisk_12_64_ext              /* Read sectors */
         jb      4f
         pushl   %eax                            /* The second absolutely logical sector */
-        subl    0x11(%bp), %eax                 /* The first relatively logical sector */
+        subl    0x0e(%bp), %eax                 /* The first relatively logical sector */  /* Data start Absolute sector */
         xorl    %edx, %edx
         movzbl  0x0d(%bp), %ecx                 /* sectors per cluster */
         divl    %ecx                            /* eax=Cluster number  edx=Sector offset */
@@ -5066,10 +5066,10 @@ NextCluster_12_64_ext:
         addl    0x28(%bp), %eax                                 /* FAT table start absolute sector number */
         pushw   %dx                                             /* byte offset */
         /* Determine whether or not to read the fat table */
-        cmpl    %eax, 0x20(%bp)
+        cmpl    %eax, 0x12(%bp)																	//The current cluster the absolute sector in fat table
         je      1f                                              /* Does not read the fat table */
         /* read the fat table */
-        movl    %eax, 0x20(%bp)                                 /* Save the current address of fat table */                                                        
+        movl    %eax, 0x12(%bp)                                 /* Save the current address of fat table */  //The current cluster the absolute sector in fat table                                                      
         movw    $2, %cx                                         /* Read 2 sector */
         pushw   %es
         call    readDisk_12_64_ext                              /* Reading FAT table */
@@ -5398,6 +5398,21 @@ extent_fh_mbr:
 	pushw	%ds		/* DS=0 */
 	movw	%di, %ds	/* DS=0x1000 */
 	movw	$(filename_ext2_mbr - Entry_12_64_ext + 0x7c30), %di
+	
+	pushw %di
+102:
+	cmpb $0, %es:(%di)
+	je 101f
+	cmpb $0x41, %es:(%di)
+	jb 103f
+	cmpb $0x5a, %es:(%di)
+	ja 103f
+	orb $0x20, %es:(%di)								/* Switch to lowercase */
+103:
+	incw %di
+	jmp 102b
+101:
+	popw %di
 
 	pushw	%si
 	lodsl			/* This is possible inode number for grldr */
@@ -5406,10 +5421,6 @@ extent_fh_mbr:
 	xchgw	%ax, %dx	/* rec_len */
 	lodsw			/* AL=name_len, should be 5 for grldr */
 				/* AH=file_type(1 for regular file) */
-	cmpb    $5, %al
-	jne     5f			
-				
-
         xorb    %ah, %ah
 	xchgw	%ax, %cx	/* CX=name_len */
 	repz    cmpsb
@@ -5422,10 +5433,14 @@ extent_fh_mbr:
 	movw	%ds, %di	/* DI=0x1000 */
 	popw	%ds		/* DS=0 */
 
-	stc			/* indicates the new inode is for grldr */
+//	stc			/* indicates the new inode is for grldr */
 
-	jz	4b		/* grldr is found with EAX=inode number */
-
+//	jz	4b		/* grldr is found with EAX=inode number */
+	jne 101f
+	cmpb $0, %es:(%di)
+	stc
+	je 4b
+101:
 	addw	%dx, %si
 	cmpw	0x0e(%bp), %si	/* bytes per block */
 	jb	2b
@@ -5550,7 +5565,7 @@ msg_BootError_12_64_ext:
 grldr_un_12_64_ext:	
 filename_12_64_ext:
 filename_ext2_mbr:
-        .ascii	"grldr      \0"
+        .ascii	"           \0\0"
 
 msg_DiskReadError_12_64_ext:
 	.ascii	"Disk error\0" 
@@ -6111,12 +6126,17 @@ helper_start:
 	
 
 	/* DS=ES=FS_BOOT */
-
+	
+	//Installation fat12/16/32/exfat/ext2/ntfs partition
 	/* First, check for ext2 filesystem */
        
         andb    $0, 0x02                /* Initialization mark */
-	cmpw	$0xEF53, 0x438		/* Magic signature */
-	jnz	fat
+	testb $0x04, %cs:(help_mark - _start1)
+	je 1f
+	orb $0x80, 02(%si)    /* force LBA */
+1:
+	cmpw $0xEF53, 0x438		/* Magic signature */
+	jnz fat
 	
 /* ext2 Patch start */	
 	xorl	%eax, %eax
@@ -6176,64 +6196,56 @@ helper_start:
         
         movw    $0x200, 0x0b(%si)       /* bytes per sector */
         orb     $0x10, 02(%si)          /* ext2 Mark */
-        jmp     3f
+
 
 fat:
-	#; It is not EXT2. Check for FAT12/16/32/exFAT/NTFS.
-	
-/* fat12/16/32/exfat/ntfs Patch start */	           
 
-//      testb   $0x04, %cs:0x0a
-        testb   $0x04, %cs:(help_mark - _start1)
-        je      3f
-        orb     $0x80, 02(%si)          /* force LBA */
-        
-3:		
 	cld
 
 	/* ds=0d00 es=0d00  cs=ss=2000 si=0 */
         cmpl    $0x5346544e, 3(%si)             /* ntfs Partition? */
         je      3f                              /* yes */ 
 
-        /* fix for fat 12/16/32/64: sectors per track, offset 0x18 */
-        /* fix for fat 12/16/32/64: number of heads, offset 0x1a */
+        //fat12/16/32/exfat/ext2
         movw	%cs:(Sectors_passed_in - _start1)(%si), %ax	/* SI=0 */
         movb	%al, 0x18(%si)		/* DS=ES */
         shrw	$8, %ax
         incw	%ax
         movw	%ax, 0x1a(%si)        
 2:      
-        /* BUG fix for extended FAT12/16/32/64 partition */
+        /* BUG fix for extended FAT12/16/32/64/ext2 partition */
         popw	%di			/* DI points to old entry in MBR */
         pushw	%di
         xorl	%eax, %eax		/* let hidden_sectors=0 for floppy */
-//        testb	%dl, %dl
-//        jns	2f			/* floppy */                     
-//      testb	$8, %cs:0x0a                /* Partition Table OK? */
         testb   $8, %cs:(help_mark - _start1)
         je	2f			/* not */       
         movl	%cs:4(%di), %eax
         addl	%cs:8(%di), %eax
-2:      movl	%eax, 0x1c(%si)		/* adjust hidden_sectors for FAT */
-   
+2:      
+				movl	%eax, 0x1c(%si)		/* adjust hidden_sectors for FAT */
+				movb	%cs:0x1bc, %dh		/* partition number */
         
         cmpl    $0x33544146, 0x52(%si)  /* fat32 Partition? */
         jne     1f                      /* not */
         cmpl    $0x20202032, 0x56(%si)  /* fat32 Partition? */
         je      7f                      /* yes */
-1:
-        movw    %dx, 0x24(%si)
-        testb   $0x10, 02(%si)          /* ext2 Mark */
+1: 
+        //fat12/16/exfat/ext2
+				movw		%dx, 0x24(%si)
+				testb   $0x10, 02(%si)          /* ext2 Mark */
         jne     9f                      /* yes */
+				//fat12/16/exfat
         cmpl    $0x41465845, 03(%si)    /* exfat Partition? */
         jne     2f                      /* not */
         cmpl    $0x20202054, 07(%si)    /* exfat Partition? */
         je      6f                      /* yes */
 2:     
-        cmpl    $0x31544146, 0x36(%si)  /* fat12/16 Partition? */
+        //fat12/16
+				cmpl    $0x31544146, 0x36(%si)  /* fat12/16 Partition? */
         jne     1f                      /* not */
         cmpl    $0x20202032, 0x3a(%si)  /* fat12 Partition? */
         je      4f                      /* yes */
+				//fat16
         cmpl    $0x20202036, 0x3a(%si)  /* fat16 Partition? */
         je      5f                      /* yes */
 3:      
@@ -6273,8 +6285,7 @@ fat:
 3:
 	movl	%eax, 0x1c		/* adjust hidden_sectors for NTFS */
 
-//	movb	%dl, 0x24		/* adjust drive number for NTFS */
-        movw	%dx, 0x24
+	movb	%dl, 0x24		/* adjust drive number for NTFS */
 #if 1
 	// Load NTFS using internal boot sector at 0xA00
 
@@ -6356,9 +6367,11 @@ fat:
 #endif
  
 
-6:      
+6:      /* exFAT */
         /* Parameters calculated by the bpb */
-        orb     $8, 02(%si)                     /* exfat Mark */        
+        orb     $8, 02(%si)                     /* exfat Mark */ 
+				movl    0x48(%si), %eax
+				movl    %eax, 0x20(%si)									//The total number of sectors partition
         movl    0x50(%si), %eax
         addl    0x1c(%si), %eax
         testb   $1, 0x6a(%si)
@@ -6368,16 +6381,13 @@ fat:
         movl    %eax, 0x28(%si)                 /* FAT table start absolute sector number */ 
         movl    0x58(%si), %eax
         addl    0x1c(%si), %eax                       
-        movl    %eax, 0x11(%si)                 /* Data start Absolute sector */
+        movl    %eax, 0x0e(%si)                 /* Data start Absolute sector */
         movb    0x6c(%si), %cl                  /* Bytes per sector (power) */
-//        decb    %cl
-//        movw    $2, %ax
         movw    $1, %ax
         pushw   %ax
         shlw    %cl, %ax
         movw    %ax, 0x0b(%si)                  /* Bytes per sector */
         movb    0x6d(%si), %cl                  /* Sectors per cluster (power) */
-//        decb    %cl
         popw	%ax
         shlw    %cl, %ax
         movb    %al, 0x0d(%si)                  /* Sectors per cluster */
@@ -6385,14 +6395,12 @@ fat:
         movl    %eax, 0x2c(%si)                 /* Root clusters */ 
         
         movw	$(exfat_message - _start1), %si
-        
-        
         jmp     3f         
 4:      /* fat12 */ 
         orb     $1, 02(%si)                     /* fat12 Mark */
 2:        
         pushw   %dx
-        movzwl  0x0e(%si), %ecx                 /* Reserved sector */
+				movzwl  0x0e(%si), %ecx                 /* Reserved sector */
         addl    0x1c(%si), %ecx
         movl    %ecx, 0x28(%si)                 /* FAT table start absolute sector number */
         movzbw  0x10(%si), %ax                  /* Number of FAT table */
@@ -6412,8 +6420,8 @@ fat:
         movzwl  %ax, %eax                       /* sectors  number of  the main directory */
         popl    %ecx                            /* Home directory of the absolute starting sector (fat12/16) */ 
         addl    %eax, %ecx
-        movl    %ecx, 0x11(%si)                 /* Data start Absolute sector */ 
         popw    %dx
+        movl    %ecx, 0x0e(%si)                 /* Data start Absolute sector */ 
         testb   $1, 02(%si)                     /* fat12? */
         je      8f                              /* not */
         
@@ -6425,7 +6433,7 @@ fat:
 5:      /* fat16 */
         orb     $2, 02(%si)                     /* fat16 Mark */
         jmp     2b
-9:
+9:			/* ext2 */
         movw	$(EXT2_message - _start1), %si
      
         jmp     3f
@@ -6438,18 +6446,49 @@ fat:
         pushw   %dx
         mull    0x24(%si)
         addl    %ecx, %eax
-        movl    %eax, 0x11(%si)                 /* Data start Absolute sector */
+        movl    %eax, 0x0e(%si)                 /* Data start Absolute sector */
         popw    %dx
         movw    %dx, 0x24(%si)        
         movw	$(FAT32_message - _start1), %si      
 3:     
-        /* From 2000 to  0d00 move the boot code */
-        pushw   %si
-        pushw   %ds
-        pushw   %cs
-        popw	%ds                             /* 2000 */
+        pushw %si
+				pushw %ds
+				pushw %es
+				pushw %di
+				movw $(nt_boot_image - _start1), %si 
+				movw $(filename_12_64_ext - _start1), %di
+				pushw %cs
+				popw %es
+				testb $7, 02
+				pushw %cs
+				popw %ds
+				jne 101f
+				
+				movw $12, %cx
+				repz movsb
+				jmp 105f
+101:				
+				pushw %di
+102:				
+				movsb
+103:				
+				cmpb $0, (%si)
+				je 104f
+				cmpb $0x2e, (%si)
+				jne 102b
+				incw %si
+				popw %di
+				pushw %di
+				addw $8, %di
+				jmp 103b
+104:
+				popw %di
+105:				
+				popw %di
+				popw %es
+				
+				/* From 2000 to  0d00 move the boot code */
         /* cs=ds=2000  es=0d00 */
-        
         movw    $(Entry_12_64_ext - _start1), %si       /* 0a00 */       
         movw    $0x30, %di
         movw    $((end_12_64_ext - Entry_12_64_ext) / 4 +1), %cx      /* move Double word */
@@ -6468,7 +6507,6 @@ fat:
 	#; It is not FAT12/16/32/NTFS. Check for extended partition.
 
 	/* DS=ES=FS_BOOT ds=0d00 es=0d00  cs=2000 */
-//      orb     $0x80, %cs:0x0a
         orb     $0x80, %cs:(help_mark - _start1)
 	pushw	%cs
 	popw	%es
@@ -6603,6 +6641,11 @@ move_entries_and_return:
 1:
 	popw	%si
 	movw    %sp, %bp	
+	testb	%dl, %dl
+	js	3f
+	movb	$0xff, %dh	/* partition # for floppy is "whole drive" */
+3:	
+	movw %dx, 20(%bp)	
 	movw	$0x1fe, %ax	
         movw	$(add_sub_si + 5 - _start1), %di	
 	movw	%ax, (%di)		/* 0x1fe */
@@ -6648,7 +6691,7 @@ inc_hard_drive:
 	pushw	%cs
 	popw	%ds
 	orb	$0x80, %dh	/* CF=0, DH=Max harddrive number + 1 */
-        movb	20(%bp), %dl	/* BIOS drive number is in DL */
+//        movb	20(%bp), %dl	/* BIOS drive number is in DL */
 2:
 	jnc	3f
 	call	print_message	/* CS:SI points to message string */ 	
@@ -8937,7 +8980,7 @@ iso:
 
 
 4:
-	movw	$(msg_BootError_cd - Entry_cdrom), %si
+	movw	$(msg_BootError_cdrom - Entry_cdrom), %si
 1:	
 	lodsb	(%si), %al	/* get token */
 	cmpb	$0, %al		/* end of string? */
@@ -8994,7 +9037,7 @@ load_cdrom:
         
 	. = Entry_cdrom + 0x1e0       
         
-msg_BootError_cd:
+msg_BootError_cdrom:
 	.ascii	"No "        
 
 cdrom_name:
