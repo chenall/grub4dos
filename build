@@ -6,7 +6,7 @@
 #	sh build
 # or
 #	./build
-
+SOURCE_DIR=`pwd`
 VER=`cat grub4dos_version`
 DATE=`date -u +%Y-%m-%d`
 RELEASE=grub4dos-${VER}-${DATE}
@@ -16,7 +16,7 @@ COPY_FILES="COPYING README_GRUB4DOS*.txt ChangeLog_*.txt \
 	stage2/hmload.com stage2/grldr.pbr stage2/grldr_cd.bin"
 
 rm -rf *.zip *.7z *~ || exit $?
-[ ! $GRUB4DOS_TEMP ] && GRUB4DOS_TEMP = grub4dos-temp
+[ -z "$GRUB4DOS_TEMP" ] && GRUB4DOS_TEMP=/tmp/grub4dos-temp
 if svn export . ${GRUB4DOS_TEMP} --force > /dev/null ; then
 	CURR_REVISION=""
 	line=0
@@ -141,14 +141,13 @@ fi
 #	Create ZIP ball or TAR ball
 #############################################
 
-rm -f ../${RELEASE}.zip ../${RELEASE}.rar ../${RELEASE}.tar.gz || exit $?
-if ! 7z a ../${RELEASE}.7z grub4dos-${VER} ; then
+cd $SOURCE_DIR
+rm -f ${RELEASE}.zip ${RELEASE}.rar ${RELEASE}.tar.gz || exit $?
+if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/grub4dos-${VER} ; then
 	echo 7z failed. Continue with zip or tar...
-	if ! zip -r -q ../${RELEASE}.zip grub4dos-${VER} ; then
-		tar -czf ../${RELEASE}.tar.gz grub4dos-${VER}
+	if ! zip -r -q ${RELEASE}.zip grub4dos-${VER} ; then
+		tar -czf ${RELEASE}.tar.gz grub4dos-${VER}
 	fi
 fi
-
-cd ..
 
 # Do not remove grub4dos-temp as we can check and re-use it later.
