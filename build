@@ -6,7 +6,7 @@
 #	sh build
 # or
 #	./build
-
+SOURCE_DIR=`pwd`
 VER=`cat grub4dos_version`
 DATE=`date -u +%Y-%m-%d`
 RELEASE=grub4dos-${VER}-${DATE}
@@ -16,8 +16,8 @@ COPY_FILES="COPYING README_GRUB4DOS*.txt ChangeLog_*.txt \
 	stage2/hmload.com"
 
 rm -rf *.zip *.7z *~ || exit $?
-
-if svn export . grub4dos-temp --force > /dev/null ; then
+[ -z "$GRUB4DOS_TEMP" ] && GRUB4DOS_TEMP=/tmp/grub4dos-temp
+if svn export . ${GRUB4DOS_TEMP} --force > /dev/null ; then
 	CURR_REVISION=""
 	line=0
 	while read w1 w2; do
@@ -66,36 +66,36 @@ EOF
 		SVN_URL_HTTP=http://${SVN_URL#*://}
 
 		export LC_ALL=C
-		svn diff . > grub4dos-temp/grub4dos_r${CURR_REVISION}.diff 2> /dev/null
+		svn diff . > ${GRUB4DOS_TEMP}/grub4dos_r${CURR_REVISION}.diff 2> /dev/null
 		Get_source="Get the source code of this build by using anonymous svn in this way:\r\n\r\nsvn co -r $CURR_REVISION ${SVN_URL_HTTP} grub4dos\r\n\r\n"
 		if [ $SVN_URL = "svn://svn.gna.org/svn/grub4dos/trunk" ]; then
 			Get_source="${Get_source}or in this way:\r\n\r\nsvn co -r $CURR_REVISION ${SVN_URL} grub4dos\r\n\r\n"
 		fi
-		if [ -s grub4dos-temp/grub4dos_r${CURR_REVISION}.diff ]; then
+		if [ -s ${GRUB4DOS_TEMP}/grub4dos_r${CURR_REVISION}.diff ]; then
 			echo -n -e "${Get_source}and then apply the patch against revision ${CURR_REVISION} you just downloaded:\r\n\r\n\
 cd grub4dos\r\n\r\n\
 patch -p0 < ../grub4dos_r${CURR_REVISION}.diff\r\n\r\n\
 and now you may do a \"make\" to compile.\r\n\r\n\
-			\r\n" > grub4dos-temp/Get_Source_of_This_Build.txt
+			\r\n" > ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt
 		else
 			echo -n -e "\
 ${Get_source}and now you may \"cd grub4dos\" and do a \"make\" to compile.\r\n\r\n\
-			\r\n" > grub4dos-temp/Get_Source_of_This_Build.txt
+			\r\n" > ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt
 		fi
 	fi
-elif ! git checkout-index -a -f --prefix=grub4dos-temp/ > /dev/null ; then
+elif ! git checkout-index -a -f --prefix=${GRUB4DOS_TEMP}/ > /dev/null ; then
 	if [ "grub4dos-temp" = "${PWD##*/}" ] ; then
 		cd ..
 	else
 		files=$(echo *)
-		if ! [ -d grub4dos-temp ] ; then
-			mkdir grub4dos-temp || exit $?
+		if ! [ -d ${GRUB4DOS_TEMP} ] ; then
+			mkdir ${GRUB4DOS_TEMP} || exit $?
 		fi
-		cp -a $files grub4dos-temp || exit $?
+		cp -a $files ${GRUB4DOS_TEMP} || exit $?
 	fi
 fi
 
-cd grub4dos-temp || exit $?
+cd ${GRUB4DOS_TEMP} || exit $?
 make clean
 #############################################
 #	Build english version
@@ -143,14 +143,13 @@ fi
 #	Create ZIP ball or TAR ball
 #############################################
 
-rm -f ../${RELEASE}.zip ../${RELEASE}.rar ../${RELEASE}.tar.gz || exit $?
-if ! 7z a ../${RELEASE}.7z grub4dos-${VER} ; then
+cd $SOURCE_DIR
+rm -f ${RELEASE}.zip ${RELEASE}.rar ${RELEASE}.tar.gz || exit $?
+if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/grub4dos-${VER} ; then
 	echo 7z failed. Continue with zip or tar...
-	if ! zip -r -q ../${RELEASE}.zip grub4dos-${VER} ; then
-		tar -czf ../${RELEASE}.tar.gz grub4dos-${VER}
+	if ! zip -r -q ${RELEASE}.zip grub4dos-${VER} ; then
+		tar -czf ${RELEASE}.tar.gz grub4dos-${VER}
 	fi
 fi
-
-cd ..
 
 # Do not remove grub4dos-temp as we can check and re-use it later.
