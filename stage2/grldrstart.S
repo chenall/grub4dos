@@ -993,17 +993,18 @@ Entry_32:
 1:
 	cli
 	cld
-	testb	$0x80, %dl
-	jne	1f
-	movb	$0xff, %dh
-	jmp 2f
-1:
-	cmpw	$0x7c00, %sp
-	jne	2f
-	subw	$0x1be, %bp
-	xchgw	%bp, %ax
-	movb	%ah, %dh
-2:
+//	testb	$0x80, %dl		2014-01-26
+//	jne	1f
+//	movb	$0xff, %dh
+//	jmp 2f
+//1:
+//	cmpw	$0x7c00, %sp
+//	jne	2f
+//	subw	$0x7be, %bp
+//	xchgw	%bp, %ax
+//	shrb	$4, %al
+//	movb	%al, %dh
+//2:
 	xorw	%ax, %ax
 	movw	$0x7c00, %bp
 	movw	%bp, %sp        
@@ -1429,17 +1430,18 @@ Entry_12_16:
 1:
 	cli
 	cld
-	testb	$0x80, %dl
-	jne	1f
-	movb	$0xff, %dh
-	jmp 2f
-1:
-	cmpw	$0x7c00, %sp
-	jne	2f
-	subw	$0x1be, %bp
-	xchgw	%bp, %ax
-	movb	%ah, %dh
-2:
+//	testb	$0x80, %dl    2014-01-26
+//	jne	1f
+//	movb	$0xff, %dh
+//	jmp 2f
+//1:
+//	cmpw	$0x7c00, %sp
+//	jne	2f
+//	subw	$0x7be, %bp
+//	xchgw	%bp, %ax
+//	shrb	$4, %al
+//	movb	%al, %dh
+//2:
 	xorw	%ax, %ax
 	movw	$0x7c00, %bp
 	movw	%bp, %sp        
@@ -1919,24 +1921,29 @@ Entry_ext2:
 	je	2f
 	addw	$0x10, %si
 	loop	1b
+	movl	$0, 0x1c(%bp)
+	xorl	%eax, %eax
+	jmp	1f
 2:
-	subw	$4, %cx
-	negw	%cx
-	movb	%cl, 0x25(%bp)		//Partition number
-	movl    0xc(%si), %eax	//The total number of sectors	
-	movl    %eax, 0x20(%bp)
+//	subw	$4, %cx		2014-01-26
+//	negw	%cx
+//	movb	%cl, 0x25(%bp)		//Partition number
+//	movl    0xc(%si), %eax	//The total number of sectors	
+//	movl    %eax, 0x20(%bp)
 	movl    8(%si), %eax    /* First start logical sector */
 	movl    %eax, 0x1c(%bp)
+1:
 	incl    %eax            /* Read from the second sector */ 
 	pushw   $0x07e0
 	popw    %es	
 	movw    $3, %cx         /* Read 3 sectors */
 	call    readDisk_ext2
 	cmpw    $0xef53, 0x8038 /* Magic signature? */
-	je      1f              /* yes */
-	addw    $0x10, %si      /* check the next partition table */
-	jmp     2b	
-1:	
+//	je      1f              /* yes */		2014-01-26
+	jne disk_error_ext2
+//	addw    $0x10, %si      /* check the next partition table */
+//	jmp     2b	
+//1:	
 	movw	$0x8000, %si
 	movw	0x58(%si), %ax		/* AX=s_inode_size */
 	testw	%ax, %ax 
@@ -1957,6 +1964,11 @@ Entry_ext2:
         movl	%eax, 0x10(%bp)
         movl	0x28(%si), %eax		/* s_inodes_per_group */
         movl	%eax, 0x28(%bp)
+	movl	4(%si), %eax
+	movb	0x0d(%bp), %cl
+	decb	%cl
+	shll	%cl, %eax
+	movl	%eax, 0x20(%bp)
         
         
         testb   $0x80, 0x60(%si)        /* 64-bit file system? */
@@ -2639,7 +2651,7 @@ boot_error_ext2:
         16      Word    EIOS Mark		Bit 7   EIOS
         18      Word    Sectors per track
         1a      Word    Number of heads
-        1c      DWord   Retention
+        1c      DWord   hidden sectors
         20      DWord   Retention
         24      Byte    Drive number
         25      Byte    Partition number
@@ -2652,24 +2664,25 @@ Entry_exfat:
         jmp     1f                              /* cs=ds=es=0000 ss=2000 */
         
         .byte   0x90
-        .ascii  "EXFAT"
+        .ascii  "EXFAT   "
                 
         . = Entry_exfat + 0x78        
 1:        
         
         cli
 	cld
-	testb	$0x80, %dl
-	jne	1f
-	movb	$0xff, %dh
-	jmp 2f
-1:
-	cmpw	$0x7c00, %sp
-	jne	2f
-	subw	$0x1be, %bp
-	xchgw	%bp, %ax
-	movb	%ah, %dh
-2:
+//	testb	$0x80, %dl		2014-01-26
+//	jne	1f
+//	movb	$0xff, %dh
+//	jmp 2f
+//1:
+//	cmpw	$0x7c00, %sp
+//	jne	2f
+//	subw	$0x7be, %bp
+//	xchgw	%bp, %ax
+//	shrb	$4, %al
+//	movb	%al, %dh
+//2:
 	xorw	%ax, %ax
 	movw	$0x7c00, %bp                    /* the base address */ 
         movw	%ax, %ss	                /* stack and BP-relative moves up, too */
@@ -2719,6 +2732,7 @@ Entry_exfat:
 	shlb	%cl, %al
         movb    %al, 0x0d(%bp)                  /* Sectors per cluster */
         movl    0x40(%bp), %eax                 /* Sector Address */
+				movl %eax, 0x1c(%bp)
         pushw   $0x07e0
         popw    %es	
         movw    $12, %cx
@@ -4694,7 +4708,7 @@ nt_sector_mark:
         0d      byte    Sectors per cluster
         0e      DWord   Data start Absolute sector 
         12      DWord   The current cluster the absolute sector in fat table
-        16      Word    Retention
+        16      Word    12 64
         18      Word    Sectors per track
         1a      Word    Number of heads
         1c      DWord   Partition start Absolute sector
@@ -4721,6 +4735,7 @@ Entry_12_64_ext:                                    /* cs=ds=es=0000 ss=2000 */
         lesw	(loadseg_off_12_64_ext - Entry_12_64_ext + 0x30)(%bp), %bx	/* load to loadseg:0 */ 
         testb   $0x10, 02(%bp)                                  /* ext2? */          
         jne     Entry_ext2_mbr                                  /* yes */ 
+				movw		$0x6412, 0x16(%bp)															//12 64
         movb    $0xff, 0x12(%bp)                                /* The current cluster  the absolute sector in fat table */   //The current cluster the absolute sector in fat table    
         testb   $1, 02(%bp)                                     /* fat12? */          
         jne 1f                                                  /* yes */
@@ -6197,7 +6212,6 @@ helper_start:
         movw    $0x200, 0x0b(%si)       /* bytes per sector */
         orb     $0x10, 02(%si)          /* ext2 Mark */
 
-
 fat:
 
 	cld
@@ -6223,7 +6237,7 @@ fat:
         addl	%cs:8(%di), %eax
 2:      
 				movl	%eax, 0x1c(%si)		/* adjust hidden_sectors for FAT */
-				movb	%cs:0x1bc, %dh		/* partition number */
+//				movb	%cs:0x1bc, %dh		/* partition number */
         
         cmpl    $0x33544146, 0x52(%si)  /* fat32 Partition? */
         jne     1f                      /* not */
@@ -8856,7 +8870,7 @@ Entry_cdrom:
 	repz cmpsb
 	je	1f
 	incl	%eax
-	cmpl	$0x15, %eax
+	cmpl	$0x20, %eax
 	jae	iso     
 	jmp	1b
 

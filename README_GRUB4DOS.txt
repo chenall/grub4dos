@@ -549,8 +549,7 @@ Offset	Length	Description
 
 02h	1	0x90
 
-03h	8	OEM name string (of OS which formatted the disk).
-		Update: This field is now being used for partitioning message "EXT2/3/4"
+03h	8	File system ID.  "EXT2/3/4"
 
 0Bh	2	Bytes per sector. Must be 512.
 
@@ -697,7 +696,7 @@ Offset	Length	Description
 
 2Bh	11	Volume label.
 
-36h	8	File system ID. "FAT12   ", "FAT16.
+36h	8	File system ID. "FAT12   ", "FAT16    ¡°.
 
 3Eh	446	The rest of the machine code.
 
@@ -907,17 +906,16 @@ Offset	Length	Description
 0bh	2    	Bytes per sector
 0dh	1    	Sectors per cluster
 0eh	4   	Data start Absolute sector
-12h	4	The current cluster the absolute sector in fat table
+12h	4			The current cluster the absolute sector in fat table
 16h	2    	EIOS Mark		Bit 7   EIOS
 18h	2    	Sectors per track
 1ah	2    	Number of heads
-1ch	4   	Retention
+1ch	4   	Number of hidden sectors
 20h	4   	Retention
 24h	1    	Drive numbe
 25h	1    	Partition number
 26h	2    	Retention
 28h	4   	FAT table start absolute sector number
-
 2ch	4   	Retention
 ++++++++ The new increase ++++++++
  
@@ -981,7 +979,7 @@ Offset  Type    Description
 
 0e      4	Data start Absolute sector
 12      4	The current cluster the absolute sector in fat table
-16      2	Retention
+16      2	File system ID  "6412"
 
 18      2	Sectors per track
 1a      2	Number of heads
@@ -4163,3 +4161,7 @@ Tips: 1. Some USB drives are identified as USB 1.x devices under Windows or DOS 
       2. Some USB drives do not be detected when plugging into front panel,
          However, the increase will be identified after delay.
       3. When loading failure, Select --delay=P parameter try.
+
+
+2014-03-19
+There are fragments of the file emulation support up to 32 segments.

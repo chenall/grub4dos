@@ -47,9 +47,6 @@ biosdisk (int read, int drive, struct geometry *geometry,
   unsigned long max_sec, count, seg;
   unsigned long long start;
 
-	if ((drive == shield_drive) && (shield_drive != 0xff))			//2014.01.09
-		return 1;
-
   if ((fb_status) && (drive == ((fb_status >> 8) & 0xff)))
     max_sec = fb_status & 0xff;
   else
@@ -124,6 +121,12 @@ biosdisk (int read, int drive, struct geometry *geometry,
 	  dap->reserved = 0;
 	  dap->buffer = seg << 16;
 
+		if ((start > 0x100000000ULL) && (! is64bit))
+		{
+			if (debug > 1)
+				grub_printf ("biosdisk_int13_extensions read=%d, drive=0x%x, sector=0x%lx, \n", read, drive, sector);
+			return 1;
+		}
 	  err = biosdisk_int13_extensions ((read + 0x42) << 8, (unsigned char)drive, dap);
 	  start += n;
 	  count -= n;
@@ -595,9 +598,14 @@ get_diskinfo (int drive, struct geometry *geometry)
 		    /* hard disk */
 		    if ((err = probe_mbr((struct master_and_dos_boot_sector *)0x2F000/*SCRATCHADDR*/, 0, total_sectors, 0)))
 		    {
-			    if (debug > 1)
+			    if (probe_bpb((struct master_and_dos_boot_sector *)0x2F000/*SCRATCHADDR*/))
+					{
+					if (debug > 1)
 				    grub_printf ("\nWarning: Unrecognized partition table for drive %X. Please rebuild it using\na Microsoft-compatible FDISK tool(err=%d). Current C/H/S=%d/%d/%d\n", drive, err, geometry->cylinders, geometry->heads, geometry->sectors);
 			    goto failure_probe_boot_sector;
+					}
+					err = (int)"BPB";
+					goto yes_fdd;
 		    }
 		    err = (int)"MBR";
 	    }else{
@@ -609,7 +617,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 
 		    err = (int)"BPB";
 	    }
-
+yes_fdd:
 	    if (drive & 0x80)
 	    if (probed_cylinders != geometry->cylinders)
 		if (debug > 1)

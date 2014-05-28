@@ -163,6 +163,11 @@
 /* The size of the drive_map_slot struct.  */
 #define DRIVE_MAP_SLOT_SIZE	24
 
+/* The fragment of the drive map.  */
+#define DRIVE_MAP_FRAGMENT		32
+
+#define FRAGMENT_MAP_SLOT_SIZE		0x280
+
 /* The size of the key map.  */
 #define KEY_MAP_SIZE		128
 
@@ -951,7 +956,6 @@ extern unsigned long reg_base_addr_append;
 extern unsigned char usb_delay;
 extern unsigned char usb_count_error;
 extern unsigned char usb_drive_num[8];
-extern unsigned char shield_drive;
 extern unsigned long init_usb(void);
 extern unsigned long init_atapi(void);
 extern unsigned char min_cdrom_id;	/* MINIMUM ATAPI CDROM DRIVE NUMBER */
@@ -1015,30 +1019,40 @@ struct drive_map_slot
 	  /* 0 1: read only=0, fake write=0, safe boot=1 */
 	  /* 0 0: read only=0, fake write=0, safe boot=0 */
 
-	unsigned char from_drive;
-	unsigned char to_drive;		/* 0xFF indicates a memdrive */
-	unsigned char max_head;
-	unsigned char max_sector;	/* bit 7: read only */
+	unsigned char from_drive;																										//00
+	unsigned char to_drive;		/* 0xFF indicates a memdrive */										//01
+	unsigned char max_head;																											//02
+	unsigned char max_sector;	/* bit 7: read only */														//03
 					/* bit 6: disable lba */
 
-	unsigned short to_cylinder;	/* max cylinder of the TO drive */
+	unsigned short to_cylinder;	/* max cylinder of the TO drive */							//04
 					/* bit 15:  TO  drive support LBA */
 					/* bit 14:  TO  drive is CDROM(with big 2048-byte sector) */
 					/* bit 13: FROM drive is CDROM(with big 2048-byte sector) */
 
-	unsigned char to_head;		/* max head of the TO drive */
-	unsigned char to_sector;	/* max sector of the TO drive */
+	unsigned char to_head;		/* max head of the TO drive */										//06
+	unsigned char to_sector;	/* max sector of the TO drive */									//07
 					/* bit 7: in-situ */
 					/* bit 6: fake-write or safe-boot */
 
-	unsigned long long start_sector;
+	unsigned long long start_sector;																						//08
 	//unsigned long start_sector_hi;	/* hi dword of the 64-bit value */
-	unsigned long long sector_count;
+	unsigned long long sector_count;																						//16
 	//unsigned long sector_count_hi;	/* hi dword of the 64-bit value */
+};
+
+struct fragment_map_slot
+{
+	unsigned char slot_len;
+	unsigned char from;
+	unsigned char to;
+	unsigned char fragment_num;
+	unsigned long long fragment_data[0];
 };
 
 extern struct drive_map_slot   bios_drive_map[DRIVE_MAP_SIZE + 1];
 extern struct drive_map_slot hooked_drive_map[DRIVE_MAP_SIZE + 1];
+extern struct fragment_map_slot hooked_fragment_map;
 
 /* Copy MAP to the drive map and set up int13_handler.  */
 void set_int13_handler (struct drive_map_slot *map);

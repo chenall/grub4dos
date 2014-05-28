@@ -146,13 +146,15 @@ struct udf_descriptor {
 	u_int32_t AnchorVolume_MainVolume_ExtentLength;
 	u_int32_t AnchorVolume_MainVolume_ExtentLocation;
 	u_int8_t bypass2[88];
-	u_int8_t FileSet_LogicalVolumeIdentifier[56];
+	u_int8_t FileSet_LogicalVolumeIdentifier;
+	u_int8_t bypass3[55];
 	u_int32_t FileEntry_LengthofExtendedAttributes;
-	u_int8_t bypass3[4];															
-	u_int8_t FileEntry_BaseAddress[12];
+	u_int8_t bypass4[4];															
+	u_int8_t FileEntry_BaseAddress;
+	u_int8_t bypass5[11];
 	u_int32_t Partition_PartitionStartingLocation;
 	u_int32_t Partition_PartitionLength;
-	u_int8_t bypass4[208];
+	u_int8_t bypass6[208];
 	u_int32_t FileSet_RootDirectoryLocation;
 	u_int8_t	_unused[1640];
 } __attribute__ ((packed));
@@ -169,7 +171,8 @@ struct udf_FileIdentifier {
 	unsigned short Flag1;
 	u_int32_t UniqueID;
 	unsigned short LengthofImplementationUse;
-	u_int8_t NameBaseAddress[474];
+	u_int8_t NameBaseAddress;
+	u_int8_t	_unused[473];
 } __attribute__ ((packed));
 
 

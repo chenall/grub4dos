@@ -70,7 +70,8 @@ char *err_list[] =
   [ERR_NO_PART] = "No such partition",
   [ERR_NO_HEADS] = "The number of heads must be specified. The `--heads=0' option tells map to choose a value(but maybe unsuitable) for you",
   [ERR_NO_SECTORS] = "The number of sectors per track must be specified. The `--sectors-per-track=0' option tells map to choose a value(but maybe unsuitable) for you",
-  [ERR_NON_CONTIGUOUS] = "File for drive emulation must be in one contiguous disk area",
+//  [ERR_NON_CONTIGUOUS] = "File for drive emulation must be in one contiguous disk area",
+	[ERR_NON_CONTIGUOUS] = "Too many fragments.",
   [ERR_NUMBER_OVERFLOW] = "Overflow while parsing number",
   [ERR_NUMBER_PARSING] = "Error while parsing number",
   [ERR_OUTSIDE_PART] = "Attempt to access block outside partition",
@@ -634,21 +635,13 @@ succeeded_dos_boot_drive:
 	if (probe_bpb((struct master_and_dos_boot_sector *)0x7C00))
 		goto failed_dos_boot_drive;
 	dos_part_start = *((unsigned long *) (0x7C00 + 0x1C));
-	j = (dos_part_start ? 0x80 : 0);
+//	j = (dos_part_start ? 0x80 : 0);
+	j = boot_drive;
 	k = ( j | ((*(unsigned short *)(0x7C00 + 0x1A) - 1) << 8)
 		| ((*(unsigned short *)(0x7C00 + 0x18)) << 16) );
 	if (! k)
 		goto failed_dos_boot_drive;
-	if (boot_drive != j)	
-	if (j == 0)
-	{
-		shield_drive = boot_drive;
-		map_func ("(0x80) (0x00)", 0);
-		map_func ("--rehook", 0);
-		if (debug > 0)
-			grub_printf ("Since the hidden sector is zero, so the boot drive from 0x%x mapped to 0x%x.\n",boot_drive,j);
-	}
-	boot_drive = j;
+//	boot_drive = j;
 	dos_drive_geometry = k;
 	goto redo_dos_geometry;
     }

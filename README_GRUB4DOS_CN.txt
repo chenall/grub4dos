@@ -507,8 +507,7 @@ GRUB.EXE 用法：
 
 02h	1	0x90
 
-03h	8	OEM 名称字符串（对该磁盘进行格式化的操作系统的名字）。
-		更新：此字段现在被用于分区提示信息“EXT2/3/4”
+03h	8	文件系统ID。 “EXT2/3/4”
 
 0Bh	2	每扇区字节数。必须为512 。
 
@@ -588,12 +587,7 @@ GRUB.EXE 用法：
 
 02h	1	0x90
 
-		更新 （2006-07-31）：尽管GRLDR不再使用LBA指示码这个字节，
-                但Windows 98会使用它。通常这个字节在 CHS 模式中应当设置为0x90
-               （软盘尤其如此）。如果此字节未被正确设置，Windows 98将不能识别
-                软盘或分区。这一问题由neiljoy先生报告。非常感谢!
-
-03h	8	OEM名称字符串 （对该磁盘进行格式化的操作系统的名称）		
+03h	8	OEM名称字符串 （对该磁盘进行格式化的操作系统的名称）。
 
 0Bh	2	每扇区字节数。必须为512 。
 
@@ -764,13 +758,7 @@ GRUB.EXE 用法：
                 
 02h	1	0x90
 
-		更新 （2006-07-31）：尽管GRLDR不再使用 LBA 指示码这个字节，但
-                Windows 98会使用它。通常这个字节在 CHS 模式中应当设置为0x90
-               （软盘尤其如此）。如果此字节未被正确设置，Windows 98 将不能识别
-                软盘或分区。这一问题由neiljoy先生报告。非常感谢!
-
-03h	8	OEM名称字符串 （对该磁盘进行格式化的操作系统的名称）
-		分区标识“NTFS”。
+03h	8	分区标识“NTFS”
 
 0Bh	2	每扇区字节数。必须为512 。
 
@@ -842,21 +830,20 @@ GRUB.EXE 用法：
 
 
 ++++++++ The new increase ++++++++
-0bh	2    	Bytes per sector
-0dh	1    	Sectors per cluster
-0eh	4   	Data start Absolute sector
-12h	4	The current cluster the absolute sector in fat table
-16h	2    	EIOS Mark		Bit 7   EIOS
-18h	2    	Sectors per track
-1ah	2    	Number of heads
-1ch	4   	Retention
-20h	4   	Retention
-24h	1    	Drive numbe
-25h	1    	Partition number
-26h	2    	Retention
-28h	4   	FAT table start absolute sector number
-
-2ch	4   	Retention
+0bh	2    	每扇区字节数
+0dh	1    	每簇扇区数
+0eh	4   	数据的起始绝对扇区
+12h	4			当前簇在FAT表的绝对扇区
+16h	2    	EIOS 支持  位7=1
+18h	2    	每磁道扇区数
+1ah	2    	磁头数
+1ch	4   	隐含扇区数
+20h	4   	保留
+24h	1    	磁盘的物理驱动器号
+25h	1    	分区号
+26h	2    	保留
+28h	4   	FAT表开始绝对扇区号
+2ch	4   	保留
 ++++++++ The new increase ++++++++
 
 30h	16	全部为“00”。
@@ -912,8 +899,7 @@ GRUB.EXE 用法：
 0dh     1    	每簇扇区
 0eh     4	数据的起始绝对扇区
 12h     4 	当前簇在FAT表的绝对扇区
-11h     4   	数据区绝对起始扇区 
-16h     2	"EF14"  签名
+16h     2	"6412"  签名
 18h     2    	每磁道扇区
 1ah     2    	磁头数
 1ch     4   	分区起始绝对扇区
@@ -3878,3 +3864,6 @@ usb2.0 驱动支持：usb（通用串行总线）的接口类型08（大容量�
          增加延时后会重新识别为 usb2.0 设备。
       2. 有些 u 盘插入计算机前端插口不被识别，但是增加延时后会被识别。
       3. 加载失败时，选 --delay= 参数试一试。
+
+2014-03-19
+支持有碎片的文件仿真，最多 32 个片段。

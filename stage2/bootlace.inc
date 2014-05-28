@@ -3238,12 +3238,13 @@ sb:
 	//To install EXT2 PBR boot code
 	movl	$ABS(grldr_pbr_start + 0x400), %esi
 	movl	$MBR(0), %edi
-	movsw PRE(cs)(iSI), (iDI)
-	movb	$0x90, %al
-	stosb
-	movl	$ABS(grldr_pbr_start + 0x430), %esi
-	movl	$((0x400 - 0x30)/4), %ecx
-	movl	$MBR(0x30), %edi
+//	movsw PRE(cs)(iSI), (iDI)
+//	movb	$0x90, %al
+//	stosb
+//	movl	$ABS(grldr_pbr_start + 0x430), %esi
+//	movl	$((0x400 - 0x30)/4), %ecx
+//	movl	$MBR(0x30), %edi
+	movl	$(0x400/4), %ecx
 	repz	movsl PRE(cs)(iSI), (iDI)
 //	cmpl	$0, PRE(cs)ABS(usb) rBP	//Install usb drive?
 //	je 2f							//no

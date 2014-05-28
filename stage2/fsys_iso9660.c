@@ -161,6 +161,8 @@ iso9660_mount (void)
 		{
 			emu_iso_sector_size_2048 = 1;
 			devread(sector, 0, 0x800, (unsigned long long)(unsigned int)(char *)UDF_DESC, 0xedde0d90);
+			if (UDF_DESC->Tag == UDF_FileEntry)  //Be found in the root directory of the file entry is no longer cycle
+				break;
 			switch (UDF_DESC->Tag)
 			{
 				case UDF_Partition:	//Partition descriptor
@@ -175,8 +177,6 @@ iso9660_mount (void)
 					sector++;
 					break;	
 			}
-			if (UDF_DESC->Tag == UDF_FileEntry)  //Be found in the root directory of the file entry is no longer cycle
-				break;
 		}
 		return 1;				
 	}
@@ -192,8 +192,13 @@ iso9660_mount (void)
 	 			ISO_SUPER->vol_sector = sector;	
 	  		INODE->file_start = 0;
 	  		fsmax = PRIMDESC->volume_space_size.l;
-				iso_type = 2;	//iso9600_Joliet			
-				return 1;
+				iso_type = 2;	//iso9600_Joliet	
+				extent = idr->extent.l;
+				devread(16, 0, 0x800, (unsigned long long)(unsigned int)(char *)NAME_BUF, 0xedde0d90);
+				if (extent != *(unsigned long *)(NAME_BUF  + 0x9e))
+					return 1;
+				iso_type = 0;
+				break;
 			}
 	  	if ((PRIMDESC->type.l == ISO_VD_END)
 	  		&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, sizeof(PRIMDESC->id)))	//ISO_VD_END=255=end
@@ -275,7 +280,7 @@ iso9660_dir (char *dirname)
 	
 	if (iso_type == 1)
 	{	
-		unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + (unsigned long)UDF_DESC->FileEntry_LengthofExtendedAttributes);
+		unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + UDF_DESC->FileEntry_LengthofExtendedAttributes);
 		size = *tmp;
 		extent = *(tmp + 1) + udf_partition_start;
 	}
@@ -309,7 +314,7 @@ iso9660_dir (char *dirname)
 				if (name_len == 0) 
 					goto ssss;
 				name_len--;
-				name = (char *)(&idru->NameBaseAddress + (unsigned short)idru->LengthofImplementationUse);
+				name = (char *)(&idru->NameBaseAddress + idru->LengthofImplementationUse);
 	  		if (name[0] == 8)
 	  		{
 	  			name++;  			
@@ -561,7 +566,7 @@ dddd:
 			    }
 			    if (iso_type == 1)
 			 		{
-						unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + (unsigned long)UDF_DESC->FileEntry_LengthofExtendedAttributes);
+						unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + UDF_DESC->FileEntry_LengthofExtendedAttributes);
 			  		INODE->file_start = *(tmp + 1);
 			  		filepos = 0;
 			  		filemax = *tmp;	  			
@@ -605,7 +610,7 @@ dddd:
 ssss:			
 		if (iso_type == 1)
 		{
-			name = (char *)(&idru->NameBaseAddress) + (unsigned short)idru->LengthofImplementationUse + (unsigned char)idru->NameLength;
+			name = (char *)(&idru->NameBaseAddress + idru->LengthofImplementationUse + idru->NameLength);
 			//int j;
 			for (j = 0; j < 4; j++)
 			{

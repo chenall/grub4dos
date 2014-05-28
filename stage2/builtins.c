@@ -250,8 +250,10 @@ disk_read_print_func (unsigned long long sector, unsigned long offset, unsigned 
 
 extern int rawread_ignore_memmove_overflow; /* defined in disk_io.c */
 long query_block_entries;
-unsigned long map_start_sector;
-static unsigned long map_num_sectors = 0;
+//unsigned long map_start_sector;
+//static unsigned long map_num_sectors = 0;
+static unsigned long long map_start_sector[DRIVE_MAP_FRAGMENT];	
+static unsigned long long map_num_sectors[DRIVE_MAP_FRAGMENT];
 
 static unsigned long long blklst_start_sector;
 static unsigned long long blklst_num_sectors;
@@ -279,16 +281,27 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	      if (query_block_entries >= 0)
 	        {
 		  if (blklst_last_length == buf_geom.sector_size)
+			{
 		    grub_printf ("%s%ld+%ld", (blklst_num_entries ? "," : ""),
-			     (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
+			     //(unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
+					 (unsigned long long)(blklst_start_sector), blklst_num_sectors);
+				if (blklst_num_entries < DRIVE_MAP_FRAGMENT)
+				{
+				map_start_sector[blklst_num_entries] = blklst_start_sector;
+				map_num_sectors[blklst_num_entries] = blklst_num_sectors;
+				}
+			}
 		  else if (blklst_num_sectors > 1)
 		    grub_printf ("%s%ld+%ld,%ld[0-%d]", (blklst_num_entries ? "," : ""),
-			     (unsigned long long)(blklst_start_sector - part_start), (blklst_num_sectors-1),
-			     (unsigned long long)(blklst_start_sector + blklst_num_sectors-1 - part_start), 
+			     //(unsigned long long)(blklst_start_sector - part_start), (blklst_num_sectors-1),
+			     //(unsigned long long)(blklst_start_sector + blklst_num_sectors-1 - part_start),
+					(unsigned long long)(blklst_start_sector), (blklst_num_sectors-1),
+			    (unsigned long long)(blklst_start_sector + blklst_num_sectors-1),  
 			     blklst_last_length);
 		  else
 		    grub_printf ("%s%ld[0-%d]", (blklst_num_entries ? "," : ""),
-			     (unsigned long long)(blklst_start_sector - part_start), blklst_last_length);
+			     //(unsigned long long)(blklst_start_sector - part_start), blklst_last_length);
+					 (unsigned long long)(blklst_start_sector), blklst_last_length);
 	        }
 	      blklst_num_entries++;
 	      blklst_num_sectors = 0;
@@ -299,7 +312,8 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	{
 	  if (query_block_entries >= 0)
 	  grub_printf("%s%ld[%d-%d]", (blklst_num_entries ? "," : ""),
-		      (unsigned long long)(sector - part_start), offset, (offset + length));
+		      //(unsigned long long)(sector - part_start), offset, (offset + length));
+					(unsigned long long)(sector), offset, (offset + length));
 	  blklst_num_entries++;
 	}
       else
@@ -315,7 +329,7 @@ static int
 blocklist_func (char *arg, int flags)
 {
   char *dummy = NULL;
-  int err;
+  int err, i;
 #ifndef NO_DECOMPRESSION
   int no_decompression_bak = no_decompression;
 #endif
@@ -326,8 +340,13 @@ blocklist_func (char *arg, int flags)
   blklst_num_entries = 0;
   blklst_last_length = 0;
 
-  map_start_sector = 0;
-  map_num_sectors = 0;
+//  map_start_sector = 0;
+//	map_num_sectors = 0;
+ for (i = 0; i < DRIVE_MAP_FRAGMENT; i++)
+ {
+	map_start_sector[i] =0;
+	map_num_sectors[i] =0;
+	}
 
   /* Open the file.  */
   if (! grub_open (arg))
@@ -378,8 +397,16 @@ blocklist_func (char *arg, int flags)
   if (blklst_num_sectors > 0)
     {
       if (query_block_entries >= 0)
+			{
         grub_printf ("%s%ld+%d", (blklst_num_entries ? "," : ""),
-		 (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
+		 //(unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
+					(unsigned long long)(blklst_start_sector), blklst_num_sectors);
+			if (blklst_num_entries < DRIVE_MAP_FRAGMENT)
+			{
+				map_start_sector[blklst_num_entries] = blklst_start_sector;
+				map_num_sectors[blklst_num_entries] = blklst_num_sectors;
+			}
+		 }
       blklst_num_entries++;
     }
 
@@ -395,6 +422,7 @@ blocklist_func (char *arg, int flags)
       map_num_sectors = num_sectors;
     }
 #endif
+#if 0
   if (query_block_entries < 0)
     {
       map_start_sector = blklst_start_sector;
@@ -415,7 +443,7 @@ blocklist_func (char *arg, int flags)
       query_block_entries = filemax ? 
 	      map_num_sectors - ((filemax - 1) >> log2_tmp (buf_geom.sector_size)/*>> SECTOR_BITS*/) : 2;
     }
-
+#endif
 fail_read:
 
   grub_close ();
@@ -893,16 +921,17 @@ boot_func (char *arg, int flags)
 		if (is_isolinux)
 		{
 			int p;
-			query_block_entries = -1; /* query block list only */
+//			query_block_entries = -1; /* query block list only */
 			blocklist_func (chainloader_file, flags);
 			if (errnum)
 				break;
-			if (query_block_entries != 1)
+//			if (query_block_entries != 1)
+			if (blklst_num_entries > DRIVE_MAP_FRAGMENT)
 			{
 				errnum = ERR_NON_CONTIGUOUS;
 				break;
 			}
-			*(unsigned long*)0x20000C = map_start_sector;
+			*(unsigned long*)0x20000C = map_start_sector[0];
 			*(unsigned long*)0x200010 = chainloader_load_length;
 
 			old_errnum = 0; /* init to calculate the checksum */
@@ -5552,7 +5581,8 @@ find_func (char *arg, int flags)
 		switch(*devtype)
 		{
 			case 'h':
-				if (tmp_drive >= 0x80 && tmp_drive < 0xA0 && tmp_partition != 0xFFFFFF)
+//				if (tmp_drive >= 0x80 && tmp_drive < 0xA0 && tmp_partition != 0xFFFFFF)
+				if (tmp_drive >= 0x80 && tmp_drive < 0x9F)
 					FIND_DRIVES = 1;
 				break;
 			case 'u':
@@ -5566,7 +5596,7 @@ find_func (char *arg, int flags)
 			case 'c':
 				if (ignore_cd)
 					*devtype = ' ';
-				else if (current_drive == cdrom_drive || (tmp_drive >= 0xa0 && tmp_drive <= 0xff))
+				else if (current_drive == cdrom_drive || (tmp_drive >= 0x9f && tmp_drive <= 0xff))
 					FIND_DRIVES = 1;
 				break;
 			case 'f':
@@ -5632,7 +5662,9 @@ find_func (char *arg, int flags)
 
 					saved_drive = current_drive = drive;
 					saved_partition = current_partition = part;
-					if ((*devtype == 'f') && open_device()) //if is a partition
+//					if ((*devtype == 'f') && open_device()) //if is a partition
+					biosdisk_standard (0x02, (unsigned char)drive, 0, 0, 1, 3, 0x2F00);
+					if (!(probe_bpb((struct master_and_dos_boot_sector *)0x2f000)) && open_device())
 					{
 						if ((tmp_drive != current_drive || tmp_partition != current_partition) && find_check(filename,builtin1,arg,flags) == 1)
 						{
@@ -5640,7 +5672,8 @@ find_func (char *arg, int flags)
 							if (set_root)
 								goto found;
 						}
-						//continue;
+						if (probe_mbr((struct master_and_dos_boot_sector *)0x2f000,0,1,0))
+							continue;
 					}
 
 					saved_drive = current_drive = drive;
@@ -5656,26 +5689,6 @@ find_func (char *arg, int flags)
 							next_partition_buf		= mbr,
 							next_partition ()))
 					{
-#if 0
-            if ((start == 0) || (len == 0) || 
-              ((type != PC_SLICE_TYPE_FAT16_LT32M) &&       //4
-               (type != PC_SLICE_TYPE_EXTENDED) &&          //5
-               (type != PC_SLICE_TYPE_FAT16_GT32M) &&       //6
-               (type != PC_SLICE_TYPE_EXFAT) &&             //7
-               (type != PC_SLICE_TYPE_FAT32) &&             //b
-               (type != PC_SLICE_TYPE_FAT32_LBA) &&         //c
-               (type != PC_SLICE_TYPE_FAT16_LBA) &&         //e
-               (type != PC_SLICE_TYPE_WIN95_EXTENDED) &&    //f
-               (type != PC_SLICE_TYPE_EXTENDED_HIDDEN) &&   //15
-               (type != PC_SLICE_TYPE_WIN95_EXT_HIDDEN) &&  //1f
-               (type != PC_SLICE_TYPE_LINUX_SWAP) &&        //82
-               (type != PC_SLICE_TYPE_EXT2FS) &&            //83
-               (type != PC_SLICE_TYPE_LINUX_EXTENDED) &&    //85
-               (type != PC_SLICE_TYPE_LINUX_LOG_VOL)))      //8e
-#else
-						if (probe_mbr((struct master_and_dos_boot_sector *)mbr,0,1,0))		//2014.01.09 modify
-#endif
-							continue;                            
 						if (type != PC_SLICE_TYPE_NONE
 							&& ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
 							&& ! IS_PC_SLICE_TYPE_BSD (type)
@@ -7438,34 +7451,43 @@ unsigned long Z;
 int
 probe_bpb (struct master_and_dos_boot_sector *BS)
 {
-#if 0
-  unsigned long i;
-
+  unsigned long i,j; 
   /* first, check ext2 grldr boot sector */
-  probed_total_sectors = BS->total_sectors_long;
-
+//  probed_total_sectors = BS->total_sectors_long;
+ 	if (*(unsigned short *)((char *)BS)  == 0x2EEB)										//"jmp + 0x30"
+	{
+		if ((int)(char *)BS == 0x8000 && *(unsigned short *)((char *)0x2F000 + 0x438) == 0xEF53)
+		{
+	
   /* at 0D: (byte)Sectors per block. Valid values are 2, 4, 8, 16 and 32. */
-  if (BS->sectors_per_cluster < 2 || 32 % BS->sectors_per_cluster)
+//  if (BS->sectors_per_cluster < 2 || 32 % BS->sectors_per_cluster)
+	i = 2 << *(unsigned long *)((char *)0x2F000 + 0x418);
+	if (i < 2 || 32 % i) 
 	goto failed_ext2_grldr;
 
   /* at 0E: (word)Bytes per block.
    * Valid values are 0x400, 0x800, 0x1000, 0x2000 and 0x4000.
    */
-  if (BS->reserved_sectors != BS->sectors_per_cluster * 0x200)
-	goto failed_ext2_grldr;
+//  if (BS->reserved_sectors != BS->sectors_per_cluster * 0x200)
+//	goto failed_ext2_grldr;
   
-  i = *(unsigned long *)((char *)BS + 0x2C);
-  if (BS->reserved_sectors == 0x400 && i != 2)
+//  i = *(unsigned long *)((char *)BS + 0x2C);
+//  if (BS->reserved_sectors == 0x400 && i != 2)
+  j = i << 9;
+	i = *(unsigned long *)((char *)0x2F000 + 0x414) + 1;	
+		if (j == 0x400 && i != 2)
 	goto failed_ext2_grldr;
 
-  if (BS->reserved_sectors != 0x400 && i != 1)
+//  if (BS->reserved_sectors != 0x400 && i != 1)
+	if (j != 0x400 && i != 1)
 	goto failed_ext2_grldr;
 
   /* at 14: Pointers per block(number of blocks covered by an indirect block).
    * Valid values are 0x100, 0x200, 0x400, 0x800, 0x1000.
    */
 
-  i = *(unsigned long *)((char *)BS + 0x14);
+//  i = *(unsigned long *)((char *)BS + 0x14);
+	i = j >> 2;
   if (i < 0x100 || 0x1000 % i)
 	goto failed_ext2_grldr;
   
@@ -7474,26 +7496,65 @@ probe_bpb (struct master_and_dos_boot_sector *BS)
    * Valid values are 0x10000, 0x40000, 0x100000, 0x400000 and 0x1000000.
    */
 
-  if (*(unsigned long *)((char *)BS + 0x10) != i * i)
-	goto failed_ext2_grldr;
+//  if (*(unsigned long *)((char *)BS + 0x10) != i * i)
+//	goto failed_ext2_grldr;
   
-  if (! BS->sectors_per_track || BS->sectors_per_track > 63)
-	goto failed_ext2_grldr;
+//  if (! BS->sectors_per_track || BS->sectors_per_track > 63)
+//	goto failed_ext2_grldr;
   
-  if (BS->total_heads > 256 /* (BS->total_heads - 1) >> 8 */)
-	goto failed_ext2_grldr;
+//  if (BS->total_heads > 256 /* (BS->total_heads - 1) >> 8 */)
+//	goto failed_ext2_grldr;
   
-  probed_heads = BS->total_heads;
-  probed_sectors_per_track = BS->sectors_per_track;
+//  probed_heads = BS->total_heads;
+//  probed_sectors_per_track = BS->sectors_per_track;
+//  sectors_per_cylinder = probed_heads * probed_sectors_per_track;
+//  probed_cylinders = (probed_total_sectors + sectors_per_cylinder - 1) / sectors_per_cylinder;
+	probed_heads = 0xff;
+  probed_sectors_per_track = 0x3f;
   sectors_per_cylinder = probed_heads * probed_sectors_per_track;
+	probed_total_sectors = *(unsigned long *)((char *)0x2F000 + 0x404);
   probed_cylinders = (probed_total_sectors + sectors_per_cylinder - 1) / sectors_per_cylinder;
+	}
+failed_ext2_grldr:
 
   filesystem_type = 5;
   
   /* BPB probe success */
   return 0;
+	}
 
-failed_ext2_grldr:
+	/* Second, check exfat grldr boot sector */
+	if (*(unsigned long long *)((char *)BS + 03) != 0x2020205441465845)	//'EXFAT   '
+		goto failed_exfat_grldr;
+	if (*(unsigned char *)((char *)BS + 0x6c) != 9)
+		goto failed_exfat_grldr;
+	if (*(unsigned char *)((char *)BS + 0x6e) != 1)
+		goto failed_exfat_grldr;
+		
+	probed_heads = 0xff;
+  probed_sectors_per_track = 0x3f;
+  sectors_per_cylinder = probed_heads * probed_sectors_per_track;
+	probed_total_sectors = *(unsigned long *)((char *)BS + 0x48);
+  probed_cylinders = (probed_total_sectors + sectors_per_cylinder - 1) / sectors_per_cylinder;
+	
+	filesystem_type = 6;
+	return 0;
+
+failed_exfat_grldr:
+
+	if (*(unsigned short *)((char *)BS + 0x16) == 0x6412)							//'12 64'
+	{
+		filesystem_type = 7;																						//fat12-64
+		return 0;
+	}
+	
+	if (*(unsigned long *)((char *)BS + 0x1b4) == 0x46424246)					//'FBBF'
+	{
+		filesystem_type = 8;		
+		return 0;
+	}		
+
+	/* Second, check FAT12/16/32/NTFS grldr boot sector */
   probed_total_sectors = BS->total_sectors_short ? BS->total_sectors_short : (BS->total_sectors_long ? BS->total_sectors_long : (unsigned long)BS->total_sectors_long_long);
 #if 0
   if (probed_total_sectors != sector_count && sector_count != 1 && (! (probed_total_sectors & 1) || probed_total_sectors != sector_count - 1))
@@ -7541,70 +7602,6 @@ failed_ext2_grldr:
   /* BPB probe success */
   return 0;
 	
-#else		//2014.01.09 modify
-  /* first, check ext2 grldr boot sector */		
-	if (*(unsigned long *)((char *)BS + 03) != 0x32545845)						//'EXT2'
-		goto failed_ext2_grldr;
-	filesystem_type = 5;
-	goto fat_ntfs_out_0; 	
-
-failed_ext2_grldr:
-	/* Second, check exfat grldr boot sector */
-	if (*(unsigned long long *)((char *)BS + 03) != 0x2020205441465845)//'EXFAT   '
-		goto failed_exfat_grldr; 
-	filesystem_type = 6;
-	probed_total_sectors = *(unsigned long *)((char *)BS + 0x48);
-	goto fat_ntfs_out_1; 
-	
-failed_exfat_grldr:
-	/* Second, check FAT12/16/32/exFAT_mbr grldr boot sector */
-	if (*(unsigned short *)((char *)BS + 0x16) != 0x14EF)							//'EF14'
-		goto failed_mbr_grldr;
-	filesystem_type = 7;
-	goto fat_ntfs_out_0; 
-		
-failed_mbr_grldr:
-	/* Second, check FAT12/16/32/NTFS grldr boot sector */
-	if (*(unsigned long *)((char *)BS + 0x38) != 0x20323154)					//'FAT12   '
-		goto failed_fat12_grldr;	
-	filesystem_type = 1;
-	probed_total_sectors = BS->total_sectors_short;
-	goto fat_ntfs_out_1;
-
-	
-failed_fat12_grldr:
-	if (*(unsigned long *)((char *)BS + 0x38) != 0x20363154)					//'FAT16   '
-		goto failed_fat16_grldr;
-	filesystem_type = 2;
-	
-fat_ntfs_out_0: 
-	probed_total_sectors = BS->total_sectors_long;
-fat_ntfs_out_1: 	
-	probed_heads = BS->total_heads;	
-  probed_sectors_per_track = BS->sectors_per_track;	
-  sectors_per_cylinder = probed_heads * probed_sectors_per_track;
-  probed_cylinders = (probed_total_sectors + sectors_per_cylinder - 1) / sectors_per_cylinder;
-
-  /* BPB probe success */
-  return 0;
-
-failed_fat16_grldr:
-	if (*(unsigned long long *)((char *)BS + 0x52) != 0x2020203233544146)	//'FAT32   '
-		goto failed_fat32_grldr;
-	filesystem_type = 3;																							//fat32
-	goto fat_ntfs_out_0; 
-	
-failed_fat32_grldr:
-	if (*(unsigned long long *)((char *)BS + 0x52) != 0x202020205346544e)	//'NTFS    '
-		goto failed_ntfs_grldr;
-	filesystem_type = 4;																							//ntfs
-	probed_total_sectors = BS->total_sectors_long_long;
-	goto fat_ntfs_out_1; 	
-	
-failed_ntfs_grldr:
-  return 1;	
-	
-#endif
 }
 
 #if 0
@@ -8338,6 +8335,38 @@ err_print_hex:
   return ret_val;
 }
 
+static char *
+fragment_map_slot_empty(char *p)
+{
+	unsigned long n = FRAGMENT_MAP_SLOT_SIZE;
+	while (n)
+	{
+		if (!*p)
+			return p;
+		n -= *p;
+		p += *p;
+	}
+
+	return 0;
+}
+
+static char *
+fragment_map_slot_find(char *p, unsigned long from)
+{
+	unsigned long n = FRAGMENT_MAP_SLOT_SIZE;
+	while (n)
+	{
+		if (!*p)
+			return 0;
+		if (*(p+1) == (char)from)
+			return p;
+		n -= *p;
+		p += *p;
+	}
+
+	return 0;
+}
+
 
 static unsigned long long map_mem_min = 0x100000;
 static unsigned long long map_mem_max = (-4096ULL);
@@ -8349,10 +8378,11 @@ map_func (char *arg, int flags)
 {
   char *to_drive;
   char *from_drive;
-  unsigned long to, from, /*to_o = -1,*/ i = 0;
-  int j;
+  unsigned long to, from, /*to_o = -1,*/ i = 0, primeval_to, m;
+  int j = 0xff, k, l;
   char *filename;
   char *p;
+  struct fragment_map_slot *q;
   unsigned long extended_part_start;
   unsigned long extended_part_length;
 
@@ -8380,6 +8410,7 @@ map_func (char *arg, int flags)
   unsigned long long max_sectors = -1ULL;
   filesystem_type = -1;
   start_sector = sector_count = 0;
+  blklst_num_entries = 0;
   
   errnum = 0;
   for (;;)
@@ -8441,7 +8472,10 @@ map_func (char *arg, int flags)
 					/* bit 15:  TO  drive support LBA */
 					/* bit 14:  TO  drive is CDROM(with big 2048-byte sector) */
 					/* bit 13: FROM drive is CDROM(with big 2048-byte sector) */
-
+					/* bit 12:  TO  drive is BIFURCATE */
+					/* bit 11:  TO  drive has a known boot sector type */
+					/* bit 10:  TO  drive has Fragment */
+					
 //	unsigned char to_head;		/* max head of the TO drive */
 //	unsigned char to_sector;	/* max sector of the TO drive */
 					/* bit 7: in-situ */
@@ -8986,6 +9020,8 @@ map_func (char *arg, int flags)
   if (! (to & 0x80) && in_situ)
 	return ! (errnum = ERR_IN_SITU_FLOPPY);
 
+	primeval_to = to;
+	
   /* if mem device is used, assume the --mem option */
   if (to == 0xffff || to == ram_drive || from == ram_drive)
   {
@@ -9091,14 +9127,16 @@ map_func (char *arg, int flags)
 
   if (mem == -1ULL)
   {
-    query_block_entries = -1; /* query block list only */
+//    query_block_entries = -1; /* query block list only */
     blocklist_func (to_drive, flags);
     if (errnum)
 	return 0;
-    if (query_block_entries != 1 && mem == -1ULL)
+//    if (query_block_entries != 1 && mem == -1ULL)
+		if (blklst_num_entries > DRIVE_MAP_FRAGMENT && mem == -1ULL)	
 	return ! (errnum = ERR_NON_CONTIGUOUS);
 
-    start_sector = map_start_sector; /* in big 2048-byte sectors */
+//    start_sector = map_start_sector; /* in big 2048-byte sectors */
+		start_sector = map_start_sector[0]; 	
     //sector_count = map_num_sectors;
     sector_count = (filemax + 0x1ff) >> SECTOR_BITS; /* in small 512-byte sectors */
 
@@ -9109,6 +9147,7 @@ map_func (char *arg, int flags)
   if ((to == 0xffff /* || to == ram_drive */) && sector_count == 1)
   {
     /* fixed memory mapping */
+		grub_memmove64 ((unsigned long long)(unsigned long) 0x2F000, (start_sector << 9), 0x800);
     grub_memmove64 ((unsigned long long)(unsigned long) BS, (start_sector << 9), SECTOR_SIZE);
   }else{
     if (! grub_open (to_drive))
@@ -9121,6 +9160,9 @@ map_func (char *arg, int flags)
     disk_read_hook = disk_read_start_sector_func;
     filepos = (skip_sectors << 9);
     /* Read the first sector of the emulated disk.  */
+		unsigned long long a = filepos;
+		grub_read ((unsigned long long)(unsigned long) 0x2F000, 0x800, 0xedde0d90);
+		filepos = a;
     err = grub_read ((unsigned long long)(unsigned long) BS, SECTOR_SIZE, 0xedde0d90);
     disk_read_hook = 0;
     rawread_ignore_memmove_overflow = 0;
@@ -9190,6 +9232,7 @@ map_func (char *arg, int flags)
 		filesystem_type == 2 ? "FAT16" :
 		filesystem_type == 3 ? "FAT32" :
 		filesystem_type == 4 ? "NTFS"  :
+		filesystem_type == 6 ? "exFAT" :
 		/*filesystem_type == 5 ?*/ "EXT2 GRLDR",
 		(BS->dummy1[0] == (char)0xEB ? "with" : "but WITHOUT"));
   
@@ -9299,7 +9342,7 @@ geometry_probe_failed:
 
   /* possible ISO9660 image */
   if ((filemax >= (skip_sectors << 9 ) && filemax - (skip_sectors << 9) < 512)
-	|| BS->boot_signature != 0xAA55	|| (unsigned char)from >= (unsigned char)0xA0)
+	|| BS->boot_signature != 0xAA55	|| (unsigned char)from >= (unsigned char)0x9F)
   {
 	if ((long long)heads_per_cylinder < 0)
 		heads_per_cylinder = 0;
@@ -9366,7 +9409,7 @@ geometry_probe_failed:
 		  }
 	  }
 	if (debug > 0 && ! disable_map_info)
-	  if (from < 0xA0)
+	  if (from < 0x9F)
 	    grub_printf ("\nAutodetect number-of-heads failed. Use default value %d\n", heads_per_cylinder);
     }
   else
@@ -9514,7 +9557,7 @@ geometry_probe_failed:
 		  }
 	  }
 	if (debug > 0 && ! disable_map_info)
-	  if (from < 0xA0)
+	  if (from < 0x9F)
 	    grub_printf ("\nAutodetect sectors-per-track failed. Use default value %d\n", sectors_per_track);
     }
   else
@@ -9570,8 +9613,18 @@ map_whole_drive:
     for (i = 0; i < DRIVE_MAP_SIZE; i++)
     {
       /* Perhaps the user wants to override the map.  */
-      if (bios_drive_map[i].from_drive == from)
+      if ((bios_drive_map[i].from_drive == from) && (bios_drive_map[i].to_cylinder != 0))
+			{
+				p = (char *)&hooked_fragment_map;
+				filename = p + FRAGMENT_MAP_SLOT_SIZE;
+				p = fragment_map_slot_find(p, from);
+				if (p);
+				{
+					grub_memmove (p, p + *p, filename - p - *p);
+					grub_memset (filename - *p, 0, *p);
+				}
 	break;
+			}
       
       if (drive_map_slot_empty (bios_drive_map[i]))
 	break;
@@ -9599,7 +9652,8 @@ map_whole_drive:
 	{
 		for (j = 0; j < DRIVE_MAP_SIZE; j++)
 		{
-			if (to != hooked_drive_map[j].from_drive)
+//			if (to != hooked_drive_map[j].from_drive)
+			if (to != hooked_drive_map[j].from_drive || (to == 0xFF && (hooked_drive_map[j].to_cylinder & 0x4000)))
 				continue;
 			#if 0
 			if (! (hooked_drive_map[j].max_sector & 0x3F))
@@ -9666,6 +9720,7 @@ map_whole_drive:
 			break;
 		}
 	}
+  m = j;
   j = i;	/* save i into j */
 //grub_printf ("\n debug 4 start_sector=%lX, part_start=%lX, part_length=%lX, sector_count=%lX, filemax=%lX\n", start_sector, part_start, part_length, sector_count, filemax);
   
@@ -9715,7 +9770,7 @@ map_whole_drive:
        */
 
       if (add_mbt<0)
-	  add_mbt = (filesystem_type > 0 && (from & 0x80) && (from < 0xA0))? 1: 0; /* known filesystem without partition table */
+	  add_mbt = (filesystem_type > 0 && (from & 0x80) && (from < 0x9F))? 1: 0; /* known filesystem without partition table */
 
       if (add_mbt)
 	bytes_needed += sectors_per_track << SECTOR_BITS;	/* build the Master Boot Track */
@@ -9979,6 +10034,7 @@ map_whole_drive:
 		filesystem_type == 2 ? 0x0E /* FAT16 */ :
 		filesystem_type == 3 ? 0x0C /* FAT32 */ :
 		filesystem_type == 4 ? 0x07 /* NTFS */  :
+		filesystem_type == 6 ? 0x07 /* exFAT */ :
 		/*filesystem_type == 5 ?*/ 0x83 /* EXT2 */;
 
 	//sector_count += sectors_per_track;	/* already incremented above */
@@ -10021,7 +10077,7 @@ map_whole_drive:
 	*(long *)((int)mbr + 0x31) = 0xCBFA5A5D; /* pop BP;pop DX;cli;retf */
 	grub_memmove64 (base, (unsigned long long)(unsigned int)mbr, SECTOR_SIZE);
       }
-      else if ((from & 0x80) && (from < 0xA0))	/* the virtual drive is hard drive */
+      else if ((from & 0x80) && (from < 0x9F))	/* the virtual drive is hard drive */
       {
 	/* First sector of disk image has already been read to buffer BS/mbr */
 	if (*(long *)((int)mbr + 0x1b8) == 0)
@@ -10053,6 +10109,7 @@ map_whole_drive:
 		filesystem_type == 2 ? 0x0E /* FAT16 */ :
 		filesystem_type == 3 ? 0x0C /* FAT32 */ :
 		filesystem_type == 4 ? 0x07 /* NTFS */  :
+		filesystem_type == 6 ? 0x07 /* exFAT */ :
 		/*filesystem_type == 5 ?*/ 0x83 /* EXT2 */
 		);
   
@@ -10082,13 +10139,112 @@ map_whole_drive:
 	}
   i = j;	/* restore i from j */
   
-  bios_drive_map[i].from_drive = from;
+  
+	
+//          j_count(0)       j_count(1)          j_count(2)         j_count(3)
+//  		©À©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©È
+//  j_start(0)     j_start(1)          j_start(2)          j_start(3)
+//                                                      To_len
+//     ©«©©©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©À©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©È
+//     0                                   To_statr
+
+			//Determine the start fragment 
+	if ((mem == -1ULL) && (to < 0x9f) && (((primeval_to != to) && ((hooked_drive_map[m].to_cylinder & (1 << 10)) != 0)) || (blklst_num_entries > 1)))
+	{
+		if (primeval_to >= 0x9f)
+		{
+			for (k = 0; (k < DRIVE_MAP_FRAGMENT) && (map_start_sector[k] != 0); k++)
+			{
+				map_start_sector[k] *= 4;
+				map_num_sectors[k] *= 4;
+			}	
+		}
+//		if (part_start)
+//		{
+//			for (k = 0; (k < DRIVE_MAP_FRAGMENT) && (map_start_sector[k] != 0); k++)
+//			{
+//					map_start_sector[k] += part_start;
+//			}
+//		}
+		if ((primeval_to != to) && ((hooked_drive_map[m].to_cylinder & (1 << 10)) != 0))
+		{
+			unsigned long long a = 0;																	//Sum(j_count(k))
+			unsigned long long b = map_num_sectors[0];								//Residual(To_len)
+			unsigned long long c = map_start_sector[0];								//To_statr
+			p = (char *)&hooked_fragment_map;
+			p = fragment_map_slot_find(p, primeval_to);
+			q = (struct fragment_map_slot *)p;
+			for (k = 0; (k < DRIVE_MAP_FRAGMENT) && (q->fragment_data[k] != 0); k++)
+			{
+				a += q->fragment_data[k*2+1];														//Sum(j_count(k))
+				if (map_start_sector[0] < a)														//To_statr < Sum(j_count(k))
+				{
+					map_start_sector[0] += q->fragment_data[k*2] + q->fragment_data[k*2+1] - a;
+					//To_statr = To_statr + j_start(k) +  j_count(k) - Sum(j_count(k))
+					break;																								//ok
+				}
+			}
+			//Determine the length
+			if ((b + c) <= a ) 																				//Residual(To_len) <= Sum(j_count(k)) - j_start(0)
+				goto set_ok;																						//j_count(k) = To_len
+			else 
+			{
+				map_num_sectors[0] = a - c;															//j_count(k) = Sum(j_count(k)) - To_statr
+				map_start_sector[1] = q->fragment_data[k*2+2];					//j_start(k+1)
+				b -= (a - c);																						//Residual(To_len) - (Sum(j_count(k)) - To_statr)
+				for (l = 0; ((l < DRIVE_MAP_FRAGMENT - k) && (q->fragment_data[(k+l)*2+3] != 0)); l++)
+				{
+					blklst_num_entries = l + 2;
+					if (b <= q->fragment_data[(k+l)*2+3])									//Residual(To_len) <= j_count(k+1)
+					{
+						map_num_sectors[l+1] = b;									      		//Residual(To_len)
+						goto set_ok;
+					}
+					else
+					{
+						map_num_sectors[l+1] = q->fragment_data[(k+l)*2+3];	//j_count(k+1)
+						map_start_sector[l+2] = q->fragment_data[(k+l)*2+4];//j_start(k+2)
+						b -= q->fragment_data[(k+l)*2+3];										//Residual(To_len) - j_count(k+1)
+					}
+				}
+			}
+		}
+		
+set_ok:		
+		if (blklst_num_entries < 2)
+		{
+			start_sector = map_start_sector[0];
+			goto no_fragment;
+		}
+
+		p = (char *)&hooked_fragment_map;
+		filename = p;
+		p = fragment_map_slot_empty(p);
+		q = (struct fragment_map_slot *)p;
+
+		q->from = from;
+		q->to = to;
+		for (k = 0; map_start_sector[k] != 0; k++)
+		{
+			q->fragment_data[k*2] = map_start_sector[k];
+			q->fragment_data[k*2+1] = map_num_sectors[k];
+		}
+		q->fragment_num = (char)k;
+		q->slot_len = k*16 + 4;
+
+		if ((p + (char)*p - filename) > FRAGMENT_MAP_SLOT_SIZE)
+			return ! (errnum = ERR_NON_CONTIGUOUS);
+	}
+	
+no_fragment:
+	
+	bios_drive_map[i].from_drive = from;
   bios_drive_map[i].to_drive = (unsigned char)to; /* to_drive = 0xFF if to == 0xffff */
 
   /* if CHS disabled, let MAX_HEAD != 0 to ensure a non-empty slot */
   bios_drive_map[i].max_head = disable_chs_mode | (heads_per_cylinder - 1);
   bios_drive_map[i].max_sector = (disable_chs_mode ? 0 : in_situ ? 1 : sectors_per_track) | ((read_Only | fake_write) << 7) | (disable_lba_mode << 6);
-  if (from >= 0xA0 && tmp_geom.sector_size != 2048) /* FROM is cdrom and TO is not cdrom. */
+  if (from >= 0x9F && tmp_geom.sector_size != 2048) /* FROM is cdrom and TO is not cdrom. */
 	bios_drive_map[i].max_sector |= 0x0F; /* can be any value > 1, indicating an emulation. */
 
   /* bit 12 is for "TO drive is bifurcate" */
@@ -10098,9 +10254,10 @@ map_whole_drive:
 		((tmp_geom.flags & BIOSDISK_FLAG_BIFURCATE) ? ((to & 0x100) >> 1) :
 		((tmp_geom.flags & BIOSDISK_FLAG_LBA_EXTENSION) << 15)) |
 		((tmp_geom.sector_size == 2048) << 14) |
-		((from >= 0xA0) << 13) |	/* assume cdrom if from_drive is 0xA0 or greater */
+		((from >= 0x9F) << 13) |	/* assume cdrom if from_drive is 0xA0 or greater */
 		((!!(tmp_geom.flags & BIOSDISK_FLAG_BIFURCATE)) << 12) |
 		((filesystem_type > 0) << 11) |	/* has a known boot sector type */
+		((blklst_num_entries > 1) << 10) |
 		((tmp_geom.cylinders - 1 > 0x3FF) ? 0x3FF : (tmp_geom.cylinders - 1));
   
   bios_drive_map[i].to_head = tmp_geom.heads - 1;
@@ -10151,6 +10308,17 @@ delete_drive_map_slot:
 //    }
 
   grub_memmove ((char *) &bios_drive_map[i], (char *) &bios_drive_map[i + 1], sizeof (struct drive_map_slot) * (DRIVE_MAP_SIZE - i));
+
+
+	p = (char *)&hooked_fragment_map;
+	filename = p + FRAGMENT_MAP_SLOT_SIZE;
+	p = fragment_map_slot_find(p, from);
+	if (p);
+	{
+		grub_memmove (p, p + *p, filename - p - *p);
+		grub_memset (filename - *p, 0, *p);
+	}
+	
   if (mem != -1ULL)
 	  grub_close ();
 
@@ -10563,13 +10731,14 @@ partnew_func (char *arg, int flags)
 	return 0;
       }
 
-      query_block_entries = -1; /* query block list only */
+//      query_block_entries = -1; /* query block list only */
       blocklist_func (arg, flags);
       if (errnum == 0)
       {
-	if (query_block_entries != 1)
+//	if (query_block_entries != 1)
+		if (blklst_num_entries > DRIVE_MAP_FRAGMENT)
 		return ! (errnum = ERR_NON_CONTIGUOUS);
-	new_start = map_start_sector;
+	new_start = map_start_sector[0];
 	new_len = (filemax + 0x1ff) >> SECTOR_BITS;
       }
       else
@@ -10600,6 +10769,7 @@ partnew_func (char *arg, int flags)
 			filesystem_type == 2 ? 0x0E /* FAT16 */ :
 			filesystem_type == 3 ? 0x0C /* FAT32 */ :
 			filesystem_type == 4 ? 0x07 /* NTFS */  :
+			filesystem_type == 6 ? 0x07 /* exFAT */ :
 			/*filesystem_type == 5 ?*/ 0x83 /* EXT2 */;
 		if (filesystem_type == 5)
 			new_type = 0x83; /* EXT2 */
@@ -10610,6 +10780,7 @@ partnew_func (char *arg, int flags)
 		filesystem_type == 2 ? "FAT16" :
 		filesystem_type == 3 ? "FAT32" :
 		filesystem_type == 4 ? "NTFS"  :
+		filesystem_type == 6 ? "exFAT" :
 		/*filesystem_type == 5 ?*/ "EXT2 GRLDR"),
 		(BS->dummy1[0] == (char)0xEB ? "with" : "but WITHOUT"),
 		BS->hidden_sectors);
@@ -13654,6 +13825,8 @@ usb_func (char *arg, int flags)
 			init_usb(); 
 			if (usb_count_error < 0x80)
 			{
+				floppies_orig = (*(char*)0x410);
+				harddrives_orig = (*(char*)0x475);
 				if (debug > 0)
 				{
 					int i; 
@@ -13679,7 +13852,7 @@ usb_func (char *arg, int flags)
 							printf("USB device is not ready.  \n");
 							break;
 					}
-				pause_func ("--wait=10", flags);
+//				pause_func ("--wait=10", flags);
 				}	
 			}
 			return 1;
