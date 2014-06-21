@@ -710,14 +710,17 @@ fat_dir (char *dirname)
 short_name:
       /* XXX convert to 8.3 filename format here */
       {
-	int i, j, c;
+	unsigned int i, j, c, y;
+#define TOLOWER(c,y) (((y) && ((unsigned)((c) - 'A') < 26)) ? ((c)|0x20) : (c))
 	
-	for (i = 0; i < 8 && (c = filename[i] = tolower (dir_buf[i]))
+	y = (dir_buf[12] & 0x08);	// filename base in lower case
+	for (i = 0; i < 8 && (c = filename[i] = TOLOWER (dir_buf[i], y))
 	       && /*!isspace (c)*/ c != ' '; i++);
 	
 	filename[i++] = '.';
 	
-	for (j = 0; j < 3 && (c = filename[i + j] = tolower (dir_buf[8 + j]))
+	y = (dir_buf[12] & 0x10);	// filename extension in lower case
+	for (j = 0; j < 3 && (c = filename[i+j] = TOLOWER (dir_buf[8+j], y))
 	       && /*!isspace (c)*/ c != ' '; j++);
 	
 	if (j == 0)
