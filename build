@@ -147,8 +147,8 @@ cd $SOURCE_DIR
 rm -f ${RELEASE}.zip ${RELEASE}.rar ${RELEASE}.tar.gz || exit $?
 if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/grub4dos-${VER} ; then
 	echo 7z failed. Continue with zip or tar...
-	if ! zip -r -q ${RELEASE}.zip grub4dos-${VER} ; then
-		tar -czf ${RELEASE}.tar.gz grub4dos-${VER}
+	if ! zip -r -q ${RELEASE}.zip ${GRUB4DOS_TEMP}/grub4dos-${VER} ; then
+		tar -czf ${RELEASE}.tar.gz ${GRUB4DOS_TEMP}/grub4dos-${VER}
 	fi
 fi
 
