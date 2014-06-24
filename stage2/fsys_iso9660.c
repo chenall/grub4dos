@@ -185,27 +185,23 @@ iso9660_mount (void)
 		for (sector = 17 ; sector < 32 ; sector++)
 	  {
 	  	emu_iso_sector_size_2048 = 1;
-			devread(sector, 0, sizeof(*PRIMDESC), (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90);
+			devread(sector, 0, 0x800, (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90);
 	  	if ((PRIMDESC->type.l == ISO_VD_ENHANCED)
-	  		&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, sizeof(PRIMDESC->id)))	//ISO_STANDARD_ID="CD001"
+	  		&& (! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, 5)) && (*(unsigned short *)((char *)PRIMDESC  + 0x58) == 0x2F25))	//ISO_STANDARD_ID="CD001"
 			{
 	 			ISO_SUPER->vol_sector = sector;	
 	  		INODE->file_start = 0;
 	  		fsmax = PRIMDESC->volume_space_size.l;
-				iso_type = 2;	//iso9600_Joliet	
+				iso_type = 2;	//iso9600_Joliet			
 				extent = idr->extent.l;
-				devread(16, 0, 0x800, (unsigned long long)(unsigned int)(char *)NAME_BUF, 0xedde0d90);
-				if (extent != *(unsigned long *)(NAME_BUF  + 0x9e))
-					return 1;
-				iso_type = 0;
-				break;
+				return 1;
 			}
 	  	if ((PRIMDESC->type.l == ISO_VD_END)
-	  		&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, sizeof(PRIMDESC->id)))	//ISO_VD_END=255=end
+	  		&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, 5))	//ISO_VD_END=255=end
 	  		 break;				
 		}
 		emu_iso_sector_size_2048 = 1;
-		devread(16, 0, sizeof(*PRIMDESC), (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90);
+		devread(16, 0, 0x800, (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90);
     size = idr->size.l;
 		extent = idr->extent.l;
     emu_iso_sector_size_2048 = 1;
@@ -216,9 +212,8 @@ iso9660_mount (void)
     if ((idr->length.l - idr->name_len.l	- sizeof(struct iso_directory_record)	+ sizeof(idr->name)) > 1)
 			iso_type = 3; //iso9600_RockRidge     																					
  		if ((PRIMDESC->type.l == ISO_VD_PRIMARY)
-	  	&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, sizeof(PRIMDESC->id)))
+	  	&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, 5))
 		{
-//	 		ISO_SUPER->vol_sector = sector;
         ISO_SUPER->vol_sector = 16;
 	  	INODE->file_start = 0;
 	  	fsmax = PRIMDESC->volume_space_size.l;
@@ -521,6 +516,7 @@ dddd:
 				{
 					tmp_name1[k++] = name[j++];
 					tmp_name1[k++] = name[j++];
+					continue;
 				}	
 				if (name[j] == ' ')
 				{

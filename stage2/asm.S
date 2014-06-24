@@ -15974,7 +15974,8 @@ ENTRY(set_int13_handler)
 	
 	/* KBytes that int13 handler occupies */
 	movl	$((int13_handler_end - int13_handler + 0x3ff) / 0x400), %edx	
-	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
+//	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
+	cmpb	$0, ABS(EXT_C(atapi_dev_count))
 	jne	1f
 	movl	$((cdrom_start - int13_handler + 0x3ff) / 0x400), %edx	
 1:		
@@ -15989,7 +15990,8 @@ ENTRY(set_int13_handler)
 	movl    %eax, %edi	# EDI=EAX=destination int13_handler address
 	movl	$ABS(int13_handler), %esi
 	movl	$((int13_handler_end - int13_handler + 3) / 4), %ecx
-	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
+//	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
+	cmpb	$0, ABS(EXT_C(atapi_dev_count))
 	jne	1f
 	movl	$((cdrom_start - int13_handler + 3) / 4), %ecx
 1:

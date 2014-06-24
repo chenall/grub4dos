@@ -215,18 +215,18 @@ fat_mount (void)
 
   if (FAT_SUPER->fat_size == 8)
     {
-      first_fat &= 0x0ffffff0;
-      magic = 0x0ffffff0;	
+      first_fat &= 0x0fffffff;
+      magic = 0x0fffff00;
     }
   else if (FAT_SUPER->fat_size == 4)
     {
-      first_fat &= 0xfffffff0;
-      magic = 0xfffffff0;
+      first_fat &= 0x0000ffff;
+      magic = 0xff00;
     }
   else
     {
-      first_fat &= 0x00fffff0;
-      magic = 0x00fffff0;
+      first_fat &= 0x00000fff;
+      magic = 0x0f00;
     }
 
   /* Ignore the 3rd bit, because some BIOSes assigns 0xF0 to the media
@@ -235,11 +235,11 @@ fat_mount (void)
      they overwrite the media descriptor.  */
 //  if ((first_fat | 0x8) != (magic | bpb.media | 0x8))
 //  if ((first_fat | 0x8) != (magic | 0xF8))
-  if (first_fat != magic)
+  if ((first_fat | 0xF) != (magic | 0xFF))
   {
     if (debug > 0)
 	grub_printf ("Warning! Invalid first FAT entry(=0x%X)!\n", first_fat);
-    return 0;
+    //return 0;
   }
 
 	fats_type = FAT_SUPER->fat_type;
@@ -341,7 +341,7 @@ label_exfat:
     {
       if (debug > 0)
   	grub_printf ("Warning! Invalid first FAT entry(=0x%X)!\n", first_fat);
-      return 0;
+      //return 0;
     }
 
 	fats_type = FAT_SUPER->fat_type;
@@ -710,17 +710,14 @@ fat_dir (char *dirname)
 short_name:
       /* XXX convert to 8.3 filename format here */
       {
-	unsigned int i, j, c, y;
-#define TOLOWER(c,y) (((y) && ((unsigned)((c) - 'A') < 26)) ? ((c)|0x20) : (c))
+	int i, j, c;
 	
-	y = (dir_buf[12] & 0x08);	// filename base in lower case
-	for (i = 0; i < 8 && (c = filename[i] = TOLOWER (dir_buf[i], y))
+	for (i = 0; i < 8 && (c = filename[i] = tolower (dir_buf[i]))
 	       && /*!isspace (c)*/ c != ' '; i++);
 	
 	filename[i++] = '.';
 	
-	y = (dir_buf[12] & 0x10);	// filename extension in lower case
-	for (j = 0; j < 3 && (c = filename[i+j] = TOLOWER (dir_buf[8+j], y))
+	for (j = 0; j < 3 && (c = filename[i + j] = tolower (dir_buf[8 + j]))
 	       && /*!isspace (c)*/ c != ' '; j++);
 	
 	if (j == 0)

@@ -333,7 +333,7 @@ blocklist_func (char *arg, int flags)
 #ifndef NO_DECOMPRESSION
   int no_decompression_bak = no_decompression;
 #endif
-  
+
   errnum = 0;
   blklst_start_sector = 0;
   blklst_num_sectors = 0;
@@ -355,7 +355,8 @@ blocklist_func (char *arg, int flags)
 #ifndef NO_DECOMPRESSION
   if (compressed_file)
   {
-    if (query_block_entries < 0)
+//    if (query_block_entries < 0)
+		if (query_block_entries == 4)
     {
 	/* compressed files are not considered contiguous. */
 	query_block_entries = 3;
@@ -422,6 +423,7 @@ blocklist_func (char *arg, int flags)
       map_num_sectors = num_sectors;
     }
 #endif
+
 #if 0
   if (query_block_entries < 0)
     {
@@ -444,6 +446,7 @@ blocklist_func (char *arg, int flags)
 	      map_num_sectors - ((filemax - 1) >> log2_tmp (buf_geom.sector_size)/*>> SECTOR_BITS*/) : 2;
     }
 #endif
+
 fail_read:
 
   grub_close ();
@@ -454,8 +457,11 @@ fail_open:
   no_decompression = no_decompression_bak;
 #endif
 
-  if (query_block_entries < 0)
+//  if (query_block_entries < 0)
+	if (query_block_entries == 3)
     query_block_entries = 0;
+	else
+		query_block_entries = 1;
   return ! errnum;
 }
 
@@ -922,11 +928,12 @@ boot_func (char *arg, int flags)
 		{
 			int p;
 //			query_block_entries = -1; /* query block list only */
+			query_block_entries = 4;
 			blocklist_func (chainloader_file, flags);
 			if (errnum)
 				break;
 //			if (query_block_entries != 1)
-			if (blklst_num_entries > DRIVE_MAP_FRAGMENT)
+			if (blklst_num_entries > DRIVE_MAP_FRAGMENT || query_block_entries != 1)
 			{
 				errnum = ERR_NON_CONTIGUOUS;
 				break;
@@ -9128,11 +9135,13 @@ map_func (char *arg, int flags)
   if (mem == -1ULL)
   {
 //    query_block_entries = -1; /* query block list only */
+		query_block_entries = 4;
     blocklist_func (to_drive, flags);
     if (errnum)
 	return 0;
+
 //    if (query_block_entries != 1 && mem == -1ULL)
-		if (blklst_num_entries > DRIVE_MAP_FRAGMENT && mem == -1ULL)	
+		if (blklst_num_entries > DRIVE_MAP_FRAGMENT || query_block_entries != 1)	
 	return ! (errnum = ERR_NON_CONTIGUOUS);
 
 //    start_sector = map_start_sector; /* in big 2048-byte sectors */
@@ -10732,11 +10741,12 @@ partnew_func (char *arg, int flags)
       }
 
 //      query_block_entries = -1; /* query block list only */
+			query_block_entries = 4;
       blocklist_func (arg, flags);
       if (errnum == 0)
       {
 //	if (query_block_entries != 1)
-		if (blklst_num_entries > DRIVE_MAP_FRAGMENT)
+		if (blklst_num_entries > DRIVE_MAP_FRAGMENT || query_block_entries != 1)
 		return ! (errnum = ERR_NON_CONTIGUOUS);
 	new_start = map_start_sector[0];
 	new_len = (filemax + 0x1ff) >> SECTOR_BITS;
@@ -15056,7 +15066,7 @@ typedef struct _SETLOCAL {
 	unsigned long boot_drive;
 	unsigned long install_partition;
 	int debug;
-	char reserved[8];//预留位置，同时也是为了凑足512字节。
+	char reserved[8];//预留位置，同时也是为了凑�?12字节�?
 	char var_str[MAX_USER_VARS<<9];//user vars only
 	char saved_dir[256];
 	char command_path[128];

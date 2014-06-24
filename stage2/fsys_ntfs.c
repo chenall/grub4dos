@@ -23,7 +23,7 @@
  *  1. Don't support >1K MFT record size, >4K INDEX record size
  *  2. Don't support encrypted file
  *  3. Don't support >4K non-resident attribute list and $BITMAP
- *
+ *	2014.06.01 Support <=8K non-resident attribute list
  */
 
 #ifdef FSYS_NTFS
@@ -120,7 +120,8 @@ typedef struct {
 #define TEMP_BUF	NAME_BUF		/* 4096 bytes */
 #define mmft		((char *)((FSYS_BUF)+4096))
 #define cmft		(mmft+1024+1024+4096)
-#define sbuf		(cmft+1024+1024+4096)	/* 4096 bytes */
+//#define sbuf		(cmft+1024+1024+4096)	/* 4096 bytes */
+#define sbuf		(cmft+1024+1024+4096*2)	/* 4096 bytes */
 #define cbuf		(sbuf+4096)		/* 4096 bytes */
 
 #define attr_flg	valueat(cur_mft,0,unsigned short)
@@ -263,7 +264,8 @@ back:
           unsigned long n;
 
           n = (valueat(pa,0x30,unsigned long) + 511) & (~511);
-          if (n>4096 || valueat(pa,0x34,unsigned long)!=0)
+//          if (n>4096 || valueat(pa,0x34,unsigned long)!=0)
+					if ((cur_mft==mmft && n>4096) || (cur_mft==cmft && n>4096*2) || valueat(pa,0x34,unsigned long)!=0)
             {
               dbg_printf("Non-resident attribute list too large\n");
               return NULL;
@@ -1010,7 +1012,8 @@ static int read_attr(char* cur_mft,unsigned long long dest,unsigned long long of
           char *pa;
 
           pa=ofs2ptr(new_pos);
-          if (*pa!=attr)
+//          if (*pa!=attr)
+					if((unsigned char)*pa != attr) 
             break;
           if (valueat(pa,8,unsigned long)>vcn)
             break;
