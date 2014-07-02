@@ -1208,7 +1208,8 @@ done_key_handling:
 	    }
 	  else
 	    {
-	      if (((char)c) == 'e')
+	      //if (((char)c) == 'e' && c != 0xE065) /* repulse GigaByte Key-E attack */
+	      if ( c == 0x1265) /* repulse GigaByte Key-E attack */
 		{
 		  int new_num_entries = 0, i = 0;
 		  char *new_heap;
