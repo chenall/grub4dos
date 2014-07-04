@@ -17,36 +17,14 @@ COPY_FILES="COPYING README_GRUB4DOS*.txt ChangeLog_*.txt \
 
 rm -rf *.zip *.7z *~ || exit $?
 [ -z "$GRUB4DOS_TEMP" ] && GRUB4DOS_TEMP=/tmp/grub4dos-temp
-if svn export . ${GRUB4DOS_TEMP} --force > /dev/null ; then
-	CURR_REVISION=""
-	line=0
-	while read w1 w2; do
-		line=$(($line+1))
-
-		if [ "$line" = 1 ]; then
-			[ "$w1" = "" -o "$w2" != "" ] && break
-		elif [ "$line" = 2 ]; then
-			[ "$w1" != "" ] && break
-		elif [ "$line" = 3 ]; then
-			[ "$w1" != "dir" -o "$w2" != "" ] && break
-		elif [ "$line" = 4 ]; then
-			[ "$w1" = "" -o "$w2" != "" ] && break
-			CURR_REVISION=$w1
-		elif [ "$line" = 5 ]; then
-			[ "$w1" = "" -o "$w2" != "" ] && break
-			SVN_URL=$w1
-			break
-		else
-			break
-		fi
-	done < .svn/entries
-
-	if [ "$CURR_REVISION" = "" ]; then
-		export LC_ALL=C
-		svninfo=$(svn info)
+if svn export . ${GRUB4DOS_TEMP} --force 2>/dev/null ; then
+# check for svn version
+	export LC_ALL=C
+	svninfo=$(svn info)
+	if [ "$svninfo" ]; then
 		while read w1 w2 w3; do
 			if [ "$w1" = "Revision:" -a "$w2" != "" -a "$w3" = "" ]; then
-				CURR_REVISION=$w2
+				CURR_REVISION=r$w2
 			fi
 			if [ "$w1" = "URL:" -a "$w2" != "" -a "$w3" = "" ]; then
 				SVN_URL=$w2
@@ -55,47 +33,43 @@ if svn export . ${GRUB4DOS_TEMP} --force > /dev/null ; then
 		done << EOF
 $svninfo
 EOF
-
 	fi
-	if [ "$CURR_REVISION" != "" ]; then
 
-		# Generate patch file
-		if [ "$SVN_URL" = "" ]; then
-			SVN_URL="svn://svn.gna.org/svn/grub4dos/trunk"
-		fi
-		SVN_URL_HTTP=http://${SVN_URL#*://}
+	[ "$SVN_URL" = "" ] && SVN_URL="https://github.com/chenall/grub4dos"
+	[ "$CURR_REVISION" = "" ] && CURR_REVISION=rHEAD
+	Get_source="\tsvn co -$CURR_REVISION $SVN_URL grub4dos\r\n\tcd grub4dos\r\n\r\n"
+	# Generate patch file
+	svn diff . > ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff 2>/dev/null
 
-		export LC_ALL=C
-		svn diff . > ${GRUB4DOS_TEMP}/grub4dos_r${CURR_REVISION}.diff 2> /dev/null
-		Get_source="Get the source code of this build by using anonymous svn in this way:\r\n\r\nsvn co -r $CURR_REVISION ${SVN_URL_HTTP} grub4dos\r\n\r\n"
-		if [ $SVN_URL = "svn://svn.gna.org/svn/grub4dos/trunk" ]; then
-			Get_source="${Get_source}or in this way:\r\n\r\nsvn co -r $CURR_REVISION ${SVN_URL} grub4dos\r\n\r\n"
-		fi
-		if [ -s ${GRUB4DOS_TEMP}/grub4dos_r${CURR_REVISION}.diff ]; then
-			echo -n -e "${Get_source}and then apply the patch against revision ${CURR_REVISION} you just downloaded:\r\n\r\n\
-cd grub4dos\r\n\r\n\
-patch -p0 < ../grub4dos_r${CURR_REVISION}.diff\r\n\r\n\
-and now you may do a \"make\" to compile.\r\n\r\n\
-			\r\n" > ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt
-		else
-			echo -n -e "\
-${Get_source}and now you may \"cd grub4dos\" and do a \"make\" to compile.\r\n\r\n\
-			\r\n" > ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt
-		fi
+elif git checkout-index -a -f --prefix=${GRUB4DOS_TEMP}/ 2>/dev/null ; then
+# check for git version
+	CURR_REVISION=$(git log -1 --pretty=format:%h)
+	Get_source="\tgit clone https://github.com/chenall/grub4dos.git\r\n\tcd grub4dos\r\n\tgit checkout $CURR_REVISION -b build\r\n\r\n"
+	# Generate patch file
+	git diff --no-prefix > ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff 2> /dev/null
+	if [ -s ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff ]; then
+		cd ${GRUB4DOS_TEMP} || exit $?
+		patch -p0 < grub4dos_${CURR_REVISION}.diff
 	fi
-elif ! git checkout-index -a -f --prefix=${GRUB4DOS_TEMP}/ > /dev/null ; then
-	if [ "grub4dos-temp" = "${PWD##*/}" ] ; then
-		cd ..
-	else
-		files=$(echo *)
-		if ! [ -d ${GRUB4DOS_TEMP} ] ; then
-			mkdir ${GRUB4DOS_TEMP} || exit $?
-		fi
-		cp -a $files ${GRUB4DOS_TEMP} || exit $?
+else
+	files=$(echo *)
+	if ! [ -d ${GRUB4DOS_TEMP} ] ; then
+		mkdir ${GRUB4DOS_TEMP} || exit $?
 	fi
+	cp -a $files ${GRUB4DOS_TEMP} || exit $?
 fi
 
 cd ${GRUB4DOS_TEMP} || exit $?
+
+if [ "$Get_source" ]; then
+	echo -n -e "Get the source code of this build in this way:\r\n\r\n${Get_source}" > Get_Source_of_This_Build.txt
+	if [ -s grub4dos_${CURR_REVISION}.diff ]; then
+		echo -n -e "and then apply the patch against revision ${CURR_REVISION} you just downloaded:\r\n\r\n\
+	patch -p0 < ../grub4dos_${CURR_REVISION}.diff\r\n\r\n" >> Get_Source_of_This_Build.txt
+	fi
+	echo -n -e "and now you may do a \"make\" to compile.\r\n\r\n" >> Get_Source_of_This_Build.txt
+fi
+
 make clean
 #############################################
 #	Build english version
@@ -122,8 +96,8 @@ mkdir sample && mv menu.lst default config.sys sample/
 cd ..
 if [ -f Get_Source_of_This_Build.txt ]; then
 	cp Get_Source_of_This_Build.txt grub4dos-${VER}
-	if [ -s grub4dos_r${CURR_REVISION}.diff ]; then
-		cp grub4dos_r${CURR_REVISION}.diff grub4dos-${VER}
+	if [ -s grub4dos_${CURR_REVISION}.diff ]; then
+		cp grub4dos_${CURR_REVISION}.diff grub4dos-${VER}
 	fi
 fi
 
