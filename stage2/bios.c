@@ -31,7 +31,6 @@ extern int get_diskinfo_standard (int drive,
 				  unsigned long *heads,
 				  unsigned long *sectors);
 
-extern struct drive_map_slot hooked_drive_map[DRIVE_MAP_SIZE + 1];
 extern int drive_map_slot_empty (struct drive_map_slot item);
 
 /* Read/write NSEC sectors starting from SECTOR in DRIVE disk with GEOMETRY
@@ -265,6 +264,12 @@ get_diskinfo (int drive, struct geometry *geometry)
   int err;
   int version;
   unsigned long long total_sectors = 0, tmp = 0;
+#if	MAP_NUM_16
+	/* backup hooked_drive_map_1[0] onto hooked_drive_map[0] */
+	grub_memmove ((char *) &hooked_drive_map[0], (char *) &hooked_drive_map_1[0], sizeof (struct drive_map_slot)*8);
+	/* backup hooked_drive_map_2[0] onto hooked_drive_map[8] */
+	grub_memmove ((char *) &hooked_drive_map[8], (char *) &hooked_drive_map_2[0], sizeof (struct drive_map_slot)*9);
+#endif
 
   if (drive == 0xffff)	/* memory disk */
     {

@@ -8419,6 +8419,13 @@ map_func (char *arg, int flags)
   start_sector = sector_count = 0;
   blklst_num_entries = 0;
   
+#if	MAP_NUM_16
+	/* backup hooked_drive_map_1[0] onto hooked_drive_map[0] */
+	grub_memmove ((char *) &hooked_drive_map[0], (char *) &hooked_drive_map_1[0], sizeof (struct drive_map_slot)*8);
+	/* backup hooked_drive_map_2[0] onto hooked_drive_map[8] */
+	grub_memmove ((char *) &hooked_drive_map[8], (char *) &hooked_drive_map_2[0], sizeof (struct drive_map_slot)*9);
+#endif
+
   errnum = 0;
   for (;;)
   {
@@ -8658,6 +8665,13 @@ map_func (char *arg, int flags)
 	}
 	/* now there should be no memory mappings in bios_drive_map. */
 
+#if	MAP_NUM_16
+	/* backup hooked_drive_map[0] onto  hooked_drive_map_1[0]*/
+	grub_memmove ((char *) &hooked_drive_map_1[0], (char *) &hooked_drive_map[0], sizeof (struct drive_map_slot)*8);
+	/* backup hooked_drive_map[8] onto hooked_drive_map_2[0] */
+	grub_memmove ((char *) &hooked_drive_map_2[0], (char *) &hooked_drive_map[8], sizeof (struct drive_map_slot)*9);
+#endif
+	
 //	/* delete all memory mappings in bios_drive_map */
 //	for (i = 0; i < DRIVE_MAP_SIZE - 1; i++)
 //	{
