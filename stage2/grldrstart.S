@@ -286,6 +286,7 @@ read_help_err:
 	call	read_disk_with_reset_and_dec_di
 	jc      1f      
 	ljmp	$0x7c0, $0 
+endup:
 1:	
         movw	$(message_string - _start1), %si       
         call	print_message	/* CS:SI points to message string */
@@ -294,6 +295,8 @@ read_help_err:
 	
 
 helper_call_c:        
+	movb	%dl, (Boot_dl -  _start1)
+helper_call_d:
         movw    $0x01be, %si
 
 1:
@@ -339,10 +342,20 @@ try_floppy:
         jne     1f
         incb    %dl
 1:        
-        xorw	$0x80, %dx
-        orb     %dl, %dl
-        jne     Error_modify
-        jmp     boot_prev_mbr
+	andb	$0x80, %dl			//8n->80, 00->00
+	xorw	$0x80, %dx			//80->00, 00->80
+	cmpb	%dl, (Boot_dl -  _start1)
+	je	boot_prev_mbr
+	orb	%dl, %dl
+	jne	Error_modify
+	pushw	$0x7c00
+	popw	%es
+	movb	$1, %al
+	xorb	%dh, %dh
+	xorw	%bx, %bx				//ES:BX=20c0:0000	
+	call	read_disk_with_reset_and_dec_di
+	jc	endup
+	jmp	helper_call_d		
 
 
 int13:
@@ -451,6 +464,9 @@ Sectors_passed_in:
 	
 Heads_passed_in:
 	.byte	0xff
+	
+Boot_dl:
+	.byte	0x00		//00/80=FD/HD
 	
 #if (! defined(GRLDR_MBR))
 
@@ -5776,6 +5792,9 @@ helper_start:
         
         cmpw    $0x1be, %si
         jne     1f
+	movb	$0, (help_mark - _start1)
+	pushw	%es
+	popw	%ds
         call    Check_PartitionTable
         jc      1f
 //      orb     $8, 0x0a
@@ -5915,8 +5934,6 @@ helper_start:
 	
 #endif // defined(GRLDR_MBR) 
 
-//      andb    $0xfb, 0x0a
-        andb    $0xfb, (help_mark - _start1)
 	movb	$0x41, %ah	/* EBIOS check existence */
 	movw	$0x55aa, %bx
 	call	int13

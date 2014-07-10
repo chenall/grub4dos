@@ -158,7 +158,13 @@
 /* graphics.c uses 0x3A0000 - 0x3DA980 and 0x3FC000 - 0x3FF9D0 */
 
 /* The size of the drive map.  */
+#define	MAP_NUM_16	1
+
+#if	MAP_NUM_16
+#define DRIVE_MAP_SIZE		16
+#else
 #define DRIVE_MAP_SIZE		8
+#endif
 
 /* The size of the drive_map_slot struct.  */
 #define DRIVE_MAP_SLOT_SIZE	24
@@ -1050,8 +1056,14 @@ struct fragment_map_slot
 	unsigned long long fragment_data[0];
 };
 
-extern struct drive_map_slot   bios_drive_map[DRIVE_MAP_SIZE + 1];
+#if	MAP_NUM_16
+struct drive_map_slot hooked_drive_map[DRIVE_MAP_SIZE + 1];
+extern struct drive_map_slot hooked_drive_map_1[DRIVE_MAP_SIZE / 2 + 1];
+extern struct drive_map_slot hooked_drive_map_2[DRIVE_MAP_SIZE / 2 + 1];
+#else
 extern struct drive_map_slot hooked_drive_map[DRIVE_MAP_SIZE + 1];
+#endif
+extern struct drive_map_slot   bios_drive_map[DRIVE_MAP_SIZE + 1];
 extern struct fragment_map_slot hooked_fragment_map;
 
 /* Copy MAP to the drive map and set up int13_handler.  */

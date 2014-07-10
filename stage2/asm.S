@@ -437,20 +437,45 @@ real_codestart:
 	decw	%ax			/* AL=max_cdrom_id */
 	movb	%al, %cs:ABS(max_cdrom_id)		/* CS=0 */
 
-	/* initialize bios_drive_map with hooked_drive_map */
+	/* initialize bios_drive_map with hooked_drive_map_1 */
+#if	MAP_NUM_16
+	movw	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 4), %cx
+	movw	$ABS(EXT_C(hooked_drive_map_1)), %si		/* CS=0 */
+#else
 	movw	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2), %cx
 	movw	$ABS(EXT_C(hooked_drive_map)), %si		/* CS=0 */
+#endif
 	movw	$ABS(EXT_C(bios_drive_map)), %di		/* ES=0 */
 	cs repz movsw
 	
-	movw	$(0x3000 - 0x2800)/4, %cx
+	movw	$(0x3000 - 0x2800)/8, %cx
 	movw	$0x2800, %si
 3:
 	cmpl	$0x47415246, (%si)		/* FRAGMENT */
 	je	3f
-	addw	$4, %si
+	addw	$8, %si
 	loop	3b
 	jmp	2f
+3:
+	cmpl	$16, 0xfc							//16 FRAGMENT
+	jne	3f	
+
+#if	MAP_NUM_16	
+	pushw	%si
+	// BIOS-hooked_drive_map_2 -> G4D-hooked_drive_map_2
+	movw	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 4), %cx
+	pushw	%cx
+	subw	$((DRIVE_MAP_SIZE / 2 + 1) * DRIVE_MAP_SLOT_SIZE), %si
+	pushw	%si
+	movw	$ABS(EXT_C(hooked_drive_map_2)), %di		/* ES=0 */
+	repz	movsw
+	//BIOS_hooked_drive_map_2 -> G4D-bios_drive_map_8
+	popw	%si
+	popw	%cx
+	movw	$ABS(EXT_C(bios_drive_map) + ((DRIVE_MAP_SIZE / 2) * DRIVE_MAP_SLOT_SIZE)), %di		/* ES=0 */
+	repz	movsw		
+	popw	%si
+#endif
 3:
 	addw	$8, %si
 	movw	$ABS(EXT_C(hooked_fragment_map)), %di
@@ -2005,9 +2030,17 @@ VARIABLE(ROM_int13)
 
 	. = int13_handler + 0x20	/* drive map table begins at 0x20 */
 
+#if	MAP_NUM_16
+ENTRY(hooked_drive_map_1)
+	.space	(DRIVE_MAP_SIZE / 2 + 1) * DRIVE_MAP_SLOT_SIZE
+#else
 ENTRY(hooked_drive_map)
 	.space	(DRIVE_MAP_SIZE + 1) * DRIVE_MAP_SLOT_SIZE
 	/* 8-byte space reserved. */
+#endif
+
+	. = int13_handler + 0xFC
+	.long	16
 
 	. = int13_handler + 0x100	/* real int13 handler entry at 0x100 */
 	
@@ -2303,9 +2336,22 @@ int13_new_ss:		.word	0
 
 /****************************************************************************/
 	/* find the drive number from the drive map */
+#if	MAP_NUM_16
+	movw	$(EXT_C(hooked_drive_map_1) - int13_handler - DRIVE_MAP_SLOT_SIZE), %bp
+#else
 	movw	$(EXT_C(hooked_drive_map) - int13_handler - DRIVE_MAP_SLOT_SIZE), %bp
+#endif
 1:
 	addw	$DRIVE_MAP_SLOT_SIZE, %bp
+#if	MAP_NUM_16	
+	cmpw	$EXT_C(hooked_drive_map_1) - int13_handler + DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2, %bp
+	jne	2f
+	movw	$(EXT_C(hooked_drive_map_2) - int13_handler), %bp
+2:	
+	cmpw	$EXT_C(hooked_drive_map_2) - int13_handler + DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2, %bp
+	je	2f	
+#endif
+	
 	movw	%bp, %cs:(int13_new_bp - int13_handler)
 	movl	%cs:(%bp), %eax		/* FROM, TO, Hmax, Smax */
 
@@ -4033,12 +4079,26 @@ normal_disk_drive:
 	pushl	%ebx		/* save EBX */
 
 	/* set SI to the drive map */
+#if	MAP_NUM_16
+	movw	$(EXT_C(hooked_drive_map_1) - int13_handler), %si
+#else
 	movw	$(EXT_C(hooked_drive_map) - int13_handler), %si
+#endif
 	/* find the drive number from the drive map */
 	cld
 	subw	$DRIVE_MAP_SLOT_SIZE - 4, %si
 2:
 	addw	$DRIVE_MAP_SLOT_SIZE - 4, %si
+	
+#if	MAP_NUM_16
+	cmpw	$EXT_C(hooked_drive_map_1) - int13_handler + DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2, %si
+	jne	4f
+	movw	$(EXT_C(hooked_drive_map_2) - int13_handler), %si
+4:	
+	cmpw	$EXT_C(hooked_drive_map_2) - int13_handler + DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2, %si
+	je	2f
+#endif
+
 	lodsl	%cs:(%si), %eax
 	testl	%eax, %eax	/* end of map table? */
 	movl	%eax, %ebx	/* save the map to EBX */
@@ -5590,7 +5650,11 @@ int15_e820_handler:
 
 	/* check if overlapping with int13_handler and memdrives. */
 
+#if	MAP_NUM_16
+	movw	$(EXT_C(hooked_drive_map_1)-int13_handler-DRIVE_MAP_SLOT_SIZE), %si
+#else
 	movw	$(EXT_C(hooked_drive_map)-int13_handler-DRIVE_MAP_SLOT_SIZE), %si
+#endif
 	movw	$(DRIVE_MAP_SIZE + 1), %cx
 
 	popl	%eax		/* available low mem size in bytes */
@@ -5600,6 +5664,12 @@ int15_e820_handler:
 	jz	7f	/* int15 will handle low mem */
 	jmp	5f	/* this "jmp" instruction can be omitted. */
 6:
+#if	MAP_NUM_16
+	cmpw	$EXT_C(hooked_drive_map_1) - int13_handler + DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2, %si		//hooked_drive_map_1 end
+	jne	8f
+	movw	$(EXT_C(hooked_drive_map_2) - int13_handler), %si
+8:
+#endif
 	/* the code should not change SI, DI and CX! */
 	cmpb	$0xff, %cs:1(%si)
 	jne	5f			/* not memdrive */
@@ -5685,9 +5755,19 @@ int15_e820_handler:
 	movl	%eax, %cs:(minimum_mem_hi_in_map - int13_handler)
 	movl	$0x1000000, %cs:(minimum_mem_lo_in_map - int13_handler)
 	/* set %si to the drive map */
+#if	MAP_NUM_16
+	movw	$(EXT_C(hooked_drive_map_1) - int13_handler), %si
+#else
 	movw	$(EXT_C(hooked_drive_map) - int13_handler), %si
+#endif
 	movw	$(DRIVE_MAP_SIZE), %cx
 6:
+#if	MAP_NUM_16
+	cmpw	$EXT_C(hooked_drive_map_1) - int13_handler + DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2, %si		//hooked_drive_map_1 end
+	jne	8f
+	movw	$(EXT_C(hooked_drive_map_2) - int13_handler), %si
+8:	
+#endif
 	cmpb	$0xff, %cs:1(%si)
 	jne	5f
 	testb	$0x40, %cs:5(%si)	/* TO_C bit 14=(TO is cdrom) */
@@ -6169,6 +6249,11 @@ EBIOS_disk_address_packet:
 	.long	0	
 
 edd30_disk_buffer:	.space	0x800
+
+#if	MAP_NUM_16
+ENTRY(hooked_drive_map_2)
+	.space	(DRIVE_MAP_SIZE / 2 + 1) * DRIVE_MAP_SLOT_SIZE
+#endif
 
 	.ascii	"FRAGMENT"
 	
@@ -15945,12 +16030,26 @@ ENTRY(set_int13_handler)
 	pushl	%edi
 	pushl	%esi
 
-	/* copy MAP to the drive map */
+#if	MAP_NUM_16
+	/* copy boot_drive_map to maphooked_drive_map_1 */
+	movl	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 8), %ecx
+	pushl	%ecx
+	movl	$ABS(EXT_C(hooked_drive_map_1)), %edi
+	movl	8(%ebp), %esi
+	cld
+	repz movsl
+	/* copy boot_drive_map to maphooked_drive_map_2 */
+	popl %ecx
+	movl	$ABS(EXT_C(hooked_drive_map_2)), %edi
+	repz movsl
+#else
+	/* copy boot_drive_map to maphooked_drive_map */
 	movl	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 4), %ecx
 	movl	$ABS(EXT_C(hooked_drive_map)), %edi
 	movl	8(%ebp), %esi
 	cld
 	repz movsl
+#endif
 
 	/* other variable(s) */
 	movb	ABS(EXT_C(is64bit)), %dl
