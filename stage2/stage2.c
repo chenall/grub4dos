@@ -1921,7 +1921,14 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 	else
 	{
 	    if (! grub_read ((unsigned long long)(unsigned int)&c, 1, 0xedde0d90))
+	    {
+		if (errnum)
+		{
+			printf ("  Fatal! Read menu error!\n");
+			print_error ();
+		}
 		break;
+	    }
 	}
 
 	///* Skip UTF-8 Byte Order Mark: EF BB BF */
@@ -2134,7 +2141,7 @@ restart_config:
 	int state = 0, prev_config_len = 0, bt = 0;
 	unsigned long graphicsmode_in_menu_init = 0;
 	unsigned long debug_in_menu_init = 0;
-	char *cmdline;
+	//char *cmdline;
 	int is_preset;
 	menu_init_script_file[0] = 0;
 	{
@@ -2171,13 +2178,14 @@ restart_config:
 	
 	/* This is necessary, because the menu must be overrided.  */
 	reset ();
-	cmdline = (char *) CMDLINE_BUF;
+	//cmdline = (char *) CMDLINE_BUF;
 	  
 	putchar_hooked = (unsigned char*)1;/*stop displaying on screen*/
 
-	while (get_line_from_config (cmdline, NEW_HEAPSIZE, is_preset))
+	while (get_line_from_config ((char *) CMDLINE_BUF, NEW_HEAPSIZE, is_preset))
 	{
 	    struct builtin *builtin;
+	    char *cmdline = (char *) CMDLINE_BUF;
 	  
 	    /* Get the pointer to the builtin structure.  */
 	    builtin = find_command (cmdline);
@@ -2216,6 +2224,8 @@ restart_config:
 			rp = builtin->func(cmdline,BUILTIN_IFTITLE);
 			saved_drive = tmp_drive;
 			saved_partition = tmp_partition;
+			current_drive = GRUB_INVALID_DRIVE;
+			buf_drive = -1;
 
 			/* re-open the config_file which is still in use by
 			 * get_line_from_config(), and restore file position
@@ -2230,14 +2240,18 @@ restart_config:
 			}
 			else
 			{
-				grub_open (config_file);
+				if (! grub_open (config_file))
+				{
+					printf ("  Fatal! Re-open %s failed!\n", config_file);
+					print_error ();
+				}
 				filepos = (unsigned long long)tmp_filpos;
 			}
 
 			if (debug_boot)
 			{
 				putchar_hooked = 0;
-				grub_printf("\t %s\n",rp?"Yes":"No");
+				grub_printf("  rp=%d\n", rp);
 				DEBUG_SLEEP
 				putchar_hooked = (unsigned char*)1;
 			}
