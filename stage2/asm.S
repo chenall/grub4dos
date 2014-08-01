@@ -351,6 +351,7 @@ real_codestart:
 	/* check for fb structure  */
 	cmpl	$0x46424246, (0x21b4)
 	jnz	1f
+	movw	%ax, (0x21b4) //destroy it to prevent repeated fb recognition
 	movl	(0x21ae), %eax
 	movb	(0x21ad), %al
 	movl	%eax, ABS(EXT_C(fb_status))

@@ -1,3 +1,6 @@
+2014-08-01 1. Enabled partition ID of 00. 2. Enabled "chainloader --raw" to load harddrive PBR with BPB hidden_sectors=0.
+           3. Destroyed the FBBF signature(in memory) for subsequent non-FBINST boot.
+2014-07-10 (tinybit) fixed a bug on iftitle(reporter: steve6375 and George).
 2014-07-02 (tinybit) repulse GigaByte Key-E attack(reporter: 2011after).
 2013-12-14 (tinybit) Workaround for BIOS of BENQ notebook that only supports 1 sector per read(reported by mygamexxx of bbs.wuyou.com).
 	    Disabled Single-Key-Selection feature by default(issue 161). Some fixes on (ud).
