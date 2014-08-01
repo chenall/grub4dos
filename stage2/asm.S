@@ -112,7 +112,8 @@ VARIABLE(stage2_id)
 VARIABLE(force_lba)
 	/* only bit 0 is now used for force_lba. */
 	/* bit 1=1 means we are booting as a Linux kernel. */
-	.byte	0
+	/* bit 2=0 enable single-key-selection feature. */
+	.byte	0x04
 
 VARIABLE(version_string)
 	.string VERSION
