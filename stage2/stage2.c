@@ -733,7 +733,7 @@ restart1:
 
   old_c = 0;
   old_c_count = 0;
-  old_c_count_end = 0;
+  old_c_count_end = (force_lba & 4);	/* non-zero to disable single-key-selection feature. */
   temp_entryno = 0;
   /* Initialize to NULL just in case...  */
   cur_entry = NULL;
@@ -2068,6 +2068,7 @@ cmain (void)
     title_boot = (unsigned short *) init_free_mem_start;
     titles = (char * *)(init_free_mem_start + 1024);
     config_entries = (char*)init_free_mem_start + 1024 + 256 * sizeof (char *);
+    saved_entryno = 0;
     /* Never return.  */
 restart2:
     reset ();
@@ -2076,58 +2077,6 @@ restart2:
 
     if (! use_config_file)
 	goto done_config_file;
-	/*comment by chenall on 2010-04-17,I think these are not necessary*/
-#if 1	/* uncomment by tinybit on 2011-01-16 since it is required. */
-    /* Get a saved default entry if possible.  */
-    saved_entryno = 0;
-    if (*config_file && boot_drive != cdrom_drive)
-    {
-	//char *default_file = (char *) DEFAULT_FILE_BUF;
-
-	*default_file = 0;	/* initialise default_file */
-	grub_strncat (default_file, config_file, sizeof (default_file) /* DEFAULT_FILE_BUFLEN */);
-	{
-	    int i;
-	    for (i = grub_strlen (default_file); i >= 0; i--)
-		if (default_file[i] == '/')
-			break;
-	    default_file[++i] = 0;
-	    grub_strncat (default_file + i, "default", sizeof (default_file) /* DEFAULT_FILE_BUFLEN */ - i);
-	}
-	if (debug > 1)
-	    grub_printf("\rOpen default file %s ... ", default_file);
-	DEBUG_SLEEP
-
-	if (grub_open (default_file))
-	{
-	    char buf[10]; /* This is good enough.  */
-	    char *p = buf;
-	    int len;
-	  
-	    if (debug > 1)
-		grub_printf("\rRead default file ... ");
-	    len = grub_read ((unsigned long long)(unsigned int)buf, sizeof (buf), 0xedde0d90);
-	    if (debug > 1)
-		grub_printf("len=%d", (unsigned long)len);
-	    if (len > 0)
-	    {
-		unsigned long long ull;
-		buf[sizeof (buf) - 1] = 0;
-		safe_parse_maxint (&p, &ull);
-		saved_entryno = ull;
-		if (debug > 1)
-		  grub_printf("saved_entryno=%d", (unsigned long)saved_entryno);
-	    }
-	    DEBUG_SLEEP
-
-	    grub_close ();
-	}
-	else if (debug > 1)
-	    grub_printf("\rOpen default file %s ... failure.\n", default_file);
-	DEBUG_SLEEP
-    }
-    errnum = ERR_NONE;
-#endif
 
     pxe_restart_config = 0;
 
@@ -2160,7 +2109,7 @@ restart_config:
 		if (*config_file)
 			is_opened = (configfile_opened || grub_open (config_file));
 	    }
-	    errnum = ERR_NONE;
+	    errnum = 0;
 	    configfile_opened = 0;
 	    if (! is_opened)
 	    {
@@ -2387,7 +2336,7 @@ extern int graphicsmode_func (char *, int);
 
 	    if (preset_menu != (const char *)0x800)
 		grub_close ();
-	    use_preset_menu = 0;	/* Disable the preset menu.  */
+	    //use_preset_menu = 0;	/* Disable preset menu.  */
 	}
 	else
 	{
@@ -2404,6 +2353,7 @@ extern int graphicsmode_func (char *, int);
 	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
 #endif /* SUPPORT_GRAPHICS */
 	}
+	use_preset_menu = 0;	/* Disable preset menu.  */
 
 	if (state & 2)
 	{

@@ -512,8 +512,16 @@ init_bios_info (void)
   if (saved_mmap_length)
     mbi.flags |= MB_INFO_MEM_MAP;
 
+	force_pxe_as_boot_device = 0;
+	/* if booted by fbinst, we can skip tons of checks ... */
+	if (fb_status)
+	{
+		boot_drive = FB_DRIVE;
+		install_partition = 0xFFFFFF;
+		goto set_root;
+	}
+	
 #ifdef FSYS_PXE
-    force_pxe_as_boot_device = 0;
     if (! ((*(char *)0x8205) & 0x01))	/* if it is not disable pxe */
     {
 	//pxe_detect();

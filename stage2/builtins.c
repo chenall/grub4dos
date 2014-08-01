@@ -980,8 +980,11 @@ boot_func (char *arg, int flags)
 			chainloader_edx_set = 1;
 			chainloader_edx = boot_drive;
 		}
+		if (! is_raw) //do not check/modify HIDDEN_SECTORS for "--raw"
 		if (chainloader_edx & 0x80)
 		{
+		  /* if hard-drive BPB shows HIDDEN_SECTORS=0, we assume the
+		   * sector is MBR and it has a partition table. */
 		  if (! probe_bpb((struct master_and_dos_boot_sector *)0x200000))
 			if (*((unsigned long *) (0x20001C)) == 0)
 			{
@@ -1076,6 +1079,8 @@ boot_func (char *arg, int flags)
 	    if (*((unsigned long *) (0x7C00 + 0x1C)))
 	        *((unsigned long *) (0x7C00 + 0x1C)) = 0;
 	} else {
+	  /* if hard-drive BPB shows HIDDEN_SECTORS=0, we assume the
+	   * sector is MBR and it has a partition table. */
 	  if (! probe_bpb((struct master_and_dos_boot_sector *)0x7C00))
 	    if (*((unsigned long *) (0x7C00 + 0x1C)) == 0)
 	    {
@@ -4069,8 +4074,44 @@ default_func (char *arg, int flags)
   errnum = 0;
   if (grub_memcmp (arg, "saved", 5) == 0)
     {
-      default_entry = saved_entryno;
-      return 1;
+	if (! *config_file)
+	{
+		default_entry = saved_entryno;
+		return 1;
+	}
+
+	*default_file = 0;	/* initialise default_file */
+	grub_strncat (default_file, config_file, sizeof (default_file));
+	{
+	    int i;
+	    for (i = grub_strlen (default_file); i >= 0; i--)
+		if (default_file[i] == '/')
+			break;
+	    default_file[++i] = 0;
+	    grub_strncat (default_file + i, "default", sizeof (default_file) - i);
+	}
+
+	if (grub_open (default_file))
+	{
+	    char buf[10]; /* This is good enough.  */
+	  
+	    p = buf;
+	    len = grub_read ((unsigned long long)(unsigned int)buf, sizeof (buf), 0xedde0d90);
+	    if (debug > 1)
+		grub_printf("len=%d", (unsigned long)len);
+	    if (len > 0)
+	    {
+		//unsigned long long ull;
+		buf[sizeof (buf) - 1] = 0;
+		safe_parse_maxint (&p, &ull);
+		saved_entryno = ull;
+	    }
+
+	    grub_close ();
+	}
+
+	default_entry = saved_entryno;
+	return 1;
     }
   
   if (safe_parse_maxint (&arg, &ull))
@@ -5696,8 +5737,8 @@ find_func (char *arg, int flags)
 							next_partition_buf		= mbr,
 							next_partition ()))
 					{
-						if (type != PC_SLICE_TYPE_NONE
-							&& ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
+						if (/* type != PC_SLICE_TYPE_NONE
+							&& */ ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
 							&& ! IS_PC_SLICE_TYPE_BSD (type)
 							&& ! IS_PC_SLICE_TYPE_EXTENDED (type))
 						{
@@ -6230,8 +6271,8 @@ uuid_func (char *arg, int flags)
 		next_partition_buf		= mbr,
 		next_partition ()))
 	{
-	  if (type != PC_SLICE_TYPE_NONE
-	      && ! IS_PC_SLICE_TYPE_BSD (type)
+	  if (/* type != PC_SLICE_TYPE_NONE
+	      && */ ! IS_PC_SLICE_TYPE_BSD (type)
 	      && ! IS_PC_SLICE_TYPE_EXTENDED (type))
 	    {
 	      current_partition = part;
@@ -6562,6 +6603,12 @@ geometry_func (char *arg, int flags)
 //  set_device (device);
 //  if (errnum)
 //    return 0;
+
+  if (fb_status && current_drive == FB_DRIVE)
+  {
+	current_drive = (unsigned char)(fb_status >> 8);
+	current_partition = 0xFFFFFF;
+  }
 
   /* Check for the geometry.  */
   if (get_diskinfo (current_drive, &tmp_geom))
@@ -11946,8 +11993,8 @@ real_root_func (char *arg, int attempt_mnt)
 		next_partition_buf		= mbr,
 		next_partition ()))
 	{
-	  if (type != PC_SLICE_TYPE_NONE
-	      && ! IS_PC_SLICE_TYPE_BSD (type)
+	  if (/* type != PC_SLICE_TYPE_NONE
+	      && */ ! IS_PC_SLICE_TYPE_BSD (type)
 	      && ! IS_PC_SLICE_TYPE_EXTENDED (type))
 	    {
 		saved_partition = current_partition;
