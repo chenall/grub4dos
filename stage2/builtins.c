@@ -981,6 +981,7 @@ boot_func (char *arg, int flags)
 			chainloader_edx = boot_drive;
 		}
 		if (! is_raw) //do not check/modify HIDDEN_SECTORS for "--raw"
+		{
 		if (chainloader_edx & 0x80)
 		{
 		  /* if hard-drive BPB shows HIDDEN_SECTORS=0, we assume the
@@ -1003,7 +1004,7 @@ boot_func (char *arg, int flags)
     			if (*((unsigned long *) (0x20001C)))
         		    *((unsigned long *) (0x20001C)) = 0;
 		}
-		
+		}
 	    }
 		
 		if (chainloader_load_length == -1 || chainloader_load_length > read_length)
@@ -7422,11 +7423,37 @@ makeactive_func (char *arg, int flags)
     }
   else
     {
+	/* Check if the other 3 entries already cleared. if not, clear them. */
+	unsigned long flags_changed = 0;
+	{
+	  int j;
+	  for (j = 0; j < 4; j++)
+	  {
+	    if (j == part)
+		continue;
+	    if (PC_SLICE_FLAG (mbr, j))
+	    {
+		PC_SLICE_FLAG (mbr, j) = 0;
+		flags_changed++;
+	    }
+	  }
+	}
+
 	if (debug > 0)
 		grub_printf ("Partition (%cd%d,%d) was already active.\n",
 				((current_drive & 0x80) ? 'h' : 'f'),
 				(current_drive & ~0x80),
 				part);
+
+	if (flags_changed)
+	{
+		/* Write back the MBR.  */
+		if (! rawwrite (current_drive, 0, (unsigned long long)(unsigned int)mbr))
+		    return 0;
+
+		if (debug > 0)
+			grub_printf ("Deactivated %d Partition(s) successfully.\n", flags_changed);
+	}
     }
 
   return 1;
