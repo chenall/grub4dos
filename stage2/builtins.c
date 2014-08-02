@@ -944,8 +944,11 @@ boot_func (char *arg, int flags)
 			chainloader_edx_set = 1;
 			chainloader_edx = boot_drive;
 		}
+		if (! is_raw) //do not check/modify HIDDEN_SECTORS for "--raw"
 		if (chainloader_edx & 0x80)
 		{
+		  /* if hard-drive BPB shows HIDDEN_SECTORS=0, we assume the
+		   * sector is MBR and it has a partition table. */
 		  if (! probe_bpb((struct master_and_dos_boot_sector *)0x200000))
 			if (*((unsigned long *) (0x20001C)) == 0)
 			{
@@ -1040,6 +1043,8 @@ boot_func (char *arg, int flags)
 	    if (*((unsigned long *) (0x7C00 + 0x1C)))
 	        *((unsigned long *) (0x7C00 + 0x1C)) = 0;
 	} else {
+	  /* if hard-drive BPB shows HIDDEN_SECTORS=0, we assume the
+	   * sector is MBR and it has a partition table. */
 	  if (! probe_bpb((struct master_and_dos_boot_sector *)0x7C00))
 	    if (*((unsigned long *) (0x7C00 + 0x1C)) == 0)
 	    {
@@ -5703,8 +5708,8 @@ find_func (char *arg, int flags)
 	       )
               continue;
                             
-						if (type != PC_SLICE_TYPE_NONE
-							&& ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
+						if (/* type != PC_SLICE_TYPE_NONE
+							&& */ ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
 							&& ! IS_PC_SLICE_TYPE_BSD (type)
 							&& ! IS_PC_SLICE_TYPE_EXTENDED (type))
 						{
@@ -6237,8 +6242,8 @@ uuid_func (char *arg, int flags)
 		next_partition_buf		= mbr,
 		next_partition ()))
 	{
-	  if (type != PC_SLICE_TYPE_NONE
-	      && ! IS_PC_SLICE_TYPE_BSD (type)
+	  if (/* type != PC_SLICE_TYPE_NONE
+	      && */ ! IS_PC_SLICE_TYPE_BSD (type)
 	      && ! IS_PC_SLICE_TYPE_EXTENDED (type))
 	    {
 	      current_partition = part;
@@ -7408,11 +7413,37 @@ makeactive_func (char *arg, int flags)
     }
   else
     {
+	/* Check if the other 3 entries already cleared. if not, clear them. */
+	unsigned long flags_changed = 0;
+	{
+	  int j;
+	  for (j = 0; j < 4; j++)
+	  {
+	    if (j == part)
+		continue;
+	    if (PC_SLICE_FLAG (mbr, j))
+	    {
+		PC_SLICE_FLAG (mbr, j) = 0;
+		flags_changed++;
+	    }
+	  }
+	}
+
 	if (debug > 0)
 		grub_printf ("Partition (%cd%d,%d) was already active.\n",
 				((current_drive & 0x80) ? 'h' : 'f'),
 				(current_drive & ~0x80),
 				part);
+
+	if (flags_changed)
+	{
+		/* Write back the MBR.  */
+		if (! rawwrite (current_drive, 0, (unsigned long long)(unsigned int)mbr))
+		    return 0;
+
+		if (debug > 0)
+			grub_printf ("Deactivated %d Partition(s) successfully.\n", flags_changed);
+	}
     }
 
   return 1;
@@ -11739,8 +11770,8 @@ real_root_func (char *arg, int attempt_mnt)
 		next_partition_buf		= mbr,
 		next_partition ()))
 	{
-	  if (type != PC_SLICE_TYPE_NONE
-	      && ! IS_PC_SLICE_TYPE_BSD (type)
+	  if (/* type != PC_SLICE_TYPE_NONE
+	      && */ ! IS_PC_SLICE_TYPE_BSD (type)
 	      && ! IS_PC_SLICE_TYPE_EXTENDED (type))
 	    {
 		saved_partition = current_partition;
