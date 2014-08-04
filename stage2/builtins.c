@@ -1298,7 +1298,8 @@ cat_func (char *arg, int flags)
 		grub_printf ("Filesize is 0x%lX\n", (unsigned long long)filesize);
 	//ret = filemax;
 	//return ret;
-	return filesize;
+	//if filesize over 4GB return 0xFFFFFFFF;
+	return (filesize>>32)?-1:filesize;
   }
 
 	if (replace)
