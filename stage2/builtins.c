@@ -14777,11 +14777,32 @@ static int set_func(char *arg, int flags)
 		arg = skip_to(0, arg);
 	}
 
-	if ((unsigned char)*arg < '.')
+	if (*arg == '\"')
+	{
+		convert_flag |= 0x800;
+		++arg;
+		int len = strlen(arg);
+		if (len)
+		{
+			--len;
+			if (arg[len] == '\"')
+				arg[len] = 0;
+		}
+	} else if ((unsigned char)*arg < '.')
 		return get_env_all();
 	char *var = arg;
-	flags = strstr(var,"=")?0:2;
-	arg = skip_to(SKIP_WITH_TERMINATE | 1,arg);
+	arg = strstr(arg,"=");
+	flags = arg?0:2;
+
+	if (convert_flag & 0x800)
+	{
+		if (arg) *arg++ = 0;
+	}
+	else
+	{
+		arg = skip_to(SKIP_WITH_TERMINATE | 1,var);
+	}
+
 	if (convert_flag & 0x200)
 	{
 		value[0] = 0;
