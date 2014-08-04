@@ -945,6 +945,7 @@ boot_func (char *arg, int flags)
 			chainloader_edx = boot_drive;
 		}
 		if (! is_raw) //do not check/modify HIDDEN_SECTORS for "--raw"
+		{
 		if (chainloader_edx & 0x80)
 		{
 		  /* if hard-drive BPB shows HIDDEN_SECTORS=0, we assume the
@@ -967,7 +968,7 @@ boot_func (char *arg, int flags)
     			if (*((unsigned long *) (0x20001C)))
         		    *((unsigned long *) (0x20001C)) = 0;
 		}
-		
+		}
 	    }
 		
 		if (chainloader_load_length == -1 || chainloader_load_length > read_length)
