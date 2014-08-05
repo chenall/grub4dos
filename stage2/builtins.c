@@ -11445,6 +11445,7 @@ write_func (char *arg, int flags)
   unsigned long tmp_partition;
   unsigned long long offset;
   unsigned long long len;
+  unsigned long long bytes = 4;
   char tmp_file[16];
   //int block_file = 0;
 
@@ -11460,6 +11461,13 @@ write_func (char *arg, int flags)
 	if (! safe_parse_maxint (&p, &offset))
 		return 0;
       }
+    else if (grub_memcmp (arg, "--bytes=", 8) == 0)
+    {
+       p = arg + 8;
+       if (! safe_parse_maxint (&p, &bytes))
+		return 0;
+	if (bytes > 8) bytes = 8;
+    }
     else
 	break;
     arg = skip_to (0, arg);
@@ -11611,7 +11619,15 @@ succ:
 	p = arg;
 	if (! safe_parse_maxint (&p, &val))
 		goto fail;
-	*((unsigned *)(unsigned int) RAW_ADDR (addr += offset)) = (unsigned)val;
+	addr += offset;
+	arg = (char*)(unsigned int)addr;
+	p = (char*)(unsigned int)&val;
+
+	while(bytes--)
+	{
+		*arg++ = *p++;
+	}
+//	*((unsigned *)(unsigned int) RAW_ADDR (addr)) = (unsigned)val;
 	if (debug > 0)
 		grub_printf ("Address 0x%lx: Value 0x%x\n", (unsigned long long)addr, (*((unsigned *)(unsigned int) RAW_ADDR (addr))));
 	if (addr != (int)&saved_drive)
@@ -11634,7 +11650,7 @@ static struct builtin builtin_write =
   "write",
   write_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "write [--offset=SKIP] ADDR_OR_FILE INTEGER_OR_STRING",
+  "write [--offset=SKIP] [--bytes=N] ADDR_OR_FILE INTEGER_OR_STRING",
   "Write a 32-bit value to memory or write a string to file(or device!)."
 };
 
