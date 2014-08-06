@@ -15,8 +15,9 @@ datalibdir = $(libdir)/$(PACKAGE)/$(host_cpu)-$(host_vendor)
 
 EXTRA_PROGRAMS = nbloader.exec pxeloader.exec diskless.exec
 
+
 datalib_DATA = grub.exe badgrub.exe grldr grldr.mbr bootlace.com hmload.com eltorito.sys
-noinst_DATA = pre_stage2 dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart pre_stage2_fullsize pre_stage2_head pre_stage2_tail
+noinst_DATA = pre_stage2 dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
 noinst_PROGRAMS = pre_stage2.exec dosstart.exec badgrubstart.exec grldrstart.exec mbrstart.exec bootlacestart.exec hmloadstart.exec
 
 MOSTLYCLEANFILES = $(noinst_PROGRAMS)
@@ -101,8 +102,10 @@ grldrstart_exec-grldrstart.$(OBJEXT): stage2_size.h
 
 grldr: pre_stage2 grldrstart
 	-rm -f grldr
+	-rm -f grldr_cd.bin
 	echo -n -e "\000\000\000\000\000\000\000\000\000\000\000\000" | cat grldrstart pre_stage2 - > grldr
 	if [ -f ../preset_menu_used ]; then cat ../preset_menu_used >> grldr ;fi
+	
 
 mbrstart_exec_SOURCES = mbrstart.S
 mbrstart_exec_CCASFLAGS = $(STAGE2_COMPILE)
@@ -120,10 +123,14 @@ bootlacestart_exec_LDFLAGS = -nostdlib -Wl,-N -Wl,-Ttext -Wl,08048000 $(BIN_LDFL
 
 bootlacestart_exec-bootlacestart.$(OBJEXT): stage2_size.h bootlace.inc grldrstart.S
 
-bootlace.com: bootlacestart
+bootlace.com: bootlacestart                                             #Note: Synchronous modifications build
 	-rm -f bootlace.com
+	-rm -f grldr.pbr
 	cp bootlacestart bootlace.com && chmod a+x bootlace.com
-
+	dd if=bootlace.com of=grldr.pbr bs=512 skip=55 count=10             #skip(1):  "EB 58 90 00" position in the bootlace.com
+	dd if=bootlace.com of=grldr_cd.bin bs=512 skip=65 count=1           #skip(2):   = skip(1) + 10
+	cat grldr.mbr >> bootlace.com
+	
 hmloadstart_exec_SOURCES = hmloadstart.S
 hmloadstart_exec_CCASFLAGS = $(STAGE2_COMPILE)
 hmloadstart_exec_LDFLAGS = -nostdlib -Wl,-N -Wl,-Ttext -Wl,08048000 $(BIN_LDFLAGS)

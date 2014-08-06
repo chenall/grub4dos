@@ -384,6 +384,11 @@ Update 11:	stage2 of Grub Legacy can be chainloaded in this way:
 
 			chainloader --force --load-segment=0 --load-offset=0x8000 --boot-cs=0 --boot-ip=0x8200 (...)/.../stage2
 
+Update 12: 	added exFAT partition.
+
+Update 13: 	add Universal Disk Format (UDF) and Joliet specification support. You can boot from them also.
+		Able to use grldr_cd.bin as cdrom boot code.
+
 --------------------------------------------------------
 
 	There is no full documentation in English at present. Here are some
@@ -526,45 +531,27 @@ Note:	Counters for floppies and harddrives in the BIOS Data Area remain
 ***   Explanation of the grldr-bootable floppies or harddisk partitions    ***
 ******************************************************************************
 
-1. Ext2 Boot Sector/Boot Record Layout (for loading grldr)
+1. Ext2/3/4 Boot Sector/Boot Record Layout (for loading grldr)
 ------------------------------------------------------------------------------
-An EXT2/EXT3 volume can be GRUB-bootable. Copy grldr and an optional menu.lst
-to the root dir of the EXT2/EXT3 volume, and build the boot sector based on the
-fifth sector of grldr(some fields need to be changed as detailed in the
-following table). And then the EXT2/EXT3 volume is GRUB-bootable.
+An EXT2/3/4 volume can be GRUB-bootable. Copy grldr and an optional menu.lst
+to the root dir of the EXT2/3/4 volume, According to the first 3 to 4 grldr.dbr sector, 
+Create a boot sector. And then the EXT2/3/4 volume is GRUB-bootable.
 
 Update:	bootlace.com is a DOS/Linux utility that can install the GRLDR boot
-record onto the first sector of an EXT2/EXT3 volume.
+record onto the first sector of an EXT2/3/4 volume.
+
+Update: You can directly copy the boot code to the boot partition, 
+the boot code will automatically generate the head parameter.
 
 Offset	Length	Description
 ======	======	==============================================================
 00h	2	Machine code for short jump over the data.
 
-02h	1	LBA indicator. Valid values are 0x02 for CHS mode, or 0x42 for
-		LBA mode.
+02h	1	0x90
 
-		If the BIOS int13 supports LBA, this byte can be safely set to
-		0x42.
+03h	8	File system ID.  "EXT2/3/4"
 
-		Some USB BIOSes might have bugs when using CHS mode, so the
-		format program should set this byte to 0x42. It seems that
-		(generally) all USB BIOSes have LBA support.
-
-		If the format program does not know whether the BIOS has LBA
-		support, it may operate this way:
-
-		if (partition_start + total_sectors_in_partition) exceeds the
-		CHS addressing ability(especially when it is greater than
-		1024*256*63), the caller should set this byte to 0x42,
-		otherwise, set to 0x02.
-
-		Note that Windows98 uses the value 0x0e as the LBA indicator.
-
-		Update: this byte of LBA indicator is ignored. The boot
-		record can probe the LBA support of BIOS.
-
-03h	10	OEM name string (of OS which formatted the disk).
-		Update: this field is now used for error message of "I/O error"
+0Bh	2	Bytes per sector. Must be 512.
 
 0Dh	1	Sectors per block. Valid values are 2, 4, 8, 16 and 32.
 
@@ -625,23 +612,20 @@ Offset	Length	Description
 
 		The value here is equal to (s_first_data_block + 1).
 
-30h	1	code for "cld"(0xFC).
-
-31h	2	code for "xor ax,ax"(0x31, 0xC0).
-
-33h	1	code for "nop"(0x90) or "cwd"(0x99)
-
-34h	458	The rest of the machine code.
+30h	462	The rest of the machine code.
 
 1FEh	2	Boot Signature AA55h.
+
+200h	510	The rest of the machine code.
+
+3FEh	2	Boot Signature AA55h.
 
 
 2. FAT12/FAT16 Boot Sector/Boot Record Layout (for loading grldr)
 ------------------------------------------------------------------------------
 A FAT12/16 volume can be GRUB-bootable. Copy grldr and an optional menu.lst to
-the root dir of the FAT12/16 volume, and build the boot sector based on the
-fourth sector of grldr(some fields need to be changed as detailed in the
-following table). And then the FAT12/16 volume is GRUB-bootable.
+the root dir of the FAT12/16 volume, The second sector in accordance with grldr.dbr,
+Create a boot sector. And then the FAT12/16 volume is GRUB-bootable.
 
 Update:	bootlace.com is a DOS/Linux utility that can install the GRLDR boot
 record onto the boot sector of an FAT12/16 volume.
@@ -650,26 +634,7 @@ Offset	Length	Description
 ======	======	==============================================================
 00h	2	Machine code for short jump over the data.
 
-02h	1	LBA indicator. Valid values are 0x90 for CHS mode, or 0x0e for
-		LBA mode.
-
-		If the BIOS int13 supports LBA, this byte can be safely set to
-		0x0e.
-
-		Some USB BIOSes might have bugs when using CHS mode, so the
-		format program should set this byte to 0x0e. It seems that
-		(generally) all USB BIOSes have LBA support.
-
-		If the format program does not know whether the BIOS has LBA
-		support, it may operate this way:
-
-		if (partition_start + total_sectors_in_partition) exceeds the
-		CHS addressing ability(especially when it is greater than
-		1024*256*63), the caller should set this byte to 0x0e,
-		otherwise, set to 0x90.
-
-		Update: this byte of LBA indicator is ignored. The boot
-		record can probe the LBA support of BIOS.
+02h	1	0x90
 
 		Update(2006-07-31): Though GRLDR won't use this LBA-indicator
 		byte, Windows 98 uses it. Usually this byte should be 0x90 for
@@ -723,6 +688,7 @@ Offset	Length	Description
 
 		This byte is ignored for read. The boot code will write
 		partition number onto this byte. See offset 41h below.
+		Update: This field is ignored
 
 26h	1	Signature (must be 28h or 29h to be recognised by NT).
 
@@ -730,22 +696,9 @@ Offset	Length	Description
 
 2Bh	11	Volume label.
 
-36h	8	File system ID. "FAT12   ", "FAT16   " or "FAT     ".
+36h	8	File system ID. "FAT12   ", "FAT16    ※.
 
-3Eh	1	code for "cli".
-
-3Fh	1	code for "cld".
-
-40h	1	code for "mov dh, imm8".
-
-41h	1	Partition number of this partition on the boot drive.
-
-		0, 1, 2, 3 are primary partitions.
-		4, 5, 6, ... are logical partitions in the extended partition.
-
-		0xff is for whole drive. So for floppies, it should be 0xff.
-
-42h	442	The rest of the machine code.
+3Eh	446	The rest of the machine code.
 
 1FCh	4	Boot Signature AA550000h. (Win9x uses 4 bytes as magic value)
 
@@ -753,9 +706,8 @@ Offset	Length	Description
 3. FAT32 Boot Sector/Boot Record Layout (for loading grldr)
 ------------------------------------------------------------------------------
 A FAT32 volume can be GRUB-bootable. Copy grldr and an optional menu.lst to
-the root dir of the FAT32 volume, and build the boot sector based on the
-third sector of grldr(some fields need to be changed as detailed in the
-following table). And then the FAT32 volume is GRUB-bootable.
+the root dir of the FAT32 volume, The first sector in accordance with grldr.dbr,
+Create a boot sector. And then the FAT32 volume is GRUB-bootable.
 
 Update:	bootlace.com is a DOS/Linux utility that can install the GRLDR boot
 record onto the boot sector of an FAT32 volume.
@@ -764,26 +716,7 @@ Offset	Length	Description
 ======	======	==============================================================
 00h	2	Machine code for short jump over the data.
 
-02h	1	LBA indicator. Valid values are 0x90 for CHS mode, or 0x0e for
-		LBA mode.
-
-		If the BIOS int13 supports LBA, this byte can be safely set to
-		0x0e.
-
-		Some USB BIOSes might have bugs when using CHS mode, so the
-		format program should set this byte to 0x0e. It seems that
-		(generally) all USB BIOSes have LBA support.
-
-		If the format program does not know whether the BIOS has LBA
-		support, it may operate this way:
-
-		if (partition_start + total_sectors_in_partition) exceeds the
-		CHS addressing ability(especially when it is greater than
-		1024*256*63), the caller should set this byte to 0x0e,
-		otherwise, set to 0x90.
-
-		Update: this byte of LBA indicator is ignored. The boot
-		record can probe the LBA support of BIOS.
+02h	1	0x90
 
 		Update(2006-07-31): Though GRLDR won't use this LBA-indicator
 		byte, Windows 98 uses it. Usually this byte should be 0x90 for
@@ -855,6 +788,7 @@ Offset	Length	Description
 
 		This byte is ignored for read. The boot code will write
 		partition number onto this byte. See offset 5Dh below.
+		Update: This field is ignored
 
 42h	1	Signature (must be 28h or 29h to be recognised by NT).
 
@@ -864,20 +798,7 @@ Offset	Length	Description
 
 52h	8	File system ID. "FAT32   ".
 
-5Ah	1	opcode for "cli".
-
-5Bh	1	opcode for "cld".
-
-5Ch	1	opcode for "mov dh, imm8".
-
-5Dh	1	Partition number of this partition on the boot drive.
-
-		0, 1, 2, 3 are primary partitions.
-		4, 5, 6, ... are logical partitions in the extended partition.
-
-		0xff is for whole drive. So for floppies, it should be 0xff.
-
-5Eh	414	The rest of the machine code.
+5Ah	418	The rest of the machine code.
 
 1FCh	4	Boot Signature AA550000h. (Win9x uses 4 bytes as magic value)
 
@@ -885,9 +806,8 @@ Offset	Length	Description
 4. NTFS Boot Sector/Boot Record Layout (for loading grldr)
 ------------------------------------------------------------------------------
 An NTFS volume can be GRUB-bootable. Copy grldr and an optional menu.lst to
-the root dir of the NTFS volume, and build the boot sector based on the
-6th-9th sectors of grldr(some fields need to be changed as detailed in the
-following table). And then the NTFS volume is GRUB-bootable.
+the root dir of the NTFS volume, According to the first 7 to 10 grldr.dbr sector,
+Create a boot sector. And then the NTFS volume is GRUB-bootable.
 
 Update:	bootlace.com is a DOS/Linux utility that can install the GRLDR boot
 record onto the leading 4 sectors of an NTFS volume.
@@ -896,26 +816,7 @@ Offset	Length	Description
 ======	======	==============================================================
 00h	2	Machine code for short jump over the data.
 
-02h	1	LBA indicator. Valid values are 0x90 for CHS mode, or 0x0e for
-		LBA mode.
-
-		If the BIOS int13 supports LBA, this byte can be safely set to
-		0x0e.
-
-		Some USB BIOSes might have bugs when using CHS mode, so the
-		format program should set this byte to 0x0e. It seems that
-		(generally) all USB BIOSes have LBA support.
-
-		If the format program does not know whether the BIOS has LBA
-		support, it may operate this way:
-
-		if (partition_start + total_sectors_in_partition) exceeds the
-		CHS addressing ability(especially when it is greater than
-		1024*256*63), the caller should set this byte to 0x0e,
-		otherwise, set to 0x90.
-
-		Update: this byte of LBA indicator is ignored. The boot
-		record can probe the LBA support of BIOS.
+02h	1	0x90
 
 		Update(2006-07-31): Though GRLDR won't use this LBA-indicator
 		byte, Windows 98 uses it. Usually this byte should be 0x90 for
@@ -924,6 +825,7 @@ Offset	Length	Description
 		partition. This problem was reported by neiljoy. Many thanks!
 
 03h	8	OEM name string (of OS which formatted the disk).
+		Identifies the partition "NTFS
 
 0Bh	2	Bytes per sector. Must be 512.
 
@@ -974,26 +876,124 @@ Offset	Length	Description
 
 50h	4	Checksum, usually 0.
 
-54h	1	opcode for "cli".
-
-55h	1	opcode for "cld".
-
-56h	1	opcode for "mov dh, imm8".
-
-57h	1	Partition number of this partition on the boot drive.
-
-		0, 1, 2, 3 are primary partitions.
-		4, 5, 6, ... are logical partitions in the extended partition.
-
-		0xff is for whole drive. So for floppies, it should be 0xff.
-
-58h	420	The rest of the machine code in the first sector.
+54h	424	The rest of the machine code in the first sector.
 
 1FCh	4	Boot Signature AA550000h. (Win9x uses 4 bytes as magic value)
 
 200h	1536	The rest of the machine code in the last 3 sectors.
 
 ------------------------------------------------------------------------------
+
+5. exFAT boot sector / boot record of the original layout
+   exFAT boot code provided by the Fan JianYe
+------------------------------------------------------------------------------
+An exFAT volume is GRUB bootable. Copy grldr and menu.lst file available to the
+exFAT volume's root directory, According to the first 5 to 6 grldr.dbr sectors 
+to create boot sector. 
+Then the exFAT volume is GRUB bootable.
+
+Note: If you directly copy the boot code to the boot partition, You need first  
+from this partition boot
+, and automatically fill the checksum.
+Otherwise, Windows will think that the partition is not formatted.
+
+Offset	Length	Description
+======	======	==============================================================
+00h	3 	0xEB7690	Jump instruction
+03h	8 	"EXFAT   "	Signature
+	
+++++++++ The new increase ++++++++
+0bh	2    	Bytes per sector
+0dh	1    	Sectors per cluster
+0eh	4   	Data start Absolute sector
+12h	4			The current cluster the absolute sector in fat table
+16h	2    	EIOS Mark		Bit 7   EIOS
+18h	2    	Sectors per track
+1ah	2    	Number of heads
+1ch	4   	Number of hidden sectors
+20h	4   	Retention
+24h	1    	Drive numbe
+25h	1    	Partition number
+26h	2    	Retention
+28h	4   	FAT table start absolute sector number
+2ch	4   	Retention
+++++++++ The new increase ++++++++
+ 
+30h	16 	Must be 0x00
+40h	8 	Sector Address
+48h 	8	Size of total volume in sectors
+50h  	4   	Sector address of 1st FAT
+54h  	4   	Size of FAT in Sectors
+58h	4   	Sector address of the Data Region
+5ch 	4   	Number of clusters in the Cluster Heap
+60h  	4   	Cluster address of the Root Directory
+64h 	4  	Volume Serial Number
+68h 	2   	VV.MM (01.00 for this release)
+6ah 	2   	Field                   Offset  bits Size       bits Description
+ 		Active FAT              0       1               0每1st          1每2nd
+		Volume Dirty            1       1               0每Clean        1-Dirty
+		Media Failure           2       1               0每No Failures  1每Failures
+		Reported Clear to Zero  3       1               No Meaning
+		Reserved                4       12
+6ch	1	This is a power of 2. Range: min of 29 = 512 byte
+		cluster size, and a max of 212 = 4096.
+6dh  	1  	This is a power of 2. Range: Min of 21=512. The maximum Cluster size is 32 MiB,
+		so the Values in Bytes per Sector + Sectors Per Cluster cannot exceed 25.
+6eh 	1 	This number is either 1 or 2, and is only 2 if TexFAT is in use.
+6fh  	1      	Used by INT 13
+70h   	1    	Percentage of Heap in use
+71h  	7	Retention
+78h  	390  	The Boot Program
+1feh   	2   	0xAA55
+200h  	510	The Boot Program
+3feh	2	0xAA55
+
+
+6. MBR boot code in the FAT12/16/32/exFAT/EXT2 merger, take a little more than 2 sectors.
+------------------------------------------------------------------------------
+    Combined FAT12/16/32/exFAT current BPB structure:      
+    grldr.dbr self-built in the exFAT BPB structure:
+
+Offset  Type    Description
+======	======	==============================================================
+00      2    	EB 2E   Jump instruction
+
+02      1	Partition type / EIOS Mark
+
+		Bit 0   FAT12
+		Bit 1   FAT16
+		Bit 2   FAT32
+
+		Bit 3   exFAT
+
+		Bit 4   EXT2
+
+		Bit 5   Retention
+		Bit 6   EXT2  filesystem size of 2^64 blocks
+		Bit 7   EIOS
+
+03      4	Root directory
+07      4	Home directory of the absolute starting sector (fat12/16)
+0b      2	Bytes per sector
+0d      1	Sectors per cluster
+
+0e      4	Data start Absolute sector
+12      4	The current cluster the absolute sector in fat table
+16      2	File system ID  "6412"
+
+18      2	Sectors per track
+1a      2	Number of heads
+1c      4	Partiti	on start Absolute sector
+
+20      4	The total number of sectors partition
+24      1	Drive number
+25      1	Partition number
+26      2	Retention
+
+28      4	FAT table start absolute sector number
+2c      4	Root cluster  
+
+
 
 Appendix A: File System Information Sector of FAT32(not used by grldr)
 
@@ -1086,7 +1086,7 @@ Six bytes can be used to control the boot process of GRLDR.MBR.
 
 Offset	Length	Description
 ======	======	==============================================================
-02h	1	bit0=1: disable the search for GRLDR on floppy
+5ah	1	bit0=1: disable the search for GRLDR on floppy
 		bit0=0: enable the search for GRLDR on floppy
 
 		bit1=1: disable the boot of PREVIOUS MBR with invalid
@@ -1107,16 +1107,17 @@ Offset	Length	Description
 		bit7=1: try to boot PREVIOUS MBR after the search for GRLDR
 		bit7=0: try to boot PREVIOUS MBR before the search for GRLDR
 
-03h	1	timeout in seconds to wait for a key press. 0xff stands for
+5bh	1	timeout in seconds to wait for a key press. 0xff stands for
 		waiting all the time(endless).
 
-04h	2	hot-key code. high byte is scan code, low byte is ASCII code.
+5ch	2	hot-key code. high byte is scan code, low byte is ASCII code.
 		the default value is 0x3920, which stands for the space bar.
 		if this key is pressed, GRUB will be started prior to the boot
 		of previous MBR. See "int 16 keyboard scan codes" below.
 
-06h	1	preferred boot drive number, 0xff for no-drive
-07h	1	preferred partition number, 0xff for whole drive
+5eh	1	preferred boot drive number, 0xff for no-drive
+
+5fh	1	preferred partition number, 0xff for whole drive
 
 		if the preferred boot drive number is 0xff, the order of the
 		search for GRLDR will be:
@@ -1129,20 +1130,11 @@ Offset	Length	Description
 			(fd0)
 
 		otherwise, if the preferred boot drive number is Y(not equal to
-		0xff) and the preferred partition number is K, then the order of
-		the search for GRLDR will be:
-
-			(Y) if K=0xff; or (Y,K) otherwise
-			(hd0,0), (hd0,1), ..., (hd0,L),(L=max partition number) 
-			(hd1,0), (hd1,1), ..., (hd1,M),(M=max partition number)
-			... ... ... ... ... ... ... ... 
-			(hdX,0), (hdX,1), ..., (hdX,N),(N=max partition number)
-						       (X=max harddrive number)
-			(fd0)
+		0xff) and the preferred partition number is K, then search for 
+		GRLDR order and above.
 
 		Note: if Y < 0x80, then (Y) is floppy, else (Y) is harddrive,
 		      and (Y,K) is partition number K on harddrive (Y).
-
 
 ******************************************************************************
 ***        bootlace.com - Install GRLDR.MBR bootstrap code to MBR          ***
@@ -1238,35 +1230,6 @@ OPTIONS:
 	--total-sectors=C	specifies total sectors for --floppy.
 				default is 0.
 
-	--lba			use lba mode for --floppy. If the floppy BIOS
-				has LBA support, you can specify --lba here.
-				It is assumed that all floppy BIOSes have CHS
-				support. So you would rather specify --chs.
-				If neither --chs nor --lba is specified, then
-				the LBA indicator(i.e., the third byte of the
-				boot sector) will not be touched.
-
-	--chs			use chs mode for --floppy. You should specify
-				--chs if the floppy BIOS does not support LBA.
-				We assume all floppy BIOSes have CHS support.
-				So it is likely you want to specify --chs.
-				If neither --chs nor --lba is specified, then
-				the LBA indicator(i.e., the third byte of the
-				boot sector) will not be touched.
-
-	--fat12			FAT12 is allowed to be installed for --floppy.
-
-	--fat16			FAT16 is allowed to be installed for --floppy.
-
-	--fat32			FAT32 is allowed to be installed for --floppy.
-
-	--vfat			FAT12/16/32 are allowed to be installed for
-				--floppy.
-
-	--ntfs			NTFS is allowed to be installed for --floppy.
-
-	--ext2			EXT2 is allowed to be installed for --floppy.
-
 	--install-partition=I	Install the boot record onto the boot area of
 				partition number I of the specified hard drive
 				or harddrive image DEVICE_OR_FILE.
@@ -1281,17 +1244,17 @@ load GRLDR as the second(and last) stage of the GRUB boot process. Therefore
 GRLDR should be copied to the root directory of one of the supported
 partitions, either before or after a successful execution of BOOTLACE.COM.
 Currently only partitions with filesystem type of FAT12, FAT16, FAT32, NTFS,
-EXT2 or EXT3 are supported.
+EXT2ㄛEXT3ㄛ EXT4 or EXFAT are supported.
 
 Note 2: If DEVICE_OR_FILE is a harddisk device or a harddisk image file, it
 must contain a valid partition table, otherwise, BOOTLACE.COM will fail. If
 DEVICE_OR_FILE is a floppy device or a floppy image file, then it must contain
-a supported filesystem(i.e., either of FAT12/FAT16/FAT32/NTFS/EXT2/EXT3).
+a supported filesystem(i.e., either of FAT12/FAT16/FAT32/NTFS/EXT2/EXT3/EXT4/EXFAT).
 
 Note 3: If DEVICE_OR_FILE is a floppy device or a floppy image file, and it
-was formated EXT2/EXT3, then you should specify --sectors-per-track and
+was formated EXT2/3/4, then you should specify --sectors-per-track and
 --heads explicitly.
-
+Update: You can not specify.
 
 Important!! If you install GRLDR Boot Record to a floppy or a partition, the
 floppy or partition will boot solely grldr, and your original
@@ -1308,27 +1271,27 @@ Examples:
 
 	Installing GRLDR boot code to MBR under Linux:
 
-		bootlace.com  /dev/hda
+		bootlace.com  /dev/sda
 
 	Installing GRLDR boot code to MBR under DOS:
 
 		bootlace.com  0x80
 
-	Installing GRLDR boot code to a harddisk image under DOS or Linux:
+	Installing GRLDR boot code to a harddisk image under DOS ﹜Windows or Linux:
 
 		bootlace.com  hd.img
 
 	Installing GRLDR boot code to floppy under Linux:
 
-		bootlace.com  --floppy --chs /dev/fd0
+		bootlace.com  --floppy /dev/fd0
 
 	Installing GRLDR boot code to floppy under DOS:
 
-		bootlace.com  --floppy --chs 0x00
+		bootlace.com  --floppy 0x00
 
-	Installing GRLDR boot code to a floppy image under DOS or Linux:
+	Installing GRLDR boot code to a floppy image under DOS ﹜Windows or Linux:
 
-		bootlace.com  --floppy --chs floppy.img
+		bootlace.com  --floppy floppy.img
 
 BOOTLACE.COM cannot function well under Windows NT/2000/XP/2003. It is expected
 (and designed) to run under DOS/Win9x and Linux. Update: For image FILES,
@@ -2255,7 +2218,7 @@ extended memory under DOS before running GRUB.EXE.
 
 6. fsys_xfs.c: (logical block size) bytes below 0x68000.
 
-7. geometry tune: 0x50000 - 0x5ffff.
+7. geometry tune: 0x50000 - 0x67fff.
 
 ******************************************************************************
 ***                Command-line Length about GRUB.EXE                      ***
@@ -2455,9 +2418,7 @@ Note 5: You may access the (cd) and (cdX)'es in the blocklist way. Example:
 
 	The cdrom sectors are big sectors with a size of 2048 bytes.
 
-Note 6:	The iso9660 filesystem driver has Rock-Ridge extension support, but
-	has no Joliet extension support. So you may encounter failure when
-	you attempt to read files on a Joliet CD.
+Note 6:	The iso9660 filesystem driver has Rock-Ridge extension support.
 
 Note 7: The (cd) or (cdX)'es can be booted now. Examples:
 
@@ -3481,49 +3442,41 @@ OPTIONS:
 	cp menu.lst iso_root
 	mkisofs -R -b grldr -no-emul-boot -boot-load-size 4 -o grldr.iso iso_root
 
+Added 1: the grldr renamed grldr.bin, use UltraISO to load the boot file.
+
+Added 2: Use UltraISO to load the boot file grlgr_cd.bin, and then copy the grldr file
+	to the root directory.
 
 ******************************************************************************
 ***           Use bootlace.com to install partition boot record            ***
 ******************************************************************************
 
-Since bootlace.com has not implemented the --install-partition option, you
-need to use the already implemented --floppy=PartitionNumber option instead.
-
-Hear is a way you might want to follow:
+Method 1:
 
 Step 1. Get the boot sectors of the partition and save to a file MYPART.TMP.
-	For NTFS, you need to get the beginning 16 sectors. For other type of
-	filesystems, you only need to get one sector, but getting more sectors
-	is also ok.
+	For EXT2/3/4 partition, you need to get the start of the three sectors, 
+	for other types of file systems, you only need to obtain a sector.
 
-Step 2. Run this:
-
-	bootlace.com --floppy=Y --sectors-per-track=S --heads=H --start-sector=B --total-sectors=C --vfat --ext2 --ntfs MYPART.TMP
-
-	where we suppose MYPART.TMP is for (hdX,Y) and the partition number Y
-	should be specified as in the --floppy=Y option.
-
-	Note that for FAT12/16/32/NTFS partitions, you can omit these options:
-
-		 --sectors-per-track, --heads, --start-sector, --total-sectors,
-		 --vfat and --ext2.
-
-	For NTFS partitions, you must specify --ntfs option.
-
-	For ext2 partitions, you can omit --vfat, --ntfs and --ext2 options,
-	but other options should be specified.
+Step 2. Under DOS, Windows, these commands are executed:
+	bootlace.com --floppy= MYPART.TMP
 
 Step 3. Put MYPART.TMP back on to the boot sector(s) of your original partition
 	(hdX,Y).
 
+Method 2:
+	Executed under DOS command:
+	bootlace.com --install-partition=I K
 
-Note: Only a few file systems(FAT12/16/32/NTFS/ext2/ext3) are supported by now.
+	I is the partition number (0,1,2,3,4, ...), K is the drive letter (0x80, 0x81, ...).
+	Implementation will show the simple disk information and regional capacity, 
+	and are prompted to press "y" key to continue, press the other key to exit.
 
-Note2: Under Linux you may directly write the partition. That is to say, Step
-	1 and Step 3 are not needed. Simply use its device name instead of
-	MYPART.TMP.
+Installing GRLDR boot code to PBR under Linux:
+	bootlace.com --floppy /dev/sda1
+	
+Note: Only a few file systems(FAT12/16/32/NTFS/ext2/ext3/ext4/exfat) are supported by now.
 
-Note3: grubinst has the feature of installing grldr boot code onto a
+Note: grubinst has the feature of installing grldr boot code onto a
 	partition boot area.
 
 ******************************************************************************
@@ -3572,18 +3525,21 @@ Steps to create triple MBR:
 2. Install grldr boot sector onto the boot sector of this partition. See
 section "Use bootlace.com to install partition boot record" above.
 
+
+Method 1: For image files
+
 3. Get 96 sectors of the drive starting at sector 0(MBR), and save to file
 MYMBR96.TMP.
 
-4. Run bootlace.com:
-
+4. Run under DOS or Windows:
 	bootlace.com MYMBR96.TMP
 
 5. Put MYMBR96.TMP back onto the drive starting at MBR(sector 0).
 
-Note: If the drive already has a triple MBR, then bootlace will cancel it
-and restore the original partition layout.
+Method 2: For the disk
 
+3. executed under DOS:
+	bootlace.com 0x80 (or 0x81, ...)
 
 ******************************************************************************
 ***                    Use 'pxe detect' in preset-menu                     ***
@@ -3829,12 +3785,15 @@ Address		Length		Description
 0000:8288	4 (DWORD)	pxe_sip (server ip)
 0000:828C	4 (DWORD)	pxe_gip (gateway ip)
 0000:8290	8 (QWORD)	filesize (file size by last "cat --length=0")
-0000:8298	4 (DWORD)	saved_mem_upper (extended memory size in KB)
+0000:8298	4 (DWORD)	Starting from 1M contiguous memory block size (size in KB)
 0000:829C	4 (DWORD)	saved_partition (current root partition)
 0000:82A0	4 (DWORD)	saved_drive (current root drive)
 0000:82A4	4 (DWORD)	no_decompression (no auto gunzip)
 0000:82A8	8 (QWORD)	part_start (start sector of last partition)
 0000:82B0	8 (QWORD)	part_length (total sectors of last partition)
+0000:82B8	4 (DWORD)	UD Partition: Number of heads,Sectors per track,
+				Real BIOS drive number, Maximum Sectors per track(low bit)
+0000:82c0	8 (QWORD)	Starting from 4G contiguous memory block size (size in KB)
 
 Note 1: Filesize can be initialised/modified by using "cat --length=0 FILE".
 Note 2: You should not write these variables by hand(should read only).
@@ -4180,20 +4139,29 @@ Note:
 	4.If it is empty inside [], it acts same as title command.
 	5.You can use this function to comment out a menu item by putting invalid command inside [].
 
-****************************************************************************** 
-*****		Buggy BIOS without multi-sector EBIOS accessibility	 *****
 ******************************************************************************
+***                           About usb2.0 driver                         ***
+******************************************************************************
+GRLDR includes usb2.0 drive.
 
-Reportedly a Benq notebook will hang up at a multi-sector EBIOS read. For such
-a machine, you have to disable multi-sector EBIOS accessibility by using
+The USB 2.0 driver supports: PCI Device Class 0c/03/20,
+namely EHCI (Enhanced Host Controller Interface) devices.
 
-	geometry --lba1sector [ DRIVE ]
+The USB 2.0 driver supports: USB (Universal Serial Bus) Class 08 (Mass Storage devices),
+SubClass 06, Protocol 50, that is USB Thumbdrive or Portable External Hard Drives.
 
-before any attempt to access sectors (in DRIVE). For normal machines, you can
-use
+Support USB-FDD, USB-HDD, USB-cdrom mode.
 
-	geometry --lba127sector [ DRIVE ]
+In the menu or the command line to load usb2.0 driver: usb --init
+Optional parameters: usb --delay=P
+P is controlled transmission delay index. 0=General; 1=2*General; 2=4*General; 3=8*General
 
-to enable multi-sector EBIOS accessibility (for DRIVE).
+Tips: 1. Some USB drives are identified as USB 1.x devices under Windows or DOS usbaspi.sys , 
+         However, the device will re-identified as usb2.0 delay after the increase.
+      2. Some USB drives do not be detected when plugging into front panel,
+         However, the increase will be identified after delay.
+      3. When loading failure, Select --delay=P parameter try.
 
 
+2014-03-19
+There are fragments of the file emulation support up to 32 segments.

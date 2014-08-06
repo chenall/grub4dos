@@ -2055,7 +2055,7 @@ reset (void)
   grub_timeout = -1;
   menu_num_ctrl[0] = 0;
 }
-
+  
 extern struct builtin builtin_title;
 extern struct builtin builtin_graphicsmode;
 extern struct builtin builtin_debug;
@@ -2107,9 +2107,7 @@ restart_config:
 	    {
 		/* Try config_file */
 		if (*config_file)
-		{
 			is_opened = (configfile_opened || grub_open (config_file));
-		}
 	    }
 	    errnum = 0;
 	    configfile_opened = 0;
@@ -2313,7 +2311,7 @@ extern int graphicsmode_func (char *, int);
 	     * See issue 160. */
 	    /* Clear the narrow_char_indicator for the NULL char only. */
 	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
-	    if (use_preset_menu)
+	    if (use_preset_menu/* != (const char *)0x800*/)
 	    {
 		/* load the font embedded in preset menu. */
 		char *menu = "(md)4+8";
@@ -2504,7 +2502,7 @@ original_config:
 		grub_printf ("\n\nEnd of menu init commands. Press any key to enter command-line or run menu...");
 	    }
 	    DEBUG_SLEEP
-	}
+	} /* while (1) */
 
 	/* End of menu-specific commands.  */
 

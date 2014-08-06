@@ -90,7 +90,6 @@
 #define BIOSDISK_FLAG_CDROM		0x2
 #define BIOSDISK_FLAG_BIFURCATE		0x4	/* accessibility acts differently between chs and lba */
 #define BIOSDISK_FLAG_GEOMETRY_OK	0x8
-#define BIOSDISK_FLAG_LBA_1_SECTOR	0x10
 
 /*
  *  This is the filesystem (not raw device) buffer.
@@ -159,10 +158,21 @@
 /* graphics.c uses 0x3A0000 - 0x3DA980 and 0x3FC000 - 0x3FF9D0 */
 
 /* The size of the drive map.  */
+#define	MAP_NUM_16	1
+
+#if	MAP_NUM_16
+#define DRIVE_MAP_SIZE		16
+#else
 #define DRIVE_MAP_SIZE		8
+#endif
 
 /* The size of the drive_map_slot struct.  */
 #define DRIVE_MAP_SLOT_SIZE	24
+
+/* The fragment of the drive map.  */
+#define DRIVE_MAP_FRAGMENT		32
+
+#define FRAGMENT_MAP_SLOT_SIZE		0x280
 
 /* The size of the key map.  */
 #define KEY_MAP_SIZE		128
@@ -949,6 +959,10 @@ extern unsigned long safe_mbr_hook;	/* safe mbr hook flags used by Win9x */
 extern unsigned long int13_scheme;	/* controls disk access methods in emulation */
 extern unsigned char atapi_dev_count;	/* ATAPI CDROM DRIVE COUNT */
 extern unsigned long reg_base_addr_append;
+extern unsigned char usb_delay;
+extern unsigned char usb_count_error;
+extern unsigned char usb_drive_num[8];
+extern unsigned long init_usb(void);
 extern unsigned long init_atapi(void);
 extern unsigned char min_cdrom_id;	/* MINIMUM ATAPI CDROM DRIVE NUMBER */
 extern unsigned long cdrom_drive;
@@ -1011,31 +1025,46 @@ struct drive_map_slot
 	  /* 0 1: read only=0, fake write=0, safe boot=1 */
 	  /* 0 0: read only=0, fake write=0, safe boot=0 */
 
-	unsigned char from_drive;
-	unsigned char to_drive;		/* 0xFF indicates a memdrive */
-	unsigned char max_head;
-	unsigned char max_sector;	/* bit 7: read only */
+	unsigned char from_drive;																										//00
+	unsigned char to_drive;		/* 0xFF indicates a memdrive */										//01
+	unsigned char max_head;																											//02
+	unsigned char max_sector;	/* bit 7: read only */														//03
 					/* bit 6: disable lba */
 
-	unsigned short to_cylinder;	/* max cylinder of the TO drive */
+	unsigned short to_cylinder;	/* max cylinder of the TO drive */							//04
 					/* bit 15:  TO  drive support LBA */
 					/* bit 14:  TO  drive is CDROM(with big 2048-byte sector) */
 					/* bit 13: FROM drive is CDROM(with big 2048-byte sector) */
 
-	unsigned char to_head;		/* max head of the TO drive */
-	unsigned char to_sector;	/* max sector of the TO drive */
+	unsigned char to_head;		/* max head of the TO drive */										//06
+	unsigned char to_sector;	/* max sector of the TO drive */									//07
 					/* bit 7: in-situ */
 					/* bit 6: fake-write or safe-boot */
 
-	unsigned long long start_sector;
+	unsigned long long start_sector;																						//08
 	//unsigned long start_sector_hi;	/* hi dword of the 64-bit value */
-	unsigned long long sector_count;
+	unsigned long long sector_count;																						//16
 	//unsigned long sector_count_hi;	/* hi dword of the 64-bit value */
 };
 
-extern struct drive_map_slot   bios_drive_map[DRIVE_MAP_SIZE + 1];
+struct fragment_map_slot
+{
+	unsigned char slot_len;
+	unsigned char from;
+	unsigned char to;
+	unsigned char fragment_num;
+	unsigned long long fragment_data[0];
+};
+
+#if	MAP_NUM_16
+struct drive_map_slot hooked_drive_map[DRIVE_MAP_SIZE + 1];
+extern struct drive_map_slot hooked_drive_map_1[DRIVE_MAP_SIZE / 2 + 1];
+extern struct drive_map_slot hooked_drive_map_2[DRIVE_MAP_SIZE / 2 + 1];
+#else
 extern struct drive_map_slot hooked_drive_map[DRIVE_MAP_SIZE + 1];
-extern int drive_map_slot_empty (struct drive_map_slot item);
+#endif
+extern struct drive_map_slot   bios_drive_map[DRIVE_MAP_SIZE + 1];
+extern struct fragment_map_slot hooked_fragment_map;
 
 /* Copy MAP to the drive map and set up int13_handler.  */
 void set_int13_handler (struct drive_map_slot *map);
@@ -1146,11 +1175,11 @@ int getkey (void);
 int checkkey (void);
 
 /* Low-level disk I/O */
-extern int biosdisk_int13_extensions (unsigned ax, unsigned drive, void *dap, unsigned ssize);
-int get_cdinfo (unsigned long drive, struct geometry *geometry);
-int get_diskinfo (unsigned long drive, struct geometry *geometry, unsigned long lba1sector);
-int biosdisk (unsigned long subfunc, unsigned long drive, struct geometry *geometry,
-	      unsigned long long sector, unsigned long nsec, unsigned long segment);
+extern int biosdisk_int13_extensions (int ax, int drive, void *dap);
+int get_cdinfo (int drive, struct geometry *geometry);
+int get_diskinfo (int drive, struct geometry *geometry);
+int biosdisk (int subfunc, int drive, struct geometry *geometry,
+	      unsigned long long sector, unsigned long nsec, int segment);
 void stop_floppy (void);
 
 /* Command-line interface functions. */
@@ -1376,9 +1405,9 @@ int load_module (char *module, char *arg);
 int load_initrd (char *initrd);
 
 int check_password(char* expected, password_t type);
-extern int biosdisk_standard (unsigned ah, unsigned drive,
-			      unsigned coff, unsigned hoff, unsigned soff,
-			      unsigned nsec, unsigned segment);
+extern int biosdisk_standard (int ah, int drive,
+			      int coff, int hoff, int soff,
+			      int nsec, int segment);
 void init_bios_info (void);
 
 struct master_and_dos_boot_sector {
@@ -1453,7 +1482,7 @@ extern unsigned long bios_id;	/* 1 for bochs, 0 for unknown. */
 int probe_bpb (struct master_and_dos_boot_sector *BS);
 int probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, unsigned long sector_count1, unsigned long part_start1);
 
-extern int check_int13_extensions (unsigned drive, unsigned lba1sector);
+extern int check_int13_extensions (int drive);
 
 struct drive_parameters
 {

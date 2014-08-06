@@ -742,7 +742,8 @@
 
 	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xffffff05, ABS(time_out) rBP
+//	cmpl	$0xffffff05, ABS(time_out) rBP
+	cmpl	$0xffffff00, ABS(time_out) rBP
 	movl	$ABS(msg_option_time_out), %ecx
 	jnz	4f	/* error */
 
@@ -804,6 +805,7 @@
 	movl	$ABS(msg_option_install_partition), %ecx
 	jnz	4f	/* error */
 
+//	movl	%edi, %esi							//Point input
 	movl	$0xffff, %ebx
 	call	7f	/* parse_number */
 	movl	%ebx, %edi	# save EBX to EDI
@@ -986,192 +988,116 @@
 
 	movl	$0xff, ABS(floppy) rBP
 	jmp	1b
-
 3:
 
-	/* check --lba */
+	/* check --usb= */
+//	movl	$6, %ecx
+//	movl	$ABS(option_usb), %esi
+//	pushl	%ebx
+//	popl	%edi
 
-	movl	$6, %ecx
-	movl	$ABS(option_lba), %esi
+//	cld
+//	repz	cmpsb
+
+//	jnz	3f
+	
+//	movl	$02, %ebx
+//	call	7f	/* parse_number */
+//	movl	%ebx, %edi	# save EBX to EDI
+//	movl	$0, %ebx	# invalid file descriptor for CLOSE below
+//	movl	$ABS(msg_invalid_number), %ecx
+//	jc	4f	/* error */
+//	cmpl $0, %edi
+//	je 4f
+//	movl	%edi, ABS(usb) rBP
+//	jmp	1b	
+//3:
+
+	/* check --grldr-usb= */
+	movl	$12, %ecx
+	movl	$ABS(option_grldr_usb), %esi
 	pushl	%ebx
 	popl	%edi
 
 	cld
-	repz cmpsb
+	repz	cmpsb
 
 	jnz	3f
-
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xffffffff, ABS(lba) rBP
-	movl	$ABS(msg_option_lba), %ecx
-	jnz	4f	/* error */
-
-	movl	$1, ABS(lba) rBP
-	jmp	1b
-
+	movl	$02, %ebx
+	call	7f	/* parse_number */
+	movl	%ebx, %edi	# save EBX to EDI
+	movl	$0, %ebx	# invalid file descriptor for CLOSE below
+	movl	$ABS(msg_invalid_number), %ecx
+	jc	4f	/* error */
+	movl	%edi, ABS(grldr_usb) rBP
+	jmp	1b	
 3:
 
-	/* check --chs */
-
-	movl	$6, %ecx
-	movl	$ABS(option_chs), %esi
+	/* check --usb-time= */
+	movl	$11, %ecx
+	movl	$ABS(option_usb_time), %esi
 	pushl	%ebx
 	popl	%edi
 
 	cld
-	repz cmpsb
+	repz	cmpsb
 
 	jnz	3f
-
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xffffffff, ABS(lba) rBP
-	movl	$ABS(msg_option_lba), %ecx
-	jnz	4f	/* error */
-
-	movl	$0, ABS(lba) rBP
-	jmp	1b
-
+	movl	$60, %ebx
+	call	7f	/* parse_number */
+	movl	%ebx, %edi	# save EBX to EDI
+	movl	$0, %ebx	# invalid file descriptor for CLOSE below
+	movl	$ABS(msg_invalid_number), %ecx
+	jc	4f	/* error */
+	movl	%edi, ABS(usb_time) rBP
+	jmp	1b	
 3:
 
-	/* check --fat12 */
-
-	movl	$8, %ecx
-	movl	$ABS(option_fat12), %esi
+	/* check --usb-speed= */
+	movl	$12, %ecx
+	movl	$ABS(option_usb_speed), %esi
 	pushl	%ebx
 	popl	%edi
 
 	cld
-	repz cmpsb
+	repz	cmpsb
 
 	jnz	3f
-
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xfffffff7, ABS(fstypes) rBP
-	jnz	2f
-	movl	$0, ABS(fstypes) rBP
-2:
-	orb	$1, ABS(fstypes) rBP
-	jmp	1b
-
+	movl	$03, %ebx
+	call	7f	/* parse_number */
+	movl	%ebx, %edi	# save EBX to EDI
+	movl	$0, %ebx	# invalid file descriptor for CLOSE below
+	movl	$ABS(msg_invalid_number), %ecx
+	jc	4f	/* error */
+	movl	%edi, ABS(usb_speed) rBP
+	jmp	1b	
 3:
 
-	/* check --fat16 */
-
-	movl	$8, %ecx
-	movl	$ABS(option_fat16), %esi
+	/* check --usb-key= */
+	movl	$10, %ecx
+	movl	$ABS(option_usb_key), %esi
 	pushl	%ebx
 	popl	%edi
 
 	cld
-	repz cmpsb
+	repz	cmpsb
 
 	jnz	3f
-
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
-	cmpl	$0xfffffff7, ABS(fstypes) rBP
-	jnz	2f
-	movl	$0, ABS(fstypes) rBP
-2:
-	orb	$2, ABS(fstypes) rBP
+	movl	$0xff, %ebx
+	call	7f	/* parse_number */
+	movl	%ebx, %edi	# save EBX to EDI
+	movl	$0, %ebx	# invalid file descriptor for CLOSE below
+	movl	$ABS(msg_invalid_number), %ecx
+	jc	4f	/* error */
+	movl	%edi, ABS(usb_key) rBP
 	jmp	1b
-
+	
 3:
 
-	/* check --fat32 */
-
-	movl	$8, %ecx
-	movl	$ABS(option_fat32), %esi
-	pushl	%ebx
-	popl	%edi
-
-	cld
-	repz cmpsb
-
-	jnz	3f
-
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
-	
-	cmpl	$0xfffffff7, ABS(fstypes) rBP
-	jnz	2f
-	movl	$0, ABS(fstypes) rBP
-2:
-	orb	$4, ABS(fstypes) rBP
-	jmp	1b
-
-3:
-
-	/* check --ntfs */
-
-	movl	$7, %ecx
-	movl	$ABS(option_ntfs), %esi
-	pushl	%ebx
-	popl	%edi
-
-	cld
-	repz cmpsb
-
-	jnz	3f
-
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
-	
-	cmpl	$0xfffffff7, ABS(fstypes) rBP
-	jnz	2f
-	movl	$0, ABS(fstypes) rBP
-2:
-	orb	$8, ABS(fstypes) rBP
-	jmp	1b
-
-3:
-
-	/* check --ext2 */
-
-	movl	$7, %ecx
-	movl	$ABS(option_ext2), %esi
-	pushl	%ebx
-	popl	%edi
-
-	cld
-	repz cmpsb
-
-	jnz	3f
-
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
-	
-	cmpl	$0xfffffff7, ABS(fstypes) rBP
-	jnz	2f
-	movl	$0, ABS(fstypes) rBP
-2:
-	orb	$0x10, ABS(fstypes) rBP
-	jmp	1b
-
-3:
-
-	/* check --vfat */
-
-	movl	$7, %ecx
-	movl	$ABS(option_vfat), %esi
-	pushl	%ebx
-	popl	%edi
-
-	cld
-	repz cmpsb
-
-	jnz	3f
-
-	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
-	
-	cmpl	$0xfffffff7, ABS(fstypes) rBP
-	jnz	2f
-	movl	$0, ABS(fstypes) rBP
-2:
-	orb	$7, ABS(fstypes) rBP
-	jmp	1b
-
-3:
 
 	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	movl	$ABS(msg_invalid_option), %ecx
@@ -1226,7 +1152,7 @@
 	#; movl	%ebx, %edi	# save EBX to EDI
 	pushl	%ebx
 	popl	%edi
-
+	
 	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	
 	cmpl	$0xffffffff, ABS(floppy) rBP
@@ -1277,7 +1203,8 @@
 	movl	$ABS(msg_option_install_partition_with_floppy), %ecx
 	jnz	4f	/* error */
 
-	cmpl	$0xffffff05, ABS(time_out) rBP
+//	cmpl	$0xffffff05, ABS(time_out) rBP
+	cmpl	$0xffffff00, ABS(time_out) rBP
 	movl	$ABS(msg_option_time_out_with_floppy), %ecx
 	jnz	4f	/* error */
 
@@ -1308,12 +1235,12 @@
 
 3:
 	jmp	2f
+	
 1:
-
 	/* EBX=0 */
 
 	cmpl	$0xffffffff, ABS(install_partition) rBP
-	je	1f		# --install-partition is not specified
+	je	2f		# --install-partition is not specified
 
 	/* should not specify --install-partition with options for MBR. */
 	cmpl	$1, ABS(backup_mbr) rBP
@@ -1356,7 +1283,8 @@
 	movl	$ABS(msg_option_serial_number_with_partition), %ecx
 	jnz	4f	/* error */
 
-	cmpl	$0xffffff05, ABS(time_out) rBP
+//	cmpl	$0xffffff05, ABS(time_out) rBP
+	cmpl	$0xffffff00, ABS(time_out) rBP
 	movl	$ABS(msg_option_time_out_with_partition), %ecx
 	jnz	4f	/* error */
 
@@ -1379,26 +1307,6 @@
 	cmpl	$0, ABS(total_sectors) rBP
 	movl	$ABS(msg_option_total_sectors_with_partition), %ecx
 	jnz	4f	/* error */
-
-	jmp	2f
-1:
-
-	/* EBX=0 */
-
-	/* this is an MBR device. Should not specify floppy-specific options. */
-
-//	testl	$1, ABS(boot_prevmbr)	/* --boot-prevmbr-first specified? */
-//	jnz	2f			/* Yes, specified. Continue */
-//	/* No, not specified. */
-//	/* Should not specify --time-out without --boot-prevmbr-first. */
-//	cmpl	$0xffffff05, ABS(time_out)
-//	movl	$ABS(msg_option_time_out_without_prevmbr), %ecx
-//	jne	4f	/* error */
-//
-//	/* Should not specify --hot-key without --boot-prevmbr-first. */
-//	cmpl	$0xffff3920, ABS(hot_key)
-//	movl	$ABS(msg_option_hot_key_without_prevmbr), %ecx
-//	jne	4f	/* error */
 
 2:
 
@@ -1440,7 +1348,7 @@
 #else
 
 	/* int open(const char *pathname, int flags, mode_t mode) */
-		// mode is not used since we are not creating a new file 
+		// mode is not used since we are not creating a new file
 
 	/* check if in 32-bit or 64-bit mode */
 	xorl	%eax, %eax
@@ -1509,7 +1417,7 @@
 #define ABS(x) (x - _start + 0x00400000)
 #undef MBR
 //#define MBR(x) (mbr_63_sectors + x)
-#define MBR(x) (mbr_63_sectors + x - _start + 0x00400000)
+#define MBR(x) (grldr_mbr_start + 0x2000 + x - _start + 0x00400000)
 
 #endif
 	pushl	%eax		// file descriptor, or 0 for BIOS drive
@@ -1548,6 +1456,7 @@
 	je	1f		// not bios drive
 
 	/* check EBIOS support */
+	call 100f	
 	movb	$0x41, %ah
 	movw	$0x55AA, %bx
 	movb	PRE(cs)ABS(bios_drive_number), %dl
@@ -1562,6 +1471,25 @@
 	jz	3f		/* No EBIOS */
 	/* EBIOS supported */
 	movl	$1, PRE(cs)ABS(ebios_support)
+//	movb	PRE(cs)ABS(bios_drive_number), %dl
+	movw	$0, %si
+	movb	$0x48, %ah
+	int $0x13
+	jc	2f
+	cmpb	$0x42, 0x00
+	jb	2f
+	movw	$12, %cx
+	movw	$0x24, %si
+	movl	$ABS(msg_Information), %edi
+	pushw	%es
+	pushw	%cs
+	popw	%es
+	repz	movsb
+	popw	%es
+2:
+	movw	$3, %si
+2:
+	pushw	%si	
 	/* try read using EBIOS */
 	pushl	$0		// hi 32bit of startLBA
 	pushl	$0		// startLBA=0
@@ -1571,7 +1499,7 @@
 	pushw	$0x0010		// packet length
 	movw	%sp, %si
 	movw	$0x4200, %ax	/* LBA read */
-	movb	PRE(cs)ABS(bios_drive_number), %dl
+//	movb	PRE(cs)ABS(bios_drive_number), %dl
 	int	$0x13
 	movw	%ss, %ax
 	movw	%ax, %ds
@@ -1580,7 +1508,15 @@
 	popl	%eax
 	popl	%eax
 	popl	%eax		# EAX=0
+	popw	%si
 	jnc	2f		// EBIOS read success
+	decw	%si
+	je	sb	
+	xorw	%ax, %ax
+//	movb	PRE(cs)ABS(bios_drive_number), %dl
+	int	$0x13
+	jmp	2b
+sb:	
 	/* A read failure means actually no EBIOS support */
 	movl	$0, PRE(cs)ABS(ebios_support)
 	movl	$ABS(msg_ebios_read_failure), %ecx
@@ -1601,9 +1537,6 @@
 	movw	%cx, %ds
 	movw	%cx, %es
 	jc	2f		// stop on error
-	//movw	%ss, %ax
-	//movw	%ax, %ds
-	//movw	%ax, %es
 	movw	$0x7E00, %bx
 	movw	$1, %cx
 	movb	PRE(cs)ABS(bios_drive_number), %dl
@@ -1617,8 +1550,9 @@
 	clc			// ignore error
 	jmp	2f
 1:
-	//READ FROM FILE OR DEVICE
-
+	//READ FROM FILE OR DEVICE	
+	call 100f
+	
 	//AH = 3Fh
 	//BX = file handle
 	//CX = number of bytes to read
@@ -1638,6 +1572,12 @@
 1:
 #else
 	/* ssize_t read(int fd, void *buf, size_t count) */
+	//Clear buffer
+	xorl %eax, %eax
+	movl $MBR(0), %edi
+//	movl $0x0c00, %ecx
+	movl $(0x60*0x200/4), %ecx
+	rep stosl
 
 	/* check if in 32-bit or 64-bit mode */
 	xorl	%eax, %eax
@@ -1678,21 +1618,7 @@
 
 	xorl	%eax, %eax
 	cmpl	$0xff, PRE(cs)ABS(bios_drive_number)
-	jne	1f
-	//LSEEK - SET CURRENT FILE POSITION
-
-	//AH = 42h
-	//AL = origin of move
-	//	00h start of file
-	//	01h current file position
-	//	02h end of file
-	//BX = file handle
-	//CX:DX = (signed) offset from origin of new file position
-
-	//Return:
-	//CF clear if successful DX:AX = new file position in bytes from start of file
-	//CF set on error AX = error code (01h,06h)
- 
+	jne	1f 
 	movl	$0x4200, %eax
 	movl	$0, %ecx
 	movl	$0, %edx
@@ -1768,10 +1694,47 @@
 2:
 	cmpl	$0xffffffff, PRE(cs)ABS(floppy) rBP	/* Is --floppy specified? */
 	je	4f	/* error */
-	
-	/* Yes, --floppy is specified */
 
+3:	
+
+	/* Yes, --floppy is specified */
 	/* ESI points to MBR(0) */
+	cmpl	$0xff, PRE(cs)ABS(grldr_usb) rBP
+	je	3f
+	pushl	%esi
+	movl	$MBR(0), %esi			//Point PBR
+	cmpb	$0x75, 0x01fa(iSI)
+	je	2f
+	movl	$ABS(msg_grldr_usb_err), %ecx
+	call	8f	/* linux_print */
+	popl	%esi
+	jmp	4f	/* error */
+2:
+	movb	PRE(cs)ABS(grldr_usb) rBP, %al
+	movb	%al, 0x01fb(iSI)
+	cmpl	$0xff, PRE(cs)ABS(usb_key) rBP
+	je	2f	
+	movb	PRE(cs)ABS(usb_key) rBP, %al
+	movb	%al, 0x01f9(iSI)
+2:
+	cmpl	$0xff, PRE(cs)ABS(usb_time) rBP
+	je	2f
+	movb	PRE(cs)ABS(usb_time) rBP, %al
+	movb	%al, 0x21b1(iSI)        //Related to asm.S ". = EXT_C(main) + 0x1a0"  0x2000+0x1a0+11
+2:
+	cmpl	$0xff, PRE(cs)ABS(usb_speed) rBP
+	je	2f
+	movb	PRE(cs)ABS(usb_speed) rBP, %al
+	movb	%al, 0x21b2(iSI)        //Related to asm.S ". = EXT_C(main) + 0x1a0"  0x2000+0x1a0+12
+2:
+	movl	$17, PRE(cs)ABS(sectors_to_write) rBP
+	movl	$ABS(msg_grldr_usb_ok), %ecx
+	call	8f	/* linux_print */	
+	popl	%esi
+	jmp	2f
+	
+	
+3:	
 	call	5f	/* floppy routine */
 	movl	$0, %ecx
 	jc	4f	/* error */
@@ -1790,17 +1753,8 @@
 	cld
 	repz scasb
 	movl	$ABS(msg_invalid_partition_table), %ecx
-	je	2b	/* empty partition table, always assume floppy. */
-//	jne	1f		/* non-empty partition table */
-//	/* empty partition table */
-//	/* if specified --floppy, goto floppy routine. */
-//	cmpl	$0xffffffff, PRE(cs)ABS(floppy)	/* Is --floppy specified? */
-//	jne	2b
-//	/* should check if it is floppy */
-//	call	5f	/* floppy routine */
-//	movl	$0, %ecx
-//	jc	4f	/* error */
-//1:
+	je	3b	/* empty partition table, always assume floppy. */
+	
 	cmpl	$0xffffffff, PRE(cs)ABS(floppy)	rBP /* Is --floppy specified? */
 	movl	$ABS(msg_floppy_partition_table), %ecx
 	jne	4f	/* error */
@@ -1821,84 +1775,149 @@
 	movl	$ABS(msg_option_total_sectors_for_mbr), %ecx
 	jnz	4f	/* error */
 
-	cmpl	$0xffffffff, PRE(cs)ABS(lba) rBP
-	movl	$ABS(msg_option_lba_for_mbr), %ecx
-	jnz	4f	/* error */
-
-	cmpl	$0xfffffff7, PRE(cs)ABS(fstypes) rBP
-	movl	$ABS(msg_option_fstypes_for_mbr), %ecx
-	jnz	4f	/* error */
-
-	cmpl	$((pre_stage2_start - _start1) / 512), PRE(cs)ABS(mbr_free_sectors) rBP
+//	cmpl	$((pre_stage2_start - _start1) / 512), PRE(cs)ABS(mbr_free_sectors)	rBP
+	cmpl	$(0x2000 / 0x200), PRE(cs)ABS(mbr_free_sectors)	rBP
 	movl	$ABS(msg_sectors_per_track), %ecx
 	jb	4f	/* error */
 
 	cmpl	$0xffffffff, PRE(cs)ABS(install_partition) rBP
-	movl	$ABS(msg_option_install_partition_not_implemented), %ecx
 	je	1f	/* --install-partition not specified */
 
-	jmp	4f	/* error since --install-partition not implemented */
-
-	/***************************************************************/
-	/* piece of code for --install-partition, but not used for now */
-	/***************************************************************/
-
+#ifdef __DOS_16
+	/*****************************************/
+	/* piece of code for --install-partition */ 
+	/*****************************************/
 	/* EBX holds the file descriptor number or 0 if it is BIOS drive */
 	/* move partition table forward to the beginning of the 17th sector */
+	cmpb	$0, PRE(cs)ABS(ebios_support)	//Support the expansion of reading?
+	movl	$ABS(msg_no_ebios_support), %ecx
+	je	4f	//no
 
 	movl	$MBR(0x01be), %esi
 	movl	$MBR(0x2000), %edi
 	movl	$0x10, %ecx	# 0x10 dwords = 0x40 bytes
-
 	cld
-	repz movsl
+	repz movsl  //Move the partition table
 
-	/* initialize the current_partition number */
-	movzbl	PRE(cs)ABS(install_partition) rBP, %eax
-	movl	%eax, PRE(cs)ABS(current_partition) rBP
-
-3:
 	/* load the next partition and modify the boot record */
+
+	/* Detection of extended partitions start logical sector */
 	call	0f	/* partition */
-	jc	3f	/* done */
-	call	2f	/* write to file */
-	incl	PRE(cs)ABS(current_partition) rBP
-	movl	PRE(cs)ABS(install_partition) rBP, %eax
-	addb	%ah, %al	/* Max partition number for install */
-	cmpb	%al, PRE(cs)ABS(current_partition) rBP
-	jbe	3b
+	/* Display disk information */
+	movb	PRE(cs)ABS(bios_drive_number), %al	//bios id
+	subb	$0x50, %al
+	movb	%al, PRE(cs)ABS(msg_disk)
+	movw	$0xffff, %bx
+	movl	$MBR(0x2004), %esi
+	pushw	%bx
+33:
+	popw	%bx
+	incw	%bx
+	cmpb	PRE(cs)ABS(total_partition_entries), %bl //The total number of partitions
+	ja	34f	
+	pushw	%bx
+	shlw	$4, %bx
+	movl	$MBR(0x2004), %esi
+	addw	%bx, %si
+	cmpb $0, (iSI)
+	je	33b
+	movl 0x08(iSI), %eax
+	popw	%bx
 3:
+	pushw	%bx	
+	addb	$0x30, %bl
+	movb	%bl, PRE(cs)ABS(msg_partition)
+	call	66f
+	jmp	33b
+34:	
+	//Wait for key
+	movw	PRE(cs)ABS(install_partition), %bx	//Installation partition
+	cmpb	PRE(cs)ABS(total_partition_entries), %bl //The total number of partitions
+	movl	$ABS(msg_install_partition_not), %ecx	
+	ja	4f
+	shlw	$4, %bx
+//	cmpb	$0, 0x2004(%bx)
+	movl	$MBR(0x2004), %esi
+	addw	%bx, %si
+	cmpb $0, (iSI)
+	je	4f	
+	movl	$ABS(msg_Wait_for_key), %ecx
+	call	8f	/* linux_print */
+3:	
+	movb	$1, %ah	//Get keyboard input
+	int	$0x16
+	je	3b	//not
+	xorl	%ecx, %ecx    	
+	cmpb	$0x79, %al	//"y"?
+	jne	4f	//not	
+	//Install the boot code to disk
+	//24 sectors to read the specified partition es: 0000
+
+	movw	PRE(cs)ABS(install_partition), %bx	  //Partition number
+	shlw	$4, %bx
+	movl	$MBR(0x2000), %esi	
+	addw	%bx, %si
+	movl	0x08(iSI), %eax
+	addl	(iSI), %eax
+	pushl	%eax
+	pushl	$0
+	pushl	%eax
+	pushw	%es
+	pushw	$0
+//	pushw $0x18
+	pushw $0x04
+	pushw $0x10
+	movb	$0x42, %ah		
+	movw	%sp, %si
+	movb	PRE(cs)ABS(bios_drive_number), %dl //bios id	
+	int $0x13
+	popaw
+	popl	%eax
+	movl	$0, %ecx
+	jc 4f
+  //Determine the partition type, copy the file
+  xorl	%esi, %esi
+	call	5f	/* floppy routine */
+	movl	%ecx, %edx
+	movl	$0, %ecx
+	jc	4f	/* error */
+	//Write from memory to the boot sector file
+	cmpw	$2, PRE(cs)ABS(read_only)	#; 0=read only, 2=read/write
+	jne	4f		/* read only */
+	//Determine whether ext2 partition usb drive installed
+//	cmpl	$0, PRE(cs)ABS(usb) rBP	//Install usb drive?
+//	je	3f										//no
+//	cmpl	$ABS(msg_fstype_ext2_allow), %edx	//ext2 partition?
+//	jne	3f										//no
+//	subl	$0x0a, %eax	
+3:		
+	pushl	$0
+	pushl	%eax
+	pushw	%es
+	pushw	$0
+	pushw PRE(cs)ABS(sectors_to_write)
+	pushw $0x0010
+	movb	$0x43, %ah		
+	movw	%sp, %si
+	movb	PRE(cs)ABS(bios_drive_number), %dl		//bios id
+	int $0x13
+	popaw
+	movl	$0, %ecx
+	jc 4f
+	movl	$ABS(msg_success), %ecx	
+	call	8f	/* linux_print */
+
 	/* all partitions have been installed. */
 	
 	xorl	%eax, %eax	# exit code = 0
-	
-#ifdef __DOS_16
-	
 	movb	$0x4c, %ah	// EXIT - TERMINATE WITH RETURN CODE in AL
 	int	$0x21		// call DOS
 
 #else
-	/* check if in 32-bit or 64-bit mode */
-	xorl	%eax, %eax
-	decl	%eax		// rex prefix of 0x48
-	testl	%eax, %eax
-	/* EAX = 0 for 64-bit mode, -1 for 32-bit mode */
-	jz	10f
-	
-	/* in 32-bit mode */
-	xorl	%ebx, %ebx	# exit code in EBX = 0
-	movl	$1, %eax	# sys_exit
-	int	$0x80
-	jmp	3f
-10:
-	/* in 64-bit mode */
-	xorl	%edi, %edi	# exit code in EDI = 0
-	movl	$60, %eax	# sys_exit
-	syscall
-3:
+	jmp	4f	/* error since --install-partition not implemented */
 #endif
 		
-	ret
+//	ret
 
 	/*************************************************/
 	/* end the piece of code for --install-partition */
@@ -1943,9 +1962,13 @@
 	cld
 	repnz scasb
 	jnz	3f		// 2nd is not grldr, restore it
-	cmpl	$0xB8661FFC, (%edi)
 	movl	$ABS(msg_invalid_prev_mbr), %ecx
+//	cmpl	$0xB8661FFC, (%edi) 
+//	jz	4f	/* error */
+	
+	cmpl	$0xC38E0820, (%edi)
 	jz	4f	/* error */
+
 3:
 	/* copy byte 0000 to 01b7 in 2nd sector to 1st sector */
 #ifdef __DOS_16
@@ -1999,8 +2022,8 @@
 	cld
 	repnz scasb
 	jnz	3f		# 2nd is not grldr, do not overwrite it
-	cmpl	$0xB8661FFC, (%edi)
-	jnz	3f		# 2nd is not grldr, do not overwrite it
+	cmpl	$0xC38E0820, (%edi) 
+	jnz	3f	/* error */
 10:
 	/* 2nd is empty. but if MBR is grldr, we still skip the backup. */
 
@@ -2012,6 +2035,7 @@
 	jnz	1f		# MBR is not grldr, enable backup
 	cmpl	$0xB8661FFC, (%edi)
 	jz	3f		# MBR is grldr, do not backup
+
 1:
 
 //----------------------------------------------------------------------------
@@ -2037,7 +2061,8 @@
 #if 0
 	/* copy byte 0000 to 01b7 of grldr.mbr to MBR(0) */
 
-	movl	$ABS(_start1), %esi
+//	movl	$ABS(_start1), %esi
+	movl	$ABS(grldr_mbr_start), %esi
 #ifdef __DOS_16
 	xorl	%edi, %edi
 #else
@@ -2183,14 +2208,6 @@
 	cmpl	%ecx, (iDI)
 	jne	10f
 
-	//movl	$MBR(0x60), %esi
-	//movl	$MBR(0x4060), %edi	#; 0x4000 + 0x60
-	//movl	$((0x1b8 - 0x60) / 4), %ecx
-	//cld
-	//repz cmpsl
-	//movl	%eax, %esi	#; 32
-	//jne	10f
-
 	movl	$MBR(0x4060), %esi	#; 0x4000 + 0x60
 	movl	$MBR(0x7E60), %edi	#; 0x7E00 + 0x60
 	movl	$((0x1b8 - 0x60) / 4), %ecx
@@ -2199,17 +2216,10 @@
 	movl	%eax, %esi	#; 32
 	jne	10f
 
-	//movl	$MBR(0x400), %esi
-	//movl	$MBR(0x4400), %edi	#; 0x4000 + 0x400
-	//movl	$((pre_stage2_start - _start1 - 0x400) / 4), %ecx
-	//cld
-	//repz cmpsl
-	//movl	%eax, %esi	#; 32
-	//jne	10f
-
 	movl	$MBR(0x4400), %esi	#; 0x4000 + 0x400
 	movl	$MBR(0x8200), %edi	#; 0x7E00 + 0x400
-	movl	$((pre_stage2_start - _start1 - 0x400) / 4), %ecx
+//	movl	$((pre_stage2_start - _start1 - 0x400) / 4), %ecx
+	movl	$((0x2000 - 0x400) / 4), %ecx
 	cld
 	repz cmpsl
 	movl	%eax, %esi	#; 32
@@ -2235,8 +2245,7 @@
 	jne	11b
 	cmpb	$0x00, -5(iBX, iSI)	#; CHS start sector number
 	jne	11b
-//11:
-//	ja	11f		#; not triple MBR
+
 	/* found partition with start_sector=0x20 */
 
 	/* yes, it is triple MBR */
@@ -2245,8 +2254,6 @@
 
 	/* restore original partition layout */
 	movl	$(63+32), %esi
-	//movl	$1, PRE(cs)ABS(restore_partition_layout)
-	//movl	%esi, PRE(cs)ABS(mbr_free_sectors)
 	movl	$32, %eax	#; EAX=0x20, hidden sectors in BPB
 	jmp	3f		#; continue to check BPB
 11:
@@ -2258,7 +2265,8 @@
 10:
 	cmpl	$63, %eax
 	ja	1f		/* too many sectors before partition */
-	cmpl	$((pre_stage2_start - _start1) / 0x200), %eax
+//	cmpl	$((pre_stage2_start - _start1) / 0x200), %eax
+	cmpl	$(0x2000 / 0x200), %eax
 	jb	1f		/* too few sectors before partition */
 3:
 	shll	$9, %esi
@@ -2283,7 +2291,7 @@
 	subl	$1, %eax	#; decl	%eax
 	cmpl	$62, %eax
 	ja	1f
-	#; movw	0x1A(iSI), %ax	// heads
+
 	subl	$1, %ecx	#; decl	%ecx
 	cmpl	$255, %ecx
 	ja	1f
@@ -2332,7 +2340,8 @@
 	/*********************************************************/
 
 	pushl	%esi
-	movl	$ABS(_start1), %esi
+//	movl	$ABS(_start1), %esi
+	movl	$ABS(grldr_mbr_start), %esi
 #ifdef __DOS_16
 	xorl	%edi, %edi
 #else
@@ -2384,10 +2393,7 @@
 	movl	$MBR(0), %esi
 #endif
 	movl	0x1C(iSI), %eax			#; EAX=hidden sectors
-	#; addw	%ax, 0x0E(iSI)			#; reserved sectors
-	addl	0x0E(iSI), %eax
-	movb	%al, 0x0E(iSI)
-	movb	%ah, 0x0F(iSI)
+	addw	%ax, 0x0E(iSI)			#; reserved sectors
 	/* ... ... end modify reserved sectors */
 
 	/* modify total sectors word ... ... */
@@ -2429,28 +2435,32 @@
 
 	movb	PRE(cs)ABS(mbr_floppy) rBP, %al
 	andb	$0x01, %al
-	movb	%al, MBR(2) rBP
+//	movb	%al, MBR(2) rBP
+	movb	%al, MBR(0x5a) rBP
 
 	/* modify PRE(cs)ABS(mbr_osbr) bit */
 
 	movb	PRE(cs)ABS(mbr_osbr) rBP, %al
 	andb	$0x01, %al
 	shlb	$1, %al
-	orb	%al, MBR(2) rBP
+//	orb	%al, MBR(2) rBP
+	orb	%al, MBR(0x5a) rBP
 
 	/* modify PRE(cs)ABS(duce) bit */
 
 	movb	PRE(cs)ABS(duce) rBP, %al
 	andb	$0x01, %al
 	shlb	$2, %al
-	orb	%al, MBR(2) rBP
+//	orb	%al, MBR(2) rBP
+	orb	%al, MBR(0x5a) rBP
 
 	/* modify PRE(cs)ABS(chs_no_tune) bit */
 
 	movb	PRE(cs)ABS(chs_no_tune) rBP, %al
 	andb	$0x01, %al
 	shlb	$3, %al
-	orb	%al, MBR(2) rBP
+//	orb	%al, MBR(2) rBP
+	orb	%al, MBR(0x5a) rBP
 
 	/* modify PRE(cs)ABS(boot_prevmbr) bit */
 
@@ -2458,48 +2468,56 @@
 	notb	%al
 	andb	$0x01, %al
 	rorb	$1, %al
-	orb	%al, MBR(2) rBP
+//	orb	%al, MBR(2) rBP
+	orb	%al, MBR(0x5a) rBP
 
 	/* modify PRE(cs)ABS(time_out) byte */
 
 	movb	PRE(cs)ABS(time_out) rBP, %al
-	movb	%al, MBR(3) rBP
+//	movb	%al, MBR(3) rBP
+	movb	%al, MBR(0x5b) rBP
 
 	/* modify PRE(cs)ABS(hot_key) byte */
 
 	movl	PRE(cs)ABS(hot_key) rBP, %eax
-	movb	%al, MBR(4) rBP
-	movb	%ah, MBR(5) rBP
+//	movw	%ax, MBR(4) rBP
+	movw	%ax, MBR(0x5c) rBP
 
 	/* modify PRE(cs)ABS(preferred_drive) byte */
 
 	movb	PRE(cs)ABS(preferred_drive) rBP, %al
-	movb	%al, MBR(6) rBP
+//	movb	%al, MBR(6) rBP
+	movb	%al, MBR(0x5e) rBP
 
 	/* modify PRE(cs)ABS(preferred_partition) byte */
 
 	movb	PRE(cs)ABS(preferred_partition) rBP, %al
-	movb	%al, MBR(7) rBP
+//	movb	%al, MBR(7) rBP
+	movb	%al, MBR(0x5f) rBP
 
 	/* modify disk serial number */
 
 	movl	PRE(cs)ABS(serial_number) rBP, %eax
 	testl	%eax, %eax
 	jz	1f
-	movl	PRE(cs)ABS(_start1 + 0x1FF8) rBP, %edi
+//	movw	PRE(cs)ABS(_start1 + 0x1FF8) rBP, %di
+	movl	PRE(cs)ABS(grldr_mbr_start + 0x1FF8) rBP, %edi
 	andl	$0xFFFF, %edi
 #ifndef __DOS_16
 	addl	$MBR(0), %edi	/* in the 1st sector */
 #endif
 	stosl
-	movl	%eax, PRE(cs)ABS(_start1 + 0x1FFC) rBP	/* in the 16th sector */
+//	movl	%eax, PRE(cs)ABS(_start1 + 0x1FFC) rBP	/* in the 16th sector */
+	movl	%eax, PRE(cs)ABS(grldr_mbr_start + 0x1FFC) rBP
 1:
 
 	/* copy byte 0400 and the rest of grldr.mbr to MBR(0) */
 
-	movl	$ABS(_start1 + 0x400), %esi
+//	movl	$ABS(_start1 + 0x400), %esi
+	movl	$ABS(grldr_mbr_start + 0x400), %esi
 	movl	$MBR(0x400), %edi
-	movl	$((pre_stage2_start - _start1 - 0x400) / 4), %ecx
+//	movl	$((pre_stage2_start - _start1 - 0x400) / 4), %ecx
+	movl	$((0x2000 - 0x400) / 4), %ecx
 
 	cld
 #ifdef __DOS_16
@@ -2513,14 +2531,16 @@
 	cmpl	$(63+32), %eax
 	jne	2f
 
-	movl	$((pre_stage2_start - _start1) / 0x200), %ecx
+//	movw	$((pre_stage2_start - _start1) / 0x200), %cx
+	movl	$(0x2000 / 0x200), %ecx
 	cmpl	$31, %ecx
 	ja	2f
 
 	/* copy MBR to sector 32 */
 	movl	$MBR(0), %esi
 	movl	$MBR(0x4000), %edi
-	movl	$((pre_stage2_start - _start1) / 4), %ecx
+//	movl	$((pre_stage2_start - _start1) / 4), %ecx
+	movl	$(0x2000 / 4), %ecx
 	cld
 	repz movsl
 	/* end copy MBR to sector 32 */
@@ -2536,7 +2556,8 @@
 	/* copy MBR and BPB to sector 63 */
 	movl	$MBR(0x4000), %esi
 	movl	$MBR(0x7E00), %edi
-	movl	$((pre_stage2_start - _start1) / 4), %ecx
+//	movl	$((pre_stage2_start - _start1) / 4), %ecx
+	movl	$(0x2000 / 4), %ecx
 	cld
 	repz movsl
 	/* end copy MBR and BPB to sector 63 */
@@ -2553,9 +2574,7 @@
 	cmpl	(iBX, iSI), %eax	#; mbr_free_sectors
 	jne	3f
 	movb	$0, -7(iBX, iSI)	#; CHS start head number
-	#; movw	$0x21, -6(iBX, iSI)	#; CHS start sector number
-	movb	$0x21, -6(iBX, iSI)	#; CHS start sector number, lo
-	movb	$0x00, -5(iBX, iSI)	#; CHS start sector number, hi
+	movw	$0x21, -6(iBX, iSI)	#; CHS start sector number
 	subl	$0x20, 4(iBX, iSI)	#; LBA total sectors
 	addl	%eax, 4(iBX, iSI)	#; LBA total sectors
 	xorl	%edx, %edx
@@ -2619,26 +2638,15 @@
 
 	/* modify BPB for sector 32 */
 	movl	$MBR(0x4000), %esi
-	#; addw	$0x3F, 0x0E(iSI)	#; reserved sectors
-	movl	0x0E(iSI), %eax
-	addl	$0x3F, %eax
-	movb	%al, 0x0E(iSI)
-	movb	%ah, 0x0F(iSI)
+	addw	$0x3F, 0x0E(iSI)	#; reserved sectors
 
-	movl	$0x20, 0x1C(iSI)	#; hidden sectors
+	movl	$0x20, 0x1C(iSI)	#; EAX=hidden sectors
 
-	#; cmpw	$0, 0x13(iSI)		#; total sectors short
-	movl	0x13(iSI), %eax		#; AX = total sectors short
-	andl	$0xFFFF, %eax
+	cmpw	$0, 0x13(iSI)		#; total sectors short
 	jz	3f
-	addl	$0x3F, %eax
-	movb	%al, 0x13(iSI)
-	movb	%ah, 0x14(iSI)
-	shrl	$16, %eax
-	jz	3f
-	#; movw	$0, 0x13(iSI)		#; clear on overflow
-	movb	%ah, 0x13(iSI)		#; AH = 0
-	movb	%ah, 0x14(iSI)		#; AH = 0
+	addw	$0x3F, 0x13(iSI)
+	jnc	3f
+  movw	$0, 0x13(iSI)		#; clear on overflow
 3:
 
 	cmpl	$0, 0x20(iSI)		#; total sectors long
@@ -2660,9 +2668,7 @@
 	cmpl	(iBX, iSI), %eax	#; mbr_free_sectors
 	jne	3f
 	movb	$0, -7(iBX, iSI)	#; CHS start head number
-	#; movw	$0x20, -6(iBX, iSI)	#; CHS start sector number
-	movb	$0x20, -6(iBX, iSI)	#; CHS start sector number, lo
-	movb	$0x00, -5(iBX, iSI)	#; CHS start sector number, hi
+	movw	$0x20, -6(iBX, iSI)	#; CHS start sector number
 	subl	$0x3F, 4(iBX, iSI)	#; LBA total sectors
 	addl	%eax, 4(iBX, iSI)	#; LBA total sectors
 	xorl	%edx, %edx
@@ -2728,26 +2734,15 @@
 	/* modify BPB for sector 63 */
 	movl	$MBR(0x7E00), %esi
 
-	#; addw	$0x20, 0x0E(iSI)	#; reserved sectors
-	movl	0x0E(iSI), %eax
-	addl	$0x20, %eax
-	movb	%al, 0x0E(iSI)
-	movb	%ah, 0x0F(iSI)
+	addw	$0x20, 0x0E(iSI)	#; reserved sectors
 
-	movl	$0x1F, 0x1C(iSI)	#; hidden sectors
+	movl	$0x1F, 0x1C(iSI)	#; EAX=hidden sectors
 
-	#; cmpw	$0, 0x13(iSI)		#; total sectors short
-	movl	0x13(iSI), %eax		#; AX = total sectors short
-	andl	$0xFFFF, %eax
+	cmpw	$0, 0x13(iSI)		#; total sectors short
 	jz	3f
-	addl	$0x20, %eax
-	movb	%al, 0x13(iSI)
-	movb	%ah, 0x14(iSI)
-	shrl	$16, %eax
-	jz	3f
-	#; movw	$0, 0x13(iSI)		#; clear on overflow
-	movb	%ah, 0x13(iSI)		#; AH = 0
-	movb	%ah, 0x14(iSI)		#; AH = 0
+	addw	$0x20, 0x13(iSI)
+	jnc	3f
+	movw	$0, 0x13(iSI)		#; clear on overflow
 3:
 
 	cmpl	$0, 0x20(iSI)		#; total sectors long
@@ -2769,11 +2764,7 @@
 	cmpl	(iBX, iSI), %eax	#; mbr_free_sectors
 	jne	3f
 	movb	$0, -7(iBX, iSI)	#; CHS start head number
-	#; movw	$0x21, -6(iBX, iSI)	#; CHS start sector number
-	movb	$0x21, -6(iBX, iSI)	#; CHS start sector number, lo
-	movb	$0x00, -5(iBX, iSI)	#; CHS start sector number, hi
-	//subl	$0x5F, 4(iBX, iSI)	#; LBA total sectors
-	//addl	%eax, 4(iBX, iSI)	#; LBA total sectors
+	movw	$0x21, -6(iBX, iSI)	#; CHS start sector number
 	xorl	%edx, %edx
 	movl	%edx, -3(iBX, iSI)	#; clear end CHS
 	movl	$0x20, (iBX, iSI)	#; LBA start sector number
@@ -2841,20 +2832,6 @@
 
 	movl	%edi, %ebx		#; restore file descriptor
 	movl	$(63+32+1), PRE(cs)ABS(sectors_to_write) rBP
-//	/* C code for lba_to_chs */
-//	sector = lba % buf_geom.sectors + 1;
-//	head = (lba / buf_geom.sectors) % buf_geom.heads;
-//	cylinder = lba / (buf_geom.sectors * buf_geom.heads);
-//
-//	if (cylinder > 0x3FF)
-//		cylinder = 0x3FF;
-//
-//	if (cylinder >= buf_geom.cylinders)
-//		cylinder = buf_geom.cylinders - 1;
-//
-//	*cl = sector | ((cylinder & 0x300) >> 2);
-//	*ch = cylinder & 0xFF;
-//	*dh = head;
 
 //----------------------------------------------------------------------------
 2:	/* label for the above floppy code to jump */
@@ -2870,25 +2847,6 @@
 
 	pushl	%ebx		# file descriptor, or 0 if specified BIOS drive
 
-	/* for safety, don't write too many sectors */
-	cmpl	$0xffffffff, PRE(cs)ABS(install_partition) rBP
-	jne	1f		/* floppy */
-	cmpl	$0xffffffff, PRE(cs)ABS(floppy) rBP
-	je	2f		/* hard drive */
-1:
-	/* floppy */
-	cmpl	$4, PRE(cs)ABS(sectors_to_write) rBP
-	jbe	1f
-	movl	$4, PRE(cs)ABS(sectors_to_write) rBP
-	jmp	1f
-2:
-	/* hard drive */
-	//cmpl	$((pre_stage2_start - _start1) / 512), PRE(cs)ABS(sectors_to_write)
-	cmpl	$(63+32+1), PRE(cs)ABS(sectors_to_write) rBP
-	jbe	1f
-	//movl	$((pre_stage2_start - _start1) / 512), PRE(cs)ABS(sectors_to_write)
-	movl	$(63+32+1), PRE(cs)ABS(sectors_to_write) rBP
-1:
 #ifdef __DOS_16
 
 	xorl	%eax, %eax
@@ -2896,29 +2854,49 @@
 	je	1f		/* not bios */
 
 	/* BIOS drive */
-
+	/* Display disk information */
+	movb	PRE(cs)ABS(bios_drive_number), %al	//bios id
+	subb	$0x50, %al
+	movb	%al, PRE(cs)ABS(msg_disk)
+	movw	$0x2020, %ax
+	movw	%ax, PRE(cs)ABS(msg_d)
+	movl	0x1ca, %eax
+	addl	0x1da, %eax
+	addl	0x1ea, %eax
+	addl	0x1fa, %eax
+	call	66f
+	//Wait for key
+	movl	$ABS(msg_Wait_for_key), %ecx
+	call	8f	/* linux_print */
+2:	
+	movb	$1, %ah	//Get keyboard input
+	int	$0x16
+	je	2b	//not
+	xorl	%ecx, %ecx      	
+	cmpb	$0x79, %al	//"y"
+	jne	4f	//not	
 	cmpl	$0, PRE(cs)ABS(ebios_support)
 	je	10f		/* EBIOS not present */
+	movb	PRE(cs)ABS(bios_drive_number), %dl
 	/* EBIOS supported */
 	pushl	$0		// hi 32bit of startLBA
-	pushl	$0		// startLBA=4
+	pushl %ecx
 	pushw	%es		// buffer segment
 	pushw	$0		// buffer offset
 	pushw	PRE(cs)ABS(sectors_to_write)
-	//pushw	$0x003C		// sectors=60
 	pushw	$0x0010		// packet length
 	movw	%sp, %si
 	movw	$0x4300, %ax	/* LBA write */
-	movb	PRE(cs)ABS(bios_drive_number), %dl
 	int	$0x13
 	movw	%ss, %ax
 	movw	%ax, %ds
 	movw	%ax, %es
-	popl	%eax
-	popl	%eax
-	popl	%eax
-	popl	%eax		#; EAX=0
-	jnc	2f
+	popaw
+	jc 77f
+	xorl	%eax, %eax
+	clc
+	jmp 2f	
+77:
 	movl	$ABS(msg_ebios_write_failure), %ecx
 	call	8f	/* linux_print */
 
@@ -2960,11 +2938,6 @@
 	movl	$0x4000, %eax
 	movl	PRE(cs)ABS(sectors_to_write), %ecx
 	shll	$9, %ecx
-	//movl	$(pre_stage2_start - _start1), %ecx
-//	cmpl	$0xffffffff, PRE(cs)ABS(floppy)
-//	je	1f
-//	movl	$0x800, %ecx	# write 4 sectors if it is floppy
-//1:
 	movl	$0, %edx
 	int	$0x21
 2:
@@ -2986,11 +2959,6 @@
 	movl	$MBR(0), %ecx
 	movl	PRE(cs)ABS(sectors_to_write) rBP, %edx
 	shll	$9, %edx
-	//movl	$(pre_stage2_start - _start1), %edx	# length of grldr.mbr
-//	cmpl	$0xffffffff, PRE(cs)ABS(floppy)
-//	je	1f
-//	movl	$0x800, %edx	# write 4 sectors if it is floppy
-//1:
 	int	$0x80
 	jmp	1f
 2:
@@ -3006,13 +2974,6 @@
 #endif
 
 	popl	%ebx		# file descriptor, or 0 if specified BIOS drive
-3:
-	cmpl	$0xffffffff, PRE(cs)ABS(install_partition) rBP
-	je	3f
-	
-	/* for install_partition, SF=0 when success, SF=1 when failure */
-	testl	%eax, %eax
-	ret
 3:
 	testl	%eax, %eax
 	movl	$ABS(msg_write_file), %ecx
@@ -3169,15 +3130,12 @@
 	/* ESI=$MBR(0) */
 
 	cld
-	#; cmpw	$0xAA55, 0x1fe(iSI)
-	cmpb	$0x55, 0x1fe(iSI)
-	jne	1f
-	cmpb	$0xAA, 0x1ff(iSI)
+	cmpw	$0xAA55, 0x1fe(iSI)
 	jne	1f
 
 	pushl	%esi
 	pushl	%edi
-	pushl	%ebx
+	pushl	%ebx	
 
 	/* has a valid partition table ? */
 	movb	$0, %bl		/* count valid partition entries */
@@ -3250,18 +3208,13 @@
 1:
 	/* First, try ext2 */
 
-	#; cmpw	$0xEF53, 0x438(iSI)	/* Magic signature */
-	cmpb	$0x53, 0x438(iSI)	/* Magic signature, lo */
-	jnz	1f
-	cmpb	$0xEF, 0x439(iSI)	/* Magic signature, hi */
+	cmpw	$0xEF53, 0x438(iSI)	/* Magic signature, lo */
 	jnz	1f
 	xorl	%eax, %eax
 	cmpl	%eax, 0x400(iSI)	/* s_inodes_count */
 	jz	1f
 	cmpl	%eax, 0x404(iSI)	/* s_blocks_count */
 	jz	1f
-//	cmpw	%ax, 0x458(iSI)		/* s_inode_size, usually 0x80 */
-//	jz	1f
 	cmpl	%eax, 0x420(iSI)	/* s_blocks_per_group */
 	jz	1f
 	cmpl	%eax, 0x428(iSI)	/* s_inodes_per_group */
@@ -3279,245 +3232,47 @@
 	jnz	1f
 
 	/* BX = 0 */
-
-	movl	$ABS(_start1 + 0x826), %edi /* inode size in the 5th sector */
-	#; movw	$0x80, %ax		/* EXT2_GOOD_OLD_INODE_SIZE */
-	#; movw	%ax, PRE(cs)(iDI)		/* inode size */
-	movb	$0x80, PRE(cs)(iDI)		/* inode size, lo */
-	movb	$0x00, PRE(cs)1(iDI)		/* inode size, hi */
-	movl	0x44C(iSI), %ecx	/* ECX=s_rev_level */
-	jecxz	3f			/* EXT2_GOOD_OLD_REV */
-	movl	0x458(iSI), %eax	/* AX=s_inode_size */
-	andl	$0xFFFF, %eax
-	jz	1f			/* invalid inode size */
-	pushl	%eax
-	pushl	%edx
-	movb	0x418(iSI), %cl		/* s_log_block_size */
-	addb	$10, %cl
-	xorl	%edx, %edx		/* EDX=0 */
-	addl	$1, %edx		#; incl	%edx
-	shll	%cl, %edx		/* EDX=block size in bytes */
-	xchgl	%eax, %ecx		/* ECX=s_inode_size */
-	xchgl	%eax, %edx		/* EAX=block size in bytes */
-	xorl	%edx, %edx		/* EDX:EAX=block size in bytes */
-	divl	%ecx			/* quo=EAX, rem=EDX */
-	testl	%edx, %edx
-	popl	%edx
-	popl	%eax
-	jnz	1f			/* invalid inode size */
-	movb	%al, PRE(cs)(iDI)		/* inode size, lo */
-	movb	%ah, PRE(cs)1(iDI)		/* inode size, hi */
-3:
-	/* BX = 0 */
-
-	/* super block is sane */
-
-	/* is EXT2 allowed write? */
-
-	testl	$0x10, PRE(cs)ABS(fstypes) rBP
-	jnz	2f
-	/* EXT2 write not allowed */
-	
-	movl	$0, PRE(cs)ABS(sectors_to_write) rBP
-	
-	movl	$ABS(msg_fstype_ext2_deny), %ecx
-	call	8f	/* linux_print */
-	
-	stc
-	#; popal
-	popl	%edi
-	popl	%esi
-	popl	%ebp
-	popl	%ebx
-	popl	%edx
-	popl	%ecx
-	popl	%eax
-	ret
-2:
 	/* write to ext2 boot area */
 
-	cld
-	movl	$ABS(_start1 + 0x800), %esi	/* points to the 5th sector */
-#ifdef __DOS_16
-	xorl	%edi, %edi
-	cs movsw
-#else
+	cld	
+	//To install EXT2 PBR boot code
+	movl	$ABS(grldr_pbr_start + 0x400), %esi
 	movl	$MBR(0), %edi
-	/* The first 2 byte: short jmp */
-	movsb
-	movsb
-#endif
-
-	/* lba indicator byte is not used. so we shouldn't touch it. */
-
-	/* check lba-chs-mode specified, 1 byte */
-	cmpl	$-1, PRE(cs)ABS(lba) rBP	/* lba-chs-mode  not specified? */
-	je	2f			/* yes, do nothing. */
-
-#if 0
-	movb	$0x42, %al		/* initialize to lba mode. */
-	cmpl	$0, PRE(cs)ABS(lba) rBP		/* chs ? */
-	jnz	10f			/* no, it is not chs.*/
-	movb	$0x02, %al		/* yes, it is chs. */
-10:
-#else
-	/* if specified lba or chs, we simply place a 0x90. */
-	movb	$0x90, %al
-#endif
-	stosb
-	subl	$1, %edi		#; decl %edi
-2:
-
-	//addl	$(1+10), %edi		/* skip 10-byte OEM name */
-	addl	$1, %esi		#; incl	%esi
-	addl	$1, %edi		#; incl	%edi
-
-#ifdef __DOS_16
-	cs movsl
-	cs movsl
-	cs movsw
-#else
-	movsl
-	movsl
-	movsb
-	movsb
-#endif
-	
-	LEAL	(0x400 - 13)(%edi), %esi	/* ESI points to super block */
-	/* Sectors per block, byte */
-	
-	movb	0x18(iSI), %cl		/* s_log_block_size */
-	movl	$2, %eax
-	shll	%cl, %eax
-	stosb
-	
-	/* Bytes per block, word */
-	
-	shll	$9, %eax		/* block size is word wide */
-	#; stosw
-	stosb
-	shrl	$8, %eax
-	stosb
-
-	/* Pointers covered by an indirect block, dword */
-	/* Pointers per block, dword */
-	
-	shll	$6, %eax
-	pushl	%eax		/* Pointers per block */
-	addb	$8, %cl
-	shll	%cl, %eax
-	stosl			/* Pointers covered by an indirect block */
-	popl	%eax
-	stosl			/* Pointers per block */
-	
-	/* Sectors per track, word */
-
-	cmpl	$0xFFFFFF3F, PRE(cs)ABS(sectors_per_track) rBP
-	je	10f
-	movb	PRE(cs)ABS(sectors_per_track) rBP, %al
-	#; cbw
-	#; stosw
-	stosb
-	movb	$0, %al
-	stosb
-	subl	$2, %edi
-10:
-	addl	$2, %edi
-
-	/* Number of heads, word */
-	
-	cmpl	$0xFFFF00FF, PRE(cs)ABS(heads) rBP
-	je	10f
-	movl	PRE(cs)ABS(heads) rBP, %eax
-	stosb
-	movb	%ah, %al
-	stosb
-	subl	$2, %edi
-10:
-	addl	$2, %edi
-	
-	/* hidden sectors(i.e., partition start), dword */
-	
-	movb	PRE(cs)ABS(floppy) rBP, %al	/* partition number(0xFF for floppy) */
-	cmpb	$0xff, %al
-	jne	10f
-	/* real floppy */
-	cmpl	$0xffffffff, PRE(cs)ABS(start_sector) rBP
-	sete	%al
-	movzbl	%al, %eax
-	addl	PRE(cs)ABS(start_sector) rBP, %eax
-	stosl
-	jmp	11f
-10:
-	/* hard drive partition */
-	addl	$4, %edi
-	cmpl	$0xffffffff, PRE(cs)ABS(start_sector) rBP
-	je	11f
-	movl	PRE(cs)ABS(start_sector) rBP, %eax
-	subl	$4, %edi
-	stosl
-11:
-	
-	/* total sectors, dword */
-
-	movl	PRE(es)(iDI), %eax
-	cmpl	%eax, PRE(cs)ABS(total_sectors) rBP
-	jbe	10f
-	movl	PRE(cs)ABS(total_sectors) rBP, %eax
-10:
-	stosl
-	
-	/* drive number, byte */
-
-	//this byte is not used.
-	addl	$1, %edi		#; incl	%edi
-
-	/* partition number, byte */
-
-	movb	PRE(cs)ABS(floppy) rBP, %al
-	stosb
-	
-	/* inode size */
-	pushl	%edi
-	movl	$ABS(_start1 + 0x826), %edi /* inode size in the 5th sector */
-	movl	PRE(cs)(iDI), %eax	/* AX = saved inode size */
-	popl	%edi
-	#; stosw			/* inode size */
-	stosb
-	movb	%ah, %al
-	stosb
-
-	/* Number of inodes per group, dword */
-
-	movl	0x28(iSI), %eax		/* s_inodes_per_group */
-	stosl
-	
-	/* block number for group descriptors, dword */
-
-	movl	0x14(iSI), %eax		/* s_first_data_block */
-	addl	$1, %eax		#; incl	%eax
-	stosl
-	
-	/* Machine code begins at offset 0x30, 462 bytes plus 
-	 * 2 bytes of boot signature */
-
-	movl	$ABS(_start1 + 0x830), %esi
-	lodsl	PRE(cs)(iSI), %eax
-	movb	PRE(cs)ABS(floppy) rBP, %cl	/* partition number(0xFF for floppy) */
-	cmpb	$0xff, %cl
-	jne	10f
-	/* real floppy */
-	cmpl	$0x90C031FC, %eax	/* FC=cld; 31 C0=xor ax,ax; 90=nop */
-	jne	10f
-	movl	$0x99C031FC, %eax	/* FC=cld; 31 C0=xor ax,ax; 99=cwd */
-10:
-	stosl
-	
-	movl	$((464 / 4) - 1), %ecx
-	repz movsl PRE(cs)(iSI), %es:(iDI)
-	
-	movl	$1, PRE(cs)ABS(sectors_to_write) rBP
-	
+//	movsw PRE(cs)(iSI), (iDI)
+//	movb	$0x90, %al
+//	stosb
+//	movl	$ABS(grldr_pbr_start + 0x430), %esi
+//	movl	$((0x400 - 0x30)/4), %ecx
+//	movl	$MBR(0x30), %edi
+	movl	$(0x400/4), %ecx
+	repz	movsl PRE(cs)(iSI), (iDI)
+//	cmpl	$0, PRE(cs)ABS(usb) rBP	//Install usb drive?
+//	je 2f							//no
+	//To modify usb driver loading instructions
+//	movl	$MBR(0), %esi			//Point PBR
+//	cmpl	$2, PRE(cs)ABS(usb) rBP	//Mandatory load usb drive?
+//	je	22f
+//	movb	$01, 0x01fb(iSI)				
+//	jmp	3f
+//22:
+//	movb	$02, 0x01fb(iSI)
+//3:
+	//Move backward code
+//	movl	$MBR(0x1400), %edi
+//	movl	$(0x400/4), %ecx
+//	repz	movsl
+	//Install usb2.0 driver
+//	movl	$ABS(grldr_pbr_start + 0x1400), %esi
+//	movl	$(0x1400/4), %ecx
+//	movl	$MBR(0), %edi	
+//	repz	movsl PRE(cs)(iSI), (iDI)		
+	//Write-back number of sectors
+//	movl	$0x0c, %eax
+//	movl	%eax, PRE(cs)ABS(sectors_to_write) rBP
+//	jmp	3f
+//2:	
+	movl	$2, PRE(cs)ABS(sectors_to_write) rBP
+3:		
 	movl	$ABS(msg_fstype_ext2_allow), %ecx
 	call	8f	/* linux_print */
 	
@@ -3536,15 +3291,9 @@
 	/* Secondly, try FAT12/16/32/NTFS */
 	
 	cld
-	#; cmpw	$0xAA55, 0x1fe(iSI)	/* boot signature */
-	cmpb	$0x55, 0x1fe(iSI)	/* boot signature, lo */
+	cmpw	$0xAA55, 0x1fe(iSI)	/* boot signature */
 	jne	1f			/* not a normal BPB */
-	cmpb	$0xAA, 0x1ff(iSI)	/* boot signature, hi */
-	jne	1f			/* not a normal BPB */
-	#; cmpw	$0x200, 0x0b(iSI)	/* bytes per sector */
-	cmpb	$0x00, 0x0b(iSI)	/* bytes per sector, lo */
-	jne	1f			/* not a normal BPB */
-	cmpb	$0x02, 0x0c(iSI)	/* bytes per sector, hi */
+	cmpw	$0x200, 0x0b(iSI)	/* bytes per sector */
 	jne	1f			/* not a normal BPB */
 	movb	0x0d(iSI), %al		/* sectors per cluster */
 	testb	%al, %al
@@ -3566,9 +3315,6 @@
 	jnz	1f			/* invalid if number of heads > 256 */
 	cmpb	$0xf0, 0x15(iSI)	/* media descriptor */
 	jb	1f
-
-//	movw	$0x0600, %bx		/* FAT12/FAT16 */
-//	movw	$0x003c, %cx		/* FAT12/FAT16 */
 
 	movb	0x10(iSI), %al		/* number of FATs(NTFS:0, FAT:1,2) */
 	cmpb	$2, %al
@@ -3595,146 +3341,83 @@
 	movl	0x24(iSI), %eax		/* FAT32 sectors per FAT */
 	testl	%eax, %eax
 	jz	1f
-	/* sure it is FAT32 */
-
-	/* is FAT32 allowed write? */
-
-	testl	$0x04, PRE(cs)ABS(fstypes) rBP
-	jnz	3f
-	/* FAT32 write not allowed */
-	movl	$0, PRE(cs)ABS(sectors_to_write) rBP
 	
-	movl	$ABS(msg_fstype_fat32_deny), %ecx
-	call	8f	/* linux_print */
-	
-	stc
-	#; popal
-	popl	%edi
-	popl	%esi
-	popl	%ebp
-	popl	%ebx
-	popl	%edx
-	popl	%ecx
-	popl	%eax
-	ret
-3:
-	/* write to FAT32 boot area */
-	
+	/* sure it is FAT32 */	
 	cld
-	movl	$ABS(_start1 + 0x400), %esi	/* points to the 3rd sector */
-#ifdef __DOS_16
-	xorl	%edi, %edi
-	cs movsw
-#else
+	//To install FAT32 PBR boot code
+	movl	$ABS(grldr_pbr_start), %esi
 	movl	$MBR(0), %edi
-	/* The first 2 byte: short jmp */
-	movsb
-	movsb
-#endif
-	//leal	0x400(%edi), %esi	/* ESI points to super block */
-
-	/* check lba-chs-mode specified, 1 byte */
-	cmpl	$-1, PRE(cs)ABS(lba) rBP	/* lba-chs-mode  not specified? */
-	je	3f			/* yes, do nothing. */
-	movb	$0x0e, %al		/* initialize to lba mode. */
-	cmpl	$0, PRE(cs)ABS(lba) rBP		/* chs ? */
-	jnz	10f			/* no, it is not chs.*/
-	movb	$0x90, %al		/* yes, it is chs. */
-10:
+	movsw	PRE(cs)(iSI), (iDI)
+	movb	$0x90, %al
 	stosb
-	subl	$1, %edi		#; decl %edi
-3:
-	addl	$(1+8+2+1+2+1+2+2+1+2), %edi
-	addl	$(1+8+2+1+2+1+2+2+1+2), %esi
-				/* skip 8-byte OEM name and Bytes per sector */
-	
-				/* and Sectors per cluster, byte */
-				/* and Reserved sectors, word */
-				/* and Number of FATs, byte */
-				/* (Max root dir entries)Must be 0, word */
-				/* (Total sectors small)Must be 0, word */
-				/* Media descriptor, byte */
-				/* (Sectors per FAT)Must be 0, word */
-	/* sectors per track, word */
-	#; lodsw	PRE(cs)(iSI), %ax
-	addl	$2, %esi
-	addl	$2, %edi
-	cmpl	$0xffffff3f, PRE(cs)ABS(sectors_per_track) rBP
-	je	3f
-	movb	PRE(cs)ABS(sectors_per_track) rBP, %al
-	#; cbw
-	subl	$2, %edi
-	#; stosw
-	stosb
-	movb	$0, %al
-	stosb
-3:
-	
-	/* number of heads, word */
-	#; lodsw	PRE(cs)(iSI), %ax
-	addl	$2, %esi
-	addl	$2, %edi
-	cmpl	$0xffff00ff, PRE(cs)ABS(heads) rBP
-	je	3f
-	movl	PRE(cs)ABS(heads) rBP, %eax
-	subl	$2, %edi
-	#; stosw
-	stosb
-	movb	%ah, %al
-	stosb
-3:
-	
-	/* hidden sectors(i.e., partition start), dword */
-	lodsl	PRE(cs)(iSI), %eax
-	addl	$4, %edi
-	cmpl	$0xffffffff, PRE(cs)ABS(start_sector) rBP
-	je	3f
-	movl	PRE(cs)ABS(start_sector) rBP, %eax
-	subl	$4, %edi
-	stosl
-3:
-	
-	/* total sectors, dword */
-	lodsl	PRE(cs)(iSI), %eax
-	addl	$4, %edi
-	cmpl	$0, PRE(cs)ABS(total_sectors) rBP
-	je	3f
-	movl	PRE(cs)ABS(total_sectors) rBP, %eax
-	subl	$4, %edi
-	stosl
-3:
-	
-	/* FAT32 sectors per FAT, dword, etc... */
+	movl	$ABS(grldr_pbr_start + 0x5a), %esi
+	movl	$MBR(0x5a), %edi
+	movl	$((0x200-0x5a)/2), %ecx
+	repz movsw PRE(cs)(iSI), (iDI)	
+//	cmpl	$0xff, PRE(cs)ABS(usb) rBP	//Install usb drive?
+//	je 21f							//no
+	//Install usb drive
+//	movl	$ABS(grldr_pbr_start + 0x1400), %esi
+//	movl	$MBR(0x400), %edi
+//	movl	$(0x1400/4), %ecx	
+//	repz movsl PRE(cs)(iSI), (iDI)	
+	//To modify usb driver loading instructions
+//	movl	$MBR(0), %esi			//Point PBR
+//	movb	PRE(cs)ABS(usb) rBP, %al
+//	movb	%al, 0x01fb(iSI)
 
-	addl	$(4+2+2+4+2+2+12+1+1+1+4+11+8), %esi
-	addl	$(4+2+2+4+2+2+12+1+1+1+4+11+8), %edi
-
-	//movl	$0xFFB6FCFA, %eax	/* CLI, CLD, MOV DH,FF */
-	#; lodsw	PRE(cs)(iSI), %ax
-	#; stosw
-	movsb	PRE(cs)(iSI), %es:(iDI)
-	movsb	PRE(cs)(iSI), %es:(iDI)
-
-	lodsb	PRE(cs)(iSI), %al
-	stosb
-	lodsb	PRE(cs)(iSI), %al
-	
-	//decl	%edi
-
-	/* partition number, byte */
-
-	movb	PRE(cs)ABS(floppy) rBP, %al
-	stosb
-	
-	/* Machine code begins at offset 0x5e, 416 bytes without 
-	 * the ending 2 bytes of boot signature */
-
-	//movl	$ABS(_start1 + 0x45e), %esi
-	movl	$(416 / 4), %ecx
-	repz movsl PRE(cs)(iSI), %es:(iDI)
-	
-	movl	$1, PRE(cs)ABS(sectors_to_write) rBP
-	
+//	cmpl	$0xff, PRE(cs)ABS(usb_time) rBP
+//	je	23f
+//	movb	PRE(cs)ABS(usb_time) rBP, %al
+//	movb	%al, 0x411(iSI)
+//23:
+//	cmpl	$0xff, PRE(cs)ABS(usb_speed) rBP
+//	je	23f
+//	movb	PRE(cs)ABS(usb_speed) rBP, %al
+//	movb	%al, 0x412(iSI)
+//23:
+	//To determine the number of reserved sectors meets
+//	movzwl	0x0e(iSI), %eax			//Number of sectors reserved
+//	cmpw	$0x0c, %ax
+//	jae	23f							//Meet
+	//Not satisfied, modify the FAT table number, modify the number of reserved sectors
+//	movb	$01, 0x10(iSI)					//FATs=1
+//	movl	$ABS(msg_usb_bpb_fat), %ecx
+//	addl	0x24(iSI), %eax					//FAT32 each file allocation table total number of sectors
+//	cmpl	$0xffff, %eax
+//	ja	44f
+//	movw	%ax, 0x0e(iSI) 					//Adjust the number of sectors reserved
+//23:
+	//Modify FAT32 unique parameters
+//	movw	$0xffff, 0x32(iSI)			//Backup boot sector number. If you do not should be set to FFFF.
+	//FAT32 file system information sector
+//	xorl	%eax, %eax
+//	movl	$MBR(0x200), %edi
+//	movl	$0x80, %ecx
+//	repz	stosl
+//	movl	$0x41615252, 0x200(iSI)			//At the beginning of signatures
+//	movl	$0x61417272, 0x3e4(iSI)			//The fault symptoms index structure signature	
+//	movl	0x20(iSI), %eax
+//	movzwl	0xe(iSI), %ecx
+//	subl	%ecx, %eax
+//	subl	0x24(iSI), %eax
+//	cmpb	$2, 0x10(iSI)
+//	jne 	231f
+//	subl	0x24(iSI), %eax
+//231:
+//	xorl	%edx, %edx
+//	movzbl	0xd(iSI), %ecx
+//	divl	%ecx
+//	decl	%eax
+//	movl	%eax, 0x3e8(iSI)						//The last known free cluster number    unknown
+//	movb	$3, 0x3ec(iSI)							//The next available free cluster number    unknown
+//	movl	$0xAA550000, 0x3fc(iSI)			//End of the signature						
+	//Write-back number of sectors
+//	movl	$0x0c, PRE(cs)ABS(sectors_to_write) rBP
+//	jmp	3f
+//21:
+	movl	$1, PRE(cs)ABS(sectors_to_write) rBP		
+3:		
 	movl	$ABS(msg_fstype_fat32_allow), %ecx
 	call	8f	/* linux_print */
 	
@@ -3753,159 +3436,30 @@
 	movl	0x20(iSI), %eax		/* FAT32 total sectors */
 	testl	%eax, %eax
 	jnz	1f
-	//movw	0x11(%si), %ax		/* max root entries */
-	//testw	%ax, %ax
-	//jnz	1f
 	movl	0x0e(iSI), %eax		/* reserved sectors */
 	andl	$0xFFFF, %eax
 	jnz	1f
 	/* sure it is NTFS */
 
-	/* is NTFS allowed write? */
-
-	testl	$0x08, PRE(cs)ABS(fstypes) rBP
-	jnz	3f
-	/* NTFS write not allowed */
-	movl	$0, PRE(cs)ABS(sectors_to_write) rBP
-	
-	movl	$ABS(msg_fstype_ntfs_deny), %ecx
-	call	8f	/* linux_print */
-	
-	stc
-	#; popal
-	popl	%edi
-	popl	%esi
-	popl	%ebp
-	popl	%ebx
-	popl	%edx
-	popl	%ecx
-	popl	%eax
-	ret
-3:
-#if 1
-	/* write to NTFS boot area */
-
 	cld
-	movl	$ABS(_start1 + 0xA00), %esi	/* points to the 6th sector */
+//	movl	$ABS(_start1 + 0xA00), %esi	/* points to the 6th sector */
+	movl	$ABS(grldr_pbr_start + 0x0c00), %esi
 #ifdef __DOS_16
 	xorl	%edi, %edi
 	cs movsw
 #else
 	movl	$MBR(0), %edi
 	#; lodsw PRE(cs)(iSI), %ax	/* The first 2 byte: short jmp */
-	movsb
-	movsb
+	movsw
 #endif
-	
-	/* check lba-chs-mode specified, 1 byte */
-	cmpl	$-1, PRE(cs)ABS(lba) rBP	/* lba-chs-mode  not specified? */
-	je	3f			/* yes, do nothing. */
-	movb	$0x0e, %al		/* initialize to lba mode. */
-	cmpl	$0, PRE(cs)ABS(lba) rBP		/* chs ? */
-	jnz	10f			/* no, it is not chs.*/
+
 	movb	$0x90, %al		/* yes, it is chs. */
-10:
 	stosb
-	subl	$1, %edi		#; decl %edi
-3:
-	addl	$(1+8+2+1+2+1+2+2+1+2), %edi
-	addl	$(1+8+2+1+2+1+2+2+1+2), %esi
-				/* skip 8-byte OEM name and Bytes per sector */
-	
-				/* and Sectors per cluster, byte */
-				/* and Reserved sectors, word */
-				/* and Number of FATs, byte */
-				/* (Max root dir entries)Must be 0, word */
-				/* (Total sectors small)Must be 0, word */
-				/* Media descriptor, byte */
-				/* (Sectors per FAT)Must be 0, word */
-	/* sectors per track, word */
-	#; lodsw	PRE(cs)(iSI), %ax
-	addl	$2, %esi
-	addl	$2, %edi
-	cmpl	$0xffffff3f, PRE(cs)ABS(sectors_per_track) rBP
-	je	3f
-	movb	PRE(cs)ABS(sectors_per_track) rBP, %al
-	#; cbw
-	subl	$2, %edi
-	#; stosw
-	stosb
-	movb	$0, %al
-	stosb
-3:
-	
-	/* number of heads, word */
-	#; lodsw	PRE(cs)(iSI), %ax
-	addl	$2, %esi
-	addl	$2, %edi
-	cmpl	$0xffff00ff, PRE(cs)ABS(heads) rBP
-	je	3f
-	movl	PRE(cs)ABS(heads) rBP, %eax
-	subl	$2, %edi
-	#; stosw
-	stosb
-	movb	%ah, %al
-	stosb
-3:
-	
-	/* hidden sectors(i.e., partition start), dword */
-	lodsl	PRE(cs)(iSI), %eax
-	addl	$4, %edi
-	cmpl	$0xffffffff, PRE(cs)ABS(start_sector) rBP
-	je	3f
-	movl	PRE(cs)ABS(start_sector) rBP, %eax
-	subl	$4, %edi
-	stosl
-3:	
 
-
-	addl	$(4+1+1+1+1+8), %esi
-	addl	$(4+1+1+1+1+8), %edi
-			/* total sectors, unused, dword */
-			/* drive number, byte, and another 3 bytes; Usually 80 00 80 00 */
-			/* Number of sectors in the volume, qword */
-				//lodsl
-				//lodsl
-				//addl	$8, %edi
-	cmpl	$0, PRE(cs)ABS(total_sectors) rBP
-	je	3f
-	movl	PRE(cs)ABS(total_sectors) rBP, %eax
-	subl	$8, %edi
-	stosl
-	xorl	%eax, %eax	/* high 32 bits */
-	stosl
-3:
-	
-	addl	$(8+8+4+4+8+4), %esi
-	addl	$(8+8+4+4+8+4), %edi
-			/* 30 - LCN of VCN 0 of the $MFT, qword */
-			/* 38 - LCN of VCN 0 of the $MFTMirr, qword */
-			/* 40 - Clusters per MFT Record, dword */
-			/* 44 - Clusters per Index Record, dword */
-			/* 48 - Volume serial number, qword */
-			/* 50 - Checksum, usually 0, dword */
-	//movl	$0xFFB6FCFA, %eax	/* CLI, CLD, MOV DH,FF */
-	#; lodsw	PRE(cs)(iSI), %ax
-	#; stosw
-	movsb	PRE(cs)(iSI), %es:(iDI)
-	movsb	PRE(cs)(iSI), %es:(iDI)
-
-	lodsb	PRE(cs)(iSI), %al
-	stosb
-	lodsb	PRE(cs)(iSI), %al
-	
-	//decl	%edi
-
-	/* partition number, byte */
-
-	movb	PRE(cs)ABS(floppy) rBP, %al
-	stosb
-	
-	/* Machine code begins at offset 0x58, ending at 0x7FF, where 
-	 * we assume that NTFS boot record takes up 4 sectors. */
-
-	movl	$((0x800 - 0x58)/ 4), %ecx
-	repz movsl PRE(cs)(iSI), %es:(iDI)
+	movl	$ABS(grldr_pbr_start + 0x0c54), %esi
+	movl	$MBR(0x54), %edi
+	movl	$((0x800 - 0x54)/ 4), %ecx	
+	repz movsl PRE(cs)(iSI), (iDI)
 	
 	movl	$4, PRE(cs)ABS(sectors_to_write) rBP
 	
@@ -3922,157 +3476,6 @@
 	popl	%ecx
 	popl	%eax
 	ret
-#else
-	/* write to NTFS boot area */
-
-	movl	$MBR(0), %edi
-	LEAL	0x400(%edi), %esi	/* ESI points to super block */
-	
-	/* hidden sectors(i.e., partition start), dword */
-	cmpl	$0xffffffff, PRE(cs)ABS(start_sector) rBP
-	je	3f
-	movl	PRE(cs)ABS(start_sector) rBP, %eax
-	movl	%eax, 0x1c(iDI)
-3:
-	
-	/* drive number needn't touch */
-
-	/* partition number */
-
-	call	4f
-	jc	5f
-	movl	0x06(iSI), %eax		/* NT 4 */
-	cmpl	$0x03E8B800, %eax	/* MOV ES,AX */
-	jnz	3f
-
-	cmpl	$0x680007E8, 0x84(iDI)	/* call 008e; push (0D00) */
-	jnz	3f
-	movb	$0xB6, %al		/* 0xB6="MOV DH,imm8" */
-	movb	PRE(cs)ABS(floppy) rBP, %ah	/* partition number */
-	#; movw	%ax, 0x0a(iSI)
-	movb	%al, 0x0a(iSI)
-	movb	%ah, 0x0b(iSI)
-	
-	movl	$4, PRE(cs)ABS(sectors_to_write) rBP
-	
-	movl	$ABS(msg_fstype_ntfs_allow), %ecx
-	call	8f	/* linux_print */
-	
-	clc
-	#; popal
-	popl	%edi
-	popl	%esi
-	popl	%ebp
-	popl	%ebx
-	popl	%edx
-	popl	%ecx
-	popl	%eax
-	ret
-3:
-		/* NT 5.0 */
-
-	cmpl	$0x680053E8, 0x71(iDI)	/* call 00C7; push (0D00) */
-	jnz	5f
-	
-	movl	$0x4b, %ebx
-	movl	(iBX, iSI), %eax		/* NT 5 */
-	cmpl	$0x03E8B800, %eax		/* MOV ES,AX */
-	jz	3f
-	
-	movl	$0x79, %ebx
-	movl	(iBX, iSI), %eax		/* NT 5p */
-	cmpl	$0x03E8B800, %eax		/* MOV ES,AX */
-	jnz	5f
-3:
-	movb	$0xB6, %al		/* 0xB6="MOV DH,imm8" */
-	movb	PRE(cs)ABS(floppy) rBP, %ah	/* partition number */
-	#; movw	%ax, 4(iBX, iSI)
-	movb	%al, 4(iBX, iSI)
-	movb	%ah, 5(iBX, iSI)
-	
-	movl	$4, PRE(cs)ABS(sectors_to_write) rBP
-	
-	movl	$ABS(msg_fstype_ntfs_allow), %ecx
-	call	8f	/* linux_print */
-	
-	clc
-	#; popal
-	popl	%edi
-	popl	%esi
-	popl	%ebp
-	popl	%ebx
-	popl	%edx
-	popl	%ecx
-	popl	%eax
-	ret
-5:
-	/* No NTFS boot record present */
-	movl	$0, PRE(cs)ABS(sectors_to_write) rBP
-	
-	movl	$ABS(msg_no_ntfs_boot_record), %ecx
-	call	8f	/* linux_print */
-	
-	stc
-	#; popal
-	popl	%edi
-	popl	%esi
-	popl	%ebp
-	popl	%ebx
-	popl	%edx
-	popl	%ecx
-	popl	%eax
-	ret
-
-4:	/* change NT to GR */
-	
-	#; pushal
-	pushl	%eax
-	pushl	%ecx
-	pushl	%edx
-	pushl	%ebx
-	pushl	%ebp
-	pushl	%esi
-	pushl	%edi
-	cld
-	movl	$0x00520047, 0x202(iDI)	/* G R L D R */
-	addl	$0x0100, %edi
-	movl	$0x00fa, %ecx
-	movl	$0x014e, %eax	/* AL="N", AH=Carry for SAHF below */
-	movl	$0x52444c54, %ebx	/* "TLDR" */
-
-3:
-	repnz scasb		/* find "N" */
-	jcxz	4f		/* gets the end, exit */
-	cmpl	%ebx, (iDI)	/* is it "NTLDR"? */
-	jnz	3b		/* no, continue to find */
-
-	/* "NTLDR" is found, so we believe it is NT boot sector. */
-
-	#; movw	$0x5247, -1(iDI)	/* change "NT" to "GR" */
-	movb	$0x47, -1(iDI)	/* change "NT" to "GR", lo */
-	movb	$0x52, (iDI)	/* change "NT" to "GR", hi */
-
-	/* CF=0 for now */
-
-	lahf			/* Load Flags into AH */
-				/* AH = SF:ZF:xx:AF:xx:PF:xx:CF */
-				/* AH = binary xxxxxxx0 */
-	jmp	3b
-4:
-	sahf		/* Store AH into flags SF ZF xx AF xx PF xx CF */
-
-	/* CF=0 means "NTLDR" is found, CF=1 means "NTLDR" is not found. */
-
-	#; popal
-	popl	%edi
-	popl	%esi
-	popl	%ebp
-	popl	%ebx
-	popl	%edx
-	popl	%ecx
-	popl	%eax
-	ret
-#endif
 
 2:
 	/* FAT12/FAT16 */
@@ -4082,306 +3485,64 @@
 	movl	0x16(iSI), %eax		/* AX = sectors per FAT(small) */
 	andl	$0xFFFF, %eax
 	jz	1f
-//	movw	$(FAT16_message - _start1), %si
-	cmpl	$12, %eax
-	ja	4f			/* FAT16 */
-	/* sure it is FAT12 */
 
-	/* is FAT12 allowed write? */
-
-	testl	$0x01, PRE(cs)ABS(fstypes) rBP
-	jnz	2f
-	/* FAT12 write not allowed */
-	movl	$0, PRE(cs)ABS(sectors_to_write) rBP
-	
-	movl	$ABS(msg_fstype_fat12_deny), %ecx
-	call	8f	/* linux_print */
-	
-	stc
-	#; popal
-	popl	%edi
-	popl	%esi
-	popl	%ebp
-	popl	%ebx
-	popl	%edx
-	popl	%ecx
-	popl	%eax
-	ret
-2:
-	/* write to FAT12 boot area */
-	
 	cld
-	movl	$ABS(_start1 + 0x600), %esi	/* points to the 4th sector */
-#ifdef __DOS_16
-	xorl	%edi, %edi
-	cs movsw
-#else
+	//Installation FAT12/16 PBR boot code
+	movl	$ABS(grldr_pbr_start + 0x200), %esi
 	movl	$MBR(0), %edi
-	#; lodsw PRE(cs)(iSI), %ax	/* The first 2 byte: short jmp */
-	movsb
-	movsb
-#endif
-	//leal	0x400(%edi), %esi	/* ESI points to super block */
-	
-	/* check lba-chs-mode specified, 1 byte */
-	cmpl	$-1, PRE(cs)ABS(lba) rBP	/* lba-chs-mode  not specified? */
-	je	2f			/* yes, do nothing. */
-	movb	$0x0e, %al		/* initialize to lba mode. */
-	cmpl	$0, PRE(cs)ABS(lba) rBP		/* chs ? */
-	jnz	10f			/* no, it is not chs.*/
-	movb	$0x90, %al		/* yes, it is chs. */
-10:
+	movsw PRE(cs)(iSI), (iDI)
+	movb	$0x90, %al
 	stosb
-	subl	$1, %edi		#; decl %edi
-2:
-	addl	$(1+8+2+1+2+1+2+2+1+2), %edi
-	addl	$(1+8+2+1+2+1+2+2+1+2), %esi
-				/* skip 8-byte OEM name and Bytes per sector */
-	
-				/* and Sectors per cluster, byte */
-				/* and Reserved sectors, word */
-				/* and Number of FATs, byte */
-				/* (Max root dir entries)Must be 0, word */
-				/* (Total sectors small)Must be 0, word */
-				/* Media descriptor, byte */
-				/* (Sectors per FAT)Must be 0, word */
-	/* sectors per track, word */
-	#; lodsw	PRE(cs)(iSI), %ax
-	addl	$2, %esi
-	addl	$2, %edi
-	cmpl	$0xffffff3f, PRE(cs)ABS(sectors_per_track) rBP
-	je	2f
-	movb	PRE(cs)ABS(sectors_per_track) rBP, %al
-	#; cbw
-	subl	$2, %edi
-	#; stosw
-	stosb
-	movb	$0, %al
-	stosb
-2:
-	
-	/* number of heads, word */
-	#; lodsw	PRE(cs)(iSI), %ax
-	addl	$2, %esi
-	addl	$2, %edi
-	cmpl	$0xffff00ff, PRE(cs)ABS(heads) rBP
-	je	2f
-	movl	PRE(cs)ABS(heads) rBP, %eax
-	subl	$2, %edi
-	#; stosw
-	stosb
-	movb	%ah, %al
-	stosb
-2:
-	
-	/* hidden sectors(i.e., partition start), dword */
-	lodsl	PRE(cs)(iSI), %eax
-	addl	$4, %edi
-	cmpl	$0xffffffff, PRE(cs)ABS(start_sector) rBP
-	je	2f
-	movl	PRE(cs)ABS(start_sector) rBP, %eax
-	subl	$4, %edi
-	stosl
-2:	
+	movl	$ABS(grldr_pbr_start + 0x23e), %esi
+	movl	$MBR(0x3e), %edi
+	movl	$((0x200-0x3e)/2), %ecx	
+	repz	movsw PRE(cs)(iSI), (iDI)	
+//	cmpl	$0xff, PRE(cs)ABS(usb) rBP	//Install usb drive?
+//	je 21f							//no
+	//Install usb drive
+//	movl	$ABS(grldr_pbr_start + 0x1400), %esi
+//	movl	$(0x1400/4), %ecx	
+//	repz movsl PRE(cs)(iSI), (iDI)	
+	//To modify usb driver loading instructions
+//	movl	$MBR(0), %esi
+//	movb	PRE(cs)ABS(usb) rBP, %al
+//	movb	%al, 0x01fb(iSI)				
 
-	/* total sectors, dword */
-	lodsl	PRE(cs)(iSI), %eax
-	addl	$4, %edi
-	cmpl	$0, PRE(cs)ABS(total_sectors) rBP
-	je	2f
-	movl	PRE(cs)ABS(total_sectors) rBP, %eax
-	subl	$4, %edi
-	stosl
-2:
-
-	/* drive number, byte, etc... */
-
-	addl	$(1+1+1+4+11+8), %esi
-	addl	$(1+1+1+4+11+8), %edi
-
-	//movl	$0xFFB6FCFA, %eax	/* CLI, CLD, MOV DH,FF */
-	#; lodsw	PRE(cs)(iSI), %ax
-	#; stosw
-	movsb	PRE(cs)(iSI), %es:(iDI)
-	movsb	PRE(cs)(iSI), %es:(iDI)
-
-	lodsb	PRE(cs)(iSI), %al
-	stosb
-	lodsb	PRE(cs)(iSI), %al
-	
-	//decl	%edi
-
-	/* partition number, byte */
-
-	movb	PRE(cs)ABS(floppy) rBP, %al
-	stosb
-	
-	/* Machine code begins at offset 0x42, 444 bytes without 
-	 * the ending 2 bytes of boot signature */
-
-	//movl	$ABS(_start1 + 0x642), %esi
-	movl	$(444 / 4), %ecx
-	repz movsl PRE(cs)(iSI), %es:(iDI)
-	
+//	cmpl	$0xff, PRE(cs)ABS(usb_time) rBP
+//	je	2f
+//	movb	PRE(cs)ABS(usb_time) rBP, %al
+//	movb	%al, 0x211(iSI)
+//2:
+//	cmpl	$0xff, PRE(cs)ABS(usb_speed) rBP
+//	je	2f
+//	movb	PRE(cs)ABS(usb_speed) rBP, %al
+//	movb	%al, 0x212(iSI)
+//2:
+	//To determine the number of reserved sectors meets
+//	movw	0x0e(iSI), %ax									//Number of sectors reserved
+//	cmpw	$0x0c, %ax
+//	jae	2f													//Meet
+	//Not satisfied, modify the FAT table number, modify the number of reserved sectors
+//	movb	$01, 0x10(iSI)									//FATs=1
+//	movl	$ABS(msg_usb_bpb_fat), %ecx
+//	addw	0x16(iSI), %ax									//FAT12/16 each file allocation table total number of sectors
+//	jc	44f
+//	cmpw	$0x0b, %ax
+//	jb	44f																//Less than the coverage FAT2
+//	movw	%ax, 0x0e(iSI) 									//Adjust the number of sectors reserved
+//2:	
+	//Write-back number of sectors
+//	movl	$0x0b, PRE(cs)ABS(sectors_to_write) rBP
+//	jmp	3f
+//21:
 	movl	$1, PRE(cs)ABS(sectors_to_write) rBP
-	
-	movl	$ABS(msg_fstype_fat12_allow), %ecx
-	call	8f	/* linux_print */
-	
-	clc
-	#; popal
-	popl	%edi
-	popl	%esi
-	popl	%ebp
-	popl	%ebx
-	popl	%edx
-	popl	%ecx
-	popl	%eax
-	ret
-
-4:
-
-	/* sure it is FAT16 */
-
-	/* is FAT16 allowed write? */
-
-	testl	$0x02, PRE(cs)ABS(fstypes) rBP
-	jnz	2f
-	/* FAT16 write not allowed */
-	movl	$0, PRE(cs)ABS(sectors_to_write) rBP
-	
-	movl	$ABS(msg_fstype_fat16_deny), %ecx
-	call	8f	/* linux_print */
-	
-	stc
-	#; popal
-	popl	%edi
-	popl	%esi
-	popl	%ebp
-	popl	%ebx
-	popl	%edx
-	popl	%ecx
-	popl	%eax
-	ret
-2:
-	/* write to FAT16 boot area */
-	
-	cld
-	movl	$ABS(_start1 + 0x600), %esi	/* points to the 4th sector */
-#ifdef __DOS_16
-	xorl	%edi, %edi
-	cs movsw
-#else
-	movl	$MBR(0), %edi
-	#; lodsw PRE(cs)(iSI), %ax	/* The first 2 byte: short jmp */
-	movsb
-	movsb
-#endif
-	//leal	0x400(%edi), %esi	/* ESI points to super block */
-	
-	/* check lba-chs-mode specified, 1 byte */
-	cmpl	$-1, PRE(cs)ABS(lba) rBP	/* lba-chs-mode  not specified? */
-	je	2f			/* yes, do nothing. */
-	movb	$0x0e, %al		/* initialize to lba mode. */
-	cmpl	$0, PRE(cs)ABS(lba) rBP		/* chs ? */
-	jnz	10f			/* no, it is not chs.*/
-	movb	$0x90, %al		/* yes, it is chs. */
-10:
-	stosb
-	subl	$1, %edi		#; decl %edi
-2:
-	addl	$(1+8+2+1+2+1+2+2+1+2), %edi
-	addl	$(1+8+2+1+2+1+2+2+1+2), %esi
-				/* skip 8-byte OEM name and Bytes per sector */
-	
-				/* and Sectors per cluster, byte */
-				/* and Reserved sectors, word */
-				/* and Number of FATs, byte */
-				/* (Max root dir entries)Must be 0, word */
-				/* (Total sectors small)Must be 0, word */
-				/* Media descriptor, byte */
-				/* (Sectors per FAT)Must be 0, word */
-	/* sectors per track, word */
-	#; lodsw	PRE(cs)(iSI), %ax
-	addl	$2, %esi
-	addl	$2, %edi
-	cmpl	$0xffffff3f, PRE(cs)ABS(sectors_per_track) rBP
-	je	2f
-	movb	PRE(cs)ABS(sectors_per_track) rBP, %al
-	#; cbw
-	subl	$2, %edi
-	#; stosw
-	stosb
-	movb	$0, %al
-	stosb
-2:
-	
-	/* number of heads, word */
-	#; lodsw	PRE(cs)(iSI), %ax
-	addl	$2, %esi
-	addl	$2, %edi
-	cmpl	$0xffff00ff, PRE(cs)ABS(heads) rBP
-	je	2f
-	movl	PRE(cs)ABS(heads) rBP, %eax
-	subl	$2, %edi
-	#; stosw
-	stosb
-	movb	%ah, %al
-	stosb
-2:
-	
-	/* hidden sectors(i.e., partition start), dword */
-	lodsl	PRE(cs)(iSI), %eax
-	addl	$4, %edi
-	cmpl	$0xffffffff, PRE(cs)ABS(start_sector) rBP
-	je	2f
-	movl	PRE(cs)ABS(start_sector) rBP, %eax
-	subl	$4, %edi
-	stosl
-2:	
-	
-	/* total sectors, dword */
-	lodsl	PRE(cs)(iSI), %eax
-	addl	$4, %edi
-	cmpl	$0, PRE(cs)ABS(total_sectors) rBP
-	je	2f
-	movl	PRE(cs)ABS(total_sectors) rBP, %eax
-	subl	$4, %edi
-	stosl
-2:
-	
-	/* drive number, byte, etc... */
-
-	addl	$(1+1+1+4+11+8), %esi
-	addl	$(1+1+1+4+11+8), %edi
-
-	//movl	$0xFFB6FCFA, %eax	/* CLI, CLD, MOV DH,FF */
-	#; lodsw	PRE(cs)(iSI), %ax
-	#; stosw
-	movsb	PRE(cs)(iSI), %es:(iDI)
-	movsb	PRE(cs)(iSI), %es:(iDI)
-
-	lodsb	PRE(cs)(iSI), %al
-	stosb
-	lodsb	PRE(cs)(iSI), %al
-	
-	//decl	%edi
-
-	/* partition number, byte */
-
-	movb	PRE(cs)ABS(floppy) rBP, %al
-	stosb
-	
-	/* Machine code begins at offset 0x42, 444 bytes without 
-	 * the ending 2 bytes of boot signature */
-
-	//movl	$ABS(_start1 + 0x642), %esi
-	movl	$(444 / 4), %ecx
-	repz movsl PRE(cs)(iSI), %es:(iDI)
-	
-	movl	$1, PRE(cs)ABS(sectors_to_write) rBP
-	
+3:	
 	movl	$ABS(msg_fstype_fat16_allow), %ecx
+	movw MBR(0x39), %ax
+	cmpw	$0x3631, %ax
+	je	2f	
+	movl	$ABS(msg_fstype_fat12_allow), %ecx
+2:	
 	call	8f	/* linux_print */
 	
 	clc
@@ -4394,11 +3555,115 @@
 	popl	%ecx
 	popl	%eax
 	ret
-1:
 
-	movl	$0, PRE(cs)ABS(sectors_to_write) rBP
+1:
+	/* Secondly, try EXFAT */
+	cmpl	$0x41465845, 0x03(iSI)			/* EXFA */
+	jnz	1f
+	cmpl	$0x20202054, 0x07(iSI)			/* T    */
+	jnz	1f
+
+	/* write to EXFAT boot area */
 	
+	cld
+	//Install exFAT PBR boot code
+	movl	$ABS(grldr_pbr_start + 0x800), %esi
+	movl	$MBR(0), %edi
+	movsw PRE(cs)(iSI), (iDI)
+	movb	$0x90, %al
+	stosb
+	movl	$ABS(grldr_pbr_start + 0x878), %esi
+	movl	$MBR(0x78), %edi
+	movl	$((0x400-0x78)/4), %ecx	
+	repz movsl PRE(cs)(iSI), (iDI)
+	//Fill sector
+	xorl	%eax, %eax
+	movl	$MBR(0x400), %edi
+	movl	$0x480, %ecx
+	repz	stosl
+	movl	$MBR(0), %esi
+	movw	$0xAA55, %ax
+	movl	$7, %ecx
+3:	
+	movw	%ax, 0x5fe(%esi)
+	addl	$0x200, %esi
+	loop 3b
+//	cmpl	$0xff, PRE(cs)ABS(usb) rBP	//Install usb drive?
+//	je 3f							//no
+	//To modify usb driver loading instructions
+//	movl	$MBR(0), %esi
+//	movb	PRE(cs)ABS(usb) rBP, %al	//Mandatory load usb drive?
+//	movb	%al, 0x01fb(iSI)
+//3:
+
+//Calculation exfat volume boot record checksum
+//si=the index entry (from 0 to cx) eax=checksum  cx=volume boot record check bytes (0x1600)
+//	xorw	%si, %si	//Initialize the index
+	xorl	%eax, %eax	//Initialize the checksum
+	movl	$MBR(0x1600), %ecx	//Bytes volume boot record check
+3:
+	rorl	$1, %eax	//"Checksum" right Cycle 1 bit
+	movzbl	(%esi), %ebx	//Check items
+	addl	%ebx, %eax	//(("Checksum" Left Cycle 31 bit) or ("Checksum" right Cycle 1 bit)) + Check items
+2:
+	addl	$1, %esi	//index+1
+	cmpl	$MBR(0x6a), %esi                      //index=0x6a Exclude
+	je	2b
+	cmpl	$MBR(0x6b), %esi                      //index=0x6b Exclude
+	je	2b
+	cmpl	$MBR(0x70), %esi                      //index=0x70 Exclude
+	je	2b
+	cmpl	%ecx, %esi	//index=Maximum?
+	jb	3b	//No, continue to
+//Filling Checksum 	
+	movl	$0x80, %ecx
+	repz	stosl	//0x200 byte   
+//Modify the backup area
+	movl	$0x600, %ecx
+	movl	$MBR(0), %esi
+	repz movsl
+//	cmpl	$0xff, PRE(cs)ABS(usb) rBP	//Install usb drive?
+//	je 21f							//no
+	//Install usb drive
+//	movl	$ABS(grldr_pbr_start + 0x1400), %esi
+//	movl	$(0x1400/4), %ecx	
+//	repz	movsl PRE(cs)(iSI), (iDI)
+	
+//	movl	$MBR(0), %esi
+//	cmpl	$0xff, PRE(cs)ABS(usb_time) rBP
+//	je	2f
+//	movb	PRE(cs)ABS(usb_time) rBP, %al
+//	movb	%al, 0x3011(iSI)
+//2:
+//	cmpl	$0xff, PRE(cs)ABS(usb_speed) rBP
+//	je	2f
+//	movb	PRE(cs)ABS(usb_speed) rBP, %al
+//	movb	%al, 0x3012(iSI)
+//2:	
+	//Write-back number of sectors
+//	movl	$34, %eax
+//	movl	%eax, PRE(cs)ABS(sectors_to_write) rBP
+//	jmp	3f
+//21:
+	movl	$24, PRE(cs)ABS(sectors_to_write)
+3:	
+	movl	$ABS(msg_fstype_exfat_allow), %ecx
+	call	8f	/* linux_print */
+	
+	clc
+	#; popal
+	popl	%edi
+	popl	%esi
+	popl	%ebp
+	popl	%ebx
+	popl	%edx
+	popl	%ecx
+	popl	%eax
+	ret	
+1:
 	movl	$ABS(msg_unsupported_fstype), %ecx
+44:
+	movl	$0, PRE(cs)ABS(sectors_to_write) rBP		
 	call	8f	/* linux_print */
 	
 	stc
@@ -4456,7 +3721,7 @@
 	jnz	1b
 
 	/* all digits are stored */
-	addl	$1, %edi		#; incl	%edi
+	addl	$1, %edi		// points to the digit string
 
 	movl	%edi, %ecx
 	call	8f	/* linux_print */
@@ -4589,7 +3854,6 @@
 	 */
 
 	/* ssize_t write(int fd, const void *buf, size_t count) */
-
 	#; pushal
 	pushl	%eax
 	pushl	%ecx
@@ -4603,11 +3867,6 @@
 
 	cld
 	movl	%ecx, %esi
-//	movw	%si, %dx
-//	movb	$0x09, %ah		// WRITE STRING TO STANDARD OUTPUT
-//	int	$0x21			// call DOS
-//	ret
-
 1:      
 	lodsb	%cs:(%si), %al		// get token
 	cmpb	$0, %al			// end of string?
@@ -4802,6 +4061,7 @@
 	movl	-64(iBX, iSI), %eax	# start_sector_cylinder
 	andl	$0xFFFF, %eax
 
+
 	movl	%eax, %edx
 	andl	$0x003f, %edx
 	jz	6f	/* geometry_probe_failed */
@@ -4819,11 +4079,6 @@
 	movl	$ABS(L), %edx
 	MOVL	%ecx, PRE(cs)(%edx, %edi, 8)	# L[i]
 
-	///* partitions should not start at the first track, the MBR-track */
-	//movw	PRE(cs)ABS(Smax), %dx
-	//cmpw	%dx, -58(%ebx, %esi)	# start_lba
-	//jb	6f	/* geometry_probe_failed */
-
 	shrb	$6, %al
 	xchgb	%al, %ah
 	andl	$0xFFFF, %eax
@@ -4836,8 +4091,6 @@
 	movl	%eax, PRE(cs)ABS(Cmax) rBP
 3:
 
-	//movl	PRE(cs)ABS(i), %ebx
-	//shll	$4, %ebx		# EBX = PRE(cs)ABS(i) * 16
 	movzbl	-65(iBX, iSI), %eax	# start_head
 	movl	$ABS(H), %edx
 	MOVL	%eax, PRE(cs)(%edx, %edi, 4)	# H[i]
@@ -4875,14 +4128,6 @@
 	movl	$ABS(L), %edx
 	MOVL	%ecx, PRE(cs)(%edx, %edi, 8)	# L[i+4]
 
-	#; comment out and use ESI instead of EBP (See below)
-	#; movl	%ecx, %ebp		# save ECX to EBP
-
-	// /* partitions should not start at the first track, the MBR-track */
-	// movzbl	PRE(cs)ABS(Smax), %edx
-	// cmpl	%edx, -58(iBX, iSI)	# start_lba
-	// jb	6f	/* geometry_probe_failed */
-
 	shrb	$6, %al
 	xchgb	%al, %ah
 	andl	$0xFFFF, %eax
@@ -4901,8 +4146,6 @@
 	pushl	%esi			# save ESI before it changes
 	#####################################################################
 
-	//movl	PRE(cs)ABS(i), %ebx
-	//shll	$4, %ebx		# EBX = PRE(cs)ABS(i) * 16
 	pushl	%eax			# EAX = L[i+4]
 	movzbl	-61(iBX, iSI), %eax	# end_head
 	popl	%esi			# begin to use ESI(= L[i+4] initially)
@@ -4980,7 +4223,7 @@
 	xorl	%edx, %edx
 	xchgl	%eax, %esi		# ESI=C[i], EDX:EAX=L[i]
 	
-	divl	PRE(cs)ABS(Y) rBP		# Y=63
+	divl	PRE(cs)ABS(Y) rBP			# Y=63
 					# quo=EAX, rem=EDX
 	addl	$1, %edx		#; incl	%edx # sector number
 	cmpl	%edx, PRE(cs)ABS(X) rBP
@@ -5006,12 +4249,6 @@
 	je	4f
 	andl	$0x3ff, %eax		# low 10 bit of calculated cylinder
 	cmpl	%eax, %esi
-//5:
-//	cmpw	PRE(cs)ABS(Cmax), %ax
-//	jne	4f
-//	cmpl	PRE(cs)ABS(Hmax), %ecx
-//	jne	4f
-//	cmpw	$63, PRE(cs)ABS(X)
 4:
 	popl	%eax
 	//##jne	6f	/* geometry_probe_failed */
@@ -5039,7 +4276,7 @@
 	addl	$1, %eax		#; incl	%eax
 	
 	mull	%ecx			# EDX=0, EAX=product
-	mull	PRE(cs)ABS(Y) rBP		# Y=63, EDX=0, EAX=product
+	mull	PRE(cs)ABS(Y) rBP			# Y=63, EDX=0, EAX=product
 	addl	PRE(cs)ABS(Y) rBP, %esi
 	cmpl	%esi, %eax
 	jnb	3f
@@ -5050,7 +4287,7 @@
 	
 	xorl	%edx, %edx
 	xchgl	%eax, %esi		# ESI=(Hmax+1)*63
-					# EAX=L[i+4]+Y
+					# EAX=L[i+4]+Y	
 
 	divl	%esi			# EAX=quo, EDX=rem
 	testl	%edx, %edx
@@ -5069,7 +4306,6 @@
 	MOVL	PRE(cs)(%ebx, %edi, 4), %eax	# C[i]
 
 	pushl	%eax
-	
 	mull	%esi			# ESI=(Hmax+1)*63
 					# EDX=0, EAX=product
 	
@@ -5078,7 +4314,7 @@
 	xchgl	%eax, %esi		# ESI=product
 	movl	$ABS(H), %ebx
 	MOVL	PRE(cs)(%ebx, %edi, 4), %eax	# H[i]
-	mull	PRE(cs)ABS(Y) rBP		# Y=63, EDX=0, EAX=H[i]*63
+	mull	PRE(cs)ABS(Y) rBP			# Y=63, EDX=0, EAX=H[i]*63
 
 	pushl	%eax
 
@@ -5093,8 +4329,6 @@
 	popl	%ecx			# ECX=C[i]
 	xchgl	%eax, %esi
 
-	//##ja	6f	/* geometry_probe_failed */
-	//##je	5f
 	jae	5f
 	xchgl	%eax, %esi
 	subl	%ebx, %eax
@@ -5222,12 +4456,6 @@
 	je	4f
 	andl	$0x3ff, %eax		# low 10 bit of calculated cylinder
 	cmpl	%eax, %esi
-//5:
-//	cmpw	PRE(cs)ABS(Cmax), %ax
-//	jne	4f
-//	cmpl	PRE(cs)ABS(Hmax), %ecx
-//	jne	4f
-//	cmpw	$63, PRE(cs)ABS(X)
 4:
 	popl	%eax
 	//##jne	6f	/* geometry_probe_failed */
@@ -5836,23 +5064,17 @@
 	popl	%eax
 	ret
 
+
+#ifdef __DOS_16
 //partition:
 0:
-#if 0
 	/* load the next partition and modify the boot record */
 
 	/* EBX holds the file descriptor number or 0 if it is BIOS drive */
 	/* partition table is at MBR(0x2000) */
 	/* current partition number is PRE(cs)ABS(current_partition) */
 
-	#; pushal
-	pushl	%eax
-	pushl	%ecx
-	pushl	%edx
-	pushl	%ebx
-	pushl	%ebp
-	pushl	%esi
-	pushl	%edi
+	pushal
 
 	/* enumerate all partitions */
 	
@@ -5862,18 +5084,11 @@
 	 */
 	movl	$MBR(0x2000), %ebp
 	xorl	%eax, %eax
-	xchgl	%eax, 0x08(%ebp)
-	movl	%eax, 0x0c(%ebp)
-	xorl	%eax, %eax
-	xchgl	%eax, 0x18(%ebp)
-	movl	%eax, 0x1c(%ebp)
-	xorl	%eax, %eax
-	xchgl	%eax, 0x28(%ebp)
-	movl	%eax, 0x2c(%ebp)
-	xorl	%eax, %eax
-	xchgl	%eax, 0x38(%ebp)
-	movl	%eax, 0x3c(%ebp)
-
+	movl	%eax, 0x00(%ebp)	//Clear the parent partition
+	movl	%eax, 0x10(%ebp)
+	movl	%eax, 0x20(%ebp)
+	movl	%eax, 0x30(%ebp)
+	
 	movl	$0x04, PRE(cs)ABS(total_partition_entries) rBP
 	/* copy extended partition entries to the end of the partition table */
 	xorl	%esi, %esi
@@ -5891,180 +5106,149 @@
 	jne	4f
 2:
 	/* extended partition */
-
+	movb	$0, 0x04(%ebp, %esi)	//Basic extended partition
+	movl	0x08(%ebp, %esi), %eax
+2:	
 	/* read one sector of the partition to MBR(0) */
-	........
+	pushal
+	pushl	$0
+	pushl	%eax
+	pushw	%es
+	pushw	$0
+	pushw $0001
+	pushw $0x0010
+	movb	$0x42, %ah		
+	movw	%sp, %si
+	movb	PRE(cs)ABS(bios_drive_number), %dl //bios id
+	int $0x13
+	popaw
+	popal
 	/* check if the partition table is valid */
-	j_invalid	3f
+	movb	0x1c2, %bl	//Partition is marked?
+	cmpb	$0x05, %bl  //À©Õ¹·ÖÇø?
+	je	3f						//yes
+	cmpb	$0x0f, %bl  //Extended partition? 
+	je	3f						//yes
+	cmpb	$0x15, %bl  //Extended partition?
+	je	3f						//yes
+	cmpb	$0x1f, %bl  //Extended partition?
+	je	3f						//yes
+	cmpb	$0x85, %bl  //Extended partition?
+	jne	5f						//not
+3:
+	addl	0x1c6, %eax	//Partition start LBA address
+	jmp	2b
+5:	
 	/* approve the partition entries and move onto the free entries */
 	movl	PRE(cs)ABS(total_partition_entries) rBP, %edi
 	shll	$4, %edi
 	addl	%ebp, %edi		# EDI points to the first free entry
 	/* move the extended partition entry onto the first free entry */
-	movl	(%ebp, %esi), %eax
-	stosl
-	movl	4(%ebp, %esi), %eax
-	stosl
-	xorl	%eax, %eax
-	stosl
-	movl	8(%ebp, %esi), %eax
-	stosl
+	movl	%eax, 0x00(%edi)	//parent partition
+	movl	0x1c2, %eax
+	movl	%eax, 0x04(%edi)
+	movl	0x1c6, %eax
+	movl	%eax, 0x08(%edi)	//The partition
+	movl	0x1ca, %eax
+	movl	%eax, 0x0c(%edi)	//The total number of sectors
+	//Determine whether there is an extended partition
+	cmpl	$0, 0x1d6
+	je	2f	//no
 	incl	PRE(cs)ABS(total_partition_entries) rBP
-3:
-	///* disable the original extended partition entry by clearing its id */
-	//movb	$0, 4(%ebp, %esi)
-	cmpl	$0x40, %esi		# Is it in the main partition table?
-	jb	4f			# yes, keep the entry in its place.
-	
-					# no, remove the entry.
-	pushl	%esi
-	addl	%ebp, %esi
-	movl	%esi, %edi
-	addl	$0x10, %esi
-	movl	PRE(cs)ABS(total_partition_entries) rBP, %ecx
-	shll	$4, %ecx
-	subl	%esi, %ecx
-	shrl	$2, %ecx
-	cld
-	repz movsl
-	popl	%esi
-	decl	PRE(cs)ABS(total_partition_entries) rBP
-	subl	$0x10, %esi		# go back one entry and redo
+	movl	0x08(%ebp, %esi), %eax	//parent partition
+	addl	0x1d6, %eax	//LBA partition start address
+	jmp	2b
+
 4:
 	addl	$0x10, %esi
 	movl	PRE(cs)ABS(total_partition_entries) rBP, %edi
 	shll	$4, %edi
 	cmpl	%edi, %esi
 	jb	1b
-
-	/* end of partition enumeration */
-	
-	/* recursively resolve extended partition entries */
-	//xorl	%esi, %esi
-	//movl	$4, %esi
-	//cmpl	PRE(cs)ABS(total_partition_entries), %esi
-	
-	
-	cmpl	$3, PRE(cs)ABS(current_partition) rBP
-	ja	1f
-	/* it is primary partition */
-	movl	PRE(cs)ABS(current_partition) rBP, %esi
-	shll	$4, %esi
-	movl	8(%ebp, %esi), %eax	# start LBA
-	movl	$ABS(msg_no_such_partition), PRE(cs)ABS(error_message_pointer) rBP
-	testl	%eax, %eax
-	stc
-	jz	2f
-	/* read 4 sectors at start LBA to MBR(0) */
-	movl	$4, %ecx
-	clc		/* read */
-	call	6f
-	movl	$ABS(msg_read_file), PRE(cs)ABS(error_message_pointer) rBP
-	jc	2f
-	/* modify the boot record */
-	call	7f
-	movl	$ABS(msg_unsupported_fstype), PRE(cs)ABS(error_message_pointer) rBP
-	jc	2f
-	/* write sectors to start LBA at MBR(0) */
-	movl	PRE(cs)ABS(sectors_to_write) rBP, %ecx
-	stc		/* write */
-	call	6f
-	movl	$ABS(msg_write_file), PRE(cs)ABS(error_message_pointer) rBP
 2:
-	#; popal
-	popl	%edi
-	popl	%esi
-	popl	%ebp
-	popl	%ebx
-	popl	%edx
-	popl	%ecx
-	popl	%eax
+	/* end of partition enumeration */
+	popal
 	ret
 
-1:
-	/* it is logical partition */
-	movl	$ABS(msg_end_of_partition_chain), PRE(cs)ABS(error_message_pointer) rBP
-	#; popal
-	popl	%edi
-	popl	%esi
-	popl	%ebp
-	popl	%ebx
-	popl	%edx
-	popl	%ecx
-	popl	%eax
-	ret
-6:
-	/* before the call: */
-	/* EAX=start LBA */
-	/* EBX=file descriptor or 0 for BIOS drive */
-	/* ECX=sectors */
-	/* CF=0 for read; CF=1 for write */
-	/* on return: */
-	/* CF=0 for success; CF=1 for failure */
 
-	//pushal
-	
-	//popal
-	ret
-7:
-	//pushal
-	
-	//popal
-	ret
-	/* EBX holds the file descriptor number or 0 if it is BIOS drive */
-	/* move partition table forward to the beginning of the 17th sector */
-	movl	$MBR(0x01be), %esi
-	movl	$MBR(0x2000), %edi
-	movl	$0x10, %ecx	# 0x10 dwords = 0x40 bytes
-
-	cld
-	repz movsl
-
-	/* initialize the current_partition number */
-	movzbl	PRE(cs)ABS(install_partition) rBP, %eax
-	movl	%eax, PRE(cs)ABS(current_partition) rBP
-
+66:
+	pushal
+	movl	$ABS(msg_disk_Information), %ecx
+	call	8b	/* linux_print */
+  //Integer calculation                 
+	xorl	%edx, %edx
+	movl	$2, %ebx
+	divl	%ebx	//Disk Bytes Kb
+	movl	$1000, %ebx	//0x3e8
+	xorl	%edx, %edx
+	divl	%ebx	//Disk Bytes Mb
+	cmpl	%ebx, %eax	//< 1Gb?
+	jb	22f	//yes
+	xorl 	%edx, %edx
+	divl	%ebx	//Disk Bytes Gb
+	cmpl	%ebx, %eax	//< 1Tb?
+	jb	3f	//yes	
+	xorl	%edx, %edx
+	divl	%ebx	//Disk Bytes Tb
+  //Setting unit'Tb'
+	movb	$0x54, %cl	//'T'
+	movb	%cl, PRE(cs)ABS(scM)
+	jmp	22f
+	//Setting unit'Gb' 
+3: 
+	movb	$0x47, %cl	//'G'
+	movb	%cl, PRE(cs)ABS(scM)     
+	//Handle decimal
+22:   
+	movl	$ABS(scS_c), %esi	//Store the last bit of pre-decimal address
+	movw	$10, %bx	//0xa
+	pushw	%ax	//Save integer
+	movw	%dx, %ax	//Decimal
+	movw	$2, %cx
+23:   
+	xorw	%dx, %dx
+	divw	%bx
+	orb		$0x30, %dl
+	movb	%dl, PRE(cs)(iSI)
+	decw	%si
+	cmpw	$0, %ax
+	jne 23b
+	//Moving two decimal
+	cmpb	$1, %cl
+	jbe 3f
+	movl	$ABS(scS_x), %edi
+	movl	$ABS(scS_c_s), %esi
+	movw	PRE(cs)(iSI), %ax
+	movw	%ax, 	PRE(cs)(iDI)
+	//Handle integer                               
+3: 
+	decb	%cl
+	je 3f
+	popw	%ax	//Integer
+	movl 	$ABS(scS_z_w), %esi
+	jmp 23b
 3:
-	/* load the next partition and modify the boot record */
-	call	0f	/* partition */
-	jc	3f	/* done */
-	call	2f	/* write to file */
-	incl	PRE(cs)ABS(current_partition) rBP
-	movl	PRE(cs)ABS(install_partition) rBP, %eax
-	addb	%ah, %al	/* Max partition number for install */
-	cmpb	%al, PRE(cs)ABS(current_partition) rBP
-	jbe	3b
-3:
-	/* all partitions have been installed. */
+	movl	$ABS(scS_z_s), %ecx
+	call	8b	/* linux_print */
+	//Default units 'Mb'
+	movb	$0x4d, %cl	//'M'
+	movb	%cl, PRE(cs)ABS(scM)
+	//The first 8 bytes from the integer filling spaces
+	movl	$ABS(scS_z_s), %edi        
+	movl	$0x20202020, %eax
+	movl	%eax, PRE(cs)(iDI)
+	movb	$0x30, PRE(cs)ABS(scS_c)
+	movw	$0x3030, PRE(cs)ABS(scS_c_s)
+	popal
+	ret
 	
-	xorl	%eax, %eax	# exit code = 0
-	
-#ifdef __DOS_16
-	
-	movb	$0x4c, %ah	// EXIT - TERMINATE WITH RETURN CODE in AL
-	int	$0x21		// call DOS
-
-#else
-	/* check if in 32-bit or 64-bit mode */
-	xorl	%eax, %eax
-	decl	%eax		// rex prefix of 0x48
-	testl	%eax, %eax
-	/* EAX = 0 for 64-bit mode, -1 for 32-bit mode */
-	jz	1f
-	
-	/* in 32-bit mode */
-	xorl	%ebx, %ebx	# exit code in EBX = 0
-	movl	$1, %eax	# sys_exit
-	int	$0x80
-	jmp	3f
-1:
-	/* in 64-bit mode */
-	xorl	%edi, %edi	# exit code in EDI = 0
-	movl	$60, %eax	# sys_exit
-	syscall
-3:
 #endif
 
-#endif		
-	ret
 
+//Clear_buffer
+100:
+	xorl	%eax, %eax
+	movl	$MBR(0), %edi
+	movl	$(0x60*0x200/4), %ecx	
+	repz	stosl
+	ret

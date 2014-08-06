@@ -70,7 +70,8 @@ char *err_list[] =
   [ERR_NO_PART] = "No such partition",
   [ERR_NO_HEADS] = "The number of heads must be specified. The `--heads=0' option tells map to choose a value(but maybe unsuitable) for you",
   [ERR_NO_SECTORS] = "The number of sectors per track must be specified. The `--sectors-per-track=0' option tells map to choose a value(but maybe unsuitable) for you",
-  [ERR_NON_CONTIGUOUS] = "File for drive emulation must be in one contiguous disk area",
+//  [ERR_NON_CONTIGUOUS] = "File for drive emulation must be in one contiguous disk area",
+	[ERR_NON_CONTIGUOUS] = "Too many fragments.",
   [ERR_NUMBER_OVERFLOW] = "Overflow while parsing number",
   [ERR_NUMBER_PARSING] = "Error while parsing number",
   [ERR_OUTSIDE_PART] = "Attempt to access block outside partition",
@@ -343,7 +344,7 @@ void
 init_bios_info (void)
 {
   unsigned long cont, memtmp, addr;
-  unsigned long drive;
+  int drive;
   unsigned long force_pxe_as_boot_device;
 
   is64bit = check_64bit_and_PAE ();
@@ -511,15 +512,15 @@ init_bios_info (void)
   if (saved_mmap_length)
     mbi.flags |= MB_INFO_MEM_MAP;
 
-    force_pxe_as_boot_device = 0;
-    /* if booted by fbinst, we can skip tons of checks ... */
-    if (fb_status)
-    {
-	boot_drive = FB_DRIVE;
-	install_partition = 0xFFFFFF;
-	goto set_root;
-    }
-
+	force_pxe_as_boot_device = 0;
+	/* if booted by fbinst, we can skip tons of checks ... */
+	if (fb_status)
+	{
+		boot_drive = FB_DRIVE;
+		install_partition = 0xFFFFFF;
+		goto set_root;
+	}
+	
 #ifdef FSYS_PXE
     if (! ((*(char *)0x8205) & 0x01))	/* if it is not disable pxe */
     {
@@ -642,13 +643,13 @@ succeeded_dos_boot_drive:
 	if (probe_bpb((struct master_and_dos_boot_sector *)0x7C00))
 		goto failed_dos_boot_drive;
 	dos_part_start = *((unsigned long *) (0x7C00 + 0x1C));
-	//j = (dos_part_start ? 0x80 : 0);
+//	j = (dos_part_start ? 0x80 : 0);
 	j = boot_drive;
 	k = ( j | ((*(unsigned short *)(0x7C00 + 0x1A) - 1) << 8)
 		| ((*(unsigned short *)(0x7C00 + 0x18)) << 16) );
 	if (! k)
 		goto failed_dos_boot_drive;
-	//boot_drive = j;
+//	boot_drive = j;
 	dos_drive_geometry = k;
 	goto redo_dos_geometry;
     }
@@ -692,7 +693,7 @@ failed_dos_boot_drive:
 
 		/* set a known value */
 		grub_memset ((char *)0x5F800, 0xEC, 0x1000);
-		biosdisk_int13_extensions (0x4200, (unsigned char)boot_drive, dap, 0);
+		biosdisk_int13_extensions (0x4200, (unsigned char)boot_drive, dap);
 		/* check ISO9660 Primary Volume Descriptor */
 		if (! memcmp ((char *)0x5F800, "\1CD001\1\0", 8))
 		/* check the EL Torito Volume Descriptor */
@@ -773,7 +774,7 @@ failed_dos_boot_drive:
 
       if (drive >= 0x80)
       {
-	version = check_int13_extensions (drive, 0);
+	version = check_int13_extensions (drive);
 
 	if (! (version & 1)) /* not support functions 42h-44h, 47h-48h */
 	    continue;	/* failure, try next drive. */
@@ -783,7 +784,7 @@ failed_dos_boot_drive:
 	  
 	drp->size = sizeof (struct drive_parameters) - 16;
 	  
-	err = biosdisk_int13_extensions (0x4800, drive, drp, 0);
+	err = biosdisk_int13_extensions (0x4800, drive, drp);
 	if (! err && drp->bytes_per_sector == ISO_SECTOR_SIZE)
 	{
 	    /* mount the drive, confirm the media exists. */

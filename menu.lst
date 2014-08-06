@@ -52,7 +52,7 @@ chainloader /cmldr
 #write 0x7C07 0x00736E6F
 
 #	or.
-#write --offset=3 (md)0x3e+1 cmdcons\0
+#write --offset=3 (md)0x3e+1 cmdcons
 #	or
 calc *0x7c03=0x00736E6F63646D63
 
@@ -86,8 +86,8 @@ title commandline
 commandline
 
 title 0PE LiveISO
-find --set-root --ignore-floppies --ignore-cd /0PE/0PE.ISO
-map /0PE/0PE.ISO (0xff)
+find --set-root --ignore-floppies --ignore-cd /0PE.ISO
+map /0PE.ISO (0xff)
 map --hook
 chainloader (0xff)
 savedefault --wait=2

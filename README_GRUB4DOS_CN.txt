@@ -367,6 +367,12 @@ GRUB.EXE 用法：
 
 			chainloader --force --load-segment=0 --load-offset=0x8000 --boot-cs=0 --boot-ip=0x8200 (...)/.../stage2
 
+更新 12：	增加了 exFAT 分区启动。
+
+
+更新 13：	支持 udf 格式光盘。支持 iso9600 Joliet 扩展格式光盘。并可以启动它。
+		可以把 grldr_cd.bin 作为 cdrom 的引导代码。
+
 --------------------------------------------------------
 这里用一些示例来演示磁盘仿真命令的用法：
 
@@ -395,8 +401,6 @@ GRUB.EXE 用法：
 
 	在“map --hook”命令之后，仿真立即生效，即使是在GRUB的命令行模式中。       
 	
-	Note that the (fd0) in "chainloader (fd0)+1" is the emulated virtual
-	floppy A:, not the real floppy diskette(because map is hooked now).
 	注意“chainloader (fd0)+1” 中的(fd0)是仿真后的虚拟软驱 A：，而不是真
 	实的软盘（因为映射现在已经被挂载了）。       
 
@@ -485,748 +489,453 @@ GRUB.EXE 用法：
 ******************************************************************************
 ***   grldr可启动的软盘或硬盘分区的说明					   ***
 ******************************************************************************
-1. Ext2 引导扇区/引导记录的布局 （用于载入grldr）
+
+1. Ext2/3/4 引导扇区/引导记录的布局 （用于载入grldr）
 
 ------------------------------------------------------------------------------
-一个EXT2/EXT3的卷可以是GRUB可启动的。复制grldr和可选的menu.lst文件到这个EXT2/EXT3
-卷的根目录，并按照grldr的第五扇区建立它的引导扇区(一些需要更改的字段在下面的表
-中做了详细注释)。那么，这个EXT2/EXT3的卷就是GRUB可启动的。
+一个EXT2/3/4的卷可以由GRUB启动。复制grldr和可选的menu.lst文件到这个EXT2/3/4
+卷的根目录，并按照grldr.pbr的第3至4扇区建立它的引导扇区。那么，这个EXT2/3/4卷就是GRUB可启动的。
 
-更新:   bootlace.com是一个dos/linux下的工具，它可以把GRLDR的引导记录安装到一个
-        EXT2/EXT3卷的第一扇区。
+更新：	bootlace.com是一个dos/linux下的工具，它可以把GRLDR的引导记录安装到一个
+        EXT2/3/4卷的第一扇区。
+
+更新：	可以直接复制引导代码到启动分区,引导代码会自动生成头部参数。
 
 偏移    长度    说明
 ======	======	==============================================================
-00h	2	Machine code for short jump over the data.
-                近转移指令的机器码
+00h	2	近转移指令的机器码
 
-02h	1	LBA indicator. Valid values are 0x02 for CHS mode, or 0x42 for
-		LBA mode.
-                LBA指示码。CHS模式时，有效值是0x02；LBA模式时有效值为0x42。
+02h	1	0x90
 
-		If the BIOS int13 supports LBA, this byte can be safely set to
-		0x42.
-                如果BIOS的int13支持LBA，此字节可以安全地设置为0x42。
+03h	8	文件系统ID。 “EXT2/3/4”
 
-		Some USB BIOSes might have bugs when using CHS mode, so the
-		format program should set this byte to 0x42. It seems that
-		(generally) all USB BIOSes have LBA support.
-                某些 USB 设备的BIOS在使用CHS寻址模式时可能有缺陷，所以格式化程
-                序应当设置这个字节为0X42 。似乎所有（多数）的USB BIOS都能支持LBA 。
+0Bh	2	每扇区字节数。必须为512 。
 
-		If the format program does not know whether the BIOS has LBA
-		support, it may operate this way:
-                如果格式化程序不知道BIOS是否具有LBA支持，它可以采用以下方法：
-
-		if (partition_start + total_sectors_in_partition) exceeds the
-		CHS addressing ability(especially when it is greater than
-		1024*256*63), the caller should set this byte to 0x42,
-		otherwise, set to 0x02.
-                如果（分区的起始地址加上分区的总扇区）超过了CHS的寻址能力。
-		（特别是当它大于1024*256*63时），调用程序应当设置此字节为0x42,
-		否则，要设为0x02。
-
-		Note that Windows98 uses the value 0x0e as the LBA indicator.
-                注意 Windows98 使用0x0e作为LBA指示码。               
-
-		Update: this byte of LBA indicator is ignored. The boot
-		record can probe the LBA support of BIOS.
-                更新：LBA指示码这个字节已被忽略。引导记录能够探测BIOS的LBA支持。
-
-03h	10	OEM name string (of OS which formatted the disk).
-		Update: this field is now used for error message of "I/O error"
-                OEM 名称字符串（对该磁盘进行格式化的操作系统的名字）。
-                更新：此字段现在被用于错误提示信息“I/O error”
-
-0Dh	1	Sectors per block. Valid values are 2, 4, 8, 16 and 32.
-                每块扇区数。有效值是2, 4, 8, 16 和 32。
+0Dh	1	每块扇区数。有效值是2, 4, 8, 16 和 32。
                 
-0Eh	2	Bytes per block. Valid values are 0x400, 0x800, 0x1000, 0x2000
-		and 0x4000.
-                每块字节数。有效值是0x400, 0x800, 0x1000, 0x2000 和 0x4000。
+0Eh	2	每块字节数。有效值是0x400, 0x800, 0x1000, 0x2000 和 0x4000。
 
-10h	4	Pointers in pointers-per-block blocks, that is, number of
-		blocks covered by a double-indirect block.               
-                在pointers-per-block块中的指针数，即一个二级间接块包含的块数。
+10h	4	在pointers-per-block块中的指针数，即一个二级间接块包含的块数。
 
-		Valid values are 0x10000, 0x40000, 0x100000, 0x400000 and
-		0x1000000.
-                有效值是0x10000, 0x40000, 0x100000, 0x400000 和	0x1000000。
+		有效值是0x10000, 0x40000, 0x100000, 0x400000 和	0x1000000。
 
-14h	4	Pointers per block, that is, number of blocks covered by an
-		indirect block.
-                每块指针数，即一个间接块包含的块数。
+14h	4	每块指针数，即一个间接块包含的块数。
 
-		Valid values are 0x100, 0x200, 0x400, 0x800, 0x1000.
-                有效值是0x100, 0x200, 0x400, 0x800, 0x1000 。
+		有效值是0x100, 0x200, 0x400, 0x800, 0x1000 。
 
-18h	2	Sectors per track.
-                每磁道的扇区数。
+18h	2	每磁道的扇区数。
 
-1Ah	2	Number of heads/sides.
-                磁头数/面数
+1Ah	2	磁头数/面数
 
-1Ch	4	Number of hidden sectors (those preceding the boot sector).
-                隐藏扇区数（它们位于引导扇区之前）
+1Ch	4	隐藏扇区数（它们位于引导扇区之前）
 
-		Also referred to as the starting sector of the partition.
-                也被成为是分区的起始扇区。
+		也被成为是分区的起始扇区。
 
-		For floppies, it should be 0.
-                对于软盘，它应当为0 。
+		对于软盘，它应当为0 。
                 
-20h	4	Total number of sectors in the filesystem(or in the partition).
-                文件系统中的扇区总数（或者是分区的扇区总数）。
+20h	4	文件系统中的扇区总数（或者是分区的扇区总数）。
 
-24h	1	BIOS drive number of the boot device.               
-                启动设备的 BIOS 驱动器号码。
+24h	1	启动设备的 BIOS 驱动器号码。
 
-		Actually this byte is ignored for read. The boot code will
-		write DL onto this byte. The BIOS or the caller should set
-		drive number in DL.
-                实际此字节在读入时被忽略。引导代码将把DL的值写入到此字节中。
+		实际此字节在读入时被忽略。引导代码将把DL的值写入到此字节中。
                 BIOS或者调用程序应当在DL中设置磁盘号码。
 
-		We assume all BIOSes pass correct drive number in DL.
-		Buggy BIOSes are not supported!!
-                我们假定所有的BIOS在DL中能传递正确的磁盘号码。
+		我们假定所有的BIOS在DL中能传递正确的磁盘号码。
                 糟糕的BIOS不被支持!!
 
-25h	1	Partition number of this partition on the boot drive.
-                此分区在启动驱动器上的分区号
+25h	1	此分区在启动驱动器上的分区号
 
-		0, 1, 2, 3 are primary partitions.
-		4, 5, 6, ... are logical partitions in the extended partition.
-                0, 1, 2, 3 是主分区 。4, 5, 6, ... 等等是扩展分区中的逻辑分区。
+		0, 1, 2, 3 是主分区 。4, 5, 6, ... 等等是扩展分区中的逻辑分区。
+		0xff代表整个磁盘。所以对于软盘，其分区号码应当是0xff 。
 
-		0xff is for whole drive. So for floppies, it should be 0xff.
-                0xff代表整个磁盘。所以对于软盘，其分区号码应当是0xff 。
-
-26h	2	inode size in bytes. (Notice! We use the formerly reserved
-		word here for inode size!)
-                字节计数的索引节点大小。（注意!我们在此处为索引节点大小使用
+26h	2	字节计数的索引节点大小。（注意!我们在此处为索引节点大小使用
                 了以前被保留的一个字，即两个字节）
 
-28h	4	Number of inodes per group.
-                每组的i节点数  
+28h	4	每组的i节点数  
 
-		Normally a 1.44M floppy has only one group, and the total
-		number of inodes is 184. So the value should be	184 or
-		greater.
-                通常，1.44M软盘只有一个组，并且总的i节点数是184。所以此值
+		通常，1.44M软盘只有一个组，并且总的i节点数是184。所以此值
                 应为184或者更大。
 
-2Ch	4	The block number for group descriptors.
-                组描述符的块号码。
+2Ch	4	组描述符的块号码。
 
-		Valid values are 2 for 1024-byte blocks, and 1 otherwise.
-                对于1024字节的块有效值是2 ，否则是1 。
+		对于1024字节的块有效值是2 ，否则是1 。
 
-		The value here is equal to (s_first_data_block + 1).
-                这里的值等于（s_first_data_block + 1）。
+		这里的值等于（s_first_data_block + 1）。
 
-30h	1	code for "cld"(0xFC).
-                指令“cld”（即0xFC）。
+30h	462	机器码部分。
 
-31h	2	code for "xor ax,ax"(0x31, 0xC0).
-                指令“xor ax,ax”（即0x31,0xC0）
+1FEh	2	引导签名AA55h 。
 
-33h	1	code for "nop"(0x90) or "cwd"(0x99)
-                指令“nop”（即0x90）或“cwd”（即0x99）
+200h	510	机器码部分。
 
-34h	458	The rest of the machine code.
-                机器码部分。
-
-1FEh	2	Boot Signature AA55h.
-                引导签名AA55h 。
+3FEh	2	引导签名AA55h 。
 
 
-2. FAT12/FAT16 Boot Sector/Boot Record Layout (for loading grldr)
 2. FAT12/FAT16 引导扇区/引导记录的布局 （用于载入grldr）
 
 ------------------------------------------------------------------------------
-A FAT12/16 volume can be GRUB-bootable. Copy grldr and an optional menu.lst to
-the root dir of the FAT12/16 volume, and build the boot sector based on the
-fourth sector of grldr(some fields need to be changed as detailed in the
-following table). And then the FAT12/16 volume is GRUB-bootable.
 一个FAT12/16的卷是GRUB可启动的。复制grldr和可选的menu.lst文件到这个FAT12/16 卷
-的根目录，并按照grldr的第四扇区建立它的引导扇区（一些需要更改的字段在下面的表中
-做了详细注释）。然后这个FAT12/16的卷就是GRUB可启动的。
+的根目录，并按照grldr.pbr的第二扇区建立它的引导扇区。然后这个FAT12/16的卷就是GRUB可启动的。
 
-Update:	bootlace.com is a DOS/Linux utility that can install the GRLDR boot
-record onto the boot sector of an FAT12/16 volume.
 更新:   bootlace.com 是一个dos/linux下的工具，而它能把GRLDR的引导记录安装到一个
         FAT12/16卷的引导扇区。
 
-Offset	Length	Description
 偏移    长度    说明
 
 ======	======	==============================================================
-00h	2	Machine code for short jump over the data.
-                近转移指令的机器码
+00h	2	近转移指令的机器码
 
-02h	1	LBA indicator. Valid values are 0x90 for CHS mode, or 0x0e for
-		LBA mode.
-                LBA指示码。CHS模式时，有效值为0x90；LBA模式时，有效值为0x0e 。
+02h	1	0x90
 
-		If the BIOS int13 supports LBA, this byte can be safely set to
-		0x0e.
-                如果BIOS int13支持LBA，此字节可以安全地设置为0x0e 。
+03h	8	OEM名称字符串 （对该磁盘进行格式化的操作系统的名称）。
 
-		Some USB BIOSes might have bugs when using CHS mode, so the
-		format program should set this byte to 0x0e. It seems that
-		(generally) all USB BIOSes have LBA support.
-                某些USB设备的BIOS在使用CHS寻址模式时可能有缺陷，所以格式化程序
-                应当设置这个字节为0X0e 。似乎所有的（多数）USB BIOS都能支持 LBA 。
-                
-		If the format program does not know whether the BIOS has LBA
-		support, it may operate this way:
-                如果格式化程序不知道BIOS是否具有LBA支持，它可以采用以下方法：
+0Bh	2	每扇区字节数。必须为512 。
 
-		if (partition_start + total_sectors_in_partition) exceeds the
-		CHS addressing ability(especially when it is greater than
-		1024*256*63), the caller should set this byte to 0x0e,
-		otherwise, set to 0x90.
-                如果（分区的起始地址加上分区的总扇区）超过了CHS 的寻址能力。
-		（特别是当它大于1024*256*63），调用程序应当设置此字节为0x0e,
-		否则，要设为0x90。
-
-		Update: this byte of LBA indicator is ignored. The boot
-		record can probe the LBA support of BIOS.
-                更新：LBA 指示码这个字节已被忽略。引导记录能探测BIOS的LBA支持。
-
-		Update(2006-07-31): Though GRLDR won't use this LBA-indicator
-		byte, Windows 98 uses it. Usually this byte should be 0x90 for
-		CHS mode(especially for floppies). If this byte is not set
-		properly, Windows 98 will not recognize the floppy or
-		partition. This problem was reported by neiljoy. Many thanks!
-                更新 （2006-07-31）：尽管GRLDR不再使用LBA指示码这个字节，
-                但Windows 98会使用它。通常这个字节在 CHS 模式中应当设置为0x90
-               （软盘尤其如此）。如果此字节未被正确设置，Windows 98将不能识别
-                软盘或分区。这一问题由neiljoy先生报告。非常感谢!
-
-03h	8	OEM name string (of OS which formatted the disk).
-                OEM名称字符串 （对该磁盘进行格式化的操作系统的名称）
-
-0Bh	2	Bytes per sector. Must be 512.
-                每扇区字节数。必须为512 。
-
-0Dh	1	Sectors per cluster. Valid values are 1, 2, 4, 8, 16, 32, 64
-		and 128. But a cluster size larger than 32K should not occur.
-                每簇的扇区数。有效值是1, 2, 4, 8, 16, 32, 64和128 。但是簇大小
+0Dh	1	每簇的扇区数。有效值是1, 2, 4, 8, 16, 32, 64和128 。但是簇大小
 		大于32K的情况不应发生。
 
-0Eh	2	Reserved sectors(number of sectors before the first FAT,
-		including the boot sector), usually 1.
-                保留的扇区数（第一文件分配表之前的扇区数，包括引导扇区），通常是1。
+0Eh	2	保留的扇区数（第一文件分配表之前的扇区数，包括引导扇区），通常是1。
 
-10h	1	Number of FATs(nearly always 2).
-                文件分配表数（几乎总是2）。
+10h	1	文件分配表数（几乎总是2）。
 
-11h	2	Maximum number of root directory entries.
-                根目录项的最大个数。
+11h	2	根目录项的最大个数。
 
-13h	2	Total number of sectors (for small disks only, if the disk is
-		too big this is set to 0 and offset 20h is used instead).
-                扇区总数（仅用于小磁盘，如果磁盘太大此处被设置为0，而偏移 20h 处
+13h	2	扇区总数（仅用于小磁盘，如果磁盘太大此处被设置为0，而偏移 20h 处
 		则替代它使用）。
 
-15h	1	Media descriptor byte, pretty meaningless now (see below).
-                媒体描述符字节，现在该此节已经没有太大意义了（参见后面）。
+15h	1	媒体描述符字节，现在该此节已经没有太大意义了（参见后面）。
 
-16h	2	Sectors per FAT.
-                每个文件分配表的扇区数。
+16h	2	每个文件分配表的扇区数。
 
-18h	2	Sectors per track.
-                每个磁道的扇区数
+18h	2	每个磁道的扇区数
 
-1Ah	2	Total number of heads/sides.
-                磁头或面的总数。
+1Ah	2	磁头或面的总数。
 
-1Ch	4	Number of hidden sectors (those preceding the boot sector).
-                隐藏扇区数（位于引导扇区之前）。
+1Ch	4	隐藏扇区数（位于引导扇区之前）。
 
-		Also referred to as the starting sector of the partition.
-                也被称为是分区的开始扇区。
+		也被称为是分区的开始扇区。
 
-		For floppies, it should be 0.
-                对于软盘，它应当为0 。
+		对于软盘，它应当为0 。
 
-20h	4	Total number of sectors for large disks.
-                大磁盘的扇区总数。
+20h	4	大磁盘的扇区总数。
 
-24h	1	BIOS drive number of the boot device.
-                引导设备的BIOS磁盘号。
+24h	1	引导设备的BIOS磁盘号。
 
-		Actually this byte is ignored for read. The boot code will
-		write DL onto this byte. The BIOS or the caller should set
-		drive number in DL.
-                实际此字节在读入时被忽略。引导代码将把DL中的值写入此字节。
+		实际此字节在读入时被忽略。引导代码将把DL中的值写入此字节。
                 BIOS或者调用程序应当在DL中设置磁盘号码。
 
-		We assume all BIOSes pass correct drive number in DL.
-		Buggy BIOSes are not supported!!
-                我们假定所有的BIOS在DL中能传递正确的磁盘号码。
+		我们假定所有的BIOS在DL中能传递正确的磁盘号码。
                 糟糕的BIOS不被支持!!
 
-25h	1	Partition number of this filesystem in the boot drive.
-                启动驱动器上此文件系统的分区号码。
+25h	1	启动驱动器上此文件系统的分区号码。
 
-		This byte is ignored for read. The boot code will write
-		partition number onto this byte. See offset 41h below.
-                此字节在读入时被忽略。引导代码将分区号码写到此字节。
-		见下述偏移41h 。
+		更新：此字段被忽略。
 
-26h	1	Signature (must be 28h or 29h to be recognised by NT).
-                签名（必须是28h或者29h以便能被 NT 识别）
+26h	1	签名（必须是28h或者29h以便能被 NT 识别）
 
-27h	4	Volume serial number.
-                卷的序列号。
+27h	4	卷的序列号。
 
-2Bh	11	Volume label.
-                卷标签。
+2Bh	11	卷标签。
 
-36h	8	File system ID. "FAT12   ", "FAT16   " or "FAT     ".
-                文件系统ID。“FAT12”, “FAT16”或 “FAT”。
+36h	8	文件系统ID。“FAT12”, “FAT16”。
 
-3Eh	1	code for "cli".
-                指令“cli”。
+3Eh	446	机器码部分。
 
-3Fh	1	code for "cld".
-                指令“cld”。
-
-40h	1	code for "mov dh, imm8".
-                指令“mov dh, imm8”。
-
-41h	1	Partition number of this partition on the boot drive.
-                此分区在启动驱动器的分区号。
-
-		0, 1, 2, 3 are primary partitions.
-		4, 5, 6, ... are logical partitions in the extended partition.
-                0, 1, 2, 3 是主分区。4, 5, 6, ... 等等是扩展分区中的逻辑分区。
-
-		0xff is for whole drive. So for floppies, it should be 0xff.
-                0xff代表整个磁盘。所以对于软盘，其分区号码应当是0xff 。
-
-42h	442	The rest of the machine code.
-                机器码部分。
-
-1FCh	4	Boot Signature AA550000h. (Win9x uses 4 bytes as magic value)
-                引导签名AA550000h 。（Win9x 使用4字节作为魔数值。）
+1FCh	4	引导签名AA550000h 。（Win9x 使用4字节作为魔数值。）
 
 
-3. FAT32 Boot Sector/Boot Record Layout (for loading grldr)
 3. FAT32 引导扇区/引导记录的布局 （用于载入grldr）
 
 ------------------------------------------------------------------------------
-A FAT32 volume can be GRUB-bootable. Copy grldr and an optional menu.lst to
-the root dir of the FAT32 volume, and build the boot sector based on the
-third sector of grldr(some fields need to be changed as detailed in the
-following table). And then the FAT32 volume is GRUB-bootable.
 一个FAT32的卷是GRUB可启动的。复制grldr和可选的menu.lst文件到这个FAT32卷的根
-目录，并按照grldr的第三扇区建立它的引导扇区(一些需要更改的字段在下面的表中
-做了详细注释)。然后这个FAT32的卷就是GRUB可启动的。
+目录，并按照grldr.pbr的第一扇区建立它的引导扇区。然后这个FAT32的卷就是GRUB可启动的。
 
-Update:	bootlace.com is a DOS/Linux utility that can install the GRLDR boot
-record onto the boot sector of an FAT32 volume.
 更新:   bootlace.com 是一个dos及linux下的工具而它能把 GRLDR 的引导记录安装
         到一个FAT32卷的引导扇区。
 
 
-Offset	Length	Description
 偏移    长度    说明
 
 ======	======	==============================================================
-00h	2	Machine code for short jump over the data.
-                近转移指令的机器码。
+00h	2	近转移指令的机器码。
 
-02h	1	LBA indicator. Valid values are 0x90 for CHS mode, or 0x0e for
-		LBA mode.
-                LBA指示码。CHS模式时，有效值为0x90,而LBA模式时，有效值为0x0e。
+02h	1	0x90
 
-		If the BIOS int13 supports LBA, this byte can be safely set to
-		0x0e. 
-                如果BIOS的int13支持LBA，此字节可以安全地设置为0x0e。
-
-		Some USB BIOSes might have bugs when using CHS mode, so the
-		format program should set this byte to 0x0e. It seems that
-		(generally) all USB BIOSes have LBA support.
-                某些USB设备的BIOS在使用CHS寻址模式时可能有缺陷，所以格式化程
-                序应当设置这个字节为0X0e。似乎所有（多数）的USB BIOS都能支持LBA 。
-
-		If the format program does not know whether the BIOS has LBA
-		support, it may operate this way:
-                如果格式化程序不知道BIOS是否具有LBA支持，它可以采用以下方法：
-
-		if (partition_start + total_sectors_in_partition) exceeds the
-		CHS addressing ability(especially when it is greater than
-		1024*256*63), the caller should set this byte to 0x0e,
-		otherwise, set to 0x90.
-                如果（分区的起始地址加上分区的总扇区）超过了CHS 的寻址能力。
-	       （特别是当它大于1024*256*63），调用程序应当设置此字节为0x0e,
-		否则，要设为0x90。
-
-		Update: this byte of LBA indicator is ignored. The boot
-		record can probe the LBA support of BIOS.
-                更新: LBA 指示码这个字节已被忽略。引导记录能探测BIO的LBA支持。
-
-		Update(2006-07-31): Though GRLDR won't use this LBA-indicator
-		byte, Windows 98 uses it. Usually this byte should be 0x90 for
-		CHS mode(especially for floppies). If this byte is not set
-		properly, Windows 98 will not recognize the floppy or
-		partition. This problem was reported by neiljoy. Many thanks!
-                更新 （2006-07-31）：尽管GRLDR不再使用 LBA 指示码这个字节，
+		更新 （2006-07-31）：尽管GRLDR不再使用 LBA 指示码这个字节，
                 但Windows 98会使用它。通常这个字节在 CHS 模式中应当设置为0x90
                （软盘尤其如此）。如果此字节未被正确设置，Windows 98 将不能识别
                 软盘或分区。这一问题由neiljoy先生报告。非常感谢!
 
-03h	8	OEM name string (of OS which formatted the disk).
-                OEM名称字符串 （对该磁盘进行格式化的操作系统的名称）
+03h	8	OEM名称字符串 （对该磁盘进行格式化的操作系统的名称）
 
-0Bh	2	Bytes per sector. Must be 512.
-                每扇区字节数。必须为512 。
+0Bh	2	每扇区字节数。必须为512 。
 
-0Dh	1	Sectors per cluster. Valid values are 1, 2, 4, 8, 16, 32, 64
-		and 128. But a cluster size larger than 32K should not occur.
-                每簇的扇区数。有效值是1, 2, 4, 8, 16, 32, 64 和 128 。
+0Dh	1	每簇的扇区数。有效值是1, 2, 4, 8, 16, 32, 64 和 128 。
                 但是簇大小大于32K的情况不应发生。
 
-0Eh	2	Reserved sectors(number of sectors before the first FAT,
-		including the boot sector), usually 1.
-                保留的扇区数（第一文件分配表之前的扇区数，包括引导扇区），
+0Eh	2	保留的扇区数（第一文件分配表之前的扇区数，包括引导扇区），
                 通常是1 。
 
-10h	1	Number of FATs(nearly always 2).
-                文件分配表数（几乎总是2）。
+10h	1	文件分配表数（几乎总是2）。
 
-11h	2	(Maximum number of root directory entries)Must be 0.
-               （根目录项的最大个数）必须为0 。
+11h	2	（根目录项的最大个数）必须为0 。
 
-13h	2	(Total number of sectors for small disks only)Must be 0.
-               （仅用于小磁盘的扇区总数）必须为0 。
+13h	2	（仅用于小磁盘的扇区总数）必须为0 。
 
-15h	1	Media descriptor byte, pretty meaningless now (see below).
-                媒体描述符字节，现在该此节已经没有太大意义了（参见后面）。
+15h	1	媒体描述符字节，现在该此节已经没有太大意义了（参见后面）。
 
-16h	2	(Sectors per FAT)Must be 0.
-               （每个文件分配表的扇区数）必须为0 。
+16h	2	（每个文件分配表的扇区数）必须为0 。
 
-18h	2	Sectors per track.
-                每个磁道的扇区数
+18h	2	每个磁道的扇区数
 
-1Ah	2	Total number of heads/sides.
-                磁头或面的总数。
+1Ah	2	磁头或面的总数。
 
-1Ch	4	Number of hidden sectors (those preceding the boot sector).
-                隐藏扇区数（它们位于引导扇区之前）。
+1Ch	4	隐藏扇区数（它们位于引导扇区之前）。
 
-		Also referred to as the starting sector of the partition.
-                也被称作是分区的起始扇区。
+		也被称作是分区的起始扇区。
 
-		For floppies, it should be 0.
-                对于软盘，它应当为0 。
+		对于软盘，它应当为0 。
 
-20h	4	Total number of sectors for large disks.
-                大磁盘的扇区总数。
+20h	4	大磁盘的扇区总数。
 
-24h	4	FAT32 sectors per FAT.
-                每个文件分配表的 FAT32 扇区数。
+24h	4	每个文件分配表的 FAT32 扇区数。
 
-28h	2	If bit 7 is clear then all FATs are updated, otherwise bits
-		0-3 give the current active FAT, all other bits are reserved.
-                如果第7位被清零，所有文件分配表将被更新，否则0-3位给出当前活
+28h	2	如果第7位被清零，所有文件分配表将被更新，否则0-3位给出当前活
                 动的文件分配表，所有其它位被保留。
 
-2Ah	2	High byte is major revision number, low byte is minor revision
-		number, currently both are 0.
-                高字节是主修订号码，低字节是小修订号码，现在都是0 。
+2Ah	2	高字节是主修订号码，低字节是小修订号码，现在都是0 。
 
-2Ch	4	Root directory starting cluster.
-                根目录起始簇。
+2Ch	4	根目录起始簇。
 
-30h	2	File system information sector.
-                文件系统信息扇区。
+30h	2	文件系统信息扇区。
 
-32h	2	If non-zero this gives the sector which holds a copy of the
-		boot record, usually 6.
-                如果非零它给出具有引导记录的备份扇区，通常是6。
+32h	2	如果非零它给出具有引导记录的备份扇区，通常是6。
 
-34h	12	Reserved, set to 0.
-                保留，设为0 。
+34h	12	保留，设为0 。
 
-40h	1	BIOS drive number of the boot device.
-                启动设备的 BIOS 驱动器号码。
+40h	1	启动设备的 BIOS 驱动器号码。
 
-		80h is first HDD, 00h is first FDD.
-                第一硬盘是80h，第一软盘是00h。
+		第一硬盘是80h，第一软盘是00h。
 
-		Actually this byte is ignored for read. The boot code will
-		write DL onto this byte. The BIOS or the caller should set
-		drive number in DL.
-                实际此字节在读入时被忽略。引导代码将把DL中的值写入此字节。
+		实际此字节在读入时被忽略。引导代码将把DL中的值写入此字节。
                 BIOS或者调用程序应当在DL中设置磁盘号码。
 
-		We assume all BIOSes pass correct drive number in DL.
-		Buggy BIOSes are not supported!!
-                我们假定所有的 BIOS 在DL中能传递正确的磁盘号码。
+		我们假定所有的 BIOS 在DL中能传递正确的磁盘号码。
                 糟糕的BIOS不被支持!!
 
-41h	1	Partition number of this filesystem in the boot drive.
-                启动驱动器上此文件系统的分区号码。
+41h	1	启动驱动器上此文件系统的分区号码。
 
-		This byte is ignored for read. The boot code will write
-		partition number onto this byte. See offset 5Dh below.
-                此字节在读入时被忽略。引导代码将分区号码写到此字节。
+		此字节在读入时被忽略。引导代码将分区号码写到此字节。
 		见下述的偏移5Dh 。
+		更新：此字段被忽略。
 
-42h	1	Signature (must be 28h or 29h to be recognised by NT).
-                签名（必须是 28h 或者 29h 以便能被 NT 识别）
+42h	1	签名（必须是 28h 或者 29h 以便能被 NT 识别）
 
-43h	4	Volume serial number.
-                卷的序列号。
+43h	4	卷的序列号。
 
-47h	11	Volume label.
-                卷标签。
+47h	11	卷标签。
 
-52h	8	File system ID. "FAT32   ".
-                文件系统标识。“FAT32 ”。
+52h	8	文件系统标识。“FAT32 ”。
 
-5Ah	1	opcode for "cli".
-                指令 “cli”。
+5Ah	418	机器码部分。
 
-5Bh	1	opcode for "cld".
-                指令 “cld” 。
-
-5Ch	1	opcode for "mov dh, imm8". 
-                指令 “mov dh, imm8”。
-
-5Dh	1	Partition number of this partition on the boot drive.
-                此分区在启动驱动器上的分区号。
-
-		0, 1, 2, 3 are primary partitions.
-		4, 5, 6, ... are logical partitions in the extended partition.
-                0, 1, 2, 3 是主分区。4, 5, 6, ...等等是扩展分区中的逻辑分区。
-
-		0xff is for whole drive. So for floppies, it should be 0xff.
-                0xff 代表整个磁盘。所以对于软盘，其分区号码应当是0xff 。
-
-5Eh	414	The rest of the machine code.
-                机器码部分。
-
-1FCh	4	Boot Signature AA550000h. (Win9x uses 4 bytes as magic value)
-                引导签名AA550000h 。（Win9x 使用4字节作为魔数值。）
+1FCh	4	引导签名AA550000h 。（Win9x 使用4字节作为魔数值。）
 
 
-4. NTFS Boot Sector/Boot Record Layout (for loading grldr)
-   NTFS 引导扇区/引导记录的布局 （用于载入grldr）
+4.NTFS 引导扇区/引导记录的布局 （用于载入grldr）
 
 ------------------------------------------------------------------------------
-An NTFS volume can be GRUB-bootable. Copy grldr and an optional menu.lst to
-the root dir of the NTFS volume, and build the boot sector based on the
-6th-9th sectors of grldr(some fields need to be changed as detailed in the
-following table). And then the NTFS volume is GRUB-bootable.
-一个FAT32的卷是GRUB可启动的。复制grldr和可选的menu.lst文件到这个FAT32卷的根
-目录，并按照grldr的第6至9扇区建立它的引导扇区（一些需要更改的字段在下面的表
-中做了详细注释)。然后这个FAT32的卷就是GRUB可启动的。
+一个NTFS的卷是GRUB可启动的。复制grldr和可选的menu.lst文件到这个NTFS卷的根
+目录，并按照grldr.pbr的第7至10扇区建立它的引导扇区。然后这个NTFS的卷就是GRUB可启动的。
 
-Update:	bootlace.com is a DOS/Linux utility that can install the GRLDR boot
-record onto the leading 4 sectors of an NTFS volume.
 更新:   bootlace.com是一个在dos/linux下的工具，而它能把GRLDR的引导记录安装到
         一个NTFS卷的开头4个扇区。
 
-Offset	Length	Description
 偏移    长度    说明
 
 ======	======	==============================================================
-00h	2	Machine code for short jump over the data.
-                近转移指令的机器码。
+00h	2       近转移指令的机器码。
                 
-02h	1	LBA indicator. Valid values are 0x90 for CHS mode, or 0x0e for
-		LBA mode.
-                LBA指示码。CHS模式时,有效值为0x90；LAB模式时，有效值为0x0e。
+02h	1	0x90
 
-		If the BIOS int13 supports LBA, this byte can be safely set to
-		0x0e.
-                如果BIOS的int13支持LBA，此字节可以安全地设置为0x0e 。
+03h	8	分区标识“NTFS”
 
-		Some USB BIOSes might have bugs when using CHS mode, so the
-		format program should set this byte to 0x0e. It seems that
-		(generally) all USB BIOSes have LBA support.
-                某些USB设备的BIOS在使用CHS寻址模式时可能有缺陷，所以格式化程
-                序应当设置这个字节为0X0e 。似乎所有（多数）的USB BIOS 都能支持LBA。
+0Bh	2	每扇区字节数。必须为512 。
 
-		If the format program does not know whether the BIOS has LBA
-		support, it may operate this way:
-                如果格式化程序不知道BIOS是否具有LBA支持,它可以采用以下方法：
-
-		if (partition_start + total_sectors_in_partition) exceeds the
-		CHS addressing ability(especially when it is greater than
-		1024*256*63), the caller should set this byte to 0x0e,
-		otherwise, set to 0x90.
-                如果（分区的起始地址加上分区的总扇区）超过了CHS 的寻址能力。
-	       （特别是当它大于1024*256*63），调用程序应当设置此字节为0x0e,
-		否则，要设为0x90。
-
-		Update: this byte of LBA indicator is ignored. The boot
-		record can probe the LBA support of BIOS.
-                更新: LBA 指示码这个字节已被忽略。引导记录能探测BIOS的LBA支持。
-
-		Update(2006-07-31): Though GRLDR won't use this LBA-indicator
-		byte, Windows 98 uses it. Usually this byte should be 0x90 for
-		CHS mode(especially for floppies). If this byte is not set
-		properly, Windows 98 will not recognize the floppy or
-		partition. This problem was reported by neiljoy. Many thanks!
-                更新 （2006-07-31）：尽管GRLDR不再使用 LBA 指示码这个字节，但
-                Windows 98会使用它。通常这个字节在 CHS 模式中应当设置为0x90
-               （软盘尤其如此）。如果此字节未被正确设置，Windows 98 将不能识别
-                软盘或分区。这一问题由neiljoy先生报告。非常感谢!
-
-03h	8	OEM name string (of OS which formatted the disk).
-                OEM名称字符串 （对该磁盘进行格式化的操作系统的名称）
-
-0Bh	2	Bytes per sector. Must be 512.
-                每扇区字节数。必须为512 。
-
-0Dh	1	Sectors per cluster. Valid values are 1, 2, 4, 8, 16, 32, 64
-		and 128. But a cluster size larger than 32K should not occur.
-                每簇的扇区数。有效值是1, 2, 4, 8, 16, 32, 64 和 128 。
+0Dh	1	每簇的扇区数。有效值是1, 2, 4, 8, 16, 32, 64 和 128 。
                 但是簇大小大于32K的情况不应发生。
 
-0Eh	2	(Reserved sectors)Unused.
-               （保留的扇区数）未被使用。
+0Eh	2	（保留的扇区数）未被使用。
 
-10h	1	(Number of FATs)Must be 0.
-               （文件分配表数）必须为 0 。
+10h	1	（文件分配表数）必须为 0 。
 
-11h	2	(Maximum number of root directory entries)Must be 0.
-               （根目录项的最大个数）必须为0 。
+11h	2	（根目录项的最大个数）必须为0 。
 
-13h	2	(Total number of sectors for small disks only)Must be 0.
-               （仅用于小磁盘的扇区总数）必须为0 。
+13h	2	（仅用于小磁盘的扇区总数）必须为0 。
 
-15h	1	Media descriptor byte, pretty meaningless now (see below).
-                媒体描述符字节，现在该此节已经没有太大意义了（参见后面）。
+15h	1	媒体描述符字节，现在该此节已经没有太大意义了（参见后面）。
 
-16h	2	(Sectors per FAT)Must be 0.
-               （每个文件分配表的扇区数）必须为0 。
+16h	2	（每个文件分配表的扇区数）必须为0 。
 
-18h	2	Sectors per track.
-                每个磁道的扇区数。
+18h	2	每个磁道的扇区数。
 
-1Ah	2	Total number of heads/sides.
-                磁头/面的总数。
+1Ah	2	磁头/面的总数。
 
-1Ch	4	Number of hidden sectors (those preceding the boot sector).
-                隐藏扇区数（它们位于引导扇区之前）。
+1Ch	4	隐藏扇区数（它们位于引导扇区之前）。
 
-		Also referred to as the starting sector of the partition.
-                也被称作是分区的起始扇区。
+		也被称作是分区的起始扇区。
 
-		For floppies, it should be 0.
-                对于软盘，它应当为0 。
+		对于软盘，它应当为0 。
 
-20h	4	(Total number of sectors for large disks)Must be 0.
-               （大磁盘的扇区总数）必须为 0 。
+20h	4	(大磁盘的扇区总数）必须为 0 。
 
-24h	4	(FAT32 sectors per FAT) - Usually 80 00 80 00, A value of
-		80 00 00 00 has been seen on a USB thumb drive which is
-		formatted with NTFS under Windows XP. Note this is removable
-		media and is not partitioned, the drive as a whole is NTFS
-		formatted.
-               （每个文件分配表的 FAT32 扇区数）- 通常是 80 00 80 00 ，值
+24h	4	（每个文件分配表的 NTFS 扇区数）- 通常是 80 00 80 00 ，值
                 为80 00 00 00将被看作是由Windows XP格式化为NTFS的USB拇指碟
 
-28h	8	Number of sectors in the volume.
-                此卷的扇区号。
+28h	8	此卷的扇区号。
 
-30h	8	LCN of VCN 0 of the $MFT.
-                $MFT的逻辑簇号。
+30h	8	$MFT的逻辑簇号。
 
-38h	8	LCN of VCN 0 of the $MFTMirr.
-                $MFTMirr的逻辑簇号。
+38h	8	$MFTMirr的逻辑簇号。
 
-40h	4	Clusters per MFT Record.
-                每个MFT记录的簇数。
+40h	4	每个MFT记录的簇数。
 
-44h	4	Clusters per Index Record.
-                每个索引的簇数。
+44h	4	每个索引的簇数。
 
-48h	8	Volume serial number.
-                卷序列号
+48h	8	卷序列号
 
-50h	4	Checksum, usually 0.
-                校验和，通常为 0 。
+50h	4	校验和，通常为 0 。
 
-54h	1	opcode for "cli".
-                指令 “cli”。
+54h	424	机器码部分。
 
-55h	1	opcode for "cld".
-                指令 “cld”。
+1FCh	4	引导签名AA550000h 。（Win9x 使用4字节作为魔数值。）
 
-56h	1	opcode for "mov dh, imm8".
-                指令 “mov dh, imm8”。
+200h	1536	末尾 3 个扇区为机器码部分。
 
-57h	1	Partition number of this partition on the boot drive.
-                此分区在启动驱动器上的分区号。
 
-		0, 1, 2, 3 are primary partitions.
-		4, 5, 6, ... are logical partitions in the extended partition.
-                0, 1, 2, 3 是主分区。4, 5, 6, ...等等是扩展分区中的逻辑分区。
 
-		0xff is for whole drive. So for floppies, it should be 0xff.
-                0xff 代表整个磁盘。所以对于软盘，其分区号码应当是0xff 。
-
-58h	420	The rest of the machine code in the first sector.
-                机器码部分。
-
-1FCh	4	Boot Signature AA550000h. (Win9x uses 4 bytes as magic value)
-                引导签名AA550000h 。（Win9x 使用4字节作为魔数值。）
-
-200h	1536	The rest of the machine code in the last 3 sectors.
-                末尾 3 个扇区为机器码部分。
-
+5. exFAT 引导扇区/引导记录的原始布局（用于载入grldr）
+   exFAT 引导代码由 Fan JianYe 提供
 ------------------------------------------------------------------------------
+一个exFAT的卷是GRUB可启动的。复制grldr和可选的menu.lst文件到这个exFAT卷的根
+目录，并按照grldr.pbr的第5至6扇区建立它的引导扇区。然后这个exFAT的卷就是GRUB可启动的。
+
+注意：如果直接复制引导代码到启动分区，需要从该分区启动一次，自动填充校验码。
+否则 Windows 会认为该分区没有格式化。
+
+偏移    长度    说明
+======	======	==============================================================
+00h	3	0xEB7690	跳转代码。  
+03h	8	"EXFAT   "	签名
+
+
+++++++++ The new increase ++++++++
+0bh	2    	每扇区字节数
+0dh	1    	每簇扇区数
+0eh	4   	数据的起始绝对扇区
+12h	4			当前簇在FAT表的绝对扇区
+16h	2    	EIOS 支持  位7=1
+18h	2    	每磁道扇区数
+1ah	2    	磁头数
+1ch	4   	隐含扇区数
+20h	4   	保留
+24h	1    	磁盘的物理驱动器号
+25h	1    	分区号
+26h	2    	保留
+28h	4   	FAT表开始绝对扇区号
+2ch	4   	保留
+++++++++ The new increase ++++++++
+
+30h	16	全部为“00”。
+40h	8	分区起始扇区号。相当于"隐含扇区数" 	
+48h	8	分区扇区数。相当于"磁盘逻辑总扇区"
+50h	4	FAT表起始扇区号，通常为128号扇区，该值为相对于卷(分区)0扇区号而言。相当于"保留扇区数"
+54h	4	FAT表扇区数。相当于"每文件分配表占扇区数"
+58h	4	簇起始位置扇区号，该值用以描述文件系统中的第1个簇（即2号簇）的起始扇区号。
+		通常2号簇分配给簇位图使用，因此，该值也就是簇位图的起始扇区号。		
+5ch	4	卷内的总簇数。
+60h	4	根目录起始簇号。相当于"磁盘根目录起始簇号"
+64h	4	卷ID。相当于"磁盘卷的序列号"
+68h	2	文件系统版本。   VV.MM（01.00此版本）
+6ah	2	内容	  位偏移 	尺寸 	描述
+              	活动FAT	     0  	1 	0/1=第一/第二。相当于"文件分配表镜像标志"
+              	卷脏         1		1	0/1=清洁/肮脏。	
+            	媒体失败     2 		1 	0/1=没有失败/故障报告
+          	零     	     3 		1 	没有意义
+              	保留         4 		c
+6ch	1	每扇区字节数，表示方法为，以2的N次方表示。
+6dh	1	每簇扇区数，以2的N次方表示。
+6eh	1	FAT表的数。这个数字是1或2，2在TexFAT中使用。
+6fh	1	驱动器号。INT 13 使用。
+70h	1	簇(堆)在使用中的百分比
+71h	7	保留
+78h	390	引导代码.
+1feh	2	引导签名AA55。
+200h	510	引导代码。
+3feh	2	引导签名AA55。
+
+
+6. MBR中的FAT12/16/32/exFAT/EXT2 引导代码合并，占用2扇区多一点。
+
+------------------------------------------------------------------------------       
+   合并后的 FAT12/16/32/exFAT 当前 BPB 结构:
+   grldr.pbr 中 exFAT 自建的 BPB 结构:
+
+偏移	长度	说明
+======	======	==============================================================
+00h	2    	EB 2E   跳转代码
+02h     1    	分区类型 / EIOS 标记
+             	Bit 0   FAT12
+           	Bit 1   FAT16
+              	Bit 2   FAT32
+             	Bit 3   exFAT
+             	Bit 4   EXT2
+             	Bit 5	保留
+		Bit 6	EXT4 64位文件系统
+             	Bit 7   EIOS
+03h     4   	根扇区
+07h     4   	主目录（FAT12/16）绝对起始扇区
+0bh     2    	每扇区字节
+0dh     1    	每簇扇区
+0eh     4	数据的起始绝对扇区
+12h     4 	当前簇在FAT表的绝对扇区
+16h     2	"6412"  签名
+18h     2    	每磁道扇区
+1ah     2    	磁头数
+1ch     4   	分区起始绝对扇区
+20h     4 	磁盘逻辑总扇区
+24h     1    	驱动器号
+25h     1    	分区号
+26h     2    	保留
+28h     4   	FATs绝对起始扇区
+2ch     4   	根目录起始簇号  
+
 
 附录A：FAT32 的文件系统信息扇区（不用于引导grldr）
 
-Offset	Length	Description
 偏移    长度    说明
 ======	======	==============================================================
-0h	4	Leading Signature 41615252h.
-                起始处签名 41615252h 。
+0h	4	起始处签名 41615252h 。
 
-4h	480	Reserved, set to 0.
-                被保留,设为 0 。
+4h	480	被保留,设为 0 。
 
-1E4h	4	FSI structure signature 61417272h.
-                故障征兆指数结构签名 61417272h 
+1E4h	4	故障征兆指数结构签名 61417272h 
 
-1E8h	4	Contains the last known count of free clusters, if this is
-		equal to FFFFFFFFh, then the count is unknown.
-                最后已知的空闲簇数，如果它等于FFFFFFFFh，簇数是未知的。
+1E8h	4	最后已知的空闲簇数，如果它等于FFFFFFFFh，簇数是未知的。
 
-1ECh	4	Cluster number at which you should begin a search for a free
-		cluster, if this is equal to FFFFFFFFh then the field has not
-		been set.
-                假如它等于FFFFFFFFh的话，你应当去寻找一个空闲簇的簇号码 。
+1ECh	4	假如它等于FFFFFFFFh的话，你应当去寻找一个空闲簇的簇号码 。
 		此字段没有被设置。
 
-1F0h	12	Reserved, set to 0.
-                被保留,设为 0 。
+1F0h	12	被保留,设为 0 。
 
-1FCh	4	Trailing Signature AA550000h.
-                结尾签名AA550000h 。
+1FCh	4	结尾签名AA550000h 。
 
 ------------------------------------------------------------------------------
 
-Appendix B: Media Descriptor Byte(not used by grldr)
 附录B：媒体描述字节（非用于grldr）
 
-The Media descriptor byte is meaningless because of the duplications, F0h for
-example.
 此媒体描述字节没有意义，因为有些字节具有多重意义，例如 F0h 。
 
-Byte	Type of disk	Sectors	Heads	Tracks	Capacity
 字节    磁盘种类        扇区    头      磁道    容量
 ----	------------	-------	-----	------	--------
 FFh	5 1/4"		8	2	40	320KB
@@ -1245,7 +954,7 @@ F8h	hard disk	NA	NA	NA	NA
 ***   grldr.mbr - 怎样将grldr.mbr写到硬盘的主引导磁道			   ***
 ******************************************************************************
   grldr.mbr包含能够用作主引导记录的代码。此代码负责搜索所有分区的grldr，并且在发现
-  它后装载它。现在被支持的分区种类是：FAT12/FAT16/FAT32,NTFS,EXT2/EXT3。在扩展分区
+  它后装载它。现在被支持的分区种类是：FAT12/16/32,NTFS,EXT2/3/4，EXFAT。在扩展分区
   上的逻辑分区也被支持，条件是此扩展分区与微软兼容。实际上，搜索机制没有充分地测试
   分区类型（0x85 ）的Linux 的扩展分区。
 
@@ -1282,69 +991,42 @@ F8h	hard disk	NA	NA	NA	NA
 ******************************************************************************
                   grldr.mbr - 其控制字节的详述
 
-Six bytes can be used to control the boot process of GRLDR.MBR.
 有六个字节可以控制GRLDR.MBR引导过程。
 
-Offset	Length	Description
 偏移量  长度    说明
 
 ======	======	==============================================================
-02h	1	bit0=1: disable the search for GRLDR on floppy
-		bit0=0: enable the search for GRLDR on floppy
-                  第 0 位＝1 ：允许搜索软盘上的GRLDR 。
-                  第 0 位＝0 ：禁止搜索软盘上的GRLDR 。
+5ah	1	  第 0 位＝1 ：禁止搜索软盘上的GRLDR 。
+                  第 0 位＝0 ：允许搜索软盘上的GRLDR 。
 
-		bit1=1: disable the boot of PREVIOUS MBR with invalid
-			partition table(usually an OS boot sector)
-		bit1=0: enable the boot of PREVIOUS MBR with invalid
-			partition table(usually an OS boot sector)
-                  第 1 位＝1 ：禁止引导分区表无效的原主引导记录
+		  第 1 位＝1 ：禁止引导分区表无效的原主引导记录
                             （通常是一个操作系统的引导扇区）
                   第 1 位＝0 ：允许引导分区表无效的原主引导记录
                             （通常是一个操作系统的引导扇区）
 
-		bit2=1: disable the feature of unconditional entrance to
-			the command-line(See below `--duce')
-		bit2=0: enable the feature of unconditional entrance to
-			the command-line(See below `--duce')
-                  第 2 位 = 1 ：禁止无条件进入命令行 （见下面的`--duce'）
+		  第 2 位 = 1 ：禁止无条件进入命令行 （见下面的`--duce'）
                   第 2 位 = 0 ：允许无条件进入命令行（见下面的`--duce'）
 
-		bit3=1: disable geometry tune(See below `--chs-no-tune')
-		bit3=0: enable geometry tune(See below `--chs-no-tune')
-                  第 3 位= 1 ：禁止改变磁盘几何参数（见下面的 `--chs-no-tune'）
+		  第 3 位= 1 ：禁止改变磁盘几何参数（见下面的 `--chs-no-tune'）
                   第 3 位= 0 ：允许改变磁盘几何参数（见下面的 `--chs-no-tune'）
 
-		bit4 - bit6: reserved
                   第 4 位到第 6 位：被保留
 
-		bit7=1: try to boot PREVIOUS MBR after the search for GRLDR
-		bit7=0: try to boot PREVIOUS MBR before the search for GRLDR
                   第 7 位=1：在搜索 GRLDR 之后尝试引导原先的主引导记录
 		  第 7 位=0：在搜索 GRLDR 之前尝试引导原先的主引导记录
 
-03h	1	timeout in seconds to wait for a key press. 0xff stands for
-		waiting all the time(endless).
-                等待键被按下时的暂停秒数。0xff代表始终暂停（即无休止的）。
+5bh	1	等待键被按下时的暂停秒数。0xff代表始终暂停（即无休止的）。
 
 
-04h	2	hot-key code. high byte is scan code, low byte is ASCII code.
-		the default value is 0x3920, which stands for the space bar.
-		if this key is pressed, GRUB will be started prior to the boot
-		of previous MBR. See "int 16 keyboard scan codes" below.
-                热键代码。高字节是扫描码，低字节是ASCII码。默认值是0x3920，代
+5ch	2	热键代码。高字节是扫描码，低字节是ASCII码。默认值是0x3920，代
                 表的是空格键。如果此键被按下，GRUB将在引导原先的主引导记录之前
 		启动。见“ int16 键盘扫描码”。
 
-06h	1	preferred boot drive number, 0xff for no-drive
-                优先引导的驱动器号，0xff 代表没有。
+5eh	1	优先引导的驱动器号，0xff 代表没有。
 
-07h	1	preferred partition number, 0xff for whole drive
-                优先引导的分区号，0xff 代表整个驱动器。
+5fh	1	优先引导的分区号，0xff 代表整个驱动器。
 
-		if the preferred boot drive number is 0xff, the order of the
-		search for GRLDR will be:
-                如果优先引导的驱动器号是0xff,搜索 GRLDR 的顺序是：
+		如果优先引导的驱动器号是0xff,搜索 GRLDR 的顺序是：
 
 			(hd0,0), (hd0,1), ..., (hd0,L),(L=max partition number) 
 			(hd1,0), (hd1,1), ..., (hd1,M),(M=max partition number)
@@ -1353,25 +1035,13 @@ Offset	Length	Description
 						       (X=max harddrive number)
 			(fd0)
 
-		otherwise, if the preferred boot drive number is Y(not equal to
-		0xff) and the preferred partition number is K, then the order of
-		the search for GRLDR will be:
+		
                 否则，如果优先引导的驱动器号假定为Y （且不等于0xff），而优先引导
-                的分区号为K,那么搜索 GRLDR 的顺序是：
+                的分区号为K,那么搜索 GRLDR 的顺序和上面一样。
 
-			(Y) if K=0xff; or (Y,K) otherwise
-			(hd0,0), (hd0,1), ..., (hd0,L),(L=max partition number) 
-			(hd1,0), (hd1,1), ..., (hd1,M),(M=max partition number)
-			... ... ... ... ... ... ... ... 
-			(hdX,0), (hdX,1), ..., (hdX,N),(N=max partition number)
-						       (X=max harddrive number)
-			(fd0)
               
-		Note: if Y < 0x80, then (Y) is floppy, else (Y) is harddrive,
-		      and (Y,K) is partition number K on harddrive (Y).
                 注意：如果Y小于0x80 ,那么这个（Y）驱动器代表软驱，否则就是硬盘驱动器。
                       而（Y,K）代表Y号硬盘驱动器上的 k 号分区。
-
 
 ******************************************************************************
 ***        bootlace.com - 安装GRLDR.MBR自举代码到MBR                       ***
@@ -1381,8 +1051,7 @@ BOOTLACE.COM 能将GRLDR的引导记录安装到硬盘驱动器或硬盘映像�
 或者安装到软盘或者软盘映像的引导扇区。
 
 用法：
-	bootlace.com  [OPTIONS]  DEVICE_OR_FILE
-                       选项      设备或文件
+	bootlace.com  选项  设备或文件
 选项：
 	--read-only		对指定的设备或文件执行所有操作，但是并不不真正地写入。
 
@@ -1449,32 +1118,10 @@ BOOTLACE.COM 能将GRLDR的引导记录安装到硬盘驱动器或硬盘映像�
 
 	--total-sectors=C	为--floppy 选项指定总扇区数。默认值是 0 。
 
-	--lba			对--floppy 选项使用 lba 模式。如果软盘BIOS支持LBA，
-                                你可以在这里指定--lba选项。理论上所有的软盘BIOS 都
-                                支持CHS。因此你指定--chs选项更适当。如果--chs和--lba 
-                                选项都未被指定，那么LBA指示码（即引导扇区的第三字节）
-                                将不被修改。
-
-	--chs			为--floppy选项使用chs模式。如果软盘BIOS不支持
-                                LBA，你应当指定--chs选项。我们假定所有的软盘BIOS
-                                都能支持CHS。所以你需要指定--chs 选项更为恰当。
-                                如果既不指定--chs选项又不指定--lba选项，那么LBA
-                                指示码（即，引导扇区的第三字节）将不被改变。
-
-	--fat12			--floppy选项使用时，确认安装到FAT12系统。
-                                
-	--fat16			--floppy选项使用时，确认安装到FAT16系统。
-
-	--fat32			--floppy选项使用时，确认安装到FAT32系统。
-
-	--vfat			--floppy选项使用时，确认安装到FAT12/16/32等系统。
-
-	--ntfs			--floppy选项使用时，确认安装到NTFS系统。
-
-	--ext2			--floppy选项使用时，确认安装到EXT2系统。
 
 	--install-partition=I	将引导记录安装到指定的硬盘驱动器或硬盘映像（设备或文件）
                                 的第 I 号分区的引导区中。
+
 
 DEVICE_OR_FILE： 设备或者映像文件的文件名。对于DOS，BIOS驱动器号（两位的十六进制
 或三位的十进制数）可以被用来访问驱动器。BIOS驱动器号0表示第一软盘，1表示第二硬盘；
@@ -1483,14 +1130,12 @@ DEVICE_OR_FILE： 设备或者映像文件的文件名。对于DOS，BIOS驱动�
 注意：BOOTLACE.COM 仅仅是把引导代码写到MBR中。引导代码需要加载GRLDR作为GRUB启动
 过程的第二（最后）阶段。因而在BOOTLACE.COM成功执行前或者是执行后，GRLDR应当被复
 制到任一受支持分区的根目录下，当前受支持分区的文件系统类型仅有FAT12,FAT16,FAT32, 
-NTFS,EXT2以及EXT3 。
+NTFS,EXT2,EXT3,EXT4,EXFAT。
 
 注意 2：如果DEVICE_OR_FILE是硬盘设备或是硬盘映像文件，它必须包含有效的分区表，
 否则，BOOTLACE.COM 将安装失败。如果设备或文件是指向软驱或者软盘映像文件，那么
-他必须包含一个受支持的文件系统（FAT12/FAT16/FAT32/NTFS/EXT2/EXT3 等之一）。
+他必须包含一个受支持的文件系统（FAT12,FAT16,FAT32,NTFS,EXT2,EXT3,EXT4,EXFAT 等之一）。
 
-注意 3：如果DEVICE_OR_FILE是软驱或软盘映像文件，而它又被格式化为EXT2或EXT3，
-那么你必须明确指定--sectors-per-track 和 --heads 选项。
 
 重要!! 如果你安装grldr的引导代码到一个软盘或者一个分区，此软盘或分区将只能从
 grldr引导 ，而你原本的IO.SYS（DOS/Win9x/Me）和NTLDR（WinNT/2K/XP）将变为不能
@@ -1502,22 +1147,22 @@ grldr引导 ，而你原本的IO.SYS（DOS/Win9x/Me）和NTLDR（WinNT/2K/XP）�
 
 示例：
         在Linux下安装GRLDR的引导代码到MBR：
-		bootlace.com  /dev/hda
+		bootlace.com  /dev/sda
 
         在DOS下安装GRLDR的引导代码到MBR：
 		bootlace.com  0x80
 
-        在DOS或Linux下安装GRLDR的引导代码到硬盘映像：
+        在DOS、Windows或Linux下安装GRLDR的引导代码到硬盘映像：
 		bootlace.com  hd.img
 
         在Linux下安装GRLDR的引导代码到软盘：
-		bootlace.com  --floppy --chs /dev/fd0
+		bootlace.com  --floppy /dev/fd0
 
         在DOS下安装GRLDR的引导代码到软盘：
-		bootlace.com  --floppy --chs 0x00
+		bootlace.com  --floppy 0x00
 
-        在DOS或Linux下安装GRLDR的引导代码到软盘映像：
-		bootlace.com  --floppy --chs floppy.img
+        在DOS、Windows或Linux下安装GRLDR的引导代码到软盘映像：
+		bootlace.com  --floppy floppy.img
 
 BOOTLACE.COM 无法在Windows NT/2000/XP/2003下正常运行。它被希望（和设计）用于
 DOS/Win9x和Linux中。
@@ -1530,36 +1175,27 @@ bootlace.com不能在 Windows NT/2000/XP/2003 中运行的原因是，bootlace.c
 	http://bbs.znpc.net/viewthread.php?tid=5447
 
 ******************************************************************************
-***        kexec-tools should be patched for the 1.101 release             ***
+***                  kexec-tools 应当打上1.101发布的补丁                   ***
 ******************************************************************************
-           kexec-tools 应当打上1.101发布的补丁
-
-The file kexec-tools-1.101-patch is a patch to the kexec-tools-1.101 release.
-Kexec might fail to load grub.exe without this patch.
+           
 kexec-tools-1.101-patch 是为kexec-tools-1.101发布的补丁。没有这个补丁Kexec 加载
 grub.exe 会失败。
 
-The home page of kexec-tools is:
 kexec-tools 的主页是:
 
 	http://www.xmission.com/~ebiederm/files/kexec/
 
-Note: The Linux kernel should be KEXEC enabled before kexec can be run.
 注意: 在使用 kexec 前应该使 Linux 核心支持 KEXEC 系统调用。
 
-			!! Important Update !!
                            重要更新
 
-The patch `kexec-tools-1.101-patch' is not needed now and has been deleted.
-Even worse, it fails in `kexec -l grub.exe --initrd=imgfile'. So please
-do not use it any more.
 现在不再需要`kexec-tools-1.101-patch'补丁而且它已经被删除了。很糟糕的是，执行
 `kexec -l grub.exe --initrd=imgfile'竟会失败。所以请不要再使用它。
 
 ******************************************************************************
-***           Direct transition to DOS/Win9x from within Linux             ***
+***                     从Linux直接转换到DOS/Win9x                         ***
 ******************************************************************************
-              从Linux直接转换到DOS/Win9x
+              
 
 使用kexec，我们能够轻易地从运行中的 Linux 系统启动到 DOS/Win9x 。
 
@@ -1606,23 +1242,17 @@ kexec -e
 然后再试一次。
 
 ******************************************************************************
-***               Keyboard BIOS Scan Code/ASCII code tables                ***
+***                      键盘 BIOS 扫描码和 ASCII 码表                     ***
 ******************************************************************************
-                  键盘 BIOS 扫描码和 ASCII 码表
+                  
 
-Keyboard bios scan code and ascii character code tables can be obtained from
-the web by, for example, googling for "3920 372A 4A2D 4E2B 352F". Here are 2
-main results:
 键盘 bios 扫描码和 ASCII 字符码表能够通过 web 网获取,例如，使用 google 查找
 "3920 372A 4A2D 4E2B 352F"。这里有两项主要的结果：
 
-1. From "http://heim.ifi.uio.no/~stanisls/helppc/scan_codes.html":
-   转自“http://heim.ifi.uio.no/~stanisls/helppc/scan_codes.html”:
+1.    转自“http://heim.ifi.uio.no/~stanisls/helppc/scan_codes.html”:
 
-INT 16 - Keyboard Scan Codes
 INT 16 - 键盘扫描码
 
-       Key	 Normal    Shifted   w/Ctrl    w/Alt
        键位      常态      上档态    控制态    变更态
 
 	A	  1E61	    1E41      1E01	1E00
@@ -1652,7 +1282,6 @@ INT 16 - 键盘扫描码
 	Y	  1579	    1559      1519	1500
 	Z	  2C7A	    2C5A      2C1A	2C00
 
-       Key	 Normal    Shifted   w/Ctrl    w/Alt
        键位      常态      上档态    控制态    变更态
 
 	1	  0231	    0221		7800
@@ -1666,7 +1295,6 @@ INT 16 - 键盘扫描码
 	9	  0A39	    0A28		8000
 	0	  0B30	    0B29		8100
 
-       Key	 Normal    Shifted   w/Ctrl    w/Alt
        键位      常态      上档态    控制态    变更态
 
 	-	  0C2D	    0C5F      0C1F	8200
@@ -1681,7 +1309,6 @@ INT 16 - 键盘扫描码
 	.	  342E	    343E
 	/	  352F	    353F
 
-	Key	 Normal    Shifted   w/Ctrl    w/Alt
        键位      常态      上档态    控制态    变更态
 
 	F1	  3B00	    5400      5E00	6800
@@ -1697,7 +1324,6 @@ INT 16 - 键盘扫描码
 	F11	  8500	    8700      8900	8B00
 	F12	  8600	    8800      8A00	8C00
 
-	Key	    Normal    Shifted	w/Ctrl	  w/Alt
         键位        常态      上档态    控制态    变更态 
 
 	BackSpace    0E08      0E08	 0E7F	  0E00
@@ -1726,17 +1352,13 @@ INT 16 - 键盘扫描码
   一些组合键不是在所有系统中都能获取。PS/2 包括了很多不能在PC, XT和 
   AT上获取的组合键。
 
-- To retrieve the character from a scan code logical AND the word
-  with 0x00FF.
-  由扫描码检索出字符可以用 0x00FF 和该字符进行逻辑与操作。
+-   由扫描码检索出字符可以用 0x00FF 和该字符进行逻辑与操作。
 
-- see  INT 16  MAKE CODES
-  参见INT16 通码
+-   参见INT16 通码
 
 
 
-2. From "http://www.hoppie.nl/ivan/keycodes.txt":
-   转自“http://www.hoppie.nl/ivan/keycodes.txt”:
+2.    转自“http://www.hoppie.nl/ivan/keycodes.txt”:
 
 
      Keystroke                  Keypress code
@@ -2143,34 +1765,21 @@ INT 16 - 键盘扫描码
 
   -------------------------------------------------------------------------
 
-Footnotes
 脚注
-        [1]   In the United States, the 101/102-key keyboard is shipped
-              with 101 keys. Overseas versions have an additional key
-              sandwiched between the left Shift key and the Z key. This
-              additional key is identified by IBM (and in this table) as
-              "Key 45."
-              在美国，101/102键键盘有101 个键。海外版本有一个附加的键，夹在
+        [1]   在美国，101/102键键盘有101 个键。海外版本有一个附加的键，夹在
 	      左上档键和Z 键之间。此附加键是由IBM 确定的（在本表中是 45 键）。              
 
-        [**]  Keys and key combinations marked ** are used by the ROM BIOS
-              but do not put values into the keyboard buffer.
-              键及键组合若有 ** 标记，则被ROM BIOS所使用，但不会将键值放入键盘
+        [**]  键及键组合若有 ** 标记，则被ROM BIOS所使用，但不会将键值放入键盘
 	      缓冲区。
 
-        [--]  Keys and key combinations marked -- are ignored by the ROM
-              BIOS.
-              键及键组合若有 -- 标记，则被ROM BIOS所忽略。
+        [--]  键及键组合若有 -- 标记，则被ROM BIOS所忽略。
 
 
 
-3. From "http://heim.ifi.uio.no/~stanisls/helppc/make_codes.html":
-   转自“http://heim.ifi.uio.no/~stanisls/helppc/make_codes.html”:
+3. 转自“http://heim.ifi.uio.no/~stanisls/helppc/make_codes.html”:
 
-INT 9 - Hardware Keyboard Make/Break Codes
 INT 9 - 硬件键盘的通/断码
 
-	Key	     Make  Break		Key    Make  Break
         键位         通码  断码                 键位   通码  断码
 
 	Backspace     0E    8E			F1	3B    BB
@@ -2187,7 +1796,6 @@ INT 9 - 硬件键盘的通/断码
 	Sys Req (AT)  54    D4			F12	58    D8
 	Tab	      0F    8F
 
-		    Keypad Keys		       Make   Break
                     数字小键盘键位             通码   断码
 
 		    Keypad 0  (Ins)		52	D2
@@ -2205,7 +1813,6 @@ INT 9 - 硬件键盘的通/断码
 		    Keypad -			4A	CA
 		    Keypad +			4E	CE
 
-	       Key    Make  Break	       Key    Make  Break
                键位   通码  断码               键位   通码  断码
 
 		A      1E    9E 		N      31    B1
@@ -2222,7 +1829,6 @@ INT 9 - 硬件键盘的通/断码
 		L      26    A6 		Y      15    95
 		M      32    B2 		Z      2C    AC
 
-	       Key    Make  Break	       Key    Make  Break
                键位   通码  断码               键位   通码  断码
 
 		1      02    82 		-      0C    8C
@@ -2238,10 +1844,8 @@ INT 9 - 硬件键盘的通/断码
 						/      35    B5
 
 
-Enhanced Keyboard Keys (101/102 keys)
 键盘扩展键 （101/102 键）
 
-	Control Keys		  Make		  Break
         控制键                    通码            断码
 
 	Alt-PrtSc (SysReq)	  54		  D4
@@ -2255,20 +1859,14 @@ Enhanced Keyboard Keys (101/102 keys)
 	Pause			  E1 1D 45 E1 9D C5  (not typematic)
 	Ctrl-Pause (Ctrl-Break)   E0 46 E0 C6	     (not typematic)
 
-	- Keys marked as "not typematic" generate one stream of bytes
-	  without corresponding break scan code bytes (actually the
-	  break codes are part of the make code).
-          键位是以未使用断码扫描码字节信息的“非机器自动连续打印的"所
+	- 键位是以未使用断码扫描码字节信息的“非机器自动连续打印的"所
           生成的一种扫描码字节流来标记的。（实际上断码是通码的一部分）
           （译注：typematic 有人翻译为‘机打’）
 
 
-			Normal Mode or
-			Shift w/Numlock
                         常态或上档态及 
                         数字键盘锁定态模式
 
-	Key		 Make	 Break	   |----- Numlock on ------.
                                                   数字键盘锁定
 					      Make	    Break
         键位		 通码    断码	      通码           断码
@@ -2284,7 +1882,6 @@ Enhanced Keyboard Keys (101/102 keys)
 	Right arrow	 E0 4D	 E0 CD	   E0 2A E0 4D	 E0 CD E0 AA
 	Up arrow	 E0 48	 E0 C8	   E0 2A E0 48	 E0 C8 E0 AA
 
-	Key	      |--Left Shift Pressed--.	  |--Right Shift Pressed--.
         键位             左上档键按下时              右上档键按下时
 
 			 Make	       Break	      Make	    Break
@@ -2303,113 +1900,75 @@ Enhanced Keyboard Keys (101/102 keys)
 	/	      E0 AA E0 35   E0 B5 E0 2A    E0 B6 E0 35	 E0 B5 E0 36
 
 
-	- The PS/2 models have three make/break scan code sets.  The first
-	  set matches the PC & XT make/break scan code set and is the one
-	  listed here.	Scan code sets are selected by writing the value F0
-	  to the keyboard via the 8042 (port 60h).  The following is a brief
-	  description of the scan code sets (see the PS/2 Technical Reference
-	  manuals for more information on scan code sets 2 and 3):
-          PS/2 类型有三套通断扫描码。其中第一套是适用于PC & XT 的通断码扫描码集，
+	- PS/2 类型有三套通断扫描码。其中第一套是适用于PC & XT 的通断码扫描码集，
           并列在了这里。扫描码集可以通过向8042 键盘控制器（端口60）写入值 F0 来
           选择。下面是扫描码集的简要介绍（更多第2，3套扫描码集的信息见PS/2 技术
           参考手册）
 
-	/  set 1, each key has a base scan code.  Some keys generate
-	   extra scan codes to generate artificial shift states.  This
-	   is similar to the standard scan code set used on the PC and XT.
-           第一套扫描码集，每个键具有一个基本的扫描码。一些键产生扩展扫
+	/  第一套扫描码集，每个键具有一个基本的扫描码。一些键产生扩展扫
            描码以便人工生成上档状态。它与 PC 和 XT 机上的标准扫描码相似。
 
-	/  set 2, each key sends one make scan code and two break scan
-	   codes bytes (F0 followed by the make code).	This scan code
-	   set is available on the IBM AT also.
-           第二套扫描码集，每个键发送一个通码扫描码和两个断码扫描码字节
+	/  第二套扫描码集，每个键发送一个通码扫描码和两个断码扫描码字节
           （通码在F0之后）。这套扫描码集在 IBM AT 机上也有效。
 
-	/  set 3, each key sends one make scan code and two break scan
-	   codes bytes (F0 followed by the make code) and no keys are
-	   altered by Shift/Alt/Ctrl keys.
-           第三套扫描码集，每个键发送一个通码扫描码和两个断码扫描码字节
+	/  第三套扫描码集，每个键发送一个通码扫描码和两个断码扫描码字节
           （通码在F0之后）并且键位不随 Shift/Alt/Ctrl 等键的使用而改变。
 
 	/  typematic scan codes are the same as the make scan code
            “非机器自动连续打印的”扫描码和通码扫描码是相同的。
 
-	- Some Tandy 1000's do not handle Alt key combinations when multiple
-	  shift keys are pressed.  The Alt-Shift-H combination loses the Alt.
-          一些 Tandy 1000 机器在多重组合键的 shift 键被按下时不能处理 ALT 键。
+	- 一些 Tandy 1000 机器在多重组合键的 shift 键被按下时不能处理 ALT 键。
           使用键组合 Alt-Shift-H 时会丢失 ALT 键。
 
-	- extended keys like (F11, F12) can only be read with systems that
-	  have extended keyboard BIOS support (or INT 9 extensions);  to
-	  read these special keys on these systems INT 16,10 must be used
-          扩展键比如（F11,F12）等只能在具有 BIOS 键盘扩展支持（或 INT 9 扩展）
+	- 扩展键比如（F11,F12）等只能在具有 BIOS 键盘扩展支持（或 INT 9 扩展）
           的系统上被读取。用INT16读取这些系统上的特别的键时，必须使用10号功能 。
 
 
 ******************************************************************************
-***                         GRLDR  Error messages                          ***
+***                         GRLDR  错误提示信息                            ***
 ******************************************************************************
-                            GRLDR  错误提示信息
+                            
 
-1. Missing MBR-helper.
-   缺少主引导辅助记录。
+1.  缺少主引导辅助记录。
 
         紧接在主引导记录后的辅助功能程序不见了，或者是它已经被病毒或 Windows 
         XP/Vista等删除了。
 
         运行 bootlace.com 工具来解决这个问题。
 
-2. Buggy BIOS!
-   缺陷太多的BIOS!
+2.  缺陷太多的BIOS!
 
         你的 BIOS 太糟糕了。它甚至不能支持 INT 13/AH=8 。
 
         除了升级你的 BIOS 没有办法解决。未来，缺陷多的 BIOS 将会很常见而且
         会对 grub4dos 造成很多问题。
 
-3. This partition is NTFS but with unknown boot record. Please install
-Microsoft NTFS boot sectors to this partition correctly, or create an
-FAT12/16/32 partition and place the same copy of GRLDR and MENU.LST there.
-此分区系统是 NTFS 但包含未知的引导记录。请安装正确的微软 NTFS 引导扇区到
+3.  此分区系统是 NTFS 但包含未知的引导记录。请安装正确的微软 NTFS 引导扇区到
 这个分区，或者建立一个FAT12/16/32的分区并将GRLDR 及MENU.LST 的相同的备份
 文件放到那里。
 
-	The boot record was changed or erased by Microsoft Windows XP Service
-	Pack 2.
-        引导记录已经被微软 Windows XP Service Pack 2 改变或删除。
+	引导记录已经被微软 Windows XP Service Pack 2 改变或删除。
 
-	You may install the old boot record introduced with the	original clean
-	Windows 2K/XP. As another solution, you may create an FAT partition
-	for your system, and copy GRLDR and your MENU.LST to its root dir.
-        你可以用原来的引导记录来安装，以清理掉Windows 2K/XP的记录。另一个解决办
+	你可以用原来的引导记录来安装，以清理掉Windows 2K/XP的记录。另一个解决办
         法是，你可以在系统上建立一个FAT分区，并且将GRLDR 和你的MENU.LST复制到它
         的根目录。
 
-	While the startup code of grldr might fail to load GRLDR in NTFS
-	partitions, it always successfully loads GRLDR in FAT partitions(and
-	even in ext2/ext3 partitions).
-        在NTFS分区grldr的自举代码在加载GRLDR时可能会失败，但在FAT分区（甚至在
+	在NTFS分区grldr的自举代码在加载GRLDR时可能会失败，但在FAT分区（甚至在
         ext2/ext3分区）它总能成功加载 GRLDR 。
 
-	Note that NTLDR only loads the startup code of grldr(i.e., the leading
-	16 sectors of grldr), not the whole grldr file.
-        注意 NTLDR只能加载grldr的自举代码（即，grldr开头的16个扇区），而不能将
+	注意 NTLDR只能加载grldr的自举代码（即，grldr开头的16个扇区），而不能将
         整个grldr载入。
  
 
-	Thus, C:\GRLDR must exist(here C: can be NTFS), since it is used for
-	BOOT.INI and NTLDR. If C: is NTFS, X:\GRLDR should exist as well,
-	where X: stands for a certain FAT partition.
-        因此，自从它用于 BOOT.INI 和 NTLDR 以来 ，C 盘根目录下必须存在有GRLDR 
+	因此，自从它用于 BOOT.INI 和 NTLDR 以来 ，C 盘根目录下必须存在有GRLDR 
        （这里的C盘可以是 NTFS 文件系统）。
 
 
 
 ******************************************************************************
-***                             Known BIOS bugs                            ***
+***                             已知的BIOS 缺陷                            ***
 ******************************************************************************
-                                已知的BIOS 缺陷
+                                
 
 1. 一些较新的 Dell 机不能支持int13/AH=43h 。当你尝试对仿真磁盘进行写访问时，
    可能会遭遇失败。
@@ -2427,9 +1986,9 @@ FAT12/16/32 partition and place the same copy of GRLDR and MENU.LST there.
    机器会死机，而另一些不能访问USB驱动器。
    
 ******************************************************************************
-***                             Known Problems                             ***
+***                                 已知问题                               ***
 ******************************************************************************
-                                 已知问题
+                                 
 1.	在 Windows 9x/Me的DOS窗口运行GRUB.EXE时可能会死机，特别是在这些系统
 	使用USB的时候。在Linux下通过KEXEC运行GRUB.EXE时，你也可能碰到同样的
 	问题。
@@ -2442,9 +2001,7 @@ FAT12/16/32 partition and place the same copy of GRLDR and MENU.LST there.
 	件可能会令机器死掉。你可以在chainloader命令行中使用--disable-a20选项
 	然后再试一次。至少，你应当避免使用那些有缺陷的内存管理软件。
 
-3.	THTF BIOS L4S5M Ver 1.1a(dated 2002-1-10) has a buggy int15 which
-	causes hang at the boot of a multi boot kernel(memdisk for example).
-        OEM签名为清华同方，主板为精英L4S5M， BIOS版本1.1a(日期 2002-1-10)
+3.	OEM签名为清华同方，主板为精英L4S5M， BIOS版本1.1a(日期 2002-1-10)
         的机器上，其 int15 含有缺陷，当它启动一个多重引导核心时，会失去响应。
        （比如使用syslinux的memdisk时）
 
@@ -2452,11 +2009,9 @@ FAT12/16/32 partition and place the same copy of GRLDR and MENU.LST there.
 	总之，在具有反跟踪措施的内存驻留程序的系统下GRUB.EXE不再运行。
 
 ******************************************************************************
-***        List of binary files and their corresponding source files       ***
+***                 二进制文件及对应的源代码文件列表                       ***
 ******************************************************************************
-           二进制文件及对应的源代码文件列表
-
-binary file	main source file	other included source or binary files
+           
 二进制文件      源代码主文件            包含的其他源代码或二进制文件
 -------------   ----------------	-------------------------------------
 
@@ -2480,10 +2035,9 @@ hmload.com	hmloadstart.S
 导装载器直接在 Linux 下使用。
 
 ******************************************************************************
-***             Memory Layout for Quiting to DOS from GRUB.EXE             ***
+***                    GRUB.EXE 返回 DOS 时的内存布局                      ***
 ******************************************************************************
-                GRUB.EXE 返回 DOS 时的内存布局
-
+                
 使用 quit 命令实现返回到DOS，是在GRUB.EXE是从DOS启动的情况下。
 
 1.在GRUB.EXE 将控制权移交给 pre_stage2 之前，它将复制 640 kb的常规内存到
@@ -2515,9 +2069,9 @@ hmload.com	hmloadstart.S
    GRUB.EXE将开启A20 地址线。真希望这不会危及任何东西。
 
 ******************************************************************************
-***             Memory usage in conventional/low memory area               ***
+***                    常规内存/低端内存空间的内存使用                     ***
 ******************************************************************************
-                常规内存/低端内存空间的内存使用
+                
 
 1. boot.c, fsys_reiserfs.c: 8K below 0x68000.
 
@@ -2531,13 +2085,12 @@ hmload.com	hmloadstart.S
 
 6. fsys_xfs.c: (logical block size) bytes below 0x68000.
 
-7. geometry tune: 0x50000 - 0x5ffff.
+7. geometry tune: 0x50000 - 0x67fff.
 
 ******************************************************************************
-***                Command-line Length about GRUB.EXE                      ***
+***                       关于GRUB.EXE的命令行长度                         ***
 ******************************************************************************
-                   关于GRUB.EXE的命令行长度
-
+                   
 GRUB.EXE 可以通过CONFIG.SYS中的DEVICE命令来启动：
 
 	DEVICE=grub.exe [--config-file="FILENAME_OR_COMMANDS"]
@@ -2567,10 +2120,9 @@ GRUB.EXE 可以通过CONFIG.SYS中的DEVICE命令来启动：
 7. 命令行菜单的内存占用：4KB的命令行菜单起始于物理地址0x0800而终止于0x17ff。
 
 ******************************************************************************
-***          New Syntax for the DEFAULT/SAVEDEFAULT Commands               ***
+***                 DEFAULT 及 SAVEDEFAULT 命令的新语法                    ***
 ******************************************************************************
-             DEFAULT 及 SAVEDEFAULT 命令的新语法
-
+             
 相对于原来的用法"default NUM"及"default saved "增加的部分，现在有一个新用
 法"default FILE"，象这样:
 
@@ -2673,10 +2225,9 @@ halt
         关联文件DEFAULT只要出现就会被使用，直到遇见了一个明确的`default'命令。
 
 ******************************************************************************
-***                   The New `cdrom' Command Syntax                       ***
+***                   新的 `cdrom' 命令的语法                              ***
 ******************************************************************************
-                      新的 `cdrom' 命令的语法
-
+                      
 1. 初始化ATAPI接口的CDROM设备：
 
 	grub> cdrom --init
@@ -2718,8 +2269,7 @@ halt
 
         cdrom 扇区是大小为 2048 字节的大扇区。
 
-注意 6：我们的iso9660文件系统驱动具有Rock-Ridge扩展支持，但没有Joliet扩展支持。
-        因此当你试图在一个使用Joliet扩展的光盘上读取文件时，可能遭遇失败。
+注意 6：我们的iso9660文件系统驱动具有Rock-Ridge扩展支持。
 
 注意 7：现在，（cd）及 （cdX）设备可以被引导了。示例：
 		chainloader (cd)
@@ -2734,65 +2284,44 @@ halt
 	在chainloader (cd)之前，你必须保证已经可以访问该设备。
 
 ******************************************************************************
-***                   About the New `setvbe' Command                       ***
+***                          关于新命令 `setvbe'                           ***
 ******************************************************************************
-                      关于新命令 `setvbe'
+                      
+Gerardo Richarte 先生提供了'setvbe'的源码，下面是注释：
 
-Gerardo Richarte contributed the `setvbe' code and the following comment:
-Gerardo Richarte 先生提供了`setvbe'的源码，下面是注释：
+	
+        'setvbe'是一个新的命令，它可以在系统核心运行前被用来改变视频模式。
 
-	New command is `setvbe', and can be used to change the video mode
-	before executing the kernel.
-        `setvbe'是一个新的命令，它可以在系统核心运行前被用来改变视频模式。
-
-	For example, you can do
         例如，你可以执行
 
 		setvbe 1024x768x32
 
-	this will scan the list of available modes and set it, and
-	automatically append a `video=' option to each subsequent kernel
-	command-line. The appended `video=' option is like this:
-        这会扫描出其可用模式的列表并设置它，并且自动在随后的每个kernel命令
+	这会扫描出其可用模式的列表并设置它，并且自动在随后的每个kernel命令
         行中增加一个选项`video='。增加的选项`video='类似于：
 
 		video=1024x768x32@0xf0000000,4096
 
-	where 0xf0000000 is the video framebuffer address as reported by vbe,
-	and 4096 is the size of a scanline in bytes (also as reported by vbe).
-        这里的0xf0000000是vbe报告的视频模式的帧缓存地址，而4096是扫描线的字节大小。
+	这里的0xf0000000是vbe报告的视频模式的帧缓存地址，而4096是扫描线的字节大小。
 
-	This is really useful if you want to give some graphics support to your
-	OS, but you don't want to implement any video functionality other than
-	writing a pixel to video memory.
-        如果你想在你的操作系统上获得一些图形支持，但是除了只写一个像素点到视频内
+	如果你想在你的操作系统上获得一些图形支持，但是除了只写一个像素点到视频内
         存而外，你却不想使用任何视频功能，这确实有用。
 
 
 ******************************************************************************
-***                   About the DOS utility `hmload'                       ***
+***                        关于DOS工具'hmload'                             ***
 ******************************************************************************
-                      关于DOS工具`hmload'
 
 此程序由 John Cobb 先生编写（伦敦玛丽皇后学院）。
 
 John Cobb先生的注释：
 
-	To make use of the ram drive feature I wrote a program `hmload' to load
-	an arbitrary file to an arbitrary address in high memory. The program
-	is not very sophisticated and relies on XMS to turn on the A20 line.
-	(Also one must be very careful to steer clear of any areas of memory
-	already in use).
-        为了使用内存驱动器的特性，我写了一个程序“hmload”来将任意文件加载
+	为了使用内存驱动器的特性，我写了一个程序“hmload”来将任意文件加载
         到高端内存的任意地址。这个程序不是十分深奥但依赖在XMS 里开启A20地址线。
         （并且必须将那些已经使用了的任何内存空间精心的清理干净）
 
-	Under Linux we generated a disk image `dskimg' (with the kernel and
-	Initrd and a partition table).
-        我们在linux下生成一个磁盘映象“dskimg”（包含kernel和initrd及一个分区表）。
+	我们在linux下生成一个磁盘映象“dskimg”（包含kernel和initrd及一个分区表）。
 
-	Using this our boot procedure looked something like this:
-        我们的引导过程看起来是下面这样：
+	我们的引导过程看起来是下面这样：
 
 	hmload -fdskimg -a128
 	fixrb
@@ -2807,27 +2336,20 @@ John Cobb先生的注释：
 		initrd /initrd
 		boot
 
-See http://sysdocs.stu.qmul.ac.uk/sysdocs/Comment/GrubForDOS/ for details.
 详情参阅 http://sysdocs.stu.qmul.ac.uk/sysdocs/Comment/GrubForDOS/
 
-Update 2007-12-05:
 更新   2007-12-05 ：
 
-	Now the MAP command can handle gzipped (rd) image. One can use this
-	feature with the hmload utility. For example,
+	现在，MAP命令可以处理gzip压缩（RD）的映像。用的hmload工具，人们可以使用此功能。例如，
         
-	step 1. Load the gzipped image under DOS at a relatively low address:
         步骤 1. 在DOS的相对较低的地址处加载gzip压缩映像：
 
 		hmload -fdskimg.gz -a16
 
-	step 2. Unload network drivers.
         步骤 2  卸载网络驱动器
 
-	step 3. Run GRUB.EXE.
         步骤 3.  运行 GRUB.EXE
 
-	step 4. At the grub prompt, run these commands:
         步骤 4.  在grub 命令提示符下，执行下列命令：
 
 		map --rd-base=0x1000000	# set rd-base address to be 16M
@@ -2856,38 +2378,30 @@ Update 2007-12-05:
 
 
 ******************************************************************************
-***                      Notes on the use of stack                         ***
+***                              关于堆栈的注释                            ***
 ******************************************************************************
-                         关于堆栈的注释
-The protected-mode and real-mode stack are merged at physical address 0x2000.
+                         
 保护模式与实模式的堆栈被合并到物理地址 0x2000 处。
 
-All functions should use at most 2K stack space(0x1800-0x2000). So each
-subfunction should use as little stack as possible to avoid stack-overflow.
 所有的功能应当最多使用 2K 的堆空间 （0x1800到0x2000）。因此各个子功能部分
 应当使用尽可能小的堆以避免堆栈溢出。
 
-Don't use recursive functions because they could expend too much stack space.
 不要使用递归功能，因为他们会消耗太多的堆空间。
 
-The original protected mode stack at 0x68000(expand-down) is free now and can
-be reused for any purposes.
 原来位于0x68000（向下延伸）的保护模式的堆现在不再使用，并且它可以被用于任何目的。
 
 
 ******************************************************************************
-***                  A bug was found in the CDROM driver                   ***
+***                  CDROM 驱动器上发现的缺陷                              ***
 ******************************************************************************
-                     CDROM 驱动器上发现的缺陷
-
+                     
 似乎 cdrom 应当连接在IDE控制器的主设备通道上。
 
 如果 cdrom 是从设备，读取cdrom扇区的驱动将失败。希望有人能解决这个问题。
 
 ******************************************************************************
-***                        BIOS and the (cd) drive                         ***
-******************************************************************************
-                           BIOS 与 （cd）驱动器
+***                        BIOS 与 （cd）驱动器                            ***
+******************************************************************************                           
 
 当BIOS启动一个非模拟模式的可启动的CD-ROM设备时，它会分配一个BIOS驱动器号给这个
 CD设备。如果这个CD-ROM使用grldr或stage2_eltorito作为启动映像文件，那么GRUB可以
@@ -2900,9 +2414,9 @@ BIOS 会分配一个驱动器号给非模拟模式启动的CDROM 设备，即使
 
 
 ******************************************************************************
-***              The way of disk emulation changed greatly                 ***
+***                磁盘仿真方式发生了巨大变化                              ***
 ******************************************************************************
-                 磁盘仿真方式发生了巨大变化
+                 
 
 磁盘仿真方式自从0.4.2正式版之后已经发生了巨大变化。在使用磁盘仿真功能时候，
 请不要将较新的版本和旧的版本混合使用。
@@ -2913,29 +2427,22 @@ BIOS 会分配一个驱动器号给非模拟模式启动的CDROM 设备，即使
 
 
 ******************************************************************************
-***            FreeDOS EMM386 v2.26 (2006-08-27) VCPI problem              ***
+***            FreeDOS EMM386 版本2.26 (2006-08-27) VCPI服务的问题         ***
 ******************************************************************************
-               FreeDOS EMM386 版本2.26 (2006-08-27) VCPI服务的问题
+               
 
-The VCPI function "AX=DE0Ch - Switch From Protected Mode to V86 Mode" of
-FreeDOS EMM386 v2.26 was not implemented properly(it always hangs). As an
-alternative, you can use Microsoft's EMM386 instead.
 FreeDOS 的 EMM386 版本2.26 中的VCPI服务，“功能号 AX=DE0Ch-选择从
 保护模式到虚拟8086模式”，不能正确的执行（总是死机）。选择之一是，
 你用微软的 EMM386 来代替它。
 
-Even while emm386 is running, grub.exe can be started. But if you try to quit
-to DOS from grub4dos by using the `quit' command, the VCPI function DE0C will
-be called. If EMM386 is of Microsoft, everything goes ok. If EMM386 is of
-FreeDOS, the machine will hang.
 即使emm386已经运行，grub.exe也能够启动。但是如果你试图从grub4dos中通过`quit'
 命令来返回DOS，VCPI 服务的DE0C 号功能将被调用。如果是微软的 EMM386 ，接下来的
 一切都很正常 。而如果是FreeDOS 的 EMM386 ，那么将会死机。
 
 ******************************************************************************
-***                 New options for map were added                         ***
+***                          map 命令的新增选项                            ***
 ******************************************************************************
-                    map 命令的新增选项
+                    
 
 随着0.4.2 最终版的发布，map 命令有了两个新选项。它们是--safe-mbr-hook=SMH
 以及--int13-scheme=SCH 。它们都和Win9x环境下（尽可能稳定的）使用磁盘仿真有关。
@@ -2985,10 +2492,9 @@ SCH在使用时，也可以取0或1之一的值。作为默认，SCH为1 。如�
 
 
 ******************************************************************************
-***                   About the new map option --in-situ                   ***
+***                   关于 map 的新选项 --in-situ                          ***
 ******************************************************************************
-                      关于 map 的新选项 --in-situ
-
+                      
 --in-situ被使用于硬盘驱动器映像或者是硬盘驱动器分区。通过--in-situ ,我们可以把
 一个逻辑分区象征性的作为一个主分区来使用。
 
@@ -3002,10 +2508,9 @@ SCH在使用时，也可以取0或1之一的值。作为默认，SCH为1 。如�
 	map --in-situ (hd0,4)+1 (hd0)
 
 ******************************************************************************
-***                      The PARTNEW Command Syntax                        ***
+***                      PARTNEW 命令的语法                                ***
 ******************************************************************************
-                         PARTNEW 命令的语法
-
+                         
 除了上述章节的仿真方法而外,你也可以替代选择用 PARTNEW 来建立一个新的主分区。
 PARTNEW可以为逻辑分区生成一个新的主分区项（在分区表中）。
 
@@ -3019,10 +2524,6 @@ PARTNEW可以为逻辑分区生成一个新的主分区项（在分区表中）�
 
 	partnew (hd0,3) 0x00 (hd0,0)/my_partition.img
 
-The type 0x00 indicates a type-auto-detection of the image MY_PARTITION.IMG.
-The above command will create a new primary partition (hd0,3) with a proper
-type and with contents/data being exactly that of the contiguous file
-(hd0,0)/my_partition.img.
 这个 0x00 类型表示这个 MY_PARTITION.IMG 映像文件的分区类型由自动检测确定。
 上面的命令将建立一个类型恰当的新的主分区（hd0,3），并且使用这个连续的
   (hd0,0)/my_partition.img 文件中的全部内容（数据）作为它的内容（数据）。
@@ -3108,10 +2609,9 @@ command1 符号 command2 符号 commandN....
 	cat /test.txt > /abcd.txt
 
 ******************************************************************************
-***          Three new commands is64bit, errnum and errorcheck             ***
+***          三个新命令 is64bit, errnum 和 errorcheck                      ***
 ******************************************************************************
-             三个新命令 is64bit, errnum 和 errorcheck
-
+             
 is64bit 和 errnum 命令分别用来检索是否是 64 位的系统和错误值。
 
 errcheck off|on
@@ -3121,25 +2621,22 @@ errorcheck（错误检查）命令控制着错误是否被处理。默认错误�
 命令。一条 boot 命令可以把错误检查转变为开启。
 
 ******************************************************************************
-***              Use numeric keys to select a menu entry                   ***
+***                     使用数字键来选择菜单项                            ***
 ******************************************************************************
-                 使用数字键来选择菜单项
-
+                 
 例如，如果你想要选择第25项菜单项，你可以先按下数字键2 之后再按下 5 。
 
 ******************************************************************************
-***           Use the INSERT key to debug step by step at startup          ***
+***                  启动时使用 INSERT 键逐步的调试                        ***
 ******************************************************************************
-              启动时使用 INSERT 键逐步的调试
-
+              
 在一些有缺陷机器上进入 grub4dos 环境时可能会失败。可能是意外的死机或者重启。
 在启动时尽可能快的按下 INSERT 键，你就可能获得进入单步启动进程的机会而看到它最
 多能运行到哪里，然后请上报这些bug截图 。
 
 ******************************************************************************
-***             The debug command syntax has been changed                  ***
+***                       debug 命令的语法已经改变                         ***
 ******************************************************************************
-                debug 命令的语法已经改变
 
 DEBUG 命令现在可以用来控制冗余的命令输出：
 		debug [ on | off | normal | status | INTEGER ]
@@ -3152,10 +2649,9 @@ DEBUG 命令现在可以用来控制冗余的命令输出：
 (调试报告BUG时请使用该模式,可以获得更详细的信息)
 
 ******************************************************************************
-***                     GRUB4DOS and Windows Vista                         ***
+***                     GRUB4DOS 与 Windows Vista                          ***
 ******************************************************************************
-                        GRUB4DOS 与 Windows Vista
-
+                        
 首先，使用以下命令来建立一个启动项：
 
 	bcdedit /create /d "GRUB for DOS" /application bootsector
@@ -3229,10 +2725,9 @@ chenall注: 其实没有必要改,使用boot可以获得更好的兼容性.
 重命名，比如为 grub.bin 。如何改名,请参见下节。
 
 ******************************************************************************
-***                      How to rename grldr                               ***
+***                      怎样重命名 grldr                                  ***
 ******************************************************************************
-                         怎样重命名 grldr
-
+                         
   grldr 和 grldr.mbr引用引导文件内部的文件名来决定装载哪个文件，所以假如你
   想更换它们的名字，那么你也必须要修改那些内嵌在文件内部的设置。你可以使用
   辅助程序grubinst 来做到这些，grubinst 可以在以下网址下载到：
@@ -3262,10 +2757,9 @@ http://download.gna.org/grubutil/
 注意： 引导文件名必须遵循 8.3 文件名规范。
 
 ******************************************************************************
-***                       GRLDR as PXE boot file                           ***
+***                       GRLDR 作为 PXE 启动文件                          ***
 ******************************************************************************
-                          GRLDR 作为 PXE 启动文件
-
+                          
 GRLDR 可以被用作远程或网络服务器的 PXE 启动文件。(pd) 设备被用于访问服务器上文件。
 当 GRLDR 已经通过网络启动后，它将使用预设菜单作为配置文件。不过，你可以使用
 一条"pxe detect"命令，它的表现是和pxelinux一样的方式。
@@ -3279,10 +2773,9 @@ GRLDR 可以被用作远程或网络服务器的 PXE 启动文件。(pd) 设备�
       最后，它会尝试寻找一个名为 default （小写字母）的文件。
 
 ******************************************************************************
-***                          PXE device                                    ***
+***                          PXE 设备                                      ***
 ******************************************************************************
-                             PXE 设备
-
+                             
 如果使用PXE启动,GRUB4DOS 将建立一个虚拟设备 (pd)，可能通过它来访问tftp服务器
 上的文件。你可以使用下面的步骤来设置一个无盘启动环境：
 
@@ -3382,10 +2875,9 @@ chenall注: 1.你也可以省略(pd)/或者使用(bd)/或()/
 
 
 ******************************************************************************
-***                  New Feature of Relative Path Support                  ***
+***                          相对路径支持的新特性                          ***
 ******************************************************************************
-                     相对路径支持的新特性
-
+                     
 使用`root' 或 `rootnoverify'命令来指定`工作目录' 。
 
 例如：
@@ -3402,10 +2894,9 @@ chenall注: 1.你也可以省略(pd)/或者使用(bd)/或()/
 
 
 ******************************************************************************
-***                 Notation For The Current Root Device                   ***
+***                        N当前根设备的符号                               ***
 ******************************************************************************
-                    当前根设备的符号
-
+                    
 符号`()'可以在访问当前根设备时使用。你可以使用`find --set-root ...'来设置当前根
 设备，但find 命令不能设置根设备的`工作目录'。这时你应该使用`()'在find命令后来设
 置工作目录。
@@ -3421,9 +2912,8 @@ chenall注: 1.你也可以省略(pd)/或者使用(bd)/或()/
 		root  ()/tmp
 
 ******************************************************************************
-***                   The new map option --a20-keep-on                     ***
-******************************************************************************
-                      map 新选项 --a20-keep-on
+***                   map 新选项 --a20-keep-on                             ***
+******************************************************************************                     
 
 随着0.4.3最终版的发布，map 有了一个新选项 --a20-keep-on ，它跟内存驱动器扇区访
 问后的A20 地址线控制有关
@@ -3436,9 +2926,9 @@ chenall注: 1.你也可以省略(pd)/或者使用(bd)/或()/
 被使用，那么在INT13 中断调用后的 A20 的状态将和在INT13中断调用前相同。
 
 ******************************************************************************
-***                  The CDROM emulation (virtualization)                  ***
+***                   光盘仿真（虚拟化）                                   ***
 ******************************************************************************
-                      光盘仿真（虚拟化）
+                      
 光盘仿真有时候又称为 ISO 仿真。这里是个示例：
 	map  (hd0,0)/myiso.iso  (hd32)
 	map  --hook
@@ -3472,10 +2962,9 @@ CONFIG.SYS 中 eltorito.sys 的用法举例：
 那么你可以将虚拟光盘的驱动器号从(hd32)更换为(0xFF)然后再试一次。
 
 ******************************************************************************
-***                  The New Command CHECKRANGE                            ***
+***                          新命令 CHECKRANGE                             ***
 ******************************************************************************
-                     新命令 CHECKRANGE
-
+                     
 Checkrang 命令检查一条命令的返回值是否是在指定的值域或排列中。
 
 Usage:		checkrange  RANGE  COMMAND
@@ -3499,20 +2988,18 @@ Usage:		checkrange  RANGE  COMMAND
 这意谓着：如果 (hd0,1) 不是一个扩展分区，那么执行hide (hd0,1)命令隐藏它。
 
 ******************************************************************************
-***                       The New Command TPM                              ***
+***                       新命令 TPM                                       ***
 ******************************************************************************
-                          新命令 TPM
-
+                          
 "tpm --init"在地址0000:7c00处使用512字节数据作为初始化TPM（可信赖平台模块）的缓存。
 
 在你引导 VISTA 的 BOOTMGR 前，你可能需要在一些机器上使用"tpm --init"。通常你应该在
 一条 CHAINLOADR 命令后执行"tpm --init"指令。
 
 ******************************************************************************
-***               Delimitors or comments between titles                    ***
+***               标题间的限制或注释                                       ***
 ******************************************************************************
-                  标题间的限制或注释
-
+                  
 把标题用来做限制或注释是可能的。如果一个标题（或菜单项）下所有的菜单命令都是非启动敏感的，
 它被叫做是不可启动的。
 
@@ -3569,10 +3056,9 @@ Usage:		checkrange  RANGE  COMMAND
 丢弃并且不被显示。
 
 ******************************************************************************
-***                           Bifurcate drives                             ***
+***                           分支式驱动器                                 ***
 ******************************************************************************
-                              分支式驱动器
-
+                              
 一些机器在 CHS 和 LBA 模式之间对驱动器实施不同的动作。
 当你使用标准的BIOS调用int13/AH=02h来读取扇区时，你可能会发现这个驱动器是一个软盘
 但是当你用扩展的BIOS调用(EBIOS)int13/AH=42h来读取扇区时，你会发现是一个光盘。
@@ -3602,19 +3088,30 @@ geometry 命令会用 BIF 代替常见的 CHS 和 LBA 来报告分支式驱动�
 注意：仅仅是某些（真实的或虚拟的）机器有这样的行为，其他的机器不会产生分支式驱动器。
 
 ******************************************************************************
-***                       New program badgrub.exe                          ***
+***                       新程序 badgrub.exe                               ***
 ******************************************************************************
-                          新程序 badgrub.exe
-
+                          
 新程序 badgrub.exe 是特意供那些不能运行标准 grub.exe 的‘糟糕的’机器（一些典型
 的 DELL 原型机）使用的。
 
 
-******************************************************************************
-***                           Conditional find                             ***
-******************************************************************************
-                              条件查找
+2010-11-04更新: 新增三个操作符号  "|",">",">>"
 
+用法:
+	command1 | command2
+
+	command1 > file or nul
+
+	command >> file or nul
+
+提示: GRUB4DOS不会改变文件大小,也不能新建文件,所以文件必须已经存在,并且是可写的,有足够的空间否则将被丢弃.
+例子:
+	cat /test.txt > /abcd.txt
+
+******************************************************************************
+***                           条件查找                                     ***
+******************************************************************************
+                              
 新的find 命令的语法允许带条件的查找设备。
 
 	find [OPTIONS] [FILENAME] [CONDITION]
@@ -3681,9 +3178,9 @@ OPTIONS:
 	注意：新的find命令有一个改变，查找的时候会优先查找当前设备（如果在列表中的话）。
 
 ******************************************************************************
-***                    How to build grldr boot images                      ***
+***                    如何创建 grldr 引导的映像文件                      ***
 ******************************************************************************
-                       如何创建 grldr 引导的映像文件
+                       
 
 1. 创建1.44M 软盘镜像文件 ext2grldr.img
 
@@ -3716,49 +3213,46 @@ OPTIONS:
 	cp menu.lst iso_root
 	mkisofs -R -b grldr -no-emul-boot -boot-load-size 4 -o grldr.iso iso_root
 
+   补充1：把 grldr 改名为 grldr.bin ,使用 UltraISO 加载引导文件。
+
+   补充2：使用 UltraISO 加载引导文件 grlgr_cd.bin，然后复制 grldr 文件到根目录。
 
 ******************************************************************************
-***           Use bootlace.com to install partition boot record            ***
+***               使用 bootlace.com 来安装分区引导记录                     ***
 ******************************************************************************
-              使用 bootlace.com 来安装分区引导记录
 
-在 bootlace.com 没有实现 --install-partition 选项之前，你需要用已实现的
---floppy=PartitionNumber 选项来替代。
+方法1：
 
-你必须按下面的方法执行：
+步骤 1. 获取分区的引导扇区然后保存为一个文件 MYPART.TMP 。
+	对于EXT2/3/4分区，需要获取起始的3个扇区，对于其他类型的文件系统，你只
+	需要获取一个扇区。
 
-步骤 1. 获取分区的引导扇区然后保存为一个文件 MYPART.TMP 。对于 NTFS 文件系统,你需要获取
-        起始的16 个扇区。对于其他类型的文件系统，你只需要获取一个扇区，但获取多个扇区
-        也是没问题的。
-
-步骤 2. 执行这些命令：
-
-	bootlace.com --floppy=Y --sectors-per-track=S --heads=H --start-sector=B --total-sectors=C --vfat --ext2 --ntfs MYPART.TMP
-
-        这里我们假定 MYPART.TMP 是从 (hdx,y) 获取的而且分区号 Y 必须在--floppy=Y 选项中被指定。
-
-        注意：对于FAT12/16/32/NTFS等分区，你可以省略这些选项：
-		 --sectors-per-track, --heads, --start-sector, --total-sectors,
-		 --vfat and --ext2.
-
-        对于 NTFS 分区，你必须指定 --ntfs 选项。
-
-        对于 ext2 分区，你可以省略 --vfat, --ntfs he --ext2 选项，但是其他选项必须被指定。
+步骤 2. 在 DOS、Windows 执行这些命令：
+	bootlace.com --floppy MYPART.TMP
 
 步骤 3. 将 MYPART.TMP 写回你原来分区(hdx,y)的引导扇区。
 
-注意：现在只有一些文件系统（FAT12/16/32/NTFS/ext2/ext3）被支持。
 
-注意2：在Linux 下你可以对分区直接写。也就是说，步骤1 和步骤3 是不需要的。简单使用
-       它的设备名代替 MYPART.TMP 即可。
+方法2：
+	在 DOS 下执行这些命令：
+	bootlace.com --install-partition=I K
 
-注意3：grubinst 具有把 grldr 的自举代码安装到分区引导扇区的功能。
+	I是分区号（0，1，2，3，4，...），K是驱动器号（0x80,0x81，...）。
+	执行时会显示简单的磁盘信息和分区容量，提示按“y”键继续，按其他键退出。
+
+在 Linux 下安装引导代码到 PBR：
+	bootlace.com --floppy /dev/sda1
+
+
+注意： 现在只有文件系统（FAT12/16/32/NTFS/ext2/ext3/ext4/exfat）被支持。
+
+
+注意：grubinst 具有把 grldr 的自举代码安装到分区引导扇区的功能。
 
 ******************************************************************************
-***                Use a single key to select menu item                    ***
+***                使用一个单一的键来选择菜单项                            ***
 ******************************************************************************
-                   使用一个单一的键来选择菜单项 
-
+                    
 一些机器具有简化的键盘。这些键盘可能只有数字键 0 到 9 ，外加少数几个其他键。当
 菜单还未显示时，使用者可以按下某个键 8 次。当菜单控制模块发现一个连续的单一按
 键时，它将认为使用者希望使用这个键来选择菜单和启动。这个单一的键可以充当右方向
@@ -3781,11 +3275,10 @@ OPTIONS:
 注意： 不能使用管道符"|"。你必须使用输入重定向符 (<) 。
 
 ******************************************************************************
-***                  Use bootlace to create a triple MBR                   ***
-******************************************************************************
-                     使用 bootlace 来建立一个三重的 MBR
-
+***                  使用 bootlace 来建立一个三重的 MBR                   ***
+******************************************************************************                     
 虽然这也能用于硬盘，但是它典型的使用是被用于 USB 设备。
+
 创建三重的 MBR 的步骤：
 
 1. 使用一个新版的 FDISK 分区软件来建立一个从第 95 扇区开始的FAT12或16或32 的分区
@@ -3793,19 +3286,23 @@ OPTIONS:
 
 2. 安装 grldr 的引导扇区到这个分区的引导扇区。参见上面的“使用 bootlace.com 来安装分区引导记录”
 
+方法1：对于映像文件
+
 3. 获取从起始扇区 0 扇区（MBR）开始的96个扇区，然后保存到一个文件 MYMBR96.TMP 中。
 
-4. 运行 bootlace.com:
+4. 在DOS或Windows下执行：
 	bootlace.com MYMBR96.TMP
 5. 将 MYMBR96.TMP 从MBR （0 扇区）开始回写到驱动器上。
 
-注意： 如果驱动器已经是一个三重的 MBR ,那么 bootlace 会删除它并且恢复为原本的分区布局。
+方法2：对于磁盘
+
+3. 在DOS下执行：
+	bootlace.com 0x80 (或0x81,...)
 
 ******************************************************************************
-***                    Use 'pxe detect' in preset-menu                     ***
+***                    在预置菜单中使用 'pxe detect' 命令                  ***
 ******************************************************************************
-                       在预置菜单中使用 'pxe detect' 命令
-
+                       
 现在“pxe”命令有了个新的子命令“detect”：
 		pxe detect [BLOCK_SIZE] [MENU_FILE]
                             包大小选项   菜单文件选项
@@ -3824,18 +3321,16 @@ MENU_FILE 选项指定出 PXE 服务器上的配置文件。如果它被省略�
 使用一条 "pxe blksize ..." 或 一条 "pxe detect ..."命令。
 
 ******************************************************************************
-***                    Use 'configfile' in preset-menu                     ***
+***                    在预置菜单中使用 'configfile'命令                   ***
 ******************************************************************************
-                       在预置菜单中使用 'configfile'命令
-
+                       
 现在预置菜单具有最高控制权。它将在启动设备上的 menu.lst 之前获得控制。如果
 'configfile' 命令在初始化命令组中出现，那么控制将转到启动设备上的menu.lst文件。
 
 ******************************************************************************
-***                    New command 'dd' to copy files                      ***
+***                    复制文件的新命令 'dd'                               ***
 ******************************************************************************
-                       复制文件的新命令 'dd'
-
+                       
 用法：
 	
 dd if=IF of=OF [bs=BS] [count=C] [skip=IN] [seek=OUT] [buf=ADDR] [buflen=SIZE]
@@ -3879,10 +3374,9 @@ dd 具有危险性，使用风险由你自己的承担。作为一种安全方�
         警告！IF 和 OF 都可以是一个设备名，即它代表了设备上全部的扇区。慎之又慎！
 
 ******************************************************************************
-***              New command 'uuid' to identify partitions                 ***
+***                       确认分区的新命令 'uuid'                          ***
 ******************************************************************************
-                 确认分区的新命令 'uuid'
-
+                 
 用法：
 
 	uuid [DEVICE] [UUID]
@@ -3903,10 +3397,9 @@ dd 具有危险性，使用风险由你自己的承担。作为一种安全方�
 这将显示当前根设备的 uuid 号。
 
 ******************************************************************************
-***                     gfxmenu support in grub4dos                        ***
+***                     grub4dos 的 gfxmenu 支持                           ***
 ******************************************************************************
-                        grub4dos 的 gfxmenu 支持
-
+                        
 gfxmenu 支持已经被增加到 grub4dos 当中。使用它，你首先需要找到一个你需要的mesage
 文件，然后在menu.lst中用类似这样的命令来装载它：
 
@@ -3923,10 +3416,9 @@ message 文件有两个主要的格式。老的格式是通过gfxboot 3.2版或�
 已被支持。
 
 ******************************************************************************
-***           Use 'write' to write a string into a device or file          ***
+***           使用 'write' 命令将字符串写入设备或文件中                    ***
 ******************************************************************************
-               使用 'write' 命令将字符串写入设备或文件中
-
+               
 用法：
 
 	write [--offset=SKIP] ADDR_OR_FILE INTEGER_OR_STRING
@@ -3984,10 +3476,9 @@ INTEGER_OR_STRING选项也必须是一个整数值。整数 INTEGER_OR_STRING �
 
 
 ******************************************************************************
-***                 Item-by-item help text for menu entries                ***
+***                      为菜单项添加提示信息                              ***
 ******************************************************************************
-                    为菜单项添加提示信息
-
+                    
 当你选择一个菜单项时，屏幕底部的提示信息将发生变化。
 
 你可以在标题行中添加你的提示信息。必须用"\n" 开头，示例：
@@ -3996,10 +3487,8 @@ INTEGER_OR_STRING选项也必须是一个整数值。整数 INTEGER_OR_STRING �
 一些 C 语言风格的引用符号在请看前面章节的说明。
 
 ******************************************************************************
-***        initrd can load multiple cpio files for Linux 2.6 kernels       ***
-******************************************************************************
-           inird 命令可以为Linux 2.6 核心装载多个cpio 格式的文件
-
+***        inird 命令可以为Linux 2.6 核心装载多个cpio 格式的文件           ***
+******************************************************************************        
 用法：
 	initrd FILE [FILE ...]
 
@@ -4007,9 +3496,9 @@ INTEGER_OR_STRING选项也必须是一个整数值。整数 INTEGER_OR_STRING �
 注意 2：其中的 FILE 必须和在syslinux中使用的顺序一样。
 
 ******************************************************************************
-***            access some internel variables at a fixed location          ***
+***               在固定位置访问一些内部变量                               ***
 ******************************************************************************
-               在固定位置访问一些内部变量 
+
 地址            长度            说明
 =========	========	==============================================
 0000:8208	4字节（即双字） 启动分区号 install_partition (the boot partition)
@@ -4018,15 +3507,17 @@ INTEGER_OR_STRING选项也必须是一个整数值。整数 INTEGER_OR_STRING �
 0000:8288	4字节（即双字） pxe 服务器 ip
 0000:828C	4字节（即双字） pxe 网关 ip
 0000:8290	8字节（即四字） 最后访问的文件的大小（是执行"cat --length=0"后的文件大小）
-0000:8298	4字节（即双字） 可用的扩展内存大小（以 KB 为单位）
+0000:8298	4字节（即双字） 从 1M 开始的连续内存块的大小（以 KB 为单位）
 0000:829C	4字节（即双字） 当前根分区号(current root partition)
 0000:82A0	4字节（即双字） 当前根所在的驱动器(current root drive)
 0000:82A4	4字节（即双字） 解压标志 （gzip非自动解压）,非0时不自动解压
 0000:82A8	8字节（即四字） 最后访问的分区的起始扇区号
 0000:82B0	8字节（即四字） 最后访问的分区的扇区总数
+0000:82B8	4字节（即双字） UD分区：磁头数，每磁道扇区数，真正驱动器号，最大每磁道扇区数（低位）
 0000:8278	4字节（即双字)  GRUB4DOS编译的日期十进制数.
 	  以下命令用于判断当前使用的GRUB是否在2010-12-30日编译的。
 				checkrange 20101230 read 0x8278
+0000:82c0	8字节（即四字） 从 4G 开始的连续内存块的大小（以 KB 为单位）
 
 注意 1：Filesize 通过执行 "cat --length=0 FILE" 来初始化和修改。
 注意 2：尽量不要改写这些变量（应该只是读取）。
@@ -4038,10 +3529,9 @@ INTEGER_OR_STRING选项也必须是一个整数值。整数 INTEGER_OR_STRING �
 注意 6：内部变量no_decompression, saved_drive and saved_partition 是可写的。
 
 ******************************************************************************
-***            possibility to run another menu.lst after gfxmenu           ***
+***            在 gfxmenu 之后后运行其它 menu.lst                          ***
 ******************************************************************************
-               在 gfxmenu 之后后运行其它 menu.lst 
-
+                
 注意下面是在 GFXMENU 之后使用 CONFIGILE 的示例：
 
 	# The menu.lst file for gfxmenu
@@ -4108,10 +3598,9 @@ Note 2:	The --unhook option only breaks the INT13 hook(to the inerrupt
 注意 3：通常你需要在已经改变了驱动器映射表之后执行一条`map --rehook'命令。
 
 ******************************************************************************
-***                         geometry tune and sync                         ***
+***                         磁盘几何参数的修正和同步                       ***
 ******************************************************************************
-                            磁盘几何参数的修正和同步
-
+                            
 当一个USB 存储设备被连接到一台（或者是不同的）机器上时，分区表中或 BPB 中的磁盘
 几何参数值可能是无效的，并且这个机器可能在启动时死机。因此你需要为驱动器找到一个
 正确的磁盘几何参数（使用 `geometry --tune'），然后更新分区表或 BPB 中的磁盘
@@ -4141,9 +3630,6 @@ Note 2:	The --unhook option only breaks the INT13 hook(to the inerrupt
 该可执行程序文件必须以8字节grub4dos EXEC签名结尾。
 	0x05, 0x18, 0x05, 0x03, 0xBA, 0xA7, 0xBA, 0xBC
 
-The executable must have no relocations, and the entry point is at the very
-beginning of the file, just like a DOS .com file(but the grub4dos executable
-is 32-bit).
 程序的入口点在文件头，和DOS的.com文件很像（但我们是32位的程序)。
 
 注：因为使用了linux gcc的特性，所以程序只能在linux下使用gcc进行编译。
@@ -4195,7 +3681,6 @@ int main(char *arg,int flags)
 ***                      Map options added by Karyonix                     ***
 ******************************************************************************
 
-(from boot-land.net) Karyonix's note:
 注：boot-land.net网站已经改成 reboot.pro
 map --add-mbt= option to be used with --mem. If =0 master boot track will not
 	be added automatically.
@@ -4357,3 +3842,28 @@ http://chenall.net/post/tag/grub4dos/
 	3.[]是必须的，不可少。
 	4.如果[]里面的内容为空相当于title即不判断。
 	5.你可以使用该功能来快速注释整个菜单的内容（不显示菜单），只需要使用一个非法的命令即可。
+
+
+******************************************************************************
+***                           关于 usb2.0 驱动程序                         ***
+******************************************************************************
+grldr 内含 usb2.0 驱动。
+
+usb2.0 驱动支持：PCI 分类代码的 0c/03/20，即 ehci（增强总线控制接口）设备。
+
+usb2.0 驱动支持：usb（通用串行总线）的接口类型08（大容量存储类）、子类06、协议50，
+即通常的u盘或移动硬盘。
+
+支持 usb-fdd, usb-hdd, usb-cdrom 模式。 
+
+在菜单或命令行加载 usb2.0 驱动：usb --init
+可选参数：usb --delay=P    P是控制传输延时指数。0=常规；1=2*常规；2=4*常规；3=8*常规；
+
+      
+贴士：1. 有些 u 盘被 Windows 或 DOS 下的 usbaspi.sys 识别为 usb1.0 设备，但是
+         增加延时后会重新识别为 usb2.0 设备。
+      2. 有些 u 盘插入计算机前端插口不被识别，但是增加延时后会被识别。
+      3. 加载失败时，选 --delay= 参数试一试。
+
+2014-03-19
+支持有碎片的文件仿真，最多 32 个片段。

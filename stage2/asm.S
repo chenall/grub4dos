@@ -335,8 +335,18 @@ VARIABLE(buf_drive)
 	.long	0	/* padding */
 
 	. = EXT_C(main) + 0x150
-
+	
+VARIABLE(usb_count_error)		//bit 7:   0 = usb_count; 1 = usb_error
+	.byte	0
+VARIABLE(usb_drive_num)	
+	.byte	0,0,0,0,0,0,0,0
+VARIABLE(usb_md_address)
+	.word	0
+	
+	. = EXT_C(main) + 0x160	
+	
 real_codestart:
+
 	cli
 	cld
 
@@ -383,7 +393,8 @@ real_codestart:
 	cmpl	$0x5A000000, %eax	// cmpl	$0x9A000000, %eax
 	jb	1f
 	andl	$0x3FFFFF, %eax
-	cmpl	$0x100, %eax
+//	cmpl	$0x100, %eax
+	cmpl	$(int13_handler_entry - int13_handler), %eax
 	jnz	1f
 	movw	0x413, %ax		/* Memory size in Kb */
 	shlw	$6, %ax			/* Memory size in paragragh */
@@ -393,13 +404,17 @@ real_codestart:
 	movw	%ax, %ds		/* DS=current int13 code segment */
 
 	/* check our int13 signature "$INT13SFGRUB4DOS" */
-	cmpl	$0x544E4924, 0x103	/* $INT */
+//	cmpl	$0x544E4924, 0x103	/* $INT */
+	cmpl	$0x544E4924, (int13_handler_entry - int13_handler + 3)	/* $INT */
 	jnz	2f
-	cmpl	$0x46533331, 0x107	/* 13SF */
+//	cmpl	$0x46533331, 0x107	/* 13SF */
+	cmpl	$0x46533331, (int13_handler_entry - int13_handler + 7)	/* 13SF */
 	jnz	2f
-	cmpl	$0x42555247, 0x10B	/* GRUB */
+//	cmpl	$0x42555247, 0x10B	/* GRUB */
+	cmpl	$0x42555247, (int13_handler_entry - int13_handler + 0xb)	/* GRUB */
 	jnz	2f
-	cmpl	$0x534F4434, 0x10F	/* 4DOS */
+//	cmpl	$0x534F4434, 0x10F	/* 4DOS */
+	cmpl	$0x534F4434, (int13_handler_entry - int13_handler + 0xf)	/* 4DOS */
 	jnz	2f
 
 	movl	(EXT_C(ROM_int13) - int13_handler), %eax	/* 0x1C=ROM int 13 */
@@ -411,7 +426,8 @@ real_codestart:
 	jb	2f					/* not our handler */
 
 	/* restore old emu data, except the first byte of handler size. */
-	movw	$(0x140 - 1), %cx
+//	movw	$(0x140 - 1), %cx
+	mov $(restore_old_emu - int13_handler - 1), %cx
 	movw	$1, %si			/* DS=current int13 code segment */
 	movw	$ABS(int13_handler + 1), %di		/* ES=0 */
 	repz movsb
@@ -423,11 +439,50 @@ real_codestart:
 	decw	%ax			/* AL=max_cdrom_id */
 	movb	%al, %cs:ABS(max_cdrom_id)		/* CS=0 */
 
-	/* initialize bios_drive_map with hooked_drive_map */
+	/* initialize bios_drive_map with hooked_drive_map_1 */
+#if	MAP_NUM_16
+	movw	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 4), %cx
+	movw	$ABS(EXT_C(hooked_drive_map_1)), %si		/* CS=0 */
+#else
 	movw	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2), %cx
 	movw	$ABS(EXT_C(hooked_drive_map)), %si		/* CS=0 */
+#endif
 	movw	$ABS(EXT_C(bios_drive_map)), %di		/* ES=0 */
 	cs repz movsw
+	
+	movw	$(0x3000 - 0x2800)/8, %cx
+	movw	$0x2800, %si
+3:
+	cmpl	$0x47415246, (%si)		/* FRAGMENT */
+	je	3f
+	addw	$8, %si
+	loop	3b
+	jmp	2f
+3:
+	cmpl	$16, 0xfc							//16 FRAGMENT
+	jne	3f	
+
+#if	MAP_NUM_16	
+	pushw	%si
+	// BIOS-hooked_drive_map_2 -> G4D-hooked_drive_map_2
+	movw	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 4), %cx
+	pushw	%cx
+	subw	$((DRIVE_MAP_SIZE / 2 + 1) * DRIVE_MAP_SLOT_SIZE), %si
+	pushw	%si
+	movw	$ABS(EXT_C(hooked_drive_map_2)), %di		/* ES=0 */
+	repz	movsw
+	//BIOS_hooked_drive_map_2 -> G4D-bios_drive_map_8
+	popw	%si
+	popw	%cx
+	movw	$ABS(EXT_C(bios_drive_map) + ((DRIVE_MAP_SIZE / 2) * DRIVE_MAP_SLOT_SIZE)), %di		/* ES=0 */
+	repz	movsw		
+	popw	%si
+#endif
+3:
+	addw	$8, %si
+	movw	$ABS(EXT_C(hooked_fragment_map)), %di
+	movw	$FRAGMENT_MAP_SLOT_SIZE/2, %cx
+	repz	movsw
 
 2:
 	xorw	%ax, %ax
@@ -1977,12 +2032,20 @@ VARIABLE(ROM_int13)
 
 	. = int13_handler + 0x20	/* drive map table begins at 0x20 */
 
+#if	MAP_NUM_16
+ENTRY(hooked_drive_map_1)
+	.space	(DRIVE_MAP_SIZE / 2 + 1) * DRIVE_MAP_SLOT_SIZE
+#else
 ENTRY(hooked_drive_map)
 	.space	(DRIVE_MAP_SIZE + 1) * DRIVE_MAP_SLOT_SIZE
-
 	/* 8-byte space reserved. */
+#endif
+
+	. = int13_handler + 0xFC
+	.long	16
 
 	. = int13_handler + 0x100	/* real int13 handler entry at 0x100 */
+	
 int13_handler_entry:
 	jmp	1f
 
@@ -2002,7 +2065,7 @@ VARIABLE(ROM_int13_dup)	/* Win9x Safe-MBR-Hook structure requires this! */
 	.long	0
 
 	. = int13_handler + 0x117
-
+	
 VARIABLE(safe_mbr_hook)
 
 	/* 2012-12-13: set to 0 according to sha0:
@@ -2071,7 +2134,9 @@ VARIABLE(saved_pxe_mac)
 	/* space reserved. */
 
 	. = int13_handler + 0x140
-
+	
+restore_old_emu:
+  
 	/* GDT used by int13_handler RAM disk (32-bit protected mode, PAE
 	 * paging, and 64-bit long mode).
 	 * Linear address will be set by set_int13_handler routine.
@@ -2239,7 +2304,7 @@ int13_new_ss:		.word	0
 #endif
 
 1:
-
+	
 	/* backup far return address */
 	popl	%cs:(int13_old_cs_ip - int13_handler)
 
@@ -2273,9 +2338,22 @@ int13_new_ss:		.word	0
 
 /****************************************************************************/
 	/* find the drive number from the drive map */
+#if	MAP_NUM_16
+	movw	$(EXT_C(hooked_drive_map_1) - int13_handler - DRIVE_MAP_SLOT_SIZE), %bp
+#else
 	movw	$(EXT_C(hooked_drive_map) - int13_handler - DRIVE_MAP_SLOT_SIZE), %bp
+#endif
 1:
 	addw	$DRIVE_MAP_SLOT_SIZE, %bp
+#if	MAP_NUM_16	
+	cmpw	$EXT_C(hooked_drive_map_1) - int13_handler + DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2, %bp
+	jne	2f
+	movw	$(EXT_C(hooked_drive_map_2) - int13_handler), %bp
+2:	
+	cmpw	$EXT_C(hooked_drive_map_2) - int13_handler + DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2, %bp
+	je	2f	
+#endif
+	
 	movw	%bp, %cs:(int13_new_bp - int13_handler)
 	movl	%cs:(%bp), %eax		/* FROM, TO, Hmax, Smax */
 
@@ -3017,12 +3095,88 @@ disk_address_packet_ready:
 
 	jc	3f		/* no sectors to transfer, fail */
 
+//			 To_count(0)			To_count(1)					To_count(2)					To_count(3)
+//		©À©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©È
+//To_start(0)		To_start(1)					To_start(2)					To_start(3)
+//																									Form_len
+//	 ©«©©©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©À©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©È
+//	 0																		Form_statr
+
+	pushaw
+	movw	2(%si), %ax
+	movw	%ax, %cs:(old_form_len - int13_handler)
+	movw	4(%si), %ax
+	movw	%ax, %cs:(old_form_offset - int13_handler)
+	movl	8(%si), %eax
+	movl	%eax, %cs:(old_form_statr_lo - int13_handler)
+	movl	12(%si), %eax
+	movl	%eax, %cs:(old_form_statr_hi - int13_handler)
+	movw	$0, %cs:(next_fragment_len - int13_handler)
+	xorw	%di, %di
+	testw	$0x400, %cs:4(%bp)
+	je	no_sp
+	movw	$(hooked_fragment_map - int13_handler), %bp
+	
+2:
+	cmpb	$0, %cs:(%bp)
+	je	no_sp
+	cmpb	%dl, %cs:1(%bp)
+	je	2f
+	movzbw	%cs:(%bp), %ax
+	addw	%ax, %bp
+	loop	2b
+2:
+	movw	%bp, %cs:(next_fragment_base - int13_handler)
+	movl	8(%si), %eax					//Form_statr_Lo		0000
+	movl	12(%si), %ebx					//Form_statr_Hi		0000
+	xorl	%ecx, %ecx
+	xorl	%edx, %edx
+2:
+	addl	%cs:12(%bp,%di), %ecx	//¡ÆTo_count(0¡úi) + To_count(i+1)
+	adcl	%cs:16(%bp,%di), %edx
+	call	compare_64						//Form_statr <> ¡ÆTo_count(0¡úi)
+	jb	2f
+	addw	$16, %di
+//	cmpw	$(16*DRIVE_MAP_FRAGMENT), %di
+//	jb	2b
+	jmp	2b
+2:	
+	addl	%cs:12(%bp,%di), %eax	//Form_statr + To_count(i)
+	adcl	%cs:16(%bp,%di), %ebx
+	addl	%cs:4(%bp,%di), %eax	//Form_statr + To_count(i) + To_start(i)
+	adcl	%cs:8(%bp,%di), %ebx
+	subl	%ecx, %eax						//Form_statr + To_count(i) + To_start(i) - ¡ÆTo_count(0¡úi)
+	sbbl	%edx, %ebx
+
+	subl	8(%si), %ecx						//¡ÆTo_count(0¡úi) - Form_statr
+	sbbl	12(%si), %edx
+	movl	%eax, 8(%si)						//Form_statr - ¡ÆTo_count(0¡úi-1) + To_start(i)
+	movl	%ebx, 12(%si)	
+	movzwl	2(%si), %eax				 	//Form_len
+	xorl	%ebx, %ebx
+	call	compare_64							//Form_len <> ¡ÆTo_count(0¡úi) - Form_statr
+	jbe	2f
+
+	movw	%cx, 2(%si)						  //¡ÆTo_count(0¡úi) - Form_statr														
+	subw	%cx, %ax								//Form_len - (¡ÆTo_count(0¡úi) - Form_statr)
+	movw	%ax, %cs:(next_fragment_len - int13_handler)
+	addw	$16, %di
+	movw	%di, %cs:(next_fragment_offset - int13_handler)
+2:
+	popaw
+	jmp 2f
+
+
+no_sp:	
+	popaw
+	
 	/* adjust start-sector-number(LBA) to access TO_DRIVE */
 	movl	%cs:8(%bp), %eax	/* StartLBA_Lo */
 	addl	%eax, 8(%si)
 	movl	%cs:12(%bp), %eax	/* StartLBA_Hi */
 	adcl	%eax, 12(%si)
-
+	
+2:
 	/* set drive number(TO_DRIVE) and function number(EBIOS) */
 	movb	%cs:1(%bp), %dl		/* DL=TO_DRIVE */
 	movb	%cs:(int13_old_eax - int13_handler + 1), %ah
@@ -3031,31 +3185,72 @@ disk_address_packet_ready:
 
 	call	real_int13_service
 
-	///* restore original start-sector-number(in the DAP) */
-	//pushfw
-	//movl	%cs:8(%bp), %eax	/* StartLBA_Lo */
-	//subl	%eax, 8(%si)
-	//sbbl	$0, 12(%si)
-	//popfw
-
 	jc	3f			/* failure */
+	
+2:	
+	pushaw
+	movw	%cs:(next_fragment_len - int13_handler), %cx
+	orw	%cx, %cx
+	je	2f
 
+	movw	%cs:(next_fragment_base - int13_handler), %bp
+	movw	$0, %cs:(next_fragment_len - int13_handler)	
+	movw	%cs:(next_fragment_offset - int13_handler), %di
+	movl	%cs:4(%bp,%di), %eax
+	movl	%eax, 8(%si)
+	movl	%cs:8(%bp,%di), %eax
+	movl	%eax, 12(%si)
+	movw	4(%si), %ax
+	movw	2(%si), %bx
+	shlw	$9, %bx
+	addw	%bx, %ax
+	movw	%ax, 4(%si)
+	movw	%cs:12(%bp,%di), %ax
+	cmpw	%ax, %cx
+	jbe	4f
+
+	subw	%ax, %cx
+	movw	%cx, %cs:(next_fragment_len - int13_handler)
+	addw	$16, %di
+	movw	%di, %cs:(next_fragment_offset - int13_handler)
+	xchgw	%ax, %cx
+4:
+	movw	%cx, 2(%si)
+	popaw
+	call	real_int13_service 
+	jc	3f			/* failure */
+	jmp	2b
+	
+2:	
+	popaw
 	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jnz	4f			/* CDROM */
+	
 	movw	$(EBIOS_disk_address_packet - int13_handler), %si
 	movw	%cs, %ax
 	movw	%ax, %ds
+	
 	/* restore original start-sector-number(in the DAP) */
-	movl	%cs:8(%bp), %eax	/* StartLBA_Lo */
-	subl	%eax, 8(%si)
-	movl	%cs:12(%bp), %eax	/* StartLBA_Hi */
-	sbbl	%eax, 12(%si)
+//	movl	%cs:8(%bp), %eax	/* StartLBA_Lo */
+//	subl	%eax, 8(%si)
+//	movl	%cs:12(%bp), %eax	/* StartLBA_Hi */
+//	sbbl	%eax, 12(%si)
+
+	movw	%cs:(old_form_len - int13_handler), %ax
+	movw	%ax, 2(%si)
+	movw	%cs:(old_form_offset - int13_handler), %ax
+	movw	%ax, 4(%si)
+	movl	%cs:(old_form_statr_lo - int13_handler), %eax
+	movl	%eax, 8(%si)
+	movl	%cs:(old_form_statr_hi - int13_handler), %eax
+	movl	%eax, 12(%si)
+
 	call	modify_boot_sectors
 4:
 	movb	%cs:(int13_old_eax - int13_handler), %al
 	xorb	%ah, %ah
 	jmp	4f			/* success */
-
+	
 3:
 	movw	$0x400, %ax	/* no sectors transferred */
 	/* write back sectors transferred to original DAP for LBA access */
@@ -3075,6 +3270,30 @@ disk_address_packet_ready:
 	movl	%cs:(int13_old_edi - int13_handler), %edi
 	movw	%cs:(int13_old_es - int13_handler), %es
 	jmp	int13_return
+	
+old_form_statr_lo:
+	.long	0
+old_form_statr_hi:
+	.long	0
+old_form_len:	
+	.word	0
+old_form_offset:
+	.word	0
+next_fragment_base:
+	.word	0
+next_fragment_offset:
+	.word	0	
+next_fragment_len:	
+	.word	0
+	
+//input: ebx=A_hi, eax=A_lo, edx=B_hi, ecx=B_lo
+compare_64:	
+	cmpl	%edx, %ebx		//A_hi <> B_hi
+	jne	compare_64_end	//A_hi != B_hi,  end
+	//A_hi = B_hi	
+	cmpl	%ecx, %eax		//A_lo <> B_lo
+compare_64_end:
+	ret
 /****************************************************************************/
 1:
 	cmpb	$0x41, %ah	/* EBIOS installation check */
@@ -3191,8 +3410,9 @@ disk_address_packet_ready:
 	movl	%eax, 8(%si)		# heads=0xFF
 	movb	$15, %al
 	movl	%eax, 12(%si)		# sectors per track=15
-	movl	%eax, 20(%si)		# total sectors hi dword=0
 	xorw	%ax, %ax		# CF cleared
+	movl	%eax, 20(%si)		# total sectors hi dword=0
+//	xorw	%ax, %ax		# CF cleared
 	decl	%eax			# EAX=0xFFFFFFFF
 	movl	%eax, 16(%si)		# total sectors lo dword
 					# CF is cleared
@@ -3406,16 +3626,21 @@ real_int13_service:
 	jz	3f		/* enabled A20 with success */
 
 	/* A20 control failed. Notify the user. */
-	movzbw	%cs:(%bp), %ax		/* FROM_DRIVE */
-	pushw	%ax
-	pushw	$a20_failure - int13_handler	# the format string
-	call	realmode_printf
-	addw	$4, %sp			# adjust the stack pointer
+	movw	$(a20_failure - int13_handler), %si
+	xorw	%bx, %bx
+5:	
+	lodsb
+	cmpb	$0x20, %al
+	jb	5f
+	movb	$0x0e, %ah	/* print it */
+	int	$0x10		/* via TTY mode */
+	jmp	5b
+5:	
 	stc
 	jmp	*%cs:(int13_ret_IP - int13_handler)	//ret
 
 a20_failure:
-	.ascii	"\r\ngrub4dos: A20 failure on memdrive=0x%X.\r\n\0"
+		.ascii	"\r\ngrub4dos: A20 failure.\r\n\0"
 
 3:
 	/* EDI=linear address of BUFFER(below 1M) */
@@ -3856,12 +4081,26 @@ normal_disk_drive:
 	pushl	%ebx		/* save EBX */
 
 	/* set SI to the drive map */
+#if	MAP_NUM_16
+	movw	$(EXT_C(hooked_drive_map_1) - int13_handler), %si
+#else
 	movw	$(EXT_C(hooked_drive_map) - int13_handler), %si
+#endif
 	/* find the drive number from the drive map */
 	cld
 	subw	$DRIVE_MAP_SLOT_SIZE - 4, %si
 2:
 	addw	$DRIVE_MAP_SLOT_SIZE - 4, %si
+	
+#if	MAP_NUM_16
+	cmpw	$EXT_C(hooked_drive_map_1) - int13_handler + DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2, %si
+	jne	4f
+	movw	$(EXT_C(hooked_drive_map_2) - int13_handler), %si
+4:	
+	cmpw	$EXT_C(hooked_drive_map_2) - int13_handler + DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2, %si
+	je	2f
+#endif
+
 	lodsl	%cs:(%si), %eax
 	testl	%eax, %eax	/* end of map table? */
 	movl	%eax, %ebx	/* save the map to EBX */
@@ -5413,7 +5652,11 @@ int15_e820_handler:
 
 	/* check if overlapping with int13_handler and memdrives. */
 
-	movw $(EXT_C(hooked_drive_map)-int13_handler-DRIVE_MAP_SLOT_SIZE), %si
+#if	MAP_NUM_16
+	movw	$(EXT_C(hooked_drive_map_1)-int13_handler-DRIVE_MAP_SLOT_SIZE), %si
+#else
+	movw	$(EXT_C(hooked_drive_map)-int13_handler-DRIVE_MAP_SLOT_SIZE), %si
+#endif
 	movw	$(DRIVE_MAP_SIZE + 1), %cx
 
 	popl	%eax		/* available low mem size in bytes */
@@ -5423,6 +5666,12 @@ int15_e820_handler:
 	jz	7f	/* int15 will handle low mem */
 	jmp	5f	/* this "jmp" instruction can be omitted. */
 6:
+#if	MAP_NUM_16
+	cmpw	$EXT_C(hooked_drive_map_1) - int13_handler + DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2, %si		//hooked_drive_map_1 end
+	jne	8f
+	movw	$(EXT_C(hooked_drive_map_2) - int13_handler), %si
+8:
+#endif
 	/* the code should not change SI, DI and CX! */
 	cmpb	$0xff, %cs:1(%si)
 	jne	5f			/* not memdrive */
@@ -5508,9 +5757,19 @@ int15_e820_handler:
 	movl	%eax, %cs:(minimum_mem_hi_in_map - int13_handler)
 	movl	$0x1000000, %cs:(minimum_mem_lo_in_map - int13_handler)
 	/* set %si to the drive map */
+#if	MAP_NUM_16
+	movw	$(EXT_C(hooked_drive_map_1) - int13_handler), %si
+#else
 	movw	$(EXT_C(hooked_drive_map) - int13_handler), %si
+#endif
 	movw	$(DRIVE_MAP_SIZE), %cx
 6:
+#if	MAP_NUM_16
+	cmpw	$EXT_C(hooked_drive_map_1) - int13_handler + DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 2, %si		//hooked_drive_map_1 end
+	jne	8f
+	movw	$(EXT_C(hooked_drive_map_2) - int13_handler), %si
+8:	
+#endif
 	cmpb	$0xff, %cs:1(%si)
 	jne	5f
 	testb	$0x40, %cs:5(%si)	/* TO_C bit 14=(TO is cdrom) */
@@ -5937,11 +6196,74 @@ dec_e820cycles:
 	popal
 	ret
 
+#;============================================================================
+
 /****************************************************************************/
 
 #include "a20.inc"
 
 /****************************************************************************/
+
+	.align	16
+
+GDT_data:		/* used by int15/ah=87h */
+
+/*00*/	.long	0, 0	/* unused descriptor, must be 0 */
+/*08*/	.long	0, 0	/* GDT descriptor, must be 0 */
+
+	/* source descriptor */
+/*10*/	.word	0xffff	/* segment limit, 64K */
+/*12*/	.byte	0, 0, 0	/* physical address(low 24 bits) */
+/*15*/	.byte	0x93	/* access rights, 93h=readable/writable */
+/*16*/	.byte	0	/* low 4 bits are high 4 bits of segment limit(here
+			   should be 0). high 4 bits are flags, also should
+			   be set to 0 for this function call */
+/*17*/	.byte	0	/* physical address(high 8 bits) */
+
+	/* destination descriptor */
+/*18*/	.word	0xffff	/* segment limit, 64K */
+/*1A*/	.byte	0, 0, 0	/* physical address(low 24 bits) */
+/*1D*/	.byte	0x93	/* access rights, 93h=readable/writable */
+/*1E*/	.byte	0	/* low 4 bits are high 4 bits of segment limit(here
+			   should be 0). high 4 bits are flags, also should
+			   be set to 0 for this function call */
+/*1F*/	.byte	0	/* physical address(high 8 bits) */
+
+/*20*/	.long	0, 0	/* code segment descriptor, must be 0 */
+/*28*/	.long	0, 0	/* stack segment descriptor, must be 0 */
+/*30*/
+
+
+
+	.align	16
+
+/* EBIOS_disk_address_packet should be at the end of the handler because some
+ * buggy BIOSes could destroy the memory that immediately follows.
+ */	
+EBIOS_disk_address_packet:
+	.byte	0x10	/* packet size, 16 or more */
+	.byte	0	/* reserved, must be 0 */
+	.byte	0	/* number of sectors, must be from 1 to 127 */
+	.byte	0	/* reserved, must be 0 */
+	.word	0	/* displacement of memory address */
+	.word	0	/* segment of memory address */
+	.long	0	/* 64bit, start logical sector number */
+	.long	0	
+
+edd30_disk_buffer:	.space	0x800
+
+#if	MAP_NUM_16
+ENTRY(hooked_drive_map_2)
+	.space	(DRIVE_MAP_SIZE / 2 + 1) * DRIVE_MAP_SLOT_SIZE
+#endif
+
+	.ascii	"FRAGMENT"
+	
+ENTRY(hooked_fragment_map)	.space	FRAGMENT_MAP_SLOT_SIZE
+
+	.ascii	"int13end"
+
+cdrom_start:
 
 /* EDD30 code imported from edd30.asm of Smart Boot Manager. */
 
@@ -6008,7 +6330,7 @@ dec_e820cycles:
 #define cmd_DC_ni CB_DC_HD15 | CB_DC_NIEN
 
 /****************************************************************************/
-
+			
 __reg_select_dev:
 #; ax = dev
 #; simple version of the select dev
@@ -7346,12 +7668,48 @@ delay_repeat_num:	.long	0	# loops per millisecond
 
 end_of_atapi_data:
 
-			.align	16
-
-edd30_disk_buffer:	.space	0x800
-
 ENTRY(slow_atapi_device)
 			.long	0
+
+	.align	16
+
+	#;*******************************************************************
+	#;			ATA Registers Layout
+	#;*******************************************************************
+	#;
+	#; Address		Read			Write
+	#; ---------	---------------------	-----------------------------
+	#; A N 0 0 0	16-bit data port for both read and write
+	#; ------------------------------------------------------------------
+	#; A N 0 0 1	ATAPI/ATA Error(Read)	ATAPI/ATA Feature(Write)
+	#; ------------------------------------------------------------------
+	#; A N 0 1 0	ATAPI Interrupt Reason(Read) / ATA Sector Count
+	#; ------------------------------------------------------------------
+	#; A N 0 1 1	Reserved for SAM TAG Byte / ATA Sector Number
+	#; ------------------------------------------------------------------
+	#; A N 1 0 0	ATAPI Byte Count LSB(R/W) / ATA Cylinder Low(R/W)
+	#; ------------------------------------------------------------------
+	#; A N 1 0 1	ATAPI Byte Count MSB(R/W) / ATA Cylinder High(R/W)
+	#; ------------------------------------------------------------------
+	#; A N 1 1 0	ATAPI Drive Select(R/W) / ATA Drive/Head Select(R/W)
+	#; ------------------------------------------------------------------
+	#; A N 1 1 1	ATAPI/ATA Status(Read)	ATA Command(Write)
+	#; ------------------------------------------------------------------
+	#; N A 1 1 0	Alternate Status(Read)	Device Control(Write)
+	#; ------------------------------------------------------------------
+
+reg_base_addr:
+			.word	0x01f0, 0x03f6
+			.word	0x0170, 0x0376
+			.word	0x00f0, 0x02f6
+			#;.word	0x0070, 0x0276	//port 70 and 71 is for CMOS
+			.word	0x0180, 0x0386
+			.word	0x6b00, 0x6f00
+			.word	0x7300, 0x7700
+ENTRY(reg_base_addr_append)
+			.word	0, 0
+			.word	0, 0		// ending null
+
 
 #;============================================================================
 
@@ -7462,90 +7820,10 @@ realmode_printf:
 	popaw
 	ret
 
-#;============================================================================
 
-	.align	16
-
-GDT_data:		/* used by int15/ah=87h */
-
-/*00*/	.long	0, 0	/* unused descriptor, must be 0 */
-/*08*/	.long	0, 0	/* GDT descriptor, must be 0 */
-
-	/* source descriptor */
-/*10*/	.word	0xffff	/* segment limit, 64K */
-/*12*/	.byte	0, 0, 0	/* physical address(low 24 bits) */
-/*15*/	.byte	0x93	/* access rights, 93h=readable/writable */
-/*16*/	.byte	0	/* low 4 bits are high 4 bits of segment limit(here
-			   should be 0). high 4 bits are flags, also should
-			   be set to 0 for this function call */
-/*17*/	.byte	0	/* physical address(high 8 bits) */
-
-	/* destination descriptor */
-/*18*/	.word	0xffff	/* segment limit, 64K */
-/*1A*/	.byte	0, 0, 0	/* physical address(low 24 bits) */
-/*1D*/	.byte	0x93	/* access rights, 93h=readable/writable */
-/*1E*/	.byte	0	/* low 4 bits are high 4 bits of segment limit(here
-			   should be 0). high 4 bits are flags, also should
-			   be set to 0 for this function call */
-/*1F*/	.byte	0	/* physical address(high 8 bits) */
-
-/*20*/	.long	0, 0	/* code segment descriptor, must be 0 */
-/*28*/	.long	0, 0	/* stack segment descriptor, must be 0 */
-/*30*/
-
-	.align	16
-
-	#;*******************************************************************
-	#;			ATA Registers Layout
-	#;*******************************************************************
-	#;
-	#; Address		Read			Write
-	#; ---------	---------------------	-----------------------------
-	#; A N 0 0 0	16-bit data port for both read and write
-	#; ------------------------------------------------------------------
-	#; A N 0 0 1	ATAPI/ATA Error(Read)	ATAPI/ATA Feature(Write)
-	#; ------------------------------------------------------------------
-	#; A N 0 1 0	ATAPI Interrupt Reason(Read) / ATA Sector Count
-	#; ------------------------------------------------------------------
-	#; A N 0 1 1	Reserved for SAM TAG Byte / ATA Sector Number
-	#; ------------------------------------------------------------------
-	#; A N 1 0 0	ATAPI Byte Count LSB(R/W) / ATA Cylinder Low(R/W)
-	#; ------------------------------------------------------------------
-	#; A N 1 0 1	ATAPI Byte Count MSB(R/W) / ATA Cylinder High(R/W)
-	#; ------------------------------------------------------------------
-	#; A N 1 1 0	ATAPI Drive Select(R/W) / ATA Drive/Head Select(R/W)
-	#; ------------------------------------------------------------------
-	#; A N 1 1 1	ATAPI/ATA Status(Read)	ATA Command(Write)
-	#; ------------------------------------------------------------------
-	#; N A 1 1 0	Alternate Status(Read)	Device Control(Write)
-	#; ------------------------------------------------------------------
-
-reg_base_addr:
-			.word	0x01f0, 0x03f6
-			.word	0x0170, 0x0376
-			.word	0x00f0, 0x02f6
-			#;.word	0x0070, 0x0276	//port 70 and 71 is for CMOS
-			.word	0x0180, 0x0386
-			.word	0x6b00, 0x6f00
-			.word	0x7300, 0x7700
-ENTRY(reg_base_addr_append)
-			.word	0, 0
-			.word	0, 0		// ending null
-
-/* EBIOS_disk_address_packet should be at the end of the handler because some
- * buggy BIOSes could destroy the memory that immediately follows.
- */
-
-EBIOS_disk_address_packet:
-	.byte	0x10	/* packet size, 16 or more */
-	.byte	0	/* reserved, must be 0 */
-	.byte	0	/* number of sectors, must be from 1 to 127 */
-	.byte	0	/* reserved, must be 0 */
-	.word	0	/* displacement of memory address */
-	.word	0	/* segment of memory address */
-	.long	0	/* 64bit, start logical sector number */
-	.long	0
-
+#;============================================================================				
+			
+			
 /* Don't insert code or data here! Buggy BIOSes could overwrite this area! */
 
 //	.align	16
@@ -7556,12 +7834,2441 @@ int13_handler_end:
 
 	/* Total size of int13_handler should better not exceed 12KB. */
 
-	. = . - (int13_handler_end - int13_handler)/0x3001
+//	. = . - (int13_handler_end - int13_handler)/0x3001
 
 	// this is used to check the current size of the handler code
 	//. = . - (int13_handler_end - int13_handler)/0x2F01
 
 #;============================================================================
+/* unsigned long
+ * init_usb() : return number of usb devices.
+ */
+
+ENTRY(init_usb)
+
+	.code32
+
+	pushl	%ebp
+	pushl	%ebx
+
+	call	EXT_C(prot_to_real)	/* enter real mode */
+
+	.code16
+
+	sti		/* enable interrupt for USB */
+
+	cld
+
+	/* set CS base to be USB2DRI */
+	.byte	0xEA
+	.word	ABS(1f)
+	.word	0
+1:
+	pushaw
+	pushw	%es
+	pushw	%ds
+
+	pushw	%cs
+	popw	%ds
+	pushw	%cs
+	popw	%es
+
+	//Load the usb driver
+	movw	$ABS(USB2DRI), %ax
+	shrw	$4, %ax
+	movw	%ax, ABS(2f+2)
+	lcall	*ABS(2f)
+
+	popw	%ds
+	popw	%es
+	popaw
+
+	ljmp	$0, $ABS(1f)
+2:	
+	.word 0
+	.word 0
+1:
+
+	call	EXT_C(real_to_prot)
+	.code32
+
+	sti
+	popl	%ebx
+	popl	%ebp
+	ret
+
+/* ********************  USB2DRI start  ****************************** */
+	.align	32
+
+ENTRY(USB2DRI)
+
+	.code16
+	
+	jmp Initialization
+	
+	.ascii  "USB2DRI "
+ENTRY(usb_delay)
+	.byte   0
+map_num:
+	.byte   0	
+bios_dl:
+	.byte   0
+fd_num:
+	.byte   0
+hd_num:
+	.byte   0
+max_id:
+	.byte   0	
+ENTRY(max_dri)
+	.byte   0	
+Count_1ms:
+	.word   0
+Single_size:
+	.word   0
+bus_device_function:
+	.word   0
+Register_pci:
+	.long   0
+old_int13:
+	.long   0
+	
+	. = USB2DRI + 0x20
+
+
+
+qh:
+	.fill 0x110,1,0x00                      //QH,qTD
+
+//qTD1    db      40h dup(0)
+//qTD2    db      40h dup(0)
+//qTD3    db      40h dup(0) 
+
+//QH0     db      40h dup(0)
+//				db		  10h dup(0)    
+
+cbw_qq:
+	.long   0x43425355
+	.long   0x12345678
+	.long   0
+	.byte   0
+	.byte   0
+	.byte   0x0c
+	.long   0
+	.long   0
+	.long   0
+	.long   0
+	.byte   0 
+
+csw_qq:
+	.fill 0x20,1,0x00
+
+//---------------------------------------------------------------------------- 
+
+GDT:
+
+	.word	0, 0
+	.byte	0, 0, 0, 0
+	
+
+LimitL:
+	.word   0xffff
+BaseL:
+	.word   0
+BaseM:
+	.byte   0 
+Attributes:
+	.byte   0x92
+LimitH:
+	.byte   0
+BaseH:
+	.byte   0
+
+aaaa:
+#define	GDTLen	aaaa - GDT  
+
+
+VGDTR:
+	.word	GDTLen - 1
+Base:        
+	.long	0
+	
+
+//---------------------------------------------------------------------------- 
+	.ascii  "DEV"
+
+Dev:
+DevID:
+	.byte   0
+ConProperty:
+	.byte   0
+ConAddress:
+	.byte   0
+ConSize:
+	.word   12
+InProperty:
+	.byte   0
+InAddress:
+	.byte   0
+InSize:
+	.word   0
+OutProperty:
+	.byte   0
+OutAddress:
+	.byte   0
+OutSize:
+	.word   0
+MaxLUN:
+	.byte   0
+Port_Num_Reg:
+	.byte   0
+HUB_id:
+	.byte   0
+InterfaceNum:
+	.byte   0
+InterfaceValue:
+	.byte   0
+	
+bbbb:
+#define	DevLen	(bbbb - Dev)
+
+	.fill (DevLen*7),1,0x00
+
+//---------------------------------------------------------------------------- 
+	.ascii  "DRI"
+
+Dri:
+Number:
+	.byte   0
+DriID:
+	.byte   0
+DriLUN:
+	.byte   0
+DriType:
+	.byte   0	
+Capacity:
+	.long   0
+StartSector:
+	.long   0       
+
+cccc:        
+#define	DriveLen  (cccc - Dri)
+
+	.fill (DriveLen*7),1,0x00
+
+//----------------------------------------------------------------------------
+	.align 8
+
+SCSI:
+Return:
+	.byte   0
+Direction:
+	.byte   0
+TSize:
+	.long   0
+TOffset:
+	.word   0
+TSection:
+	.word   0
+TokenContent:
+	.byte   0,0,0,0,0,0,0,0,0,0,0,0
+
+dddd:
+#define	TokenLen  dddd - SCSI
+
+
+//----------------------------------------------------------------------------
+	.align	8
+
+Get_device:
+	.byte   0x80,06,00,01,00,00,0x12,00
+Get_Configuration:
+	.byte   0x80,06,00,02,00,00,0x09,00
+Get_lun:
+	.byte   0xa1,0xfe,00,00,00,00,01,00
+Set_Configuration:
+	.byte   00,0x09,01,00,00,00,00,00
+Set_device_Address:
+	.byte   00,05,00,00,00,00,00,00 
+Clear_endpoint:
+	.byte   02,01,00,00,00,00,00,00
+Bulk_Reset:
+	.byte   0x21,0xff,00,00,00,00,00,00
+Set_Interface:
+	.byte   01,0x0b,00,00,00,00,00,00
+Get_Hub:
+	.byte   0xa0,06,00,0x29,00,00,0x10,00
+Set_Hub_Power:
+	.byte   0x23,03,0x08,00,00,00,00,00
+Get_Hub_Status:
+	.byte   0xa0,00,00,00,00,00,04,00
+Get_Port_Status:
+	.byte   0xa3,00,00,00,00,00,04,00
+Clear_Hub_Conne:
+	.byte   0x23,01,0x10,00,00,00,00,00
+Set_Hub_Reset:
+	.byte   0x23,03,04,00,00,00,00,00
+Clear_Hub_Reset:
+	.byte   0x23,01,0x14,00,00,00,00,00
+
+_id:
+	.byte   1
+_lun:
+	.byte   0
+_type:
+	.byte   0	
+lba1sector:
+	.byte   0
+AsyncListAddr:
+	.long   0
+qTD1:
+	.word   0
+qTD1_Linear:
+	.long   0
+ds_Linear:
+	.long   0  	
+Disk_sector:
+	.long   0
+Start_sector:
+	.long   0
+Status:
+	.byte   0
+Error_repeat_Number_Bulk:
+	.byte   0
+Error_repeat_Number_Con:
+	.byte   0
+Read_write_repeat_Number:
+	.byte   0
+Stack_sp:
+	.word   0
+Stack_ss:
+	.word   0
+Media_types:	
+	.byte   0
+Ability_Register_Size:
+	.word   0
+not_err:
+	.byte   0
+_eax:
+	.long   0
+_bx:
+	.word   0
+_cl:
+	.byte   0
+_es:
+ 	.word   0
+Direction1:
+	.byte   0
+R_W_Mark:
+	.byte   0
+Save_ah:
+	.byte   0	
+
+
+Entry_int13:
+	call Find_drive_info
+	jnb 1f
+	testb $1, %cs:(map_num - USB2DRI)
+	je 2f	
+	cmpb $0x80, %dl
+	jb 2f
+	incb %dl
+2:	
+	ljmp *%cs:(old_int13 - USB2DRI)
+1:        
+	cld               
+	pushal                          //       eax ecx edx ebx esp ebp esi edi  cf 
+	movw %sp, %bp                   //bp+    1c  18  14  10  0c  08  04  00   24
+	pushw %ds
+	pushw %es
+	pushw %fs
+	pushw %gs
+	pushw $0
+	popw %fs
+	pushw $0xffff
+	popw %gs
+        //ss=ds=0 es=2000 cs=9e00  fs=000 gs=ffff
+	cmpb $00, %ah
+	je int13_00_04_16_17_18_44_47
+	cmpb $01, %ah
+	je int13_01
+	cmpb $02, %ah
+	je int13_02_03        
+	cmpb $03, %ah
+	je int13_02_03
+	cmpb $0x08, %ah
+	je int13_08
+	cmpb $0x15, %ah
+	je int13_15
+	cmpb $0x16, %ah
+	je int13_00_04_16_17_18_44_47
+	cmpb $0x41, %ah
+	je int13_41                
+	cmpb $0x42, %ah
+	je int13_42_43     
+	cmpb $0x43, %ah
+	je int13_42_43
+	cmpb $0x48, %ah
+	je int13_48
+	cmpw $0x4b01, %ax
+	je int13_4b01	
+
+qtml:        
+	movb $01, %ah
+	jmp 4f        
+int13_00_04_16_17_18_44_47:
+	xorb %ah, %ah         
+4:  
+	testb $0x80, %dl
+	jne 1f
+	movb %ah, %fs:0x0441
+	jmp 2f
+1:	
+	movb %ah, %fs:0x0474
+2:	
+	andb $0xfe, 0x24(%bp)        		//cf=0
+	movb %ah, 0x1d(%bp)             //ah
+	orb %ah, %ah
+	je 3f
+	orb $01, 0x24(%bp)              //cf=1
+3: 
+	popw %gs
+	popw %fs
+	popw %es
+	popw %ds
+	popal
+	iret        
+        
+
+int13_01:  
+	testb $0x80, %dl
+	jne 1f
+	xchgb %fs:0x0441, %ah
+	jmp 2b
+1:
+	xchgb %fs:0x0474, %ah        
+	jmp 2b    
+
+
+int13_02_03:
+	movb %ah, %cs:(Save_ah - USB2DRI)
+	call chs_lba
+	cmpl %cs:(Disk_sector - USB2DRI), %eax
+	ja 2f
+	movb $01, %cl
+	cmpb $02, %cs:(Save_ah - USB2DRI)
+	je 1f
+	xorb %cl, %cl
+1:     
+	call Read_write_usb
+	jnb int13_00_04_16_17_18_44_47
+2:
+	jmp qtml        
+
+int13_08:
+	pushw %dx
+	movw $0x3ec1, %cx        
+	movw %cs:(Disk_sector - USB2DRI), %ax
+	movw %cs:(Disk_sector + 2 - USB2DRI), %dx 
+	cmpw %cx, %dx
+	jae 1f
+	divw %cx
+	decw %ax
+	cmpw $0x03FF, %ax
+	jb 2f
+1:        
+	movw $0x03FF, %ax
+2:
+	movw %ax, %cx
+	xchgb %ch, %cl
+	shlb $06, %cl
+	orb $0x3f, %cl
+	movb $0xfe, %dh
+	movb %fs:0x0475, %dl
+	movw %dx, 0x14(%bp)
+	movw %cx, 0x18(%bp)
+	movb $0x10, 0x10(%bp)
+	popw %dx
+	jmp int13_00_04_16_17_18_44_47        
+         
+int13_15:
+	movb %al, %fs:0x0441
+	movb $02, %ah        
+	testb $0x80, %dl
+	je 1f
+	movb $03, %ah
+1:        
+	andb $0xfe,0x24(%bp)            //cf=0
+	movb %ah, 0x1d(%bp)             //ah
+	jmp 3b
+
+
+Find_drive_info:
+	pushal
+	pushw %ds
+	pushw %cs
+	popw %ds
+	movb (EXT_C(max_dri) - USB2DRI), %cl
+	movw $(Dri - USB2DRI), %si
+1:        
+	cmpb (Number - Dri)(%si), %dl
+	je 1f
+	decb %cl
+	orb %cl, %cl
+	je 2f
+	addw $DriveLen, %si 
+	jmp 1b
+1:
+	movb (DriID - Dri)(%si), %al 
+	movb %al, (_id - USB2DRI)
+	movb (DriLUN - Dri)(%si), %al 
+	movb %al, (_lun - USB2DRI)
+	movb (DriType - Dri)(%si), %al
+	movb %al, (_type - USB2DRI)
+	movl (Capacity - Dri)(%si), %eax 
+	movl %eax, (Disk_sector - USB2DRI)
+	movl (StartSector - Dri)(%si), %eax 
+	movl %eax, (Start_sector - USB2DRI)      
+	clc
+1:
+	popw %ds
+	popal
+	ret
+2:
+	stc
+	jmp 1b                 
+
+
+chs_lba:
+	movw %bx, %di
+	movzbw %al, %bx
+
+	movb %cl, %al
+	andb $0x3f, %al
+	movzbl %al, %eax
+	pushl %eax 
+
+	xchgb %ch, %cl
+	andb $0xc0, %ch
+	rolb $02, %ch
+
+	movl $0xff, %eax
+	movzwl %cx, %ecx
+	imull %ecx, %eax
+	movzbl %dh, %ecx
+	addl %ecx, %eax 
+	movl $0x3f, %ecx
+	imull %ecx, %eax
+	popl %ecx
+	addl %ecx, %eax        
+	decl %eax
+   
+	ret
+   
+
+
+
+int13_41:   
+	cmpw $0x55aa, %bx
+	jne qtml 
+	movw $0x2100, %ax               //EDD-2.1
+	notw %bx                        //bx=AA55
+	movw $5, %cx 
+	movw %bx, 0x10(%bp)
+	movw %cx, 0x18(%bp)         
+	movw %ax, 0x1c(%bp) 
+	andb $0xfe, 0x24(%bp)           //cf=0
+	jmp 3b
+
+
+int13_42_43:
+	movb %ah, %cs:(Save_ah - USB2DRI)     
+	call Disk_package
+	movb $01, %cl
+	cmpb $0x42, %cs:(Save_ah - USB2DRI)
+	je 1f
+	xorb %cl, %cl       
+1:
+	call Read_write_usb
+	jnb int13_00_04_16_17_18_44_47
+2:
+	jmp qtml
+
+
+Disk_package:
+	movw 02(%si), %bx
+	movw 04(%si), %di
+	movw 06(%si), %es
+	movl 0x08(%si), %eax       
+	ret
+
+
+int13_48:
+	pushw %ds
+	popw %es
+	pushw %dx
+	movw %si, %di 
+	xorb %al, %al
+	movw $0x1a, %cx
+	rep stosb
+	movb $0x1a, (%si)
+	movb $06, 02(%si)
+	movb $0x3f, 0x0c(%si)
+	movb $0xff, 0x08(%si)
+	movl $0x3ec1, %ecx
+	movl %cs:(Disk_sector - USB2DRI), %eax
+	movl %eax, 0x10(%si)
+	xorl %edx, %edx
+	divl %ecx
+	movl %eax, 04(%si)        
+	movw $0x200, 0x18(%si)
+	popw %dx
+	jmp int13_00_04_16_17_18_44_47
+	
+int13_4b01:			
+	movb $0x13, (%si)
+	movb %cs:(Media_types - USB2DRI), %al
+	movb %al, 1(%si)
+	movb $0xff, 2(%si)
+	movb $1, 3(%si)
+	movl %cs:(Start_sector - USB2DRI), %eax
+	movl %eax, 4(%si)
+	movw %cs:(bus_device_function - USB2DRI), %ax
+	movb %cs:(_lun - USB2DRI) ,%al
+	movw %ax, 8(%si)
+	movw $0, 0x0a(%si)
+	movw %cs:(Disk_sector - USB2DRI), %ax
+	movw %ax, 0x0c(%si)
+	movw %cs:(Disk_sector + 2 - USB2DRI), %ax
+	movw %ax, 0x0e(%si)
+	movw $0, 0x10(%si)
+	movb $0, 0x12(%si)	
+	jmp int13_00_04_16_17_18_44_47
+	
+//------------------------------------------------------------------------------------------
+
+
+Allow_A20:
+	call observe
+	orw %ax, %ax 
+	jne 1f
+	mov $0x2401, %ax
+	int $0x15
+	call observe
+	orw %ax, %ax
+	jne 1f
+	pushfl
+	cli
+
+2:
+	inb $0x64, %al
+	testb $02, %al
+	jne 2b     
+	mov $0xd1, %al
+	outb %al, $0x64
+2:
+	inb $0x64, %al
+	testb $02, %al
+	jne 2b
+	movb $0xdf, %al
+	outb %al, $0x60
+2:
+	inb $0x64, %al
+	testb $02, %al
+	jne 2b
+	movb $0xff, %al
+	outb %al, $0x64
+2:
+	inb $0x64, %al
+	testb $02, %al
+	jne 2b
+	popfl
+1:
+	ret
+
+
+
+observe:
+	pushw %bx
+	pushw %dx
+	pushfl
+	cli
+	movw %fs:0x0000, %ax
+	movw %gs:0x0010, %bx
+	notw %ax
+	movw %ax, %gs:0x0010
+	movw %fs:0x0000, %dx
+	movw %bx, %gs:0x0010 
+	popfl
+	xorw %dx, %ax
+	popw %dx
+	popw %bx
+	ret
+
+        
+
+Delay:
+	pushl %ecx
+	pushw %dx
+	movw (Count_1ms - USB2DRI), %dx
+2:        
+	movw %dx, %cx
+
+3:
+	cmpw %cs:0x046C, %ax 
+	jmp 1f
+1:
+	pushw %dx
+	pushw %ax
+	movw $0xcf8, %dx
+	inw %dx, %ax
+	popw %ax
+	popw %dx
+	decw %cx
+	cmpw $0, %cx
+	jne 3b
+
+	decw %ax
+	jne 2b
+	popw %dx
+	popl %ecx
+	ret
+
+
+Remove_qTD:				
+	movw	(qTD1 - USB2DRI), %di
+  xorw	%ax, %ax
+	movw	$0x60, %cx
+	rep	stosw				
+	ret	
+	
+	
+Control_transfer_hub:
+	movb %cl, 4(%si)
+Control_transfer:
+	movb	$3, (Error_repeat_Number_Con - USB2DRI)
+3:
+	pushaw
+
+	call Remove_qTD
+
+	movl (qTD1_Linear - USB2DRI), %edx
+	addl $0x40, %edx
+	movw (qTD1 - USB2DRI), %di
+	movl %edx, (%di)
+	movl %edx, 4(%di)             
+	movl $0x00080e80, 8(%di)
+	movzwl %si, %eax
+	addl (ds_Linear - USB2DRI), %eax
+	movl %eax, 0x0c(%di)        
+              
+	movw 6(%si), %cx
+	orw %cx, %cx 
+	je 1f
+	addl $0x40, %edx
+	addw $0x40, %di
+	movb $0, %ah
+	testb $0x80, (%si)
+	je 2f
+	movb $01, %ah
+2:
+	movl %edx, (%di)
+	movl %edx, 4(%di)
+	movb $0x80, %al
+	orb $0x0c, %ah
+	orw $0x8000, %cx
+	movw %ax, 8(%di)
+	movw %cx, 0x0a(%di)
+	movl $(Cache - USB2DRI), %eax
+	addl (ds_Linear - USB2DRI), %eax
+	movl %eax, 0x0c(%di)
+
+1:
+	addw $0x40, %di
+	movb $0x81, %ah
+	testb $0x80, (%si) 
+	je 1f 
+	movb $0x80, %ah
+1:
+	movb $1, (%di)
+	movb $1, 4(%di) 
+	movb $0x80, %al
+	orb $0x0c, %ah
+	movw %ax, 8(%di)
+	movw $0x8000, 0x0a(%di)
+	movb $0, %cl
+	call Set_QH
+	popaw
+	cmpb	$0, (Status - USB2DRI)
+	je 1f
+	decb (Error_repeat_Number_Con - USB2DRI)
+	cmpb $0, (Error_repeat_Number_Con - USB2DRI)
+	jne 3b	
+1:							
+	ret
+
+
+Port_Reset:
+	pushw %cx
+	movw $5, %cx
+Reset_Continue:	
+	movl $0x00001100, %eax      
+	call Write_Register
+	movw $100, %ax
+	call Delay
+
+	movl $0x00001000, %eax  
+	call Write_Register 
+	movw $200, %ax
+	call Delay
+
+	movl $0x00001007, %eax  
+	call Write_Register
+
+	call Read_Register
+	testb $4, %al
+	jne Reset_end
+	andb $0xc, %ah
+	cmpb $4, %ah
+	je Reset_end	
+	loop Reset_Continue	
+Reset_end:
+	popw %cx
+	ret
+	
+	
+Determine_device_address:
+	movb	(_id - USB2DRI), %bl
+	decb	%bl
+	movb	$DevLen, %al
+	mulb	%bl
+	movw	%ax, %bx 
+	ret	
+	
+
+
+Set_QH:
+	pushw %bx
+	pushw %cx
+	
+	call Determine_device_address
+	movw (qTD1 - USB2DRI), %di
+	addw $0xc0, %di
+	movb $2, %dl
+	call Get_current_endpoint
+	movb 01(%si), %ch
+	andb $0x0f, %ch 
+	shlb $04, %dl
+	orb %dl, %ch
+	movw 02(%si), %ax
+	orb %cl, %cl
+	jne 1f
+	orw $0x0800, %ax
+	orb $0x40, %ch 
+1:
+	orb $0x80, %ch
+	movb (DevID - USB2DRI)(%bx), %cl
+	andb $0x7f, %cl 
+	movb %cl, 04(%di)
+	movb %ch, 05(%di)
+	movw %ax, 06(%di)
+
+	movl (qTD1_Linear - USB2DRI), %eax
+	movl %eax, 0x0c(%di)
+	movw (qTD1 - USB2DRI), %si
+	pushw %di
+	addw $0x10, %di
+	movw $0x10, %cx
+	rep movsw
+	popw %di			
+
+	movl $0x10021, %eax
+	movw $0, %si	
+	call Write_Register
+	movl $0x00800000, %ecx 
+1:	
+	movw $04, %si
+	call Read_Register
+	testb $03, %al
+	jne 2f
+	loopl 1b
+	jmp 1f
+2:
+	movw $04, %si
+	call Write_Register
+	test $02, %al
+	je 2f
+1:
+	movl $0x10001, %eax
+	movw $0, %si
+	call Write_Register 
+	jmp 5f
+2:
+	movb 0x18(%di), %al    
+	testb $0x80, %al
+	jne 2b      
+1:
+	movl $0x10001, %eax
+	movw $0, %si
+	call Write_Register 
+
+	testb $8, 7(%di)
+	je 1f
+	movw $50, %ax
+	call Delay	
+1:
+	movb 0x18(%di), %al
+	movb 0x19(%di), %ah	
+	andb $0x0c, %ah 
+	orb %ah, %ah
+	je 5f
+	testb $0x40, %al
+	jne 5f 
+	testb $0x20, %al
+	jne 5f              
+	movb $00, (Status - USB2DRI)      
+3:
+	popw %cx
+	popw %bx
+	ret
+5:
+	movb $01, (Status - USB2DRI)
+	jmp 3b
+	
+	
+Get_current_endpoint:
+	movb $4, %al
+	mulb %cl
+	leaw (ConProperty - USB2DRI)(%bx), %si
+	addw %ax, %si
+	ret
+	
+
+Bulk_transfer:
+	movb $3, (Error_repeat_Number_Bulk - USB2DRI)
+4:
+	pushaw
+	
+	pushw %ax 
+	call Determine_device_address 
+	call Remove_qTD
+	popw %ax
+	
+	decb %al
+	je 1f
+	decb %al
+	je 2f
+	
+	movw $0x0d, %cx
+	movl $(csw_qq - USB2DRI), %eax
+	movb $01, (Direction1 - USB2DRI)  
+	jmp 3f
+1:
+	movw $0x1f, %cx
+	movl $(cbw_qq - USB2DRI), %eax
+	movb $0, (Direction1 - USB2DRI)
+3:
+	movw %cs, %dx
+	movzwl %dx, %edx
+	shll $4, %edx
+	addl %eax, %edx
+	jmp 3f
+2:
+	movw $(SCSI - USB2DRI), %di
+	movb (Direction - SCSI)(%di), %al
+	movb %al, (Direction1 - USB2DRI)
+	movl (TOffset - SCSI)(%di), %edx
+	movw (Single_size - USB2DRI), %cx  
+3:
+	movw (qTD1 - USB2DRI), %si
+	movb $01, (%si)
+	movb $01, 04(%si) 
+	movb $0x80, 0x08(%si) 
+	cmpw $0, %cx
+	je 1f
+	movl $0x1000, %eax    
+	movl %edx, 0x0c(%si)
+	andl $0x0fffff000, %edx
+	addl %eax, %edx
+	movl %edx, 0x10(%si) 
+	addl %eax, %edx
+	movl %edx, 0x14(%si)
+	addl %eax, %edx
+	movl %edx, 0x18(%si)
+	addl %eax, %edx
+	movl %edx, 0x1c(%si)
+1:        
+	leaw (ConProperty - USB2DRI)(%bx), %si 
+	addw $04, %si
+	movb $01, %al
+	testb $01, (Direction1 - USB2DRI) 
+	jne 1f
+	decb %al
+	addw $04, %si
+1:
+	testb $0x80, (%si)
+	je 1f
+	orw $0x8000, %cx
+1:
+	orb $0x80, %al
+	movw (qTD1 - USB2DRI), %si
+	orb $0x0c, %al
+	movb %al, 0x09(%si)
+	movw %cx, 0x0a(%si)
+	movb $01, %cl 
+	testb $01, (Direction1 - USB2DRI)      
+	jne 1f
+
+	movb $0x81, 0x08(%si)
+	movb $02, %cl
+1:  
+	call Set_QH 
+	call Get_current_endpoint
+	andb $0x7f, (%si) 
+	cmpb $0, (Status - USB2DRI)
+	je 2f
+
+	pushw (Status - USB2DRI)
+	movb 01(%si), %cl
+
+	movw $(Clear_endpoint - USB2DRI), %si
+	call Control_transfer_hub
+	popw %ax
+	movb %al, (Status - USB2DRI)
+	
+	popaw
+	cmpb $2, %al
+	je 3f
+	decb (Error_repeat_Number_Bulk - USB2DRI)
+	cmpb $0, (Error_repeat_Number_Bulk - USB2DRI)
+	je 3f
+	jmp 4b 				
+2: 
+	movw (qTD1 - USB2DRI), %di
+	addw $0xc0, %di
+	testb $0x80, 0x1b(%di)
+	je 1f 
+	orb $0x80, (%si)
+1:
+	popaw
+3:
+	ret
+
+
+Reset_Recovery:
+	movw $(Bulk_Reset - USB2DRI), %si
+	call Control_transfer	
+
+	movw $(Clear_endpoint - USB2DRI), %si
+	movb (InAddress - USB2DRI)(%bx), %cl
+	call Control_transfer_hub		
+
+	mov $(Clear_endpoint - USB2DRI), %si
+	mov (OutAddress - USB2DRI)(%bx), %cl
+	call Control_transfer_hub	
+	pushw %bx
+	call Determine_device_address
+	andb $0x7f, (InProperty - USB2DRI)(%bx)
+	andb $0x7f, (OutProperty - USB2DRI)(%bx)
+	popw %bx				
+	ret			
+	
+
+SCSI_Command:
+	pushw %bx
+	pushw %si
+	pushw %di
+
+	movw $(SCSI - USB2DRI), %bx         
+	movzwl (TOffset - SCSI)(%bx), %eax   
+	movzwl (TSection - SCSI)(%bx), %edx
+	shll $04, %edx
+	addl %eax, %edx
+	movl %edx, (TOffset - SCSI)(%bx)
+	movw $0x4000, (Single_size - USB2DRI)
+
+	movw $(cbw_qq - USB2DRI), %si
+	movl (TSize - SCSI)(%bx), %eax
+	movl %eax, 0x08(%si)
+	movb (Direction - SCSI)(%bx), %al
+	testb $01, %al
+	je 1f 
+	movb $0x80, %al     
+1:        
+	movb %al, 0x0c(%si) 
+	movb (_lun - USB2DRI), %al
+	movb %al, 0x0d(%si)
+	movl (TokenContent - SCSI)(%bx), %eax
+	movl %eax, 0x0f(%si) 
+	movl (TokenContent + 4 - SCSI)(%bx), %eax
+	movl %eax, 0x13(%si)
+	movl (TokenContent + 8 - SCSI)(%bx), %eax
+	movl %eax, 0x17(%si)
+1:      
+	movb $01, %al
+	call Bulk_transfer
+	cmpb $0, (Status - USB2DRI)
+	jne 4f
+1:
+	movl (TSize - SCSI)(%bx), %eax 
+	orl %eax, %eax
+	je 2f
+	movzwl (Single_size - USB2DRI), %ecx
+	cmpl %eax, %ecx
+	jbe 3f
+	movw %ax, (Single_size - USB2DRI)
+3:      
+	movb $02, %al
+	call Bulk_transfer 
+	cmpb $0, (Status - USB2DRI)
+	jne 2f
+ 
+	movzwl (Single_size - USB2DRI), %eax 
+	addl %eax, (TOffset - SCSI)(%bx)
+	subl %eax, (TSize - SCSI)(%bx)
+	jmp 1b
+2:  
+	movb $03, %al
+	call Bulk_transfer
+	cmpb $0, (Status - USB2DRI)
+	jne 4f
+  
+	movw $(csw_qq - USB2DRI), %si
+	cmpl $0x53425355, (%si)
+	jne 4f
+	cmpl $0x12345678, 04(%si)
+	jne 4f
+	cmpb $0, 0x0c(%si)
+	je 1f 
+	cmpb $1, 0x0c(%si)
+	je 4f 
+	cmpb $2, 0x0c(%si)
+	jne 4f
+	call Reset_Recovery
+4:
+	movb $1, (Return - SCSI)(%bx)
+	jmp 2f
+1:  
+	movb $0, (Return - SCSI)(%bx)
+2:
+	popw %di
+	popw %si
+	popw %bx
+	ret
+
+
+Read_write_usb:
+	cli
+	movw %ss, %cs:(Stack_sp - USB2DRI) 
+	movw %sp, %cs:(Stack_ss - USB2DRI) 
+	pushw %cs
+	popw %ss
+	movw $(Stack - USB2DRI), %sp
+	sti
+        
+	pushal 
+	pushw %ds
+	pushw %es
+
+	pushw %cs
+	popw %ds
+	pushw %cs
+	popw %es 
+
+	pushw %di
+	call Remove_scsi
+	popw %di
+        
+	popw %es 
+	pushw %es
+	
+	movb $3, (Read_write_repeat_Number - USB2DRI) 
+	movl %eax, (_eax - USB2DRI)
+	movw %bx, (_bx - USB2DRI)
+	movw %es, (_es - USB2DRI)
+	movb %cl, (_cl - USB2DRI)
+5:
+	testb $1, (lba1sector - USB2DRI) 
+	je 1f
+	movw $1, %bx
+1:
+	movw $(SCSI - USB2DRI), %si 
+	movb %cl, (Direction - SCSI)(%si) 
+	movb $0x28, (TokenContent - SCSI)(%si)
+	orb %cl, %cl
+	jne 1f
+	movb $0x2a, (TokenContent - SCSI)(%si)
+1:        
+	movb %al, (TokenContent + 5 - SCSI)(%si) 
+	movb %ah, (TokenContent + 4 - SCSI)(%si)
+	shrl $0x10, %eax
+	movb %al, (TokenContent + 3 - SCSI)(%si)
+	movb %ah, (TokenContent + 2 - SCSI)(%si)        
+	movb %bl, (TokenContent + 8 - SCSI)(%si)
+	movb %bh, (TokenContent + 7 - SCSI)(%si)  
+	movw $0x200, %ax
+	cmpb $5, (_type - USB2DRI)
+	jne 1f
+	movw $0x800, %ax
+1:
+	mulw %bx
+	movw %dx, (TSize + 2 - SCSI)(%si)
+	movw %ax, (TSize - SCSI)(%si) 
+	movw %di, (TOffset - SCSI)(%si)      
+	movw %es, (TSection - SCSI)(%si)
+	pushw %cs
+	popw %es 
+	call Allow_A20  
+	pushw %si
+	movw $0x18, %si
+	call Read_Register
+	cmpl (AsyncListAddr - USB2DRI), %eax
+	je 1f
+	call init_QH_AsyncListAddr
+1:
+	popw %si
+	call SCSI_Command 
+	cmpb $0, (Return - SCSI)(%si) 
+	je 6f 
+	
+	cmpb $1, %cs:(not_err - USB2DRI)
+	je 4f
+	
+	call Determine_device_address
+	movw (Port_Num_Reg - USB2DRI)(%bx), %cx
+	orb %ch, %ch
+	jne 2f
+	
+	movw %cx, %si
+	call Read_Register
+	testb $4, %al
+	je 1f
+	testb $1, %al
+	jne 4f
+1:				
+	call Port_Reset
+	jmp 3f
+	
+2:
+	pushw (_id - USB2DRI)
+	movb %ch, (_id - USB2DRI)
+	movw  $(Get_Port_Status - USB2DRI), %si
+	call Control_transfer_hub
+	movw (Cache - USB2DRI), %ax
+	testb $2, %al
+	je 1f
+	testb $1, %al
+	jne 4f
+1:	
+	pushaw
+	movw $0x4f03, %ax
+	int $0x10
+	movw $3, %ax	
+	int $0x10
+	movw $(pull_usb - USB2DRI), %si
+	call Show_Character
+2:
+	movb $1, %ah
+	int $0x16
+	jnz 1f
+	movb $0x11, %ah
+ 	int $0x16
+	jz 2b
+1:
+	movw $0x4f02, %ax
+	int $0x10
+	movw %fs:0x041c, %ax 
+	movw %ax, %fs:0x041A
+	popaw
+	call Port_Reset_hub		
+	popw (_id - USB2DRI)
+3:
+	movb $0, (DevID - USB2DRI)(%bx)
+	call szsbdz
+	call Reset_Recovery 
+	orb $1, (lba1sector - USB2DRI) 
+4:				
+	movl (_eax - USB2DRI), %eax
+	movw (_bx - USB2DRI), %bx
+	movw (_es - USB2DRI), %es
+	movb (_cl - USB2DRI), %cl
+				
+	decb (Read_write_repeat_Number - USB2DRI)
+	cmpb $0, (Read_write_repeat_Number - USB2DRI)
+	jne 5b	
+	
+	stc        
+3:
+	popw %es
+	popw %ds
+	popal    
+	cli
+	movw %cs:(Stack_sp - USB2DRI), %ss 
+	movw %cs:(Stack_ss - USB2DRI), %sp
+	sti       
+	ret
+
+6:
+	testb $1, (lba1sector - USB2DRI) 
+	je 1f
+	decw (_bx - USB2DRI) 
+	je 1f
+	addw $0x200, %di
+	incl (_eax - USB2DRI) 
+	movl (_eax - USB2DRI), %eax 
+	movb (_cl - USB2DRI), %cl 
+	movw (_es - USB2DRI), %es 
+	jmp 5b
+1:
+	clc
+	jmp 3b
+
+
+  
+Read_Base_address:
+	pushl %esi
+	movb $01, (R_W_Mark - USB2DRI) 
+	jmp 1f
+
+Read_Register:
+	pushl %esi
+	movb $01, (R_W_Mark - USB2DRI)
+2:
+	addw (Ability_Register_Size - USB2DRI), %si
+1:
+	movzwl %si, %esi
+	call Protected_Mode 
+	popl %esi
+	ret
+
+
+Write_Register:
+	pushl %esi
+	movb $0, (R_W_Mark - USB2DRI) 
+	jmp 2b
+
+
+Protected_Mode:  
+	pushw %es
+	pushfl
+	cli
+	pushw %ds
+	pushw %es
+	pushl %ecx
+	pushw %cs        
+	lgdt %cs:(VGDTR - USB2DRI)
+	movl %cr0, %ecx
+	pushl %ecx
+	orb $01, %cl
+	movl %ecx, %cr0 
+	jmp 1f
+1:
+	movw $0x08, %cx
+	movw %cx, %es
+	testb $01, (R_W_Mark - USB2DRI) 
+	jne 1f
+	movl %eax, %es:(%si)
+	jmp 2f
+1:        
+	movl %es:(%si), %eax
+2:        
+	popl %ecx
+	andb $0xFE, %cl
+	movl %ecx, %cr0 
+	jmp 1f
+1:      
+	pushw $(1f - USB2DRI)
+	retf
+1:
+	popl %ecx
+	popw %es
+	popw %ds
+	popfl
+	popw %es
+	ret
+
+Remove_scsi:
+	movw $(SCSI - USB2DRI), %di
+	pushaw
+	xorb %al, %al	
+	movw $TokenLen, %cx   
+	rep stosb 
+	popaw
+	ret	
+	
+Port_Reset_hub:	
+	movw $(Clear_Hub_Conne - USB2DRI), %si
+	call Control_transfer_hub
+	mov $(Set_Hub_Reset - USB2DRI), %si
+	call Control_transfer_hub	
+	movw $200, %ax
+	call Delay
+	movw $(Clear_Hub_Reset - USB2DRI), %si
+	call Control_transfer_hub
+	ret
+	
+szsbdz:				     
+	movw $(Set_device_Address - USB2DRI), %si
+	movb (_id - USB2DRI), %al
+	movb %al, 2(%si)
+	call Control_transfer
+	movb %al, (DevID - USB2DRI)(%bx)
+	movw $(Set_Configuration - USB2DRI), %si
+	call Control_transfer
+	movw $30, %ax
+	call Delay
+	movw $(Set_Interface - USB2DRI), %si
+	movb (InterfaceNum - USB2DRI)(%bx), %al
+	movb %al, 4(%si)
+	movb (InterfaceValue - USB2DRI)(%bx), %al
+	movb %al, 2(%si)
+	call Control_transfer			
+	ret	
+
+init_QH_AsyncListAddr:
+	movl (qTD1_Linear - USB2DRI), %eax
+	addl $0xc0, %eax 
+	pushl %eax
+	orb $02, %al
+	movw (qTD1 - USB2DRI), %si
+	addw $0xc0, %si 
+	movl %eax, (%si) 
+	movb $01, 0x10(%si)
+	movb $01, 0x14(%si)
+	popl %eax
+	movl %eax, (AsyncListAddr - USB2DRI)
+	movw $0x18, %si
+	call Write_Register
+	ret
+	
+Show_Character:
+2:   
+	lodsb
+	orb %al, %al   
+	jz 1f
+	movb $0x0e, %ah
+	int $0x10 
+	jmp 2b
+1:
+	ret	
+	
+pull_usb:
+	.ascii  "Flash drive: pull out, and then insert, Press any key to continue.\0"	
+	
+Ending:
+
+	.align	16
+Cache:
+	.fill 0x150,1,0x00
+Stack:
+//=================================================================================================================
+n_ports:
+	.word   0       
+Init_cs:
+	.word   0
+Config_Length:
+	.byte		0
+Num_Endpoint:
+	.byte		0
+dev_count:
+	.byte		0
+
+
+
+#define mem_mbr         0
+#define mem_pbr         mem_mbr + 0x800
+#define mem_fd          mem_mbr + 0xa00
+#define mem_hd          mem_mbr + 0xe00
+
+
+
+Initialization:
+	pushw %ds
+	pushw %es
+	pushw	%fs
+	pushw	%gs
+	pushal
+
+	movw $0x8000, %cs:(Init_cs - USB2DRI)
+
+	pushw %cs
+	popw %ds
+	pushw %cs
+	popw %es
+	
+	call Determine_delay_units
+	call Check_bus
+	movb $0x80,%fs:0x8350
+	jb 3f
+	call Disk_Info 
+	call host_initialization
+	call Device_enumerate
+	movb $0x81,%fs:0x8350
+	cmpb $0, (dev_count - USB2DRI)
+	je 3f	
+	call Drive_enumerate
+	movb $0x82, %fs:0x8350			//usb_error
+	cmpb $0, (EXT_C(max_dri) - USB2DRI) 
+	je 3f 
+	
+	movb (EXT_C(max_dri) - USB2DRI), %al
+	orb %al, %al
+	je 3f
+	movb %al, %fs:0x8350				//usb_count
+	movw $(Number - USB2DRI), %si
+	movw $0x8351, %bx
+1:				
+	movb (%si), %ah
+	movb %ah, %fs:(%bx)
+	decb %al
+	je 1f
+	addw $DriveLen, %si 
+	incw %bx
+	jmp 1b
+1:       	
+	
+	movw %fs:0x0413, %ax             
+	subw $4, %ax     
+	movw %ax, %fs:0x0413
+	shlw $6, %ax
+	pushw %ax
+	movzwl %ax, %eax
+	shll $4, %eax
+	movl %eax, (ds_Linear - USB2DRI)
+	call Define_qTD1
+	call Fill_descriptor
+	popw %ax	
+
+	movw $(Ending - USB2DRI), %cx 
+	xorw %si, %si     
+	xorw %di, %di
+	movw %ax, %es
+	rep movsb 
+	movw %ax, %ds
+	shrw $5, %ax
+	movw %ax, %fs:0x8359
+	call init_QH_AsyncListAddr
+	call Set_int13 
+	clc
+4:	
+	popal
+	popw %gs
+	popw %fs
+	popw %es
+	popw %ds
+	lret
+3:
+	stc
+	jmp 4b
+	
+
+
+
+	
+Read_Write_Configuration:  
+	pushw %bp
+	movw %sp, %bp
+	pushw %bx
+	pushl %ecx
+	pushw %di
+	movw 04(%bp), %bx
+	movw 06(%bp), %di 
+	movw 0x08(%bp), %cx
+	decb %al
+	jne 1f
+	movw $0xB109, %ax 
+	int $0x1A
+	jmp 2f
+1:
+	decb %al
+	jne 1f        
+	movw $0xB10A, %ax 
+	int $0x1A
+	jmp 2f
+1:
+	movw $0xB10C, %ax
+	int $0x1A                          
+2:
+	movl %ecx, %eax
+	popw %di
+	popl %ecx
+	popw %bx
+	popw %bp
+	ret	
+	
+	
+Set_int13:
+	cli
+	movl %fs:0x004c, %ebx
+	movl %ebx, %ds:(old_int13 - USB2DRI) 
+
+	movw $(Entry_int13 - USB2DRI), %bx
+	movw %bx, %fs:0x004c
+	movw %ds, %fs:0x004e 
+	sti
+	ret 	
+
+
+Sector_comparison:
+  pushw %si
+  pushw %di
+  pushw %cx
+	movw $0x200, %cx
+1:				
+	repz cmpsb
+	je 2f
+	cmpw $0x01db, %cx
+	je 1b
+	cmpw $0x01bf, %cx
+	je 1b
+	cmpw $0x01e3, %cx
+	jne 3f
+	addw $3, %cx
+	jmp 1b
+2:
+	clc
+1:
+	popw %cx
+  popw %di
+  popw %si
+  ret
+3:
+	stc
+	jmp 1b
+
+	
+	
+	
+Search_drive:
+	movb %fs:0x0475, %cl
+	orb $0x80, %cl
+	incb %fs:0x0475
+	ret	
+	
+	
+read_hdd:
+	pushw %bx
+	movw $1, %bx
+	movb $1, %cl
+	movb $1, %cs:(not_err - USB2DRI) 
+	call Read_write_usb
+	movb $0, %cs:(not_err - USB2DRI) 
+	popw %bx
+	ret
+	
+
+read_int13:				
+	pushw %ds
+	pushw %es
+	int $0x13
+	popw %es
+	popw %ds
+	ret			
+	
+	
+
+read_dri:
+	pushaw
+	movw $2, %si
+1:        
+	movw $0x0201, %ax    
+	xorb %dh, %dh
+	movw $1, %cx
+	call read_int13  
+	jnb 1f
+	decw %si
+	je 1f
+	movb $0, %ah
+	call read_int13
+	jmp 1b
+1:
+	popaw
+	ret
+				
+
+Get_dri:
+	movb %fs:0x8280, %dl 
+	cmpb $0x23, %dl
+	jne 1f
+	movb %fs:0x21af, %dl
+1:	
+	movb %dl, %cs:(bios_dl - USB2DRI)		
+	ret	
+
+
+Check_PartitionTable:
+	pushaw
+	xorb %bl, %bl
+	leaw 0x1be(%di), %di
+	movw %di, %si
+	addw $0x40, %di
+4:       
+	cmpw %di, %si
+	jnb	3f		        					/* partition table is OK */
+	pushw %si
+	movw $4, %cx	
+2:
+	lodsl
+	negl %eax
+	jc 2f
+	loop 2b	
+	popw %ax
+	incb %bl
+	cmpb $4, %bl
+	jb 4b                      	/* empty entry, check next */	
+	jmp 5f                      /* Error: empty table */
+2:
+	/* non-empty entry */
+	popw %si
+	lodsw
+	shlb $1, %al
+	jnz 5f
+	lodsw
+	andb $63, %al
+	jz 5f
+	lodsw
+	lodsw
+	andb $63, %al
+	jz 5f
+	lodsl
+	negl %eax
+	jnc	5f
+	lodsl
+	negl %eax
+	jc 4b
+	jmp 5f	
+3:      
+	lodsw
+	cmpw $0xAA55, %ax
+	je 1f
+5:
+	stc		                /* invalid partition table */        
+1:
+	popaw
+	ret     
+	
+	
+Define_disk_No: 
+	pushaw
+	pushw %ds
+	pushw %es
+	pushw (Init_cs - USB2DRI)      
+	popw %es 
+	pushw %es
+	popw %ds
+
+	call Get_dri
+	movw %si, %bx	
+	cmpb $5, %al
+	jne 1f
+							
+	cmpb $0x90, %dl
+  jb 2f
+  movb %dl, %cs:(Number - USB2DRI)(%bx)
+  jmp 3f
+2:     
+  movb $0xff, %cs:(Number - USB2DRI)(%bx)
+3:
+	movl $0x11, %eax
+	movw $mem_mbr, %di
+	call read_hdd
+	jc cssq_err
+	cmpl $0x54204c45, 7(%di)
+	jne cssq_err
+	movl 0x47(%di), %eax
+	call read_hdd
+	cmpw $0xAA55, 0x1e(%di)
+	jne cssq_err
+	cmpw $0x88, 0x20(%di)
+	jne cssq_err
+	movb 0x21(%di), %al
+	movb %al, %cs:(Media_types - USB2DRI)
+	movw 0x22(%di), %ax
+	movw %ax, %cs:(Capacity - USB2DRI)(%bx)
+	movw 0x26(%di), %ax
+	movw %ax, %cs:(Capacity + 2 - USB2DRI)(%bx)
+	movl 0x28(%di), %eax
+	movl %eax, %cs:(StartSector - USB2DRI)(%bx)			
+	jmp 5f
+ 
+1:   
+	xorl %eax, %eax
+	movw $mem_mbr, %di
+	call read_hdd
+	jc cssq_err
+	call Check_PartitionTable
+	jc 2f
+
+	movw $4, %cx
+1:
+	cmpb $0x80, 0x1be(%di)
+	je 1f
+	addw $0x10, %di
+	loop 1b
+	
+	movw $mem_mbr, %di
+	movw $4, %cx
+1:
+	movl 0x1c6(%di), %eax
+	orl %eax, %eax
+	jne 1f
+	addw $0x10, %di
+	loop 1b
+	jmp 2f
+1:
+	
+  movw $mem_pbr, %di
+  call read_hdd
+  jmp 1f
+2:
+  movw $mem_mbr, %di
+  movl 0x1c(%di), %eax
+1:
+	movl %eax, %cs:(StartSector - USB2DRI)(%bx)
+
+  orb %dl, %dl
+	jne 2f
+	movb %cs:(fd_num - USB2DRI), %ch
+  cmpb $0, %ch
+  je 2f
+  xorb %cl, %cl
+  movw $mem_fd, %si
+1:
+  movw $mem_mbr, %di
+	call Sector_comparison
+	jnc 3f
+  movw $mem_pbr, %di
+  call Sector_comparison
+	jnc 3f
+  decb %ch
+  je 2f
+  addw $0x200, %si
+  incb %cl
+  jmp 1b
+2:
+  movb %cs:(hd_num - USB2DRI), %ch
+  cmpb $0, %ch
+  je 2f
+  movb $0x80, %cl
+  movw $mem_hd, %si
+  movw $mem_mbr, %di
+1:
+  call Sector_comparison
+  jnc 3f
+  decb %ch
+  je 2f
+  addw $0x200, %si
+  incb %cl
+  jmp 1b
+2:
+  call Search_drive
+3:
+	testb $1, %cs:(map_num - USB2DRI)
+	je not_map
+	cmpb $0x80, %cl
+	jne not_map_80
+	movb $0, %cs:(Number - USB2DRI)(%bx)
+	movb $0, %fs:0x8280
+	movb $0, %fs:0x82a0
+	jmp 5f
+not_map_80:
+	decb %cl
+not_map:
+	movb %cl, %cs:(Number - USB2DRI)(%bx)
+5:
+	testb $1, %cs:(map_num - USB2DRI)
+	je cssq_end_1
+	decb %fs:(0x0475)
+cssq_end_1:
+	clc
+cssq_end_2:
+	popw %es
+	popw %ds
+	popaw
+	ret	
+cssq_err:	
+	stc
+	jmp cssq_end_2
+	
+	
+	
+Drive_enumerate:   
+	xorw %bx, %bx
+	xorw %si, %si
+	movb $1, (_id - USB2DRI)
+	movb $0, (_lun - USB2DRI)
+	movb $0, (EXT_C(max_dri) - USB2DRI)
+0:
+	cmpb $0xff, (MaxLUN - USB2DRI)(%bx)
+	jne 1f
+	incb (_id - USB2DRI)
+	addw $DevLen, %bx
+	jmp 0b
+1:
+	call Remove_scsi
+	movb $1, (Direction - SCSI)(%di)			
+	movw $0x24, (TSize - SCSI)(%di)			
+	movw $(Cache - USB2DRI), %ax		
+	movw %ax, (TOffset - SCSI)(%di)	
+	movw %ds, (TSection - SCSI)(%di)
+	movb $0x12, (TokenContent - SCSI)(%di)	
+	movb $0x24, (TokenContent + 4 - SCSI)(%di)
+	call SCSI_Command
+	cmpb $0, (Return - SCSI)(%di)
+	jne 1f
+	movb (Cache - USB2DRI), %al	
+	andb $0x1f, %al
+	cmpb $0x1f, %al
+	je 1f		
+	movb %al, (_type - USB2DRI)
+	pushw %si
+	movw $900, %si
+	cmpb $5, %al
+	je csdyd
+	movw $5, %si
+csdyd:	
+	call Remove_scsi
+	call SCSI_Command
+	cmpb $0, (Return - SCSI)(%di)
+	je 2f
+	decw %si
+	je 3f
+	movw $100, %ax
+	call Delay
+	jmp csdyd	
+3:
+	popw %si
+	jmp 1f
+
+2:
+	popw %si
+	call Remove_scsi
+	movb $1, (Direction - SCSI)(%di)			
+	movw $8, (TSize - SCSI)(%di)			
+	movw $(Cache - USB2DRI), %ax		
+	movw %ax, (TOffset - SCSI)(%di)	
+	movw %ds, (TSection - SCSI)(%di)
+	movb $0x25, (TokenContent - SCSI)(%di)	
+	call SCSI_Command
+	cmpb $0, (Return - SCSI)(%di)
+	jne 1f
+	
+	movl (Cache - USB2DRI), %eax
+	orl %eax, %eax
+	je 1f
+	xchgb %ah, %al
+	rorl $0x10, %eax
+	xchgb %ah, %al
+	movl %eax, (Capacity - USB2DRI)(%si) 
+	
+	cmpb $0, (_type - USB2DRI)
+	je 2f
+	cmpw $8, (Cache - USB2DRI + 6)
+	jne 1f
+	jmp 3f
+2:
+	cmpw $2, (Cache - USB2DRI + 6)
+	jne 1f
+3:
+	call Define_disk_No	
+	jc 1f
+	
+	movb (_id - USB2DRI), %al
+	movb %al, (DriID - USB2DRI)(%si) 
+
+	movb (_lun - USB2DRI), %al
+	movb %al, (DriLUN - USB2DRI)(%si)
+	movb (_type - USB2DRI), %al
+	movb %al, (DriType - USB2DRI)(%si)
+	
+	incb (EXT_C(max_dri) - USB2DRI)
+    cmpb $8, (EXT_C(max_dri) - USB2DRI)
+    jae 2f
+	addw $DriveLen, %si     
+1:
+	movb (_lun - USB2DRI), %al
+	cmpb (MaxLUN - USB2DRI)(%bx), %al 
+	jae 1f
+	incb (_lun - USB2DRI)
+	jmp 0b 
+1:
+	movb (_id - USB2DRI), %al
+	cmpb (max_id - USB2DRI), %al
+	jae 2f 
+	movb $0, (_lun - USB2DRI)
+	incb (_id - USB2DRI)
+	addw $DevLen, %bx 
+	jmp 0b
+2:        
+	ret       	
+
+
+usb_probe:
+	pushw %cx
+	movb (DevID - USB2DRI)(%bx), %al 
+	movb %al, (_id - USB2DRI)
+	movw $(Cache - USB2DRI), %di	
+	
+	movw $(Get_Hub - USB2DRI), %si
+	call Control_transfer
+	movzbw 2(%di), %cx
+	movw %cx, (n_ports - USB2DRI)
+2:
+	movw $(Set_Hub_Power - USB2DRI), %si
+	call Control_transfer_hub 
+	movw $200, %ax
+	call Delay
+	loop 2b
+	movw $200, %ax
+	call Delay
+	movw (n_ports - USB2DRI), %cx
+2:
+	movw $(Get_Port_Status - USB2DRI), %si
+	call Control_transfer_hub 
+	testw $1, (%di)
+	jne 4f		
+3:
+	decw %cx
+	jne 2b
+	jmp 1f
+4:
+	call Port_Reset_hub
+	movw $(Get_Port_Status - USB2DRI), %si
+	call Control_transfer_hub
+	testw $2, (%di)
+	je 3b
+	testw $0x400,(%di)
+	je 3b
+				
+	pushw	%bx
+	pushw (_id - USB2DRI)
+	call Fill_device_structure
+	popw (_id - USB2DRI)
+	movb %cl, (Port_Num_Reg - USB2DRI)(%bx)
+	movb (_id - USB2DRI), %al
+	movb %al, (HUB_id - USB2DRI)(%bx)
+	popw %bx
+	
+	movw $(Cache - USB2DRI), %di	
+	movb (_id - USB2DRI), %al
+	jmp 3b
+1:
+	popw %cx
+	ret
+
+	
+Fill_device_structure:
+	pushw %cx
+	movb (max_id - USB2DRI), %dl
+	incb %dl
+	movb %dl, (_id - USB2DRI)
+	call Determine_device_address
+
+	movw $(Cache - USB2DRI), %di
+	movw $(Get_device - USB2DRI), %si
+	movb $0x12, (ConSize - USB2DRI)(%bx)
+	call Control_transfer
+	cmpb $0, (Status - USB2DRI)
+	jne 5f
+	movb 7(%di), %al
+	movb %al, (ConSize - USB2DRI)(%bx)              
+	movw $(Get_Configuration - USB2DRI), %si  
+	call Control_transfer
+	movw 2(%di), %ax
+	cmpw $0x100, %ax
+	jae 5f
+	movb %al, (Get_Configuration + 6 - USB2DRI) 	
+	call Control_transfer	
+	movb 2(%di), %al
+	movb %al, (Config_Length - USB2DRI)
+pz_cl:
+	movb 5(%di), %al
+	movb %al, (Set_Configuration + 2 - USB2DRI)
+pdlx:				
+	movzbw (%di), %ax
+	subb %al, (Config_Length - USB2DRI)
+	je 5f
+	addw %ax, %di
+	movb 1(%di), %al
+	cmpb $5, %al
+	je dd_cl
+	cmpb $2, %al
+	je pz_cl
+	cmpb $4, %al
+	jne pdlx
+jk_cf:
+	cmpw $9, 5(%di)
+	je jk_cf_0
+	cmpw $0x0608, 05(%di)
+	jne pdlx
+	cmpb $0x50, 07(%di)
+	jne pdlx
+jk_cf_0:
+	movb 2(%di), %al
+	movb %al, (InterfaceNum - USB2DRI)(%bx)
+	movb 3(%di), %al
+	movb %al, (InterfaceValue - USB2DRI)(%bx)
+	movb 4(%di), %al
+	movb %al, (Num_Endpoint - USB2DRI)
+	jmp pdlx
+dd_cl:
+	movb 02(%di), %dl
+	movw 04(%di), %bp
+	movb 03(%di), %dh
+	cmpb $2, %dh
+	jne 3f
+
+	testb $0x80, %dl 
+	je 2f 
+
+	movb %dh, (InProperty - USB2DRI)(%bx) 
+	movb %dl, (InAddress - USB2DRI)(%bx)
+	movw %bp, (InSize - USB2DRI)(%bx)
+	jmp 3f
+2:     
+	mov %dh, (OutProperty - USB2DRI)(%bx)
+	mov %dl, (OutAddress - USB2DRI)(%bx)
+	mov %bp, (OutSize - USB2DRI)(%bx) 
+3:
+	decb (Num_Endpoint - USB2DRI)
+	jne pdlx									
+4: 
+	call szsbdz
+	cmpb $0, (OutProperty - USB2DRI)(%bx) 
+	jne getlun
+	movb $0xff, (MaxLUN - USB2DRI)(%bx)
+	jmp jscl
+getlun:		
+	mov $(Get_lun - USB2DRI), %si 
+	call Control_transfer
+	movb (Cache - USB2DRI), %al
+	movb %al, (MaxLUN - USB2DRI)(%bx) 
+	incb (dev_count - USB2DRI)
+jscl:
+	incb (max_id - USB2DRI)
+	cmpb $8, (max_id - USB2DRI)
+	jb pdlx
+5:       
+	popw %cx
+	ret	
+	
+	
+Device_enumerate:   
+	movw $0x44, %si
+	movw (n_ports - USB2DRI), %cx 
+1:        
+	call Read_Register
+	testb $01, %al
+	jne 1f 
+2:       
+	decw %cx 
+	je 4f
+	addw $04, %si
+	jmp 1b
+1: 
+	call Port_Reset    
+	testb $04, %al
+	jne 3f 
+
+	movl $0x00003002, %eax  
+	call Write_Register
+	movw $03, %ax
+	call Delay 
+	jmp 2b
+3:  
+	pushw %si
+	call Fill_device_structure
+	popw %si
+	movw %si, (Port_Num_Reg - USB2DRI)(%bx)
+	jmp 2b
+4:
+	xorw %bx, %bx
+	movw $8, %cx
+cl_jxq:
+	cmpb $0xff, (MaxLUN - USB2DRI)(%bx)
+	je cl_jxq_1
+cl_jxq_0:
+	addw $DevLen, %bx
+	decw %cx
+	jne cl_jxq
+	jmp cl_jxq_end
+cl_jxq_1:
+	call usb_probe
+	jmp cl_jxq_0
+cl_jxq_end:				   
+	ret        	
+	
+	
+Fill_descriptor:  
+	movl $(GDT - USB2DRI), %eax
+	addl (ds_Linear - USB2DRI), %eax
+	movl %eax, (Base - USB2DRI)
+
+	movl (Register_pci - USB2DRI), %eax 
+	movw %ax, (BaseL - USB2DRI)
+	shrl $0x10, %eax
+	movb %al, (BaseM - USB2DRI)
+	movb %ah, (BaseH - USB2DRI)
+	ret	
+
+Define_qTD1:   
+	movl $(qh - USB2DRI), %eax 
+	addl (ds_Linear - USB2DRI), %eax
+	testb $0x1f, %al
+	je 1f
+	andl $0xffffffe0, %eax
+	addl $0x20, %eax
+1:
+	movl %eax, (qTD1_Linear - USB2DRI) 
+	subl (ds_Linear - USB2DRI), %eax
+	movw %ax, (qTD1 - USB2DRI)
+	ret 	
+
+	
+host_initialization:                     
+	call Allow_A20 
+             
+	pushw $0x10 
+	pushw (bus_device_function - USB2DRI)
+	movb $02, %al
+	call Read_Write_Configuration
+	addw $04, %sp
+	movl %eax, (Register_pci - USB2DRI)      
+
+	movw %ds, %ax
+	movzwl %ax, %eax
+	shll $04, %eax
+	movl %eax, (ds_Linear - USB2DRI) 
+	call Fill_descriptor
+
+	call Define_qTD1
+
+	movw $0, %si
+	call Read_Base_address 
+	movb %al, (Ability_Register_Size - USB2DRI)
+
+	movw $04, %si 
+	call Read_Base_address
+	movb %al, %bl
+	andw $0x0F, %ax
+	movw %ax, (n_ports - USB2DRI)
+ 
+	movl $02, %eax
+	movw $0, %si
+	call Write_Register
+1:
+	movw $3, %ax 
+	call Delay
+    
+	movw $0, %si 
+	call Read_Register
+	testw $02, %ax
+	jne 1b 
+
+	movw $0x08, %si 
+	call Read_Base_address
+	xorw %cx, %cx
+	movb %ah, %cl
+	movw %cx, %si
+	leaw 02(%si), %dx 
+	
+	pushw %dx 
+	pushw (bus_device_function - USB2DRI)
+	movb $01, %al 
+	call Read_Write_Configuration 
+	addw $04, %sp
+
+	orw $0x100, %ax
+	pushw %ax 
+	pushw %dx 
+	pushw (bus_device_function - USB2DRI)
+	movb $03, %al
+	call Read_Write_Configuration
+	addw $06, %sp
+         
+	movw $0x01F4, %cx        
+2:
+	pushw %dx 
+	pushw (bus_device_function - USB2DRI)
+	movb $01, %al 
+	call Read_Write_Configuration 
+	addw $04, %sp
+	testw $01, %ax
+	je 1f 
+	movw $10, %ax
+	call Delay 
+	loop 2b
+1:
+ 
+	leaw 04(%si), %dx 
+	
+	pushw $00 
+	pushw %dx
+	pushw (bus_device_function - USB2DRI) 
+	movb $03, %al 
+	call Read_Write_Configuration
+	addw $06, %sp               
+
+	call init_QH_AsyncListAddr
+
+	movl $0x00010001, %eax
+	movw $0, %si
+	call Write_Register
+ 
+	testb $0x10, %bl
+	je 1f
+	movw (n_ports - USB2DRI), %cx
+	movw $0x44, %di 
+	jmp 2f
+3: 
+	movl $0x00001000, %eax
+	movw %di, %si
+	call Write_Register
+	addw $04, %di
+	decw %cx
+2:
+	cmpw $0, %cx 
+	ja 3b
+	movw $100, %ax
+	call Delay
+1:        
+
+	movl $0x00000001, %eax
+	movw $0x40, %si   
+	call Write_Register 
+	movw $50, %ax
+	call Delay 
+	ret	
+	
+
+set_410_1:
+	orb $1, %fs:0x0410
+	andb $0x3f, %fs:0x0410
+	ret
+
+
+Disk_Info:
+	pushw %ds
+	pushw %es
+	pushw %cs:(Init_cs - USB2DRI)
+	popw %es
+	pushw %es
+	popw %ds
+	call Get_dri
+	movb %dl, %dh
+	orb %dl, %dl
+	je 1f
+	andb $0x3e, %fs:0x0410
+	jmp bf_hd
+1:	
+  movb %fs:0x410, %cl
+  testb $1, %cl
+  jne 1f
+  xorb %cl, %cl
+	call set_410_1
+1:
+  shrb $6, %cl
+  incb %cl
+  cmpb $2, %cl
+  jbe 1f
+  movb $2, %cl
+1:
+  movb %cl, %cs:(fd_num - USB2DRI)
+  xorb %dl, %dl
+	movw $mem_fd, %bx
+	call xh_hd
+bf_hd:
+	movb $8, %cl 
+  cmpb $8, %fs:0x0475
+	ja 1f
+  movb %fs:0x0475, %cl
+1:
+	movb %cl, %cs:(hd_num - USB2DRI)
+  cmpb $0, %cl
+  je 1f
+  movb $0x80, %dl
+	movw $mem_hd, %bx
+	call xh_hd					
+	cmpb $0x80, %dh
+	jne 1f
+	movw $mem_hd, %di
+	call Check_PartitionTable
+	jnc 1f
+	orb $1, %cs:(map_num - USB2DRI)
+	call set_410_1	
+1:
+	popw %es
+	popw %ds
+	ret
+
+xh_hd:
+  call read_dri
+  decb %cl
+  je 1f
+  addw $0x200, %bx
+  incb %dl
+  jmp xh_hd
+1:
+  ret
+  
+	
+Check_bus: 
+	xorl %edi, %edi
+	movw $0xB101, %ax 
+	int $0x1A
+	cmpl $0x20494350, %edx
+	jne 1f
+	movw $0, %si
+	movw $0xB103, %ax 
+	movl $0x000C0320, %ecx 
+	int $0x1A 
+	jb 1f
+	movw %bx, (bus_device_function - USB2DRI)
+	clc
+	ret
+1:
+	stc       
+	ret	
+	
+
+Determine_delay_units:   
+	xorw %ax, %ax
+	movw %ax, %fs
+	decw %ax
+	movw %ax, %gs
+	sti 
+	movw %fs:0x046c, %dx
+	xorl %ecx, %ecx
+1:
+	movw %fs:0x046c, %ax 
+	cmpw %dx, %ax                
+	je 1b                      
+1:
+	cmpw %fs:0x046c, %ax
+	jne 2f 
+	pushw %dx
+	pushw %ax
+	movw $0xcf8, %dx
+	inw %dx, %ax
+	popw %ax
+	popw %dx
+	incl %ecx 
+	cmpl $0, %ecx
+	jmp 1b
+2:
+	xorl %edx, %edx
+	movl %ecx, %eax
+	movl $0x37, %ecx
+	divl %ecx
+	movb (EXT_C(usb_delay) - USB2DRI), %cl
+	shlw %cl, %ax
+	movw %ax, (Count_1ms - USB2DRI) 
+	ret
+	
+	. = USB2DRI + 0x1700
+			
+/* ********************  USB2DRI end  ****************************** */ 
+
+
 
 #define CDROM_INIT
 #ifdef CDROM_INIT
@@ -8472,7 +11179,7 @@ ENTRY(mem64)
 	ret
 
 /*
- *   int biosdisk_int13_extensions (unsigned ax, unsigned drive, void *dap, unsigned ssize)
+ *   int biosdisk_int13_extensions (int ax, int drive, void *dap)
  *
  *   Call IBM/MS INT13 Extensions (int 13 %ax=AX) for DRIVE. DAP
  *   is passed for disk address packet. If an error occurs, return
@@ -8486,7 +11193,6 @@ ENTRY(biosdisk_int13_extensions)
 	pushl	%ebp
 	movl	%esp, %ebp
 
-	#; +20	ssize
 	#; +16	dap
 	#; +12	drive
 	#;  +8	 ax
@@ -8496,8 +11202,6 @@ ENTRY(biosdisk_int13_extensions)
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
-
-	movl	0x14(%ebp), %ecx	#; sector size(512 or 2048)
 
 	/* compute the address of disk_address_packet */
 	movl	0x10(%ebp), %eax	#; linear address of dap
@@ -8512,7 +11216,7 @@ ENTRY(biosdisk_int13_extensions)
 	xorw	%ax, %ax
 	shrl	$5, %eax		#; segment value in AX
 	addw	$0x40, %ax
-	movw	%ax, %di	/* save the segment to cx */
+	movw	%ax, %cx	/* save the segment to cx */
 
 	/* drive */
 	movb	0xc(%ebp), %dl
@@ -8523,109 +11227,25 @@ ENTRY(biosdisk_int13_extensions)
 
 	.code16
 
-	sti
+	sti	#; cli should also work for biosdisk_int13_extensions
 
 	movw	%bx, %ax
-	movw	%di, %ds
+	movw	%cx, %ds
 
 	/* set additional registers to serve buggy BIOSes. */
-	pushw	%ds
-	pushw	%si
-	pushw	%dx
-	pushw	%cx
+	pushw	%di
 	pushw	%bx
-	//movw	%cx, %es
-	//movw	%si, %di
-	//movw	%si, %bx
+	movw	%cx, %es
+	movw	%si, %di
+	movw	%si, %bx
 
-	andb	$0xFE, %bh
-	cmpb	$0x42, %bh	/* is it read/write? */
-	jne	2f
-#if 0
-	testb	%cl, %cl	/* single sector access? */
-	jz	2f		/* no */
-	cmpb	$0x2, %ch	/* is it normal sector size? */
-#else
-	cmpw	$0x201, %cx
-#endif
-	stc
-	je	1f
-2:
 #if 1
 	int	$0x13
 #else
 	call	safe_int13
 #endif
-
-1:
 	popw	%bx
-	popw	%cx
-	popw	%dx
-	popw	%si
-	popw	%ds
-
-	jnc	1f
-	movw	%bx, %ax	/* read(0x42) or write(0x43) */	
-	andb	$0xFE, %ah
-	cmpb	$0x42, %ah	/* is it read/write? */
-	jne	2f
-	cmpb	$0x2, %ch	/* is it normal sector size? */
-	jne	2f
-	/* try reading sectors one by one */
-	movw	2(%si), %cx	/* number of sectors to read/write */
-	cmpw	$2, %cx
-	jb	2f
-	cmpw	$0x7F, %cx
-	ja	2f
-	lesw	4(%si), %di	/* get buffer address in ES:DI */
-	subw	$0x200, %di
-	movl	8(%si), %eax	/* starting sector number lo */
-	movl	12(%si), %ebp	/* starting sector number hi */
-	decl	%eax
-	cmpl	$-1, %eax
-	jne	3f
-	decl	%ebp
-3:
-	addw	$0x200, %di
-	incl	%eax
-	jnz	4f
-	incl	%ebp
-4:
-	pushw	%ds
-	pushw	%es
-	pushal
-	
-	pushl	%ebp		/* sector number hi */
-	pushl	%eax		/* sector number lo */
-	pushw	%es		/* buffer segment */
-	pushw	%di		/* buffer offset */
-	pushw	$0x0001		/* read/write only one sector */
-	pushw	$0x0010		/* packet size */
-
-	xorw	%si, %si
-	movw	%si, %ds	/* DS=SS=0 */
-	movw	%sp, %si	/* DS:SI points to packet */
-
-	movw	%bx, %ax	/* read(0x42) or write(0x43) */	
-	/* set additional registers to serve buggy BIOSes. */
-	movw	%di, %bx
-#if 1
-	int	$0x13
-#else
-	call	safe_int13
-#endif
-	popaw			/* discard packet on the stack */
-
-	popal
-	popw	%es
-	popw	%ds
-
-	jc	1f
-	loop	3b
-	jmp	1f		/* CF=0, success */
-2:
-	stc
-1:
+	popw	%di
 
 #if 1
 	/* some buggy USB BIOSes fail to clear AH on success */
@@ -8810,15 +11430,10 @@ ENTRY(biosdisk_standard)
 
 
 /*
- *   int check_int13_extensions (unsigned drive, unsigned lba1sector)
+ *   int check_int13_extensions (int drive)
  *
  *   Check if LBA is supported for DRIVE. If it is supported, then return
  *   the major version and API support bits of extensions, otherwise zero.
- *   On return:
- *	EAX bit 0 = 1, LBA supported
- *		bit 8 = 0, with 127-sector readability
- *		bit 8 = 1, without 127-sector readability
- *	EAX bit 0 = 0, no LBA support
  */
 
 ENTRY(check_int13_extensions)
@@ -8832,17 +11447,17 @@ ENTRY(check_int13_extensions)
 	pushl	%esi
 	pushl	%edi
 
-	movw	0xC(%ebp), %di		// lba1sector
-	movb	0x8(%ebp), %dl		// drive
+	/* drive */
+	movb	0x8(%ebp), %dl
 	/* enter real mode */
 	call	EXT_C(prot_to_real)
 
 	.code16
 
+	//sti	#; check_int13_extensions won't require sti
 	sti	#; added 2006-11-30
 
 	pushw	%dx
-	pushw	%di
 
 	movb	$0x41, %ah
 	movw	$0x55aa, %bx
@@ -8851,7 +11466,6 @@ ENTRY(check_int13_extensions)
 #else
 	call	safe_int13
 #endif
-	popw	%di
 	popw	%dx
 
 	/* check the result */
@@ -8883,7 +11497,6 @@ ENTRY(check_int13_extensions)
 	jnz	3f
 	/* read a sector with function 42h */
 	/* no need to save segment registers */
-	pushw	%di
 	pushw	%bx
 	pushw	%cx
 	/* first, clear the buffer */
@@ -8953,7 +11566,6 @@ ENTRY(check_int13_extensions)
 	popw	%cx
 	orb	%al, %cl
 	popw	%bx
-	popw	%di
 3:
 	/* end of workaround */
 	/*****************************************************************/
@@ -8964,183 +11576,9 @@ ENTRY(check_int13_extensions)
 	xorw	%bx, %bx
 	xorw	%cx, %cx
 2:
-	shll	$16, %ebx	#; version number in high word
-	movb	%cl, %bl	#; API subset support bitmap in low word
+	roll	$16, %ebx	#; version number in high word
+	movw	%cx, %bx	#; API subset support bitmap in low word
 
-	testb	$1, %bl		// support LBA?
-	jz	1f		// no
-	/* make sure if it could read 127 sectors at a time */
-	/* first, check sector size */
-	/* fill the 2048-byte buffer with FF's */
-	movw	$0x2000, %cx	/* GEOMTUNE_SEG */
-	movw	%cx, %ds
-	movw	%cx, %es
-	movw	$0x400, %cx	/* 4 sectors */
-	xorw	%ax, %ax
-	decw	%ax		/* fill the buffer with 0xFF's */
-	pushw	%di
-	xorw	%di, %di
-	cld
-	rep stosw
-	popw	%di
-
-	pushw	%ds
-	pushw	%es
-	pushal
-	xorl	%eax, %eax
-	pushl	%eax		/* sector hi */
-	pushl	%eax		/* sector lo */
-	pushw	$0x2000		/* buffer segment = GEOMTUNE_SEG */
-	pushw	%ax		/* offset=0 */
-	pushw	$0x0001		/* read 1 sector */
-	pushw	$0x0010		/* packet size */
-	movw	%ax, %ds	/* DS=SS=0 */
-	movw	%sp, %si
-	movw	$0x4200, %ax
-#if 1
-	int	$0x13
-#else
-	call	safe_int13
-#endif
-	popaw			/* discard packet on the stack */
-	popal
-	popw	%es
-	popw	%ds
-	jnc	2f
-	andb	$0xFE, %bl	/* no LBA */
-	jmp	1f
-2:
-	pushw	%di
-	movw	$0x600, %cx
-	movw	$0x200, %di
-	cld
-	repz scasb
-	popw	%di
-	jne	1f		/* big 2048-byte sector */
-	/* try again, fill the 2048-byte buffer with 00's */
-	movw	$0x2000, %cx	/* GEOMTUNE_SEG */
-	movw	%cx, %ds
-	movw	%cx, %es
-	movw	$0x400, %cx	/* 4 sectors */
-	xorw	%ax, %ax	/* fill the buffer with 00's */
-	pushw	%di
-	movw	$0x8000, %di
-	cld
-	rep stosw
-	popw	%di
-
-	pushw	%ds
-	pushw	%es
-	pushal
-	xorl	%eax, %eax
-	pushl	%eax		/* sector hi */
-	pushl	%eax		/* sector lo */
-	pushw	$0x2000		/* buffer segment = GEOMTUNE_SEG */
-	pushw	$0x8000		/* offset=0x8000 */
-	pushw	$0x0001		/* read 1 sector */
-	pushw	$0x0010		/* packet size */
-	movw	%ax, %ds	/* DS=SS=0 */
-	movw	%sp, %si
-	movw	$0x4200, %ax
-#if 1
-	int	$0x13
-#else
-	call	safe_int13
-#endif
-	popaw			/* discard packet on the stack */
-	popal
-	popw	%es
-	popw	%ds
-	jnc	2f
-	andb	$0xFE, %bl	/* no LBA */
-	jmp	1f
-2:
-	pushw	%di
-	movw	$0x600, %cx
-	movw	$0x8200, %di
-	cld
-	repz scasb
-	popw	%di
-	jne	1f		/* big 2048-byte sector */
-
-	/* now it is 512-byte sector size */
-
-	testw	%di, %di
-	jz	2f
-	testw	$0x0080, %di	/* lba127sector */
-	jnz	2f
-	movb	$1, %bh		/* failure, cannot read 127 sectors */
-	jmp	1f
-2:
-#if 0
-	/* detailed check for all possibilities */
-	movw	$0x7F, %cx
-	xorw	%di, %di
-
-lba_check_loop:
-	incw	%di		/* number of sectors to read */
-
-	pushal
-	pushw	%di
-	pushw	$ABS(LBA_read_sectors_message)
-	call	realmode_printf
-	popw	%ax
-	popw	%di
-	popal
-#else
-	movw	$3, %cx		/* try it for 3 times. */
-	/* only check 127-sector accessibility */
-	movw	$127, %di	/* number of sectors to read */
-
-lba_try_again:
-
-	pushal
-	xorb	%dh, %dh
-	pushw	%dx		/* drive number */
-	pushw	$ABS(LBA_read_sectors_message)
-	call	realmode_printf
-	popw	%ax
-	popw	%dx
-	popal
-#endif
-
-	pushw	%ds
-	pushw	%es
-	pushal
-	xorl	%eax, %eax
-	pushl	%eax		/* sector hi */
-	pushl	%eax		/* sector lo */
-	pushw	$0x2000		/* buffer segment = GEOMTUNE_SEG */
-	pushw	%ax		/* offset=0 */
-	pushw	%di		/* sectors to read */
-	pushw	$0x0010		/* packet size */
-	movw	%ax, %ds	/* DS=SS=0 */
-	movw	%sp, %si
-	movw	$0x4200, %ax
-#if 1
-	int	$0x13
-#else
-	call	safe_int13
-#endif
-	popaw			/* discard packet on the stack */
-	popal
-	popw	%es
-	popw	%ds
-#if 0
-	loop	lba_check_loop
-	setc	%bh		/* failure, cannot read 127 sectors */
-#else
-	jnc	2f
-	loop	lba_try_again
-2:
-	setc	%bh		/* failure, cannot read 127 sectors */
-	pushal
-	pushw	$ABS(LBA_read_sectors_message_wipe)
-	call	realmode_printf
-	popw	%ax
-	popal
-#endif
-1:
 	/* back to protected mode */
 	call	EXT_C(real_to_prot)
 	.code32
@@ -9156,17 +11594,8 @@ lba_try_again:
 
 	ret
 
-LBA_read_sectors_message:
-#if 0
-	.ascii "\r\nTry reading %d sectors ...   \0"
-#else
-	.ascii "\r\nIf hangup, use \'geometry --lba1sector (%d)\' at the beginning of preset menu. \0"
-LBA_read_sectors_message_wipe:
-	.ascii "\r                                                                               \r\0"
-#endif
-
 /*
- *   int get_diskinfo_standard (unsigned long drive, unsigned long *cylinders,
+ *   int get_diskinfo_standard (int drive, unsigned long *cylinders,
  *                              unsigned long *heads, unsigned long *sectors)
  *
  *   if bit 8-15 of drive(dh) != 0 on call, then geometry_tune will be used.
@@ -13603,16 +16032,34 @@ ENTRY(set_int13_handler)
 	pushl	%edi
 	pushl	%esi
 
-	/* copy MAP to the drive map */
+#if	MAP_NUM_16
+	/* copy boot_drive_map to maphooked_drive_map_1 */
+	movl	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 8), %ecx
+	pushl	%ecx
+	movl	$ABS(EXT_C(hooked_drive_map_1)), %edi
+	movl	8(%ebp), %esi
+	cld
+	repz movsl
+	/* copy boot_drive_map to maphooked_drive_map_2 */
+	popl %ecx
+	movl	$ABS(EXT_C(hooked_drive_map_2)), %edi
+	repz movsl
+#else
+	/* copy boot_drive_map to maphooked_drive_map */
 	movl	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 4), %ecx
 	movl	$ABS(EXT_C(hooked_drive_map)), %edi
 	movl	8(%ebp), %esi
 	cld
 	repz movsl
+#endif
 
 	/* other variable(s) */
 	movb	ABS(EXT_C(is64bit)), %dl
 	movb	%dl, ABS(int13_is64bit)
+	
+	movl	0x4C, %eax
+	movl	%eax, ABS(EXT_C(ROM_int13))
+	movl	%eax, ABS(EXT_C(ROM_int13_dup))
 
 //	Now initialized early at the beginning of this file
 //
@@ -13627,7 +16074,14 @@ ENTRY(set_int13_handler)
 	movzwl  0x413, %eax
 	
 	/* KBytes that int13 handler occupies */
-	movzbl	ABS(int13_handler), %edx # EDX=KBytes used by new int13_handler
+	movl	$((int13_handler_end - int13_handler + 0x3ff) / 0x400), %edx	
+//	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
+	cmpb	$0, ABS(EXT_C(atapi_dev_count))
+	jne	1f
+	movl	$((cdrom_start - int13_handler + 0x3ff) / 0x400), %edx	
+1:		
+//	movzbl	ABS(int13_handler), %edx # EDX=KBytes used by new int13_handler
+	movb	%dl, ABS(int13_handler)
 	subl	%edx, %eax		 # EAX=new available low memory(KBytes)
 	/* save remaining lower memory size in BIOS data area */
 	movw	%ax, 0x413
@@ -13637,6 +16091,11 @@ ENTRY(set_int13_handler)
 	movl    %eax, %edi	# EDI=EAX=destination int13_handler address
 	movl	$ABS(int13_handler), %esi
 	movl	$((int13_handler_end - int13_handler + 3) / 4), %ecx
+//	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
+	cmpb	$0, ABS(EXT_C(atapi_dev_count))
+	jne	1f
+	movl	$((cdrom_start - int13_handler + 3) / 4), %ecx
+1:
 	// cld
 	repz	movsl
 	
@@ -13728,7 +16187,8 @@ ENTRY(unset_int13_handler)
 	shll	$(16 + 6), %eax
 
 	/* the offset(low word) should be 0x100 */
-	movw	$0x100, %ax
+//	movw	$0x100, %ax
+	movw $(int13_handler_entry - int13_handler), %ax
 
 	cmpl	%eax, 0x4c
 	jne	1f		#; not hooked, unset failure
@@ -13736,13 +16196,17 @@ ENTRY(unset_int13_handler)
 	shrl	$12, %edi	/* segment base address */
 
 	/* check our int13 signature "$INT13SFGRUB4DOS" */
-	cmpl	$0x544E4924, 0x103(%edi)	/* $INT */
+//	cmpl	$0x544E4924, 0x103(%edi)	/* $INT */
+	cmpl	$0x544E4924, (int13_handler_entry - int13_handler + 3)(%edi)	/* $INT */
 	jnz	1f
-	cmpl	$0x46533331, 0x107(%edi)	/* 13SF */
+//	cmpl	$0x46533331, 0x107(%edi)	/* 13SF */
+	cmpl	$0x46533331, (int13_handler_entry - int13_handler + 7)(%edi)	/* 13SF */
 	jnz	1f
-	cmpl	$0x42555247, 0x10B(%edi)	/* GRUB */
+//	cmpl	$0x42555247, 0x10B(%edi)	/* GRUB */
+	cmpl	$0x42555247, (int13_handler_entry - int13_handler + 0xb)(%edi)	/* GRUB */
 	jnz	1f
-	cmpl	$0x534F4434, 0x10F(%edi)	/* 4DOS */
+//	cmpl	$0x534F4434, 0x10F(%edi)	/* 4DOS */
+	cmpl	$0x534F4434, (int13_handler_entry - int13_handler + 0xf)(%edi)	/* 4DOS */
 	jnz	1f
 
 	//cmpl	$0x9A000000, 0x1C(%edi)		/* old int 13 */

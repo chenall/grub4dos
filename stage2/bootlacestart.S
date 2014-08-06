@@ -1,6 +1,6 @@
 /*
  *  bootlacestart.S -- A utility for installing GRLDR boot sectors to MBR/OSBR
- *  Copyright (C) 2005, 2012  Tinybit(tinybit@tom.com)
+ *  Copyright (C) 2005  Tinybit(tinybit@163.net)
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -41,16 +41,16 @@
 	.globl	_start
         
 _start:
-
+	
 	/* command-line arguments:
 	 *	bootlace.com  [OPTIONS]  DEVICE_OR_FILE
 	 */
 
-	# ELF header begin here. Its length is 0x40.
+	# ELF header begin
 	# The ELF64 header is backed up at the end of file, which can be
-	# used to replace the ELF header for running on 64-bit Linux.
-
-	.byte	0x7F, 0x45, 0x4C, 0x46	# ELF magic number
+	# used to replace the ELF header for running on 64-bit Linux. 
+	
+	.byte	0x7F, 0x45, 0x4C, 0x46	# ELF magic number               
 					// 7F 45 = jg dos_entry_point
 					// 4C = decw %sp
 					// 46 = incw %si
@@ -58,108 +58,36 @@ _start:
 #if 1
 	.byte	0x01			# 32-bit
 	.byte	0x01			# little-endian
-					# not safe for 16-bit DOS code
-					// it changes word at [BX+DI]
+	                                # not safe for 16-bit DOS code
 					// 01 01 = addw %ax, (%bx, %di)
 #else
 	.byte	0x01			# 32-bit
 	.byte	0xC1			# corrupt-endian!
+					# Sorry!
 					# but safe for 16-bit DOS code
 					// 01 C1 = addw %ax, %cx
 #endif
 
-	.byte	0x01			# ELF version
-					// opcode for ADD
+	.byte	0x01			# version
 
 #ifdef __DOT_COM
 
-	.byte	0xC1			# pad char
-					// 01 C1 = addw %ax, %cx
-					// AX unchanged, CX modified
-
+	.byte	0xC0			# pad char
 					// 01 C0 = addw %ax, %ax
-					// 01 C1 = addw %ax, %cx
-					// 01 C2 = addw %ax, %dx
-					// 01 C3 = addw %ax, %bx
-					// 01 C4 = addw %ax, %sp
-					// 01 C5 = addw %ax, %bp
-					// 01 C6 = addw %ax, %si
-					// 01 C7 = addw %ax, %di
-					// 01 C8 = addw %cx, %ax
-					// 01 C9 = addw %cx, %cx
-					// 01 CA = addw %cx, %dx
-					// 01 CB = addw %cx, %bx
-					// 01 CC = addw %cx, %sp
-					// 01 CD = addw %cx, %bp
-					// 01 CE = addw %cx, %si
-					// 01 CF = addw %cx, %di
-					// 01 D0 = addw %dx, %ax
-					// 01 D1 = addw %dx, %cx
-					// 01 D2 = addw %dx, %dx
-					// 01 D3 = addw %dx, %bx
-					// 01 D4 = addw %dx, %sp
-					// 01 D5 = addw %dx, %bp
-					// 01 D6 = addw %dx, %si
-					// 01 D7 = addw %dx, %di
-					// 01 D8 = addw %bx, %ax
-					// 01 D9 = addw %bx, %cx
-					// 01 DA = addw %bx, %dx
-					// 01 DB = addw %bx, %bx
-					// 01 DC = addw %bx, %sp
-					// 01 DD = addw %bx, %bp
-					// 01 DE = addw %bx, %si
-					// 01 DF = addw %bx, %di
-					// 01 E0 = addw %sp, %ax
-					// 01 E1 = addw %sp, %cx
-					// 01 E2 = addw %sp, %dx
-					// 01 E3 = addw %sp, %bx
-					// 01 E4 = addw %sp, %sp
-					// 01 E5 = addw %sp, %bp
-					// 01 E6 = addw %sp, %si
-					// 01 E7 = addw %sp, %di
-					// 01 E8 = addw %bp, %ax
-					// 01 E9 = addw %bp, %cx
-					// 01 EA = addw %bp, %dx
-					// 01 EB = addw %bp, %bx
-					// 01 EC = addw %bp, %sp
-					// 01 ED = addw %bp, %bp
-					// 01 EE = addw %bp, %si
-					// 01 EF = addw %bp, %di
-					// 01 F0 = addw %si, %ax
-					// 01 F1 = addw %si, %cx
-					// 01 F2 = addw %si, %dx
-					// 01 F3 = addw %si, %bx
-					// 01 F4 = addw %si, %sp
-					// 01 F5 = addw %si, %bp
-					// 01 F6 = addw %si, %si
-					// 01 F7 = addw %si, %di
-					// 01 F8 = addw %di, %ax
-					// 01 F9 = addw %di, %cx
-					// 01 FA = addw %di, %dx
-					// 01 FB = addw %di, %bx
-					// 01 FC = addw %di, %sp
-					// 01 FD = addw %di, %bp
-					// 01 FE = addw %di, %si
-					// 01 FF = addw %di, %di
 
-
-	.byte	0x29, 0x01		# pad chars
-					// 29 01 = subw %ax, (%bx, %di)
-					// restored word at [BX+DI]
-
-	.byte	0x90			# pad char
-					// nop
 
 	.byte	0x44			# pad char
 					// incw	%sp
 
-	.byte	0x90			# pad char
-					// nop
 
-	.byte	0x90			# pad char
-					// nop
+	.byte	0x4E			# pad char
+					// decw	%si
 
-	.byte	0xEB, 0x30		# pad char
+
+	.byte	0xd1,0xe8		// shr ax, 1
+	.byte   0x29,0x01               // subw %ax, (%bx, %di)					
+
+	.byte	0xEB, 0x24		# pad char
 					// jmp	invalid_dos_exec
 
 #endif
@@ -169,7 +97,7 @@ _start:
 	.word	2			# e_type = Executable
 	.word	3			# e_machine = i386
 	.long	1			# e_version
-	.long	(_start_linux - _start + 0x00400000)
+        .long	(_start_linux - _start + 0x00400000)
 					# e_entry
 	.long	(_ph_offset - _start)	# e_phoff
 	.long	(_sh_offset - _start)	# e_shoff(section header table)
@@ -179,7 +107,7 @@ _start:
 	.word	1			# e_phnum(prog header entry count)
 	.word	0x28			# e_shentsize
 	.word	5			# e_shnum
-	.word	1			# e_shstrndx
+        .word	1			# e_shstrndx 
 
 	# ELF header end
 
@@ -213,7 +141,7 @@ _string_table:
 	.ascii	".data\0"
 
 	.ascii	".bss\0"
-
+	
 _string_table_end:
 
 	.align	4
@@ -222,13 +150,12 @@ _ph_offset:
 
 	.long	1				# p_type
 	.long	(_start_linux - _start)		# p_offset
-	.long	(_start_linux - _start + 0x00400000)
-						# p_vaddr
-	.long	(_start_linux - _start + 0x00400000)
-						# p_paddr
-	.long	(pre_stage2_start - _start_linux)	# p_filesz
-	.long	(pre_stage2_start - _start_linux + (0xBE00 + 0x200))
-						# p_memszz //mbr_63_sectors
+        .long	(_start_linux - _start + 0x00400000)
+	                                        # p_vaddr
+        .long	(_start_linux - _start + 0x00400000)
+	                                        # p_paddr
+        .long	(grldr_mbr_start + 0x2000 - _start_linux + (0x1400 - 0x200))  # p_filesz
+        .long	(grldr_mbr_start + 0x2000 - _start_linux + (0xBE00 + 0x200) + (0x1400 - 0x200))  # p_memszz
 	.long	7				# p_flags
 	.long	0x200				# p_align
 
@@ -265,7 +192,7 @@ _sh_offset:
 	.long	0			# sh_link
 	.long	0			# sh_info
 	.long	1			# sh_addralign
-	.long	0			# sh_entsize
+	.long	0			# sh_entsize 
 
 	# .text
 
@@ -279,7 +206,7 @@ _sh_offset:
 	.long	(_start_linux - _start)
 					# sh_offset(from beginning of file)
 
-	.long	(pre_stage2_start - _start_linux)
+	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0x1400 - 0x200))
 					# sh_size
 
 	.long	0			# sh_link
@@ -293,10 +220,10 @@ _sh_offset:
 	.long	1			# sh_type = SHT_PROGBITS
 	.long	3			# sh_flags = WRITE, ALLOC
 
-	.long	(pre_stage2_start - _start + 0x00400000)
+	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000 + (0x1400 - 0x200))
 					# sh_addr(in process space)
 
-	.long	(pre_stage2_start - _start)
+	.long	(grldr_mbr_start + 0x2000 - _start + (0x1400 - 0x200))
 					# sh_offset(from beginning of file)
 
 	.long	0			# sh_size (no data present)
@@ -311,10 +238,10 @@ _sh_offset:
 	.long	8			# sh_type = SHT_NOBITS
 	.long	3			# sh_flags = WRITE, ALLOC
 
-	.long	(pre_stage2_start - _start + 0x00400000)
+	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000 + (0x1400 - 0x200))
 					# sh_addr(in process space)
 
-	.long	(pre_stage2_start - _start)
+	.long	(grldr_mbr_start + 0x2000 - _start + (0x1400 - 0x200))
 					# sh_offset(from beginning of file)
 
 	.long	(0xbe00 + 0x200)	# sh_size	//mbr_63_sectors
@@ -325,7 +252,7 @@ _sh_offset:
 
 _sh_offset_end:
 
-	.align	8
+	.align	8        
 
 _ph_offset_64:
 
@@ -339,9 +266,9 @@ _ph_offset_64:
 	.long	(_start_linux - _start + 0x00400000)
 						# p_paddr
 	.long	0				# ... hi
-	.long	(pre_stage2_start - _start_linux)	# p_filesz
+	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0x1400 - 0x200))	# p_filesz
 	.long	0				# ... hi
-	.long	(pre_stage2_start - _start_linux + (0xBE00 + 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0xBE00 + 0x200) + (0x1400 - 0x200))
 						# p_memszz //mbr_63_sectors
 	.long	0				# ... hi
 	.long	0x200				# p_align
@@ -409,7 +336,7 @@ _sh_offset_64:
 					# sh_offset(from beginning of file)
 	.long	0			# ... hi
 
-	.long	(pre_stage2_start - _start_linux)
+	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0x1400 - 0x200))
 					# sh_size
 	.long	0			# ... hi
 
@@ -427,11 +354,11 @@ _sh_offset_64:
 	.long	3			# sh_flags = WRITE, ALLOC
 	.long	0			# ... hi
 
-	.long	(pre_stage2_start - _start + 0x00400000)
+	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000 + (0x1400 - 0x200))
 					# sh_addr(in process space)
 	.long	0			# ... hi
 
-	.long	(pre_stage2_start - _start)
+	.long	(grldr_mbr_start + 0x2000 - _start + (0x1400 - 0x200))
 					# sh_offset(from beginning of file)
 	.long	0			# ... hi
 
@@ -451,11 +378,11 @@ _sh_offset_64:
 	.long	3			# sh_flags = WRITE, ALLOC
 	.long	0			# ... hi
 
-	.long	(pre_stage2_start - _start + 0x00400000)
+	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000 + (0x1400 - 0x200))
 					# sh_addr(in process space)
 	.long	0			# ... hi
 
-	.long	(pre_stage2_start - _start)
+	.long	(grldr_mbr_start + 0x2000 - _start + (0x1400 - 0x200))
 					# sh_offset(from beginning of file)
 	.long	0			# ... hi
 
@@ -468,17 +395,17 @@ _sh_offset_64:
 	.long	0			# sh_entsize
 	.long	0			# ... hi
 
-_sh_offset_64_end:
+_sh_offset_64_end:        
 
 	.align	0x200
-
+	
 _start_linux:
 
 	/* this is protected mode linux code */
 
 	.code32
 
-#undef __DOS_16
+#undef  __DOS_16
 #include "bootlace.inc"
 
 option_restore_mbr:
@@ -556,29 +483,47 @@ option_read_only:
 option_floppy:
 	.ascii	"--floppy\0"
 
-option_lba:
-	.ascii	"--lba\0"
+//option_lba:
+//	.ascii	"--lba\0"
 
-option_chs:
-	.ascii	"--chs\0"
+//option_chs:
+//	.ascii	"--chs\0"
 
-option_fat12:
-	.ascii	"--fat12\0"
+//option_fat12:
+//	.ascii	"--fat12\0"
 
-option_fat16:
-	.ascii	"--fat16\0"
+//option_fat16:
+//	.ascii	"--fat16\0"
 
-option_fat32:
-	.ascii	"--fat32\0"
+//option_fat32:
+//	.ascii	"--fat32\0"
 
-option_ntfs:
-	.ascii	"--ntfs\0"
+//option_ntfs:
+//	.ascii	"--ntfs\0"
 
-option_ext2:
-	.ascii	"--ext2\0"
+//option_ext2:
+//	.ascii	"--ext2\0"
 
-option_vfat:
-	.ascii	"--vfat\0"
+//option_vfat:
+//	.ascii	"--vfat\0"
+	
+//option_exfat:
+//	.ascii	"--exfat\0"	
+
+//option_usb:
+//	.ascii	"--usb=\0"
+	
+option_grldr_usb:
+	.ascii	"--grldr-usb=\0"
+	
+option_usb_time :
+	.ascii	"--usb-time=\0"
+	
+option_usb_speed:
+	.ascii	"--usb-speed=\0"
+	
+option_usb_key:
+	.ascii	"--usb-key=\0"
 
 msg_start:
 
@@ -586,263 +531,263 @@ msg_start:
 
 msg_ebios_read_failure:
 
-	.ascii	"\r\nWarning: EBIOS read failure!\r\n\r\n\0"
+	.ascii	"\r\nWarning: EBIOS read failure!\r\n\0"
 
 msg_ebios_write_failure:
 
-	.ascii	"\r\nWarning: EBIOS write failure! Now try standard CHS write, but not reliable.\r\n\r\n\0"
+	.ascii	"\r\nWarning: EBIOS write failure! Now try standard CHS write, but not reliable.\r\n\0"
 
 msg_no_ebios_support:
 
-	.ascii	"\r\nWarning: EBIOS not present! It is not reliable running under DOS without EBIOS.\r\n\r\n\0"
+	.ascii	"\r\nWarning: EBIOS not present! It is not reliable running under DOS without EBIOS.\r\n\0"
 
 msg_stdin_too_long:
 
-	.ascii	"\r\nError: The standard input is too long.\r\n\r\n\0"
+	.ascii	"\r\nError: The standard input is too long.\r\n\0"
 
 msg_too_many_parameters:
 
-	.ascii	"\r\nError: Too many parameters in command line.\r\n\r\n\0"
+	.ascii	"\r\nError: Too many parameters in command line.\r\n\0"
 
 msg_no_args:
 
-	.ascii	"\r\nError: No command-line arguments specified.\r\n\r\n\0"
+	.ascii	"\r\nError: No command-line arguments specified.\r\n\0"
 
 msg_too_many_files:
 
-	.ascii	"\r\nError: More than one files specified.\r\n\r\n\0"
+	.ascii	"\r\nError: More than one files specified.\r\n\0"
 
 msg_no_file:
 
-	.ascii	"\r\nError: No device or file specified.\r\n\r\n\0"
+	.ascii	"\r\nError: No device or file specified.\r\n\0"
 
 msg_option_restore_mbr:
-	.ascii	"\r\nError: Specified --restore-mbr twice.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --restore-mbr twice.\r\n\0"
 
 msg_option_restore_mbr_with_other:
-	.ascii	"\r\nError: Specified --restore-mbr with other options than --read-only.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --restore-mbr with other options than --read-only.\r\n\0"
 
 msg_invalid_prev_mbr:
-	.ascii	"\r\nError: previous MBR is invalid, or it is the GRLDR MBR.\r\n\r\n\0"
+	.ascii	"\r\nError: previous MBR is invalid, or it is the GRLDR MBR.\r\n\0"
 
 msg_option_backup_mbr:
-	.ascii	"\r\nError: Specified an option twice for backing up MBR.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for backing up MBR.\r\n\0"
 
 msg_option_backup_mbr_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with backing up MBR.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with backing up MBR.\r\n\0"
 
 msg_option_backup_mbr_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with backing up MBR.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with backing up MBR.\r\n\0"
 
 msg_option_mbr_floppy:
-	.ascii	"\r\nError: Specified an option twice for searching floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for searching floppy.\r\n\0"
 
 msg_option_mbr_floppy_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with MBR searching floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with MBR searching floppy.\r\n\0"
 
 msg_option_mbr_floppy_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with MBR searching floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with MBR searching floppy.\r\n\0"
 
 msg_option_mbr_osbr:
-	.ascii	"\r\nError: Specified an option twice for booting osbr.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for booting osbr.\r\n\0"
 
 msg_option_mbr_osbr_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with booting osbr.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with booting osbr.\r\n\0"
 
 msg_option_mbr_osbr_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with booting osbr.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with booting osbr.\r\n\0"
 
 msg_option_mbr_bpb:
-	.ascii	"\r\nError: Specified an option twice for mbr-bpb.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for mbr-bpb.\r\n\0"
 
 msg_option_mbr_bpb_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with  mbr-bpb.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with  mbr-bpb.\r\n\0"
 
 msg_option_mbr_bpb_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with mbr-bpb.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with mbr-bpb.\r\n\0"
 
 msg_option_duce:
-	.ascii	"\r\nError: Specified --duce twice.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --duce twice.\r\n\0"
 
 msg_option_duce_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with --duce.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with --duce.\r\n\0"
 
 msg_option_duce_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with --duce.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with --duce.\r\n\0"
 
 msg_option_chs_no_tune:
-	.ascii	"\r\nError: Specified --chs-no-tune twice.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --chs-no-tune twice.\r\n\0"
 
 msg_option_chs_no_tune_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with --chs-no-tune.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with --chs-no-tune.\r\n\0"
 
 msg_option_chs_no_tune_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with --chs-no-tune.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with --chs-no-tune.\r\n\0"
 
 msg_option_boot_prevmbr:
-	.ascii	"\r\nError: Specified an option twice for booting prevmbr.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for booting prevmbr.\r\n\0"
 
 msg_option_boot_prevmbr_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with booting prevmbr.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with booting prevmbr.\r\n\0"
 
 msg_option_boot_prevmbr_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with booting prevmbr.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with booting prevmbr.\r\n\0"
 
 msg_option_preferred_drive:
-	.ascii	"\r\nError: Specified an option twice for preferred drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for preferred drive.\r\n\0"
 
 msg_option_preferred_drive_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with preferred drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with preferred drive.\r\n\0"
 
 msg_option_preferred_drive_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with preferred drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with preferred drive.\r\n\0"
 
 msg_option_preferred_partition:
-	.ascii	"\r\nError: Specified an option twice for preferred partition.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for preferred partition.\r\n\0"
 
 msg_option_preferred_partition_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with preferred partition.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with preferred partition.\r\n\0"
 
 msg_option_preferred_partition_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with preferred partition.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with preferred partition.\r\n\0"
 
 msg_option_serial_number:
-	.ascii	"\r\nError: Specified an option twice for disk serial number.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for disk serial number.\r\n\0"
 
 msg_option_serial_number_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with disk serial number.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with disk serial number.\r\n\0"
 
 msg_option_serial_number_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with disk serial number.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with disk serial number.\r\n\0"
 
 msg_option_install_partition:
-	.ascii	"\r\nError: Specified an option twice for install partition.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for install partition.\r\n\0"
 
 msg_option_install_partition_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with install partition.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with install partition.\r\n\0"
 
-msg_option_install_partition_not_implemented:
-	.ascii	"\r\nSorry! --install-partition not yet implemented with this release.\r\n\r\n\0"
+//msg_option_install_partition_not_implemented:
+//	.ascii	"\r\nSorry! --install-partition not yet implemented with this release.\r\n\0"
 
 msg_option_time_out:
-	.ascii	"\r\nError: Specified an option twice for time out.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for time out.\r\n\0"
 
 msg_option_time_out_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with time out.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with time out.\r\n\0"
 
 msg_option_time_out_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with time out.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with time out.\r\n\0"
 
 //msg_option_time_out_without_prevmbr:
-//	.ascii	"\r\nError: Specified --time-out without specifying --boot-prevmbr-first.\r\n\r\n\0"
+//	.ascii	"\r\nError: Specified --time-out without specifying --boot-prevmbr-first.\r\n\0"
 
 msg_option_hot_key:
-	.ascii	"\r\nError: Specified an option twice for hot key.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for hot key.\r\n\0"
 
 msg_option_hot_key_with_floppy:
-	.ascii	"\r\nError: Specified --floppy with hot key.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy with hot key.\r\n\0"
 
 msg_option_hot_key_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with hot key.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with hot key.\r\n\0"
 
 //msg_option_hot_key_without_prevmbr:
-//	.ascii	"\r\nError: Specified --hot-key without specifying --boot-prevmbr-first.\r\n\r\n\0"
+//	.ascii	"\r\nError: Specified --hot-key without specifying --boot-prevmbr-first.\r\n\0"
 
 msg_option_sectors_per_track:
-	.ascii	"\r\nError: Specified an option twice for sectors per track.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for sectors per track.\r\n\0"
 
 msg_option_sectors_per_track_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with sectors per track.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with sectors per track.\r\n\0"
 
 msg_option_sectors_per_track_for_mbr:
-	.ascii	"\r\nError: Specified --sectors-per-track for a hard drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --sectors-per-track for a hard drive.\r\n\0"
 
 msg_option_heads:
-	.ascii	"\r\nError: Specified an option twice for heads.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for heads.\r\n\0"
 
 msg_option_heads_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with --heads.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with --heads.\r\n\0"
 
 msg_option_heads_for_mbr:
-	.ascii	"\r\nError: Specified --heads for a hard drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --heads for a hard drive.\r\n\0"
 
 msg_option_start_sector:
-	.ascii	"\r\nError: Specified an option twice for start sector.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for start sector.\r\n\0"
 
 msg_option_start_sector_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with --start-sector.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with --start-sector.\r\n\0"
 
 msg_option_start_sector_for_mbr:
-	.ascii	"\r\nError: Specified --start-sector for a hard drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --start-sector for a hard drive.\r\n\0"
 
 msg_option_total_sectors:
-	.ascii	"\r\nError: Specified an option twice for total sectors.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for total sectors.\r\n\0"
 
 msg_option_total_sectors_with_partition:
-	.ascii	"\r\nError: Specified --install-partition with --total-sectors.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --install-partition with --total-sectors.\r\n\0"
 
 msg_option_total_sectors_for_mbr:
-	.ascii	"\r\nError: Specified --total-sectors for a hard drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --total-sectors for a hard drive.\r\n\0"
 
 msg_option_read_only:
-	.ascii	"\r\nError: Specified an option twice for read only.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for read only.\r\n\0"
 
 msg_option_floppy:
-	.ascii	"\r\nError: Specified an option twice for --floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified an option twice for --floppy.\r\n\0"
 
-msg_option_lba:
-	.ascii	"\r\nError: Specified an option twice for lba-chs mode.\r\n\r\n\0"
+//msg_option_lba:
+//	.ascii	"\r\nError: Specified an option twice for lba-chs mode.\r\n\0"
 
-msg_option_lba_for_mbr:
-	.ascii	"\r\nError: Specified --lba for a hard drive.\r\n\r\n\0"
+//msg_option_lba_for_mbr:
+//	.ascii	"\r\nError: Specified --lba for a hard drive.\r\n\0"
 
-msg_option_fstypes_for_mbr:
-	.ascii	"\r\nError: Specified file system types for a hard-drive mbr device.\r\n\r\n\0"
+//msg_option_fstypes_for_mbr:
+//	.ascii	"\r\nError: Specified file system types for a hard-drive mbr device.\r\n\0"
 
 msg_partition_without_drive:
-	.ascii	"\r\nError: Preferred partition without preferred drive.\r\n\r\n\0"
+	.ascii	"\r\nError: Preferred partition without preferred drive.\r\n\0"
 
 msg_partition_start:
-	.ascii	"\r\nError: For a single partition you must specify --start-sector to non-zero.\r\n\r\n\0"
+	.ascii	"\r\nError: For a single partition you must specify --start-sector to non-zero.\r\n\0"
 
 msg_floppy_start:
-	.ascii	"\r\nError: For a real floppy you must specify --start-sector to 0.\r\n\r\n\0"
+	.ascii	"\r\nError: For a real floppy you must specify --start-sector to 0.\r\n\0"
 
 msg_invalid_number:
-	.ascii	"\r\nError: Invalid number format or invalid value for the specified option.\r\n\r\n\0"
+	.ascii	"\r\nError: Invalid number format or invalid value for the specified option.\r\n\0"
 
 msg_invalid_option:
-	.ascii	"\r\nError: Invalid option.\r\n\r\n\0"
+	.ascii	"\r\nError: Invalid option.\r\n\0"
 
 msg_open_file_rw:
-	.ascii	"\r\nError: Cannot open file for read/write access.\r\n\r\n\0"
+	.ascii	"\r\nError: Cannot open file for read/write access.\r\n\0"
 
 msg_open_file_ro:
-	.ascii	"\r\nError: Cannot open file for read-only access.\r\n\r\n\0"
+	.ascii	"\r\nError: Cannot open file for read-only access.\r\n\0"
 
 msg_read_file:
-	.ascii	"\r\nError: Read file failed.\r\n\r\n\0"
+	.ascii	"\r\nError: Read file failed.\r\n\0"
 
 msg_lseek_file:
-	.ascii	"\r\nError: Rewind file(lseek) failed.\r\n\r\n\0"
+	.ascii	"\r\nError: Rewind file(lseek) failed.\r\n\0"
 
 msg_write_file:
-	.ascii	"\r\nError: Write file failed.\r\n\r\n\0"
+	.ascii	"\r\nError: Write file failed.\r\n\0"
 
 msg_close_file:
-	.ascii	"\r\nFatal! Close file failed. Please backup your disk in case it becomes unusable.\r\n\r\n\0"
+	.ascii	"\r\nFatal! Close file failed. Please backup your disk in case it becomes unusable.\r\n\0"
 
 msg_boot_signature_mbr:
-	.ascii	"\r\nError: No boot signature(55 AA). Must specify --floppy explicitly for floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: No boot signature(55 AA). Must specify --floppy explicitly for floppy.\r\n\0"
 
 msg_invalid_partition_table:
-	.ascii	"\r\nError: Invalid partition table. Must specify --floppy explicitly for floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: Invalid partition table. Must specify --floppy explicitly for floppy.\r\n\0"
 
 msg_floppy_partition_table:
-	.ascii	"\r\nError: Specified --floppy for DEVICE_OR_FILE that has a valid partition table.\r\n\r\n\0"
+	.ascii	"\r\nError: Specified --floppy for DEVICE_OR_FILE that has a valid partition table.\r\n\0"
 
 msg_sectors_per_track:
-	.ascii	"\r\nError: Too few sectors to hold GRLDR.MBR.\r\n\r\n\0"
+	.ascii	"\r\nError: Too few sectors to hold GRLDR.MBR.\r\n\0"
 
 msg_geometry_S:
 	.ascii	"\r\nDisk geometry calculated according to the partition table:\r\n\r\n"
@@ -850,65 +795,124 @@ msg_geometry_S:
 msg_geometry_H:
 	.ascii	", Number of heads = \0"
 msg_success:
-	.ascii	"\r\n\r\nSuccess.\r\n\r\n\0"
+	.ascii	"\r\nSuccess.\r\n\0"
 msg_success_create_triple_mbr:
-	.ascii	"\r\n\r\nSuccess. Triple MBR installed.\r\n\r\n\0"
+	.ascii	"\r\nSuccess. Triple MBR installed.\r\n\0"
 msg_success_cancel_triple_mbr:
-	.ascii	"\r\n\r\nTriple MBR cancelled. Original partition layout restored.\r\n\r\n\0"
+	.ascii	"\r\nTriple MBR cancelled. Original partition layout restored.\r\n\0"
 
-msg_fstype_fat32_deny:
-	.ascii	"\r\n\r\nError: Filesystem type is FAT32 but --fat32 was not specified.\r\n\r\n\0"
+//msg_fstype_fat32_deny:
+//	.ascii	"\r\nError: Filesystem type is FAT32 but --fat32 was not specified.\r\n\0"
 
 msg_fstype_fat32_allow:
-	.ascii	"\r\n\r\nFilesystem type is FAT32.\r\n\r\n\0"
+	.ascii	"\r\nFilesystem type is FAT32.\r\n\0"
 
-msg_fstype_ntfs_deny:
-	.ascii	"\r\n\r\nError: Filesystem type is NTFS but --ntfs was not specified.\r\n\r\n\0"
+//msg_fstype_ntfs_deny:
+//	.ascii	"\r\nError: Filesystem type is NTFS but --ntfs was not specified.\r\n\0"
 
 msg_fstype_ntfs_allow:
-	.ascii	"\r\n\r\nFilesystem type is NTFS.\r\n\r\n\0"
+	.ascii	"\r\nFilesystem type is NTFS.\r\n\0"
 
-msg_fstype_fat12_deny:
-	.ascii	"\r\n\r\nError: Filesystem type is FAT12 but --fat12 was not specified.\r\n\r\n\0"
+//msg_fstype_fat12_deny:
+//	.ascii	"\r\nError: Filesystem type is FAT12 but --fat12 was not specified.\r\n\0"
 
 msg_fstype_fat12_allow:
-	.ascii	"\r\n\r\nFilesystem type is FAT12.\r\n\r\n\0"
+	.ascii	"\r\nFilesystem type is FAT12.\r\n\0"
 
-msg_fstype_fat16_deny:
-	.ascii	"\r\n\r\nError: Filesystem type is FAT16 but --fat16 was not specified.\r\n\r\n\0"
+//msg_fstype_fat16_deny:
+//	.ascii	"\r\nError: Filesystem type is FAT16 but --fat16 was not specified.\r\n\0"
 
 msg_fstype_fat16_allow:
-	.ascii	"\r\n\r\nFilesystem type is FAT16.\r\n\r\n\0"
+	.ascii	"\r\nFilesystem type is FAT16.\r\n\0"
 
-msg_fstype_ext2_deny:
-	.ascii	"\r\n\r\nError: Filesystem type is EXT2 but --ext2 was not specified.\r\n\r\n\0"
+//msg_fstype_ext2_deny:
+//	.ascii	"\r\nError: Filesystem type is EXT2 but --ext2 was not specified.\r\n\0"
 
 msg_fstype_ext2_allow:
-	.ascii	"\r\n\r\nFilesystem type is EXT2.\r\n\r\n\0"
+	.ascii	"\r\nFilesystem type is EXT2.\r\n\0"
+
+//msg_fstype_exfat_deny:
+//	.ascii	"\r\nError: Filesystem type is EXFAT but --exfat was not specified.\r\n\0"
+
+msg_fstype_exfat_allow:
+	.ascii	"\r\nFilesystem type is EXFAT.\r\n\0"	
 
 msg_unsupported_fstype:
-	.ascii	"\r\n\r\nError: Unsupported filesystem type.\r\n\r\n\0"
+	.ascii	"\r\nError: Unsupported filesystem type.\r\n\0"
 
 msg_fstype_mbr_deny:
-	.ascii	"\r\n\r\nError: Cannot overwrite the MBR of a harddrive(or HD image) with --floppy.\r\n\r\n\0"
+	.ascii	"\r\nError: Cannot overwrite the MBR of a harddrive(or HD image) with --floppy.\r\n\0"
 
 //msg_no_ntfs_boot_record:
-//	.ascii	"\r\n\r\nError: Filesystem type is NTFS, but no ntfs boot record was found.\r\n\r\n\0"
+//	.ascii	"\r\nError: Filesystem type is NTFS, but no ntfs boot record was found.\r\n\0"
 
 msg_no_enough_memory:
-	.ascii	"\r\n\r\nError: No enough memory.\r\n\r\n\0"
+	.ascii	"\r\nError: No enough memory.\r\n\0"
+
+msg_install_partition_not:
+        .ascii  "\r\n\r\nError: Specified install partition not exist.\r\n\0"
+        
+//msg_usb_bpb_fat:
+//        .ascii  "\r\nError: Attempt to increase the reserved sector.\r\n\0"                              
+
+msg_grldr_usb_err:
+				.ascii  "\r\nThe GRLDR versions error.\r\n\0"	
+
+msg_grldr_usb_ok:				
+				.ascii  "\r\nThe USB option is set success.\r\n\0"	
+				
+msg_disk_Information:	
+	.ascii  "\r\nHD"
+
+msg_disk:	
+        .byte   0x30
+
+msg_d:
+        .ascii  ","
+
+msg_partition:        
+        .byte   0x30,0x20,0x20
+
+msg_Information:
+        .ascii  "            \0"
+        
+scS_c_s:
+        .byte   0x30,0x30
+
+scS_c:
+        .byte   0x30
+
+scS_z_s:
+        .byte   0x20,0x20,0x20,0x20
+     
+scS_z_w:
+        .byte   0x20
+
+scS_d:
+        .ascii  "."
+
+scS_x:
+        .byte   0x20,0x20
+
+scM:
+        .ascii  "Mb\0"
+        
+msg_Wait_for_key:
+	.ascii  "\r\n\r\nPress 'y' to continue, other exit.\r\n\0"
 
 msg_usage:
 
-	.ascii	"BOOTLACE writes GRLDR BOOT RECORD to MBR or to the boot area of a file system.\r\n"
+	.ascii	"\r\nBOOTLACE writes GRLDR BOOT RECORD to MBR or to the boot area of a file system.\r\n"
 	.ascii	"Usage:  bootlace.com  [OPTIONS]  DEVICE_OR_FILE\r\n"
 	.ascii	"Options: --read-only, --floppy[=N], --boot-prevmbr-first, --boot-prevmbr-last,\r\n"
 	.ascii	"--no-backup-mbr, --force-backup-mbr, --mbr-enable-floppy, --mbr-disable-floppy,\r\n"
 	.ascii	"--mbr-enable-osbr, --mbr-disable-osbr, --duce, --time-out=T, --hot-key=K, \r\n"
 	.ascii	"--preferred-drive=D, --preferred-partition=P, --sectors-per-track=S, --heads=H,\r\n"
-	.ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --lba, --chs,\r\n"
-	.ascii	"--fat12, --fat16, --fat32, --vfat, --ntfs, --ext2, --serial-number=SN,\r\n"
-	.ascii	"--restore-mbr, --mbr-no-bpb, --chs-no-tune\r\n"
+//      .ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --lba, --chs,\r\n"
+//      .ascii	"--fat12, --fat16, --fat32, --vfat, --ntfs, --ext2, --exfat, --serial-number=SN,\r\n"
+        .ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --serial-number=SN,\r\n"
+	.ascii	"--restore-mbr, --mbr-no-bpb, --chs-no-tune, --grldr-usb=I, --usb-time=T,\r\n"
+	.ascii	"--usb-speed=S, --usb-key=K,\r\n"
 	.ascii	"DEVICE_OR_FILE: Filename of the device or image. For DOS, a BIOS drive number\r\n"
 	.ascii	"(in hex 0xHH or decimal DDD format)can be used to access the drive.\r\n\0"
 
@@ -1066,7 +1070,8 @@ total_sectors:
 
 time_out:
 
-	.long	0xffffff05	/* low byte default is 5 seconds */
+//	.long	0xffffff05	/* low byte default is 5 seconds */
+        .long	0xffffff00	/* low byte default is 0 seconds */
 
 hot_key:
 
@@ -1089,27 +1094,29 @@ floppy:
 
 	.long	0xffffffff	/* default is for hard drive MBR */
 
-lba:
+//lba:
 
 	/* 1 for lba, 0 for chs, -1 for `not specified'. */
 
-	.long	0xffffffff	/* default is `not specified' */
+//	.long	0xffffffff	/* default is `not specified' */
 
-fstypes:
+//fstypes:
 
 	/* bit 0: fat12 */
 	/* bit 1: fat16 */
 	/* bit 2: fat32 */
 	/* bit 3: ntfs */
 	/* bit 4: ext2 */
+	/* bit 5: exfat */
 
-	.long	0xfffffff7	/* default is all types except ntfs */
+//	.long	0xfffffff7	/* default is all types except ntfs */
 
 sectors_to_write:
 
 	/* default is number of sectors in GRLDR.MBR */
 
-	.long	((pre_stage2_start - _start1) / 512)
+//	.long	((pre_stage2_start - _start1) / 512)
+        .long	((8192) / 512)
 
 restore_partition_layout:
 	.long	0
@@ -1118,108 +1125,28 @@ ebios_support:
 	.long	0
 
 current_partition:
-	.long	0
+	.long	0 
+	
+total_partition_entries:
+        .long	0
+        
+//usb:
+//        .long	0xff
+				
+grldr_usb:
+        .long	0xff
 
-	.align	0x200
-
-#define GRLDR_INSTALL
-#include "grldrstart.S"
-
-	.code32
-
-	//.bss
-
-	.align	0x200
-
-mbr_63_sectors:
-
-	/* The code will use ((63+32+1)*512) bytes from here on. */
-	//. = . + ((63+32+1)*512)
-
-#############################################################################
-
-	/* This backup header must be at the end of bootlace.com. It never
-	 * get used by the code in bootlace.com. But it is used by external
-	 * programs to generate bootlace64.com.
-	 */
-
-_start_ELF_64:
-
-	# ELF64 header backup here upto the end of file. Its length is 0x40.
-
-	.byte	0x7F, 0x45, 0x4C, 0x46	# ELF magic number
-					// 7F 45 = jg dos_entry_point
-					// 4C = decw %sp
-					// 46 = incw %si
-
-	.byte	0x02			# 64-bit
-	.byte	0x01			# little-endian
-					// 02 01 = addb (%bx, %di), %al
-					// no problem
-
-	.byte	0x01			# ELF version
-
-#ifdef __DOT_COM
-
-	.byte	0xC1			# pad char
-					// 01 C1 = addw %ax, %cx
-
-	.byte	0x90			# pad char
-					// nop
-
-	.byte	0x90			# pad char
-					// nop
-
-	.byte	0x90			# pad char
-					// nop
-
-	.byte	0x44			# pad char
-					// incw	%sp
-
-	.byte	0x90			# pad char
-					// nop
-
-	.byte	0x90			# pad char
-					// nop
-
-	.byte	0xEB, 0x30		# pad char
-					// jmp	invalid_dos_exec
-
-#endif
-
-	. = _start_ELF_64 + 0x10
-
-	.word	2			# e_type = Executable
-	.word	0x3E			# e_machine = x86_64
-	.long	1			# e_version
-	.long	(_start_linux - _start + 0x00400000)
-					# e_entry
-	.long	0			# ... hi
-	.long	(_ph_offset_64 - _start)
-					# e_phoff
-	.long	0			# ... hi
-	.long	(_sh_offset_64 - _start)
-					# e_shoff(section header table)
-	.long	0			# ... hi
-	.long	0			# e_flags
-	.word	0x40			# e_ehsize (ELF header size)
-	.word	0x38			# e_phentsize(prog header entry size)
-	.word	1			# e_phnum(prog header entry count)
-	.word	0x40			# e_shentsize
-	.word	5			# e_shnum
-	.word	1			# e_shstrndx
-
-	# ELF64 header end
-
-	. = _start_ELF_64 + 0x40	# code ends here
-
-#############################################################################
-
-	/* !!!! Do NOT append code here !!!! See comment above. */
-
-
-
-
+usb_time:
+				.long	0xff
+				
+usb_speed:			
+ 				.long	0xff
+				
+usb_key:			
+ 				.long	0xff				
+				
+	.align	16
+	
 //-------------------------------------------------------------------
 
 #if 0	/* begin backup sh.S for MandrakeISOinstall-10.0 */
@@ -1312,5 +1239,109 @@ envp:
 
 #endif	/* end backup sh.S for MandrakeISOinstall-10.0 */
 
-	.align	1
+	.align	0x200
+	
+//-------------------------------------------------------------------	
+	
+ #############################################################################
+
+	/* This backup header must be at the end of bootlace.com. It never.
+	 * get used by the code in bootlace.com. But it is used by external
+	 * programs to generate bootlace64.com.
+	 */
+
+_start_ELF_64:
+
+	# ELF64 header backup here upto the end of file. Its length is 0x40.
+
+	.byte	0x7F, 0x45, 0x4C, 0x46	# ELF magic number
+					// 7F 45 = jg dos_entry_point
+					// 4C = decw %sp
+					// 46 = incw %si
+
+	.byte	0x02			# 64-bit
+	.byte	0x01			# little-endian
+					// 02 01 = addb (%bx, %di), %al
+					// no problem
+
+	.byte	0x01			# ELF version
+
+#ifdef __DOT_COM
+
+	.byte	0xC1			# pad char
+					// 01 C1 = addw %ax, %cx
+
+	.byte	0x90			# pad char
+					// nop
+
+	.byte	0x90			# pad char
+					// nop
+
+	.byte	0x90			# pad char
+					// nop
+
+	.byte	0x44			# pad char
+					// incw	%sp
+
+	.byte	0x90			# pad char
+					// nop
+
+	.byte	0x90			# pad char
+					// nop
+
+	.byte	0xEB, 0x30		# pad char
+					// jmp	invalid_dos_exec
+
+#endif
+
+	. = _start_ELF_64 + 0x10
+
+	.word	2			# e_type = Executable
+	.word	0x3E			# e_machine = x86_64
+	.long	1			# e_version
+	.long	(_start_linux - _start + 0x00400000)
+					# e_entry
+	.long	0			# ... hi
+	.long	(_ph_offset_64 - _start)
+					# e_phoff
+	.long	0			# ... hi
+	.long	(_sh_offset_64 - _start)
+					# e_shoff(section header table)
+	.long	0			# ... hi
+	.long	0			# e_flags
+	.word	0x40			# e_ehsize (ELF header size)
+	.word	0x38			# e_phentsize(prog header entry size)
+	.word	1			# e_phnum(prog header entry count)
+	.word	0x40			# e_shentsize
+	.word	5			# e_shnum
+	.word	1			# e_shstrndx
+
+	# ELF64 header end
+
+	. = _start_ELF_64 + 0x40	# code ends here
+
+#############################################################################
+
+	/* !!!! Do NOT append code here !!!! See comment above. */
+	
+	.align	0x200	
+
+grldr_pbr_start:
+
+//*******************************************************
+//        Offset  Sector  Partition type
+//    -------------------------------------
+//        0       1       FAT32
+//        0x200   1       FAT12/16
+//        0x400   2       EXT2/3/4
+//        0x800   2       EXFAT
+//        0xC00   4       NTFS
+//*******************************************************
+
+grldr_cd_start:
+
+#define GRLDR_INSTALL
+#include "grldrstart.S" 
+
+grldr_mbr_start:
 

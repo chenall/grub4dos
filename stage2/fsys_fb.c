@@ -78,93 +78,14 @@ struct fbm_file
 } __attribute__((packed));
 
 static int fb_inited = FB_DRIVE;
-static unsigned long fb_drive;
+static int fb_drive;
 static uchar4 fb_ofs;
 static uchar4 fb_pri_size;
 static struct fbm_file *cur_file;
 static uchar *fbm_buff = NULL;
 static uchar4 ud_ofs;
 static uchar4 ud_pri_size;
-static unsigned long ud_inited = 0;
-
-extern unsigned long ROM_int13;
-extern unsigned long ROM_int15;
-static unsigned long is_virtual (unsigned long drive)
-{
-	unsigned long i;
-	unsigned long addr;
-	unsigned long low_mem;
-	struct drive_map_slot *drive_map;
-
-	low_mem = (*(unsigned short *)0x413);
-	if (low_mem >= 640)
-		return 0;
-	low_mem <<= (16 + 6);
-	low_mem |= 0x100;
-	addr = low_mem;
-	if (low_mem != (*(unsigned long *)0x4C))
-		return 0;
-	low_mem >>= 12;		/* int13_handler base address */
-	if (grub_memcmp ((char *)(low_mem + 0x103), "$INT13SFGRUB4DOS", 16))
-		return 0;
-	if (*(unsigned long *)(low_mem + 0x1C) < 0x5A000000) // old int13
-		return 0;
-	if (*(unsigned long *)(low_mem + 0x0C) < 0x5A000000) // old int15
-		return 0;
-	if (*(unsigned long *)(low_mem + 0x1C) != ROM_int13) // old int13
-		return 0;
-	if (*(unsigned long *)(low_mem + 0x0C) != ROM_int15) // old int15
-		return 0;
-	/* Yes, hooked. The drive map slots begins at (low_mem + 0x20). */
-	drive_map = (struct drive_map_slot *)(low_mem + 0x20);
-	for (i = 0; i < DRIVE_MAP_SIZE; i++)
-	{
-		if (drive_map_slot_empty (drive_map[i]))
-			break;
-		if (drive_map[i].from_drive == drive)
-			return addr;//(i * sizeof (struct drive_map_slot)) + low_mem + 0x20;
-	}
-	return 0;
-}
-
-static unsigned long quick_hook (unsigned long addr)
-{
-	unsigned long low_mem;
-
-	if (addr)
-		goto hook;
-	low_mem = (*(unsigned short *)0x413);
-	if (low_mem >= 640)
-		return 0;
-	low_mem <<= (16 + 6);
-	low_mem |= 0x100;
-	addr = low_mem;
-	if (low_mem != (*(unsigned long *)0x4C))
-		return 0;
-	low_mem >>= 12;		/* int13_handler base address */
-	if (grub_memcmp ((char *)(low_mem + 0x103), "$INT13SFGRUB4DOS", 16))
-		return 0;
-	if (*(unsigned long *)(low_mem + 0x1C) < 0x5A000000) // old int13
-		return 0;
-	if (*(unsigned long *)(low_mem + 0x0C) < 0x5A000000) // old int15
-		return 0;
-	if (*(unsigned long *)(low_mem + 0x1C) != ROM_int13) // old int13
-		return 0;
-	if (*(unsigned long *)(low_mem + 0x0C) != ROM_int15) // old int15
-		return 0;
-	/* Yes, hooked. The drive map slots begins at (low_mem + 0x20). */
-
-	(*(unsigned long *)0x4C) = ROM_int13;
-	buf_drive = -1;
-	buf_track = -1;
-	return addr;
-
-hook:
-	(*(unsigned long *)0x4C) = addr;
-	buf_drive = -1;
-	buf_track = -1;
-	return addr;
-}
+static int ud_inited;
 
 static int fb_init (void)
 {
@@ -174,51 +95,32 @@ static int fb_init (void)
   uchar *fb_list, *p1, *p2;
   uchar4 t_fb_ofs = 0;
   uchar4 t_fb_pri_size = 0;
-  unsigned long ret;
-  unsigned long fb_drive_virtual;
 
-	fb_drive_virtual = is_virtual(fb_drive);
-
-	if (fb_drive_virtual)
-		quick_hook (0);
-
-	ret = rawread (fb_drive, 0, 0, 512, (unsigned long long)(unsigned int)&m, 0xedde0d90);
-	if (! ret)
-		goto init_end;
+	if (! rawread (fb_drive, 0, 0, 512, (unsigned long long)(unsigned int)&m, 0xedde0d90))
+		return 0;
 
 	data = (struct fb_data *)&m;
 	if ((m.fb_magic == FB_MAGIC_LONG) && (m.end_magic == 0xaa55))
 	{
 		boot_base = m.boot_base;
 		t_fb_ofs = m.lba;
-		ret = rawread (fb_drive, boot_base + 1 - t_fb_ofs, 0, 512,
-		 (unsigned long long)(unsigned int)(char *)data, 0xedde0d90);
-		if (! ret)
-			goto init_end;
+		if (! rawread (fb_drive, boot_base + 1 - t_fb_ofs, 0, 512,
+		 (unsigned long long)(unsigned int)(char *)data, 0xedde0d90))
+			return 0;
 		boot_size = data->boot_size;
 		t_fb_pri_size = data->pri_size;
 	}
 	else if (*(unsigned long *)&m != FB_AR_MAGIC_LONG)
-	{
-		ret = 0;
-		goto init_end;
-	}
+		return 0;
 
 	if ((data->ver_major != 1) || (data->ver_minor != 6))
-	{
-		ret = 0;
-		goto init_end;
-	}
+		return 0;
 
 	list_used = data->list_used;
 
 	/* if the dir list exceeds 64K, safely exit with failure. */
 	if (list_used > 128)
-	{
-		errnum = ERR_WONT_FIT;
-		ret = 0;
-		goto init_end;
-	}
+		return !(errnum = ERR_WONT_FIT);
 
 	if (current_drive == FB_DRIVE)
 	{
@@ -230,17 +132,13 @@ static int fb_init (void)
 	else
 	{
 		if (fbm_buff == NULL && (fbm_buff = grub_malloc((unsigned long long)list_used << 9)) == NULL)
-		{
-			ret = 0;
-			goto init_end;
-		}
+			return 0;
 		fb_list = fbm_buff;
 	}
 
-	ret = rawread (fb_drive, boot_base + 1 + boot_size - t_fb_ofs, 0,
-		 (unsigned long long)list_used << 9, (unsigned long long)(unsigned int)fb_list, 0xedde0d90);
-	if (! ret)
-		goto init_end;
+	if (! rawread (fb_drive, boot_base + 1 + boot_size - t_fb_ofs, 0,
+		 (unsigned long long)list_used << 9, (unsigned long long)(unsigned int)fb_list, 0xedde0d90))
+		return 0;
 
 	p1 = p2 = fb_list;
 
@@ -254,34 +152,24 @@ static int fb_init (void)
 	fb_pri_size = t_fb_pri_size;
 	if (current_drive != FB_DRIVE)
 		fb_inited = fb_drive;
-	/* ret != 0, success */
-
-init_end:
-
-	if (fb_drive_virtual)
-		quick_hook (fb_drive_virtual);
-
-	return ret;
+	return 1;
 }
 
 int fb_mount (void)
 {
-	int ret;
-
 	if (current_drive == FB_DRIVE)
 	{
 		if (! fb_status)
 			return 0;
-		fb_drive = (unsigned char)(fb_status >> 8);
+		fb_drive = (fb_status >> 8) & 0xff;
 		fb_ofs = ud_ofs;
 		fb_pri_size = ud_pri_size;
-		if (ud_inited)
-			goto return_true;
-
-		ret = fb_init();
-
-		if (ret)
+		if (ud_inited || fb_init())
+		{
+			if (ud_inited)
+				goto return_true;
 			return ud_inited;
+		}
 		fb_status = 0;
 		ud_inited = 0;
 		return 0;
@@ -292,10 +180,7 @@ int fb_mount (void)
 	fb_drive = current_drive;
 	if (fb_inited  == current_drive)
 		goto return_true;
-
-	ret = fb_init();
-
-	if (! ret)
+	if (! fb_init ())
 		return 0;
 
 return_true:
@@ -308,31 +193,18 @@ return_true:
 unsigned long long
 fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
-  unsigned long long ret;
+  int ret;
   unsigned long sector, ofs, saved_len;
-  unsigned long fb_drive_virtual;
 
   if (! cur_file->size)
     return 0;
 
-  if (! (ret = len))
-    return 0;
-
-  fb_drive_virtual = is_virtual(fb_drive);
-
   if (cur_file->data_start >= fb_pri_size)
     {
       sector = cur_file->data_start + (filepos >> 9) - fb_ofs;
-
-      if (fb_drive_virtual)
-		quick_hook (0);
-
       disk_read_func = disk_read_hook;
       ret = rawread (fb_drive, sector, filepos & 0x1ff, len, buf, write);
       disk_read_func = NULL;
-
-      if (fb_drive_virtual)
-		quick_hook (fb_drive_virtual);
 
       if (ret)
 	filepos += len;
@@ -350,33 +222,22 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
   ofs = (unsigned long) filepos % 510;
   saved_len = len;
 
-  if (fb_drive_virtual)
-	quick_hook (0);
-
   while (len)
     {
-      unsigned long n;
+      int n;
 
       n = 510 - ofs;
       if (n > len)
 	n = len;
 
-      ret = rawread (fb_drive, sector, ofs, n, buf, write);
-
-      if (! ret)
-	break;
+      if (! rawread (fb_drive, sector, ofs, n, buf, write))
+	return 0;
 
       sector++;
       ofs = 0;
       buf += n;
       len -= n;
     }
-
-  if (fb_drive_virtual)
-	quick_hook (fb_drive_virtual);
-
-  if (! ret)
-	return 0;
 
   filepos += saved_len;
 
