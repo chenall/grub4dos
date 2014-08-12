@@ -14414,7 +14414,7 @@ static int if_func(char *arg,int flags)
 {
 	char *str1,*str2;
 	int cmp_flag = 0;
-	int ret = 0;
+	long long ret = 0;
 	errnum = 0;
 	while(*arg)
 	{
@@ -14464,7 +14464,7 @@ static int if_func(char *arg,int flags)
 		arg = skip_to (SKIP_WITH_TERMINATE,str2);
 		if (safe_parse_maxint(&s1,&v1) && safe_parse_maxint(&str2,&v2))
 		{
-			ret = (int)(v1 - v2);
+			ret = v1 - v2;
 		}
 		else
 		{
