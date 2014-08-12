@@ -3726,16 +3726,26 @@ is created with gfxboot 3.3.* and later (size of message file is normally above
 
 Usage:
 
-	write [--offset=SKIP] ADDR_OR_FILE INTEGER_OR_STRING
+	write [--offset=SKIP] [--bytes=N] ADDR_OR_FILE INTEGER_OR_STRING
 
 SKIP is an integer and defaults to 0.
 
 If ADDR_OR_FILE is an integer, then it is treated as a memory address, and
-INTEGER_OR_STRING must be an integer value. The integer INTEGER_OR_STRING
+INTEGER_OR_STRING must be an integer value. The integer INTEGER_OR_STRING (Max bytes N)
 will be written to address (ADDR_OR_FILE + SKIP).
+
+14-08-12 Update: By default, Write 32-bit integers.can use --bytes to change.
+Examples:
+    write --bytes=1 0x8308 0x10      ** rewrite only one byte at address 0x8308.
+    write 0x8308 0x10                ** will rewrite  0x8308 - 0x830b 4-byte.
+    write --bytes=8 0x8308 0x10      ** will rewrite  0x8308 - 0x830F 8-byte.
 
 If ADDR_OR_FILE is a device or a file, then INTEGER_OR_STRING is treated as
 a string which will be written to ADDR_OR_FILE at offset SKIP (in bytes).
+
+14-08-12 Update: now can use --bytes parameter limits the number of bytes to be written.
+Examples: ** only write 12345678
+    write --bytes=8 (md) 0x300 + 1 12345678abcdef
 
 The string is quoted with nothing, that is, neither with the single quote
 char(') nor with the double quote char(").

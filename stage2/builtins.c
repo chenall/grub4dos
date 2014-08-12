@@ -11445,7 +11445,7 @@ write_func (char *arg, int flags)
   unsigned long tmp_partition;
   unsigned long long offset;
   unsigned long long len;
-  unsigned long long bytes = 4;
+  unsigned long long bytes = 0;
   char tmp_file[16];
   //int block_file = 0;
 
@@ -11466,7 +11466,6 @@ write_func (char *arg, int flags)
        p = arg + 8;
        if (! safe_parse_maxint (&p, &bytes))
 		return 0;
-	if (bytes > 8) bytes = 8;
     }
     else
 	break;
@@ -11585,6 +11584,9 @@ write_func (char *arg, int flags)
 		goto fail;
 	}
 	len = parse_string (arg);
+
+	if (bytes && bytes < len) len = bytes;
+
 	if (saved_drive == 0xFFFF && p == tmp_file)	/* (md) */
 	{
 		grub_close ();
@@ -11615,6 +11617,9 @@ succ:
   }
   else
   {
+	if (bytes > 8) bytes = 8;
+	else if (bytes == 0) bytes = 4;
+
 	/* integer */
 	p = arg;
 	if (! safe_parse_maxint (&p, &val))
