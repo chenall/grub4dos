@@ -3421,7 +3421,7 @@ message 文件有两个主要的格式。老的格式是通过gfxboot 3.2版或�
                
 用法：
 
-	write [--offset=SKIP] ADDR_OR_FILE INTEGER_OR_STRING
+	write [--offset=SKIP] [--bytes=N] ADDR_OR_FILE INTEGER_OR_STRING
 
 SKIP 是一个整数默认值是 0 。
 
@@ -3429,9 +3429,20 @@ SKIP 是一个整数默认值是 0 。
 INTEGER_OR_STRING选项也必须是一个整数值。整数 INTEGER_OR_STRING 将被写
 入（ADDR_OR_FILE 加上 SKIP 值）的地址处。
 
+默认情况下写入的是一个32位的数值，如果指定了 N 参数，只写入 N*8 位。
+例子:
+    write --bytes=1 0x8308 0x10   ** 只会改写0x8308处一个字节的值.
+    write 0x8308 0x10             ** 会改写32位 0x8308 - 0x830b 4个字节的值.
+    write --bytes=8 0x8308 0x10   ** 会改写64位 0x8308 - 0x830F 8个字节的值.
+
+
 如果 ADDR_OR_FILE选项 指定的是一个设备或一个文件，那么INTEGER_OR_STRING 选
 项将被作为一个字符串对待，它将被写入跳过 SKIP 个字节（字节计数）的指定的设
 备或文件当中。
+
+14-08-12更新: 现在可以通过--bytes参数限制写入字节数.
+例子:
+    write --bytes=8 (md)0x300+1 12345678abcdef  ** 只写入12345678
 
 字符串不需要被引用，也就是说，不需要单引号(') 也不用 双引号(") 来引用它。
 

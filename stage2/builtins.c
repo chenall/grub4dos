@@ -11694,7 +11694,7 @@ write_func (char *arg, int flags)
   unsigned long tmp_partition;
   unsigned long long offset;
   unsigned long long len;
-  unsigned long long bytes = 4;
+  unsigned long long bytes = 0;
   char tmp_file[16];
   //int block_file = 0;
 
@@ -11715,7 +11715,6 @@ write_func (char *arg, int flags)
        p = arg + 8;
        if (! safe_parse_maxint (&p, &bytes))
 		return 0;
-	if (bytes > 8) bytes = 8;
     }
     else
 	break;
@@ -11834,6 +11833,9 @@ write_func (char *arg, int flags)
 		goto fail;
 	}
 	len = parse_string (arg);
+
+	if (bytes && bytes < len) len = bytes;
+
 	if (saved_drive == 0xFFFF && p == tmp_file)	/* (md) */
 	{
 		grub_close ();
@@ -11864,6 +11866,9 @@ succ:
   }
   else
   {
+	if (bytes > 8) bytes = 8;
+	else if (bytes == 0) bytes = 4;
+
 	/* integer */
 	p = arg;
 	if (! safe_parse_maxint (&p, &val))
@@ -14732,7 +14737,7 @@ static int if_func(char *arg,int flags)
 {
 	char *str1,*str2;
 	int cmp_flag = 0;
-	int ret = 0;
+	long long ret = 0;
 	errnum = 0;
 	while(*arg)
 	{
@@ -14782,7 +14787,7 @@ static int if_func(char *arg,int flags)
 		arg = skip_to (SKIP_WITH_TERMINATE,str2);
 		if (safe_parse_maxint(&s1,&v1) && safe_parse_maxint(&str2,&v2))
 		{
-			ret = (int)(v1 - v2);
+			ret = v1 - v2;
 		}
 		else
 		{

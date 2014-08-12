@@ -224,6 +224,7 @@ myatoi (void)
 
 
 /* Print an entry in a line of the menu box.  */
+extern char menu_cfg[];
 extern unsigned char menu_num_ctrl[];
 static void
 print_entry (int y, int highlight,int entryno, char *config_entries)
@@ -237,7 +238,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   is_highlight = highlight;
 
   gotoxy (MENU_BOX_X - 1, y);
-  grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_num_ctrl[3]) : ' ', 255);
+  grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[0]) : ' ', 255);
   if (entry)
   {
 	if (config_entries == (char*)titles)
