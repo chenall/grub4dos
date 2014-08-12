@@ -161,7 +161,7 @@ codestart:
 	/* internal variables follow */
 	. = EXT_C(main) + 0x74
 VARIABLE(menu_num_ctrl)
-	.long 0x10002000
+	.long 0x2000
 	#include "grub4dos_int_ver.h"
 	#ifdef GRUB4DOS_INT_VER
 	.long GRUB4DOS_INT_VER
@@ -279,7 +279,8 @@ VARIABLE(addr_system_functions)
 
 VARIABLE(addr_system_variables)
 	.long	ABS(EXT_C(system_variables))
-
+VARIABLE(menu_cfg)
+	.byte 0x10
 	. = EXT_C(main) + 0x110
 
 VARIABLE(addr_saved_dir)
