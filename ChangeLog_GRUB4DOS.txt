@@ -1,3 +1,4 @@
+2014-08-13 (tinybit) Urgency! Fixed a serious bug on NTFS WRITE access.
 2014-07-10 (tinybit) fixed a bug on iftitle(reporter: steve6375 and George).
 2014-07-02 (tinybit) repulse GigaByte Key-E attack(reporter: 2011after).
 2013-10-18 (chenall) add new command options --set-ext,set default grub4dos executable extensions.

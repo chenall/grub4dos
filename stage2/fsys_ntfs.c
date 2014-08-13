@@ -547,11 +547,11 @@ static int decomp_block(char* dest)
   return 1;
 }
 
-static int read_block(read_ctx* ctx, unsigned long long buf, int num, unsigned long long len, unsigned long write)
+static int read_block(read_ctx* ctx, unsigned long long buf, unsigned long num, unsigned long long len, unsigned long write)
 {
   if (get_rflag(RF_COMP))
   {
-      int cpb=(8/spc);
+      unsigned long cpb=(8/spc);
 
       if (write == 0x900ddeed)
 	{
@@ -561,7 +561,7 @@ static int read_block(read_ctx* ctx, unsigned long long buf, int num, unsigned l
 
       while (num)
         {
-          int nn;
+          unsigned long nn;
 
           if ((ctx->target_vcn & 0xF)==0)
             {
@@ -674,7 +674,8 @@ static int read_block(read_ctx* ctx, unsigned long long buf, int num, unsigned l
   {
       while (num)
       {
-	  int nn, ss;
+	  unsigned long nn;
+	  unsigned long long ss;
 
 	  nn = (ctx->next_vcn - ctx->target_vcn) * spc - ctx->vcn_offset;
 
@@ -699,22 +700,28 @@ static int read_block(read_ctx* ctx, unsigned long long buf, int num, unsigned l
 			unsigned long o = 0;
 
 			if (write != 0x900ddeed)	/* read */
-				len = ((unsigned long long)nn << BLK_SHR);
+				ss = ((unsigned long long)nn << BLK_SHR);
  			else if (len == -1ULL)	/* long long of -1 for normal whole-block writing */
-				len = ((unsigned long long)nn << BLK_SHR);
+				ss = ((unsigned long long)nn << BLK_SHR);
 			else if ((long long)len < 0)	/* long long of -2, -3, ... for writing a piece of block */
 			{
-				len = -len;
-				len--;
-				if (len >= 512)
+				ss = -len;
+				ss--;
+				if (ss >= 512)
+				{
+					grub_printf ("Fatal! ss(=%ld) should not be >= 512.\n", ss);
 					return 0;
+				}
 				//o = 512 - (unsigned long)len;
 
 				/* sbuf must be 4K align!! buf is now offset to sbuf. */
 				//o = ((unsigned long)buf) % 4096;
 				o = ((unsigned long)buf) & 4095;
 			}
-			if (! devread(s, o, len, buf, write))
+			else {
+				ss = len;
+			}
+			if (! devread(s, o, ss, buf, write))
 			{
 				dbg_printf("Read/Write Error\n");
 				return 0;
@@ -727,8 +734,8 @@ static int read_block(read_ctx* ctx, unsigned long long buf, int num, unsigned l
 	  //ctx->target_vcn = ss / spc;
 	  //ctx->vcn_offset = ss % spc;
 	  ss = (ctx->target_vcn << log2_spc) + ctx->vcn_offset + nn;
-	  ctx->target_vcn = ss >> log2_spc;
-	  ctx->vcn_offset = ss & (spc-1);
+	  ctx->target_vcn = ((unsigned long)ss) >> log2_spc;
+	  ctx->vcn_offset = ((unsigned long)ss) & (spc-1);
 	  num -= nn;
 	  if (num == 0)
 		break;
