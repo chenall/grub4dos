@@ -446,6 +446,25 @@
 #define gfx_ofs_v2_timeout		0x8c
 
 #ifndef ASM_FILE
+
+typedef unsigned char		UINT8;
+typedef unsigned short	UINT16;
+typedef unsigned int		UINT32;
+typedef unsigned long long	UINT64;
+typedef signed char		INT8;
+typedef short			INT16;
+typedef int 			INT32;
+typedef long long		INT64;
+typedef unsigned char 	uint8_t;
+typedef unsigned short 	uint16_t;
+typedef unsigned int		uint32_t;
+typedef unsigned long long	uint64_t;
+typedef signed char		int8_t;
+typedef short			int16_t;
+typedef int			int32_t;
+typedef long long		int64_t;
+#define PACKED			__attribute__ ((packed))
+
 /*
  *  Below this should be ONLY defines and other constructs for C code.
  */
@@ -1511,6 +1530,59 @@ struct drive_parameters
 	   regardless of a size specified in a caller.  */
 	unsigned char dummy[16];
 } __attribute__ ((packed));
+
+#define UUID_NODE_LEN 6
+#define GUID_SIZE 16
+
+typedef struct {
+	union {
+		char raw[GUID_SIZE];
+		struct {
+			UINT32 time_low;
+			UINT16 time_mid;
+			UINT16 time_high_and_version;
+			char clock_seq_high_and_reserved;
+			char clock_seq_low;
+			char node[UUID_NODE_LEN];
+		} UUID;
+	};
+} PACKED GUID;
+
+//GPT_HDR_SIG "EFI PART"
+#define	GPT_HDR_SIG		0x5452415020494645LL
+typedef struct {
+	UINT64		hdr_sig;
+	UINT32		hdr_revision;
+	UINT32		hdr_size;
+	UINT32		hdr_crc_self;
+	UINT32		__reserved;
+	UINT64		hdr_lba_self;
+	UINT64		hdr_lba_alt;
+	UINT64		hdr_lba_start;
+	UINT64		hdr_lba_end;
+	GUID		hdr_uuid;
+	UINT64		hdr_lba_table;
+	UINT32		hdr_entries;
+	UINT32		hdr_entsz;
+	UINT32		hdr_crc_table;
+	UINT32		padding;
+} PACKED GPT_HDR;
+
+typedef struct {
+	GUID type;
+	GUID uid;
+	UINT64 starting_lba;
+	UINT64 ending_lba;
+	union{
+		UINT64 attributes;
+		struct {
+			UINT16 unused[3];
+			UINT16 gpt_att;
+		} PACKED ms_attr;
+	};
+	char name[72];
+} PACKED GPT_ENT;
+typedef GPT_ENT* P_GPT_ENT;
 
 int check_64bit (void);
 int check_64bit_and_PAE  (void);

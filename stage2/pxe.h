@@ -152,10 +152,6 @@
 //#define PXE_ERR_LEN	0xFFFFFFFF
 #define PXE_ERR_LEN	0
 
-typedef unsigned long	UINT32;
-typedef unsigned short	UINT16;
-typedef unsigned char	UINT8;
-
 typedef UINT16		PXENV_STATUS;
 typedef UINT32		SEGOFS16;
 typedef UINT32		IP4;
