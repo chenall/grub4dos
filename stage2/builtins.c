@@ -5342,6 +5342,23 @@ extern char *next_partition_buf;
 //extern unsigned long dest_partition;
 //static unsigned long entry;
 //static unsigned long ext_offset;
+#define GPT_ATTRIBUTE_NO_DRIVE_LETTER	(0x8000)
+#define GPT_ATTRIBUTE_HIDDEN		(0x4000)
+#define GPT_ATTRIBUTE_SHADOW_COPY	(0x2000)
+#define GPT_ATTRIBUTE_READ_ONLY		(0x1000)
+
+static int gpt_slic_attr(char *data,unsigned long part,int flags)
+{
+	P_GPT_ENT p = (P_GPT_ENT)data;
+	p += (part>>16) & 3;
+	if (flags == -1)
+		return p->ms_attr.gpt_att & GPT_ATTRIBUTE_HIDDEN;
+	if (flags)
+		p->ms_attr.gpt_att |= (GPT_ATTRIBUTE_HIDDEN | GPT_ATTRIBUTE_NO_DRIVE_LETTER);
+	else
+		p->ms_attr.gpt_att &= ~(GPT_ATTRIBUTE_HIDDEN | GPT_ATTRIBUTE_NO_DRIVE_LETTER);
+	return 1;
+}
 
 /* Hide/Unhide CURRENT_PARTITION.  */
 static int
@@ -5370,7 +5387,7 @@ set_partition_hidden_flag (int hidden)
   
   /* Look for the partition.  */
   while ((	next_partition_drive		= current_drive,
-		next_partition_dest		= 0xFFFFFF,
+		next_partition_dest		= current_partition,
 		next_partition_partition	= &part,
 		next_partition_type		= &type,
 		next_partition_start		= &start,
@@ -5386,7 +5403,7 @@ set_partition_hidden_flag (int hidden)
     {                                                                       
       if (part == current_partition)
 	{
-	  int is_hidden = (PC_SLICE_TYPE (mbr, entry1) & PC_SLICE_TYPE_HIDDEN_FLAG);
+	  int is_hidden = (type == PC_SLICE_TYPE_GPT?gpt_slic_attr(mbr,part,-1):(PC_SLICE_TYPE (mbr, entry1) & PC_SLICE_TYPE_HIDDEN_FLAG));
 	  /* Found.  */
 	  if (hidden == -1)	/* status only */
 	  {
@@ -5403,7 +5420,9 @@ set_partition_hidden_flag (int hidden)
 	  /* Check if the hidden flag need change.  */
 	  if ((!hidden) != (!is_hidden))
 	  {
-		if (hidden)
+	        if (type == PC_SLICE_TYPE_GPT)
+	            gpt_slic_attr(mbr,part,hidden);
+		else if (hidden)
 			PC_SLICE_TYPE (mbr, entry1) |= PC_SLICE_TYPE_HIDDEN_FLAG;
 		else
 			PC_SLICE_TYPE (mbr, entry1) &= ~PC_SLICE_TYPE_HIDDEN_FLAG;       
@@ -10850,7 +10869,7 @@ parttype_func (char *arg, int flags)
 
   /* Look for the partition.  */
   while ((	next_partition_drive		= current_drive,
-		next_partition_dest		= 0xFFFFFF,
+		next_partition_dest		= current_partition,
 		next_partition_partition	= &part,
 		next_partition_type		= &type,
 		next_partition_start		= &start,
@@ -10878,6 +10897,12 @@ parttype_func (char *arg, int flags)
 		return new_type;
 	  }
 
+	  if (type == PC_SLICE_TYPE_GPT) /* Disable change type for GPT partition*/
+	  {
+	    if (debug > 0)
+	      printf("not support!");
+	    break;
+	  }
 	  /* Set the type to NEW_TYPE.  */
 	  PC_SLICE_TYPE (mbr, entry1) = new_type;
 	  

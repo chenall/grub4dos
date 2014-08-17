@@ -710,56 +710,56 @@ next_bsd_partition (/*unsigned long drive, unsigned long *partition, int *type, 
   /* Get next PC slice. Be careful of that this function may return
      an empty PC slice (i.e. a partition whose type is zero) as well.  */
 
+#define GPT_ENTRY_SIZE 0x80
 static char primary_partition_table[64];
 static int partition_table_type = 0;
+static unsigned int gpt_part_max;
 static int next_gpt_slice(void)
 {
 redo:
-	if (++pc_slice_no >= *next_partition_entry)
+	if (++pc_slice_no >= gpt_part_max)
 	{
 		errnum = ERR_PARTITION_LOOP;
 		return 0;
 	}
-	if (! rawread (next_partition_drive, *next_partition_offset + (pc_slice_no >> 2), 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
+	*next_partition_offset = *next_partition_entry  + (pc_slice_no >> 2);
+	if (! rawread (next_partition_drive, *next_partition_offset, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
 		return 0;
-	unsigned long long *tmp_start = (unsigned long long *)(next_partition_buf + 0x80 * (pc_slice_no & 3) + 0x20);
-	if (*tmp_start == 0LL || *tmp_start > 0xFFFFFFFFL)
+	P_GPT_ENT PI = (P_GPT_ENT)(unsigned int)next_partition_buf;
+	PI += pc_slice_no & 3;
+	if (PI->starting_lba == 0LL || PI->starting_lba > 0xFFFFFFFFL)
 	{
 		errnum = ERR_NO_PART;
 		return 0;
 	}
 	//skip MS_Reserved Partition
-	if (memcmp(next_partition_buf + 0x80 * (pc_slice_no & 3),"\x16\xE3\xC9\xE3\x5C\x0B\xB8\x4D\x81\x7D\xF9\x2D\xF0\x02\x15\xAE",16) == 0)
-	goto redo;
-	/*
-		tmp_start      First LBA (little-endian) .
-		tmp_start + 1  Last LBA.
-	*/
-	*next_partition_start = (unsigned long)*tmp_start;
-	*next_partition_len = (unsigned long)(*(tmp_start + 1) - *tmp_start);
+	if (memcmp(PI->type.raw,"\x16\xE3\xC9\xE3\x5C\x0B\xB8\x4D\x81\x7D\xF9\x2D\xF0\x02\x15\xAE",16) == 0 && next_partition_dest == 0xffffff)
+		goto redo;
+	*next_partition_start = PI->starting_lba;
+	*next_partition_len = (unsigned long)(PI->ending_lba - PI->starting_lba + 1);
 	*next_partition_partition = (pc_slice_no << 16) | 0xFFFF;
-	*next_partition_type = 0xEE;
+	*next_partition_type = PC_SLICE_TYPE_GPT;
 	return 1;
 }
 
 static int is_gpt_part(void)
 {
-	unsigned char tmp_buf[0x5c];
-	if (! rawread (next_partition_drive, 1, 0, 0x5C, (unsigned long long)(unsigned int)tmp_buf, 0xedde0d90))
+	GPT_HDR hdr;
+	if (! rawread (next_partition_drive, 1, 0, sizeof(hdr), (unsigned long long)(unsigned int)&hdr, 0xedde0d90))
 		return 0;
-	if (*(unsigned long long *)tmp_buf != 0X5452415020494645LL) /* Signature ("EFI PART") */
+	if (hdr.hdr_sig != GPT_HDR_SIG) /* Signature ("EFI PART") */
 		return 0;
-	if (*(unsigned long *)&tmp_buf[12] != 0x5C)/*Header size (in bytes, usually 5C 00 00 00 meaning 92 bytes)*/
+	if (hdr.hdr_size != 0x5C)/*Header size (in bytes, usually 5C 00 00 00 meaning 92 bytes)*/
 		return 0;
-	if (*(unsigned long long *)&tmp_buf[24] != 1LL) /*Current LBA (location of this header copy),must be 1*/
+	if (hdr.hdr_lba_self != 1LL) /*Current LBA (location of this header copy),must be 1*/
 		return 0;
-	if (*(unsigned long *)&tmp_buf[84] != 0x80) /* Size of a partition entry (usually 128) */
+	if (hdr.hdr_entsz != GPT_ENTRY_SIZE) /* Size of a partition entry (usually 128) */
 	{
 		return 0;
 	}
-	*next_partition_offset = *(unsigned long *)&tmp_buf[72];/* Partition entries starting LBA */
-	*next_partition_entry = *(unsigned long *)&tmp_buf[80];/* Number of partition entries */
-	partition_table_type = 0xEE;
+	*next_partition_entry = hdr.hdr_lba_table;/* Partition entries starting LBA */
+	gpt_part_max = hdr.hdr_entries;/* Number of partition entries */
+	partition_table_type = PC_SLICE_TYPE_GPT;
 	return 1;
 }
 
@@ -784,7 +784,7 @@ redo:
 	  *next_partition_entry = -1;
 	  pc_slice_no = -1;
 	}
-	else if (partition_table_type == 0xEE)
+	else if (partition_table_type == PC_SLICE_TYPE_GPT)
 	{
 		return next_gpt_slice();
 	}
@@ -794,6 +794,8 @@ redo:
 	return 0;
 	if (pc_slice_no == -1 && next_partition_buf[0x1C2] == '\xEE' && is_gpt_part())
 	{
+		if (next_partition_dest != 0xffffff)
+			pc_slice_no = (next_partition_dest>>16) - 1;
 		return next_gpt_slice();
 	}
 

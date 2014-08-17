@@ -139,7 +139,7 @@
 #define PC_SLICE_TYPE_VSTAFS		0x9e
 #define PC_SLICE_TYPE_DELL_UTIL		0xde
 #define PC_SLICE_TYPE_LINUX_RAID	0xfd
-
+#define PC_SLICE_TYPE_GPT		0xee
 
 /* For convinience.  */
 /* Check if TYPE is a FAT partition type. Clear the hidden flag before
