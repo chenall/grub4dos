@@ -1254,6 +1254,7 @@ int grub_strncat (char *s1, const char *s2, int n);
 char *grub_strstr (const char *s1, const char *s2);
 char *grub_strtok (char *s, const char *delim);
 int grub_memcmp (const char *s1, const char *s2, int n);
+int grub_crc32(char *data,uint32_t size);
 int grub_strcmp (const char *s1, const char *s2);
 int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitive);
 #define strncmp(s1,s2,n) strncmpx(s1,s2,n,0)
