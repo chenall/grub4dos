@@ -10577,6 +10577,22 @@ static struct builtin builtin_md5crypt =
   "md5crypt",
   "Generate a password in MD5 format."
 };
+
+static int crc32_func(char *arg, int flags)
+{
+  int crc = grub_crc32(arg,0);
+  printf("%08x\n",crc);
+  return crc;
+}
+
+static struct builtin builtin_crc32 =
+{
+  "crc32",
+  crc32_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  "crc32 FILE | STRING",
+  "Calculate the crc32 checksum of a FILE or a STRING."
+};
 #endif /* USE_MD5_PASSWORDS */
 
 
@@ -15870,6 +15886,7 @@ struct builtin *builtin_table[] =
   &builtin_command,
   &builtin_commandline,
   &builtin_configfile,
+  &builtin_crc32,
   &builtin_dd,
   &builtin_debug,
   &builtin_default,

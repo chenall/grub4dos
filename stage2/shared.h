@@ -447,22 +447,14 @@
 
 #ifndef ASM_FILE
 
-typedef unsigned char		UINT8;
-typedef unsigned short	UINT16;
-typedef unsigned int		UINT32;
-typedef unsigned long long	UINT64;
-typedef signed char		INT8;
-typedef short			INT16;
-typedef int 			INT32;
-typedef long long		INT64;
-typedef unsigned char 	uint8_t;
-typedef unsigned short 	uint16_t;
-typedef unsigned int		uint32_t;
-typedef unsigned long long	uint64_t;
-typedef signed char		int8_t;
-typedef short			int16_t;
-typedef int			int32_t;
-typedef long long		int64_t;
+typedef unsigned char 	grub_u8_t;
+typedef unsigned short 	grub_u16_t;
+typedef unsigned int		grub_u32_t;
+typedef unsigned long long	grub_u64_t;
+typedef signed char		grub_s8_t;
+typedef short			grub_s16_t;
+typedef int			grub_s32_t;
+typedef long long		grub_s64_t;
 #define PACKED			__attribute__ ((packed))
 
 /*
@@ -1283,6 +1275,7 @@ int grub_strncat (char *s1, const char *s2, int n);
 char *grub_strstr (const char *s1, const char *s2);
 char *grub_strtok (char *s, const char *delim);
 int grub_memcmp (const char *s1, const char *s2, int n);
+int grub_crc32(char *data,grub_u32_t size);
 int grub_strcmp (const char *s1, const char *s2);
 int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitive);
 #define strncmp(s1,s2,n) strncmpx(s1,s2,n,0)
@@ -1538,9 +1531,9 @@ typedef struct {
 	union {
 		char raw[GUID_SIZE];
 		struct {
-			UINT32 time_low;
-			UINT16 time_mid;
-			UINT16 time_high_and_version;
+			grub_u32_t time_low;
+			grub_u16_t time_mid;
+			grub_u16_t time_high_and_version;
 			char clock_seq_high_and_reserved;
 			char clock_seq_low;
 			char node[UUID_NODE_LEN];
@@ -1551,33 +1544,33 @@ typedef struct {
 //GPT_HDR_SIG "EFI PART"
 #define	GPT_HDR_SIG		0x5452415020494645LL
 typedef struct {
-	UINT64		hdr_sig;
-	UINT32		hdr_revision;
-	UINT32		hdr_size;
-	UINT32		hdr_crc_self;
-	UINT32		__reserved;
-	UINT64		hdr_lba_self;
-	UINT64		hdr_lba_alt;
-	UINT64		hdr_lba_start;
-	UINT64		hdr_lba_end;
+	grub_u64_t		hdr_sig;
+	grub_u32_t		hdr_revision;
+	grub_u32_t		hdr_size;
+	grub_u32_t		hdr_crc_self;
+	grub_u32_t		__reserved;
+	grub_u64_t		hdr_lba_self;
+	grub_u64_t		hdr_lba_alt;
+	grub_u64_t		hdr_lba_start;
+	grub_u64_t		hdr_lba_end;
 	GUID		hdr_uuid;
-	UINT64		hdr_lba_table;
-	UINT32		hdr_entries;
-	UINT32		hdr_entsz;
-	UINT32		hdr_crc_table;
-	UINT32		padding;
+	grub_u64_t		hdr_lba_table;
+	grub_u32_t		hdr_entries;
+	grub_u32_t		hdr_entsz;
+	grub_u32_t		hdr_crc_table;
+	grub_u32_t		padding;
 } PACKED GPT_HDR;
 
 typedef struct {
 	GUID type;
 	GUID uid;
-	UINT64 starting_lba;
-	UINT64 ending_lba;
+	grub_u64_t starting_lba;
+	grub_u64_t ending_lba;
 	union{
-		UINT64 attributes;
+		grub_u64_t attributes;
 		struct {
-			UINT16 unused[3];
-			UINT16 gpt_att;
+			grub_u16_t unused[3];
+			grub_u16_t gpt_att;
 		} PACKED ms_attr;
 	};
 	char name[72];
@@ -1601,7 +1594,7 @@ extern unsigned char saved_pxe_mac[6];
 #ifdef FSYS_PXE
 
 #include "pxe.h"
-extern UINT8 pxe_mac_len, pxe_mac_type;
+extern grub_u8_t pxe_mac_len, pxe_mac_type;
 extern MAC_ADDR pxe_mac;
 extern IP4 pxe_yip, pxe_sip, pxe_gip;
 extern unsigned long pxe_keep;

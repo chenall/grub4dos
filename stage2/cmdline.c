@@ -252,9 +252,14 @@ static int run_cmd_line (char *heap,int flags);
 int run_line (char *heap,int flags)
 {
 
-   char *arg = heap;
+   char *cmdline_buf = cmd_buffer;
+   char *arg;
    int status = 0;
    int ret = 0;
+   int arg_len = strlen(heap) + 1;
+   memmove(cmdline_buf,heap,arg_len);
+   cmd_buffer += arg_len;
+   heap = cmdline_buf;
    while(*heap && (arg = heap))
    {
       heap = skip_to_next_cmd(heap,&status,OPT_MULTI_CMD_AND | OPT_MULTI_CMD_OR | OPT_MULTI_CMD);//next cmd
@@ -265,6 +270,7 @@ int run_line (char *heap,int flags)
 	 heap = skip_to_next_cmd(heap,&status,OPT_MULTI_CMD);//next cmd
       }
    }
+   cmd_buffer = cmdline_buf;
    return ret;
 }
 

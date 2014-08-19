@@ -152,13 +152,13 @@
 //#define PXE_ERR_LEN	0xFFFFFFFF
 #define PXE_ERR_LEN	0
 
-typedef UINT16		PXENV_STATUS;
-typedef UINT32		SEGOFS16;
-typedef UINT32		IP4;
-typedef UINT16		UDP_PORT;
+typedef grub_u16_t		PXENV_STATUS;
+typedef grub_u32_t		SEGOFS16;
+typedef grub_u32_t		IP4;
+typedef grub_u16_t		UDP_PORT;
 
 #define MAC_ADDR_LEN	16
-typedef UINT8		MAC_ADDR[MAC_ADDR_LEN];
+typedef grub_u8_t		MAC_ADDR[MAC_ADDR_LEN];
 
 #define PXENV_PACKET_TYPE_DHCP_DISCOVER	1
 #define PXENV_PACKET_TYPE_DHCP_ACK	2
@@ -166,10 +166,10 @@ typedef UINT8		MAC_ADDR[MAC_ADDR_LEN];
 
 typedef struct {
   PXENV_STATUS	Status;
-  UINT16	PacketType;
-  UINT16	BufferSize;
+  grub_u16_t	PacketType;
+  grub_u16_t	BufferSize;
   SEGOFS16	Buffer;
-  UINT16	BufferLimit;
+  grub_u16_t	BufferLimit;
 } PACKED PXENV_GET_CACHED_INFO_t;
 
 #define BOOTP_REQ	1
@@ -188,26 +188,26 @@ typedef struct {
 #endif
 
 typedef struct {
-  UINT8		opcode;
-  UINT8		Hardware;	/* hardware type */
-  UINT8		Hardlen;	/* hardware addr len */
-  UINT8		Gatehops;	/* zero it */
-  UINT32	ident;		/* random number chosen by client */
-  UINT16	seconds;	/* seconds since did initial bootstrap */
-  UINT16	Flags;		/* seconds since did initial bootstrap */
+  grub_u8_t		opcode;
+  grub_u8_t		Hardware;	/* hardware type */
+  grub_u8_t		Hardlen;	/* hardware addr len */
+  grub_u8_t		Gatehops;	/* zero it */
+  grub_u32_t	ident;		/* random number chosen by client */
+  grub_u16_t	seconds;	/* seconds since did initial bootstrap */
+  grub_u16_t	Flags;		/* seconds since did initial bootstrap */
   IP4		cip;		/* Client IP */
   IP4		yip;		/* Your IP */
   IP4		sip;		/* IP to use for next boot stage */
   IP4		gip;		/* Relay IP ? */
   MAC_ADDR	CAddr;		/* Client hardware address */
-  UINT8		Sname[64];	/* Server's hostname (Optional) */
-  UINT8		bootfile[128];	/* boot filename */
+  grub_u8_t		Sname[64];	/* Server's hostname (Optional) */
+  grub_u8_t		bootfile[128];	/* boot filename */
   union {
-    UINT8	d[BOOTP_DHCPVEND];	/* raw array of vendor/dhcp options */
+    grub_u8_t	d[BOOTP_DHCPVEND];	/* raw array of vendor/dhcp options */
     struct {
-      UINT8	magic[4];	/* DHCP magic cookie */
-      UINT32	flags;		/* bootp flags/opcodes */
-      UINT8	pad[56];
+      grub_u8_t	magic[4];	/* DHCP magic cookie */
+      grub_u32_t	flags;		/* bootp flags/opcodes */
+      grub_u8_t	pad[56];
     } v;
   } vendor;
 } PACKED BOOTPLAYER;
@@ -216,9 +216,9 @@ typedef struct {
   PXENV_STATUS	Status;
   IP4		ServerIPAddress;
   IP4		GatewayIPAddress;
-  UINT8		FileName[128];
+  grub_u8_t		FileName[128];
   UDP_PORT	TFTPPort;
-  UINT16	PacketSize;
+  grub_u16_t	PacketSize;
 } PACKED PXENV_TFTP_OPEN_t;
 
 typedef struct {
@@ -227,8 +227,8 @@ typedef struct {
 
 typedef struct {
   PXENV_STATUS	Status;
-  UINT16	PacketNumber;
-  UINT16	BufferSize;
+  grub_u16_t	PacketNumber;
+  grub_u16_t	BufferSize;
   SEGOFS16	Buffer;
 } PACKED PXENV_TFTP_READ_t;
 
@@ -236,8 +236,8 @@ typedef struct {
   PXENV_STATUS	Status;
   IP4		ServerIPAddress;
   IP4		GatewayIPAddress;
-  UINT8		FileName[128];
-  UINT32	FileSize;
+  grub_u8_t		FileName[128];
+  grub_u32_t	FileSize;
 } PACKED PXENV_TFTP_GET_FSIZE_t;
 
 typedef struct {
@@ -255,7 +255,7 @@ typedef struct {
   IP4		gw;
   UDP_PORT	src_port;
   UDP_PORT	dst_port;
-  UINT16	buffer_size;
+  grub_u16_t	buffer_size;
   SEGOFS16	buffer;
 } PACKED PXENV_UDP_WRITE_t;
 
@@ -265,13 +265,13 @@ typedef struct {
   IP4		dst_ip;
   UDP_PORT	src_port;
   UDP_PORT	dst_port;
-  UINT16	buffer_size;
+  grub_u16_t	buffer_size;
   SEGOFS16	buffer;
 } PACKED PXENV_UDP_READ_t;
 
 typedef struct {
   PXENV_STATUS	Status;
-  UINT8		reserved[10];
+  grub_u8_t		reserved[10];
 } PACKED PXENV_UNLOAD_STACK_t;
 
 #undef PACKED
