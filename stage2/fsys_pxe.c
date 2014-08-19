@@ -101,9 +101,9 @@ unsigned short pxe_basemem, pxe_freemem;
 unsigned long pxe_keep;
 
 //IP4 pxe_yip, pxe_sip, pxe_gip;
-UINT8 pxe_mac_len, pxe_mac_type;
+grub_u8_t pxe_mac_len, pxe_mac_type;
 MAC_ADDR pxe_mac;
-static UINT8 pxe_tftp_opened;
+static grub_u8_t pxe_tftp_opened;
 static unsigned long pxe_saved_pos, pxe_cur_ofs, pxe_read_ofs;
 
 extern PXENV_TFTP_OPEN_t pxe_tftp_open;	/* now it is defined in asm.S */
