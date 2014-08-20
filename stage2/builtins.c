@@ -4147,7 +4147,7 @@ static struct builtin builtin_default =
 static int terminal_func (char *arg, int flags);
 
 #ifdef SUPPORT_GRAPHICS
-extern char splashimage[64];
+extern char splashimage[128];
 int graphicsmode_func (char *arg, int flags);
 
 static int
@@ -4159,7 +4159,7 @@ splashimage_func(char *arg, int flags)
     unsigned long h,w;
     if (*arg)
     {
-	if (strlen(arg) > 63)
+	if (strlen(arg) > 127)
 		return ! (errnum = ERR_WONT_FIT);
     
 	if (! grub_open(arg))
