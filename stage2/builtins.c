@@ -1375,7 +1375,7 @@ cat_func (char *arg, int flags)
     //j = skip;
     grub_memset ((char *)(SCRATCHADDR), 0, 32);
 	length += skip;
-	unsigned long long k;
+	unsigned long long k,l;
 	for (i = 0,j = skip; ; j += 16)
 	{
 		len = 0;
@@ -1388,10 +1388,14 @@ cat_func (char *arg, int flags)
 			k = j > length ? 16 - (j - length):16 + len;
 			grub_memset ((char *)(SCRATCHADDR + (int)k), 0, 32 - (int)k);
 		}
+		if (j>length)
+			l = 16 - (j - length);
+		else
+			l = 16;
 
 		if (j != skip)
 		{
-			while (i < 16)
+			while (i < l)
 			{
 				k = j - 16 + i;
 				if ((locate_align == 1 || ! ((unsigned long)k % (unsigned long)locate_align))
@@ -1424,6 +1428,8 @@ cat_func (char *arg, int flags)
 				else
 					i++;
 			}
+			if (quit_print)
+				break;
 			if (len == 0)
 			{
 				sprintf(ADDR_RET_STR,"0x%x",Hex);
