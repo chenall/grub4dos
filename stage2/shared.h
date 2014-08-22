@@ -1531,6 +1531,7 @@ typedef struct {
 	grub_u32_t		hdr_crc_table;
 	grub_u32_t		padding;
 } PACKED GPT_HDR;
+typedef GPT_HDR* P_GPT_HDR;
 
 typedef struct {
 	GUID type;
