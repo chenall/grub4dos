@@ -1317,7 +1317,7 @@ unsigned long long dec_lzma_read (unsigned long long buf, unsigned long long len
 #endif /* NO_DECOMPRESSION */
 
 int rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write);
-int devread (unsigned long long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write);
+int devread (unsigned long long sector, unsigned long long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write);
 int rawwrite (unsigned long drive, unsigned long long sector, unsigned long long buf);
 int devwrite (unsigned long long sector, unsigned long long sector_len, unsigned long long buf);
 

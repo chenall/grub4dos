@@ -474,7 +474,7 @@ next:
 
 
 int
-devread (unsigned long long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
+devread (unsigned long long sector, unsigned long long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
 {
   unsigned long sector_size_bits = log2_tmp(buf_geom.sector_size);
 
