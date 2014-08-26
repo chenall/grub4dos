@@ -771,13 +771,14 @@ extern void hexdump(unsigned long,char*,int);
 extern int builtin_cmd (char *cmd, char *arg, int flags);
 extern long realmode_run(long regs_ptr);
 
-
 #define MAX_USER_VARS 60
 #define MAX_VARS 64
 #define MAX_VAR_LEN	8
 #define MAX_ENV_LEN	512
 #define MAX_BUFFER	(MAX_VARS * (MAX_VAR_LEN + MAX_ENV_LEN))
-#define BASE_ADDR 0x45000
+//#define BASE_ADDR 0x45000
+#define VARIABLE_BASE_ADDR (*(unsigned long*)0x307FF4)
+#define BASE_ADDR	VARIABLE_BASE_ADDR
 typedef char VAR_NAME[MAX_VAR_LEN];
 typedef char VAR_VALUE[MAX_ENV_LEN];
 #define VAR ((VAR_NAME *)BASE_ADDR)
