@@ -1411,7 +1411,7 @@ cat_func (char *arg, int flags)
     //j = skip;
     grub_memset ((char *)(SCRATCHADDR), 0, 32);
 	length += skip;
-	unsigned long long k;
+	unsigned long long k,l;
 	for (i = 0,j = skip; ; j += 16)
 	{
 		len = 0;
@@ -1424,10 +1424,14 @@ cat_func (char *arg, int flags)
 			k = j > length ? 16 - (j - length):16 + len;
 			grub_memset ((char *)(SCRATCHADDR + (int)k), 0, 32 - (int)k);
 		}
+		if (j>length)
+			l = 16 - (j - length);
+		else
+			l = 16;
 
 		if (j != skip)
 		{
-			while (i < 16)
+			while (i < l)
 			{
 				k = j - 16 + i;
 				if ((locate_align == 1 || ! ((unsigned long)k % (unsigned long)locate_align))
@@ -1460,6 +1464,8 @@ cat_func (char *arg, int flags)
 				else
 					i++;
 			}
+			if (quit_print)
+				break;
 			if (len == 0)
 			{
 				sprintf(ADDR_RET_STR,"0x%x",Hex);
@@ -4193,7 +4199,7 @@ static struct builtin builtin_default =
 static int terminal_func (char *arg, int flags);
 
 #ifdef SUPPORT_GRAPHICS
-extern char splashimage[64];
+extern char splashimage[128];
 int graphicsmode_func (char *arg, int flags);
 
 static int
@@ -4205,7 +4211,7 @@ splashimage_func(char *arg, int flags)
     unsigned long h,w;
     if (*arg)
     {
-	if (strlen(arg) > 63)
+	if (strlen(arg) > 127)
 		return ! (errnum = ERR_WONT_FIT);
     
 	if (! grub_open(arg))
@@ -5388,22 +5394,79 @@ extern char *next_partition_buf;
 //extern unsigned long dest_partition;
 //static unsigned long entry;
 //static unsigned long ext_offset;
-#define GPT_ATTRIBUTE_NO_DRIVE_LETTER	(0x8000)
-#define GPT_ATTRIBUTE_HIDDEN		(0x4000)
-#define GPT_ATTRIBUTE_SHADOW_COPY	(0x2000)
-#define GPT_ATTRIBUTE_READ_ONLY		(0x1000)
+#define GPT_ATTRIBUTE_NO_DRIVE_LETTER	(0x8000000000000000LL)
+#define GPT_ATTRIBUTE_HIDDEN		(0x4000000000000000LL)
+#define GPT_ATTRIBUTE_SHADOW_COPY	(0x2000000000000000LL)
+#define GPT_ATTRIBUTE_READ_ONLY		(0x1000000000000000LL)
+#define GPT_ATTR_HIDE			(0xC000000000000001LL)
+#define GPT_HDR_SIZE 			(0x5C)
+static int gpt_set_crc(P_GPT_HDR hdr)
+{
+	char data[SECTOR_SIZE];
+	int crc;
+	int errnum_bak = errnum;
 
-static int gpt_slic_attr(char *data,unsigned long part,int flags)
+	if (hdr->hdr_size != GPT_HDR_SIZE)
+		return 0;
+	errnum = 0;
+	sprintf(data,"(0x%X)0x%lx+%u,%u",current_drive,hdr->hdr_lba_table,32,hdr->hdr_entries * hdr->hdr_entsz);
+	crc = grub_crc32(data,0);
+	if (errnum)
+		return 0;
+	hdr->hdr_crc_table = crc;
+	hdr->hdr_crc_self = 0;
+	crc = grub_crc32((char*)hdr,GPT_HDR_SIZE);
+	if (errnum)
+		return 0;
+	hdr->hdr_crc_self = crc;
+	buf_track = -1;
+	if (! rawread (current_drive, hdr->hdr_lba_self ,0,GPT_HDR_SIZE, (unsigned long long)(unsigned int)hdr, GRUB_WRITE))
+		return 0;
+	errnum = errnum_bak;
+	return hdr->hdr_crc_table;
+}
+
+static int gpt_set_attr(P_GPT_HDR hdr,grub_u32_t part,grub_u64_t attr)
+{
+	GPT_ENT ent;
+	if (! rawread (current_drive, hdr->hdr_lba_table + (part >> 2), (part & 3) * sizeof(GPT_ENT), sizeof(GPT_ENT), (unsigned long long)(unsigned int)&ent, GRUB_READ))
+		return 0;
+
+	if (attr & 0xFF00)
+		ent.ms_attr.gpt_att = (unsigned short)attr;
+	else
+		ent.attributes = attr;
+
+	buf_track = -1;
+	if (! rawread (current_drive, hdr->hdr_lba_table + (part >> 2), (part & 3) * sizeof(GPT_ENT), sizeof(GPT_ENT), (unsigned long long)(unsigned int)&ent, GRUB_WRITE))
+		return 0;
+	return gpt_set_crc(hdr);
+}
+
+static unsigned int gpt_slic_set_attr(grub_u32_t part,grub_u64_t attr)
+{
+	char data[SECTOR_SIZE];
+	int crc1,crc2;
+	if (! rawread (current_drive, 1, 0, sizeof(GPT_HDR), (unsigned long long)(unsigned int)data, GRUB_READ))
+		return 0;
+	P_GPT_HDR hdr = (P_GPT_HDR)data;
+	crc1 = gpt_set_attr(hdr,part,attr);
+	if (!crc1)
+		return 0;
+	if (! rawread (current_drive, hdr->hdr_lba_alt, 0, sizeof(GPT_HDR), (unsigned long long)(unsigned int)data, GRUB_READ))
+		return 0;
+	crc2 = gpt_set_attr(hdr,part,attr);
+	if (!crc2)
+		return 0;
+	if (debug > 1 && crc1 != crc2)
+		printf("Warning! Main partition table CRC mismatch!");
+	return 1;
+}
+
+static unsigned long long gpt_slic_get_attr(char *data,unsigned long part)
 {
 	P_GPT_ENT p = (P_GPT_ENT)data;
-	p += (part>>16) & 3;
-	if (flags == -1)
-		return p->ms_attr.gpt_att & GPT_ATTRIBUTE_HIDDEN;
-	if (flags)
-		p->ms_attr.gpt_att |= (GPT_ATTRIBUTE_HIDDEN | GPT_ATTRIBUTE_NO_DRIVE_LETTER);
-	else
-		p->ms_attr.gpt_att &= ~(GPT_ATTRIBUTE_HIDDEN | GPT_ATTRIBUTE_NO_DRIVE_LETTER);
-	return 1;
+	return p->attributes;
 }
 
 /* Hide/Unhide CURRENT_PARTITION.  */
@@ -5449,7 +5512,15 @@ set_partition_hidden_flag (int hidden)
     {                                                                       
       if (part == current_partition)
 	{
-	  int is_hidden = (type == PC_SLICE_TYPE_GPT?gpt_slic_attr(mbr,part,-1):(PC_SLICE_TYPE (mbr, entry1) & PC_SLICE_TYPE_HIDDEN_FLAG));
+	  int part_num = (unsigned long)(unsigned char)(part>>16);
+	  grub_u64_t part_attr = 0LL,is_hidden;
+	  if (type == PC_SLICE_TYPE_GPT)
+	  {
+		part_attr = gpt_slic_get_attr(mbr,part_num);
+		is_hidden = !!(part_attr & GPT_ATTR_HIDE);
+	  }
+	  else
+		is_hidden = PC_SLICE_TYPE (mbr, entry1) & PC_SLICE_TYPE_HIDDEN_FLAG;
 	  /* Found.  */
 	  if (hidden == -1)	/* status only */
 	  {
@@ -5457,7 +5528,7 @@ set_partition_hidden_flag (int hidden)
 			grub_printf ("Partition (%cd%d,%d) is %shidden.\n",
 				((current_drive & 0x80) ? 'h' : 'f'),
 				(current_drive & ~0x80),
-				(unsigned long)(unsigned char)(part>>16),
+				part_num,
 				(is_hidden ? "" : "not "));
 		
 		return is_hidden;
@@ -5467,29 +5538,38 @@ set_partition_hidden_flag (int hidden)
 	  if ((!hidden) != (!is_hidden))
 	  {
 	        if (type == PC_SLICE_TYPE_GPT)
-	            gpt_slic_attr(mbr,part,hidden);
-		else if (hidden)
-			PC_SLICE_TYPE (mbr, entry1) |= PC_SLICE_TYPE_HIDDEN_FLAG;
-		else
-			PC_SLICE_TYPE (mbr, entry1) &= ~PC_SLICE_TYPE_HIDDEN_FLAG;       
-	  
-		/* Write back the MBR to the disk.  */
-		buf_track = -1;
-		if (! rawwrite (current_drive, offset, (unsigned long long)(unsigned int)mbr))
+	        {
+		    if (hidden)
+		        part_attr |= GPT_ATTR_HIDE;
+		    else
+		        part_attr &= ~GPT_ATTR_HIDE;
+
+	            if (!gpt_slic_set_attr(part_num,part_attr))
 			return 0;
+	        } else {
+			if (hidden)
+				PC_SLICE_TYPE (mbr, entry1) |= PC_SLICE_TYPE_HIDDEN_FLAG;
+			else
+				PC_SLICE_TYPE (mbr, entry1) &= ~PC_SLICE_TYPE_HIDDEN_FLAG;
+
+			/* Write back the MBR to the disk.  */
+			buf_track = -1;
+			if (! rawwrite (current_drive, offset, (unsigned long long)(unsigned int)mbr))
+				return 0;
+		}
 
 		if (debug > 0)
 			grub_printf ("Partition (%cd%d,%d) successfully set %shidden.\n",
 				((current_drive & 0x80) ? 'h' : 'f'),
 				(current_drive & ~0x80),
-				(unsigned long)(unsigned char)(part>>16),
+				part_num,
 				(hidden ? "" : "un"));
 	  } else {
 		if (debug > 0)
 			grub_printf ("Partition (%cd%d,%d) was already %shidden.\n",
 				((current_drive & 0x80) ? 'h' : 'f'),
 				(current_drive & ~0x80),
-				(unsigned long)(unsigned char)(part>>16),
+				part_num,
 				(hidden ? "" : "un"));
 
 	  }
@@ -8967,7 +9047,7 @@ map_func (char *arg, int flags)
 	} else {
 	  if (map_mem_max==0 || map_mem_max>(1ULL<<32))
 	      map_mem_max = (1ULL<<32); // 4GB
-	}
+	}\
 	if (debug > 0)
 	  grub_printf("map_mem_max = 0x%lX sectors = 0x%lX bytes\n",map_mem_max>>9,map_mem_max);
 	return 1;
@@ -11125,13 +11205,6 @@ parttype_func (char *arg, int flags)
       return 0;
     }
 
-  /* The partition type is unsigned char.  */
-  if (new_type != -1 && new_type > 0xFF)
-    {
-      errnum = ERR_BAD_ARGUMENT;
-      return 0;
-    }
-
   /* Look for the partition.  */
   while ((	next_partition_drive		= current_drive,
 		next_partition_dest		= current_partition,
@@ -11152,7 +11225,7 @@ parttype_func (char *arg, int flags)
 	  errnum = 0;
 	  if (new_type == -1)	/* return the current type */
 	  {
-		new_type = PC_SLICE_TYPE (mbr, entry1);
+		new_type = (type == PC_SLICE_TYPE_GPT)?0xEE:PC_SLICE_TYPE (mbr, entry1);
 		if (debug > 0)
 			printf ("Partition type for (%cd%d,%d) is 0x%02X.\n",
 				((current_drive & 0x80) ? 'h' : 'f'),
@@ -11162,11 +11235,14 @@ parttype_func (char *arg, int flags)
 		return new_type;
 	  }
 
-	  if (type == PC_SLICE_TYPE_GPT) /* Disable change type for GPT partition*/
+	  if (type == PC_SLICE_TYPE_GPT) /* set gpt partition attributes*/
+	    return gpt_slic_set_attr(part>>16,new_type);
+
+	  /* The partition type is unsigned char.  */
+	  if (new_type > 0xFF)
 	  {
-	    if (debug > 0)
-	      printf("not support!");
-	    break;
+	      errnum = ERR_BAD_ARGUMENT;
+	      return 0;
 	  }
 	  /* Set the type to NEW_TYPE.  */
 	  PC_SLICE_TYPE (mbr, entry1) = new_type;

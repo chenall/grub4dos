@@ -36,7 +36,7 @@ extern unsigned char *font8x16;
 int outline = 0;
 extern unsigned long is_highlight;
 extern unsigned long graphics_inited;
-char splashimage[64];
+char splashimage[128];
 
 #define VSHADOW VSHADOW1
 /* 8x16 dot array, total chars = 80*30. plano size = 80*30*16 = 38400 bytes */

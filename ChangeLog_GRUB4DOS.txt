@@ -1,3 +1,5 @@
+2014-08-25 fixed a bug in devread(); extend byte_offset to 64-bit.(reported by Steve6375,issue 194).
+2014-08-22 gpt partition hide/unhide bug fixed.
 2014-08-19 add new command 'crc32'.
 2014-08-17 Supported hide/unhide gpt partition.
 2014-08-13 (tinybit) Urgency! Fixed a serious bug on NTFS WRITE access.

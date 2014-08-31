@@ -476,7 +476,7 @@ next:
 
 
 int
-devread (unsigned long long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
+devread (unsigned long long sector, unsigned long long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
 {
   unsigned long sector_size_bits = log2_tmp(buf_geom.sector_size);
 
@@ -767,10 +767,9 @@ redo:
 		return 0;
 	}
 	*next_partition_offset = *next_partition_entry  + (pc_slice_no >> 2);
-	if (! rawread (next_partition_drive, *next_partition_offset, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
+	if (! rawread (next_partition_drive, *next_partition_offset,(pc_slice_no & 3) * sizeof(GPT_ENT) , sizeof(GPT_ENT), (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
 		return 0;
 	P_GPT_ENT PI = (P_GPT_ENT)(unsigned int)next_partition_buf;
-	PI += pc_slice_no & 3;
 	if (PI->starting_lba == 0LL || PI->starting_lba > 0xFFFFFFFFL)
 	{
 		errnum = ERR_NO_PART;
