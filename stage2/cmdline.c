@@ -277,7 +277,7 @@ int run_line (char *heap,int flags)
 static int run_cmd_line (char *heap,int flags)
 {
 	char *arg = heap;
-#define ret *(int*)0x4cb00
+#define ret *(int*)0x4CB00
 //	int ret = 0;
 	int status = 0;
 	struct builtin *builtin;

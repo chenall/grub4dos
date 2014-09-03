@@ -2065,7 +2065,6 @@ static unsigned long attr = 0;
 void
 cmain (void)
 {
-    VARIABLE_BASE_ADDR = 0x45000;
     debug = debug_boot + 1;
     title_boot = (unsigned short *) init_free_mem_start;
     titles = (char * *)(init_free_mem_start + 1024);

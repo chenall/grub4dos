@@ -14940,8 +14940,6 @@ static long find_var(const char *ch,const int flag)
 {
     int i,j = -1;
     //ch[0] == '?' && ch[1] == '\0';
-    if (*(short *)ch == 0x3f || memcmp(ch,"?_UUID",7) == 0)
-	return _WENV_ | FIND_VAR_FLAG_EXISTS;
     for( i = (*ch == '?') ?60:0 ; i < MAX_VARS && VAR[i][0]; ++i)
     {
 	if (memcmp(VAR[i], ch, MAX_VAR_LEN) == 0)
@@ -15092,6 +15090,12 @@ int envi_cmd(const char *var,char * const env,int flags)
 	    else
 		return 0;
 	    j = FIND_VAR_FLAG_EXISTS;
+	}
+	else if (*(short *)ch == 0x3f || *(grub_u64_t*)ch == 0x564e45575f3fLL || *(grub_u64_t*)ch == 0x444955555f3fLL)//?_UUID ?_WENV
+	{
+		p = WENV_ENVI;
+		p_name = VAR[_WENV_];
+		j = FIND_VAR_FLAG_EXISTS | _WENV_;
 	}
 	else
 	{
