@@ -878,8 +878,9 @@ set_root:
 #endif
   if (debug_boot)
   grub_printf("\rInitialize variable space...\n");
-  run_line("set ?_BOOT=%@root%",1);
+  VARIABLE_BASE_ADDR = 0x45000;
   memset(ADDR_RET_STR,0,0x200);
+  run_line("set ?_BOOT=%@root%",1);
 //  builtin_cmd("set","?_Boot=",1);/*Initialize variable space*/
 
 #ifdef SUPPORT_GRAPHICS

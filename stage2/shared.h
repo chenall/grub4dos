@@ -784,10 +784,13 @@ typedef char VAR_VALUE[MAX_ENV_LEN];
 #define VAR ((VAR_NAME *)BASE_ADDR)
 #define ENVI ((VAR_VALUE *)(BASE_ADDR + MAX_VARS * MAX_VAR_LEN))
 #define _WENV_ 60
-#define WENV_RANDOM (*(unsigned long *)(ENVI[_WENV_]+0x20))
-#define QUOTE_CHAR (*(ENVI[_WENV_]+0x30))
-#define PATHEXT (ENVI[_WENV_]+0x40)
-#define WENV_TMP (ENVI[_WENV_]+0x80)
+
+#define		WENV_ENVI	((char*)0x4CA00)
+#define		WENV_RANDOM	(*(unsigned long *)(WENV_ENVI+0x20))
+#define		QUOTE_CHAR	(*(char*)(WENV_ENVI + 0x30))
+#define		PATHEXT		(WENV_ENVI + 0x40)
+#define		WENV_TMP	(WENV_ENVI + 0x80)
+
 #define VAR_EX_TMP ((char *)(BASE_ADDR+MAX_VARS * (MAX_VAR_LEN + MAX_ENV_LEN)))
 #define set_envi(var, val)			envi_cmd(var, val, 0)
 //#define get_env(var, val)			envi_cmd(var, val, 1)
@@ -1222,7 +1225,7 @@ char *skip_to (int flags, char *cmdline);
 #define SKIP_LINE		0x100
 #define SKIP_NONE		0
 #define SKIP_WITH_TERMINATE	0x200
-#define ADDR_RET_STR ((char*)0x4CA00)
+#define ADDR_RET_STR WENV_ENVI
 
 //extern char *pre_cmdline;
 #define CMD_RUN_ON_EXIT ((char *)0x4CB08)
