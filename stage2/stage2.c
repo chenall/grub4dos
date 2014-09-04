@@ -104,39 +104,75 @@ static int default_help_message_destoyed = 1;
 struct border menu_border = {218,191,192,217,196,179,2,0,2,0,0,2}; /* console */
 //struct border menu_border = {20,21,22,19,15,14,2,0,2,0,0}; /* graphics */
 
+static void print_help_message (const char *message)
+{
+	grub_u32_t j,x;
+	grub_u8_t c = *message;
+	for (j = 1; j < 5; ++j)
+	{
+		if (c == '\n')
+			c = *(++message);
+		gotoxy (0, MENU_BOX_B + j);
+		for (x = 0; x < MENU_BOX_X - 2; ++x)
+			grub_putchar (' ', 255);
+		for (; fontx <= MENU_BOX_E;)
+		{
+			if (c && c != '\n')
+			{
+				grub_putchar (c, 255);
+				c = *(++message);
+			}
+			else
+				grub_putchar (' ', 255);
+		}
+		for (x = fontx; x < current_term->chars_per_line/* - 1*/; x++)
+			grub_putchar (' ', 255);
+	}
+}
+
 static void
 print_default_help_message (char *config_entries)
 {
-      grub_printf ("\n Use the %c and %c keys to highlight an entry.",
+	grub_u32_t	i;
+	char		buff[256];
+
+	for(i=1;i<5;++i)
+	{
+		gotoxy (0, MENU_BOX_B + i);
+		printf("%.*s",current_term->chars_per_line,0);
+	}
+
+	i = grub_sprintf (buff,"\n Use the %c and %c keys to highlight an entry.",
 		   (unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
-      
+
       if (! auth && password_buf)
 	{
 #if 0
 #ifdef SUPPORT_GFX
 	  if (*graphics_file)
 	    {
-	      grub_putstr ("\
+	      grub_strcpy (buff + i,"\
 	WARNING: graphical menu doesn\'t work\
 	in conjunction with the password feature\n" );
+	      i = grub_strlen(buff);
 	    }
 #endif
 #endif
-	  grub_putstr (" Press ENTER or \'b\' to boot.\n"
+	  grub_strcpy (buff + i," Press ENTER or \'b\' to boot.\n"
 		" Press \'p\' to gain privileged control.");
 	}
-      else
+	else
 	{
-	  if (config_entries)
-	    grub_putstr (" Press ENTER or \'b\' to boot.\n"
-		    " Press \'e\' to edit the commands before booting, or \'c\' for a command-line.");
-	  else
-	    grub_putstr (" At a selected line, press \'e\' to\n"
-		" edit, \'d\' to delete, or \'O\'/\'o\' to open a new line before/after. When done,\n"
-		" press \'b\' to boot, \'c\' for a command-line, or ESC to go back to the main menu.");
+		grub_strcpy(buff + i,(config_entries?(" Press ENTER or \'b\' to boot.\n"
+			" Press \'e\' to edit the commands before booting, or \'c\' for a command-line.")
+			:(" At a selected line, press \'e\' to edit, \'d\' to delete,"
+			" or \'O\'/\'o\' to open a new line before/after. When done, "
+			"press \'b\' to boot, \'c\' for a command-line, or ESC to go back to the main menu.")
+			));
 	}
 
-      default_help_message_destoyed = 0;
+	print_help_message(buff);
+	default_help_message_destoyed = 0;
 }
 
 
@@ -287,8 +323,6 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 
   if (highlight && ((config_entries == (char*)titles)))
   {
-	int j;
-
 	if (current_term->setcolorstate)
 	    current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 	
@@ -298,43 +332,13 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 	if (c == '\n')
 	{
 		default_help_message_destoyed = 1;
-		//c = *(++entry);
-		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
-		{
-			if (c == '\n')
-				c = *(++entry);
-			gotoxy (0, j);
-			for (x = 0; x < MENU_BOX_X - 2; x++)
-				grub_putchar (' ', 255);
-			for (; fontx <= MENU_BOX_E;)
-			{
-				if (c && c != '\n')
-				{
-					grub_putchar (c, 255);
-					c = *(++entry);
-				}
-				else
-					grub_putchar (' ', 255);
-			}
-			for (x = fontx; x < current_term->chars_per_line/* - 1*/; x++)
-				grub_putchar (' ', 255);
-		}
-		//gotoxy (MENU_BOX_X - 2, MENU_BOX_B + 1);
-		//grub_putstr (++entry);
-		gotoxy (MENU_BOX_E, y);
+		print_help_message(entry);
 	}
 	else if (default_help_message_destoyed)
 	{
-		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 5; j++)
-		{
-			gotoxy (0, j);
-			for (x = 0; x < current_term->chars_per_line; x++)
-				grub_putchar (' ', 255);
-		}
-		gotoxy (0, MENU_BOX_B + 1);
 		print_default_help_message (config_entries);
-		gotoxy (MENU_BOX_E, y);
 	}
+	gotoxy (MENU_BOX_E, y);
   }
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
@@ -707,19 +711,6 @@ restart1:
 
       if (current_term->setcolorstate)
 	  current_term->setcolorstate (COLOR_STATE_HELPTEXT);
-
-	{
-		int j;
-		int x;
-
-		for (j = MENU_BOX_B + 1; j < MENU_BOX_B + 6; j++)
-		{
-			gotoxy (0, j);
-			for (x = 0; x < current_term->chars_per_line/* - 1*/; x++)
-				grub_putchar (' ', 255);
-		}
-		gotoxy (0, MENU_BOX_B + 1);
-	}
 
       print_default_help_message (config_entries);
 
