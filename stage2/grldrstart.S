@@ -5789,29 +5789,16 @@ gdt_end:
 // ===========================================================================================
 
 helper_start:
-        
-        cmpw    $0x1be, %si
-        jne     1f
-	movb	$0, (help_mark - _start1)
-	pushw	%es
-	popw	%ds
-        call    Check_PartitionTable
-        jc      1f
-//      orb     $8, 0x0a
-        orb     $8, (help_mark - _start1)
-1:     
-        addw    $4, %si
-//      andb    $0x7f, 0x0a
-        andb    $0x7f, (help_mark - _start1)
-
-	/* DS=SS=0x2000 */
+	//cs=ss=2000	ds=0d00/07c0	es=2000/0d00
 	pushw	%cs
 	popw	%ds
-
 	pushw	$FS_BOOT
 	popw	%es
+	//cs=ds=ss=2000  es=0d00
+   
+	addw    $4, %si
+	andb    $0x7f, (help_mark - _start1)
 
-	/* ES=FS_BOOT */
 
 	/* Format of partition information blocks.
 	 *
@@ -5827,15 +5814,14 @@ helper_start:
 	 */
 
 	pushw	%ds		/* DS=0x2000 */
-	pushw	%es		/* ES=FS_BOOT */
+	pushw	%es		/* ES=0x0d00 */
 	pushal
         
         cmpw	$0x1c2, %si
 	jne	5f
-	
+	movb	$0, (help_mark - _start1)
 #if     (defined(GRLDR_MBR)) 	
 
-//	testb	$0x0C, %cs:0x02
         testb   $0x0c, %cs:(mbr_disable - _start1)
 	jz	1f
 
@@ -5845,7 +5831,6 @@ helper_start:
 	movw	%ax, %es
 	movw	$0x5FC, %di
 	movl	$0x45435544, %eax
-//	movb	%cs:0x02, %al
 	movb    %cs:(mbr_disable - _start1), %al
 	andb	$0x0C, %al
 	orb	$0x40, %al
@@ -5854,8 +5839,7 @@ helper_start:
 1:
 	call    Clear_KeyboardBuffer
 	
-//	testb	$0x80, %cs:0x02	/* boot previous MBR first? */
-	testb   $0x80, %cs:(mbr_disable - _start1)
+	testb   $0x80, %cs:(mbr_disable - _start1)/* boot previous MBR first? */
 	jnz	2f		/* no, continue to find GRLDR */
 
 	/* yes, call the routine for booting the previous MBR.
@@ -5867,7 +5851,6 @@ helper_start:
 	 * skip this step and continue to find the GRLDR
 	 */
 	/* if timeout==0, don't display the message */
-//  	cmpb    $0, %cs:0x03
         cmpb    $0, %cs:(mbr_time - _start1)
   	je      1f
 	/* Press ... to start GRUB, any other key to boot previous MBR ... */
@@ -5894,7 +5877,6 @@ helper_start:
 2:
 	/* before we find GRLDR, give the user a chance to boot_prev_mbr. */
 	/* if timeout==0, don't display the message */
-//  	cmpb    $0, %cs:0x03
   	cmpb    $0, %cs:(mbr_time - _start1)
   	je      1f
 	/* Press ... to boot previous MBR, any other key to start GRUB ... */
@@ -5917,7 +5899,6 @@ helper_start:
 	call	sleep_5_seconds
 	jnc	3f
 	/* desired hot-key pressed */
-//	andb	$0x7F, %cs:0x02
 	andb    $0x7f, %cs:(mbr_disable - _start1)
 	call	boot_prev_mbr	//Error_modify
 3:
@@ -5925,7 +5906,6 @@ helper_start:
 	
         movw	$(0xEB | ((4f - 2b - 2) << 8)), (2b - _start1)
 		 
-//	orb	$0x80, %cs:0x02 
 	orb     $0x80, %cs:(mbr_disable - _start1)
 4:
 
@@ -5973,21 +5953,17 @@ helper_start:
         popaw		/* <------ at least DL,SI need to be restored */
         
         /*  geometry_tune */
-//      testb	$0x04, 0x0a	/* EBIOS present? */
         testb   $0x04, (help_mark - _start1)
-	jne	5f		/* yes, skip the tune */
+	jne	1f		/* yes, skip the tune */
 	
 #if     defined(GRLDR_MBR)	
 	
-//	testb	$0x08, 0x02	/* chs-no-tune */
         testb   $0x08, (mbr_disable - _start1)
-	jnz	5f 
+	jnz	1f 
 
 #endif // defined(GRLDR_MBR)
 	
 	/* check if the code is loaded completely */
-//	cmpl	$0xAA555247, (grldr_signature - _start1) /* "GR" 0x55 0xAA */
-//	jne	5f
 	pushw	%ds
 	pushw	%es
 	pushaw
@@ -6000,14 +5976,18 @@ helper_start:
 	movb    %cl, 0x18
 	incb    %ch
 	movb    %ch, 0x1a
+1:
+	pushw	%si
+	subw	$4, %si
+	call	Check_PartitionTable
+	popw	%si
+	jc	5f
+	orb	$8, (help_mark - _start1)
+	call gpt_statr  
 5:        
-        xorl    %eax, %eax      
-//	testb	%dl, %dl
-	//jns	1f			/* floppy, use normal CHS mode */
-//	jns	2f			/* floppy, use normal CHS mode */
-//      testb	$8, 0x0a   	        /* Partition Table OK? */
-        testb   $8, (help_mark - _start1)
-        je      1f                      /* not */      
+	xorl    %eax, %eax              
+	testb   $8, (help_mark - _start1)/* Partition Table OK? */
+	je      5f                      /* not */      
 	cmpw	$0x1f2, %si		/* is it a primary partition? */
 	ja	3f			/* no, it is an extended partition */
 	movl	4(%si), %eax
@@ -6019,37 +5999,11 @@ helper_start:
 	movl	4(%si), %eax
 	addl	8(%si), %eax	/* EAX=start_LBA */
 	testl	%eax, %eax
-	jne     1f
-//	orb     $0x80, %cs:0x0a
-        orb     $0x80, %cs:(help_mark - _start1)	
-	jmp     5f
-
-
-1:      pushw   0x02 
-        pushw   0x0b
-        pushw   0x24
-        pushw   %bp
-        xorw    %bp, %bp
-        andb    $0, 0x02
-//        testb   $0x04, 0x0a
-        testb   $0x04, (help_mark - _start1)
-        je      1f
-        orb     $0x80, 0x02
-1:      movb    %dl, 0x24
-        movw    $0x200, 0x0b
-        xorw    %bx, %bx
-//      movw	$33, %cx        /* number of sectors to read in CX */
-        movw	$4, %cx         /* number of sectors to read in CX */
-        pushw   %es
-        call	readDisk_12_64_ext     /* CX=0, eax,ES changed */
-        popw    %es
-        jnb     1f
-//        orb     $0x80, 0x0a
-        orb     $0x80, (help_mark - _start1)
-1:      popw    %bp 
-        popw    0x24
-        popw    0x0b
-        popw    0x02
+	je	2f
+	call	read_lba
+	jnb	5f
+2:
+	orb	$0x80, (help_mark - _start1)
 5:
 
 	/*******************************************************/
@@ -6061,30 +6015,13 @@ helper_start:
 //---------------------------------------------------------
 	/* print "Try (hd0,n): " or "Try (fd0): "*/
 	pushw	%ds
-	popw	%es		/* ES=DS=CS=0x9400 */
-
+	popw	%es
+	//cs=ds=es=ss=2000
 	cld			/* for stosb */
 	xorw	%ax, %ax
-//	testb	%dl, %dl
-//	jns	1f		/* floppy */
-//      testb	$8, 0x0a   	/* Partition Table OK? */
         testb   $8, (help_mark - _start1)
         je      1f              /* not */
 	/* hard drive */
-#if 0
-	movw	%si, %ax
-	subw	$0x1c2, %ax
-	shrw	$4, %ax
-	cmpw	$0x1fe, %si	/* is in MBR? */
-	jb	1f		/* yes */
-	/* no, it is an entry in an extended partition */ 
-	
-        movb	$0xFC, (add_sub_si + 2 - _start1)	/* addw	$-4, %si */
-		
-	
-	incw	0x1bc		/* logical partition number */
-	movb	0x1bc, %al
-#else
 	incw	0x1bc		/* logical partition number */
 	movw	0x1bc, %ax
 	movb    %al, %dh
@@ -6092,9 +6029,6 @@ helper_start:
 	jb	1f
 	
         movb	$0xFC, (add_sub_si + 2 - _start1)
-		
-	
-#endif
 1:
 	/* AL=partition number, AH=0 */
 	pushw	%ax
@@ -6120,10 +6054,6 @@ helper_start:
 	stosb
 
 	popw	%ax
-
-//	testb	%dl, %dl
-//	jns	2f		/* floppy */ 
-//      testb	$8, 0x0a   	/* Partition Table OK? */
         testb   $8, (help_mark - _start1)
         je      2f              /* not */    
 	/* this is a hard drive, the partition number is in AL */
@@ -6147,8 +6077,7 @@ helper_start:
 	call	print_message	/* CS:SI points to message string */
 //-------------------------------------------------------------------------------------
 	popw	%es 
-	
-//      testb   $0x80, 0x0a
+	//cs=ds=ss=2000  es=0d00
         testb   $0x80, (help_mark - _start1)
         jne     invalid_or_null
 
@@ -6157,7 +6086,7 @@ helper_start:
 	popw	%ds
 	
 
-	/* DS=ES=FS_BOOT */
+	//cs=ss=2000  ds=es=0d00
 	
 	//Installation fat12/16/32/exfat/ext2/ntfs partition
 	/* First, check for ext2 filesystem */
@@ -6233,7 +6162,7 @@ fat:
 
 	cld
 
-	/* ds=0d00 es=0d00  cs=ss=2000 si=0 */
+	/* ds=es=0d00  cs=ss=2000 si=0 */
         cmpl    $0x5346544e, 3(%si)             /* ntfs Partition? */
         je      3f                              /* yes */ 
 
@@ -6254,7 +6183,6 @@ fat:
         addl	%cs:8(%di), %eax
 2:      
 				movl	%eax, 0x1c(%si)		/* adjust hidden_sectors for FAT */
-//				movb	%cs:0x1bc, %dh		/* partition number */
         
         cmpl    $0x33544146, 0x52(%si)  /* fat32 Partition? */
         jne     1f                      /* not */
@@ -6288,9 +6216,6 @@ fat:
 	movl	0x20(%si), %eax		/* FAT32 total sectors */
 	testl	%eax, %eax
 	jnz	1f
-	//movw	0x11(%si), %ax		/* max root entries */
-	//testw	%ax, %ax
-	//jnz	1f
 	movw	0x0e(%si), %ax		/* reserved sectors */
 	testw	%ax, %ax
 	jnz	1f
@@ -6305,11 +6230,8 @@ fat:
 	/* BUG fix for extended NTFS partition */
 	popw	%si			/* SI points to old entry in MBR */
 	pushw	%si
-	xorl	%eax, %eax		/* let hidden_sectors=0 for floppy */ 		
-//	testb	%dl, %dl
-//	jns	3f			/* floppy */
-//      testb	$8, %cs:0x0a            /* Partition Table OK */
-        testb   $8, %cs:(help_mark - _start1)
+	xorl	%eax, %eax		/* let hidden_sectors=0 for floppy */ 		           
+	testb   $8, %cs:(help_mark - _start1)/* Partition Table OK */
         je	3f			/* not */   
 	movl	%cs:4(%si), %eax
 	addl	%cs:8(%si), %eax
@@ -6317,15 +6239,13 @@ fat:
 	movl	%eax, 0x1c		/* adjust hidden_sectors for NTFS */
 
 	movb	%dl, 0x24		/* adjust drive number for NTFS */
-#if 1
+
 	// Load NTFS using internal boot sector at 0xA00
 
         movw	$(NTFS5_message - _start1), %si
 	
 	
 	call	print_message	/* CS:SI points to message string */
-
-//	movw	$0xA00, %bx
 
         movw    $(Entry_nt - _start1), %bx
 	
@@ -6358,7 +6278,6 @@ fat:
 
 	/* fix for NTFS partition: on error go back to supervisor, offset 0x01fa */
 
-//	movw	$0x01fa, %di
   movw $(error_go_back - Entry_nt), %di
 	movw	%es:(%di), %ax
 	cmpw	$0xFEEB, %ax /* EB FE is jmp back to itself(infinite loop) */
@@ -6372,30 +6291,6 @@ fat:
 3:
 	clc
 	jmp	move_entries_and_return
-
-#else
-
-	/* modify the boot partition number */
-	movb	$0xB6, %al		/* 0xB6="MOV DH,imm8" */
-	movb	%cs:0x1bc, %ah
-	testb	%dl, %dl
-	js	3f
-	movb	$0xff, %ah /* partition number for floppy is whole drive */
-3:
-	/* before the call:
-	 *		AH= partition number
-	 *		AL= 0xB6	; 0xB6 is opcode of "MOV DH,imm8"
-	 *		DL= drive number
-	 *
-	 * on return:	CF=0 if there is NTFS boot record;
-	 *		CF=1 otherwise. 
-	 *		CF of flags_orig on the stack will set if CF=1
-	 */
-
-	call	modify_NTFS_boot_record
-	jmp	move_entries_and_return
-
-#endif
  
 
 6:      /* exFAT */
@@ -6519,14 +6414,14 @@ fat:
 				popw %es
 				
 				/* From 2000 to  0d00 move the boot code */
-        /* cs=ds=2000  es=0d00 */
+        /* cs=ds=ss=2000  es=0d00 */
         movw    $(Entry_12_64_ext - _start1), %si       /* 0a00 */       
         movw    $0x30, %di
         movw    $((end_12_64_ext - Entry_12_64_ext) / 4 +1), %cx      /* move Double word */
         repz    movsl                           /* 2000:0400->0d00:0030 */
         popw	%ds
         popw	%si
-        /* cs=2000  ds=es=0d00  */
+        /* cs=ss=2000  ds=es=0d00  */
         movw    $0x2eeb, 0x00                   /* jmp 7c30 */
       
         call    print_message                   /* CS:SI points to message string */
@@ -6537,13 +6432,12 @@ fat:
 1:
 	#; It is not FAT12/16/32/NTFS. Check for extended partition.
 
-	/* DS=ES=FS_BOOT ds=0d00 es=0d00  cs=2000 */
+	/* cs=ss=2000  ds=es=0d00 */
         orb     $0x80, %cs:(help_mark - _start1)
 	pushw	%cs
 	popw	%es
 
-	/* ES=SS=0x2000 */
-	/* DS=FS_BOOT */
+	//cs=es=ss=2000  ds=0d00
 
 	popw	%si
 	pushw	%si
@@ -6583,10 +6477,6 @@ fat:
 	pushw	%bx
 	pushw   %dx
 5:
-#if 1
-	//xorl	%eax, %eax
-	//cmpl	%eax, (%si)
-	//jnz	2f
 	movl	(%si), %eax
 	cmpw	2(%si), %ax	/* Is EAX high word equal to AX? */
 	jnz	2f
@@ -6638,7 +6528,6 @@ fat:
 	jmp	2f
 3:
 	addw	$16, %si
-#endif
 2:
 	loop	5b
 	
@@ -6646,7 +6535,7 @@ fat:
 
 	/* extended partition is not a normal one, so set carry to try next */
 	jmp	move_entries_and_return
-
+//cs=ss=2000  ds,es?
 invalid_or_null:
 1:
         movw	$(invalid_message - _start1), %si	
@@ -6658,14 +6547,14 @@ move_entries_and_return:
 	popw	%ds
 	pushw	%cs
 	popw	%es
+	//cs=ds=es=ss=2000
 	pushw	%si
 	cmpw	$0x202, %si
 	jne	1f
 	/* move entries backward 1 entry */
 	movw	$0x1fe, %di
 	movw	$0x20e, %si
-//	movw	$0xf8, %cx		/* 0x1f0 bytes = 0xf8 words */
-        movw	$0x30, %cx
+	movw	$0xf8, %cx		/* 0x1f0 bytes = 0xf8 words */
 	cld				/* move upward */
 	repz movsw
 	subw	$0x10, 0x1ba	
@@ -6680,7 +6569,6 @@ move_entries_and_return:
 	movw	$0x1fe, %ax	
         movw	$(add_sub_si + 5 - _start1), %di	
 	movw	%ax, (%di)		/* 0x1fe */
-//      testb	$8, 0x0a
         testb   $8, (help_mark - _start1)
         je      4f
 	incw	(%di)			/* 0x1ff */
@@ -6695,7 +6583,7 @@ move_entries_and_return:
         jne     1f
 2:
 inc_hard_drive:
-
+//cs=ds=es=ss=2000
 	/* all partitions on the drive have been checked, try next drive.
 	 *
 	 * the current stack is:
@@ -6722,7 +6610,6 @@ inc_hard_drive:
 	pushw	%cs
 	popw	%ds
 	orb	$0x80, %dh	/* CF=0, DH=Max harddrive number + 1 */
-//        movb	20(%bp), %dl	/* BIOS drive number is in DL */
 2:
 	jnc	3f
 	call	print_message	/* CS:SI points to message string */ 	
@@ -6737,7 +6624,7 @@ inc_hard_drive:
 3:
 	incw	%dx		/* !!!! Next drive !!!! */
 	cmpb	%dh, %dl
-	jnb	2f		/* all drives checked, try floppy finally */
+	jnb	4f		/* all drives checked, try floppy finally */
 9:
         pushw	%dx
         movb    $1, %al
@@ -6751,9 +6638,6 @@ inc_hard_drive:
 	/* The new partition table might be empty or invalid.
 	 * Move the new partition table onto the old one while checking
 	 */
-
-	//movb	%dl, %bh	/* DL saved at BP high byte in the stack */
-        
         pushw   %si
 	movw	$0x7fbe, %si
 	call    Check_PartitionTable
@@ -6766,10 +6650,8 @@ inc_hard_drive:
 
 	/* Now the partition table is OK */
 
-//	movw	%bx, 12(%bp)	/* adjust BP in the stack */
 	movb	%dl, 20(%bp)	/* adjust BP in the stack */
 
-//	movw	$0x1b2, 8(%bp)	/* adjust SI in the stack */
 	movw	$0x1b2, 4(%bp)	/* adjust SI in the stack */
 
 	/* temp change the code:	call	self_modify_once
@@ -6788,60 +6670,98 @@ inc_hard_drive:
 	movw	$0xffff, 0x1bc		/* hd partition number */
 	movw	$0x01fe, 0x1ba		/* partition entries end */
 	jmp	1f
-2:
-	/* get here if all drives have been checked */
-#if 0
-	movw	$0x202, 8(%bp)	/* adjust SI in the stack */
-
-	/* restore the original code:	addw	$-4, %si */
-	
-        movw	$0xC683, (add_sub_si  - _start1)	/* 0x83, 0xC6 */
-	movb	$0xFC, (add_sub_si + 2 - _start1)	/* 0xFC */
-		
-	
-#endif
 4:
 
 	/* floppy search disabled ? */
-#if 0
-	testb	$1, 0x02		/* test bit0 of the third byte */
-	jz	1f			/* zero means floppy search enabled */
-	/* 0x1fd or below means disable floppy search */ 
-	
-        decw	(add_sub_si + 5 - _start1)
-		
-	
-#else
         orb     %dl, %dl
-        jne     4f
+        jne     1f
         movw    %sp, %bp
-        movw    $0x1f2, 4(%bp)	/* adjust SI in the stack */
-4:
-	
-#endif
-	//--------------------------------------------------------------------
-
+        movw    $0x300, 4(%bp)	/* adjust SI in the stack */
 1:
-#if 0
-	popfw
-	lahf			/* Load Flags into AH Register. */
-				/* AH = SF:ZF:xx:AF:xx:PF:xx:CF */
-				/* CF will be moved to ZF */
-	movb	%ah, %al
-	andb	$1, %al		/* CF=0 */
-	shlb	$6, %al		/* move CF to ZF */
-	popfw
-	lahf			/* Load Flags into AH Register. */
-				/* AH = SF:ZF:xx:AF:xx:PF:xx:CF */
-	andb	$0xbf, %ah	/* 0xbf= binary 1011 1111. It clears ZF */
-	orb	%al, %ah
-#else   
-
-#endif
 	popal
 	popw	%es
 	popw	%ds
+	//cs=ds=ss=2000  es=0d00
 	ret
+
+//input	eax, es:bx
+read_lba:
+	pushw	0x02
+	pushw	0x0b
+	pushw	0x24
+	pushw	%bp
+	xorw	%bp, %bp
+	andb	$0, 0x02
+	testb	$0x04, (help_mark - _start1)
+	je	1f
+	orb	$0x80, 0x02
+1:
+	movb	%dl, 0x24
+	movw	$0x200, 0x0b
+	xorw	%bx, %bx
+	movw	$4, %cx
+	pushw	%es
+	call	readDisk_12_64_ext     /* CX=0, eax,ES changed */
+	popw	%es
+1:
+	popw	%bp 
+	popw	0x24
+	popw	0x0b
+	popw	0x02
+	ret
+	
+	
+	
+//cs=ds=ss=2000	es=0d00
+gpt_statr:
+	pushaw
+	cmpb	$0xee, 0x1c2
+	jne	1f
+	
+	movl	$1, %eax
+	call	read_lba
+	jc	1f
+
+	cmpl	$0x20494645, %es:0		//"EFI PART"?
+	jne	1f											//no
+	movl	%es:72, %eax
+	call	read_lba
+	
+	movw	$0x100, %cx
+	movw	$0x1be, %di
+2:
+	movb	$0, (%di)
+	incw	%di
+	loop 2b
+	
+	movw	$0x1c2, %si						//mbr
+	movw	$0x20, %di						//gpt
+	movw	$16, %cx
+2:	
+	cmpl	$0xe3c9e316, %es:-0x20(%di)//"microsoft reserved partition"?
+	je	3f											//no
+	cmpl	$0, %es:4(%di)
+	jne	2f
+	movl	%es:(%di), %eax
+	orl	%eax, %eax
+	je 2f
+	movb	$0xEE, (%si)
+	movl	%eax, 4(%si)
+3:	
+	addw	$0x10,	%si
+	addw	$0x80,	%di
+	loop	2b
+2:
+	negw	%cx
+	addw	$16, %cx
+	cmpw	$4, %cx
+	jbe	1f
+	subw	$4, %cx
+	shlw	$4, %cx
+	addw	%cx, 0x1ba
+1:
+	popaw
+	ret	
 
 self_modify_once:
 	/* when we get here, SI should be 0x1b2, and BP high holds DL */ 

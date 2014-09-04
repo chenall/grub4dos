@@ -5838,6 +5838,8 @@ find_func (char *arg, int flags)
 							next_partition_buf		= mbr,
 							next_partition ()))
 					{
+						if ((start == 0) || (len == 0))
+							continue;
 						if (/* type != PC_SLICE_TYPE_NONE
 							&& */ ! (ignore_oem == 1 && (type & ~PC_SLICE_TYPE_HIDDEN_FLAG) == 0x02) 
 							&& ! IS_PC_SLICE_TYPE_BSD (type)

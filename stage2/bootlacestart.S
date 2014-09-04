@@ -1,6 +1,6 @@
 /*
  *  bootlacestart.S -- A utility for installing GRLDR boot sectors to MBR/OSBR
- *  Copyright (C) 2005  Tinybit(tinybit@163.net)
+ *  Copyright (C) 2005, 2012  Tinybit(tinybit@tom.com)
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -46,7 +46,7 @@ _start:
 	 *	bootlace.com  [OPTIONS]  DEVICE_OR_FILE
 	 */
 
-	# ELF header begin
+	# ELF header begin here. Its length is 0x40.
 	# The ELF64 header is backed up at the end of file, which can be
 	# used to replace the ELF header for running on 64-bit Linux. 
 	
@@ -58,7 +58,8 @@ _start:
 #if 1
 	.byte	0x01			# 32-bit
 	.byte	0x01			# little-endian
-	                                # not safe for 16-bit DOS code
+					# not safe for 16-bit DOS code
+					// it changes word at [BX+DI]
 					// 01 01 = addw %ax, (%bx, %di)
 #else
 	.byte	0x01			# 32-bit
@@ -68,7 +69,8 @@ _start:
 					// 01 C1 = addw %ax, %cx
 #endif
 
-	.byte	0x01			# version
+	.byte	0x01			# ELF version
+					// opcode for ADD
 
 #ifdef __DOT_COM
 
@@ -154,8 +156,8 @@ _ph_offset:
 	                                        # p_vaddr
         .long	(_start_linux - _start + 0x00400000)
 	                                        # p_paddr
-        .long	(grldr_mbr_start + 0x2000 - _start_linux + (0x1400 - 0x200))  # p_filesz
-        .long	(grldr_mbr_start + 0x2000 - _start_linux + (0xBE00 + 0x200) + (0x1400 - 0x200))  # p_memszz
+        .long	(grldr_mbr_start + 0x2000 - _start_linux)  # p_filesz
+        .long	(grldr_mbr_start + 0x2000 - _start_linux + (0xBE00 + 0x200))  # p_memszz
 	.long	7				# p_flags
 	.long	0x200				# p_align
 
@@ -206,7 +208,7 @@ _sh_offset:
 	.long	(_start_linux - _start)
 					# sh_offset(from beginning of file)
 
-	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0x1400 - 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start_linux)
 					# sh_size
 
 	.long	0			# sh_link
@@ -220,10 +222,10 @@ _sh_offset:
 	.long	1			# sh_type = SHT_PROGBITS
 	.long	3			# sh_flags = WRITE, ALLOC
 
-	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000 + (0x1400 - 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000)
 					# sh_addr(in process space)
 
-	.long	(grldr_mbr_start + 0x2000 - _start + (0x1400 - 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start)
 					# sh_offset(from beginning of file)
 
 	.long	0			# sh_size (no data present)
@@ -238,10 +240,10 @@ _sh_offset:
 	.long	8			# sh_type = SHT_NOBITS
 	.long	3			# sh_flags = WRITE, ALLOC
 
-	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000 + (0x1400 - 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000)
 					# sh_addr(in process space)
 
-	.long	(grldr_mbr_start + 0x2000 - _start + (0x1400 - 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start)
 					# sh_offset(from beginning of file)
 
 	.long	(0xbe00 + 0x200)	# sh_size	//mbr_63_sectors
@@ -266,9 +268,9 @@ _ph_offset_64:
 	.long	(_start_linux - _start + 0x00400000)
 						# p_paddr
 	.long	0				# ... hi
-	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0x1400 - 0x200))	# p_filesz
+	.long	(grldr_mbr_start + 0x2000 - _start_linux)	# p_filesz
 	.long	0				# ... hi
-	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0xBE00 + 0x200) + (0x1400 - 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0xBE00 + 0x200))
 						# p_memszz //mbr_63_sectors
 	.long	0				# ... hi
 	.long	0x200				# p_align
@@ -336,7 +338,7 @@ _sh_offset_64:
 					# sh_offset(from beginning of file)
 	.long	0			# ... hi
 
-	.long	(grldr_mbr_start + 0x2000 - _start_linux + (0x1400 - 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start_linux)
 					# sh_size
 	.long	0			# ... hi
 
@@ -354,11 +356,11 @@ _sh_offset_64:
 	.long	3			# sh_flags = WRITE, ALLOC
 	.long	0			# ... hi
 
-	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000 + (0x1400 - 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000)
 					# sh_addr(in process space)
 	.long	0			# ... hi
 
-	.long	(grldr_mbr_start + 0x2000 - _start + (0x1400 - 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start)
 					# sh_offset(from beginning of file)
 	.long	0			# ... hi
 
@@ -378,11 +380,11 @@ _sh_offset_64:
 	.long	3			# sh_flags = WRITE, ALLOC
 	.long	0			# ... hi
 
-	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000 + (0x1400 - 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start + 0x00400000)
 					# sh_addr(in process space)
 	.long	0			# ... hi
 
-	.long	(grldr_mbr_start + 0x2000 - _start + (0x1400 - 0x200))
+	.long	(grldr_mbr_start + 0x2000 - _start)
 					# sh_offset(from beginning of file)
 	.long	0			# ... hi
 
@@ -507,24 +509,6 @@ option_floppy:
 //option_vfat:
 //	.ascii	"--vfat\0"
 	
-//option_exfat:
-//	.ascii	"--exfat\0"	
-
-//option_usb:
-//	.ascii	"--usb=\0"
-	
-option_grldr_usb:
-	.ascii	"--grldr-usb=\0"
-	
-option_usb_time :
-	.ascii	"--usb-time=\0"
-	
-option_usb_speed:
-	.ascii	"--usb-speed=\0"
-	
-option_usb_key:
-	.ascii	"--usb-key=\0"
-
 msg_start:
 
 	/* messages begins at here */
@@ -852,15 +836,6 @@ msg_no_enough_memory:
 msg_install_partition_not:
         .ascii  "\r\n\r\nError: Specified install partition not exist.\r\n\0"
         
-//msg_usb_bpb_fat:
-//        .ascii  "\r\nError: Attempt to increase the reserved sector.\r\n\0"                              
-
-msg_grldr_usb_err:
-				.ascii  "\r\nThe GRLDR versions error.\r\n\0"	
-
-msg_grldr_usb_ok:				
-				.ascii  "\r\nThe USB option is set success.\r\n\0"	
-				
 msg_disk_Information:	
 	.ascii  "\r\nHD"
 
@@ -911,8 +886,7 @@ msg_usage:
 //      .ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --lba, --chs,\r\n"
 //      .ascii	"--fat12, --fat16, --fat32, --vfat, --ntfs, --ext2, --exfat, --serial-number=SN,\r\n"
         .ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --serial-number=SN,\r\n"
-	.ascii	"--restore-mbr, --mbr-no-bpb, --chs-no-tune, --grldr-usb=I, --usb-time=T,\r\n"
-	.ascii	"--usb-speed=S, --usb-key=K,\r\n"
+	.ascii	"--restore-mbr, --mbr-no-bpb, --chs-no-tune\r\n"
 	.ascii	"DEVICE_OR_FILE: Filename of the device or image. For DOS, a BIOS drive number\r\n"
 	.ascii	"(in hex 0xHH or decimal DDD format)can be used to access the drive.\r\n\0"
 
@@ -1102,12 +1076,12 @@ floppy:
 
 //fstypes:
 
-	/* bit 0: fat12 */
-	/* bit 1: fat16 */
-	/* bit 2: fat32 */
-	/* bit 3: ntfs */
-	/* bit 4: ext2 */
-	/* bit 5: exfat */
+//	/* bit 0: fat12 */
+//	/* bit 1: fat16 */
+//	/* bit 2: fat32 */
+//	/* bit 3: ntfs */
+//	/* bit 4: ext2 */
+//	/* bit 5: exfat */
 
 //	.long	0xfffffff7	/* default is all types except ntfs */
 
@@ -1116,7 +1090,7 @@ sectors_to_write:
 	/* default is number of sectors in GRLDR.MBR */
 
 //	.long	((pre_stage2_start - _start1) / 512)
-        .long	((8192) / 512)
+        .long	(8192 / 512)
 
 restore_partition_layout:
 	.long	0
@@ -1130,20 +1104,8 @@ current_partition:
 total_partition_entries:
         .long	0
         
-//usb:
-//        .long	0xff
-				
-grldr_usb:
-        .long	0xff
 
-usb_time:
-				.long	0xff
 				
-usb_speed:			
- 				.long	0xff
-				
-usb_key:			
- 				.long	0xff				
 				
 	.align	16
 	
