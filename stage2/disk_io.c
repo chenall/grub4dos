@@ -1568,10 +1568,10 @@ dir (char *dirname)
     return 0;
 
   if (*dirname != '/')
-    errnum = ERR_BAD_FILENAME;
+    return !(errnum = ERR_BAD_FILENAME);
 
   if (fsys_type == NUM_FSYS)
-    errnum = ERR_FSYS_MOUNT;
+    return !(errnum = ERR_FSYS_MOUNT);
 
 	if (set_filename(dirname) == 0)
 		return 0;
