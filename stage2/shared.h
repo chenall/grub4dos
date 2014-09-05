@@ -1180,6 +1180,7 @@ void stop_floppy (void);
 #define BUILTIN_BOOTING		(1 << 6)	/* The command is boot-sensitive.  */
 #define BUILTIN_BAT_SCRIPT	(1 << 7)
 #define BUILTIN_USER_PROG	(1 << 8)
+#define BUILTIN_NO_DECOMPRESSION (1 << 9)
 
 
 /* The table for a builtin.  */

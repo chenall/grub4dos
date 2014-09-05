@@ -10424,7 +10424,7 @@ static struct builtin builtin_crc32 =
 {
   "crc32",
   crc32_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE | BUILTIN_NO_DECOMPRESSION,
   "crc32 FILE | STRING",
   "Calculate the crc32 checksum of a FILE or a STRING."
 };
@@ -10898,7 +10898,7 @@ static struct builtin builtin_partnew =
 {
   "partnew",
   partnew_func,
-  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
+  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST | BUILTIN_NO_DECOMPRESSION,
   "partnew [--active] PART TYPE START [LEN]",
   "Create a primary partition at the starting address START with the"
   " length LEN, with the type TYPE. START and LEN are in sector units."
@@ -11296,6 +11296,26 @@ static struct builtin builtin_quit =
   "quit [--disable-a20]",
   "Go back to DOS if GRUB was previously launched from DOS."
 };
+
+#ifndef NO_DECOMPRESSION
+static int raw_func(char *arg, int flags)
+{
+	int no_decompression_bak = no_decompression;
+	no_decompression = 1;
+	int ret = run_line(arg,flags);
+	no_decompression = no_decompression_bak;
+	return ret;
+}
+
+static struct builtin builtin_raw =
+{
+  "raw",
+  raw_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
+  "raw COMMAND",
+  "run COMMAND with not auto-decompression."
+};
+#endif
 
 static int
 read_func (char *arg, int flags)
@@ -11771,7 +11791,7 @@ static struct builtin builtin_write =
 {
   "write",
   write_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE | BUILTIN_NO_DECOMPRESSION,
   "write [--offset=SKIP] [--bytes=N] ADDR_OR_FILE INTEGER_OR_STRING",
   "Write a 32-bit value to memory or write a string to file(or device!)."
 };
@@ -15700,6 +15720,9 @@ struct builtin *builtin_table[] =
   &builtin_pxe,
 #endif
   &builtin_quit,
+#ifndef NO_DECOMPRESSION
+  &builtin_raw,
+#endif
   &builtin_read,
   &builtin_reboot,
   &builtin_root,
