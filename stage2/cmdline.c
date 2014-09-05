@@ -380,7 +380,15 @@ static int run_cmd_line (char *heap,int flags)
 			{
 				if ((builtin->func) == errnum_func || (builtin->func) == checkrange_func)
 					errnum = errnum_old;
+				#ifndef NO_DECOMPRESSION
+				int no_decompression_bak = no_decompression;
+				if (builtin->flags & BUILTIN_NO_DECOMPRESSION)
+					no_decompression = 1;
+				#endif
 				ret = (builtin->func) (skip_to (1,arg), flags);
+				#ifndef NO_DECOMPRESSION
+					no_decompression = no_decompression_bak;
+				#endif
 			}
 		}
 		else

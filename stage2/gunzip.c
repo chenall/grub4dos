@@ -276,7 +276,7 @@ gunzip_test_header (void)
   
   /* check lzma first */
   if (dec_lzma_open ())
-	return 1;
+	goto test_dec;
 
   /* "compressed_file" is already reset to zero by this point */
 
@@ -340,6 +340,14 @@ gunzip_test_header (void)
 
   filepos = 0;
 
+test_dec:
+  if (grub_read((unsigned long long)(unsigned int)(char *)buf, 1,GRUB_READ) != 1LL)
+  {
+    if (debug)
+      printf("\nWarning: %s Compressed data detected,But failed to decompress!!using raw data!!\n\n",decomp_table[decomp_type].name);
+    compressed_file = 0;
+    filepos = 0;
+  }
   return 1;
 }
 
