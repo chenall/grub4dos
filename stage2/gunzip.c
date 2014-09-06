@@ -346,8 +346,8 @@ test_dec:
     if (debug)
       printf("\nWarning: %s Compressed data detected,But failed to decompress!!using raw data!!\n\n",decomp_table[decomp_type].name);
     compressed_file = 0;
-    filepos = 0;
   }
+  filepos = 0;
   return 1;
 }
 
