@@ -1150,36 +1150,48 @@ static struct builtin builtin_boot =
   "with option \"-1\" will boot to local via INT 18.",
 };
 
-void hexdump(unsigned long ofs,char* buf,int len)
+void hexdump(grub_u64_t ofs,char* buf,int len)
 {
   quit_print=0;
   while (len>0)
     {
-      int cnt,k;
+      int cnt,k,i,j = 3;
 
-      grub_printf ("%08X: ", ofs);
-      cnt=16;
-      if (cnt>len)
-        cnt=len;
+      i = ofs & 0xFLL;
+      if (i)
+         ofs &= ~0xFLL;
 
-      for (k=0;k<cnt;k++)
-        {	  
-          printf("%02X ", (unsigned long)(unsigned char)(buf[k]));
-          if ((k!=15) && ((k & 3)==3))
-            printf(" ");
-        }
+      if ((ofs >> 32))
+          j = 7;
 
-      for (;k<16;k++)
+      grub_printf ("%0*lX: ", j == 3?8:10,ofs);
+
+      cnt = 16;
+      if (cnt > len)
+        cnt = len + i;
+
+      for (k=0;k<16;k++)
         {
-          printf("   ");
-          if ((k!=15) && ((k & 3)==3))
+          if (i>k || k >=cnt)
+            printf("   ");
+          else
+            printf("%02X ", (unsigned long)(unsigned char)(buf[k - i]));
+          if ((k!=15) && ((k & j)==j))
             printf(" ");
         }
 
       printf("; ");
 
       for (k=0;k<cnt;k++)
-        printf("%c",(unsigned long)((((unsigned char)buf[k]>=32) && ((unsigned char)buf[k]!=127))?buf[k]:'.'));
+      {
+        if (i>k)
+           putchar(' ',255);
+        else
+        {
+          j = k - i;
+          printf("%c",(unsigned long)((((unsigned char)buf[j]>=32) && ((unsigned char)buf[j]!=127))?buf[j]:'.'));
+        }
+      }
 
       printf("\n");
 
@@ -1441,12 +1453,18 @@ cat_func (char *arg, int flags)
 	}
   }else if (Hex == (++ret))	/* a trick for (ret = 1, Hex == 1) */
   {
-    for (j = skip; j - skip < length && (len = grub_read ((unsigned long long)(unsigned long)&s, 16, 0xedde0d90)); j += 16)
+    j = 16 - (skip & 0xF);
+
+    if (j > length)
+      j = length;
+    while ((len = grub_read ((unsigned long long)(unsigned long)&s, j, 0xedde0d90)))
     {
-//	if (debug > 0) //chenall 2010-11-12 changed.always show.
-		hexdump(j,(char*)&s,(len>length+skip-j)?(length+skip-j):len);
-	if (quit_print)
-		break;
+      hexdump(skip,(char*)&s,len);
+      if (quit_print)
+        break;
+      skip += len;
+      length -= len;
+      j = (length >= 16)?16:length;
     }
   }else
     for (j = 0; j < length && grub_read ((unsigned long long)(unsigned long)&c, 1, 0xedde0d90) && c; j++)
