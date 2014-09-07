@@ -11331,7 +11331,7 @@ static struct builtin builtin_raw =
   raw_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "raw COMMAND",
-  "run COMMAND with not auto-decompression."
+  "run COMMAND without auto-decompression."
 };
 #endif
 
