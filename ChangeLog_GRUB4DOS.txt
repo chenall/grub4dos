@@ -1,3 +1,4 @@
+2014-09-08 (tinybit) supported backslash-delimited pathname used by pxe server.
 2014-09-04 fixed a bug in dir();(reported by Steve6375,issue 154).
 2014-09-04 add new command 'raw'.
 2014-08-25 fixed a bug in devread(); extend byte_offset to 64-bit.(reported by Steve6375,issue 194).

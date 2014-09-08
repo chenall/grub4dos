@@ -344,7 +344,9 @@ test_dec:
   if (grub_read((unsigned long long)(unsigned int)(char *)buf, 1,GRUB_READ) != 1LL)
   {
     if (debug)
-      printf("\nWarning: %s Compressed data detected,But failed to decompress!!using raw data!!\n\n",decomp_table[decomp_type].name);
+      printf("\nWarning:%s Compressed data detected but failed to decompress - using raw data!\n",decomp_table[decomp_type].name);
+    filemax = gzip_filemax;
+    decomp_table[decomp_type].close_func();
     compressed_file = 0;
   }
   filepos = 0;

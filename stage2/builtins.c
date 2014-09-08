@@ -1235,7 +1235,7 @@ void hexdump(grub_u64_t ofs,char* buf,int len)
         break;
 
       ofs+=16;
-      len-=cnt;
+      len-=cnt - i;
     }
 }
 
@@ -11582,7 +11582,7 @@ static struct builtin builtin_raw =
   raw_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "raw COMMAND",
-  "run COMMAND with not auto-decompression."
+  "run COMMAND without auto-decompression."
 };
 #endif
 
