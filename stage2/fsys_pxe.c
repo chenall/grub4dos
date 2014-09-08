@@ -169,7 +169,8 @@ static int try_blksize (int tmp)
 	return 1;	/* return 0 for seccess, 1 for failure */
 }
 
-unsigned long pxe_inited = 0;	/* pxe_detect only run once */
+//unsigned long pxe_inited = 0;	/* pxe_detect only run once */
+static unsigned long server_is_dos = 0;
 BOOTPLAYER *discover_reply = 0;
 
 int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
@@ -184,12 +185,20 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
   if (! pxe_entry)	//if (! pxe_scan ())
     return 0;
 
-  pxe_inited = 1;
+//  pxe_inited = 1;
 
   if (discover_reply->bootfile[0])
     {
-	int n;
+	unsigned long n;
 
+	for (n = 0; n < 127; n++)
+	{
+		if (discover_reply->bootfile[n] == '\\')
+		{
+			server_is_dos = 1;
+			break;
+		}
+	}
 	grub_printf ("\nbootfile is %s\n", discover_reply->bootfile);
 	n = grub_strlen ((char*)discover_reply->bootfile);
 	if (n > 126)
@@ -198,7 +207,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 		n = 126;
 		((char*)discover_reply->bootfile)[n] = 0;
 	}
-	if (((char*)discover_reply->bootfile)[0] != '/')
+	if (((char*)discover_reply->bootfile)[0] != (server_is_dos ? '\\' : '/'))
 	{
 		pxe_tftp_open.FileName[0] = '/'; /* have to add a slash */
 		grub_strcpy (((char*)&pxe_tftp_open.FileName) + 1, (char*)discover_reply->bootfile);
@@ -207,7 +216,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 	else
 		grub_strcpy ((char*)&pxe_tftp_open.FileName, (char*)discover_reply->bootfile);
 	n--;
-	while ((n >= 0) && (pxe_tftp_open.FileName[n] != '/')) n--;
+	while ((n >= 0) && (pxe_tftp_open.FileName[n] != (server_is_dos ? '\\' : '/'))) n--;
 #if 0
 	if (n < 0)	/* need to add a slash */
 	{
@@ -426,6 +435,13 @@ static int pxe_reopen (void)
 {
   pxe_close ();
 
+  if (server_is_dos)
+  {
+      unsigned long n;
+      for (n = 0; n < 128; n++)
+	if (pxe_tftp_open.FileName[n] == '/')
+	   pxe_tftp_open.FileName[n] = '\\';
+  }
   pxe_call (PXENV_TFTP_OPEN, &pxe_tftp_open);
   if (pxe_tftp_open.Status)
   {
@@ -452,6 +468,13 @@ static int pxe_open (char* name)
   if (name != pxe_tftp_name)
     grub_strcpy (pxe_tftp_name, name);
 
+  if (server_is_dos)
+  {
+      unsigned long n;
+      for (n = 0; n < 128; n++)
+	if (pxe_tftp_open.FileName[n] == '/')
+	   pxe_tftp_open.FileName[n] = '\\';
+  }
   pxe_call (PXENV_TFTP_GET_FSIZE, tftp_get_fsize);
   filemax = tftp_get_fsize->FileSize;
   filepos = 0;
