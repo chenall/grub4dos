@@ -479,6 +479,17 @@ int
 devread (unsigned long long sector, unsigned long long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
 {
   unsigned long sector_size_bits = log2_tmp(buf_geom.sector_size);
+  unsigned long rw_flag = write;
+
+  if (rw_flag != 0x900ddeed && rw_flag != 0xedde0d90)
+  {//for old devread with 32-bit byte_offset compatibility.
+    rw_flag = *(unsigned long*)(&write - 1);
+    if (rw_flag != 0x900ddeed && rw_flag != 0xedde0d90)
+      return !(errnum = ERR_FUNC_CALL);
+    buf = *(unsigned long long*)(&write - 3);
+    byte_len = *(unsigned long long*)(&write - 5);
+    byte_offset = (unsigned long)byte_offset;
+  }
 
   if (emu_iso_sector_size_2048)
     {
@@ -502,7 +513,7 @@ devread (unsigned long long sector, unsigned long long byte_offset, unsigned lon
    *  --  It requires that "sector" is relative to the beginning of the disk.
    *  --  It doesn't handle offsets across the sector boundary.
    */
-  return rawread (current_drive, (sector += part_start), byte_offset, byte_len, buf, write);
+  return rawread (current_drive, (sector += part_start), byte_offset, byte_len, buf, rw_flag);
 }
 
 

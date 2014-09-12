@@ -1235,7 +1235,9 @@ void hexdump(grub_u64_t ofs,char* buf,int len)
         break;
 
       ofs+=16;
-      len-=cnt - i;
+      cnt -= i;
+      len -= cnt;
+      buf += cnt;
     }
 }
 
