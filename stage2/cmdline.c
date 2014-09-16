@@ -53,14 +53,21 @@ skip_to (int flags, char *cmdline)
 		}
 		return *cmdline?cmdline:0;
 	}
+
   /* Skip until we hit whitespace, or maybe an equal sign. */
   while (*cmdline && !grub_isspace(*cmdline) &&
 	 ! ((flags & 1) && *cmdline == '='))
   {
-		if (*cmdline == '\"')
+		if (*cmdline == QUOTE_CHAR)
 		{
-			while (*++cmdline && *cmdline != '\"')
-				;
+			while(*cmdline)
+			{
+				++cmdline;
+				if (*cmdline == '\\')
+					++cmdline;
+				else if (*cmdline == QUOTE_CHAR)
+					break;
+			}
 		}
 		else if (*cmdline == '\\')
 		{
@@ -257,8 +264,8 @@ int run_line (char *heap,int flags)
    int status = 0;
    int ret = 0;
    int arg_len = strlen(heap) + 1;
+   cmd_buffer += (arg_len + 0x10) & -0x10;
    memmove(cmdline_buf,heap,arg_len);
-   cmd_buffer += arg_len;
    heap = cmdline_buf;
    while(*heap && (arg = heap))
    {
@@ -287,7 +294,7 @@ static int run_cmd_line (char *heap,int flags)
 	grub_error_t errnum_old = errnum;
 	char *cmdline_buf = cmd_buffer;
 	char *cmdBuff = NULL;
-	cmd_buffer += (expand_var(heap,cmdline_buf,0x600)+0x200)&-512;
+	cmd_buffer += (expand_var(heap,cmdline_buf,0x600)+0x10)&-0x10;
 	heap = cmdline_buf;
 	errnum = ERR_NONE;
 	while (*heap == 0x20 || *heap == '\t')
