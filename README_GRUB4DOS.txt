@@ -1233,6 +1233,8 @@ OPTIONS:
 	--install-partition=I	Install the boot record onto the boot area of
 				partition number I of the specified hard drive
 				or harddrive image DEVICE_OR_FILE.
+				
+	--gpt  Install the grldr.mbr to the GPT partition type device.
 
 DEVICE_OR_FILE:	Filename of the device or the image file. For DOS, a BIOS drive
 number(hex 0xHH or decimal DDD) can be used to access the drive. BIOS drive

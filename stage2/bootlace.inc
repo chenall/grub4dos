@@ -969,7 +969,7 @@
 
 	/* check --floppy */
 
-	movl	$9, %ecx
+	movl	$8, %ecx
 	movl	$ABS(option_floppy), %esi
 	pushl	%ebx
 	popl	%edi
@@ -988,7 +988,28 @@
 	movl	$0xff, ABS(floppy) rBP
 	jmp	1b
 3:
+	/* check --gpt */
 
+	movl	$5, %ecx
+	movl	$ABS(option_gpt), %esi
+	pushl	%ebx
+	popl	%edi
+
+	cld
+	repz cmpsb
+
+	jnz	3f
+
+	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
+	
+	cmpl	$0xffffffff, ABS(gpt) rBP
+	movl	$ABS(msg_option_gpt), %ecx
+	jnz	4f	/* error */
+
+	movl	$0xff, ABS(gpt) rBP
+	jmp	1b
+
+3:
 	xorl	%ebx, %ebx	# invalid file descriptor for CLOSE below
 	movl	$ABS(msg_invalid_option), %ecx
 	jmp	4f	/* error */
@@ -1463,11 +1484,7 @@ sb:
 #else
 	/* ssize_t read(int fd, void *buf, size_t count) */
 	//Clear buffer
-	xorl %eax, %eax
-	movl $MBR(0), %edi
-//	movl $0x0c00, %ecx
-	movl $(0x60*0x200/4), %ecx
-	rep stosl
+	call	100f
 
 	/* check if in 32-bit or 64-bit mode */
 	xorl	%eax, %eax
@@ -1502,48 +1519,9 @@ sb:
 
 	/* rewind the file for write! important! */
 
-	pushl	%ebx		// file descriptor, or 0 for BIOS drive
-
-#ifdef __DOS_16
-
-	xorl	%eax, %eax
-	cmpl	$0xff, PRE(cs)ABS(bios_drive_number)
-	jne	1f 
-	movl	$0x4200, %eax
 	movl	$0, %ecx
-	movl	$0, %edx
-	int	$0x21
-	jnc	1f
-	negl	%eax
-1:
-#else
-	/* off_t lseek(int fildes, off_t offset, int whence) */
+	call	400f
 
-	/* check if in 32-bit or 64-bit mode */
-	xorl	%eax, %eax
-	decl	%eax		// rex prefix of 0x48
-	testl	%eax, %eax
-	/* EAX = 0 for 64-bit mode, -1 for 32-bit mode */
-	jz	1f
-	
-	/* in 32-bit mode */
-	movl	$19, %eax	// sys_lseek
-	movl	$0, %ecx
-	movl	$0, %edx	// SEEK_SET = 0
-	int	$0x80
-	jmp	2f
-1:
-	/* in 64-bit mode */
-	movl	$8, %eax	// sys_lseek
-	pushl	%ebx
-	popl	%edi
-	movl	$0, %esi
-	movl	$0, %edx	// SEEK_SET = 0
-	syscall
-2:
-#endif
-
-	popl	%ebx		// file descriptor, or 0 for BIOS drive
 	testl	%eax, %eax
 	movl	$ABS(msg_lseek_file), %ecx
 	js	4f		/* error */
@@ -1627,6 +1605,9 @@ sb:
 	movl	$ABS(msg_option_total_sectors_for_mbr), %ecx
 	jnz	4f	/* error */
 
+	cmpl	$0xff, PRE(cs)ABS(gpt) rBP
+	jz	1f
+	
 //	cmpl	$((pre_stage2_start - _start1) / 512), PRE(cs)ABS(mbr_free_sectors)	rBP
 	cmpl	$(0x2000 / 0x200), PRE(cs)ABS(mbr_free_sectors)	rBP
 	movl	$ABS(msg_sectors_per_track), %ecx
@@ -1770,6 +1751,125 @@ sb:
 
 1:
 //----------------------------------------------------------------------------
+	cmpl	$0xff, PRE(cs)ABS(gpt) rBP
+	jnz	1f
+	
+	movl	$MBR(0), %esi
+	movl	$ABS(msg_gpt_partition_not), %ecx
+	cmpb	$0xee, 0x1c2(iSI)
+	jne	4f
+	cmpl	$0x20494645, 0x200(iSI)	//"EFI PART"?
+	jne	4f												//no
+	
+	movl	0x228(iSI), %edi
+	movl	0x248(iSI), %eax
+	shll	$9, %eax
+	addl	%eax, %esi
+	movl	0x20(iSI), %ecx
+3:
+	cmpl	$0, 0x2c(iSI)
+	jne	210f
+	cmpl	$0, 0xa4(iSI)
+	jne	210f
+	movl	0xa0(iSI), %eax
+	movl	0x28(iSI), %edx
+	subl	$16, %eax
+	cmpl	%edx, %eax
+	ja 3f
+	addl	$0x80, %esi
+	cmpl	$0, 0x20(iSI)
+	jne	3b
+	
+210:
+	subl	$16, %ecx
+	movl	%edi, %edx
+	cmpl	%edx, %ecx
+	movl	$ABS(msg_cannot_install_gpt_partition), %ecx
+	jbe 4f
+
+3:
+	addl	$1, %edx
+	movl	$ABS(msg_cannot_install_gpt_partition), %ecx
+	cmpl	$0x800000, %edx
+	jae	4f
+	movl	%edx, PRE(cs)ABS(201f) rBP
+	movl	$ABS(200f), %esi
+	movl	$MBR(0), %edi
+	movl	$(1f - 200f)/4, %ecx
+#ifdef __DOS_16
+	cs repz movsl
+#else
+	repz movsl
+#endif
+	movl	%edx, PRE(cs)ABS(install_sectors) rBP
+	movl	$1, PRE(cs)ABS(sectors_to_write) rBP
+	jmp	2f
+
+	.code16	
+200:
+	cli
+	xorl	%ecx, %ecx
+	movw	%cx, %ss
+	movw	$0x7C00, %sp        	//ss:sp=0000:7c00
+	pushw	%cx
+	popw	%ds                  	//ds=0000
+	sti
+
+	cmpb	$0xee, 0x7dc2
+	jne	204f
+	
+	movw	$3, %di       
+3:
+	pushaw
+	pushl	%ecx
+	.byte	0x66,0x68							//pushl
+201:
+	.long	0x22
+	pushw	$0xd00
+	pushw	%cx
+	pushw	$16
+	pushw	$16
+	movw	%sp, %si
+	movb	$0x42, %ah
+	int	$0x13
+	popaw
+	popaw
+	jnb	202f
+	xorw	%ax, %ax
+	int	$0x13
+	decw	%di
+	jne	3b
+204:
+	movw	$(203f - 200b + 0x7c00), %si
+3:
+	lodsb
+	cmpb	$0, %al
+	je	3f
+	movb	$0xe, %ah
+	int	$0x10
+	jmp	3b
+
+3:
+	jmp	3b
+
+202:
+	pushw	$0xd00
+	pushw	$0x256
+	retf
+
+203:
+	.ascii "Error loading grldr.mbr"
+	.byte	0,0,0,0,0
+	
+#ifdef __DOS_16
+	.code16
+#else
+	.code32
+#endif
+	
+1:
+//---------------------------------------------------------------------------
+
 	/* begin restore mbr */
 	testb	$1, PRE(cs)ABS(restore_mbr) rBP
 	jz	1f			/* not --restore-mbr */
@@ -2703,11 +2803,8 @@ sb:
 
 	/* read/write */
 
-	pushl	%ebx		# file descriptor, or 0 if specified BIOS drive
-
 #ifdef __DOS_16
 
-	xorl	%eax, %eax
 	cmpl	$0xff, PRE(cs)ABS(bios_drive_number)
 	je	1f		/* not bios */
 
@@ -2732,111 +2829,42 @@ sb:
 	je	2b	//not
 	xorl	%ecx, %ecx      	
 	cmpb	$0x79, %al	//"y"
-	jne	4f	//not	
-	cmpl	$0, PRE(cs)ABS(ebios_support)
-	je	10f		/* EBIOS not present */
-	movb	PRE(cs)ABS(bios_drive_number), %dl
-	/* EBIOS supported */
-	pushl	$0		// hi 32bit of startLBA
-	pushl %ecx
-	pushw	%es		// buffer segment
-	pushw	$0		// buffer offset
-	pushw	PRE(cs)ABS(sectors_to_write)
-	pushw	$0x0010		// packet length
-	movw	%sp, %si
-	movw	$0x4300, %ax	/* LBA write */
-	int	$0x13
-	movw	%ss, %ax
-	movw	%ax, %ds
-	movw	%ax, %es
-	popaw
-	jc 77f
-	xorl	%eax, %eax
-	clc
-	jmp 2f	
-77:
-	movl	$ABS(msg_ebios_write_failure), %ecx
-	call	8f	/* linux_print */
-
-10:
-
-	/* try CHS */
-
-	movb	$0x03, %ah	// CHS write to disk
-	movb	PRE(cs)ABS(sectors_to_write), %al
-
-	cmpb	$32, %al
-	stc
-	ja	2f		/* should not write two many sectors with CHS */
-
-//	cmpl	$0xffffffff, PRE(cs)ABS(floppy)
-//	je	2f
-//	movb	$4, %al		# write 4 sectors if it is floppy
-//2:
-	movw	$0, %bx
-	movw	$1, %cx
-	movw	PRE(cs)ABS(bios_drive_number), %dx
-	int	$0x13
-	movzwl	%ax, %eax
-	movw	%ss, %cx
-	movw	%cx, %ds
-	movw	%cx, %es
-	jmp	2f
-1:
-	//WRITE TO FILE OR DEVICE
-
-	//AH = 40h
-	//BX = file handle
-	//CX = number of bytes to write
-	//DS:DX -> data to write
-
-	//Return:
-	//CF clear if successful AX = number of bytes actually written
-	//CF set on error AX = error code (05h,06h) 
-	movl	$0x4000, %eax
-	movl	PRE(cs)ABS(sectors_to_write), %ecx
-	shll	$9, %ecx
-	movl	$0, %edx
-	int	$0x21
-2:
-	jnc	1f
-	negl	%eax
-1:
-#else
-	/* ssize_t write(int fd, const void *buf, size_t count) */
-
-	/* check if in 32-bit or 64-bit mode */
-	xorl	%eax, %eax
-	decl	%eax		// rex prefix of 0x48
-	testl	%eax, %eax
-	/* EAX = 0 for 64-bit mode, -1 for 32-bit mode */
-	jz	2f
-	
-	/* in 32-bit mode */
-	movl	$4, %eax	# sys_write
-	movl	$MBR(0), %ecx
-	movl	PRE(cs)ABS(sectors_to_write) rBP, %edx
-	shll	$9, %edx
-	int	$0x80
-	jmp	1f
-2:
-	/* in 64-bit mode */
-	movl	$1, %eax	# sys_write
-	pushl	%ebx
-	popl	%edi
-	movl	$MBR(0), %esi
-	movl	PRE(cs)ABS(sectors_to_write) rBP, %edx
-	shll	$9, %edx
-	syscall
+	jne	4f	//not
 1:
 #endif
-
-	popl	%ebx		# file descriptor, or 0 if specified BIOS drive
+	
+	call 300f
 3:
 	testl	%eax, %eax
 	movl	$ABS(msg_write_file), %ecx
 	js	4f	/* error */
 
+//=======================================================================================	
+	cmpl	$0xff, PRE(cs)ABS(gpt) rBP
+	jnz	1f
+
+	movl	$ABS(grldr_mbr_start), %esi
+	movl	$MBR(0), %edi
+	movl	$0x2000/4, %ecx
+#ifdef __DOS_16
+	cs repz movsl
+#else
+	repz movsl
+#endif	
+	movl	PRE(cs)ABS(install_sectors) rBP, %ecx
+	shll	$9, %ecx
+	call	400f
+	testl	%eax, %eax
+	movl	$ABS(msg_lseek_file), %ecx
+	js	4f		/* error */
+	movl	$16, PRE(cs)ABS(sectors_to_write) rBP
+	movl	PRE(cs)ABS(install_sectors) rBP, %ecx
+	call 300f
+	testl	%eax, %eax
+	movl	$ABS(msg_write_file), %ecx
+	js	4f	/* error */
+
+1:
 //----------------------------------------------------------------------------
 	cmpl	$0xffffffff, PRE(cs)ABS(floppy) rBP
 	jne	3f	/* floppy, skip geometry */
@@ -3340,7 +3368,7 @@ sb:
 	movl	$MBR(0), %esi
 	repz movsl
 	
-	movl	$24, PRE(cs)ABS(sectors_to_write)
+	movl	$24, PRE(cs)ABS(sectors_to_write) rBP
 	movl	$ABS(msg_fstype_exfat_allow), %ecx
 	call	8f	/* linux_print */
 	
@@ -3636,6 +3664,9 @@ sb:
 	pushl	%esi
 	pushl	%edi
 
+	cmpl	$0xff, PRE(cs)ABS(gpt) rBP
+	jz	88f
+	
 	addl	$0x200, %esi
 	
 	movl	$0, PRE(cs)ABS(mbr_free_sectors) rBP	# geometry ok
@@ -4734,6 +4765,7 @@ sb:
 	movl	%ecx, %eax
 1:
 	movl	%eax, PRE(cs)ABS(mbr_free_sectors) rBP
+88:
 	clc			/* success */
 	#; popal
 	popl	%edi
@@ -4782,7 +4814,7 @@ sb:
 	movl	%eax, 0x20(%ebp)
 	movl	%eax, 0x30(%ebp)
 	
-	movl	$0x04, PRE(cs)ABS(total_partition_entries) rBP
+	movl	$0x04, PRE(cs)ABS(total_partition_entries)
 	/* copy extended partition entries to the end of the partition table */
 	xorl	%esi, %esi
 1:
@@ -4818,7 +4850,7 @@ sb:
 	popal
 	/* check if the partition table is valid */
 	movb	0x1c2, %bl	//Partition is marked?
-	cmpb	$0x05, %bl  //��չ����?
+	cmpb	$0x05, %bl  //Extended partition? 
 	je	3f						//yes
 	cmpb	$0x0f, %bl  //Extended partition? 
 	je	3f						//yes
@@ -4833,7 +4865,7 @@ sb:
 	jmp	2b
 5:	
 	/* approve the partition entries and move onto the free entries */
-	movl	PRE(cs)ABS(total_partition_entries) rBP, %edi
+	movl	PRE(cs)ABS(total_partition_entries), %edi
 	shll	$4, %edi
 	addl	%ebp, %edi		# EDI points to the first free entry
 	/* move the extended partition entry onto the first free entry */
@@ -4847,14 +4879,14 @@ sb:
 	//Determine whether there is an extended partition
 	cmpl	$0, 0x1d6
 	je	2f	//no
-	incl	PRE(cs)ABS(total_partition_entries) rBP
+	incl	PRE(cs)ABS(total_partition_entries)
 	movl	0x08(%ebp, %esi), %eax	//parent partition
 	addl	0x1d6, %eax	//LBA partition start address
 	jmp	2b
 
 4:
 	addl	$0x10, %esi
-	movl	PRE(cs)ABS(total_partition_entries) rBP, %edi
+	movl	PRE(cs)ABS(total_partition_entries), %edi
 	shll	$4, %edi
 	cmpl	%edi, %esi
 	jb	1b
@@ -4945,3 +4977,168 @@ sb:
 	movl	$(0x60*0x200/4), %ecx	
 	repz	stosl
 	ret
+
+//----------------------------------------------------------------------------------------
+//input: ecx
+
+400:
+	pushl	%ebx		// file descriptor, or 0 for BIOS drive
+
+#ifdef __DOS_16
+
+	xorl	%eax, %eax
+	cmpl	$0xff, PRE(cs)ABS(bios_drive_number)
+	jne	1f
+
+	movl	$0x4200, %eax
+	movw	%cx, %dx		//dx=Æ«ÒÆÁ¿µÄµÍÎ»
+	shrl	$16, %ecx	
+	int	$0x21
+	jnc	1f
+	negl	%eax
+1:
+#else
+	/* off_t lseek(int fildes, off_t offset, int whence) */
+
+	/* check if in 32-bit or 64-bit mode */
+	xorl	%eax, %eax
+	decl	%eax		// rex prefix of 0x48
+	testl	%eax, %eax
+	/* EAX = 0 for 64-bit mode, -1 for 32-bit mode */
+	jz	1f
+	
+	/* in 32-bit mode */
+	movl	$19, %eax	// sys_lseek
+	movl	$0, %edx 	// SEEK_SET = 0
+	int	$0x80
+	jmp	2f
+1:
+	/* in 64-bit mode */
+	movl	$8, %eax	// sys_lseek
+	pushl	%ebx
+	popl	%edi
+	movl	%ecx, %esi
+	movl	$0, %edx 	// SEEK_SET = 0
+	syscall
+2:
+#endif
+
+	popl	%ebx		// file descriptor, or 0 for BIOS drive
+	ret
+
+//----------------------------------------------------------------------------------------
+//input: ecx, es:0000, sectors_to_write
+
+300:
+	pushl	%ebx		# file descriptor, or 0 if specified BIOS drive 
+
+#ifdef __DOS_16
+
+	xorl	%eax, %eax
+	cmpl	$0xff, PRE(cs)ABS(bios_drive_number)
+	je	1f		/* not bios */
+
+	/* BIOS drive */	
+	cmpl	$0, PRE(cs)ABS(ebios_support)
+	je	10f		/* EBIOS not present */
+	movb	PRE(cs)ABS(bios_drive_number), %dl
+	/* EBIOS supported */
+	pushl	$0		// hi 32bit of startLBA
+	pushl %ecx
+	pushw	%es		// buffer segment
+	pushw	$0		// buffer offset
+	pushw	PRE(cs)ABS(sectors_to_write)
+	pushw	$0x0010		// packet length
+	movw	%sp, %si
+	movw	$0x4300, %ax	/* LBA write */
+	int	$0x13
+	movw	%ss, %ax
+	movw	%ax, %ds
+	movw	%ax, %es
+	popaw
+	jc 77f
+	xorl	%eax, %eax
+	clc
+	jmp 2f
+77:
+	movl	$ABS(msg_ebios_write_failure), %ecx
+	call	8f	/* linux_print */
+
+10:
+	cmpb	$0xff, PRE(cs)ABS(gpt)
+	jnz	10f
+	stc
+	jmp	2f
+10:
+	/* try CHS */
+
+	movb	$0x03, %ah	// CHS write to disk
+	movb	PRE(cs)ABS(sectors_to_write), %al
+
+	cmpb	$32, %al
+	stc
+	ja	2f		/* should not write two many sectors with CHS */
+
+	movw	$0, %bx
+	movw	$1, %cx
+	movw	PRE(cs)ABS(bios_drive_number), %dx
+	int	$0x13
+	movzwl	%ax, %eax
+	movw	%ss, %cx			//0000
+	movw	%cx, %ds
+	movw	%cx, %es
+	jmp	2f
+	
+1:
+	//WRITE TO FILE OR DEVICE
+
+	//AH = 40h
+	//BX = file handle
+	//CX = number of bytes to write
+	//DS:DX -> data to write
+
+	//Return:
+	//CF clear if successful AX = number of bytes actually written
+	//CF set on error AX = error code (05h,06h) 
+	movl	$0x4000, %eax
+	movl	PRE(cs)ABS(sectors_to_write), %ecx
+	shll	$9, %ecx 
+	movl	$0, %edx
+	int	$0x21
+2:
+	jnc	1f
+	negl	%eax
+1:
+#else
+	/* ssize_t write(int fd, const void *buf, size_t count) */
+
+	/* check if in 32-bit or 64-bit mode */
+	xorl	%eax, %eax
+	decl	%eax		// rex prefix of 0x48
+	testl	%eax, %eax
+	/* EAX = 0 for 64-bit mode, -1 for 32-bit mode */
+	jz	2f
+	
+	/* in 32-bit mode */
+	movl	$4, %eax	# sys_write
+	movl	$MBR(0), %ecx
+	movl	PRE(cs)ABS(sectors_to_write) rBP, %edx
+	shll	$9, %edx
+	int	$0x80       //bx=ÎÄ¼þÃèÊö·û
+	jmp	1f
+2:
+	/* in 64-bit mode */
+	movl	$1, %eax	# sys_write
+	pushl	%ebx
+	popl	%edi
+	movl	$MBR(0), %esi
+	movl	PRE(cs)ABS(sectors_to_write) rBP, %edx
+	shll	$9, %edx
+	syscall
+1:
+#endif
+
+	popl	%ebx		# file descriptor, or 0 if specified BIOS drive
+	ret
+	
+//----------------------------------------------------------------------------------------

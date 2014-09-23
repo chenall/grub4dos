@@ -1121,6 +1121,8 @@ BOOTLACE.COM 能将GRLDR的引导记录安装到硬盘驱动器或硬盘映像�
 
 	--install-partition=I	将引导记录安装到指定的硬盘驱动器或硬盘映像（设备或文件）
                                 的第 I 号分区的引导区中。
+																
+	--gpt	安装 grldr.mbr 到 gpt 分区类型的设备。
 
 
 DEVICE_OR_FILE： 设备或者映像文件的文件名。对于DOS，BIOS驱动器号（两位的十六进制

@@ -485,6 +485,9 @@ option_read_only:
 option_floppy:
 	.ascii	"--floppy\0"
 
+option_gpt:
+	.ascii	"--gpt\0"
+	
 //option_lba:
 //	.ascii	"--lba\0"
 
@@ -719,6 +722,9 @@ msg_option_read_only:
 msg_option_floppy:
 	.ascii	"\r\nError: Specified an option twice for --floppy.\r\n\0"
 
+msg_option_gpt:
+	.ascii	"\r\nError: Specified an option twice for --gpt.\r\n\0"	
+	
 //msg_option_lba:
 //	.ascii	"\r\nError: Specified an option twice for lba-chs mode.\r\n\0"
 
@@ -835,6 +841,12 @@ msg_no_enough_memory:
 
 msg_install_partition_not:
         .ascii  "\r\n\r\nError: Specified install partition not exist.\r\n\0"
+				
+msg_gpt_partition_not:
+        .ascii  "\r\n\r\nError: Specified gpt partition not exist.\r\n\0"
+				
+msg_cannot_install_gpt_partition:
+        .ascii  "\r\n\r\nError: Cannot install grldr.mbr to a GPT partition.\r\n\0"
         
 msg_disk_Information:	
 	.ascii  "\r\nHD"
@@ -886,7 +898,7 @@ msg_usage:
 //      .ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --lba, --chs,\r\n"
 //      .ascii	"--fat12, --fat16, --fat32, --vfat, --ntfs, --ext2, --exfat, --serial-number=SN,\r\n"
         .ascii	"--start-sector=B, --total-sectors=C, --install-partition=I, --serial-number=SN,\r\n"
-	.ascii	"--restore-mbr, --mbr-no-bpb, --chs-no-tune\r\n"
+	.ascii	"--restore-mbr, --mbr-no-bpb, --chs-no-tune, --gpt\r\n"
 	.ascii	"DEVICE_OR_FILE: Filename of the device or image. For DOS, a BIOS drive number\r\n"
 	.ascii	"(in hex 0xHH or decimal DDD format)can be used to access the drive.\r\n\0"
 
@@ -1068,6 +1080,12 @@ floppy:
 
 	.long	0xffffffff	/* default is for hard drive MBR */
 
+gpt:
+	.long	0xffffffff	
+	
+install_sectors:
+	.long	0xffffffff	
+	
 //lba:
 
 	/* 1 for lba, 0 for chs, -1 for `not specified'. */

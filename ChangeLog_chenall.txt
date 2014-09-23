@@ -1,7 +1,8 @@
 ﻿更新说明：
+2014-09-23（yaya）
+	1.使用 bootlace.com 安装 grldr.mbr 到 gpt 分区类型的设备。
 
 2014-09-02（yaya）
-
 	1.ext4 分区支持 64 位功能，支持元块组。
 	2.grldr头部、grldr.mbr 支持搜索 gpt 分区的 grldr。
 	3.修正了 bootlace。
