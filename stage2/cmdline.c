@@ -60,14 +60,8 @@ skip_to (int flags, char *cmdline)
   {
 		if (*cmdline == QUOTE_CHAR)
 		{
-			while(*cmdline)
-			{
-				++cmdline;
-				if (*cmdline == '\\')
-					++cmdline;
-				else if (*cmdline == QUOTE_CHAR)
-					break;
-			}
+			while (*++cmdline && *cmdline != QUOTE_CHAR)
+				;
 		}
 		else if (*cmdline == '\\')
 		{
