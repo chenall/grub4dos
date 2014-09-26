@@ -360,6 +360,9 @@ static int run_cmd_line (char *heap,int flags)
 				break;
 		}
 
+		if (debug > 10)
+			printf("r0:[%s]\n",arg);
+
 		if (status & 8)
 		{
 			if (substring(heap,"nul",1) == 0)
