@@ -282,6 +282,7 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	        {
 		  if (blklst_last_length == buf_geom.sector_size)
 			{
+				if (debug > 0)
 		    grub_printf ("%s%ld+%ld", (blklst_num_entries ? "," : ""),
 			     //(unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
 					 (unsigned long long)(blklst_start_sector), blklst_num_sectors);
@@ -292,16 +293,22 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 				}
 			}
 		  else if (blklst_num_sectors > 1)
+			{
+				if (debug > 0)
 		    grub_printf ("%s%ld+%ld,%ld[0-%d]", (blklst_num_entries ? "," : ""),
 			     //(unsigned long long)(blklst_start_sector - part_start), (blklst_num_sectors-1),
 			     //(unsigned long long)(blklst_start_sector + blklst_num_sectors-1 - part_start),
 					(unsigned long long)(blklst_start_sector), (blklst_num_sectors-1),
 			    (unsigned long long)(blklst_start_sector + blklst_num_sectors-1),  
 			     blklst_last_length);
+			}
 		  else
+			{
+				if (debug > 0)
 		    grub_printf ("%s%ld[0-%d]", (blklst_num_entries ? "," : ""),
 			     //(unsigned long long)(blklst_start_sector - part_start), blklst_last_length);
 					 (unsigned long long)(blklst_start_sector), blklst_last_length);
+			}
 	        }
 	      blklst_num_entries++;
 	      blklst_num_sectors = 0;
@@ -311,9 +318,12 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
       if (offset > 0)
 	{
 	  if (query_block_entries >= 0)
+		{
+		if (debug > 0)
 	  grub_printf("%s%ld[%d-%d]", (blklst_num_entries ? "," : ""),
 		      //(unsigned long long)(sector - part_start), offset, (offset + length));
 					(unsigned long long)(sector), offset, (offset + length));
+		}
 	  blklst_num_entries++;
 	}
       else
@@ -371,7 +381,7 @@ blocklist_func (char *arg, int flags)
 #endif /* NO_DECOMPRESSION */
 
   /* Print the device name.  */
-  if (query_block_entries >= 0)
+  if ((query_block_entries >= 0) && (debug > 0))
   {
 	grub_printf ("(%cd%d", ((current_drive & 0x80) ? 'h' : 'f'), (current_drive & ~0x80));
   
@@ -399,6 +409,7 @@ blocklist_func (char *arg, int flags)
     {
       if (query_block_entries >= 0)
 			{
+				if (debug > 0)
         grub_printf ("%s%ld+%d", (blklst_num_entries ? "," : ""),
 		 //(unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
 					(unsigned long long)(blklst_start_sector), blklst_num_sectors);

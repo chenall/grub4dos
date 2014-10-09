@@ -1,4 +1,7 @@
 ﻿更新说明：
+2014-10-09（yaya）
+	1.屏蔽 map 信息。 
+
 2014-09-23（yaya）
 	1.使用 bootlace.com 安装 grldr.mbr 到 gpt 分区类型的设备。
 

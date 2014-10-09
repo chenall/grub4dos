@@ -1761,33 +1761,32 @@ sb:
 	cmpl	$0x20494645, 0x200(iSI)	//"EFI PART"?
 	jne	4f												//no
 	
-	movl	0x228(iSI), %edi
+	movl	0x228(iSI), %edx
 	movl	0x248(iSI), %eax
 	shll	$9, %eax
 	addl	%eax, %esi
-	movl	0x20(iSI), %ecx
+	movl	0x20(iSI), %eax
+	subl	$16, %eax
+	cmpl	%edx, %eax
+	ja 210f
+	
+	movl	$ABS(msg_cannot_install_gpt_partition), %ecx
 3:
 	cmpl	$0, 0x2c(iSI)
-	jne	210f
+	jne	4f
 	cmpl	$0, 0xa4(iSI)
-	jne	210f
+	jne	4f
 	movl	0xa0(iSI), %eax
 	movl	0x28(iSI), %edx
 	subl	$16, %eax
 	cmpl	%edx, %eax
-	ja 3f
+	ja 210f
 	addl	$0x80, %esi
 	cmpl	$0, 0x20(iSI)
 	jne	3b
+	jmp 4f
 	
 210:
-	subl	$16, %ecx
-	movl	%edi, %edx
-	cmpl	%edx, %ecx
-	movl	$ABS(msg_cannot_install_gpt_partition), %ecx
-	jbe 4f
-
-3:
 	addl	$1, %edx
 	movl	$ABS(msg_cannot_install_gpt_partition), %ecx
 	cmpl	$0x800000, %edx
