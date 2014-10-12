@@ -119,7 +119,7 @@ VARIABLE(version_string)
 	.string VERSION
 
 VARIABLE(config_file)
-	.string "/boot/grub/menu.lst"
+	.string "/menu.lst"
 
 	. = EXT_C(main) + 0x34
 
@@ -349,6 +349,13 @@ real_codestart:
 
 	sti		/* added 2008-08-04 */
 
+	/* save DX at 0x8206, overwriting the unused version numbers. */
+	movw	%dx, ABS(EXT_C(install_partition)) - 2
+
+	# it is time to do this after DX has been saved.
+	movw	$0x0003, %ax	/* set display mode: 80*25 color text */
+	int	$0x10		# this might destroy our DX
+
 	/* check for fb structure  */
 	cmpl	$0x46424246, (0x21b4)
 	jnz	1f
@@ -445,7 +452,7 @@ real_codestart:
 	xorw	%ax, %ax
 	movw	%ax, %es			/* ES=0 */
 
-	pushw	%dx		/* DL=boot drive */
+//	pushw	%dx		/* DL=boot drive */
 
 	xorw	%ax, %ax
 	movw	%ax, %ds
@@ -528,10 +535,10 @@ real_codestart:
 	jnz	1f
 	movl	$0, ABS(EXT_C(use_config_file))
 1:
-	popw	%dx		/* DL=boot drive */
+//	popw	%dx		/* DL=boot drive */
 
-	movzbl	%dl, %eax
-	movl	%eax, ABS(EXT_C(boot_drive))
+//	movzbl	%dl, %eax
+//	movl	%eax, ABS(EXT_C(boot_drive))
 
 	xorw	%ax, %ax
 	movw	%ax, %ds

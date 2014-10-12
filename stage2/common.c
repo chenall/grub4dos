@@ -345,7 +345,13 @@ init_bios_info (void)
   unsigned long cont, memtmp, addr;
   unsigned long drive;
   unsigned long force_pxe_as_boot_device;
+  unsigned long use_fixed_boot_device = boot_drive;
 
+  if (use_fixed_boot_device != -1)
+  {
+	/* save boot device info in it */
+	use_fixed_boot_device = ((unsigned short)boot_drive | (install_partition & 0x00FF0000)); 
+  }
   is64bit = check_64bit_and_PAE ();
 
   /* initialize mem alloc array */
@@ -616,7 +622,7 @@ redo_dos_geometry:
 		goto failed_dos_boot_drive;
 	}
 succeeded_dos_boot_drive:
-	((char *)&install_partition)[2] = (char)j;
+	((unsigned short *)&install_partition)[1] = (unsigned char)j;
 	boot_drive = (unsigned char)dos_drive_geometry;
 
 	/* set geometry_ok flag for dos boot drive */
@@ -633,11 +639,13 @@ succeeded_dos_boot_drive:
 		hd_geom[0].sectors = ((unsigned char *)&dos_drive_geometry)[2];
 	}
     }
-    else if (! fb_status) // if not boot from fbinst
+    else if (use_fixed_boot_device == -1)
 //	 if (! ((*(char *)0x8211) & 2)) // if not booting as a Linux kernel
     {
 	unsigned long j, k;
 
+	boot_drive = *(unsigned char *)0x8206;
+	((unsigned short *)&install_partition)[1] = *(unsigned char *)0x8207;
 	/* check if there is a valid volume-boot-sector at 0x7C00. */
 	if (probe_bpb((struct master_and_dos_boot_sector *)0x7C00))
 		goto failed_dos_boot_drive;
@@ -651,6 +659,9 @@ succeeded_dos_boot_drive:
 	//boot_drive = j;
 	dos_drive_geometry = k;
 	goto redo_dos_geometry;
+    }
+    else
+    {
     }
 failed_dos_boot_drive:
 
@@ -832,6 +843,13 @@ set_root:
   {
 	boot_drive = PXE_DRIVE;
 	install_partition = 0xFFFFFF;
+  }
+
+  if (use_fixed_boot_device != -1)
+  {
+	/* force boot device to be the saved value. */
+	boot_drive = (unsigned short)use_fixed_boot_device;
+	install_partition = use_fixed_boot_device | 0xFFFF;
   }
 
   /* Set root drive and partition.  */
