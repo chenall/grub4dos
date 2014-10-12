@@ -163,8 +163,6 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 		return NULL;
 	while (*(cmd = skip_to (0, cmd)))
 	{
-		if (cmd[0] == cmd[1] && cmd[2] != 0x20)
-			continue;
 		switch (*(unsigned short *)cmd)
 		{
 			case 0x2626://	operator AND "&&"
