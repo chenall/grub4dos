@@ -1,4 +1,10 @@
 ﻿更新说明：
+2014-10-12
+	1.skip_to()函数修改,对于引号里面的”\”使用以前的方法处理,保持兼容性。(chenall)
+	2.add variable @boot,add debug info。(chenall)
+	3.two variables boot_drive and install_partition can be preset to a value before transferring control to grub4dos. (tinybit)
+	4.修正屏蔽 map 信息。(yaya)
+
 2014-10-09（yaya）
 	1.屏蔽 map 信息。 
 

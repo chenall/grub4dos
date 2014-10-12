@@ -797,6 +797,7 @@ grldr_real_start:
 
 	cld	
 3:
+#if 0
 	/* put the config file name */
 	xorw	%ax, %ax
 	movw	%ax, %es
@@ -846,8 +847,20 @@ default_config_file:
 	.ascii	"/menu.lst"
 
 	.byte	0		/* mark the end of ascii zero string */	
+#else
+	xorw	%eax, %eax
+	movw	%ax, %es
+	movw	%ax, %ds
+	//movw	%ax, %ss
+	//movw	$0x2000, %sp
 
+	#; clear saved_entryno so that force_cdrom_as_boot_device be cleared
+	#; later in common.c
 
+	movl	%eax, 0x820C	/* EAX=0, clear saved_entryno */
+
+	ljmp	$0, $0x8200
+#endif
 	
 	. = _start1 + 0x3f0 	
 	

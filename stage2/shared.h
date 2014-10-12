@@ -788,6 +788,7 @@ extern long realmode_run(long regs_ptr);
 #define MAX_BUFFER	(MAX_VARS * (MAX_VAR_LEN + MAX_ENV_LEN))
 //#define BASE_ADDR 0x45000
 #define VARIABLE_BASE_ADDR (*(unsigned long*)0x307FF4)
+#define		QUOTE_CHAR	(*(char*)0x307FF0)
 #define BASE_ADDR	VARIABLE_BASE_ADDR
 typedef char VAR_NAME[MAX_VAR_LEN];
 typedef char VAR_VALUE[MAX_ENV_LEN];
@@ -797,7 +798,7 @@ typedef char VAR_VALUE[MAX_ENV_LEN];
 
 #define		WENV_ENVI	((char*)0x4CA00)
 #define		WENV_RANDOM	(*(unsigned long *)(WENV_ENVI+0x20))
-#define		QUOTE_CHAR	(*(char*)(WENV_ENVI + 0x30))
+//#define		QUOTE_CHAR	(*(char*)(WENV_ENVI + 0x30))
 #define		PATHEXT		(WENV_ENVI + 0x40)
 #define		WENV_TMP	(WENV_ENVI + 0x80)
 

@@ -282,7 +282,7 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	        {
 		  if (blklst_last_length == buf_geom.sector_size)
 			{
-				if (debug > 0)
+				if (query_block_entries != 4)
 		    grub_printf ("%s%ld+%ld", (blklst_num_entries ? "," : ""),
 			     //(unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
 					 (unsigned long long)(blklst_start_sector), blklst_num_sectors);
@@ -294,7 +294,7 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 			}
 		  else if (blklst_num_sectors > 1)
 			{
-				if (debug > 0)
+				if (query_block_entries != 4)
 		    grub_printf ("%s%ld+%ld,%ld[0-%d]", (blklst_num_entries ? "," : ""),
 			     //(unsigned long long)(blklst_start_sector - part_start), (blklst_num_sectors-1),
 			     //(unsigned long long)(blklst_start_sector + blklst_num_sectors-1 - part_start),
@@ -304,7 +304,7 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 			}
 		  else
 			{
-				if (debug > 0)
+				if (query_block_entries != 4)
 		    grub_printf ("%s%ld[0-%d]", (blklst_num_entries ? "," : ""),
 			     //(unsigned long long)(blklst_start_sector - part_start), blklst_last_length);
 					 (unsigned long long)(blklst_start_sector), blklst_last_length);
@@ -319,7 +319,7 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	{
 	  if (query_block_entries >= 0)
 		{
-		if (debug > 0)
+		if (query_block_entries != 4)
 	  grub_printf("%s%ld[%d-%d]", (blklst_num_entries ? "," : ""),
 		      //(unsigned long long)(sector - part_start), offset, (offset + length));
 					(unsigned long long)(sector), offset, (offset + length));
@@ -381,7 +381,7 @@ blocklist_func (char *arg, int flags)
 #endif /* NO_DECOMPRESSION */
 
   /* Print the device name.  */
-  if ((query_block_entries >= 0) && (debug > 0))
+  if (query_block_entries != 4)
   {
 	grub_printf ("(%cd%d", ((current_drive & 0x80) ? 'h' : 'f'), (current_drive & ~0x80));
   
@@ -409,7 +409,7 @@ blocklist_func (char *arg, int flags)
     {
       if (query_block_entries >= 0)
 			{
-				if (debug > 0)
+				if (query_block_entries != 4)
         grub_printf ("%s%ld+%d", (blklst_num_entries ? "," : ""),
 		 //(unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
 					(unsigned long long)(blklst_start_sector), blklst_num_sectors);
@@ -4048,7 +4048,7 @@ static struct builtin builtin_dd =
 
 
 /* debug */
-static int bat_script_debug = 0;
+ 
 static int
 debug_func (char *arg, int flags)
 {
@@ -4071,15 +4071,6 @@ debug_func (char *arg, int flags)
   else if (safe_parse_maxint (&arg, &tmp_debug))
   {
     debug = tmp_debug;
-    switch (debug)
-    {
-		case 3:
-			bat_script_debug = 1;
-			break;
-		case 4:
-			bat_script_debug = 0;
-			break;
-    }
   }
   else
   {
@@ -15125,6 +15116,16 @@ int envi_cmd(const char *var,char * const env,int flags)
 		WENV_RANDOM   =  (WENV_RANDOM * date + (*(int *)0x46c)) & 0x7fff;
 		sprintf(p,"%d",WENV_RANDOM);
 	    }
+	    else if (substring(ch,"@boot",1) == 0) 
+	    { 
+				grub_u32_t tmp_drive = current_drive; 
+				grub_u32_t tmp_partition = current_partition; 
+				current_drive = boot_drive; 
+				current_partition = install_partition; 
+				print_root_device(p,1); 
+				current_drive = tmp_drive; 
+				current_partition = tmp_partition; 
+	    } 
 	    else if (substring(ch,"@root",1) == 0)
 	    {
 		print_root_device(p,0);
@@ -15607,6 +15608,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 	char **bat_entry = (char **)(p_bat_prog->entry + 0x80);
 
+	int debug_bat = debug > 10?1:0;
 	int i = 1;
 
 	if (filename == NULL)
@@ -15620,8 +15622,8 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 	}
 
-	if (bat_script_debug)
-	    printf("%s [%d]\n",filename,prog_pid);
+	if (debug_bat) 
+		printf("S^:%s [%d]\n",filename,prog_pid);
 
 	char **p_entry = bat_entry + i;
 
@@ -15751,9 +15753,9 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 
 		*p_cmd = '\0';
-		if (bat_script_debug)
+		if (debug_bat)
 		{
-			printf("%s\n",p_buff);
+			printf("S1:[%s]\n",p_buff);
 			char key=getkey() & 0xdf;
 			if (key == 'Q')
 			{
@@ -15813,6 +15815,8 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	bc = saved_bc;
 	batch_args = backup_args;
 	grub_free(cmd_buff);
+	if (debug_bat) 
+		printf("S$:%s [%d]\n",filename,prog_pid); 
 	errnum = (i == 1000) ? 0 : i;
 	return errnum?0:ret;
 }

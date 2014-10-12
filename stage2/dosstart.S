@@ -1305,6 +1305,7 @@ grldr_real_start:
 
 3:
 
+#if 0
 	/* put the config file name */
 	xorw	%ax, %ax
 	movw	%ax, %es
@@ -1351,6 +1352,20 @@ default_config_file_grldr:
 	.ascii	"/menu.lst"
 
 	.byte	0		/* mark the end of ascii zero string */
+#else
+	xorw	%eax, %eax
+	movw	%ax, %es
+	movw	%ax, %ds
+	//movw	%ax, %ss
+	//movw	$0x2000, %sp
+
+	#; clear saved_entryno so that force_cdrom_as_boot_device be cleared
+	#; later in common.c
+
+	movl	%eax, 0x820C	/* EAX=0, clear saved_entryno */
+
+	ljmp	$0, $0x8200
+#endif
 
 #-----------------------------------------------------------------------------
 #		GRLDR structure for sector 1 ends here
@@ -7718,7 +7733,7 @@ to_realmode:
 	/* pre_stage2_start+0xA holds the boot partition number. The default
 	 * partition number is 0(and default drive number is 0x80 in DL)
 	 */
-	movb	%dh, -8(%di)	/* 0x820A, the boot partition number */
+	#;movb	%dh, -8(%di)	/* 0x820A, the boot partition number */
 	orb	$2, -13(%di)	/* 0x8205, disable keyboard intervention */
 
 	cld
@@ -7732,11 +7747,11 @@ to_realmode:
 1:
 	//sti
 
-	movw	$0x0003, %ax	/* set display mode: 80*25 color text */
-	int	$0x10
+//	movw	$0x0003, %ax	/* set display mode: 80*25 color text */
+//	int	$0x10
 
-	movw	$(launch_pre_stage2 - startup_32 + 0xE00), %si
-	call	print_message1
+//	movw	$(launch_pre_stage2 - startup_32 + 0xE00), %si
+//	call	print_message1
 
 	xorw	%ax, %ax
 	movw	%ax, %ss
@@ -8565,24 +8580,24 @@ iodelay:
 	addr32 loop	1b
 	ret
 
-	/* prints string DS:SI (modifies AX BX SI) */
-3:
-	//xorw	%bx, %bx	/* video page 0 */
-	movb	$0x0e, %ah	/* print char in AL */
-	int	$0x10		/* via TTY mode */
-
-print_message1:
-
-	lodsb	(%si), %al	/* get token */
-	cmpb	$0, %al		/* end of string? */
-	jne	3b
-	ret
-
-
-launch_pre_stage2:
-	.ascii	"\r\n\r\nLaunching GRUB...\r\n"
-
-	.byte	0		/* mark the end of ascii zero string */
+//	/* prints string DS:SI (modifies AX BX SI) */
+//3:
+//	//xorw	%bx, %bx	/* video page 0 */
+//	movb	$0x0e, %ah	/* print char in AL */
+//	int	$0x10		/* via TTY mode */
+//
+//print_message1:
+//
+//	lodsb	(%si), %al	/* get token */
+//	cmpb	$0, %al		/* end of string? */
+//	jne	3b
+//	ret
+//
+//
+//launch_pre_stage2:
+//	.ascii	"\r\n\r\nLaunching GRUB...\r\n"
+//
+//	.byte	0		/* mark the end of ascii zero string */
 
 default_config_file:
 	.ascii	"/menu.lst"
@@ -9351,7 +9366,7 @@ put_config_file_name:
 	/* pre_stage2_start+0xA holds the boot partition number. We use
 	 * default partition number 0(and default drive number 0x80 in DL)
 	 */
-	movb	%al, -8(%di)	/* the boot partition number */
+	#;movb	%al, -8(%di)	/* the boot partition number */
 
 	/* pre_stage2_start+0xB holds our temp boot_drive */
 	movb	$0x80, -7(%di)	/* temp storage for boot_drive */
