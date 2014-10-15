@@ -1,4 +1,7 @@
 ﻿更新说明：
+2014-10-15
+	1.workaround for issue 204(chenall)
+
 2014-10-12
 	1.skip_to()函数修改,对于引号里面的”\”使用以前的方法处理,保持兼容性。(chenall)
 	2.add variable @boot,add debug info。(chenall)
