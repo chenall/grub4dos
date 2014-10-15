@@ -900,7 +900,7 @@ set_root:
   VARIABLE_BASE_ADDR = 0x45000;
   memset(ADDR_RET_STR,0,0x200);
   run_line("set ?_BOOT=%@root%",1);
-	QUOTE_CHAR = '\"';
+  QUOTE_CHAR = '\"';
 //  builtin_cmd("set","?_Boot=",1);/*Initialize variable space*/
 
 #ifdef SUPPORT_GRAPHICS

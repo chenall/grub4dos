@@ -4048,7 +4048,7 @@ static struct builtin builtin_dd =
 
 
 /* debug */
- 
+
 static int
 debug_func (char *arg, int flags)
 {
@@ -15116,16 +15116,16 @@ int envi_cmd(const char *var,char * const env,int flags)
 		WENV_RANDOM   =  (WENV_RANDOM * date + (*(int *)0x46c)) & 0x7fff;
 		sprintf(p,"%d",WENV_RANDOM);
 	    }
-	    else if (substring(ch,"@boot",1) == 0) 
-	    { 
-				grub_u32_t tmp_drive = current_drive; 
-				grub_u32_t tmp_partition = current_partition; 
-				current_drive = boot_drive; 
-				current_partition = install_partition; 
-				print_root_device(p,1); 
-				current_drive = tmp_drive; 
-				current_partition = tmp_partition; 
-	    } 
+	    else if (substring(ch,"@boot",1) == 0)
+	    {
+		grub_u32_t tmp_drive = current_drive;
+		grub_u32_t tmp_partition = current_partition;
+		current_drive = boot_drive;
+		current_partition = install_partition;
+		print_root_device(p,1);
+		current_drive = tmp_drive;
+		current_partition = tmp_partition;
+	    }
 	    else if (substring(ch,"@root",1) == 0)
 	    {
 		print_root_device(p,0);
@@ -15815,8 +15815,10 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	bc = saved_bc;
 	batch_args = backup_args;
 	grub_free(cmd_buff);
+
 	if (debug_bat) 
 		printf("S$:%s [%d]\n",filename,prog_pid); 
+
 	errnum = (i == 1000) ? 0 : i;
 	return errnum?0:ret;
 }

@@ -795,8 +795,10 @@ grldr_real_start:
 	decw	%bx
 	jnz	1b
 
-	cld	
+	cld
+
 3:
+
 #if 0
 	/* put the config file name */
 	xorw	%ax, %ax
