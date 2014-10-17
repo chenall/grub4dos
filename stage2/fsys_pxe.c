@@ -186,6 +186,29 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
     return 0;
 
 //  pxe_inited = 1;
+// for proxyDHCP compatible and auto reset sip/gip with pxe_detect
+  if (discover_reply->sip)
+	pxe_sip = discover_reply->sip;
+  if (discover_reply->gip)
+	pxe_gip = discover_reply->gip;
+  else
+  {//get route gateway
+	grub_u8_t *p = discover_reply->vendor.d;
+	if (*(long*)p == 0x63538263)//DHCP magic cookie 99.130.83.99
+	{
+		for(i=4;i<BOOTP_DHCPVEND;i += p[i] + 1)
+		{
+			grub_u8_t code = p[i++];
+			if (!code || code == '\xff')
+				break;
+			if (code == '\x3')//Router Option
+			{
+				pxe_gip = *(IP4*)(p + i + 1);
+				break;
+			}
+		}
+	}
+  }
 
   if (discover_reply->bootfile[0])
     {
