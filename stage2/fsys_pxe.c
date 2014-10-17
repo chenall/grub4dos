@@ -186,6 +186,11 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
     return 0;
 
 //  pxe_inited = 1;
+// for proxyDHCP compatible and auto reset sip/gip with pxe_detect
+  if (discover_reply->sip)
+	pxe_sip = discover_reply->sip;
+  if (discover_reply->gip)
+	pxe_gip = discover_reply->gip;
 
   if (discover_reply->bootfile[0])
     {
