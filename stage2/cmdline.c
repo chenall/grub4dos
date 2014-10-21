@@ -156,12 +156,25 @@ find_command (char *command)
 #define OPT_MULTI_CMD_AND	(1<<5)
 #define OPT_MULTI_CMD_OR_FLAG  	0x3B7C
 #define OPT_MULTI_CMD_OR	(1<<6)
+static char *get_next_arg(char *arg)
+{
+	while(*arg && !isspace(*arg))
+	{
+		if (*arg == QUOTE_CHAR) while (*++arg && *arg != QUOTE_CHAR);
+		if (*arg == '\\') ++arg;
+		if (*arg) ++arg;
+	}
+	while (isspace(*arg)) ++arg;
+	return arg;
+}
+
 static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 {
 //	*status = 0;
 	if (cmd == NULL || *cmd == 0)
 		return NULL;
-	while (*(cmd = skip_to (0, cmd)))
+
+	while (*(cmd = get_next_arg(cmd)))
 	{
 		switch (*(unsigned short *)cmd)
 		{
@@ -196,13 +209,16 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 			default:
 				continue;
 		}
-		if (flags == 0 || (*status & flags))
+
+		char *p = cmd + 1;
+
+		if ((flags == 0 || (*status & flags)) && (!*p || *p == ' ' || p[1] == ' '))
 		{
 			*(cmd - 1) = '\0';
-			cmd = skip_to (0, cmd);
+			cmd = get_next_arg(cmd);
 			break;
 		}
-		*status = 0;
+//		*status = 0;
 	}
 
 	if (*cmd == '\0')
