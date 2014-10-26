@@ -1153,13 +1153,21 @@ static struct builtin builtin_boot =
 void hexdump(grub_u64_t ofs,char* buf,int len)
 {
   quit_print=0;
+  int align = len > 16;
   while (len>0)
     {
       int cnt,k,i,j = 3;
 
-      i = ofs & 0xFLL;
-      if (i)
-         ofs &= ~0xFLL;
+      if (align)
+      {
+        i = ofs & 0xFLL;
+        if (i)
+          ofs &= ~0xFLL;
+      }
+      else
+      {
+        i = 0;
+      }
 
       if ((ofs >> 32))
           j = 7;
@@ -1455,7 +1463,7 @@ cat_func (char *arg, int flags)
 	}
   }else if (Hex == (++ret))	/* a trick for (ret = 1, Hex == 1) */
   {
-    j = 16 - (skip & 0xF);
+    j = 16/* - (skip & 0xF)*/;
 
     if (j > length)
       j = length;
