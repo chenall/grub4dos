@@ -115,7 +115,7 @@ void
 print_error (void)
 {
   if (errnum > ERR_NONE && errnum < MAX_ERR_NUM)
-    grub_printf ("\nError %u: %s\n", errnum, err_list[errnum]);
+    printf_errinfo ("\nError %u: %s\n", errnum, err_list[errnum]);
 }
 
 char *
@@ -271,7 +271,17 @@ grub_sprintf (char *buffer, const char *format, ...)
   unsigned int length;
   int align;
   unsigned int accuracy;
+  unsigned char *putchar_hook_back;
+  int stdout = 1;
+  if (buffer == (char*)1 || buffer == (char*)2)
+  {
+    if (debug < 2 && buffer == (char*)1)// show nothing when debug < 2 for warning message
+      return 1;
 
+    stdout = 0;
+    putchar_hook_back = set_putchar_hook(NULL);
+    bp=buffer=NULL;//reset buffer and bp to NULL
+  }
   //dataptr++;
   //dataptr++;
 #if 1
@@ -551,6 +561,9 @@ find_specifier:
 #endif
   if (buffer)
 	*bp = 0;
+  if (stdout == 0)
+	set_putchar_hook(putchar_hook_back);
+
   return bp - (unsigned char *)buffer;
 }
 

@@ -1,3 +1,4 @@
+2014-10-25 disabled warning and errinfo message redirect.
 2014-10-17 PXE Boot supported proxyDHCP and gateway.
 2014-10-10 (tinybit) two variables boot_drive and install_partition can be preset to a value before transferring control to grub4dos.
 2014-09-08 (tinybit) supported backslash-delimited pathname used by pxe server.
