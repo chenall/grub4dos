@@ -109,7 +109,7 @@ fat_mount (void)
   if (FAT_SUPER->clustsize_bits > 15)
   {
     if (debug > 0)
-	grub_printf ("Warning! FAT cluster size(=%d) larger than 32K!\n", (1 << (FAT_SUPER->clustsize_bits)));
+	printf_warning ("Warning! FAT cluster size(=%d) larger than 32K!\n", (1 << (FAT_SUPER->clustsize_bits)));
     //return 0;
   }
 
@@ -236,7 +236,7 @@ fat_mount (void)
   if ((first_fat | 0xF) != (magic | 0xFF))
   {
     if (debug > 0)
-	grub_printf ("Warning! Invalid first FAT entry(=0x%X)!\n", first_fat);
+	printf_warning ("Warning! Invalid first FAT entry(=0x%X)!\n", first_fat);
     //return 0;
   }
 
@@ -271,7 +271,7 @@ label_exfat:
     if (FAT_SUPER->clustsize_bits > 15)
     {
       if (debug > 0)
-	grub_printf ("Warning! FAT cluster size(=%d) larger than 32K!\n", (1 << (FAT_SUPER->clustsize_bits)));
+	printf_warning ("Warning! FAT cluster size(=%d) larger than 32K!\n", (1 << (FAT_SUPER->clustsize_bits)));
       //return 0;
     }
 
@@ -337,7 +337,7 @@ label_exfat:
     if (first_fat != 0xfffffff8)
     {
       if (debug > 0)
-  	grub_printf ("Warning! Invalid first FAT entry(=0x%X)!\n", first_fat);
+  	printf_warning ("Warning! Invalid first FAT entry(=0x%X)!\n", first_fat);
       //return 0;
     }
 

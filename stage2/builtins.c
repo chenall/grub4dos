@@ -2199,7 +2199,7 @@ chainloader_func (char *arg, int flags)
 			if ((err = probe_mbr ((struct master_and_dos_boot_sector *)(HMA_ADDR - 0x200), 0, 1, 0)))
 			{
 				if (debug > 0)
-					printf ("Warning! Partition table of HD image is faulty(err=%d).\n", err);
+					printf_warning ("Warning! Partition table of HD image is faulty(err=%d).\n", err);
 				sects = (*(unsigned char *)(HMA_ADDR - 0x200 + 0x1C4)) & 0x3F;
 				probed_total_sectors = *(unsigned long *)(HMA_ADDR - 0x200 + 0x1CA);
 				if (sects < 2 || probed_total_sectors < 5)
@@ -2381,7 +2381,7 @@ drdos:
 	    	*(unsigned long *)0x7BFC = (unsigned long)part_start + *(unsigned long *)0x7BF8; // root directory entry is in cluster 2 !!
 		}
 		else {
-			grub_printf("Error: Not FAT partition.");
+			printf_errinfo("Error: Not FAT partition.");
 			goto failure_exec_format;
 		}
 
@@ -4041,7 +4041,7 @@ struct builtin builtin_debug =
   debug_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
   "debug [on | off | normal | status | INTEGER]",
-  "Turn on/off or display/set the debug level."
+  "Turn on/off or display/set the debug level.debug 3 to Single-step Debug for batch script"
 };
 
 
@@ -5029,7 +5029,7 @@ command_func (char *arg, int flags)
 	    break;
      default:
 	if (debug > 0)
-        	grub_printf ("Warning! No such command: %s\n", arg);
+        	printf_warning ("Warning! No such command: %s\n", arg);
         errnum = 0;	/* No error, so that old menus will run smoothly. */
         //return 0;
         return 0;/* return 0 indicating a failure or a false case. */
@@ -8140,7 +8140,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
   if (filemax < 512)
   {
 	if (debug > 1)
-		printf ("Error: filesize(=%d) less than 512.\n"
+		printf_errinfo ("Error: filesize(=%d) less than 512.\n"
 			, (unsigned long)filemax);
 	return 1;
   }
@@ -8151,7 +8151,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
   if (BS->boot_signature != 0xAA55)
   {
 	if (debug > 1)
-		printf ("Warning!!! No boot signature 55 AA.\n");
+		printf_warning ("Warning!!! No boot signature 55 AA.\n");
   }
 #endif
 
@@ -8164,7 +8164,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
       if ((unsigned char)(BS->P[i].boot_indicator << 1))/* if neither 0x80 nor 0 */
       {
 	if (debug > 1)
-		printf ("Error: invalid boot indicator(0x%X) for entry %d.\n"
+		printf_errinfo ("Error: invalid boot indicator(0x%X) for entry %d.\n"
 			, (unsigned char)(BS->P[i].boot_indicator), i);
 	ret_val = 2;
 	goto err_print_hex;
@@ -8174,7 +8174,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
       if (active_partitions > 1)
       {
 	if (debug > 1)
-		printf ("Error: duplicate active flag at entry %d.\n", i);
+		printf_errinfo ("Error: duplicate active flag at entry %d.\n", i);
 	ret_val = 3;
 	goto err_print_hex;
       }
@@ -8189,14 +8189,14 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 	  if (! BS->P[i].start_lba)
 	  {
 		if (debug > 1)
-			printf ("Error: partition %d should not start at sector 0(the MBR sector).\n", i);
+			printf_errinfo ("Error: partition %d should not start at sector 0(the MBR sector).\n", i);
 		ret_val = 4;
 		goto err_print_hex;
 	  }
 	  if (! BS->P[i].total_sectors)
 	  {
 		if (debug > 1)
-			printf ("Error: number of total sectors in partition %d should not be 0.\n", i);
+			printf_errinfo ("Error: number of total sectors in partition %d should not be 0.\n", i);
 		ret_val = 5;
 		goto err_print_hex;
 	  }
@@ -8214,7 +8214,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 		(BS->P[j].start_lba - BS->P[i].start_lba < BS->P[i].total_sectors))
 	    {
 		if (debug > 1)
-			printf ("Error: overlapped partitions %d and %d.\n", j, i);
+			printf_errinfo ("Error: overlapped partitions %d and %d.\n", j, i);
 		ret_val = 6;
 		goto err_print_hex;
 	    }
@@ -8236,7 +8236,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 	  if (! X /* || BS->P[i].start_lba < Smax */)
 	  {
 		if (debug > 1)
-			printf ("Error: starting S of entry %d should not be 0.\n", i);
+			printf_errinfo ("Error: starting S of entry %d should not be 0.\n", i);
 		ret_val = 7;
 		goto err_print_hex;
 	  }
@@ -8262,7 +8262,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 	  if (! Y)
 	  {
 		if (debug > 1)
-			printf ("Error: ending S of entry %d should not be 0.\n", i);
+			printf_errinfo ("Error: ending S of entry %d should not be 0.\n", i);
 		ret_val = 8;
 		goto err_print_hex;
 	  }
@@ -8273,14 +8273,14 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 	  if (L[i+4] < Y)
 	  {
 		if (debug > 1)
-			printf ("Error: partition %d ended too near.\n", i);
+			printf_errinfo ("Error: partition %d ended too near.\n", i);
 		ret_val = 9;
 		goto err_print_hex;
 	  }
 	  if (L[i+4] > 0x100000000ULL)
 	  {
 		if (debug > 1)
-			printf ("Error: partition %d ended too far.\n", i);
+			printf_errinfo ("Error: partition %d ended too far.\n", i);
 		ret_val = 10;
 		goto err_print_hex;
 	  }
@@ -8306,7 +8306,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
   if (non_empty_entries == 0)
   {
 	if (debug > 1)
-		printf ("Error: partition table is empty.\n");
+		printf_errinfo ("Error: partition table is empty.\n");
 	ret_val = 11;
 	goto err_print_hex;
   }
@@ -8795,7 +8795,7 @@ map_func (char *arg, int flags)
 		{
 			if (debug > 0)
 			{
-				printf ("Fatal: Error %d occurred while 'map %s'. Please report this bug.\n", errnum, tmp);
+				printf_errinfo ("Fatal: Error %d occurred while 'map %s'. Please report this bug.\n", errnum, tmp);
 			}
 			return 0;
 		}
@@ -9329,7 +9329,7 @@ map_func (char *arg, int flags)
       if (debug > 0 && ! disable_map_info)
       {
 	if (probed_total_sectors > sector_count)
-	  grub_printf ("Warning: BPB total_sectors(%ld) is greater than the number of sectors in the whole disk image (%ld). The int13 handler will disable any read/write operations across the image boundary. That means you will not be able to read/write sectors (in absolute address, i.e., lba) %ld - %ld, though they are logically inside your file system.\n", (unsigned long long)probed_total_sectors, (unsigned long long)sector_count, (unsigned long long)sector_count, (unsigned long long)(probed_total_sectors - 1));
+	  printf_warning ("Warning: BPB total_sectors(%ld) is greater than the number of sectors in the whole disk image (%ld). The int13 handler will disable any read/write operations across the image boundary. That means you will not be able to read/write sectors (in absolute address, i.e., lba) %ld - %ld, though they are logically inside your file system.\n", (unsigned long long)probed_total_sectors, (unsigned long long)sector_count, (unsigned long long)sector_count, (unsigned long long)(probed_total_sectors - 1));
 	else if (probed_total_sectors < sector_count && ! disable_map_info)
 	  grub_printf ("info: BPB total_sectors(%ld) is less than the number of sectors in the whole disk image(%ld).\n", (unsigned long long)probed_total_sectors, (unsigned long long)sector_count);
       }
@@ -9411,7 +9411,7 @@ failed_probe_BPB:
       if (debug > 0 && ! disable_map_info)
       {
 	if (probed_total_sectors > sector_count)
-	  grub_printf ("Warning: total_sectors calculated from partition table(%ld) is greater than the number of sectors in the whole disk image (%ld). The int13 handler will disable any read/write operations across the image boundary. That means you will not be able to read/write sectors (in absolute address, i.e., lba) %ld - %ld, though they are logically inside your emulated virtual disk(according to the partition table).\n", (unsigned long long)probed_total_sectors, (unsigned long long)sector_count, (unsigned long long)sector_count, (unsigned long long)(probed_total_sectors - 1));
+	  printf_warning ("Warning: total_sectors calculated from partition table(%ld) is greater than the number of sectors in the whole disk image (%ld). The int13 handler will disable any read/write operations across the image boundary. That means you will not be able to read/write sectors (in absolute address, i.e., lba) %ld - %ld, though they are logically inside your emulated virtual disk(according to the partition table).\n", (unsigned long long)probed_total_sectors, (unsigned long long)sector_count, (unsigned long long)sector_count, (unsigned long long)(probed_total_sectors - 1));
 	else if (probed_total_sectors < sector_count)
 	  grub_printf ("info: total_sectors calculated from partition table(%ld) is less than the number of sectors in the whole disk image(%ld).\n", (unsigned long long)probed_total_sectors, (unsigned long long)sector_count);
       }
@@ -9671,7 +9671,7 @@ geometry_probe_ok:
 	if (BPB_H != probed_heads || BPB_S != probed_sectors_per_track)
 	{
 		//if (debug > 0)
-		//	grub_printf ("\nWarning!!! geometry (H/S=%d/%d) from the (extended) partition table\nconflict with geometry (H/S=%d/%d) in the BPB. The boot could fail!\n", probed_heads, probed_sectors_per_track, BPB_H, BPB_S);
+		//	printf_warning ("\nWarning!!! geometry (H/S=%d/%d) from the (extended) partition table\nconflict with geometry (H/S=%d/%d) in the BPB. The boot could fail!\n", probed_heads, probed_sectors_per_track, BPB_H, BPB_S);
 		if (mem != -1ULL)
 			grub_close ();
 		return ! (errnum = ERR_EXTENDED_PARTITION);
@@ -9682,7 +9682,7 @@ geometry_probe_ok:
   else if (heads_per_cylinder != probed_heads)
     {
 	if (debug > 0 && ! disable_map_info)
-	  grub_printf ("\nWarning!! Probed number-of-heads(%d) is not the same as you specified.\nThe specified value %d takes effect.\n", probed_heads, heads_per_cylinder);
+	  printf_warning ("\nWarning!! Probed number-of-heads(%d) is not the same as you specified.\nThe specified value %d takes effect.\n", probed_heads, heads_per_cylinder);
     }
 
   if ((long long)sectors_per_track <= 0)
@@ -9690,7 +9690,7 @@ geometry_probe_ok:
   else if (sectors_per_track != probed_sectors_per_track)
     {
 	if (debug > 0 && ! disable_map_info)
-	  grub_printf ("\nWarning!! Probed sectors-per-track(%d) is not the same as you specified.\nThe specified value %d takes effect.\n", probed_sectors_per_track, sectors_per_track);
+	  printf_warning ("\nWarning!! Probed sectors-per-track(%d) is not the same as you specified.\nThe specified value %d takes effect.\n", probed_sectors_per_track, sectors_per_track);
     }
 
 map_whole_drive:
@@ -15272,7 +15272,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 	char **bat_entry = (char **)(p_bat_prog->entry + 0x80);
 
-	int debug_bat = debug > 10?1:0;
+	int debug_bat = debug == 3?1:0;
 	int i = 1;
 
 	if (filename == NULL)
