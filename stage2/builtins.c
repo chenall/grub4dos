@@ -11810,7 +11810,7 @@ static struct builtin builtin_write =
 {
   "write",
   write_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE | BUILTIN_NO_DECOMPRESSION,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "write [--offset=SKIP] [--bytes=N] ADDR_OR_FILE INTEGER_OR_STRING",
   "Write a 32-bit value to memory or write a string to file(or device!)."
 };

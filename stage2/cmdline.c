@@ -405,6 +405,7 @@ static int run_cmd_line (char *heap,int flags)
 				#endif
 				ret = (builtin->func) (skip_to (1,arg), flags);
 				#ifndef NO_DECOMPRESSION
+				if (builtin->flags & BUILTIN_NO_DECOMPRESSION)
 					no_decompression = no_decompression_bak;
 				#endif
 			}
