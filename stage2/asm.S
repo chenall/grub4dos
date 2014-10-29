@@ -16602,7 +16602,7 @@ VARIABLE(grub_putchar)
 	.long 0				//reserved
 	.long	ABS(EXT_C(getkey))	/* getchar */
 	.long	ABS(EXT_C(checkkey))
-	.long 0				//reserved
+	.long	ABS(EXT_C(pxe_call))	//reserved  21
 	.long	ABS(EXT_C(grub_memcmp))
 	.long	ABS(EXT_C(grub_memmove))
 	.long	ABS(EXT_C(grub_memset))
