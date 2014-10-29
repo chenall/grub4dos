@@ -52,7 +52,7 @@ chainloader /cmldr
 #write 0x7C07 0x00736E6F
 
 #	or.
-#write --offset=3 (md)0x3e+1 cmdcons
+#write --offset=3 (md)0x3e+1 cmdcons\0
 #	or
 calc *0x7c03=0x00736E6F63646D63
 

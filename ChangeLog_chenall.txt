@@ -1,4 +1,7 @@
 ﻿更新说明：
+2014-10-29
+	1.(tinybit) Workaround for BIOS of BENQ notebook that only supports 1.
+
 2014-10-15
 	1.workaround for issue 204(chenall)
 

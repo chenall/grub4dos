@@ -238,7 +238,7 @@ unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n)
 #define FOUR_CHAR(x0,x1,x2,x3) (((unsigned long)(char)(x0))|((unsigned long)(char)(x1)<<8)|((unsigned long)(char)(x2)<<16)|((unsigned long)(char)(x3)<<24))
 
 static int
-rawdisk_read (int drive, unsigned long long sector, unsigned long nsec, int segment)
+rawdisk_read (unsigned long drive, unsigned long long sector, unsigned long nsec, unsigned long segment)
 {
     const unsigned long BADDATA1 = FOUR_CHAR('B','A','D','?');
     const unsigned long BADDATA2 = FOUR_CHAR('b','a','d','.');
@@ -294,7 +294,7 @@ rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offs
   /* Reset geometry and invalidate track buffer if the disk is wrong. */
   if (buf_drive != drive)
   {
-	if (get_diskinfo (drive, &buf_geom))
+	if (get_diskinfo (drive, &buf_geom, 0))
 	    return !(errnum = ERR_NO_DISK);
 	buf_drive = drive;
 	buf_track = -1;
@@ -331,7 +331,7 @@ rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offs
       unsigned long soff, num_sect, size;
       unsigned long long track;
       char *bufaddr;
-      int bufseg;
+      unsigned long bufseg;
 
       size = (byte_len > BUFFERLEN)? BUFFERLEN: (unsigned long)byte_len;
 
@@ -529,7 +529,7 @@ rawwrite (unsigned long drive, unsigned long long sector, unsigned long long buf
   /* Reset geometry and invalidate track buffer if the disk is wrong. */
   if (buf_drive != drive)
   {
-	if (get_diskinfo (drive, &buf_geom))
+	if (get_diskinfo (drive, &buf_geom, 0))
 	    return !(errnum = ERR_NO_DISK);
 	buf_drive = drive;
 	buf_track = -1;
@@ -966,9 +966,29 @@ next_entry:
 	   the rather odd definition of extended partitions. Even worse,
 	   there is no guarantee that this is consistent with every
 	   operating systems. Uggh.  */
-	if (((int)pc_slice_no) >= PC_SLICE_MAX - 1	/* if it is a logical partition */
-	    && (PC_SLICE_ENTRY_IS_EMPTY (next_partition_buf, *next_partition_entry))) /* ignore the garbage entry(typically all bytes are 0xF6). */
+	if (((int)pc_slice_no) >= PC_SLICE_MAX - 1)	/* if it is a logical partition */
+	{
+	    if (PC_SLICE_ENTRY_IS_EMPTY (next_partition_buf, *next_partition_entry)) /* ignore the garbage entry(typically all bytes are 0xF6). */
 		goto next_entry;
+	}
+	else	/* primary partition */
+	{
+	    if ((PC_SLICE_FLAG (next_partition_buf, *next_partition_entry)) & 0x7F) /* ignore the garbage entry with wrong boot indicator. */
+		goto null_entry;
+	    if (!((PC_SLICE_SEC (next_partition_buf, *next_partition_entry)) & 0x3F)) /* ignore the garbage entry with wrong starting sector. */
+		goto null_entry;
+	    if (!((PC_SLICE_ESEC (next_partition_buf, *next_partition_entry)) & 0x3F)) /* ignore the garbage entry with wrong ending sector. */
+		goto null_entry;
+	    if ((PC_SLICE_HEAD (next_partition_buf, *next_partition_entry)) == 0xFF) /* ignore the garbage entry with wrong starting head. */
+		goto null_entry;
+	    if ((PC_SLICE_EHEAD (next_partition_buf, *next_partition_entry)) == 0xFF) /* ignore the garbage entry with wrong ending head. */
+	    {
+null_entry:
+		*next_partition_start = 0;
+		*next_partition_type = 0;
+		*next_partition_len = 0;
+	    }
+	}
 
 #if 0
 	/* disable partition id 00. */
@@ -1158,7 +1178,7 @@ real_open_partition (int flags)
   /* Make sure that buf_geom is valid. */
   if (buf_drive != current_drive)
     {
-      if (get_diskinfo (current_drive, &buf_geom))
+      if (get_diskinfo (current_drive, &buf_geom, 0))
 	{
 	  errnum = ERR_NO_DISK;
 	  return 0;
@@ -1744,7 +1764,7 @@ print_completions (int is_filename, int is_completion)
 			  unsigned long i;
 			  i = (k * 0x80) + j;
 			  if ((disk_choice || i == current_drive)
-			      && ! get_diskinfo (i, &tmp_geom))
+			      && ! get_diskinfo (i, &tmp_geom, 0))
 			    {
 			      char dev_name[8];
 

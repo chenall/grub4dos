@@ -23,15 +23,13 @@
 
 /* These are defined in asm.S, and never be used elsewhere, so declare the
    prototypes here.  */
-extern int biosdisk_standard (int ah, int drive,
-			      int coff, int hoff, int soff,
-			      int nsec, int segment);
-extern int get_diskinfo_standard (int drive,
+extern int biosdisk_standard (unsigned ah, unsigned drive,
+			      unsigned coff, unsigned hoff, unsigned soff,
+			      unsigned nsec, unsigned segment);
+extern int get_diskinfo_standard (unsigned long drive,
 				  unsigned long *cylinders,
 				  unsigned long *heads,
 				  unsigned long *sectors);
-
-extern int drive_map_slot_empty (struct drive_map_slot item);
 
 /* Read/write NSEC sectors starting from SECTOR in DRIVE disk with GEOMETRY
    from/into SEGMENT segment. If READ is BIOSDISK_READ, then read it,
@@ -39,15 +37,15 @@ extern int drive_map_slot_empty (struct drive_map_slot item);
    occurs, return BIOSDISK_ERROR_GEOMETRY, and if other error occurs, then
    return the error number. Otherwise, return 0.  */
 int
-biosdisk (int read, int drive, struct geometry *geometry,
-	  unsigned long long sector, unsigned long nsec, int segment)
+biosdisk (unsigned long read, unsigned long drive, struct geometry *geometry,
+	  unsigned long long sector, unsigned long nsec, unsigned long segment)
 {
   int err;
   unsigned long max_sec, count, seg;
   unsigned long long start;
 
-  if ((fb_status) && (drive == ((fb_status >> 8) & 0xff)))
-    max_sec = fb_status & 0xff;
+  if ((fb_status) && (drive == (unsigned char)(fb_status >> 8)))
+    max_sec = (unsigned char)fb_status;
   else
     max_sec = nsec;
  
@@ -126,7 +124,7 @@ biosdisk (int read, int drive, struct geometry *geometry,
 				grub_printf ("biosdisk_int13_extensions read=%d, drive=0x%x, sector=0x%lx, \n", read, drive, sector);
 			return 1;
 		}
-	  err = biosdisk_int13_extensions ((read + 0x42) << 8, (unsigned char)drive, dap);
+	  err = biosdisk_int13_extensions ((read + 0x42) << 8, (unsigned char)drive, dap, geometry->sector_size | (!!(geometry->flags & BIOSDISK_FLAG_LBA_1_SECTOR)));
 	  start += n;
 	  count -= n;
 	  seg += n << 5;
@@ -189,7 +187,7 @@ biosdisk (int read, int drive, struct geometry *geometry,
 
 /* Check bootable CD-ROM emulation status. Return 0 on failure. */
 int
-get_cdinfo (int drive, struct geometry *geometry)
+get_cdinfo (unsigned long drive, struct geometry *geometry)
 {
   int err;
   struct iso_spec_packet
@@ -218,7 +216,7 @@ get_cdinfo (int drive, struct geometry *geometry)
 
   if (debug > 1)
 	grub_printf ("\rget_cdinfo int13/4B01(%X), ", drive);
-  err = biosdisk_int13_extensions (0x4B01, drive, cdrp);
+  err = biosdisk_int13_extensions (0x4B01, drive, cdrp, 2048);
   if (debug > 1)
 	grub_printf ("err=%X, ", err);
 
@@ -259,7 +257,7 @@ unsigned long force_geometry_tune = 0;
 /* Return the geometry of DRIVE in GEOMETRY. If an error occurs, return
    non-zero, otherwise zero.  */
 int
-get_diskinfo (int drive, struct geometry *geometry)
+get_diskinfo (unsigned long drive, struct geometry *geometry, unsigned long lba1sector)
 {
   int err;
   int version;
@@ -417,12 +415,16 @@ get_diskinfo (int drive, struct geometry *geometry)
 	    if (d >= 0x80 && d < 0x88)
 	    {
 		d -= 0x80;
-		flags = (hd_geom[d].flags & BIOSDISK_FLAG_GEOMETRY_OK);
+		if (lba1sector & 0x80)
+			hd_geom[d].flags &= ~BIOSDISK_FLAG_LBA_1_SECTOR;
+		else if (lba1sector & 1)
+			hd_geom[d].flags |= BIOSDISK_FLAG_LBA_1_SECTOR;
+		flags = (hd_geom[d].flags & (BIOSDISK_FLAG_GEOMETRY_OK | BIOSDISK_FLAG_LBA_1_SECTOR));
 		heads_ok = hd_geom[d].heads;
 		sectors_ok = hd_geom[d].sectors;
 		if (hd_geom[d].sector_size == 512 && hd_geom[d].sectors > 0 && hd_geom[d].sectors <= 63 && hd_geom[d].heads <= 256)
 		{
-		    if ((! force_geometry_tune) || flags)
+		    if ((! force_geometry_tune) || (flags & BIOSDISK_FLAG_GEOMETRY_OK))
 		    {
 			geometry->flags = hd_geom[d].flags;
 			if ((geometry->flags & BIOSDISK_FLAG_BIFURCATE) && (drive & 0xFFFFFF00) == 0x100)
@@ -446,12 +448,16 @@ get_diskinfo (int drive, struct geometry *geometry)
 		    }
 		}
 	    } else if (d < 4) {
-		flags = (fd_geom[d].flags & BIOSDISK_FLAG_GEOMETRY_OK);
+		if (lba1sector & 0x80)
+			fd_geom[d].flags &= ~BIOSDISK_FLAG_LBA_1_SECTOR;
+		else if (lba1sector & 1)
+			fd_geom[d].flags |= BIOSDISK_FLAG_LBA_1_SECTOR;
+		flags = (fd_geom[d].flags & (BIOSDISK_FLAG_GEOMETRY_OK | BIOSDISK_FLAG_LBA_1_SECTOR));
 		heads_ok = fd_geom[d].heads;
 		sectors_ok = fd_geom[d].sectors;
 		if (fd_geom[d].sector_size == 512 && fd_geom[d].sectors > 0 && fd_geom[d].sectors <= 63 && fd_geom[d].heads <= 256)
 		{
-		    if ((! force_geometry_tune) || flags)
+		    if ((! force_geometry_tune) || (flags & BIOSDISK_FLAG_GEOMETRY_OK))
 		    {
 			geometry->flags = fd_geom[d].flags;
 			if ((geometry->flags & BIOSDISK_FLAG_BIFURCATE) && (drive & 0xFFFFFF00) == 0x100)
@@ -480,7 +486,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 
 	if (debug > 1)      
 		grub_printf ("\rget_diskinfo int13/41(%X), ", drive);
-	version = check_int13_extensions ((unsigned char)drive);
+	version = check_int13_extensions ((unsigned char)drive, (lba1sector | (!!(flags & BIOSDISK_FLAG_LBA_1_SECTOR))));
 	if (debug > 1)      
 		grub_printf ("version=%X, ", version);
 
@@ -488,6 +494,8 @@ get_diskinfo (int drive, struct geometry *geometry)
 	if (version & 1) /* support functions 42h-44h, 47h-48h */
 	{
 		flags |= BIOSDISK_FLAG_LBA_EXTENSION;
+		if (version & 0x100) /* cannot read 127 sectors at a time. */
+			flags |= BIOSDISK_FLAG_LBA_1_SECTOR;
 	}
 	total_sectors = 0;
 
@@ -535,7 +543,7 @@ get_diskinfo (int drive, struct geometry *geometry)
 
 		/* set a known value */
 		grub_memset ((char *)0x2F800, 0xEC, 0x800);
-		version = biosdisk_int13_extensions (0x4200, (unsigned char)drive, dap);
+		version = biosdisk_int13_extensions (0x4200, (unsigned char)drive, dap, 0);
 		/* see if it is a big sector */
 		{
 			char *p;

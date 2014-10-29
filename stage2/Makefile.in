@@ -333,7 +333,7 @@ EXTRA_DIST = $(noinst_SCRIPTS)
 # Stage 2 and Stage 1.5's.
 datalibdir = $(libdir)/$(PACKAGE)/$(host_cpu)-$(host_vendor)
 datalib_DATA = grub.exe badgrub.exe grldr grldr.mbr bootlace.com hmload.com eltorito.sys
-noinst_DATA = pre_stage2 dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
+noinst_DATA = pre_stage2 dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart pre_stage2_fullsize pre_stage2_head pre_stage2_tail
 MOSTLYCLEANFILES = $(noinst_PROGRAMS)
 PRE_STAGE2_LINK = -nostdlib -Wl,-N -Wl,-Ttext -Wl,8200 $(BIN_LDFLAGS)
 START_LINK = -nostdlib -Wl,-N -Wl,-Ttext -Wl,8000 $(BIN_LDFLAGS)

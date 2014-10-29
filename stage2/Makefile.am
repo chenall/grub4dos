@@ -17,7 +17,7 @@ EXTRA_PROGRAMS = nbloader.exec pxeloader.exec diskless.exec
 
 
 datalib_DATA = grub.exe badgrub.exe grldr grldr.mbr bootlace.com hmload.com eltorito.sys
-noinst_DATA = pre_stage2 dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart
+noinst_DATA = pre_stage2 dosstart badgrubstart grldrstart mbrstart bootlacestart hmloadstart pre_stage2_fullsize pre_stage2_head pre_stage2_tail
 noinst_PROGRAMS = pre_stage2.exec dosstart.exec badgrubstart.exec grldrstart.exec mbrstart.exec bootlacestart.exec hmloadstart.exec
 
 MOSTLYCLEANFILES = $(noinst_PROGRAMS)
