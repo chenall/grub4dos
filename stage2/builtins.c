@@ -9930,6 +9930,8 @@ map_whole_drive:
 			{
 				/* to_o = */ to = 0xFFFF;		/* memory device */
 			}
+		    if (! ((bios_drive_map[j].to_sector) & 0x80)) // The TO drive is not in-situ
+		    {
 			if (start_sector == 0 && (sector_count == 0 || (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
 			{
 				sector_count = hooked_drive_map[j].sector_count;
@@ -9937,6 +9939,7 @@ map_whole_drive:
 				sectors_per_track = (hooked_drive_map[j].max_sector) & 0x3F;
 			}
 			start_sector += hooked_drive_map[j].start_sector;
+		    }
 
 			/* If TO == FROM and whole drive is mapped, and, no map options occur, then delete the entry.  */
 			if (to == from && read_Only == 0 && fake_write == 0 && disable_lba_mode == 0

@@ -555,9 +555,14 @@ real_codestart:
 
 	cmpw	$KEY_IC, %ax	/* insert char */
 	jne	3f
-	movb	$1, %bh		/* DEBUG_KEY pressed */
+	orb	$1, %bh		/* DEBUG_KEY pressed */
+	jmp	2b		/* get next key */
 3:
 	orb	$0x20, %al
+	cmpb	$0x73, %al	/* is "S"? */
+	jne	3f
+	orb	$2, %bh		/* Single Sector for Buggy BIOS */
+3:
 	cmpb	$0x63, %al	/* is "C"? */
 	jne	2b		/* no, get next key */
 
