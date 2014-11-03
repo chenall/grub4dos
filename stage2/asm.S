@@ -58,6 +58,8 @@ ENTRY(main)
 
 	.code16
 
+	/* If BP=0x07C0, it indicates boot from pxe or no-emulation cdrom */
+
 	/*
 	 *  Guarantee that "main" is loaded at 0x0:0x8200 in stage2 and
 	 *  at 0x0:0x2200 in stage1.5.
@@ -363,8 +365,10 @@ real_codestart:
 	movw	%dx, ABS(EXT_C(install_partition)) - 2
 
 	# it is time to do this after DX has been saved.
+	pushal
 	movw	$0x0003, %ax	/* set display mode: 80*25 color text */
 	int	$0x10		# this might destroy our DX
+	popal
 
 	/* check for fb structure  */
 	cmpl	$0x46424246, (0x21b4)
@@ -390,6 +394,8 @@ real_codestart:
 	movb	%al, ABS(EXT_C(harddrives_orig))
 
 	//movb	$((int13_handler_end - int13_handler + 0x3ff) / 0x400), ABS(int13_handler)
+
+	movb	$1, %cl		// CX != 0, indicating our int13 handler not present
 
 	movl	0x54, %eax
 	movl	%eax, ABS(EXT_C(ROM_int15))
@@ -492,9 +498,35 @@ real_codestart:
 	movw	$FRAGMENT_MAP_SLOT_SIZE/2, %cx
 	repz	movsw
 
+	/* Now CX = 0, indicating our int13 handler is present. */
 2:
 	xorw	%ax, %ax
 	movw	%ax, %ds			/* DS=0 */
+1:
+	jcxz	1f	/* our int13 handler is present, skip */
+	/* clear highest 2 bits of byte at 0x410. */
+	andb	$0x3F, 0x0410	/* clear bit 6-7 */
+	cmpw	$0x07C0, %bp	/* boot from pxe or cdrom? */
+	je	3f		/* yes, directly mask off floppy. */
+	/* check fbinst boot */
+	movl	ABS(EXT_C(fb_status)), %ecx
+	jecxz	2f	/* did not boot by fbinst, continue */
+	cmpb	$0, %ch		/* fbinst boot drive is floppy? */
+	jz	1f		/* yes, skip */
+2:
+	/* check DOS boot of grub.exe */
+	movl	ABS(EXT_C(dos_drive_geometry)), %ecx
+	jecxz	2f	/* did not boot off DOS, continue */
+	cmpb	$0, %cl		/* DOS boot drive is floppy? */
+	jz	1f		/* yes, skip */
+2:
+	/* check saved DX register */
+	movw	ABS(EXT_C(install_partition)) - 2, %cx
+	cmpb	$0, %cl		/* BIOS boot drive is floppy? */
+	jz	1f		/* yes, skip */
+3:
+	/* did not boot from floppy. clear lowest bit of byte at 0x410. */
+	andb	$0xFE, 0x0410	/* clear bit 0 */
 1:
 	/* check the BIOS type (currently only for Bochs) */
 	movw	$0xF000, %ax
