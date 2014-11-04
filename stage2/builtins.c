@@ -284,8 +284,7 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 			{
 				if (query_block_entries != 4)
 		    grub_printf ("%s%ld+%ld", (blklst_num_entries ? "," : ""),
-			     //(unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
-					 (unsigned long long)(blklst_start_sector), blklst_num_sectors);
+			     (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
 				if (blklst_num_entries < DRIVE_MAP_FRAGMENT)
 				{
 				map_start_sector[blklst_num_entries] = blklst_start_sector;
@@ -296,18 +295,15 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 			{
 				if (query_block_entries != 4)
 		    grub_printf ("%s%ld+%ld,%ld[0-%d]", (blklst_num_entries ? "," : ""),
-			     //(unsigned long long)(blklst_start_sector - part_start), (blklst_num_sectors-1),
-			     //(unsigned long long)(blklst_start_sector + blklst_num_sectors-1 - part_start),
-					(unsigned long long)(blklst_start_sector), (blklst_num_sectors-1),
-			    (unsigned long long)(blklst_start_sector + blklst_num_sectors-1),  
+			     (unsigned long long)(blklst_start_sector - part_start), (blklst_num_sectors-1),
+			     (unsigned long long)(blklst_start_sector + blklst_num_sectors-1 - part_start),
 			     blklst_last_length);
 			}
 		  else
 			{
 				if (query_block_entries != 4)
 		    grub_printf ("%s%ld[0-%d]", (blklst_num_entries ? "," : ""),
-			     //(unsigned long long)(blklst_start_sector - part_start), blklst_last_length);
-					 (unsigned long long)(blklst_start_sector), blklst_last_length);
+			     (unsigned long long)(blklst_start_sector - part_start), blklst_last_length);
 			}
 	        }
 	      blklst_num_entries++;
@@ -321,8 +317,7 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 		{
 		if (query_block_entries != 4)
 	  grub_printf("%s%ld[%d-%d]", (blklst_num_entries ? "," : ""),
-		      //(unsigned long long)(sector - part_start), offset, (offset + length));
-					(unsigned long long)(sector), offset, (offset + length));
+		      (unsigned long long)(sector - part_start), offset, (offset + length));
 		}
 	  blklst_num_entries++;
 	}
@@ -411,8 +406,7 @@ blocklist_func (char *arg, int flags)
 			{
 				if (query_block_entries != 4)
         grub_printf ("%s%ld+%d", (blklst_num_entries ? "," : ""),
-		 //(unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
-					(unsigned long long)(blklst_start_sector), blklst_num_sectors);
+		 (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
 			if (blklst_num_entries < DRIVE_MAP_FRAGMENT)
 			{
 				map_start_sector[blklst_num_entries] = blklst_start_sector;
