@@ -1360,10 +1360,9 @@ get_cmdline_obsolete (struct get_cmdline_arg cmdline)
 int
 get_cmdline (void)
 {
-  unsigned long old_cursor;
+  unsigned long old_cursor = cursor_state;
   int ret;
-  old_cursor = setcursor (cursor_state | 1);
-  
+
   /* Because it is hard to deal with different conditions simultaneously,
      less functional cases are handled here. Assume that TERM_NO_ECHO
      implies TERM_NO_EDIT.  */
@@ -1371,7 +1370,8 @@ get_cmdline (void)
     {
       unsigned char *p = get_cmdline_str.cmdline;
       unsigned int c;
-      
+
+      setcursor (cursor_state | 1);
       /* Make sure that MAXLEN is not too large.  */
       if (get_cmdline_str.maxlen > MAX_CMDLINE)
 		get_cmdline_str.maxlen = MAX_CMDLINE;
