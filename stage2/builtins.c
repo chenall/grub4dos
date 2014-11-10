@@ -7292,8 +7292,8 @@ static struct builtin builtin_initrd =
 {
   "initrd",
   initrd_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "initrd FILE [FILE ...]",
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_NO_DECOMPRESSION,
+  "initrd [@name=]FILE [@name=][FILE ...]",
   "Load an initial ramdisk FILE for a Linux format boot image and set the"
   " appropriate parameters in the Linux setup area in memory. For Linux"
   " 2.6+ kernels, multiple cpio files can be loaded."
@@ -10771,29 +10771,14 @@ static struct builtin builtin_module =
 static int
 modulenounzip_func (char *arg, int flags)
 {
-  int ret;
-#ifndef NO_DECOMPRESSION
-  int no_decompression_bak = no_decompression;
-#endif
-
-#ifndef NO_DECOMPRESSION
-  no_decompression = 1;
-#endif
-
-  ret = module_func (arg, flags);
-
-#ifndef NO_DECOMPRESSION
-  no_decompression = no_decompression_bak;
-#endif
-
-  return ret;
+  return module_func (arg, flags);
 }
 
 static struct builtin builtin_modulenounzip =
 {
   "modulenounzip",
   modulenounzip_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_NO_DECOMPRESSION,
   "modulenounzip FILE [ARG ...]",
   "The same as `module', except that automatic decompression is"
   " disabled."

@@ -343,6 +343,13 @@ if test x"$enable_pxe" != xno; then
   FSYS_CFLAGS="$FSYS_CFLAGS -DFSYS_PXE=1"
 fi
 
+AC_ARG_ENABLE(initrdfs,
+  [  --disable-initrdfs            disable initrdfs support in Stage 2])
+
+if test x"$enable_initrdfs" != xno; then
+  FSYS_CFLAGS="$FSYS_CFLAGS -DFSYS_INITRD=1"
+fi
+
 AC_ARG_ENABLE(fb,
   [  --disable-fb            disable FB support in Stage 2])
 
