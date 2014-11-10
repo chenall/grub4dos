@@ -21,7 +21,7 @@
 
 #include "shared.h"
 #include <term.h>
-
+#include "cpio.h"
 #include "freebsd.h"
 
 struct exec
@@ -952,6 +952,14 @@ load_module (char *module, char *arg)
 }
 
 struct linux_kernel_header *linux_header;
+void cpio_set_field(char *field,unsigned long value);
+
+void cpio_set_field(char *field,unsigned long value)
+{
+	char buf[9];
+	sprintf(buf,"%08x",value);
+	memcpy(field,buf,8);
+}
 
 int
 load_initrd (char *initrd)
@@ -961,12 +969,8 @@ load_initrd (char *initrd)
   unsigned long long tmp;
   unsigned long long top_addr;
   char *arg = initrd;
-#ifndef NO_DECOMPRESSION
-  int no_decompression_bak = no_decompression;
-#endif
 
   linux_header = (struct linux_kernel_header *) (cur_addr - LINUX_SETUP_MOVE_SIZE);
-
   tmp = ((linux_header->header == LINUX_MAGIC_SIGNATURE && linux_header->version >= 0x0203)
 	      ? linux_header->initrd_addr_max : LINUX_INITRD_MAX_ADDRESS);
 
@@ -990,14 +994,14 @@ load_initrd (char *initrd)
 
   moveto &= 0xfffff000;
 
-  len = 0;
-
 next_file:
 
-#ifndef NO_DECOMPRESSION
-  no_decompression = 1;
-#endif
-  
+  if (*initrd == '@')
+  {
+    moveto -= 0x200;
+    initrd = skip_to (1, initrd);
+  }
+
   if (! grub_open (initrd))
     goto fail;
 
@@ -1020,18 +1024,15 @@ next_file:
 
   tmp = filemax;
   grub_close ();
-
   initrd = skip_to (0, initrd);
 
   if (*initrd)
-  {
-      len += ((tmp + 0xFFF) & 0xfffff000);
       goto next_file;
-  }
-  len += tmp;
 
   {
 	char map_tmp[64];
+	grub_u32_t cpio_hdr_sz;
+	grub_u32_t cpio_img_sz;
 	tmp = top_addr - moveto;
 	tmp += 0x1FF;
 	tmp >>= 9;	/* sectors needed */
@@ -1062,15 +1063,38 @@ next_file:
 	top_addr = moveto = initrd_start_sector << 9;
 	memset ((char *)(unsigned long)top_addr, 0, tmp << 9);
 	initrd = arg;
+	len = 0;
 
 next_file1:
-#ifndef NO_DECOMPRESSION
-	no_decompression = 1;
-#endif
 
-	grub_open (initrd);
-	tmp = grub_read (RAW_ADDR (moveto), -1ULL, 0xedde0d90);
+	if (*initrd == '@')
+	{
+		char *name = initrd + 1;
+		initrd = skip_to (SKIP_WITH_TERMINATE |1, initrd);
+		struct cpio_header *cpio = (struct cpio_header *)(grub_u32_t)moveto;
+		grub_u32_t name_len = grub_strlen(name);
+		grub_open (initrd);
+		memset(cpio,'0',sizeof(struct cpio_header));
+		memcpy(cpio->c_magic,CPIO_MAGIC,sizeof(cpio->c_magic));
+		cpio_set_field (cpio->c_mode, 0100644 );
+		cpio_set_field (cpio->c_nlink,1);
+		cpio_set_field (cpio->c_filesize, filemax);
+		cpio_set_field (cpio->c_namesize, name_len);
+		memcpy((void*)(cpio+1),name,name_len);
+		cpio_hdr_sz = (sizeof(struct cpio_header) + 3 + name_len) & ~3;
+	}
+	else
+	{
+		cpio_hdr_sz = 0;
+		grub_open (initrd);
+	}
+
+	arg = skip_to (0, initrd);
+	if (debug) printf("Loading:%.*s\n",arg-initrd,initrd);
+
+	tmp = grub_read (RAW_ADDR (moveto + cpio_hdr_sz), -1ULL, GRUB_READ);
 	grub_close ();
+
 	if (tmp != filemax)
 	{
 		//sprintf (map_tmp, "(0x22) (0x22)");	// INITRD_DRIVE
@@ -1080,11 +1104,18 @@ next_file1:
 			errnum = ERR_READ;
 		goto fail;
 	}
-	moveto += ((tmp + 0xFFF) & 0xfffff000);
-	initrd = skip_to (0, initrd);
+
+	cpio_img_sz = (tmp + cpio_hdr_sz + 0xFFF) & ~0xFFF;
+	moveto += cpio_img_sz;
+	initrd = arg;
 
 	if (*initrd)
+	{
+		len += cpio_img_sz;
 		goto next_file1;
+	}
+
+	len += tmp + cpio_hdr_sz;
 
 	unset_int13_handler (0);		/* unhook it */
 	set_int13_handler (bios_drive_map);	/* hook it */
@@ -1099,10 +1130,6 @@ next_file1:
   linux_header->ramdisk_size = len;
 
  fail:
-
-#ifndef NO_DECOMPRESSION
-  no_decompression = no_decompression_bak;
-#endif
 
   return ! errnum;
 }

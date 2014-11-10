@@ -764,6 +764,7 @@ enable_jfs
 enable_xfs
 enable_iso9660
 enable_pxe
+enable_initrdfs
 enable_fb
 enable_gunzip
 enable_md5_password
@@ -6474,6 +6475,16 @@ fi
 
 if test x"$enable_pxe" != xno; then
   FSYS_CFLAGS="$FSYS_CFLAGS -DFSYS_PXE=1"
+fi
+
+# Check whether --enable-initrdfs was given.
+if test "${enable_initrdfs+set}" = set; then :
+  enableval=$enable_initrdfs;
+fi
+
+
+if test x"$enable_initrdfs" != xno; then
+  FSYS_CFLAGS="$FSYS_CFLAGS -DFSYS_INITRD=1"
 fi
 
 # Check whether --enable-fb was given.

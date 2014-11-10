@@ -271,7 +271,7 @@ grub_sprintf (char *buffer, const char *format, ...)
   unsigned int length;
   int align;
   unsigned int accuracy;
-  unsigned char *putchar_hook_back;
+  unsigned char *putchar_hook_back=NULL;
   int stdout = 1;
   if (buffer == (char*)1 || buffer == (char*)2)
   {
@@ -279,7 +279,7 @@ grub_sprintf (char *buffer, const char *format, ...)
       return 1;
 
     stdout = 0;
-    putchar_hook_back = set_putchar_hook(NULL);
+    putchar_hook_back = set_putchar_hook((grub_u8_t*)0);
     bp=buffer=NULL;//reset buffer and bp to NULL
   }
   //dataptr++;

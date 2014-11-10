@@ -167,6 +167,9 @@ struct fsys_entry fsys_table[NUM_FSYS + 1] =
 # ifdef FSYS_FFS
   {"ffs", ffs_mount, ffs_read, ffs_dir, 0, ffs_embed},
 # endif
+# ifdef FSYS_INITRD
+  {"initrdfs", initrdfs_mount, initrdfs_read, initrdfs_dir, 0, 0},
+# endif
   {0, 0, 0, 0, 0, 0}
 };
 

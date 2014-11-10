@@ -132,6 +132,7 @@ am_pre_stage2_exec_OBJECTS = pre_stage2_exec-asm.$(OBJEXT) \
 	pre_stage2_exec-fsys_vstafs.$(OBJEXT) \
 	pre_stage2_exec-fsys_xfs.$(OBJEXT) \
 	pre_stage2_exec-fsys_pxe.$(OBJEXT) \
+	pre_stage2_exec-fsys_initrd.$(OBJEXT) \
 	pre_stage2_exec-fsys_fb.$(OBJEXT) \
 	pre_stage2_exec-gunzip.$(OBJEXT) \
 	pre_stage2_exec-hercules.$(OBJEXT) \
@@ -326,7 +327,7 @@ noinst_SCRIPTS = $(TESTS)
 noinst_HEADERS = fat.h filesys.h freebsd.h hercules.h \
 	iso9660.h jfs.h mb_header.h mb_info.h md5.h \
 	pc_slice.h serial.h shared.h term.h \
-	terminfo.h tparm.h ufs2.h vstafs.h xfs.h pxe.h graphics.h
+	terminfo.h tparm.h ufs2.h vstafs.h xfs.h pxe.h fsys_initrd.h graphics.h
 
 EXTRA_DIST = $(noinst_SCRIPTS)
 
@@ -354,7 +355,7 @@ STAGE2_COMPILE = $(STAGE2_CFLAGS) -fno-builtin -nostdinc \
 pre_stage2_exec_SOURCES = asm.S bios.c boot.c builtins.c char_io.c \
 	cmdline.c common.c console.c dec_lzma.c disk_io.c fsys_ext2fs.c \
 	fsys_fat.c fsys_ntfs.c fsys_ffs.c fsys_iso9660.c fsys_jfs.c fsys_minix.c \
-	fsys_reiserfs.c fsys_ufs2.c fsys_vstafs.c fsys_xfs.c fsys_pxe.c fsys_fb.c gunzip.c \
+	fsys_reiserfs.c fsys_ufs2.c fsys_vstafs.c fsys_xfs.c fsys_pxe.c fsys_initrd.c fsys_fb.c gunzip.c \
 	hercules.c md5.c serial.c stage2.c terminfo.c tparm.c graphics.c
 
 pre_stage2_exec_CFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)
@@ -483,6 +484,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_minix.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_ntfs.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_pxe.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_initrd.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_reiserfs.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_ufs2.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_vstafs.Po@am__quote@
@@ -916,6 +918,21 @@ pre_stage2_exec-fsys_pxe.obj: fsys_pxe.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fsys_pxe.c' object='pre_stage2_exec-fsys_pxe.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-fsys_pxe.obj `if test -f 'fsys_pxe.c'; then $(CYGPATH_W) 'fsys_pxe.c'; else $(CYGPATH_W) '$(srcdir)/fsys_pxe.c'; fi`
+
+pre_stage2_exec-fsys_initrd.o: fsys_initrd.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-fsys_initrd.o -MD -MP -MF $(DEPDIR)/pre_stage2_exec-fsys_initrd.Tpo -c -o pre_stage2_exec-fsys_initrd.o `test -f 'fsys_initrd.c' || echo '$(srcdir)/'`fsys_initrd.c
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/pre_stage2_exec-fsys_initrd.Tpo $(DEPDIR)/pre_stage2_exec-fsys_initrd.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fsys_initrd.c' object='pre_stage2_exec-fsys_initrd.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-fsys_initrd.o `test -f 'fsys_initrd.c' || echo '$(srcdir)/'`fsys_initrd.c
+
+pre_stage2_exec-fsys_initrd.obj: fsys_initrd.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-fsys_initrd.obj -MD -MP -MF $(DEPDIR)/pre_stage2_exec-fsys_initrd.Tpo -c -o pre_stage2_exec-fsys_initrd.obj `if test -f 'fsys_initrd.c'; then $(CYGPATH_W) 'fsys_initrd.c'; else $(CYGPATH_W) '$(srcdir)/fsys_initrd.c'; fi`
+@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/pre_stage2_exec-fsys_initrd.Tpo $(DEPDIR)/pre_stage2_exec-fsys_initrd.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='fsys_initrd.c' object='pre_stage2_exec-fsys_initrd.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-fsys_initrd.obj `if test -f 'fsys_initrd.c'; then $(CYGPATH_W) 'fsys_initrd.c'; else $(CYGPATH_W) '$(srcdir)/fsys_initrd.c'; fi`
+
 
 pre_stage2_exec-fsys_fb.o: fsys_fb.c
 @am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-fsys_fb.o -MD -MP -MF $(DEPDIR)/pre_stage2_exec-fsys_fb.Tpo -c -o pre_stage2_exec-fsys_fb.o `test -f 'fsys_fb.c' || echo '$(srcdir)/'`fsys_fb.c

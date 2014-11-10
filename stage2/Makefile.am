@@ -7,7 +7,7 @@ noinst_SCRIPTS = $(TESTS)
 noinst_HEADERS = fat.h filesys.h freebsd.h hercules.h \
 	iso9660.h jfs.h mb_header.h mb_info.h md5.h \
 	pc_slice.h serial.h shared.h term.h \
-	terminfo.h tparm.h ufs2.h vstafs.h xfs.h pxe.h graphics.h
+	terminfo.h tparm.h ufs2.h vstafs.h xfs.h pxe.h graphics.h fsys_initrd.h cpio.h
 EXTRA_DIST = $(noinst_SCRIPTS)
 
 # Stage 2 and Stage 1.5's.
@@ -56,7 +56,7 @@ STAGE2_COMPILE = $(STAGE2_CFLAGS) -fno-builtin -nostdinc \
 pre_stage2_exec_SOURCES = asm.S bios.c boot.c builtins.c char_io.c \
 	cmdline.c common.c console.c dec_lzma.c disk_io.c fsys_ext2fs.c \
 	fsys_fat.c fsys_ntfs.c fsys_ffs.c fsys_iso9660.c fsys_jfs.c fsys_minix.c \
-	fsys_reiserfs.c fsys_ufs2.c fsys_vstafs.c fsys_xfs.c fsys_pxe.c fsys_fb.c gunzip.c \
+	fsys_reiserfs.c fsys_ufs2.c fsys_vstafs.c fsys_xfs.c fsys_pxe.c fsys_initrd.c fsys_fb.c gunzip.c \
 	hercules.c md5.c serial.c stage2.c terminfo.c tparm.c graphics.c
 pre_stage2_exec_CFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)
 pre_stage2_exec_CCASFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)

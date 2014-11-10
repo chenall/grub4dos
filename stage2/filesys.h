@@ -171,6 +171,17 @@ void pxe_close (void);
 #define FSYS_PXE_NUM 0
 #endif
 
+#ifdef FSYS_INITRD
+#define FSYS_INITRD_NUM 1
+#ifndef ASM_FILE
+int initrdfs_mount (void);
+unsigned long long initrdfs_read (unsigned long long buf, unsigned long long len, unsigned long write);
+int initrdfs_dir (char *dirname);
+#endif
+#else
+#define FSYS_INITRD_NUM 0
+#endif
+
 #ifdef FSYS_FB
 #define FSYS_FB_NUM 1
 #ifndef ASM_FILE
@@ -186,7 +197,7 @@ int fb_dir (char *dirname);
 #define NUM_FSYS	\
   (FSYS_FFS_NUM + FSYS_FAT_NUM + FSYS_NTFS_NUM + FSYS_EXT2FS_NUM + FSYS_MINIX_NUM	\
    + FSYS_REISERFS_NUM + FSYS_VSTAFS_NUM + FSYS_JFS_NUM + FSYS_XFS_NUM	\
-   + FSYS_TFTP_NUM + FSYS_ISO9660_NUM + FSYS_UFS2_NUM + FSYS_PXE_NUM + FSYS_FB_NUM)
+   + FSYS_TFTP_NUM + FSYS_ISO9660_NUM + FSYS_UFS2_NUM + FSYS_PXE_NUM + FSYS_FB_NUM + FSYS_INITRD_NUM)
 #endif
 
 #ifndef ASM_FILE
