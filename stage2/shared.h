@@ -985,6 +985,8 @@ extern unsigned char min_cdrom_id;	/* MINIMUM ATAPI CDROM DRIVE NUMBER */
 extern unsigned long cdrom_drive;
 extern unsigned long force_cdrom_as_boot_device;
 extern unsigned long ram_drive;
+extern unsigned long long md_part_base;
+extern unsigned long long md_part_size;
 extern unsigned long long rd_base;
 extern unsigned long long rd_size;
 extern unsigned long long saved_mem_higher;

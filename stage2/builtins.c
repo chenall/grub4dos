@@ -12129,7 +12129,12 @@ print_root_device (char *buffer,int flag)
 				grub_printf("(cd)");
 				break;
 			}
-			if (tmp_drive & 0x80)
+			else if (tmp_drive == 0xFFFF)
+			{
+				grub_printf("(md");
+				if (md_part_base) grub_printf(",0x%lx,0x%lx",md_part_base,md_part_size);
+			}
+			else if (tmp_drive & 0x80)
 			{
 				/* Hard disk drive.  */
 				grub_printf("(hd%d", (tmp_drive - 0x80));

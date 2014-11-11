@@ -135,6 +135,11 @@ int initrdfs_mount (void)
 		initrdfs_base = rd_base;
 		initrdfs_size = rd_size;
 	}
+	else if (current_drive == 0xFFFF)
+	{
+		initrdfs_base = md_part_base;
+		initrdfs_size = md_part_size;
+	}
 	else
 	{
 		if (unset_int13_handler (1))
@@ -211,7 +216,7 @@ int initrdfs_dir (char *dirname)
 unsigned long long initrdfs_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
 	if (disk_read_hook && debug > 1)
-		printf("<B:%ld,S:%ld,P:%ld>\n",cur_file->base,cur_file->size,filepos);
+		printf("<B:%lX,S:%lX,P:%lX>\n",cur_file->base,cur_file->size,filepos);
 	if (filepos > cur_file->size) return 0;
 	if (len > cur_file->size - filepos) len = cur_file->size - filepos;
 	if (write == GRUB_WRITE) grub_memmove64(cur_file->base + filepos,buf,len);
