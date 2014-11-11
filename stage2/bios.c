@@ -88,9 +88,11 @@ biosdisk (unsigned long read, unsigned long drive, struct geometry *geometry,
 	tmp = ((sector + nsec) << 9);
 	if (drive == ram_drive)
 	    tmp += rd_base;
+	else
+	    tmp += md_part_base;
 	if (tmp > 0x100000000ULL && ! is64bit)
 		return 1;	/* failure */
-	disk_sector = ((sector<<9) + ((drive==0xffff) ? 0 : rd_base));
+	disk_sector = ((sector<<9) + ((drive==0xffff) ? md_part_base : rd_base));
 	buf_address = (segment<<4);
 
 	if (read)	/* read == 1 really means write to DISK */
@@ -296,7 +298,10 @@ get_diskinfo (unsigned long drive, struct geometry *geometry, unsigned long lba1
 	geometry->flags = BIOSDISK_FLAG_LBA_EXTENSION;
 	geometry->sector_size = SECTOR_SIZE;
 	/* if for some reason(e.g., a bios bug) the memory is reported less than 1M(too few), then we suppose the memory is unlimited. */
-	geometry->total_sectors = (total_mem_sectors < 0x800ULL ? 0x80000000000000ULL : total_mem_sectors);
+	if (md_part_size)
+		geometry->total_sectors = (md_part_size >> SECTOR_BITS) + !!(md_part_size & (SECTOR_SIZE - 1));
+	else
+		geometry->total_sectors = (total_mem_sectors < 0x800ULL ? 0x80000000000000ULL : total_mem_sectors);
 	geometry->heads = 255;
 	geometry->sectors = 63;
 	geometry->cylinders = (geometry->total_sectors > (0xFFFFFFFFULL - 255 * 63 + 1) ? 0xFFFFFFFFUL / (255UL * 63UL):((unsigned long)geometry->total_sectors + 255 * 63 -1) / (255 * 63));

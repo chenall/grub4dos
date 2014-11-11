@@ -79,6 +79,8 @@ static int do_completion;
 static int set_filename(char *filename);
 int dir (char *dirname);
 static int sane_partition (void);
+unsigned long long md_part_size;
+unsigned long long md_part_base;
 
 /* XX used for device completion in 'set_device' and 'print_completions' */
 static int incomplete, disk_choice;
@@ -1379,7 +1381,19 @@ set_device (char *device)
 	      if (ch == 'c' && cdrom_drive != GRUB_INVALID_DRIVE && *device == ')')
 		current_drive = cdrom_drive;
 	      else if (ch == 'm')
+	      {
 		current_drive = 0xffff;
+		md_part_base = md_part_size = 0LL;
+		if (*device == ',')
+		{
+			++device;
+			if (!safe_parse_maxint (&device, &md_part_base) && *device++ != ',' && !safe_parse_maxint (&device, &md_part_size))
+			{
+				errnum = ERR_DEV_FORMAT;
+				return 0;
+			}
+		}
+		}
 	      else if (ch == 'r')
 		current_drive = ram_drive;
           else if (ch == 'b')
@@ -1443,11 +1457,8 @@ set_device (char *device)
 	    {
 	      unsigned long long ull;
 	      part_choice ++;
-	      current_partition = 0;
 
-	      if (/*!(current_drive & 0x80)
-		  ||*/ !safe_parse_maxint (&device, &ull)
-		  || current_partition > 254)
+	      if (!safe_parse_maxint (&device, &ull))
 		{
 		  errnum = ERR_DEV_FORMAT;
 		  return 0;
