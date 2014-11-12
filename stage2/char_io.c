@@ -280,7 +280,7 @@ grub_sprintf (char *buffer, const char *format, ...)
 
     stdout = 0;
     putchar_hook_back = set_putchar_hook((grub_u8_t*)0);
-    bp=buffer=NULL;//reset buffer and bp to NULL
+    bp=NULL;buffer=NULL;//reset buffer and bp to NULL
   }
   //dataptr++;
   //dataptr++;
