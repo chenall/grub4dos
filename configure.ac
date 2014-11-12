@@ -17,6 +17,7 @@ AC_INIT([GRUB], [0.97], [bug-grub@gnu.org])
 AC_CONFIG_SRCDIR([stage2/stage2.c])
 AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE
+AM_SILENT_RULES([yes])
 AM_PROG_AS
 
 dnl Generate stage2/grub4dos_version.h
