@@ -53,7 +53,7 @@ grub_u32_t raw_file(grub_u64_t base,struct initrdfs_file *p_fn,grub_u32_t max_si
 	while(size < max_size)
 	{
 		size += 4096;//4KB align
-		char *p = (grub_u32_t)(base + size);
+		char *p = (char*)(grub_u32_t)(base + size);
 		if (*(grub_u32_t*)p == 0x54414221UL)//!BAT
 			break;
 		if (*(grub_u16_t*)p == 0x8B1F)//GZIP
