@@ -194,6 +194,8 @@ fi
 LDFLAGS_SAVED="${LDFLAGS}"
 case "$host_os" in
   mingw32 | cygwin)
+    # Remove exception handling (objcopy can get confused with .eh_frame sections otherwise)
+    CPPFLAGS="$CPPFLAGS -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
     BIN_LDFLAGS="-Wl,-T"'$(top_srcdir)'"/ldscript"
     LDFLAGS="${LDFLAGS} -Wl,-T${srcdir}/ldscript"
     BUILD_DIRS="stage2"
