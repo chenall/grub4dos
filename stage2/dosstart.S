@@ -1353,7 +1353,7 @@ default_config_file_grldr:
 
 	.byte	0		/* mark the end of ascii zero string */
 #else
-	xorw	%ax, %ax
+	xorl	%eax, %eax
 	movw	%ax, %es
 	movw	%ax, %ds
 	//movw	%ax, %ss

@@ -70,12 +70,12 @@ if [ "$Get_source" ]; then
 	echo -n -e "and now you may do a \"make\" to compile.\r\n\r\n" >> Get_Source_of_This_Build.txt
 fi
 
-make clean
 #############################################
 #	Build english version
 #############################################
 
 ./configure --enable-preset-menu=preset_menu.lst || exit $?
+make clean
 make || exit $?
 rm -rf grub4dos-${VER}
 mkdir grub4dos-${VER} || exit $?
