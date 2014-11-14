@@ -1431,7 +1431,7 @@ set_device (char *device)
 		if (*device == ',')
 		{
 			++device;
-			if (!safe_parse_maxint (&device, &md_part_base) && *device++ != ',' && !safe_parse_maxint (&device, &md_part_size))
+			if (!safe_parse_maxint (&device, &md_part_base) || *device++ != ',' || !safe_parse_maxint (&device, &md_part_size))
 			{
 				errnum = ERR_DEV_FORMAT;
 				return 0;
@@ -2067,18 +2067,30 @@ block_file:
 	  blk_buf.cur_blklist = blk_buf.blklist;
 	  blk_buf.cur_blknum = 0;
 
-	  //if (current_drive == ram_drive && filemax == 512/* &&  filemax < rd_size*/ && (*(long *)(FSYS_BUF + 12)) == 0)
-	  if (current_drive == ram_drive && filemax == 512/* &&  filemax < rd_size*/ && (blk_buf.blklist[0].start) == 0)
+	  unsigned long long mem_drive_size = 0;
+	  if (current_drive == ram_drive)
 	  {
-		filemax = rd_size;
-		// *(long *)(FSYS_BUF + 16) = (filemax + 0x1FF) >> 9;
-		blk_buf.blklist[0].length = (filemax + 0x1FF) >> 9;
+		mem_drive_size = rd_size;
+		goto check_ram_drive_size;
+	  }
+	  else if (current_drive == 0xffff)
+	  {
+		if (!md_part_base && !(blk_buf.blklist[0].start))
+			return 1;
+		mem_drive_size = md_part_size;
+	check_ram_drive_size:
+		if (filemax == 512 && (blk_buf.blklist[0].start) == 0)
+		{
+			filemax = mem_drive_size;
+			blk_buf.blklist[0].length = (filemax + 0x1FF) >> 9;
+		} else if (filemax > mem_drive_size)
+			filemax = mem_drive_size;
 	  }
 #ifdef NO_DECOMPRESSION
 	  return 1;
 #else
 	  //return (current_drive == 0xffff && ! *((unsigned long*)(FSYS_BUF + 12)) ) ? 1 : gunzip_test_header ();
-	  return (current_drive == 0xffff && !(blk_buf.blklist[0].start) ) ? 1 : gunzip_test_header ();
+	  return gunzip_test_header ();
 #endif
 //	}
 #endif /* block files */

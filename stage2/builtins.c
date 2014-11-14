@@ -4867,7 +4867,7 @@ static int grub_mod_list(const char *name)
       {
          if (debug > 0)
             grub_printf(" %s\n",pn);
-         ret++;
+         ret = (int)p_mod->data;
       }
       p_mod = (struct exec_array *)((unsigned int)(p_mod->data + mod_len + 0xf) & ~0xf);
    }
