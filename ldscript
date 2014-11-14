@@ -48,6 +48,5 @@ SECTIONS
   }
 }
 
-ASSERT("__rdata_end__"=="edata", ".pdata not empty")
-ASSERT("__bss_end__"  =="end"  , ".edata not empty")
-
+ASSERT(!SIZEOF(.pdata), ".pdata not empty")
+ASSERT(!SIZEOF(.edata), ".edata not empty")
