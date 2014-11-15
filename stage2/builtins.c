@@ -9924,7 +9924,7 @@ map_whole_drive:
 			{
 				/* to_o = */ to = 0xFFFF;		/* memory device */
 			}
-		    if (! ((bios_drive_map[j].to_sector) & 0x80)) // The TO drive is not in-situ
+		    if (! ((hooked_drive_map[j].to_sector) & 0x80)) // The TO drive is not in-situ
 		    {
 			if (start_sector == 0 && (sector_count == 0 || (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
 			{
