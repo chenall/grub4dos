@@ -2034,13 +2034,16 @@ block_file:
 		if (!md_part_base && !(blk_buf.blklist[0].start))
 			return 1;
 		mem_drive_size = md_part_size;
-	check_ram_drive_size:
-		if (filemax == 512 && (blk_buf.blklist[0].start) == 0)
+		if (md_part_base)
 		{
-			filemax = mem_drive_size;
-			blk_buf.blklist[0].length = (filemax + 0x1FF) >> 9;
-		} else if (filemax > mem_drive_size)
-			filemax = mem_drive_size;
+	check_ram_drive_size:
+			if (filemax == 512 && (blk_buf.blklist[0].start) == 0)
+			{
+				filemax = mem_drive_size;
+				blk_buf.blklist[0].length = (filemax + 0x1FF) >> 9;
+			} else if (filemax > mem_drive_size)
+				filemax = mem_drive_size;
+		}
 	  }
 #ifdef NO_DECOMPRESSION
 	  return 1;
