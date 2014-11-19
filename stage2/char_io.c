@@ -115,7 +115,7 @@ void
 print_error (void)
 {
   if (errnum > ERR_NONE && errnum < MAX_ERR_NUM)
-    printf_errinfo ("\nError %u: %s\n", errnum, err_list[errnum]);
+    printf_errinfo ("\nError %u:(http://grub4dos.chenall.net/e/%u)\n\t %s\n", errnum, errnum, err_list[errnum]);
 }
 
 char *

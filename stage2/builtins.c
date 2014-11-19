@@ -7112,11 +7112,6 @@ help_func (char *arg, int flags)
 
 	  for (builtin = builtin_table; *builtin; builtin++)
 	    {
-	      #if 0
-	      /* Skip this if this is only for the configuration file.  */
-	      if (! ((*builtin)->flags & BUILTIN_CMDLINE))
-		continue;
-		#endif
 	      if (substring (arg, (*builtin)->name, 0) < 1 && (*builtin)->short_doc)
 		{
 		  /* At first, print the name and the short doc.  */

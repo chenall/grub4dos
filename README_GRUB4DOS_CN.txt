@@ -8,38 +8,36 @@
 注:本文仅供参考,可能有一些更新没有在这里说明.如果有发现错误可以到论坛发贴或email联系我(grub4dos@chenall.net)
 
 其它命令用法请参考
-	http://grub4dos.sourceforge.net/wiki/ 处的 GRUB4DOS 有关文档。
+	http://chenall.net 或 http://grub4dos.chenall.net 处的 GRUB4DOS 有关文档。
 
 外部命令的用法请参考
 	http://chenall.net/post/tag/grub4dos/
 
 项目主页 
-	http://code.google.com/p/grub4dos-chenall/
+	https://github.com/chenall/grub4dos
 
 下载网址:
-	http://code.google.com/p/grub4dos-chenall/downloads/list
-	http://nufans.net/grub4dos/
+	http://grub4dos.chenall.net
 
 工具和外部命令:
 	http://code.google.com/p/grubutils/downloads/list
 
-通过匿名 svn 服务器获取最新源代码的方法：
+获取最新源代码的方法：
 
-	svn co http://grub4dos-chenall.googlecode.com/svn/trunk/ grub4dos
+	git clone git://github.com/chenall/grub4dos.git
+或
+	svn co https://github.com/chenall/grub4dos grub4dos-src
 
 通过你的 web 浏览器在线查看源代码：
-	http://code.google.com/p/grub4dos-chenall/source/browse/
+	https://github.com/chenall/grub4dos
 
-GRUB4DOS 邮件列表(未用)：
-	grub4dos-devel@gna.org
-
-订阅页面：
-	https://mail.gna.org/listinfo/grub4dos-devel/
 
 论坛（官方技术支持站点）：
+	中文:
+	http://bbs.wuyou.com/forumdisplay.php?fid=60
 	http://bbs.znpc.net/forumdisplay.php?fid=4
+	英文:
 	http://reboot.pro/forum/66/
-
 ******************************************************************************
 ***                                GCC 黑名单                              ***
 ******************************************************************************
