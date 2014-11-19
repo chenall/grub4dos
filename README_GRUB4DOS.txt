@@ -1,35 +1,15 @@
-Please refer to http://grub4dos.sourceforge.net/wiki/ for DOCs on GRUB4DOS.
 
-Main project page:	http://grub4dos-chenall.googlecode.com/
+Main project page:	https://github.com/chenall/grub4dos
 
-Download site:		http://code.google.com/p/grub4dos-chenall/downloads/list
-
-Unused:
-Download site:		http://grub4dos.sourceforge.net/
-Download site:		http://sarovar.org/projects/grub4dos/
-Download site:		http://grub4dos.nufans.net/
-Download site:		http://sites.google.com/site/grubdos/
-Download site:		ftp://grub4dos.sarovar.org/pub/grub4dos/
-
-Get the latest source code by using anonymous svn in this way:
-
-	svn co http://grub4dos-chenall.googlecode.com/svn/trunk/ grub4dos
-
-or in this way:
+Get the latest source code
 
 	git clone git://github.com/chenall/grub4dos.git
+or
+	svn co https://github.com/chenall/grub4dos grub4dos-src
 
 View the source code online with your web browser at:
 
-	http://code.google.com/p/grub4dos-chenall/source/browse/
-
-GRUB4DOS mailing list:
-
-	grub4dos-devel@gna.org
-
-Subscription page:
-
-	https://mail.gna.org/listinfo/grub4dos-devel/
+	https://github.com/chenall/grub4dos
 
 Discussion forum(Official technical support site):
 
@@ -38,6 +18,9 @@ Discussion forum(Official technical support site):
 	http://bbs.znpc.net/forumdisplay.php?fid=4
 	English:
 	http://reboot.pro/forum/66/
+
+Download:  http://grub4dos.chenall.net
+Docs:	   http://grub4dos.chenall.net  http://chenall.net
 
 ******************************************************************************
 ***                              GCC Blacklist                             ***

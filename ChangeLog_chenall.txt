@@ -421,9 +421,20 @@
 	那%9就是9 0 a b c.
 
 2010-12-31
-	1.pause命令增强，增加了显示按键码的功能。
+	1.pause命令增强，增加了显示按键扫描码的功能。需要debug 为-1.
+	例子：显示一个按键扫描码
+	debug -1 && pause && debug 1
+	注：此功能已为被参数--test-key代替。
+
 	2.hiddenmenu命令增强。增加一个--chkpass参数
-	具体用法请参考: README_GRUB4DOS.TXT对应的更新
+		功能：	在隐藏菜单的时候按Esc键要输入正确的密码才可以显示菜单。
+		注意：	1.该功能启用之后，如果按了其它按键则直接启动默认菜单。
+			  默认的Esc按键可以自由设置。使用--chkpass=KEY
+			2.菜单初始化有password命令时才需要输入密码。
+			3.按键代码如果不清楚可以使用上面的功能来获取。
+	例子：	hiddenmenu --chkpass=0x8500	按F11键才可以显示菜单。
+		hiddenmenu --chkpass	 	按Esc键才可以显示菜单。
+		hiddenmenu --chkpass=0x2200	按Alt+G显示菜单。
 
 2010-12-28
 	1.一些BUG修复.
