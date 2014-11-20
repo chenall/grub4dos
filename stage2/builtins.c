@@ -5703,7 +5703,7 @@ find_func (char *arg, int flags)
 		switch(*devtype)
 		{
 			case 'h':
-				if (tmp_drive >= 0x80 && tmp_drive < 0xA0 && tmp_partition != 0xFFFFFF)
+				if (tmp_drive >= 0x80 && tmp_drive < 0xA0)
 					FIND_DRIVES = 1;
 				break;
 			case 'u':
