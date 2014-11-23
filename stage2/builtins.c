@@ -11571,18 +11571,14 @@ static struct builtin builtin_quit =
 #ifndef NO_DECOMPRESSION
 static int raw_func(char *arg, int flags)
 {
-	int no_decompression_bak = no_decompression;
-	no_decompression = 1;
-	int ret = run_line(arg,flags);
-	no_decompression = no_decompression_bak;
-	return ret;
+	return run_line(arg,flags);
 }
 
 static struct builtin builtin_raw =
 {
   "raw",
   raw_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE | BUILTIN_NO_DECOMPRESSION,
   "raw COMMAND",
   "run COMMAND without auto-decompression."
 };
