@@ -15122,7 +15122,9 @@ struct bat_array
 	/*
 	 (char **)(entry + 0x80) is the entry of bat_script to run.
 	*/
+	grub_u32_t size;
 	char *path;
+	char md[0];
 } *p_bat_prog = NULL;
 
 static char **batch_args;
@@ -15153,6 +15155,7 @@ static int bat_get_args(char *arg,char *buff,int flags)
 {
 	char *p = ((char *)0x4CA40);
 	char *s1 = buff;
+	int isParam0 = (flags & 0xff);
 
 	if (*arg == '(')
 	{
@@ -15175,7 +15178,7 @@ static int bat_get_args(char *arg,char *buff,int flags)
 			case_convert((char*)0x4CA40,'A');
 		}
 	}
-	else if (flags & 0xff) // if is Param 0
+	else if (isParam0) // if is Param 0
 	{
 		p += sprintf(p,"%s",p_bat_prog->path) - 1;//use program run dir
 	}
@@ -15192,15 +15195,23 @@ static int bat_get_args(char *arg,char *buff,int flags)
 	sprintf(p,"%s",arg);
 	p = ((char *)0x4CA40);
 	flags >>= 8;
+
+	if (flags & 0x20) buff += sprintf(buff,"%s",p_bat_prog->md);
+
 	if (flags & 0x10)
 	{
-		if (grub_open(p))
+		if (isParam0)
 		{
-			buff += sprintf(buff,"0x%lx",filemax);
+			buff += sprintf(buff,"0x%X",p_bat_prog->size);
+		}
+		else if (grub_open(p))
+		{
+			buff += sprintf(buff,"0x%lX",filemax);
 			grub_close();
 		}
 		errnum = 0;
 		flags &= 0xf;
+		if (flags) *buff++ = '\t';
 	}
 
 	if (flags == 0x2f)
@@ -15342,7 +15353,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			if (*p_bat == '~')
 			{
 				p_bat++;
-				i |= 0x20;
+				i |= 0x80;
 				while (*p_bat)
 				{
 					if (*p_bat == 'd')
@@ -15357,6 +15368,8 @@ static int bat_run_script(char *filename,char *arg,int flags)
 						i |= 0xf;
 					else if (*p_bat == 'z')
 						i |= 0x10;
+					else if (*p_bat == 'm')
+						i |= 0x20;
 					else
 						break;
 					p_bat++;
@@ -15369,11 +15382,11 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				if (*p_rep)
 				{
 					int len_c = 0;
-					if ((i & 0x20) && *p_rep == '\"')
+					if ((i & 0x80) && *p_rep == '\"')
 					{
 						p_rep++;
 					}
-					if (i & 0x1f)
+					if (i & 0x3f)
 					{
 						len_c = bat_get_args(p_rep,p_cmd,i << 8 | (s[*p_bat - '0'] == cmd_buff));
 					}
@@ -15384,7 +15397,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 					if (len_c)
 					{
-						if ((i & 0x20) && p_cmd[len_c-1] == '\"')
+						if ((i & 0x80) && p_cmd[len_c-1] == '\"')
 						--len_c;
 						p_cmd += len_c;
 					}
@@ -15614,11 +15627,16 @@ static int grub_exec_run(char *program, int flags)
 		struct bat_array *p_bat_array_orig = p_bat_prog;
 
 		char *filename = program - (*(unsigned long *)(program - 16));
-		char *p_bat;
+		char *p_bat = program;
 		struct bat_label *label_entry =(struct bat_label *)((char *)p_bat_array + 0x200);
 		char **bat_entry = (char **)(label_entry + 0x80);//0x400/sizeof(label_entry)
 		unsigned long i_bat = 1,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
+		grub_u32_t size = 0;
 
+		while(*p_bat++) ++size;
+
+		p_bat_array->size = size;
+		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",program,*(unsigned long *)(program - 20));
 		program = skip_to(SKIP_LINE,program);//skip head
 		while ((p_bat = program))//scan batch file and make label and bat entry.
 		{
