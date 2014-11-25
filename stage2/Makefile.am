@@ -136,8 +136,8 @@ bootlace.com: bootlacestart                                             #Note: S
 	$(AM_V_at)-rm -f bootlace.com
 	$(AM_V_at)-rm -f grldr.pbr
 	$(AM_V_at)cp bootlacestart bootlace.com && chmod a+x bootlace.com
-	$(AM_V_at)dd if=bootlace.com of=grldr.pbr bs=512 skip=56 count=10             #skip(1):  "EB 58 90 00" position in the bootlace.com		redress: skip +(-) 1
-	$(AM_V_at)dd if=bootlace.com of=grldr_cd.bin bs=512 skip=66 count=1           #skip(2):   = skip(1) + 10
+	$(AM_V_at)dd if=bootlace.com of=grldr.pbr bs=512 skip=57 count=10             #skip(1):  "EB 58 90 00" position in the bootlace.com		redress: skip +(-) 1
+	$(AM_V_at)dd if=bootlace.com of=grldr_cd.bin bs=512 skip=67 count=1           #skip(2):   = skip(1) + 10
 	$(AM_V_at)cat grldr.mbr >> bootlace.com
 
 hmloadstart_exec_SOURCES = hmloadstart.S
