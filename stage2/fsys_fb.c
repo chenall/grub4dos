@@ -180,7 +180,7 @@ static int fb_init (void)
 
 	fb_drive_virtual = is_virtual(fb_drive);
 
-	if (fb_drive_virtual && fb_drive == (unsigned char)(fb_status >> 8))
+	if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
 		quick_hook (0);
 
 	ret = rawread (fb_drive, 0, 0, 512, (unsigned long long)(unsigned int)&m, 0xedde0d90);
@@ -259,7 +259,7 @@ static int fb_init (void)
 
 init_end:
 
-	if (fb_drive_virtual && fb_drive == (unsigned char)(fb_status >> 8))
+	if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
 		quick_hook (fb_drive_virtual);
 
 	return ret;
@@ -325,14 +325,14 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
     {
       sector = cur_file->data_start + (filepos >> 9) - fb_ofs;
 
-      if (fb_drive_virtual && fb_drive == (unsigned char)(fb_status >> 8))
+      if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
 		quick_hook (0);
 
       disk_read_func = disk_read_hook;
       ret = rawread (fb_drive, sector, filepos & 0x1ff, len, buf, write);
       disk_read_func = NULL;
 
-      if (fb_drive_virtual && fb_drive == (unsigned char)(fb_status >> 8))
+      if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
 		quick_hook (fb_drive_virtual);
 
       if (ret)
@@ -351,7 +351,7 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
   ofs = (unsigned long) filepos % 510;
   saved_len = len;
 
-  if (fb_drive_virtual && fb_drive == (unsigned char)(fb_status >> 8))
+  if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
 	quick_hook (0);
 
   while (len)
@@ -373,7 +373,7 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
       len -= n;
     }
 
-  if (fb_drive_virtual && fb_drive == (unsigned char)(fb_status >> 8))
+  if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
 	quick_hook (fb_drive_virtual);
 
   if (! ret)
