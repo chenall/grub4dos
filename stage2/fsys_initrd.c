@@ -24,15 +24,12 @@
 #include "filesys.h"
 #include "fsys_initrd.h"
 
-#define FILE_INFO
-
 static grub_u64_t initrdfs_base;
 static grub_u64_t initrdfs_size;
-
-struct initrdfs_file *p_fnode = (struct initrdfs_file*)FSYS_BUF;
-struct initrdfs_file *cur_file = (struct initrdfs_file*)FSYS_BUF;
-
-grub_u64_t char2u64(char *node)
+static grub_u32_t initrdfs_type;
+static struct initrdfs_file cur_file;
+static grub_u32_t path_len;
+static grub_u64_t char2u64(char *node)
 {
 	char buf[11]="0x";
 	grub_u64_t tmp;
@@ -43,93 +40,87 @@ grub_u64_t char2u64(char *node)
 	return tmp;
 }
 
-grub_u32_t raw_file(grub_u64_t base,struct initrdfs_file *p_fn,grub_u32_t max_size)
+static int test_file(const char *dirname)
 {
-	grub_u32_t size = 0;
-	p_fn->isdir = 0;
-	p_fn->base = base;
-	p_fn->name = -1LL;
-
-	while(size < max_size)
+	if (print_possibilities)
 	{
-		size += 4096;//4KB align
-		char *p = (char*)(grub_u32_t)(base + size);
-		if (*(grub_u32_t*)p == 0x54414221UL)//!BAT
-			break;
-		if (*(grub_u16_t*)p == 0x8B1F)//GZIP
-			break;
-		if (*(p-1) == '\0')
+		if (substring (dirname,(char*)cur_file.name, 1) <= 0)
 		{
-			grub_u32_t *t = (grub_u32_t*)p;
-			while(*t == 0)
-			{
-				if ((grub_u32_t)(++t) - (grub_u32_t)p >= 4096)
-					break;
-			}
-			if (*t) break;
+			print_a_completion ((char*)cur_file.name + path_len, 1);
+			return 1;
 		}
 	}
-	p_fn->size = size;
-	return size;
+	else if (substring (dirname, (char*)cur_file.name, 1) == 0)
+	{
+		filemax = cur_file.size;
+		return 2;
+	}
+	return 0;
 }
 
-grub_u32_t cpio_file(grub_u64_t base,struct initrdfs_file *p_fn)
+static grub_u32_t cpio_file(struct cpio_header *hdr)
 {
 	grub_u64_t namesize;
 	grub_u16_t hdr_sz;
-	struct cpio_header *p_cpio;
-	p_cpio =(struct cpio_header *)(grub_u32_t)base;
-	p_fn->isdir = char2u64(p_cpio->c_mode);
-	namesize = char2u64(p_cpio->c_namesize);
-	p_fn->size = char2u64(p_cpio->c_filesize);
-	if (errnum || p_fn->isdir == 0)
+	cur_file.isdir = char2u64(hdr->c_mode);
+	namesize = char2u64(hdr->c_namesize);
+	cur_file.size = char2u64(hdr->c_filesize);
+	if (errnum || cur_file.isdir == 0)
 	{
 		errnum = 0;
 		return 0;
 	}
-	p_fn->name=base + sizeof(struct cpio_header);
 	hdr_sz = cpio_image_align(sizeof(struct cpio_header) + namesize);
-	p_fn->isdir &= CPIO_MODE_DIR;
-	p_fn->base = base + hdr_sz;
-	return cpio_image_align(hdr_sz + p_fn->size);
+	cur_file.base = (grub_u32_t)hdr + hdr_sz;
+	cur_file.name = (grub_u32_t)hdr + sizeof(struct cpio_header);
+	cur_file.isdir &= CPIO_MODE_DIR;
+	cur_file.name_size = namesize;
+
+	return cpio_image_align(hdr_sz + cur_file.size);
 }
 
-int cpio_dir(void)
+static int cpio_dir(const char* dirname)
 {
-	struct initrdfs_file *p_fn = p_fnode;
-	grub_u64_t cpio_base = initrdfs_base;
-	grub_u64_t cpio_end = cpio_base + initrdfs_size;
+	struct cpio_header *p_cpio_hdr;
+	int found = 0;
+	grub_u64_t tmp_pos = 0;
+	grub_u64_t cur_pos = 0;
 	grub_u32_t node_size = 0;
-	p_fnode->base = 0ll;
 
-	while(cpio_base < cpio_end)
+	while(cur_pos < initrdfs_size)
 	{
-		grub_u16_t c_flag = *(grub_u16_t*)(grub_u32_t)(cpio_base+4);
-		if (*(grub_u32_t*)(grub_u32_t)cpio_base == 0x37303730 && (c_flag == 0x3130 || c_flag == 0x3230))
-			node_size = cpio_file(cpio_base,p_fn);
-		else
-			node_size = raw_file(cpio_base,p_fn,cpio_end - cpio_base);
-
+		p_cpio_hdr = (struct cpio_header *)(grub_u32_t)(initrdfs_base + cur_pos);
+		if (*(grub_u32_t*)p_cpio_hdr->c_magic != 0x37303730 || p_cpio_hdr->c_magic[5] == 0x30)//07070
+		{
+			if (node_size)
+				cur_pos = tmp_pos + ((node_size + 0xFFF) & ~0xFFF);
+			else
+				cur_pos += 4096;
+			node_size = 0;
+			continue;
+		}
+		node_size = cpio_file(p_cpio_hdr);
 		if (node_size == 0 || node_size == -1)
 			break;
-		cpio_base += node_size;
-		if (*(grub_u32_t*)(grub_u32_t)cpio_base != 0x37303730)
+		switch(test_file(dirname))
 		{
-			cpio_base += (node_size + 0xFFF) & ~0xFFF;
-			cpio_base -= node_size;
+			case 2:
+				return 2;
+			case 1:
+				found = 1;
+				break;
 		}
-		++p_fn;
+		tmp_pos = cur_pos;
+		cur_pos += node_size;
 	}
-	p_fn->base=0;
-	return p_fnode->base;
+
+	return found;
 }
 
 int initrdfs_mount (void)
 {
 	int i;
 
-	initrdfs_base = 0;
-	initrdfs_size = 0;
 	if (current_drive == ram_drive)
 	{
 		initrdfs_base = rd_base;
@@ -160,16 +151,26 @@ int initrdfs_mount (void)
 
 	if (initrdfs_base == 0) return 0;
 
-	return cpio_dir();
+	switch(*(grub_u32_t*)(grub_u32_t)initrdfs_base)
+	{
+		case BAT_SIGN:
+			initrdfs_type = 1;
+			break;
+		case 0x37303730:
+			initrdfs_type = 2;
+			break;
+		default:
+			return 0;
+	}
+
+	return 1;
 }
+
 
 int initrdfs_dir (char *dirname)
 {
 	grub_u32_t found = 0;
-	char raw_name[9];
 	char *dirpath = dirname + grub_strlen(dirname);
-	grub_u32_t path_len;
-	cur_file = p_fnode;
 
 	while (*dirname == '/')
 		dirname++;
@@ -180,50 +181,53 @@ int initrdfs_dir (char *dirname)
 	path_len = dirpath - dirname;
 	if (*dirpath == '/') ++path_len;
 
-	while(cur_file->base)
+	if (initrdfs_type == 1)
 	{
-		char *filename;
-		if (cur_file->name != -1)
-			filename = (char*)(grub_u32_t)cur_file->name;
-		else
-		{
-			sprintf(raw_name,"%08X",(grub_u32_t)cur_file->base);
-			filename = raw_name;
-		}
+		grub_u16_t filename = '0';
+		grub_u32_t pos=0;
+		grub_u32_t test = 0;
+		cur_file.name = (grub_u32_t)&filename;
+		cur_file.isdir = 0;
+		cur_file.name_size = 2;
 
-		if (print_possibilities)
+		while(pos < initrdfs_size)
 		{
-			if (substring (dirname,filename, 1) <= 0/* && grub_strstr(filename + path_len,"/") == 0*/)
-			{
-				found = 1;
-				print_a_completion (filename + path_len, 1);
-			}
+			cur_file.base = initrdfs_base + pos;
+			cur_file.size = (*(grub_u32_t*)(grub_u32_t)cur_file.base == BAT_SIGN)?grub_strlen((char*)cur_file.base):initrdfs_size - pos;
+			test = test_file(dirname);
+			if (test) found = 1;
+			if (test == 2) break;
+			++filename;
+			pos += cur_file.size + 1;
 		}
-		else if (substring (dirname, filename, 1) == 0)
-		{
-			found = 1;
-			filemax = cur_file->size;
-			break;
-		}
-		++cur_file;
 	}
-
-	if (!found) errnum = ERR_FILE_NOT_FOUND;
+	else
+		found = cpio_dir(dirname);
 
 	return found;
 }
 
 unsigned long long initrdfs_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
-	if (disk_read_hook && debug > 1)
-		printf("<B:%lX,S:%lX,P:%lX>\n",cur_file->base,cur_file->size,filepos);
-	if (filepos > cur_file->size) return 0;
-	if (len > cur_file->size - filepos) len = cur_file->size - filepos;
-	if (write == GRUB_WRITE) grub_memmove64(cur_file->base + filepos,buf,len);
-	if (write == GRUB_READ && buf) grub_memmove64(buf,cur_file->base + filepos,len);
+	if (filepos > cur_file.size) return 0;
+	if (len > cur_file.size - filepos) len = cur_file.size - filepos;
+
+	grub_u64_t file_base = cur_file.base + filepos;
+
+	if (disk_read_hook)
+		disk_read_hook(file_base >>  SECTOR_BITS,file_base & (SECTOR_SIZE - 1),len);
+
+	if (write == GRUB_WRITE) grub_memmove64(file_base,buf,len);
+	else if (write == GRUB_READ && buf) grub_memmove64(buf,file_base,len);
 
 	filepos += len;
+
 	return len;
+}
+
+void initrdfs_close (void)
+{
+
 }
 
 #endif /* FSYS_INITRD */

@@ -170,7 +170,7 @@ struct fsys_entry fsys_table[NUM_FSYS + 1] =
   {"ffs", ffs_mount, ffs_read, ffs_dir, 0, ffs_embed},
 # endif
 # ifdef FSYS_INITRD
-  {"initrdfs", initrdfs_mount, initrdfs_read, initrdfs_dir, 0, 0},
+  {"initrdfs", initrdfs_mount, initrdfs_read, initrdfs_dir, initrdfs_close, 0},
 # endif
   {0, 0, 0, 0, 0, 0}
 };
@@ -1585,6 +1585,7 @@ static int set_filename(char *filename)
 int
 dir (char *dirname)
 {
+  int ret;
 #ifndef NO_DECOMPRESSION
   compressed_file = 0;
 #endif /* NO_DECOMPRESSION */
@@ -1604,7 +1605,9 @@ dir (char *dirname)
   /* set "dir" function to list completions */
   print_possibilities = 1;
 
-  return (*(fsys_table[fsys_type].dir_func)) (open_filename);
+  ret = (*(fsys_table[fsys_type].dir_func)) (open_filename);
+  if (!ret && !errnum) errnum = ERR_FILE_NOT_FOUND;
+  return ret;
 }
 
 

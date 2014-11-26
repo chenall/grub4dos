@@ -265,6 +265,13 @@ static void disk_read_blocklist_func (unsigned long long sector, unsigned long o
 static void
 disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsigned long length)
 {
+#ifdef FSYS_INITRD
+	if (fsys_table[fsys_type].mount_func == initrdfs_mount)
+	{
+		printf("(md,0x%lx,0x%x)+1",(sector << SECTOR_BITS) + offset,length);
+		return;
+	}
+#endif
       if (blklst_num_sectors > 0)
 	{
 	  if (blklst_start_sector + blklst_num_sectors == sector
@@ -332,7 +339,15 @@ blocklist_func (char *arg, int flags)
   /* Open the file.  */
   if (! grub_open (arg))
     goto fail_open;
-
+#ifdef FSYS_INITRD
+  if (fsys_table[fsys_type].mount_func == initrdfs_mount)
+  {
+    disk_read_hook = disk_read_blocklist_func;
+    err = grub_read ((unsigned long long)(unsigned int)dummy,-1ULL, GRUB_READ);
+    disk_read_hook = 0;
+    goto fail_read;
+  }
+#endif
 #ifndef NO_DECOMPRESSION
   if (compressed_file)
   {
@@ -4705,7 +4720,6 @@ static char command_path[128]="(bd)/BOOT/GRUB/";
 static int command_path_len = 15;
 #define GRUB_MOD_ADDR (SYSTEM_RESERVED_MEMORY - 0x100000)
 #define UTF8_BAT_SIGN 0x54414221BFBBEFULL
-#define BAT_SIGN 0x54414221UL
 #define LONG_MOD_NAME_FLAG 0xEb
 struct exec_array
 {

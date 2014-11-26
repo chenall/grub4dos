@@ -177,6 +177,7 @@ void pxe_close (void);
 int initrdfs_mount (void);
 unsigned long long initrdfs_read (unsigned long long buf, unsigned long long len, unsigned long write);
 int initrdfs_dir (char *dirname);
+void initrdfs_close (void);
 #endif
 #else
 #define FSYS_INITRD_NUM 0
