@@ -15645,12 +15645,10 @@ static int grub_exec_run(char *program, int flags)
 		struct bat_label *label_entry =(struct bat_label *)((char *)p_bat_array + 0x200);
 		char **bat_entry = (char **)(label_entry + 0x80);//0x400/sizeof(label_entry)
 		unsigned long i_bat = 1,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
-		grub_u32_t size = 0;
+		grub_u32_t size = grub_strlen(program);
 
-		while(*p_bat++) ++size;
-
-		p_bat_array->size = size;
-		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",program,*(unsigned long *)(program - 20));
+		p_bat_array->size = size++;
+		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",program + size,*(unsigned long *)(program - 20) - size);
 		program = skip_to(SKIP_LINE,program);//skip head
 		while ((p_bat = program))//scan batch file and make label and bat entry.
 		{
