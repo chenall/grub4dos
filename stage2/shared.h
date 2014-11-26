@@ -1216,6 +1216,7 @@ void stop_floppy (void);
 #define BUILTIN_USER_PROG	(1 << 8)
 #define BUILTIN_NO_DECOMPRESSION (1 << 9)
 
+#define BAT_SIGN 0x54414221UL
 
 /* The table for a builtin.  */
 struct builtin
