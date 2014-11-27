@@ -268,7 +268,8 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 #ifdef FSYS_INITRD
 	if (fsys_table[fsys_type].mount_func == initrdfs_mount)
 	{
-		printf("(md,0x%lx,0x%x)+1",(sector << SECTOR_BITS) + offset,length);
+		if (query_block_entries >= 0)
+			printf("(md,0x%lx,0x%x)+1",(sector << SECTOR_BITS) + offset,length);
 		return;
 	}
 #endif
@@ -366,18 +367,7 @@ blocklist_func (char *arg, int flags)
 #endif /* NO_DECOMPRESSION */
 
   /* Print the device name.  */
-  if (query_block_entries >= 0)
-  {
-	grub_printf ("(%cd%d", ((current_drive & 0x80) ? 'h' : 'f'), (current_drive & ~0x80));
-  
-	if ((current_partition & 0xFF0000) != 0xFF0000)
-	    grub_printf (",%d", ((unsigned char)(current_partition >> 16)));
-  
-	if ((current_partition & 0x00FF00) != 0x00FF00)
-	    grub_printf (",%c", ('a' + ((unsigned char)(current_partition >> 8))));
-  
-	grub_printf (")");
-  }
+  if (query_block_entries >= 0) print_root_device (NULL,1);
 
   rawread_ignore_memmove_overflow = 1;
   /* Read in the whole file to DUMMY.  */
@@ -400,17 +390,7 @@ blocklist_func (char *arg, int flags)
 
   if (query_block_entries >= 0)
     grub_putchar ('\n', 255);
-#if 0
-  if (num_entries > 1)
-    query_block_entries = num_entries;
   else
-    {
-      query_block_entries = 1;
-      map_start_sector = start_sector;
-      map_num_sectors = num_sectors;
-    }
-#endif
-  if (query_block_entries < 0)
     {
       map_start_sector = blklst_start_sector;
       blklst_start_sector = 0;
@@ -450,7 +430,7 @@ static struct builtin builtin_blocklist =
 {
   "blocklist",
   blocklist_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE | BUILTIN_NO_DECOMPRESSION,
   "blocklist FILE",
   "Print the blocklist notation of the file FILE."
 };
@@ -11869,6 +11849,10 @@ print_root_device (char *buffer,int flag)
 			{
 				grub_printf("(md");
 				if (md_part_base) grub_printf(",0x%lx,0x%lx",md_part_base,md_part_size);
+			}
+			else if (tmp_drive == ram_drive)
+			{
+				grub_printf("(rd");
 			}
 			else if (tmp_drive & 0x80)
 			{
