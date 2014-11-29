@@ -339,15 +339,25 @@ if test x"$enable_iso9660" != xno; then
   FSYS_CFLAGS="$FSYS_CFLAGS -DFSYS_ISO9660=1"
 fi
 
+AC_ARG_ENABLE(ipxe,
+  [  --disable-ipxe          disable ipxe support in Stage 2])
+
 AC_ARG_ENABLE(pxe,
   [  --disable-pxe           disable PXE support in Stage 2])
 
 if test x"$enable_pxe" != xno; then
   FSYS_CFLAGS="$FSYS_CFLAGS -DFSYS_PXE=1"
+  if test x"$enable_ipxe" != xno; then
+    FSYS_CFLAGS="$FSYS_CFLAGS -DFSYS_IPXE=1"
+  fi
 fi
 
+
+
+
+
 AC_ARG_ENABLE(initrdfs,
-  [  --disable-initrdfs            disable initrdfs support in Stage 2])
+  [  --disable-initrdfs      disable initrdfs support in Stage 2])
 
 if test x"$enable_initrdfs" != xno; then
   FSYS_CFLAGS="$FSYS_CFLAGS -DFSYS_INITRD=1"

@@ -274,6 +274,19 @@ typedef struct {
   grub_u8_t		reserved[10];
 } PACKED PXENV_UNLOAD_STACK_t;
 
+typedef struct {
+	grub_u32_t blksize;
+	int (*open)(const char *name);
+	grub_u32_t (*getsize)(void);
+	grub_u32_t (*readblk)(grub_u32_t buf,grub_u32_t num);
+	void (*close)(void);
+	void (*unload)(void);
+} s_PXE_FILE_FUNC;
+extern s_PXE_FILE_FUNC pxe_file_func[2];
+
+#define PXE_FILE_TYPE_TFTP 0
+#define PXE_FILE_TYPE_IPXE 1
+
 #undef PACKED
 
 #endif /* __PXE_H */

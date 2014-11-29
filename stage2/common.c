@@ -588,7 +588,9 @@ pxe_init_fail:
 		}
 
 		discover_reply = LINEAR(get_cached_info.Buffer);
-
+#ifdef FSYS_IPXE
+		ipxe_init();
+#endif
 		/* on pxe boot, we only use preset_menu */
 		//if (preset_menu != (char*)0x800)
 		//	preset_menu = (char*)0x800;

@@ -11471,6 +11471,17 @@ static struct builtin builtin_pxe =
   "pxe [cmd] [parameters]",
   "Call PXE command."
 };
+#ifdef FSYS_IPXE
+/* pxe */
+static struct builtin builtin_ipxe =
+{
+  "ipxe",
+  ipxe_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING | BUILTIN_IFTITLE,
+  "ipxe [cmd] [parameters]",
+  "Call iPXE command."
+};
+#endif
 #endif
 
 
@@ -16081,6 +16092,9 @@ struct builtin *builtin_table[] =
   &builtin_initrd,
   &builtin_initscript,
   &builtin_insmod,
+#ifdef FSYS_IPXE
+  &builtin_ipxe,
+#endif
   &builtin_is64bit,
   &builtin_kernel,
   &builtin_lock,

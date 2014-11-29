@@ -1624,7 +1624,10 @@ extern int pxe_call(int func,void* data);
 extern int pxe_fast_read(void* data,int num);
 #endif
 int pxe_func(char* arg,int flags);
-
+#ifdef FSYS_IPXE
+int ipxe_func(char* arg,int flags);
+void ipxe_init(void);
+#endif
 #else /* ! FSYS_PXE */
 
 #define pxe_detect()

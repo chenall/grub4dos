@@ -1189,7 +1189,7 @@ typedef UINT16		UDP_PORT;
  */
 
 	.align	2
-
+VARIABLE(pxenv)
 VARIABLE(pxe_tftp_open)
 	.word	0		# Status
 	.long	0		# ServerIPAddress
