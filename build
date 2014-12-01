@@ -116,6 +116,11 @@ fi
 #############################################
 
 cd $SOURCE_DIR
+if [ -d ipxe ] ; then
+	cd ipxe/src
+	make bin/undionly.kkkpxe EMBED=../ipxegrldr.ipxe,${GRUB4DOS_TEMP}/grub4dos-${VER}/grldr && cp -af bin/undionly.kkkpxe ${GRUB4DOS_TEMP}/grub4dos-${VER}/ipxegrldr
+	cd $SOURCE_DIR
+fi
 rm -f ${RELEASE}.zip ${RELEASE}.rar ${RELEASE}.tar.gz || exit $?
 if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/grub4dos-${VER} ; then
 	echo 7z failed. Continue with zip or tar...
