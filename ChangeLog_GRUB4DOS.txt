@@ -1,3 +1,4 @@
+2014-12-01 add new filesystem `ipxe`,support for access file with iPXE;
 2014-11-29 add new command `ipxe`.
 2014-11-19 (tinybit) fix a bug that erroneously hooked/unhooked non-fb drives.
 2014-11-10 supported initrdfs.

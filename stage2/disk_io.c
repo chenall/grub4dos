@@ -651,62 +651,70 @@ set_bootdev (int hdbias)
 void
 print_fsys_type (void)
 {
-  if (! do_completion)
-    {
-      printf (" Filesystem type ");
+	if (do_completion) return;
 
-      if (fsys_type != NUM_FSYS)
-      {
- 				if (substring(fsys_table[fsys_type].name, "fat", 1) != 1)
- 				{
- 					switch (fats_type)
- 					{
- 						case 12:
- 							printf ("is fat12, ");
- 							break;
- 						case 16:
- 							printf ("is fat16, ");
- 							break;
- 						case 32:
- 							printf ("is fat32, ");
- 							break;
- 						case 64:
- 							printf ("is exfat, ");
- 							break;
- 						default:
- 							printf ("is %s, ", fsys_table[fsys_type].name);
- 							break;	
- 					}
- 				}	
-      	else if (substring(fsys_table[fsys_type].name, "iso9660", 1) != 1)
-      	{
-      		switch (iso_type)
-      		{
-      			case 1:
-      				printf ("is udf, ");
-      				break;
-      			case 2:
-      				printf ("is iso9600_Joliet, ");
-      				break;
-      			case 3:
-      				printf ("is iso9600_RockRidge, ");
-      				break;
-      			default:
- 							printf ("is %s, ", fsys_table[fsys_type].name);
- 							break;				
-      		}		
-				}
-				else
-      		printf ("is %s, ", fsys_table[fsys_type].name);
+	printf (" Filesystem type ");
+
+	if (fsys_type != NUM_FSYS)
+	{
+	#ifdef FSYS_PXE
+		#ifdef FSYS_IPXE
+		if (fsys_table[fsys_type].mount_func == pxe_mount)
+		{
+			printf ("is %cPXE\n",(current_partition == IPXE_PART)?'i':' ');
+			return;
+		}
+		#endif
+	#endif
+		if (fsys_table[fsys_type].mount_func == fat_mount)
+		{
+			switch (fats_type)
+			{
+				case 12:
+					printf ("is fat12, ");
+					break;
+				case 16:
+					printf ("is fat16, ");
+					break;
+				case 32:
+					printf ("is fat32, ");
+					break;
+				case 64:
+					printf ("is exfat, ");
+					break;
+				default:
+					printf ("is %s, ", fsys_table[fsys_type].name);
+					break;
 			}
-      else
-	printf ("unknown, ");
+		}
+		else if (fsys_table[fsys_type].mount_func == iso9660_mount)
+		{
+			switch (iso_type)
+			{
+				case 1:
+					printf ("is udf, ");
+					break;
+				case 2:
+					printf ("is iso9600_Joliet, ");
+					break;
+				case 3:
+					printf ("is iso9600_RockRidge, ");
+					break;
+				default:
+					printf ("is %s, ", fsys_table[fsys_type].name);
+					break;
+			}
+		}
+		else
+			printf ("is %s, ", fsys_table[fsys_type].name);
+	}
+	else
+		printf ("unknown, ");
 
-      if (current_partition == 0xFFFFFF)
-	printf ("using whole disk\n");
-      else
-	printf ("partition type 0x%02X\n", (unsigned long)(unsigned char)current_slice);
-    }
+	if (current_partition == 0xFFFFFF)
+		printf ("using whole disk\n");
+	else
+		printf ("partition type 0x%02X\n", (unsigned long)(unsigned char)current_slice);
 }
 
 
@@ -1327,9 +1335,9 @@ open_partition (void)
 static int
 sane_partition (void)
 {
-//  /* network drive */
-//  if (current_drive == NETWORK_DRIVE)
-//    return 1;
+  /* network drive */
+  if (current_drive == PXE_DRIVE)
+    return 1;
 //
 //  /* ram drive */
 //  if (current_drive == ram_drive)
@@ -1403,6 +1411,9 @@ set_device (char *device)
 	      || *device == 'b'
 #ifdef FSYS_PXE
 	      || (*device == 'p' && pxe_entry)
+	#ifdef FSYS_IPXE
+	      || (*device == 'w' && has_ipxe)
+	#endif
 #endif
 #ifdef FSYS_FB
               || (*device == 'u' && fb_status)
@@ -1415,6 +1426,14 @@ set_device (char *device)
 	  if (ch == 'p' && pxe_entry)
 	    current_drive = PXE_DRIVE;
 	  else
+	#ifdef FSYS_IPXE
+	  if (ch == 'w' && has_ipxe)
+	  {
+	    current_drive = PXE_DRIVE;
+	    current_partition = IPXE_PART;
+	  }
+	  else
+	#endif
 #endif /* FSYS_PXE */
 #ifdef FSYS_FB
 	  if (ch == 'u' && fb_status)
@@ -1973,6 +1992,9 @@ struct BLK_BUF {
 int
 grub_open (char *filename)
 {
+#ifdef FSYS_IPXE
+  int is_ipxe_file = (has_ipxe && *filename != '/' && *filename != '(');
+#endif
 #ifndef NO_DECOMPRESSION
   compressed_file = 0;
 #endif /* NO_DECOMPRESSION */
@@ -2057,6 +2079,13 @@ grub_open (char *filename)
 	  ptr++;		/* skip the comma sign */
 	} /* while (list_addr < FSYS_BUF + 0x77F9) */
 
+	#ifdef FSYS_IPXE
+	if (is_ipxe_file)
+	{
+	   setup_part("(wd)/");
+	   goto not_block_file;
+	}
+	#endif
       return !(errnum = ERR_BAD_FILENAME);
 
 //      if (list_addr < FSYS_BUF + 0x77F9 && ptr != filename)
@@ -2101,14 +2130,17 @@ block_file:
 //	}
 #endif /* block files */
     } /* if (*filename != '/') */
-
+#ifdef FSYS_IPXE
+not_block_file:
+#endif
   if (!errnum && fsys_type == NUM_FSYS)
     errnum = ERR_FSYS_MOUNT;
 
   /* set "dir" function to open a file */
   print_possibilities = 0;
   if (!set_filename(filename))
-		return 0;
+	return 0;
+
   if (!errnum && (*(fsys_table[fsys_type].dir_func)) (open_filename))
     {
 #ifdef NO_DECOMPRESSION

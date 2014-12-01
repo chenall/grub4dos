@@ -216,7 +216,7 @@ typedef struct {
   PXENV_STATUS	Status;
   IP4		ServerIPAddress;
   IP4		GatewayIPAddress;
-  grub_u8_t		FileName[128];
+  grub_u8_t	FileName[128];
   UDP_PORT	TFTPPort;
   grub_u16_t	PacketSize;
 } PACKED PXENV_TFTP_OPEN_t;
@@ -236,7 +236,7 @@ typedef struct {
   PXENV_STATUS	Status;
   IP4		ServerIPAddress;
   IP4		GatewayIPAddress;
-  grub_u8_t		FileName[128];
+  grub_u8_t	FileName[128];
   grub_u32_t	FileSize;
 } PACKED PXENV_TFTP_GET_FSIZE_t;
 
@@ -275,15 +275,14 @@ typedef struct {
 } PACKED PXENV_UNLOAD_STACK_t;
 
 typedef struct {
-	grub_u32_t blksize;
 	int (*open)(const char *name);
 	grub_u32_t (*getsize)(void);
 	grub_u32_t (*readblk)(grub_u32_t buf,grub_u32_t num);
 	void (*close)(void);
 	void (*unload)(void);
 } s_PXE_FILE_FUNC;
-extern s_PXE_FILE_FUNC pxe_file_func[2];
-
+extern s_PXE_FILE_FUNC *pxe_file_func[2];
+extern unsigned long pxe_blksize;
 #define PXE_FILE_TYPE_TFTP 0
 #define PXE_FILE_TYPE_IPXE 1
 

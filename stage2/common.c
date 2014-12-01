@@ -847,6 +847,11 @@ set_root:
   if (force_pxe_as_boot_device)
   {
 	boot_drive = PXE_DRIVE;
+	#ifdef FSYS_IPXE
+	char *ch = grub_strstr((char*)discover_reply->bootfile,":");
+	if (ch && ((grub_u32_t)ch - (grub_u32_t)discover_reply->bootfile) < 10)
+		install_partition = IPXE_PART;
+	#endif
 	install_partition = 0xFFFFFF;
   }
 

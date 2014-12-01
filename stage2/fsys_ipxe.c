@@ -22,13 +22,14 @@
 
 #include "shared.h"
 #include "filesys.h"
-#include "pxe.h"
 #include "ipxe.h"
 #include "fsys_ipxe.h"
 
-static grub_u32_t has_ipxe = 0;
+grub_u32_t has_ipxe = 0;
 static grub_u32_t ipxe_funcs;
 static grub_u32_t ipxe_file_opened;
+
+s_PXE_FILE_FUNC ipxe_file_func = {ipxe_open,ipxe_get_size,ipxe_read_blk,ipxe_close,ipxe_unload};
 
 static inline SEGOFF16_t FAR_PTR(void *ptr)
 {
@@ -62,11 +63,20 @@ void ipxe_unload(void)
 
 int ipxe_open(const char *dirname)
 {
+	grub_u8_t *filename;
 	if (!has_ipxe) return 0;
 
 	ipxe_close();
-	pxenv.Status = PXENV_STATUS_BAD_FUNC;
-	pxenv.file_open.FileName = FAR_PTR(&pxenv.tftp_open.FileName[1]);
+	char *ch = grub_strstr(dirname,":");
+
+	if (!ch || (grub_u32_t)(ch - dirname) >= 10)
+		filename = &pxenv.tftp_open.FileName;
+	else
+		filename = (grub_u8_t*)dirname;
+
+	if ((unsigned long)debug >= 0x7FFFFFFF) printf("open: %s\n",filename);
+
+	pxenv.file_open.FileName = FAR_PTR(filename);
 
 	if (PXENV_EXIT_SUCCESS != pxe_call(PXENV_FILE_OPEN, &pxenv.file_open))
 		return 0;
@@ -86,32 +96,47 @@ grub_u32_t ipxe_get_size(void)
 	if (pxe_call(PXENV_GET_FILE_SIZE, &pxenv.get_file_size) != PXENV_EXIT_SUCCESS)
 		return 0;
 	filemax = pxenv.get_file_size.FileSize;
-	return 1;
+	return pxenv.get_file_size.FileSize;
 }
 
 grub_u32_t ipxe_read_blk (grub_u32_t buf, grub_u32_t num)
 {
 	grub_u32_t ofs;
+	grub_u32_t status;
+	struct s_PXENV_FILE_SELECT file_select;
 
-	if (!ipxe_file_opened) return 0;
+	if (!ipxe_file_opened)
+		return 0;
 	/* disk cache will be destroyed, so invalidate it. */
 	buf_drive = -1;
 	buf_track = -1;
 
+	file_select.FileHandle 	    = ipxe_file_opened;
 	pxenv.file_read.FileHandle  = ipxe_file_opened;
 	pxenv.file_read.Buffer      = FAR_PTR((void*)buf);
-	pxenv.file_read.BufferSize  = PKTBUF_SIZE;
-	ofs = buf & 0xFFFF;
+	pxenv.file_read.BufferSize  = pxe_blksize;
+	ofs = pxenv.file_read.Buffer.offset;
 	while (num > 0)
 	{
-		if (pxe_call(PXENV_FILE_READ, &pxenv.file_read) != PXENV_EXIT_SUCCESS)
+		status = pxe_call(PXENV_FILE_SELECT,&file_select);
+		if (status !=  PXENV_EXIT_SUCCESS)
+		{
 			return 0;
+		}
+
+		status = pxe_call(PXENV_FILE_READ, &pxenv.file_read);
+		if (status == PXENV_STATUS_TFTP_OPEN)
+			continue;
+		if (status !=  PXENV_EXIT_SUCCESS)
+		{
+			return 0;
+		}
 		pxenv.file_read.Buffer.offset += pxenv.file_read.BufferSize;
-		if (pxenv.file_read.BufferSize < PKTBUF_SIZE)
+		if (pxenv.file_read.BufferSize < pxe_blksize)
 			break;
 		num--;
 	}
-	return (pxenv.file_read.BufferSize & 0xFFFF) - ofs;
+	return pxenv.file_read.Buffer.offset - ofs;
 }
 
 void ipxe_close (void)

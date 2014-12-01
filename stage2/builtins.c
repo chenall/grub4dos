@@ -12126,6 +12126,11 @@ print_root_device (char *buffer,int flag)
 	#endif /* FSYS_FB */
 	#ifdef FSYS_PXE
 		case PXE_DRIVE:
+			#ifdef FSYS_IPXE
+			if (tmp_partition == IPXE_PART)
+				grub_printf("(wd)");
+			else
+			#endif
 			grub_printf("(pd)");
 			break;
 	#endif /* PXE drive. */

@@ -246,6 +246,7 @@
 #define NETWORK_DRIVE	0x20
 
 #define PXE_DRIVE	0x21
+#define IPXE_PART	0x45585069
 #define INITRD_DRIVE	0x22
 #define FB_DRIVE	0x23
 
@@ -1625,6 +1626,7 @@ extern int pxe_fast_read(void* data,int num);
 #endif
 int pxe_func(char* arg,int flags);
 #ifdef FSYS_IPXE
+extern grub_u32_t has_ipxe;
 int ipxe_func(char* arg,int flags);
 void ipxe_init(void);
 #endif
