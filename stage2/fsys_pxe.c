@@ -115,6 +115,8 @@ extern unsigned long ROM_int13;
 extern unsigned long ROM_int13_dup;
 extern struct drive_map_slot bios_drive_map[DRIVE_MAP_SIZE + 1];
 
+static int pxe_open (char* name);
+
 int tftp_open(const char *dirname);
 grub_u32_t tftp_get_size(void);
 grub_u32_t tftp_read_blk (grub_u32_t buf, grub_u32_t num);
@@ -159,37 +161,59 @@ grub_u32_t pxe_read_blk (grub_u32_t buf, grub_u32_t num)
 	return ret;
 }
 
+static char*try_name[3]={"grldr","grldr.0","ipxegrldr"};
+
+/*
+   return 0 for seccess, 1 for failure
+*/
 static int try_blksize (int tmp)
 {
 	unsigned long nr;
 
 	pxe_blksize = tmp;
-	grub_printf ("\nTry block size %d ...\n", pxe_blksize);
-	if ((tmp = pxe_dir (pxe_tftp_name)))
+	if (debug) grub_printf ("\nTry block size %d ...\n", pxe_blksize);
+	nr = 0;
+	tmp = pxe_open(pxe_tftp_name);
+
+	while (!tmp || filemax <= pxe_blksize)
 	{
-	    if (filemax <= pxe_blksize)
-	    {
-		grub_printf ("\nFailure: Size %ld too small.\n", filemax);
-	        pxe_close ();
-		return 1;
-	    }
-	    nr = pxe_read_blk (PXE_BUF, 1);
-	    if (nr == PXE_ERR_LEN)
-	    {
-		grub_printf ("\nFailure: Cannot read the first block.\n");
-	        pxe_close ();
-		return 1;
-	    }
-	    if (pxe_blksize != nr && filemax > nr && nr <= PXE_MAX_BLKSIZE && nr >= PXE_MIN_BLKSIZE)
-	    {
-		grub_printf ("\npxe_blksize tuned from %d to %d\n", pxe_blksize, nr);
-		pxe_blksize = nr;
-	    }
-	    grub_printf ("\nUse block size %d\n", pxe_blksize);
-	    pxe_close ();
-	    return 0;
+		//pxe_close (); //pxe_open will auto close,so there is not need.
+		tmp = pxe_open (try_name[nr++]);
+		if (nr > 2) break;
 	}
-	return 1;	/* return 0 for seccess, 1 for failure */
+
+	if (!tmp)
+	{
+		if (debug) grub_printf ("\nFailure: bootfile not found.\n");
+		return 1;
+	}
+
+	if (filemax <= pxe_blksize)
+	{
+		if (debug) grub_printf ("\nFailure: Size %ld too small.\n", filemax);
+		pxe_close ();
+		return 1;
+	}
+
+	nr = pxe_read_blk (PXE_BUF, 1);
+
+	if (nr == PXE_ERR_LEN)
+	{
+		if (debug) grub_printf ("\nFailure: Cannot read the first block.\n");
+		pxe_close ();
+		return 1;
+	}
+
+	if (pxe_blksize != nr && filemax >= nr && nr <= PXE_MAX_BLKSIZE && nr >= PXE_MIN_BLKSIZE)
+	{
+		if (debug) grub_printf ("\npxe_blksize tuned from %d to %d\n", pxe_blksize, nr);
+		pxe_blksize = nr;
+	}
+
+	if (debug) grub_printf ("\nUse block size %d:%d\n", pxe_blksize,nr);
+
+	pxe_close ();
+	return 0;
 }
 
 //unsigned long pxe_inited = 0;	/* pxe_detect only run once */
@@ -987,6 +1011,7 @@ int pxe_func (char *arg, int flags)
       if (val < PXE_MIN_BLKSIZE)
         val = PXE_MIN_BLKSIZE;
       pxe_blksize = val;
+      try_blksize(val);
     }
   else if (grub_memcmp (arg, "basedir", sizeof("basedir") - 1) == 0)
     {
