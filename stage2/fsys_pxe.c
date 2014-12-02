@@ -721,8 +721,6 @@ int pxe_dir (char *dirname)
 	char ch;
 	ret = 1;
 
-	while(*dirname == '/' || *dirname == ' ') ++dirname;
-
 	ch = nul_terminate (dirname);
 
 	if ((grub_u32_t)pxe_tftp_name + grub_strlen(dirname) > (grub_u32_t)&pxe_tftp_open.FileName[127])
@@ -1002,8 +1000,8 @@ int pxe_func (char *arg, int flags)
   else if (grub_memcmp(arg, "blksize", sizeof("blksize") - 1) == 0)
     {
       unsigned long long val;
-
-      arg = skip_to (0, arg);
+      grub_u32_t force=arg[7] != '=';
+      arg = skip_to (1, arg);
       if (! safe_parse_maxint (&arg, &val))
         return 0;
       if (val > PXE_MAX_BLKSIZE)
@@ -1011,7 +1009,7 @@ int pxe_func (char *arg, int flags)
       if (val < PXE_MIN_BLKSIZE)
         val = PXE_MIN_BLKSIZE;
       pxe_blksize = val;
-      try_blksize(val);
+      if (!force) try_blksize(val);
     }
   else if (grub_memcmp (arg, "basedir", sizeof("basedir") - 1) == 0)
     {

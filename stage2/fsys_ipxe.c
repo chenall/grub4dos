@@ -70,11 +70,13 @@ int ipxe_open(const char *dirname)
 	char *ch = grub_strstr(dirname,":");
 
 	if (!ch || (grub_u32_t)(ch - dirname) >= 10)
-		filename = &pxenv.tftp_open.FileName;
+		filename = pxenv.tftp_open.FileName;
 	else
 		filename = (grub_u8_t*)dirname;
 
-	if ((unsigned long)debug >= 0x7FFFFFFF) printf("open: %s\n",filename);
+	while (*filename == '/' || *filename == ' ') ++filename;
+
+	if ((unsigned long)debug >= 0x7FFFFFFF) printf("O:%s\n",filename);
 
 	pxenv.file_open.FileName = FAR_PTR(filename);
 
@@ -101,9 +103,9 @@ grub_u32_t ipxe_get_size(void)
 
 grub_u32_t ipxe_read_blk (grub_u32_t buf, grub_u32_t num)
 {
-	grub_u32_t ofs;
+	grub_u32_t read_len = 0;
+	grub_u32_t max_len;
 	grub_u32_t status;
-	struct s_PXENV_FILE_SELECT file_select;
 
 	if (!ipxe_file_opened)
 		return 0;
@@ -111,32 +113,25 @@ grub_u32_t ipxe_read_blk (grub_u32_t buf, grub_u32_t num)
 	buf_drive = -1;
 	buf_track = -1;
 
-	file_select.FileHandle 	    = ipxe_file_opened;
+	max_len = num * pxe_blksize;
 	pxenv.file_read.FileHandle  = ipxe_file_opened;
-	pxenv.file_read.Buffer      = FAR_PTR((void*)buf);
-	pxenv.file_read.BufferSize  = pxe_blksize;
-	ofs = pxenv.file_read.Buffer.offset;
-	while (num > 0)
+	while (read_len < max_len)
 	{
-		status = pxe_call(PXENV_FILE_SELECT,&file_select);
-		if (status !=  PXENV_EXIT_SUCCESS)
-		{
-			return 0;
-		}
-
+		pxenv.file_read.Buffer      = FAR_PTR((void*)(buf + read_len));
+		pxenv.file_read.BufferSize  = max_len - read_len;
 		status = pxe_call(PXENV_FILE_READ, &pxenv.file_read);
-		if (status == PXENV_STATUS_TFTP_OPEN)
-			continue;
 		if (status !=  PXENV_EXIT_SUCCESS)
 		{
+			if (pxenv.file_read.Status == PXENV_STATUS_TFTP_OPEN)
+				continue;
 			return 0;
 		}
-		pxenv.file_read.Buffer.offset += pxenv.file_read.BufferSize;
-		if (pxenv.file_read.BufferSize < pxe_blksize)
+		if (pxenv.file_read.BufferSize == 0)
 			break;
-		num--;
+		read_len += pxenv.file_read.BufferSize;
 	}
-	return pxenv.file_read.Buffer.offset - ofs;
+	if ((unsigned long)debug >= 0x7FFFFFFF) printf("R: %d,%d,%d\n",num,pxe_blksize,read_len);
+	return read_len;
 }
 
 void ipxe_close (void)
