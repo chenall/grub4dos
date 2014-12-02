@@ -2303,6 +2303,9 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
 
   /* Now, read_func is ready. */
   if ((!buf) || (len < grub_read_loop_threshold)
+#ifdef FSYS_IPXE
+     || fsys_table[fsys_type].read_func == pxe_read
+#endif
 #ifndef NO_DECOMPRESSION
       || (compressed_file && decomp_type == 1)
 #endif /* NO_DECOMPRESSION */
