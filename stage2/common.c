@@ -851,6 +851,7 @@ set_root:
 	char *ch = grub_strstr((char*)discover_reply->bootfile,":");
 	if (ch && ((grub_u32_t)ch - (grub_u32_t)discover_reply->bootfile) < 10)
 		install_partition = IPXE_PART;
+	else
 	#endif
 	install_partition = 0xFFFFFF;
   }

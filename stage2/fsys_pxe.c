@@ -22,7 +22,7 @@
 #include "shared.h"
 #include "filesys.h"
 #include "pxe.h"
-#include "fsys_ipxe.h"
+#include "ipxe.h"
 
 #if !defined(__constant_htonl)
 #define __constant_htonl(x) \
@@ -116,15 +116,16 @@ extern unsigned long ROM_int13_dup;
 extern struct drive_map_slot bios_drive_map[DRIVE_MAP_SIZE + 1];
 
 static int pxe_open (char* name);
-
-int tftp_open(const char *dirname);
-grub_u32_t tftp_get_size(void);
-grub_u32_t tftp_read_blk (grub_u32_t buf, grub_u32_t num);
 grub_u32_t pxe_read_blk (grub_u32_t buf, grub_u32_t num);
-void tftp_close (void);
-void tftp_unload(void);
+
+static int tftp_open(const char *dirname);
+static grub_u32_t tftp_get_size(void);
+static grub_u32_t tftp_read_blk (grub_u32_t buf, grub_u32_t num);
+static void tftp_close (void);
+static void tftp_unload(void);
 
 s_PXE_FILE_FUNC tftp_file_func = {tftp_open,tftp_get_size,tftp_read_blk,tftp_close,tftp_unload};
+
 grub_u32_t cur_pxe_type = 0;
 grub_u32_t def_pxe_type = 0;
 s_PXE_FILE_FUNC *pxe_file_func[2]={
@@ -133,7 +134,6 @@ s_PXE_FILE_FUNC *pxe_file_func[2]={
 	&ipxe_file_func,
 	#endif
 };
-
 
 static char* pxe_outhex (char* pc, unsigned char c)
 {
@@ -405,6 +405,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
           ret = 1;
           goto done;
         }
+	if (checkkey() == 0x11b) break;
       *(--pc) = 0;
     } while (pc > pxe_tftp_name + MENU_DIR_NAME_LENGTH);
   grub_strcpy (pc, "default");
@@ -499,8 +500,6 @@ done:
   return ret;
 }
 
-#if PXE_TFTP_MODE
-
 static int pxe_reopen (void)
 {
   pxe_close ();
@@ -540,13 +539,13 @@ static int pxe_open (char* name)
 
 void pxe_close (void)
 {
-	pxe_file_func[cur_pxe_type]->close();
-	pxe_saved_pos = pxe_cur_ofs = pxe_read_ofs = 0;
-	pxe_tftp_opened = 0;
+	if (pxe_tftp_opened)
+	{
+		pxe_file_func[cur_pxe_type]->close();
+		pxe_saved_pos = pxe_cur_ofs = pxe_read_ofs = 0;
+		pxe_tftp_opened = 0;
+	}
 }
-
-#else
-#endif
 
 static unsigned long pxe_read_len (unsigned long long buf, unsigned long long len)
 {
@@ -714,14 +713,12 @@ struct pxe_dir_info
 	char *dir[512];
 	char data[];
 } *P_DIR_INFO = NULL;
-
 int pxe_dir (char *dirname)
 {
-	int ret;
-	char ch;
-	ret = 1;
-
-	ch = nul_terminate (dirname);
+  int ret;
+  char ch;
+  ret = 1;
+  ch = nul_terminate (dirname);
 
 	if ((grub_u32_t)pxe_tftp_name + grub_strlen(dirname) > (grub_u32_t)&pxe_tftp_open.FileName[127])
 	{
@@ -733,7 +730,6 @@ int pxe_dir (char *dirname)
 	{
 		char dir_tmp[128];
 		char *p_dir;
-
 		ret = grub_strlen(dirname);
 		p_dir = &dirname[ret];
 
@@ -787,30 +783,28 @@ int pxe_dir (char *dirname)
 			errnum = ERR_FILE_NOT_FOUND;
 		*p_dir = ch;
 		return ret;
-	}
+  }
+  pxe_close ();
+  if (! pxe_open (dirname))
+    {
+      errnum = ERR_FILE_NOT_FOUND;
+      ret = 0;
+    }
 
-	pxe_close ();
-
-	if (! pxe_open (dirname))
-	{
-		errnum = ERR_FILE_NOT_FOUND;
-		ret = 0;
-	}
-
-	dirname[grub_strlen(dirname)] = ch;
-	return ret;
+  dirname[grub_strlen(dirname)] = ch;
+  return ret;
 }
 
 void pxe_unload (void)
 {
-#ifdef FSYS_IPXE
-	pxe_file_func[PXE_FILE_TYPE_IPXE]->unload();
+ #ifdef FSYS_IPXE
+	if (has_ipxe) pxe_file_func[PXE_FILE_TYPE_IPXE]->unload();
 #endif
 	pxe_file_func[PXE_FILE_TYPE_TFTP]->unload();
 }
 
 
-int tftp_open(const char *name)
+static int tftp_open(const char *name)
 {
   PXENV_TFTP_GET_FSIZE_t *tftp_get_fsize;
   tftp_close ();
@@ -830,7 +824,7 @@ int tftp_open(const char *name)
   return 1;
 }
 
-grub_u32_t tftp_get_size(void)
+static grub_u32_t tftp_get_size(void)
 {
   PXENV_TFTP_GET_FSIZE_t *tftp_get_fsize;
   if (pxe_tftp_opened) return 1;
@@ -847,11 +841,10 @@ grub_u32_t tftp_get_size(void)
   return tftp_get_fsize->FileSize;
 }
 
-
 #if PXE_FAST_READ
 
 /* Read num packets , BUF must be segment aligned */
-grub_u32_t tftp_read_blk (grub_u32_t buf, grub_u32_t num)
+static grub_u32_t tftp_read_blk (grub_u32_t buf, grub_u32_t num)
 {
   PXENV_TFTP_READ_t tftp_read;
   unsigned long ofs;
@@ -868,7 +861,7 @@ grub_u32_t tftp_read_blk (grub_u32_t buf, grub_u32_t num)
 
 #else
 
-grub_u32_t tftp_read_blk (grub_u32_t buf, grub_u32_t num)
+static grub_u32_t tftp_read_blk (grub_u32_t buf, grub_u32_t num)
 {
   PXENV_TFTP_READ_t tftp_read;
   unsigned long ofs;
@@ -893,16 +886,13 @@ grub_u32_t tftp_read_blk (grub_u32_t buf, grub_u32_t num)
 }
 #endif
 
-void tftp_close (void)
+static void tftp_close (void)
 {
-	if (pxe_tftp_opened)
-	{
-		PXENV_TFTP_CLOSE_t tftp_close;
-		pxe_call (PXENV_TFTP_CLOSE, &tftp_close);
-	}
+	PXENV_TFTP_CLOSE_t tftp_file_close;
+	pxe_call (PXENV_TFTP_CLOSE, &tftp_file_close);
 }
 
-void tftp_unload(void)
+static void tftp_unload(void)
 {
   PXENV_UNLOAD_STACK_t unload;
   unsigned char code[] = {PXENV_UNDI_SHUTDOWN, PXENV_UNLOAD_STACK, PXENV_STOP_UNDI, 0};
@@ -952,6 +942,7 @@ quit:
     set_int13_handler (bios_drive_map);
 }
 
+#endif
 
 static void print_ip (IP4 ip)
 {
@@ -1120,4 +1111,3 @@ bad_argument:
   return 1;
 }
 
-#endif

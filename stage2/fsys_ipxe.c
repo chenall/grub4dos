@@ -56,12 +56,12 @@ void ipxe_init(void)
 
 }
 
-void ipxe_unload(void)
+static void ipxe_unload(void)
 {
 	pxe_call(PXENV_FILE_EXIT_HOOK,&pxenv.file_exit_hook);
 }
 
-int ipxe_open(const char *dirname)
+static int ipxe_open(const char *dirname)
 {
 	grub_u8_t *filename;
 	if (!has_ipxe) return 0;
@@ -88,7 +88,7 @@ int ipxe_open(const char *dirname)
 	return 1;
 }
 
-grub_u32_t ipxe_get_size(void)
+static grub_u32_t ipxe_get_size(void)
 {
 	if (!ipxe_file_opened)
 		return 0;
@@ -101,7 +101,7 @@ grub_u32_t ipxe_get_size(void)
 	return pxenv.get_file_size.FileSize;
 }
 
-grub_u32_t ipxe_read_blk (grub_u32_t buf, grub_u32_t num)
+static grub_u32_t ipxe_read_blk (grub_u32_t buf, grub_u32_t num)
 {
 	grub_u32_t read_len = 0;
 	grub_u32_t max_len;
@@ -134,7 +134,7 @@ grub_u32_t ipxe_read_blk (grub_u32_t buf, grub_u32_t num)
 	return read_len;
 }
 
-void ipxe_close (void)
+static void ipxe_close (void)
 {
 	if (!ipxe_file_opened) return;
 	pxenv.file_close.FileHandle = ipxe_file_opened;

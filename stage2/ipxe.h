@@ -1,3 +1,4 @@
+#ifdef FSYS_IPXE
 #ifndef iPXE_API_H
 #define iPXE_API_H
 
@@ -183,4 +184,7 @@ typedef union u_PXENV_ANY iPXENV_ANY_t;
 typedef union u_PXENV_ANY PXENV_ANY_t;
 extern PXENV_ANY_t pxenv;
 
+extern grub_u32_t has_ipxe;
+extern s_PXE_FILE_FUNC ipxe_file_func;
 #endif /* iPXE_API_H */
+#endif /* ifdef FSYS_IPXE */
