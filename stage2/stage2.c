@@ -2099,7 +2099,13 @@ restart_config:
 	    {
 		/* Try config_file */
 		if (*config_file)
+		{
 			is_opened = (configfile_opened || grub_open (config_file));
+			#ifdef FSYS_IPXE
+			if (is_opened && current_drive == PXE_DRIVE && current_partition == IPXE_PART)
+				pxe_detect(IPXE_PART,config_file);
+			#endif
+		}
 	    }
 	    errnum = 0;
 	    configfile_opened = 0;

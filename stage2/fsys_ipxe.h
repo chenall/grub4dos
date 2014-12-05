@@ -2,7 +2,7 @@
 #ifndef _FSYS_IPXE_H_
 #define _FSYS_IPXE_H_
 
-#define PKTBUF_SIZE     512
+#define PKTBUF_SIZE     2048
 #define IPXE_BUF	BUFFERADDR
 #define iPXE_BUFLEN	0xFE00
 

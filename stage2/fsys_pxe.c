@@ -257,6 +257,31 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 	}
   }
 
+#ifdef FSYS_IPXE
+  if (blksize == IPXE_PART)
+  {
+	grub_u32_t len;
+
+	if (*config == '(')
+	{
+		config = grub_strstr(config,"/");
+		if (!config) return 0;
+		++config;
+	}
+
+	len = grub_strlen(config);
+
+	while(len > 1)
+	{
+		if (config[--len] == '/') break;
+	}
+
+	memmove((char*)&pxe_tftp_open.FileName,config,len);
+	pxe_tftp_name = (char*)&pxe_tftp_open.FileName[len];
+	return 1;
+  }
+#endif
+
   if (discover_reply->bootfile[0])
     {
 	unsigned long n;

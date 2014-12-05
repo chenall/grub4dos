@@ -1992,9 +1992,6 @@ struct BLK_BUF {
 int
 grub_open (char *filename)
 {
-#ifdef FSYS_IPXE
-  int is_ipxe_file = (has_ipxe && *filename != '/' && *filename != '(');
-#endif
 #ifndef NO_DECOMPRESSION
   compressed_file = 0;
 #endif /* NO_DECOMPRESSION */
@@ -2017,6 +2014,17 @@ grub_open (char *filename)
 
   if (*filename != '/')
     {
+#ifdef FSYS_IPXE
+      if (has_ipxe)
+      {
+        char *ch = grub_strstr(filename,":");
+	if (ch && (grub_u32_t)(ch - filename) < 10)
+	{
+	   setup_part("(wd)/");
+	   goto not_block_file;
+	}
+      }
+#endif
 #ifdef NO_BLOCK_FILES
       return !(errnum = ERR_BAD_FILENAME);
 #else
@@ -2079,13 +2087,6 @@ grub_open (char *filename)
 	  ptr++;		/* skip the comma sign */
 	} /* while (list_addr < FSYS_BUF + 0x77F9) */
 
-	#ifdef FSYS_IPXE
-	if (is_ipxe_file)
-	{
-	   setup_part("(wd)/");
-	   goto not_block_file;
-	}
-	#endif
       return !(errnum = ERR_BAD_FILENAME);
 
 //      if (list_addr < FSYS_BUF + 0x77F9 && ptr != filename)

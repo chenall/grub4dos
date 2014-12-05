@@ -58,7 +58,9 @@ void ipxe_init(void)
 
 static void ipxe_unload(void)
 {
-	pxe_call(PXENV_FILE_EXIT_HOOK,&pxenv.file_exit_hook);
+//	pxe_call(PXENV_FILE_EXIT_HOOK,&pxenv.file_exit_hook);
+	ipxe_funcs = 0;
+	has_ipxe = 0;
 }
 
 static int ipxe_open(const char *dirname)
@@ -67,6 +69,7 @@ static int ipxe_open(const char *dirname)
 	if (!has_ipxe) return 0;
 
 	ipxe_close();
+
 	char *ch = grub_strstr(dirname,":");
 
 	if (!ch || (grub_u32_t)(ch - dirname) >= 10)
@@ -84,6 +87,8 @@ static int ipxe_open(const char *dirname)
 		return 0;
 
 	ipxe_file_opened = pxenv.file_open.FileHandle;
+
+	if (ipxe_file_opened > 1) printf_warning("Too many open files [1->%d]!",ipxe_file_opened);
 
 	return 1;
 }
@@ -130,7 +135,7 @@ static grub_u32_t ipxe_read_blk (grub_u32_t buf, grub_u32_t num)
 			break;
 		read_len += pxenv.file_read.BufferSize;
 	}
-	if ((unsigned long)debug >= 0x7FFFFFFF) printf("R: %d,%d,%d\n",num,pxe_blksize,read_len);
+	if ((unsigned long)debug >= 0x7FFFFFFF) printf("R[%d]: %d,%d,%d\n",ipxe_file_opened,num,pxe_blksize,read_len);
 	return read_len;
 }
 
