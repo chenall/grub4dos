@@ -158,8 +158,25 @@ static int is_io_orig = 0;
 static char chainloader_file[256];
 static char chainloader_file_orig[256];
 
-
 static const char *warning_defaultfile = "# WARNING: If you want to edit this file directly, do not remove any line";
+
+void set_full_path(char *dest, char *arg, grub_u32_t max_len);
+void set_full_path(char *dest, char *arg, grub_u32_t max_len)
+{
+	int len;
+	if (*arg != '/' && !(*arg == '(' && arg[1] == ')'))
+	{
+		grub_memmove (dest, arg, max_len);
+		return;
+	}
+
+	print_root_device(dest,0);
+
+	len = strlen(dest);
+
+	if (*arg == '/') grub_sprintf(dest + len,"%s%s",saved_dir,arg);
+	else grub_sprintf(dest + len,"%s",arg + 2);
+}
 
 int
 drive_map_slot_empty (struct drive_map_slot item)
@@ -1807,52 +1824,7 @@ chainloader_func (char *arg, int flags)
 	goto failure;
     }
 
-  if (*arg == '/')
-  {
-    if (saved_partition != 0xFFFFFF)
-    {
-      if ((saved_partition & 0xFF00) == 0xFF00)
-	grub_sprintf (chainloader_file, "(%d,%d)%s%s", saved_drive, (unsigned long)(unsigned char)(saved_partition>>16), saved_dir, arg);
-      else
-	if ((saved_partition & 0xFF0000) == 0xFF0000)
-	  grub_sprintf (chainloader_file, "(%d,%c)%s%s", saved_drive, (unsigned long)(unsigned char)((saved_partition>>8) + 'a'), saved_dir, arg);
-	else
-	  grub_sprintf (chainloader_file, "(%d,%d,%c)%s%s", saved_drive,  (unsigned long)(unsigned char)(saved_partition>>16), (unsigned long)(unsigned char)((saved_partition>>8) + 'a'), saved_dir, arg);
-    }
-    else
-      grub_sprintf (chainloader_file, "(%d)%s%s", saved_drive, saved_dir, arg);
-  }
-  else if (*arg == '(' && arg[1] == ')')
-  {
-    if (saved_partition != 0xFFFFFF)
-    {
-      if ((saved_partition & 0xFF00) == 0xFF00)
-	grub_sprintf (chainloader_file, "(%d,%d)%s", saved_drive, (unsigned long)(unsigned char)(saved_partition>>16), (arg + 2));
-      else
-	if ((saved_partition & 0xFF0000) == 0xFF0000)
-	  grub_sprintf (chainloader_file, "(%d,%c)%s", saved_drive, (unsigned long)(unsigned char)((saved_partition>>8) + 'a'), (arg + 2));
-	else
-	  grub_sprintf (chainloader_file, "(%d,%d,%c)%s", saved_drive, (unsigned long)(unsigned char)(saved_partition>>16), (unsigned long)(unsigned char)((saved_partition>>8) + 'a'), (arg + 2));
-    }
-    else
-      grub_sprintf (chainloader_file, "(%d)%s", saved_drive, (arg + 2));
-  } else if (*arg != '(')
-  {
-    if (saved_partition != 0xFFFFFF)
-    {
-      if ((saved_partition & 0xFF00) == 0xFF00)
-	grub_sprintf (chainloader_file, "(%d,%d)%s", saved_drive, (unsigned long)(unsigned char)(saved_partition>>16), arg);
-      else
-	if ((saved_partition & 0xFF0000) == 0xFF0000)
-	  grub_sprintf (chainloader_file, "(%d,%c)%s", saved_drive, (unsigned long)(unsigned char)((saved_partition>>8) + 'a'), arg);
-	else
-	  grub_sprintf (chainloader_file, "(%d,%d,%c)%s", saved_drive, (unsigned long)(unsigned char)(saved_partition>>16), (unsigned long)(unsigned char)((saved_partition>>8) + 'a'), arg);
-    }
-    else
-      grub_sprintf (chainloader_file, "(%d)%s", saved_drive, arg);
-  }
-  else
-	grub_memmove (chainloader_file, arg, 255);
+  set_full_path(chainloader_file,arg,sizeof(chainloader_file));
   chainloader_file[255]=0;
 
   errnum = ERR_NONE;
@@ -3435,52 +3407,8 @@ configfile_func (char *arg, int flags)
   if (grub_strlen(saved_dir) + grub_strlen(arg) + 20 >= sizeof(chainloader_file_orig))
 	return ! (errnum = ERR_WONT_FIT);
 
-  if (*arg == '/')
-  {
-    if (saved_partition != 0xFFFFFF)
-    {
-      if ((saved_partition & 0xFF00) == 0xFF00)
-	grub_sprintf (chainloader_file_orig, "(%d,%d)%s%s", saved_drive, (unsigned long)(unsigned char)(saved_partition>>16), saved_dir, arg);
-      else
-	if ((saved_partition & 0xFF0000) == 0xFF0000)
-	  grub_sprintf (chainloader_file_orig, "(%d,%c)%s%s", saved_drive, (unsigned long)(unsigned char)((saved_partition>>8) + 'a'), saved_dir, arg);
-	else
-	  grub_sprintf (chainloader_file_orig, "(%d,%d,%c)%s%s", saved_drive, (unsigned long)(unsigned char)(saved_partition>>16), (unsigned long)(unsigned char)((saved_partition>>8) + 'a'), saved_dir, arg);
-    }
-    else
-      grub_sprintf (chainloader_file_orig, "(%d)%s%s", saved_drive, saved_dir, arg);
-  }
-  else if (*arg == '(' && arg[1] == ')')
-  {
-    if (saved_partition != 0xFFFFFF)
-    {
-      if ((saved_partition & 0xFF00) == 0xFF00)
-	grub_sprintf (chainloader_file_orig, "(%d,%d)%s", saved_drive, (unsigned long)(unsigned char)(saved_partition>>16), (arg + 2));
-      else
-	if ((saved_partition & 0xFF0000) == 0xFF0000)
-	  grub_sprintf (chainloader_file_orig, "(%d,%c)%s", saved_drive, (unsigned long)(unsigned char)((saved_partition>>8) + 'a'), (arg + 2));
-	else
-	  grub_sprintf (chainloader_file_orig, "(%d,%d,%c)%s", saved_drive, (unsigned long)(unsigned char)(saved_partition>>16), (unsigned long)(unsigned char)((saved_partition>>8) + 'a'), (arg + 2));
-    }
-    else
-      grub_sprintf (chainloader_file_orig, "(%d)%s", saved_drive, (arg + 2));
-  } else if (*arg != '(')
-  {
-    if (saved_partition != 0xFFFFFF)
-    {
-      if ((saved_partition & 0xFF00) == 0xFF00)
-	grub_sprintf (chainloader_file_orig, "(%d,%d)%s", saved_drive, (unsigned long)(unsigned char)(saved_partition>>16), arg);
-      else
-	if ((saved_partition & 0xFF0000) == 0xFF0000)
-	  grub_sprintf (chainloader_file_orig, "(%d,%c)%s", saved_drive, (unsigned long)(unsigned char)((saved_partition>>8) + 'a'), arg);
-	else
-	  grub_sprintf (chainloader_file_orig, "(%d,%d,%c)%s", saved_drive, (unsigned long)(unsigned char)(saved_partition>>16), (unsigned long)(unsigned char)((saved_partition>>8) + 'a'), arg);
-    }
-    else
-      grub_sprintf (chainloader_file_orig, "(%d)%s", saved_drive, arg);
-  }
-  else
-	grub_memmove (chainloader_file_orig, arg, sizeof(chainloader_file_orig));
+  set_full_path(chainloader_file_orig,arg,sizeof(chainloader_file_orig));
+
   //chainloader_file_orig[sizeof(chainloader_file_orig) - 1] = 0;
 
   arg = chainloader_file_orig;
