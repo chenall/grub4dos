@@ -210,7 +210,7 @@ static int try_blksize (int tmp)
 		pxe_blksize = nr;
 	}
 
-	if (debug) grub_printf ("\nUse block size %d:%d\n", pxe_blksize,nr);
+	if (debug) grub_printf ("\nUse block size %d\n", pxe_blksize);
 
 	pxe_close ();
 	return 0;
@@ -278,6 +278,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 
 	memmove((char*)&pxe_tftp_open.FileName,config,len);
 	pxe_tftp_name = (char*)&pxe_tftp_open.FileName[len];
+
 	return 1;
   }
 #endif
@@ -350,21 +351,13 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 
   if (config)
   {
-
-	if (*config == '/')
+	if ((ret = grub_open(config)))
 	{
-		int n;
-		n = grub_strlen (config) - 1;
-		if (config[n] != '/')
-		{
-			grub_strcpy (pxe_tftp_name, config);
-			grub_printf ("%s\n", pxe_tftp_open.FileName);
-			ret = pxe_dir (pxe_tftp_name);
-			goto done;
-		}
-	} 
-	else
-		return 1;
+		grub_strcpy (pxe_tftp_name, config);
+		grub_close();
+		goto done;
+	}
+	return 1;
   }
 
 	//if (pxe_dir ("/menu.lst"))
@@ -457,7 +450,7 @@ done:
 		return ! (errnum = ERR_WONT_FIT);
 	/* set (pd) as root device. */
 	saved_drive = PXE_DRIVE;
-	saved_partition = 0xFFFFFF;
+	saved_partition = current_partition;
 	/* Copy FILENAME to CONFIG_FILE.  */
 	while ((*new_config++ = *filename++) != 0);
 	if (pxe_restart_config == 0)
