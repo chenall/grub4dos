@@ -161,7 +161,6 @@ grub_u32_t pxe_read_blk (grub_u32_t buf, grub_u32_t num)
 	return ret;
 }
 
-static char*try_name[3]={"grldr","grldr.0","ipxegrldr"};
 
 /*
    return 0 for seccess, 1 for failure
@@ -170,17 +169,13 @@ static int try_blksize (int tmp)
 {
 	unsigned long nr;
 
+#ifdef FSYS_IPXE
+	if (cur_pxe_type == PXE_FILE_TYPE_IPXE) return 0;
+#endif
 	pxe_blksize = tmp;
 	if (debug) grub_printf ("\nTry block size %d ...\n", pxe_blksize);
 	nr = 0;
 	tmp = pxe_open(pxe_tftp_name);
-
-	while (!tmp || filemax <= pxe_blksize)
-	{
-		//pxe_close (); //pxe_open will auto close,so there is not need.
-		tmp = pxe_open (try_name[nr++]);
-		if (nr > 2) break;
-	}
 
 	if (!tmp)
 	{
@@ -219,6 +214,47 @@ static int try_blksize (int tmp)
 //unsigned long pxe_inited = 0;	/* pxe_detect only run once */
 static unsigned long server_is_dos = 0;
 BOOTPLAYER *discover_reply = 0;
+
+static void set_basedir(char *config)
+{
+	unsigned long n;
+	grub_u8_t path_sep = (def_pxe_type == PXE_FILE_TYPE_TFTP && server_is_dos) ? '\\' : '/';
+	n = grub_strlen (config);
+	pxe_tftp_name = (char*)&pxe_tftp_open.FileName;
+	if (n > 126)
+	{
+		printf_warning("Warning! base name(%d chars) too long (> 126 chars).\n", n);
+		n = 126;
+		config[n] = 0;
+	}
+
+	if (config[0] != path_sep)
+	{
+		#ifdef FSYS_IPXE
+		if (def_pxe_type == PXE_FILE_TYPE_TFTP)
+		{
+			char *ch = strstr(config,":");
+			if (has_ipxe && ch && (grub_u32_t)(ch - config) < 10)
+			{
+				cur_pxe_type = def_pxe_type = PXE_FILE_TYPE_IPXE;
+			}
+			else
+			{
+		#endif
+				pxe_tftp_open.FileName[0] = path_sep; /* have to add a slash */
+				++pxe_tftp_name;
+		#ifdef FSYS_IPXE
+			}
+		}
+		#endif
+	}
+
+	grub_memmove(pxe_tftp_name, config, n);
+
+	while (n >= 0) if (pxe_tftp_name[--n] == path_sep) break;
+
+	pxe_tftp_name += n;
+}
 
 int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 {
@@ -260,8 +296,6 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 #ifdef FSYS_IPXE
   if (blksize == IPXE_PART)
   {
-	grub_u32_t len;
-
 	if (*config == '(')
 	{
 		config = grub_strstr(config,"/");
@@ -269,15 +303,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 		++config;
 	}
 
-	len = grub_strlen(config);
-
-	while(len > 1)
-	{
-		if (config[--len] == '/') break;
-	}
-
-	memmove((char*)&pxe_tftp_open.FileName,config,len);
-	pxe_tftp_name = (char*)&pxe_tftp_open.FileName[len];
+	set_basedir(config);
 
 	return 1;
   }
@@ -296,32 +322,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 		}
 	}
 	grub_printf ("\nbootfile is %s\n", discover_reply->bootfile);
-	n = grub_strlen ((char*)discover_reply->bootfile);
-	if (n > 126)
-	{
-		grub_printf ("Warning! bootfile name(%d chars) too long (> 126 chars).\n", n);
-		n = 126;
-		((char*)discover_reply->bootfile)[n] = 0;
-	}
-	if (((char*)discover_reply->bootfile)[0] != (server_is_dos ? '\\' : '/'))
-	{
-		pxe_tftp_open.FileName[0] = '/'; /* have to add a slash */
-		grub_strcpy (((char*)&pxe_tftp_open.FileName) + 1, (char*)discover_reply->bootfile);
-		n++;
-	}
-	else
-		grub_strcpy ((char*)&pxe_tftp_open.FileName, (char*)discover_reply->bootfile);
-	n--;
-	while ((n >= 0) && (pxe_tftp_open.FileName[n] != (server_is_dos ? '\\' : '/'))) n--;
-#if 0
-	if (n < 0)	/* need to add a slash */
-	{
-		pxe_tftp_open.FileName[0] = '/';
-		grub_strcpy (((char*)&pxe_tftp_open.FileName) + 1, (char*)discover_reply->bootfile);
-		n = 0;
-	}
-#endif
-	pxe_tftp_name = (char*)&pxe_tftp_open.FileName[n];
+	set_basedir((char*)discover_reply->bootfile);
 
 	/* read the boot file to determine the block size. */
 
@@ -353,7 +354,13 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
   {
 	if ((ret = grub_open(config)))
 	{
-		grub_strcpy (pxe_tftp_name, config);
+		#ifdef FSYS_IPXE
+		char *ch = strstr(config,":");
+		if (has_ipxe && ch && (grub_u32_t)(ch - config) < 10)
+			set_basedir(config);
+		else
+		#endif
+			grub_strcpy (pxe_tftp_name, config);
 		grub_close();
 		goto done;
 	}
@@ -1022,30 +1029,13 @@ int pxe_func (char *arg, int flags)
     }
   else if (grub_memcmp (arg, "basedir", sizeof("basedir") - 1) == 0)
     {
-      int n;
-
       arg = skip_to (0, arg);
       if (*arg == 0)
         {
           grub_printf ("No pathname\n");
 	  goto bad_argument;
         }
-      if (*arg != '/')
-        {
-          grub_printf ("Base directory must start with /\n");
-	  goto bad_argument;
-        }
-      n = grub_strlen (arg);
-      if (n > sizeof(pxe_tftp_open.FileName) - 8)
-        {
-          grub_printf ("Path too long\n");
-	  goto bad_argument;
-        }
-      grub_strcpy ((char*)pxe_tftp_open.FileName, arg);
-      n--;
-      while ((n >= 0) && (pxe_tftp_open.FileName[n] == '/'))
-        n--;
-      pxe_tftp_name = (char*)&pxe_tftp_open.FileName[n + 1];
+	set_basedir(arg);
     }
   else if (grub_memcmp (arg, "keep", sizeof("keep") - 1) == 0)
     pxe_keep = 1;

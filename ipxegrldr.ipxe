@@ -1,7 +1,7 @@
 #!ipxe
 set use-cached 0
 dhcp
-
+set grldrurl http://b.chenall.net/grldr
 set menu-timeout 5000
 set menu-default grldrauto
 
@@ -25,7 +25,8 @@ imgload grldr
 goto boot
 
 :grldrauto
-imgload http://b.chenall.net/grldr || imgload tftp://${next-server}/grldr || imgload grldr
+imgload ${grldrurl} && goto onlineset
+imgload tftp://${next-server}/grldr || imgload grldr
 goto boot
 
 :grldrlocal
@@ -33,8 +34,11 @@ imgload tftp://${next-server}/grldr || goto failed
 goto boot
 
 :grldronline
-imgload http://b.chenall.net/grldr || goto failed
-goto boot
+imgload ${grldrurl} || goto failed
+
+:onlineset
+isset ${proxydhcp/filename} && set proxydhcp/filename ${grldrurl}
+isset ${net0/filename} &&  set net0/filename ${grldrurl}
 
 :boot
 boot grldr
