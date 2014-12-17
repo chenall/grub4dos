@@ -212,6 +212,7 @@ static int try_blksize (int tmp)
 }
 
 //unsigned long pxe_inited = 0;	/* pxe_detect only run once */
+static unsigned long config_already_restarted = 0;
 static unsigned long server_is_dos = 0;
 BOOTPLAYER *discover_reply = 0;
 
@@ -462,7 +463,11 @@ done:
 	while ((*new_config++ = *filename++) != 0);
 	if (pxe_restart_config == 0)
 	{
-		pxe_restart_config = 1;
+		if (config_already_restarted == 0)
+		{
+			pxe_restart_config = 1;
+			config_already_restarted = 1;
+		}
 		return ret;
 	}
 	use_config_file = 1;
