@@ -1919,6 +1919,14 @@ debug_sleep(int l_debug_boot, int line, char *file)
   }
 }
 
+#ifdef DEBUG_TIME
+inline void debug_time(const int line,const char*file)
+{
+	unsigned long date, time;
+	get_datetime(&date, &time);
+	printf("%s[%d]:%02X:%02X:%02X\n",file,line,(char)(time >> 24),(char)(time >> 16),(char)(time>>8));
+}
+#endif
 void
 gotoxy (int x, int y)
 {

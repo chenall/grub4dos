@@ -767,6 +767,11 @@ extern int map_func (char *arg, int flags);
 #define DEBUG_SLEEP {debug_sleep(debug_boot,__LINE__,__FILE__);}
 extern inline void debug_sleep(int debug_boot, int line, char *file);
 
+#ifdef DEBUG_TIME
+#define PRINT_DEBUG_INFO debug_time(__LINE__,__FILE__);
+extern inline void debug_time(const int line,const char*file);
+#endif
+
 extern void hexdump(grub_u64_t,char*,int);
 extern int builtin_cmd (char *cmd, char *arg, int flags);
 extern long realmode_run(long regs_ptr);
