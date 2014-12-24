@@ -1970,6 +1970,7 @@ print_completions (int is_filename, int is_completion)
 
 #ifndef NO_BLOCK_FILES
 static int block_file = 0;
+static unsigned char blk_sector_bit = 0;
 
 struct BLK_LIST_ENTRY {
     unsigned long long start, length;
@@ -2100,6 +2101,10 @@ block_file:
 	  blk_buf.cur_blklist = blk_buf.blklist;
 	  blk_buf.cur_blknum = 0;
 
+	  blk_sector_bit = 9;
+	  while((buf_geom.sector_size >> blk_sector_bit) > 1) ++blk_sector_bit;
+	//  if ((1<<blk_sector_bit) != buf_geom.sector_size) blk_sector_bit = 0;
+
 	  unsigned long long mem_drive_size = 0;
 	  if (current_drive == ram_drive)
 	  {
@@ -2186,32 +2191,49 @@ block_read_func (unsigned long long buf, unsigned long long len, unsigned long w
 	      blk_buf.cur_blklist = blk_buf.blklist;
 	      blk_buf.cur_blknum = 0;
 	    }
-
-	  /* run BLK_CUR_FILEPOS up to filepos */
-	  //while (filepos > (*((unsigned long*)FSYS_BUF)))
-	  while (filepos > blk_buf.cur_filepos)
+	    else if (filepos > blk_buf.cur_filepos)
 	    {
-	      //if ((filepos - ((*((unsigned long*)FSYS_BUF)) & ~(buf_geom.sector_size - 1)))
-	      //  >= buf_geom.sector_size)
-	      if ( (filepos - (blk_buf.cur_filepos & (-(unsigned long long)buf_geom.sector_size)))
-		  >= buf_geom.sector_size )
-		{
-		  //(*((unsigned long*)FSYS_BUF)) += buf_geom.sector_size;
-		  blk_buf.cur_filepos += buf_geom.sector_size;
-		  //(*((unsigned long*)(FSYS_BUF+8)))++;
-		  blk_buf.cur_blknum++;
+		unsigned long sector_size;
+		unsigned long long tmp;
 
-		  //if ((*((unsigned long*)(FSYS_BUF+8))) >= *((unsigned long*) ((*((unsigned long*)(FSYS_BUF+4))) + 4)) )
-		  if (blk_buf.cur_blknum >= blk_buf.cur_blklist->length )
-		    {
-		      //(*((unsigned long*)(FSYS_BUF+4))) += 8;	/* BLK_CUR_BLKLIST */
-		      blk_buf.cur_blklist++;
-		      //(*((unsigned long*)(FSYS_BUF+8))) = 0;	/* BLK_CUR_BLKNUM */
-		      blk_buf.cur_blknum = 0;
-		    }
-		}
-	      else
-		//(*((unsigned long*)FSYS_BUF)) = filepos;
+		sector_size = buf_geom.sector_size;
+		tmp = filepos - (blk_buf.cur_filepos & -(unsigned long long)sector_size);
+
+/*		if (blk_sector_bit)//这个和下面的注释主要是考虑到其它情况,不过应该是不需要.
+		{	*/
+			unsigned long long i;
+
+			tmp >>= blk_sector_bit;
+
+			while(tmp)
+			{
+				i = blk_buf.cur_blklist->length - blk_buf.cur_blknum;
+				if (i > tmp)
+				{
+					blk_buf.cur_blknum += tmp;
+					break;
+				}
+				else
+				{
+					tmp -= i;
+					blk_buf.cur_blklist++;
+					blk_buf.cur_blknum = 0;
+				}
+			}
+		/*}
+		else
+		{
+			while (tmp >= sector_size )
+			{
+				tmp -= sector_size;
+				if (++blk_buf.cur_blknum >= blk_buf.cur_blklist->length )
+				{
+					blk_buf.cur_blklist++;
+					blk_buf.cur_blknum = 0;
+				}
+			}
+		}*/
+
 		blk_buf.cur_filepos = filepos;
 	    }
 
