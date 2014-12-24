@@ -5030,8 +5030,7 @@ command_func (char *arg, int flags)
 		}
 	    break;
      default:
-	if (debug > 0)
-        	printf_warning ("Warning! No such command: %s\n", arg);
+        printf_errinfo ("Error: No such command: %s\n", arg);
         errnum = 0;	/* No error, so that old menus will run smoothly. */
         //return 0;
         return 0;/* return 0 indicating a failure or a false case. */
