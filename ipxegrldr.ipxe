@@ -1,69 +1,17 @@
 #!ipxe
 set use-cached 0
 dhcp
-set grldrurl http://b.chenall.net/grldr
-set menu-timeout 5000
-set menu-default grldrauto
+imgload -a -n grldr0 -t 3000 http://b.chenall.net/grldr || goto embed
+imgfree grldr
+boot grldr0 || goto failed
 
-######## MAIN MENU ###################
-:start
-menu iPXE & GRUB4DOS Boot Menu
-item --gap -- ---------------iPXE & GRUB4DOS Boot Menu-----------------------
-item grldrauto		GRUB4DOS auto boot online->local->embeded
-item grldronline	GRUB4DOS online boot from http://b.chenall.net
-item grldrlocal		GRUB4DOS local boot from tftp://${next-server}
-item grldrembed		GRUB4DOS embeded
-item --gap -- ------------------------------ Advanced ---------------------------------
-item config     Configure settings
-item shell      Enter iPXE shell
-item reboot     Reboot
-item exit       Exit (boot local disk)
-choose --default grldrauto --timeout 5000 target && goto ${target}
-
-:grldrembed
+:embed
 imgload grldr
-goto boot
-
-:grldrauto
-imgload ${grldrurl} && goto onlineset
-imgload tftp://${next-server}/grldr || imgload grldr
-goto boot
-
-:grldrlocal
-imgload tftp://${next-server}/grldr || goto failed
-goto boot
-
-:grldronline
-imgload ${grldrurl} || goto failed
-
-:onlineset
-isset ${proxydhcp/filename} && set proxydhcp/filename ${grldrurl}
-isset ${net0/filename} &&  set net0/filename ${grldrurl}
-
-:boot
-boot grldr
-goto start
-
-######### UTILITY ITEMS ####################
-:shell
-echo Type exit to get the back to the menu
-shell
-set menu-timeout 0
-goto start
+boot grldr || goto failed
 
 :failed
 echo Booting failed, dropping to shell
+
+:shell
+shell
 goto shell
-
-:reboot
-reboot
-
-:exit
-exit
-
-:cancel
-echo You cancelled the menu, dropping you to a shell
- 
-:config
-config
-goto start
