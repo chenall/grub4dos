@@ -306,31 +306,22 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	      if (query_block_entries >= 0)
 	        {
 		  if (blklst_last_length == buf_geom.sector_size)
-			{
-				if (query_block_entries != 4)
 		    grub_printf ("%s%ld+%ld", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
-				if (blklst_num_entries < DRIVE_MAP_FRAGMENT)
-				{
-				map_start_sector[blklst_num_entries] = blklst_start_sector;
-				map_num_sectors[blklst_num_entries] = blklst_num_sectors;
-				}
-			}
 		  else if (blklst_num_sectors > 1)
-			{
-				if (query_block_entries != 4)
 		    grub_printf ("%s%ld+%ld,%ld[0-%d]", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector - part_start), (blklst_num_sectors-1),
 			     (unsigned long long)(blklst_start_sector + blklst_num_sectors-1 - part_start),
 			     blklst_last_length);
-			}
 		  else
-			{
-				if (query_block_entries != 4)
 		    grub_printf ("%s%ld[0-%d]", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector - part_start), blklst_last_length);
-			}
 	        }
+	        else if (blklst_last_length == buf_geom.sector_size && blklst_num_entries < DRIVE_MAP_FRAGMENT)
+		{
+			map_start_sector[blklst_num_entries] = blklst_start_sector;
+			map_num_sectors[blklst_num_entries] = blklst_num_sectors;
+		}
 	      blklst_num_entries++;
 	      blklst_num_sectors = 0;
 	    }
@@ -339,11 +330,8 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
       if (offset > 0)
 	{
 	  if (query_block_entries >= 0)
-		{
-		if (query_block_entries != 4)
 	  grub_printf("%s%ld[%d-%d]", (blklst_num_entries ? "," : ""),
 		      (unsigned long long)(sector - part_start), offset, (offset + length));
-		}
 	  blklst_num_entries++;
 	}
       else
@@ -393,8 +381,7 @@ blocklist_func (char *arg, int flags)
 #ifndef NO_DECOMPRESSION
   if (compressed_file)
   {
-//    if (query_block_entries < 0)
-		if (query_block_entries == 4)
+    if (query_block_entries < 0)
     {
 	/* compressed files are not considered contiguous. */
 	query_block_entries = 3;
@@ -409,12 +396,13 @@ blocklist_func (char *arg, int flags)
 #endif /* NO_DECOMPRESSION */
 
   /* Print the device name.  */
-  if (query_block_entries != 4) print_root_device (NULL,1);
+  if (query_block_entries >= 0) print_root_device (NULL,1);
 
   rawread_ignore_memmove_overflow = 1;
   /* Read in the whole file to DUMMY.  */
   disk_read_hook = disk_read_blocklist_func;
-  err = grub_read ((unsigned long long)(unsigned int)dummy, (query_block_entries < 0 ? buf_geom.sector_size : -1ULL), 0xedde0d90);
+//  err = grub_read ((unsigned long long)(unsigned int)dummy, (query_block_entries < 0 ? buf_geom.sector_size : -1ULL), 0xedde0d90);
+  err = grub_read ((unsigned long long)(unsigned int)dummy, -1ULL, 0xedde0d90);
   disk_read_hook = 0;
   rawread_ignore_memmove_overflow = 0;
   if (! err)
@@ -425,33 +413,29 @@ blocklist_func (char *arg, int flags)
   if (blklst_num_sectors > 0)
     {
       if (query_block_entries >= 0)
-			{
-				if (query_block_entries != 4)
         grub_printf ("%s%ld+%d", (blklst_num_entries ? "," : ""),
 		 (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
-			if (blklst_num_entries < DRIVE_MAP_FRAGMENT)
-			{
-				map_start_sector[blklst_num_entries] = blklst_start_sector;
-				map_num_sectors[blklst_num_entries] = blklst_num_sectors;
-			}
-		 }
+      else if (blklst_num_entries < DRIVE_MAP_FRAGMENT)
+	{
+		map_start_sector[blklst_num_entries] = blklst_start_sector;
+		map_num_sectors[blklst_num_entries] = blklst_num_sectors;
+	}
       blklst_num_entries++;
     }
 
   if (query_block_entries >= 0)
     grub_putchar ('\n', 255);
+  else
+    query_block_entries = blklst_num_entries;
+
 #if 0
-  if (num_entries > 1)
-    query_block_entries = num_entries;
   else
     {
       query_block_entries = 1;
       map_start_sector = start_sector;
       map_num_sectors = num_sectors;
     }
-#endif
 
-#if 0
   if (query_block_entries < 0)
     {
       map_start_sector = blklst_start_sector;
@@ -484,11 +468,10 @@ fail_open:
   no_decompression = no_decompression_bak;
 #endif
 
-//  if (query_block_entries < 0)
-	if (query_block_entries == 3)
+#if 0
+  if (query_block_entries < 0)
     query_block_entries = 0;
-	else
-		query_block_entries = 1;
+#endif
   return ! errnum;
 }
 
@@ -954,13 +937,13 @@ boot_func (char *arg, int flags)
 		if (is_isolinux)
 		{
 			int p;
-//			query_block_entries = -1; /* query block list only */
-			query_block_entries = 4;
+			query_block_entries = -1; /* query block list only */
+//			query_block_entries = 4;
 			blocklist_func (chainloader_file, flags);
 			if (errnum)
 				break;
 //			if (query_block_entries != 1)
-			if (blklst_num_entries > DRIVE_MAP_FRAGMENT || query_block_entries != 1)
+			if (query_block_entries <= 0 || query_block_entries > DRIVE_MAP_FRAGMENT)
 			{
 				errnum = ERR_NON_CONTIGUOUS;
 				break;
@@ -9287,14 +9270,14 @@ map_func (char *arg, int flags)
 
   if (mem == -1ULL)
   {
-//    query_block_entries = -1; /* query block list only */
-		query_block_entries = 4;
+    query_block_entries = -1; /* query block list only */
+//		query_block_entries = 4;
     blocklist_func (to_drive, flags);
     if (errnum)
 	return 0;
 
 //    if (query_block_entries != 1 && mem == -1ULL)
-		if (blklst_num_entries > DRIVE_MAP_FRAGMENT || query_block_entries != 1)	
+	if (query_block_entries <= 0 || query_block_entries > DRIVE_MAP_FRAGMENT)
 	return ! (errnum = ERR_NON_CONTIGUOUS);
 
 //    start_sector = map_start_sector; /* in big 2048-byte sectors */
@@ -10897,13 +10880,13 @@ partnew_func (char *arg, int flags)
 	return 0;
       }
 
-//      query_block_entries = -1; /* query block list only */
-			query_block_entries = 4;
+      query_block_entries = -1; /* query block list only */
+//			query_block_entries = 4;
       blocklist_func (arg, flags);
       if (errnum == 0)
       {
 //	if (query_block_entries != 1)
-		if (blklst_num_entries > DRIVE_MAP_FRAGMENT || query_block_entries != 1)
+		if (query_block_entries <= 0 || query_block_entries > DRIVE_MAP_FRAGMENT)
 		return ! (errnum = ERR_NON_CONTIGUOUS);
 	new_start = map_start_sector[0];
 	new_len = (filemax + 0x1ff) >> SECTOR_BITS;
