@@ -276,14 +276,16 @@ static unsigned long long blklst_start_sector;
 static unsigned long long blklst_num_sectors;
 static unsigned long blklst_num_entries;
 static unsigned long blklst_last_length;
-  
+
 static void disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsigned long length);
-  
+
   /* Collect contiguous blocks into one entry as many as possible,
      and print the blocklist notation on the screen.  */
 static void
 disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsigned long length)
 {
+	unsigned long sectorsize = buf_geom.sector_size;
+	unsigned char sector_bit = (sectorsize == 2048 ? 11:9);
 #ifdef FSYS_INITRD
 	if (fsys_table[fsys_type].mount_func == initrdfs_mount)
 	{
@@ -292,20 +294,21 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 		return;
 	}
 #endif
-      if (blklst_num_sectors > 0)
+
+	if (blklst_num_sectors > 0)
 	{
 	  if (blklst_start_sector + blklst_num_sectors == sector
-	      && offset == 0 && blklst_last_length == buf_geom.sector_size)
+	      && offset == 0 && blklst_last_length == 0)
 	    {
-	      blklst_num_sectors++;
-	      blklst_last_length = length;
+	      blklst_num_sectors += (length + (sectorsize - 1)) >> sector_bit;
+	      blklst_last_length = (length - (sectorsize - offset))&(sectorsize - 1);
 	      return;
 	    }
 	  else
 	    {
 	      if (query_block_entries >= 0)
 	        {
-		  if (blklst_last_length == buf_geom.sector_size)
+		  if (blklst_last_length == 0)
 		    grub_printf ("%s%ld+%ld", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
 		  else if (blklst_num_sectors > 1)
@@ -317,7 +320,7 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 		    grub_printf ("%s%ld[0-%d]", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector - part_start), blklst_last_length);
 	        }
-	        else if (blklst_last_length == buf_geom.sector_size && blklst_num_entries < DRIVE_MAP_FRAGMENT)
+	        else if (blklst_last_length == 0 && blklst_num_entries < DRIVE_MAP_FRAGMENT)
 		{
 			map_start_sector[blklst_num_entries] = blklst_start_sector;
 			map_num_sectors[blklst_num_entries] = blklst_num_sectors;
@@ -327,18 +330,22 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	    }
 	}
 
-      if (offset > 0)
+	if (offset > 0)
 	{
 	  if (query_block_entries >= 0)
-	  grub_printf("%s%ld[%d-%d]", (blklst_num_entries ? "," : ""),
-		      (unsigned long long)(sector - part_start), offset, (offset + length));
+	  {
+		unsigned long len = sectorsize - offset;
+		if (len > length) len = length;
+		grub_printf("%s%ld[%d-%d]", (blklst_num_entries ? "," : ""),
+			(unsigned long long)(sector - part_start), offset, (offset + len));
+	  }
 	  blklst_num_entries++;
 	}
       else
 	{
 	  blklst_start_sector = sector;
-	  blklst_num_sectors = 1;
-	  blklst_last_length = length;
+	  blklst_num_sectors = (length + sectorsize - 1) >> sector_bit;
+	  blklst_last_length = (length - (sectorsize - offset))&(sectorsize - 1);
 	}
 }
 
@@ -373,7 +380,7 @@ blocklist_func (char *arg, int flags)
   if (fsys_table[fsys_type].mount_func == initrdfs_mount)
   {
     disk_read_hook = disk_read_blocklist_func;
-    err = grub_read ((unsigned long long)(unsigned int)dummy,-1ULL, GRUB_READ);
+    err = grub_read ((unsigned long long)(unsigned int)dummy,-1ULL, GRUB_LISTBLK);
     disk_read_hook = 0;
     goto fail_read;
   }
@@ -402,7 +409,7 @@ blocklist_func (char *arg, int flags)
   /* Read in the whole file to DUMMY.  */
   disk_read_hook = disk_read_blocklist_func;
 //  err = grub_read ((unsigned long long)(unsigned int)dummy, (query_block_entries < 0 ? buf_geom.sector_size : -1ULL), 0xedde0d90);
-  err = grub_read ((unsigned long long)(unsigned int)dummy, -1ULL, 0xedde0d90);
+  err = grub_read ((unsigned long long)(unsigned int)dummy, -1ULL, GRUB_LISTBLK);
   disk_read_hook = 0;
   rawread_ignore_memmove_overflow = 0;
   if (! err)

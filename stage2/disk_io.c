@@ -284,7 +284,7 @@ rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offs
   unsigned long slen, sectors_per_vtrack;
   unsigned long sector_size_bits = log2_tmp (buf_geom.sector_size);
 
-  if (write != 0x900ddeed && write != 0xedde0d90)
+  if (write != 0x900ddeed && write != 0xedde0d90 && write != GRUB_LISTBLK)
 	return !(errnum = ERR_FUNC_CALL);
 
   errnum = 0;
@@ -306,8 +306,15 @@ rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offs
 	sector_size_bits = log2_tmp (buf_geom.sector_size);
   }
 
+  if (write == GRUB_LISTBLK)
+  {
+      if (disk_read_func) (*disk_read_func)(sector, byte_offset, byte_len);
+      return 1;
+  }
+
   if (!buf)
   {	/* Don't waste time reading from disk, just call disk_read_func. */
+
 	if (disk_read_func)
 	{
 	    unsigned long sectorsize = buf_geom.sector_size;
@@ -486,7 +493,7 @@ devread (unsigned long long sector, unsigned long long byte_offset, unsigned lon
   unsigned long sector_size_bits = log2_tmp(buf_geom.sector_size);
   unsigned long rw_flag = write;
 
-  if (rw_flag != 0x900ddeed && rw_flag != 0xedde0d90)
+  if (rw_flag != 0x900ddeed && rw_flag != 0xedde0d90 && rw_flag != GRUB_LISTBLK)
   {//for old devread with 32-bit byte_offset compatibility.
     rw_flag = *(unsigned long*)(&write - 1);
     if (rw_flag != 0x900ddeed && rw_flag != 0xedde0d90)

@@ -1393,6 +1393,7 @@ int next_partition (void);
 int grub_open (char *filename);
 #define GRUB_READ 0xedde0d90
 #define GRUB_WRITE 0x900ddeed
+#define GRUB_LISTBLK   0x4B42534C
 /* Read LEN bytes into BUF from the file that was opened with
    GRUB_OPEN.  If LEN is -1, read all the remaining data in the file.  */
 unsigned long long grub_read (unsigned long long buf, unsigned long long len, unsigned long write);
