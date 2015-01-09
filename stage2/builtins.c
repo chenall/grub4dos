@@ -15262,6 +15262,7 @@ bat_run_script
 run batch script.
 if filename is NULL then is a call func.the first word of arg is a label.
 */
+static int debug_bat;
 static int bat_run_script(char *filename,char *arg,int flags)
 {
 	if (prog_pid != p_bat_prog->pid)
@@ -15271,8 +15272,6 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	}
 
 	char **bat_entry = (char **)(p_bat_prog->entry + 0x80);
-
-	int debug_bat = debug == 3?1:0;
 	int i = 1;
 
 	if (filename == NULL)
@@ -15285,6 +15284,8 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			return 0;
 		}
 	}
+	else
+		debug_bat = debug == 3?1:0;
 
 	if (debug_bat)
 	    printf("S^:%s [%d]\n",filename,prog_pid);
