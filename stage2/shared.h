@@ -907,8 +907,8 @@ extern int compressed_file;
 #endif
 
 /* instrumentation variables */
-extern void (*disk_read_hook) (unsigned long long, unsigned long, unsigned long);
-extern void (*disk_read_func) (unsigned long long, unsigned long, unsigned long);
+extern void (*disk_read_hook) (unsigned long long, unsigned long, unsigned long long);
+extern void (*disk_read_func) (unsigned long long, unsigned long, unsigned long long);
 
 /* The flag for debug mode.  */
 extern int debug;

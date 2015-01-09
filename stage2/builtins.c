@@ -260,9 +260,9 @@ check_password (char* expected, password_t type)
 
 /* Print which sector is read when loading a file.  */
 static void
-disk_read_print_func (unsigned long long sector, unsigned long offset, unsigned long length)
+disk_read_print_func (unsigned long long sector, unsigned long offset, unsigned long long length)
 {
-  grub_printf ("[%ld,%d,%d]", sector, offset, length);
+  grub_printf ("[%ld,%d,%ld]", sector, offset, length);
 }
 
 extern int rawread_ignore_memmove_overflow; /* defined in disk_io.c */
@@ -277,12 +277,12 @@ static unsigned long long blklst_num_sectors;
 static unsigned long blklst_num_entries;
 static unsigned long blklst_last_length;
 
-static void disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsigned long length);
+static void disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsigned long long length);
 
   /* Collect contiguous blocks into one entry as many as possible,
      and print the blocklist notation on the screen.  */
 static void
-disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsigned long length)
+disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsigned long long length)
 {
 	unsigned long sectorsize = buf_geom.sector_size;
 	unsigned char sector_bit = (sectorsize == 2048 ? 11:9);
@@ -290,7 +290,7 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	if (fsys_table[fsys_type].mount_func == initrdfs_mount)
 	{
 		if (query_block_entries >= 0)
-			printf("(md,0x%lx,0x%x)+1",(sector << SECTOR_BITS) + offset,length);
+			printf("(md,0x%lx,0x%lx)+1",(sector << SECTOR_BITS) + offset,length);
 		return;
 	}
 #endif
@@ -354,7 +354,8 @@ static int
 blocklist_func (char *arg, int flags)
 {
   char *dummy = NULL;
-  int err, i;
+  int i;
+  unsigned long long err;
 #ifndef NO_DECOMPRESSION
   int no_decompression_bak = no_decompression;
 #endif
@@ -391,7 +392,7 @@ blocklist_func (char *arg, int flags)
     if (query_block_entries < 0)
     {
 	/* compressed files are not considered contiguous. */
-	query_block_entries = 3;
+//	query_block_entries = 3;
 	goto fail_read;
     }
 
@@ -420,7 +421,7 @@ blocklist_func (char *arg, int flags)
   if (blklst_num_sectors > 0)
     {
       if (query_block_entries >= 0)
-        grub_printf ("%s%ld+%d", (blklst_num_entries ? "," : ""),
+        grub_printf ("%s%ld+%ld", (blklst_num_entries ? "," : ""),
 		 (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
       else if (blklst_num_entries < DRIVE_MAP_FRAGMENT)
 	{
@@ -475,10 +476,9 @@ fail_open:
   no_decompression = no_decompression_bak;
 #endif
 
-#if 0
   if (query_block_entries < 0)
     query_block_entries = 0;
-#endif
+
   return ! errnum;
 }
 
@@ -7529,9 +7529,9 @@ static unsigned long long start_sector, sector_count;
 unsigned long long initrd_start_sector;
 
   /* Get the start sector number of the file.  */
-static void disk_read_start_sector_func (unsigned long long sector, unsigned long offset, unsigned long length);
+static void disk_read_start_sector_func (unsigned long long sector, unsigned long offset, unsigned long long length);
 static void
-disk_read_start_sector_func (unsigned long long sector, unsigned long offset, unsigned long length)
+disk_read_start_sector_func (unsigned long long sector, unsigned long offset, unsigned long long length)
 {
       if (sector_count < 1)
 	{
@@ -12392,9 +12392,9 @@ static unsigned long long entryno;
 static int deny_write;
 
   /* Save sector information about at most two sectors.  */
-static void disk_read_savesect_func1 (unsigned long long sector, unsigned long offset, unsigned long length);
+static void disk_read_savesect_func1 (unsigned long long sector, unsigned long offset, unsigned long long length);
 static void
-disk_read_savesect_func1 (unsigned long long sector, unsigned long offset, unsigned long length)
+disk_read_savesect_func1 (unsigned long long sector, unsigned long offset, unsigned long long length)
 {
       if (blklst_num_sectors < 2)
 	{
