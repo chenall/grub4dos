@@ -219,9 +219,9 @@ BOOTPLAYER *discover_reply = 0;
 static void set_basedir(char *config)
 {
 	unsigned long n;
-	grub_u8_t path_sep = (def_pxe_type == PXE_FILE_TYPE_TFTP && server_is_dos) ? '\\' : '/';
+	grub_u8_t path_sep = (cur_pxe_type == PXE_FILE_TYPE_TFTP && server_is_dos) ? '\\' : '/';
 	n = grub_strlen (config);
-	pxe_tftp_name = (char*)&pxe_tftp_open.FileName;
+
 	if (n > 126)
 	{
 		printf_warning("Warning! base name(%d chars) too long (> 126 chars).\n", n);
@@ -229,23 +229,22 @@ static void set_basedir(char *config)
 		config[n] = 0;
 	}
 
-	if (config[0] != path_sep)
+	if (*config != path_sep)
 	{
 		#ifdef FSYS_IPXE
-		if (def_pxe_type == PXE_FILE_TYPE_TFTP)
+		char *ch = strstr(config,":");
+		if (has_ipxe && ch && (grub_u32_t)(ch - config) < 10)
 		{
-			char *ch = strstr(config,":");
-			if (has_ipxe && ch && (grub_u32_t)(ch - config) < 10)
-			{
-				cur_pxe_type = def_pxe_type = PXE_FILE_TYPE_IPXE;
-			}
-			else
-			{
+			pxe_tftp_name = (char*)&pxe_tftp_open.FileName;
+			cur_pxe_type = def_pxe_type = PXE_FILE_TYPE_IPXE;
+		}
+		else
+		{
+			if (cur_pxe_type == PXE_FILE_TYPE_TFTP)
 		#endif
-				pxe_tftp_open.FileName[0] = path_sep; /* have to add a slash */
-				++pxe_tftp_name;
+				pxe_tftp_name = (char*)&pxe_tftp_open.FileName;
+			*pxe_tftp_name++ = path_sep;
 		#ifdef FSYS_IPXE
-			}
 		}
 		#endif
 	}
@@ -256,6 +255,8 @@ static void set_basedir(char *config)
 
 	pxe_tftp_name += n;
 }
+
+static void print_ip (IP4 ip);
 
 int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 {
@@ -310,6 +311,8 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
   }
 #endif
 
+  if (!pxe_sip && cur_pxe_type == PXE_FILE_TYPE_TFTP) return 0;//pxe server not found?
+
   if (discover_reply->bootfile[0])
     {
 	unsigned long n;
@@ -322,7 +325,14 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 			break;
 		}
 	}
-	grub_printf ("\nbootfile is %s\n", discover_reply->bootfile);
+
+	if (debug)
+	{
+		printf_debug("\nBoot Server: ");
+		print_ip(pxe_sip);
+		printf_debug("\tBoot File: %s\n", discover_reply->bootfile);
+	}
+
 	set_basedir((char*)discover_reply->bootfile);
 
 	/* read the boot file to determine the block size. */
@@ -355,13 +365,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
   {
 	if ((ret = grub_open(config)))
 	{
-		#ifdef FSYS_IPXE
-		char *ch = strstr(config,":");
-		if (has_ipxe && ch && (grub_u32_t)(ch - config) < 10)
-			set_basedir(config);
-		else
-		#endif
-			grub_strcpy (pxe_tftp_name, config);
+		set_basedir(config);
 		grub_close();
 		goto done;
 	}
@@ -388,7 +392,8 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 	ret = pxe_dir (pxe_tftp_name);
 	if (ret && filemax)
 		goto done;
-
+	if (pxe_tftp_open.Status != PXENV_STATUS_TFTP_FILE_NOT_FOUND)//bad server
+		goto done;
   /* Reports from Ruymbeke: opening /menu.lst will hang if it is a dir.
    * Do NOT use /menu.lst as a dir any more!! Use /menu for it instead.
    */
@@ -561,7 +566,12 @@ static int pxe_open (char* name)
 	name is a relative path.
 	*/
 	pxe_tftp_opened = pxe_file_func[cur_pxe_type]->open(name);
-	if (pxe_tftp_opened && pxe_file_func[cur_pxe_type]->getsize())
+	if (!pxe_tftp_opened)
+	{
+		if ((unsigned long)debug >= 0x7FFFFFFF) printf("Err: %d\n",pxe_tftp_open.Status);
+		return 0;
+	}
+	if (pxe_file_func[cur_pxe_type]->getsize())
 		return 1;
 	pxe_close ();
 	return (pxe_tftp_opened = 0);
@@ -1082,8 +1092,8 @@ int pxe_func (char *arg, int flags)
 	unsigned long long blksize = 0;
 	/* pxe_detect should be done before any other command. */
 	arg = skip_to (0, arg);
-	if (*arg != '/')
-	{
+//	if (*arg != '/')
+//	{
 		if (*arg >= '0' && *arg <= '9')
 		{
 			if (! safe_parse_maxint (&arg, &blksize))
@@ -1097,7 +1107,7 @@ int pxe_func (char *arg, int flags)
 			arg = 0;
 		//else
 		//	goto bad_argument;
-	}
+//	}
 	return pxe_detect ((int)blksize, arg);
     }
     #ifdef FSYS_IPXE

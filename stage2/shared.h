@@ -1281,6 +1281,7 @@ void enter_cmdline (char *heap, int forever);
 //void grub_printf (const char *format,...);
 
 #define grub_printf(...) grub_sprintf(NULL, __VA_ARGS__)
+#define printf_debug(...) grub_sprintf(NULL, __VA_ARGS__)
 #define printf_errinfo(...) grub_sprintf((char*)2, __VA_ARGS__)
 #define printf_warning(...) grub_sprintf((char*)1, __VA_ARGS__)
 int grub_sprintf (char *buffer, const char *format, ...);
