@@ -1,3 +1,4 @@
+2015-01-10 New Batch script debugging features.
 2014-12-15 (tinybit) get rid of endless loop due to wrong usage of pxe detect.
 2014-11-19 (tinybit) fix a bug that erroneously hooked/unhooked non-fb drives.
 2014-11-10 supported initrdfs.
