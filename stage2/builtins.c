@@ -68,6 +68,7 @@ int grub_timeout = -1;
 int show_menu = 1;
 /* Don't display a countdown message for the hidden menu */
 int silent_hiddenmenu = 0;
+static int debug_prog;
 
 unsigned long pxe_restart_config = 0;
 unsigned long configfile_in_menu_init = 0;
@@ -3999,9 +4000,11 @@ debug_func (char *arg, int flags)
   }
   else
   {
-    if (errnum == 0)
-      errnum = ERR_BAD_ARGUMENT;
-    return 0;
+    int ret;
+    debug_prog = 1;
+    ret = command_func(arg,flags);
+    debug_prog = 0;
+    return ret;
   }
 
   return debug;
@@ -4012,8 +4015,9 @@ struct builtin builtin_debug =
   "debug",
   debug_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "debug [on | off | normal | status | INTEGER]",
-  "Turn on/off or display/set the debug level.debug 3 to Single-step Debug for batch script"
+  "debug [on | off | normal | status | INTEGER]"
+  "\ndebug Batch [ARGS]",
+  "Turn on/off or display/set the debug level or Single-step Debug for batch script"
 };
 
 
@@ -15548,9 +15552,10 @@ bat_run_script
 run batch script.
 if filename is NULL then is a call func.the first word of arg is a label.
 */
-static int debug_bat;
+
 static int bat_run_script(char *filename,char *arg,int flags)
 {
+	int debug_bat = debug_prog;
 	if (prog_pid != p_bat_prog->pid)
 	{
 		errnum = ERR_FUNC_CALL;
@@ -15570,10 +15575,8 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			return 0;
 		}
 	}
-	else
-		debug_bat = debug == 3?1:0;
 
-	if (debug_bat) 
+	if (debug_prog) 
 		printf("S^:%s [%d]\n",filename,prog_pid);
 
 	char **p_entry = bat_entry + i;
@@ -15706,19 +15709,33 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 
 		*p_cmd = '\0';
+		if (debug_prog) printf("S1:[%s]\n",p_buff);
 		if (debug_bat)
 		{
-			printf("S1:[%s]\n",p_buff);
+			if (current_term->setcolorstate) current_term->setcolorstate(COLOR_STATE_HEADING);
+			grub_printf ("[Q->quit,C->Shell,E->End step,S->Skip Line,N->step Next func]");
 			char key=getkey() & 0xdf;
-			if (key == 'Q')
+			if (current_term->setcolorstate) current_term->setcolorstate(COLOR_STATE_STANDARD);
+			grub_printf("\r%*s",current_term->chars_per_line,"\r");
+			switch(key)
 			{
-				errnum = 1001;
-				break;
+				case 'Q':
+					errnum = 1001;
+					break;
+				case 'C':
+					commandline_func((char *)SYSTEM_RESERVED_MEMORY,0);
+					break;
+				case 'S':
+					++p_entry;
+					continue;
+				case 'N':
+					debug_bat = 0;
+					break;
+				case 'O':
+					debug_bat = debug_prog = 0;
+					break;
 			}
-			else if (key == 'C')
-			{
-				commandline_func((char *)SYSTEM_RESERVED_MEMORY,0);
-			}
+			if (errnum == 1001) break;
 		}
 
 		ret = run_line (p_buff,flags);
@@ -15769,7 +15786,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	batch_args = backup_args;
 	grub_free(cmd_buff);
 
-	if (debug_bat) 
+	if (debug_prog)
 		printf("S$:%s [%d]\n",filename,prog_pid); 
 
 	errnum = (i == 1000) ? 0 : i;

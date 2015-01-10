@@ -1,3 +1,4 @@
+2015-01-10 New Batch script debugging features.
 2014-12-15 (tinybit) get rid of endless loop due to wrong usage of pxe detect.
 2014-12-01 add new filesystem `ipxe`,support for access file with iPXE;
 2014-11-29 add new command `ipxe`.
