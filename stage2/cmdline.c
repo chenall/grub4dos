@@ -272,13 +272,14 @@ int run_line (char *heap,int flags)
    int status = 0;
    int ret = 0;
    int arg_len = strlen(heap) + 1;
-   cmd_buffer += (arg_len + 0x10) & -0x10;
+   cmd_buffer += (arg_len + 0xf) & -0x10;
    memmove(cmdline_buf,heap,arg_len);
    heap = cmdline_buf;
    while(*heap && (arg = heap))
    {
       heap = skip_to_next_cmd(heap,&status,OPT_MULTI_CMD_AND | OPT_MULTI_CMD_OR | OPT_MULTI_CMD);//next cmd
       ret = run_cmd_line(arg,flags);
+      if (errnum > 1000) break;
       if (((status & OPT_MULTI_CMD_AND) && !ret) || ((status & OPT_MULTI_CMD_OR) && ret))
       {
 	 errnum = ERR_NONE;
@@ -436,7 +437,7 @@ static int run_cmd_line (char *heap,int flags)
 		    errnum = -1;
 		    break;
 		}
-		if (errnum >= 1255 || status == 0 || (status & 12))
+		if (errnum >= 1000 || status == 0 || (status & 12))
 		{
 			break;
 		}
@@ -500,7 +501,7 @@ enter_cmdline (char *heap, int forever)
       if (get_cmdline ())
 	{
 	  kernel_type = KERNEL_TYPE_NONE;
-	  debug = debug_old;
+	  if (debug == 1) debug = debug_old;
 	  return;
 	}
 

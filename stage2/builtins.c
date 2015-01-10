@@ -69,7 +69,8 @@ int show_menu = 1;
 /* Don't display a countdown message for the hidden menu */
 int silent_hiddenmenu = 0;
 static int debug_prog;
-
+static int debug_break = 0;
+static grub_u8_t msg_password[]="Password: ";
 unsigned long pxe_restart_config = 0;
 unsigned long configfile_in_menu_init = 0;
 
@@ -237,7 +238,7 @@ check_password (char* expected, password_t type)
 	/* Wipe out any previously entered password */
 	//   entered[0] = 0;
 	memset(entered,0,sizeof(entered));
-	get_cmdline_str.prompt = (unsigned char*)"Password: ";
+	get_cmdline_str.prompt = msg_password;
 	get_cmdline_str.maxlen = sizeof (entered) - 1;
 	get_cmdline_str.echo_char = '*';
 	get_cmdline_str.readline = 0;
@@ -4004,6 +4005,7 @@ debug_func (char *arg, int flags)
     debug_prog = 1;
     ret = command_func(arg,flags);
     debug_prog = 0;
+    debug_break = 0;
     return ret;
   }
 
@@ -10597,7 +10599,7 @@ md5crypt_func (char *arg, int flags)
   {
 	  /* Get a password.  */
 	  grub_memset (key, 0, sizeof (key));
-	  get_cmdline_str.prompt = (unsigned char*)"Password: ";
+	  get_cmdline_str.prompt = msg_password;
 	  get_cmdline_str.maxlen = sizeof (key) - 1;
 	  get_cmdline_str.echo_char = '*';
 	  get_cmdline_str.readline = 0;
@@ -11256,7 +11258,7 @@ password_func (char *arg, int flags)
       
       /* Wipe out any previously entered password */
       entered[0] = 0;
-      get_cmdline_str.prompt = "Password: ";
+      get_cmdline_str.prompt = msg_password;
       get_cmdline_str.maxlen = sizeof (entered) - 1;
       get_cmdline_str.echo_char = '*';
       get_cmdline_str.readline = 0;
@@ -15433,8 +15435,7 @@ static int bat_find_label(char *label)
 		}
 	}
 
-	if (debug > 0)
-		printf(" cannot find the batch label specified - %s\n",label);
+	printf_errinfo(" cannot find the batch label specified - %s\n",label);
 	return 0;
 }
 
@@ -15563,7 +15564,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	}
 
 	char **bat_entry = (char **)(p_bat_prog->entry + 0x80);
-	int i = 1;
+	grub_u32_t i = 1;
 
 	if (filename == NULL)
 	{//filename is null is a call func;
@@ -15586,14 +15587,14 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	char *p_rep;
 	char *p_buff;//buff for command_line
 	char *cmd_buff;
-	unsigned long arg_len = grub_strlen(arg) + 1;
+	grub_u8_t ret = grub_strlen(arg) + 1;
 	//if (arg_len > 0x8000)
 	//{
 	//    errnum = ERR_WONT_FIT;
 	//    return 0;
 	//}
 
-	if ((cmd_buff = grub_malloc(arg_len + 0x800)) == NULL)
+	if ((cmd_buff = grub_malloc(ret + 0x800)) == NULL)
 	{
 		return 0;
 	}
@@ -15601,12 +15602,12 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	/*copy filename to buff*/
 	i = grub_strlen(filename);
 	grub_memmove(cmd_buff,filename,i+1);
-	p_buff = cmd_buff + ((i+16) & ~0xf);
+	p_buff = cmd_buff + ((i+0xf) & ~0xf);
 	s[0] = cmd_buff;
 	/*copy arg to buff*/
-	grub_memmove(p_buff, arg, arg_len);
+	grub_memmove(p_buff, arg, ret);
 	arg = p_buff;
-	p_buff = p_buff + ((arg_len + 16) & ~0xf);
+	p_buff = p_buff + ((ret + 16) & ~0xf);
 
 	/*build args %1-%9*/
 	for (i = 1;i < 9; ++i)
@@ -15616,17 +15617,25 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			arg = skip_to(SKIP_WITH_TERMINATE | 1,arg);
 	}
 	s[9] = arg;// %9 for other args.
-	int ret = 0;
+
 	char *p_bat;
 	char **backup_args = batch_args;
 	SETLOCAL *saved_bc = bc;
 	batch_args = s;
 	bc = cc; //saved for batch
+	ret = 0;
 
 	while ((p_bat = *p_entry))//copy cmd_line to p_buff and then run it;
 	{
 		p_cmd = p_buff;
 		char *file_ext;
+
+		if (p_bat == (char*)-1)//Skip Line
+		{
+			p_entry++;
+			continue;
+		}
+
 		while(*p_bat)
 		{
 			if (*p_bat != '%' || (file_ext = p_bat++,*p_bat == '%'))
@@ -15709,15 +15718,17 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 
 		*p_cmd = '\0';
-		if (debug_prog) printf("S1:[%s]\n",p_buff);
+		if (debug_break && debug_break == (grub_u32_t)(p_entry-bat_entry)) debug_bat = debug_prog = 1;
+		if (debug_prog) printf("S[%d]:[%s]\n",((grub_u32_t)(p_entry-bat_entry)),p_buff);
 		if (debug_bat)
 		{
+			Next_key:
 			if (current_term->setcolorstate) current_term->setcolorstate(COLOR_STATE_HEADING);
-			grub_printf ("[Q->quit,C->Shell,E->End step,S->Skip Line,N->step Next func]");
-			char key=getkey() & 0xdf;
+			grub_printf ("[Q->quit,C->Shell,S->Skip,E->End step,B->Breakpoint,N->step Next func]");
+			i=getkey() & 0xdf;
 			if (current_term->setcolorstate) current_term->setcolorstate(COLOR_STATE_STANDARD);
-			grub_printf("\r%*s",current_term->chars_per_line,"\r");
-			switch(key)
+			grub_printf("\r%75s","\r");
+			switch(i)
 			{
 				case 'Q':
 					errnum = 1001;
@@ -15731,9 +15742,44 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				case 'N':
 					debug_bat = 0;
 					break;
-				case 'O':
+				case 'E':
 					debug_bat = debug_prog = 0;
 					break;
+				case 'B':
+				{
+					grub_u8_t buff[8];
+					int j = 0;
+					buff[0] = 0;
+					get_cmdline_str.prompt = &msg_password[8];
+					get_cmdline_str.maxlen = sizeof (buff) - 1;
+					get_cmdline_str.echo_char = 0;
+					get_cmdline_str.readline = 0;
+					get_cmdline_str.cmdline = buff;
+					get_cmdline ();
+					i = 0;
+					if (buff[0] == '+' || buff[0] == '-') i=j=1;
+
+					debug_break = 0;
+					for(;i<5;++i)
+					{
+						if (buff[i] < '0' || buff[i] > '9')
+							break;
+						debug_break *= 10;
+						debug_break += buff[i] & 0xF;
+					}
+
+					if (j)
+					{
+						if (buff[0] == '-') debug_break = -debug_break;
+						debug_break += (grub_u32_t)(p_entry-bat_entry);
+					}
+
+					if (debug_break > 0)
+						printf("\rDebug Break Line: %d\n",debug_break);
+					else
+						debug_break = 0;
+					goto Next_key;
+				}
 			}
 			if (errnum == 1001) break;
 		}
@@ -15790,7 +15836,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		printf("S$:%s [%d]\n",filename,prog_pid); 
 
 	errnum = (i == 1000) ? 0 : i;
-	return errnum?0:ret;
+	return errnum?0:(int)ret;
 }
 
 
@@ -15919,6 +15965,7 @@ static int grub_exec_run(char *program, int flags)
 	/*Is a batch file? */
 	if (*(unsigned long *)program == BAT_SIGN || *(unsigned long *)program == 0x21BFBBEF)//!BAT
 	{
+		int crlf = 0;
 		if (prog_pid >= 10)
 		{
 			return 0;
@@ -15938,7 +15985,21 @@ static int grub_exec_run(char *program, int flags)
 
 		p_bat_array->size = size++;
 		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",program + size,*(unsigned long *)(program - 20) - size);
+
+		if (debug_prog)
+		{
+			while(*p_bat++)
+			{
+				if (*p_bat == '\r')
+					crlf = 1;
+				else if (*p_bat != '\n')
+					continue;
+				break;
+			}
+		}
+
 		program = skip_to(SKIP_LINE,program);//skip head
+
 		while ((p_bat = program))//scan batch file and make label and bat entry.
 		{
 			program = skip_to(SKIP_LINE,program);
@@ -15947,10 +16008,22 @@ static int grub_exec_run(char *program, int flags)
 				nul_terminate(p_bat);
 				label_entry[i_lab].label = p_bat + 1;
 				label_entry[i_lab].line = i_bat;
+				if (debug_prog) bat_entry[i_bat++] = (char*)-1;
 				i_lab++;
 			}
 			else
 				bat_entry[i_bat++] = p_bat;
+
+			if (debug_prog)
+			{
+				char *p = p_bat;
+				p += grub_strlen(p_bat) + crlf;
+				while(*++p && p < program)
+				{
+					if (*p == '\n') bat_entry[i_bat++] = (char*)-1;
+				}
+			}
+
 			if ((i_lab & 0x80) || (i_bat & 0x800))//max label 128,max script line 2048.
 			{
 				grub_free(p_bat_array);
