@@ -376,7 +376,7 @@ static int run_cmd_line (char *heap,int flags)
 		}
 
 		if (debug > 10)
-			printf("r0:[%s]\n",arg);
+			printf("r0:[0x%x]:[%s]\n",arg,arg);
 
 		if (status & 8)
 		{

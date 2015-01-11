@@ -70,6 +70,7 @@ int show_menu = 1;
 int silent_hiddenmenu = 0;
 static int debug_prog;
 static int debug_break = 0;
+static int debug_check_memory = 0;
 static grub_u8_t msg_password[]="Password: ";
 unsigned long pxe_restart_config = 0;
 unsigned long configfile_in_menu_init = 0;
@@ -4006,6 +4007,7 @@ debug_func (char *arg, int flags)
     ret = command_func(arg,flags);
     debug_prog = 0;
     debug_break = 0;
+    debug_check_memory = 0;
     return ret;
   }
 
@@ -15718,7 +15720,8 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 
 		*p_cmd = '\0';
-		if (debug_break && debug_break == (grub_u32_t)(p_entry-bat_entry)) debug_bat = debug_prog = 1;
+
+		if (debug_break && !debug_check_memory && debug_break == (grub_u32_t)(p_entry-bat_entry)) debug_bat = debug_prog = 1;
 		if (debug_prog) printf("S[%d]:[%s]\n",((grub_u32_t)(p_entry-bat_entry)),p_buff);
 		if (debug_bat)
 		{
@@ -15747,37 +15750,36 @@ static int bat_run_script(char *filename,char *arg,int flags)
 					break;
 				case 'B':
 				{
-					grub_u8_t buff[8];
-					int j = 0;
+					char buff[12];
+					grub_u64_t t;
 					buff[0] = 0;
 					get_cmdline_str.prompt = &msg_password[8];
 					get_cmdline_str.maxlen = sizeof (buff) - 1;
 					get_cmdline_str.echo_char = 0;
 					get_cmdline_str.readline = 0;
-					get_cmdline_str.cmdline = buff;
+					get_cmdline_str.cmdline = (grub_u8_t*)buff;
 					get_cmdline ();
-					i = 0;
-					if (buff[0] == '+' || buff[0] == '-') i=j=1;
+					debug_break = debug_check_memory = 0;
 
-					debug_break = 0;
-					for(;i<5;++i)
+					if (buff[0] == '+' || buff[0] == '-' || buff[0] == '*') p_bat = &buff[1];
+					else p_bat = buff;
+
+					if (safe_parse_maxint (&p_bat, &t))
 					{
-						if (buff[i] < '0' || buff[i] > '9')
-							break;
-						debug_break *= 10;
-						debug_break += buff[i] & 0xF;
+						debug_break = t;
+						if (buff[0] == '*')
+						{
+							debug_check_memory = debug_break;
+							debug_break = *(int*)debug_check_memory;
+							printf("\rDebug Check Memory [0x%x]=>0x%x\n",debug_check_memory,debug_break);
+						}
+						else
+						{
+							if (buff[0] == '-') debug_break = (grub_u32_t)(p_entry-bat_entry) - debug_break;
+							else if (buff[0] == '+') debug_break += (grub_u32_t)(p_entry-bat_entry);
+							if (debug_break) printf("\rDebug Break Line: %d\n",debug_break);
+						}
 					}
-
-					if (j)
-					{
-						if (buff[0] == '-') debug_break = -debug_break;
-						debug_break += (grub_u32_t)(p_entry-bat_entry);
-					}
-
-					if (debug_break > 0)
-						printf("\rDebug Break Line: %d\n",debug_break);
-					else
-						debug_break = 0;
 					goto Next_key;
 				}
 			}
@@ -15785,6 +15787,15 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 
 		ret = run_line (p_buff,flags);
+
+		if (debug_check_memory)
+		{
+			if (debug_break != *(int*)debug_check_memory)
+			{
+				printf("\nB: %s\n[0x%x]=>0x%x (0x%x)\n",p_buff,debug_check_memory,*(int*)debug_check_memory,debug_break);
+				debug_bat = debug_prog = 1;
+			}
+		}
 
 		if ((*(short *)0x417 & 0x104) && checkkey() == 0x2E03)
 		{
