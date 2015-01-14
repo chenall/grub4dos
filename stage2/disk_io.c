@@ -2097,11 +2097,11 @@ block_file:
 unsigned long long
 block_read_func (unsigned long long buf, unsigned long long len, unsigned long write)
 {
-          unsigned long long ret = 0;
-      unsigned long size;
-      unsigned long off;
+	unsigned long long ret = 0;
+	unsigned long size;
+	unsigned long off;
 
-      while (len && !errnum)
+	while (len && !errnum)
 	{
 	  /* we may need to look for the right block in the list(s) */
 	  //if (filepos < (*((unsigned long*)FSYS_BUF)) /* BLK_CUR_FILEPOS */)
@@ -2114,48 +2114,30 @@ block_read_func (unsigned long long buf, unsigned long long len, unsigned long w
 	      blk_buf.cur_blklist = blk_buf.blklist;
 	      blk_buf.cur_blknum = 0;
 	    }
-	    else if (filepos > blk_buf.cur_filepos)
+
+	     if (filepos > blk_buf.cur_filepos)
 	    {
-		unsigned long sector_size;
+		unsigned long long i;
 		unsigned long long tmp;
 
-		sector_size = buf_geom.sector_size;
-		tmp = filepos - (blk_buf.cur_filepos & -(unsigned long long)sector_size);
+		tmp = filepos - (blk_buf.cur_filepos & -(unsigned long long)buf_geom.sector_size);
+		tmp >>= blk_sector_bit;
 
-/*		if (blk_sector_bit)//这个和下面的注释主要是考虑到其它情况,不过应该是不需要.
-		{	*/
-			unsigned long long i;
-
-			tmp >>= blk_sector_bit;
-
-			while(tmp)
-			{
-				i = blk_buf.cur_blklist->length - blk_buf.cur_blknum;
-				if (i > tmp)
-				{
-					blk_buf.cur_blknum += tmp;
-					break;
-				}
-				else
-				{
-					tmp -= i;
-					blk_buf.cur_blklist++;
-					blk_buf.cur_blknum = 0;
-				}
-			}
-		/*}
-		else
+		while(tmp)
 		{
-			while (tmp >= sector_size )
+			i = blk_buf.cur_blklist->length - blk_buf.cur_blknum;
+			if (i > tmp)
 			{
-				tmp -= sector_size;
-				if (++blk_buf.cur_blknum >= blk_buf.cur_blklist->length )
-				{
-					blk_buf.cur_blklist++;
-					blk_buf.cur_blknum = 0;
-				}
+				blk_buf.cur_blknum += tmp;
+				break;
 			}
-		}*/
+			else
+			{
+				tmp -= i;
+				blk_buf.cur_blklist++;
+				blk_buf.cur_blknum = 0;
+			}
+		}
 
 		blk_buf.cur_filepos = filepos;
 	    }
