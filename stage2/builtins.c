@@ -14415,7 +14415,9 @@ static struct builtin builtin_calc =
   "calc [*INTEGER=] [*]INTEGER OPERATOR [[*]INTEGER]",
   "GRUB4DOS Simple Calculator.\n"
   "Available Operators: + - * / % << >> ^ & |"
-  "\nNote: this is a Simple Calculator and From left to right only."
+  "\nNote: 1.this is a Simple Calculator and From left to right only."
+  "\n      2.'^' is XOR function."
+  "\n      3.operators '| % >>' are command operator,can not have space on both sides"
 };
 
 /* graphicsmode */
