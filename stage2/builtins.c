@@ -15736,7 +15736,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			switch(i)
 			{
 				case 'Q':
-					errnum = 1001;
+					errnum = 2000;
 					break;
 				case 'C':
 					commandline_func((char *)SYSTEM_RESERVED_MEMORY,0);
@@ -15785,7 +15785,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 					goto Next_key;
 				}
 			}
-			if (errnum == 1001) break;
+			if (errnum == 2000) break;
 		}
 
 		ret = run_line (p_buff,flags);
@@ -15809,7 +15809,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			putchar(k, 255);
 			if (k == 'Y')
 			{
-					errnum = 1255;
+					errnum = 2000;
 					break;
 			}
 			if (k != 'N')
@@ -16031,9 +16031,9 @@ static int grub_exec_run(char *program, int flags)
 			{
 				char *p = p_bat;
 				p += grub_strlen(p_bat) + crlf;
-				while(*++p && p < program)
+				while(++p < program)
 				{
-					if (*p == '\n') bat_entry[i_bat++] = (char*)-1;
+					if (!*p || *p == '\n') bat_entry[i_bat++] = (char*)-1;
 				}
 			}
 
