@@ -272,13 +272,24 @@ int run_line (char *heap,int flags)
    int status = 0;
    int ret = 0;
    int arg_len = strlen(heap) + 1;
-   cmd_buffer += (arg_len + 0x10) & -0x10;
+   cmd_buffer += (arg_len + 0xf) & -0x10;
    memmove(cmdline_buf,heap,arg_len);
    heap = cmdline_buf;
+   __asm__ __volatile__ ("movl %%esp,%0" ::"m"(arg_len):"memory");
+   if (arg_len < 0x3000)
+   {
+     errnum = ERR_BAD_ARGUMENT;
+     printf("\nFAULT: <<<<<<<<<<SYSTETM STATCK RUNOUT>>>>>>>>>\n");
+     return 0;
+   }
+
+   if (debug > 10) printf("SP:0x%X\n[%s]\n",arg_len,heap);
+
    while(*heap && (arg = heap))
    {
       heap = skip_to_next_cmd(heap,&status,OPT_MULTI_CMD_AND | OPT_MULTI_CMD_OR | OPT_MULTI_CMD);//next cmd
       ret = run_cmd_line(arg,flags);
+      if (errnum > 1000) break;
       if (((status & OPT_MULTI_CMD_AND) && !ret) || ((status & OPT_MULTI_CMD_OR) && ret))
       {
 	 errnum = ERR_NONE;
@@ -375,7 +386,7 @@ static int run_cmd_line (char *heap,int flags)
 		}
 
 		if (debug > 10)
-			printf("r0:[%s]\n",arg);
+			printf("r0:[0x%X]:[%s]\n",arg,arg);
 
 		if (status & 8)
 		{
@@ -436,7 +447,7 @@ static int run_cmd_line (char *heap,int flags)
 		    errnum = -1;
 		    break;
 		}
-		if (errnum >= 1255 || status == 0 || (status & 12))
+		if (errnum >= 2000 || status == 0 || (status & 12))
 		{
 			break;
 		}
@@ -500,7 +511,7 @@ enter_cmdline (char *heap, int forever)
       if (get_cmdline ())
 	{
 	  kernel_type = KERNEL_TYPE_NONE;
-	  debug = debug_old;
+	  if (debug == 1) debug = debug_old;
 	  return;
 	}
 
