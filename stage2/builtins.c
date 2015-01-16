@@ -15591,7 +15591,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	char *p_rep;
 	char *p_buff;//buff for command_line
 	char *cmd_buff;
-	grub_u8_t ret = grub_strlen(arg) + 1;
+	grub_u32_t ret = grub_strlen(arg) + 1;
 	//if (arg_len > 0x8000)
 	//{
 	//    errnum = ERR_WONT_FIT;
