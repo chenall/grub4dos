@@ -122,8 +122,7 @@ biosdisk (unsigned long read, unsigned long drive, struct geometry *geometry,
 
 		if ((start > 0x100000000ULL) && (! is64bit))
 		{
-			if (debug > 1)
-				grub_printf ("biosdisk_int13_extensions read=%d, drive=0x%x, sector=0x%lx, \n", read, drive, sector);
+			printf_debug ("biosdisk_int13_extensions read=%d, drive=0x%x, sector=0x%lx, \n", read, drive, sector);
 			return 1;
 		}
 	  err = biosdisk_int13_extensions ((read + 0x42) << 8, (unsigned char)drive, dap, geometry->sector_size | (!!(geometry->flags & BIOSDISK_FLAG_LBA_1_SECTOR)));
@@ -138,8 +137,7 @@ biosdisk (unsigned long read, unsigned long drive, struct geometry *geometry,
       /* bootable CD-ROM specification has no standard CHS-mode call */
       if (geometry->flags & BIOSDISK_FLAG_CDROM)
       {
-	if (debug > 1)
-	  grub_printf ("biosdisk_int13_extensions read=%d, drive=0x%x, dap=%x, err=0x%x\n", read, drive, dap, err);
+	printf_debug ("biosdisk_int13_extensions read=%d, drive=0x%x, dap=%x, err=0x%x\n", read, drive, dap, err);
 	return err;
       }
 
@@ -216,11 +214,9 @@ get_cdinfo (unsigned long drive, struct geometry *geometry)
   grub_memset (cdrp, 0, sizeof (struct iso_spec_packet));
   cdrp->size = sizeof (struct iso_spec_packet) - 16;
 
-  if (debug > 1)
-	grub_printf ("\rget_cdinfo int13/4B01(%X), ", drive);
+  printf_debug ("\rget_cdinfo int13/4B01(%X), ", drive);
   err = biosdisk_int13_extensions (0x4B01, drive, cdrp, 2048);
-  if (debug > 1)
-	grub_printf ("err=%X, ", err);
+  printf_debug("err=%X, ", err);
 
   if (drive == 0x7F && drive < (unsigned long)(cdrp->drive_no))
 	drive = cdrp->drive_no;
@@ -234,8 +230,7 @@ get_cdinfo (unsigned long drive, struct geometry *geometry)
 	geometry->sectors = 15;
 	geometry->sector_size = 2048;
 	geometry->total_sectors = 65536 * 255 * 15;
-	if (debug > 1)
-	  grub_printf ("drive=%d\n", drive);
+	printf_debug ("drive=%d\n", drive);
 	DEBUG_SLEEP
 	return drive;
     }
@@ -489,11 +484,9 @@ get_diskinfo (unsigned long drive, struct geometry *geometry, unsigned long lba1
 	}
     }
 
-	if (debug > 1)      
-		grub_printf ("\rget_diskinfo int13/41(%X), ", drive);
+	printf_debug ("\rget_diskinfo int13/41(%X), ", drive);
 	version = check_int13_extensions ((unsigned char)drive, (lba1sector | (!!(flags & BIOSDISK_FLAG_LBA_1_SECTOR))));
-	if (debug > 1)      
-		grub_printf ("version=%X, ", version);
+	printf_debug ("version=%X, ", version);
 
 	/* Set the LBA flag.  */
 	if (version & 1) /* support functions 42h-44h, 47h-48h */
@@ -504,22 +497,18 @@ get_diskinfo (unsigned long drive, struct geometry *geometry, unsigned long lba1
 	}
 	total_sectors = 0;
 
-	if (debug > 1)
-		grub_printf ("int13/08(%X), ", drive);
+	printf_debug ("int13/08(%X), ", drive);
 
 	version = get_diskinfo_standard ((unsigned char)drive, &cylinders, &heads, &sectors);
 
-	if (debug > 1)
-		grub_printf ("version=%X, C/H/S=%d/%d/%d, ", version, cylinders, heads, sectors);
+	printf_debug ("version=%X, C/H/S=%d/%d/%d, ", version, cylinders, heads, sectors);
 
-	if (debug > 1)
-		grub_printf ("int13/02(%X), ", drive);
+	printf_debug ("int13/02(%X), ", drive);
 
 	/* read the boot sector: int 13, AX=0x201, CX=1, DH=0. Use buffer 0x20000 - 0x2FFFF */
 	err = biosdisk_standard (0x02, (unsigned char)drive, 0, 0, 1, 1, 0x2F00/*SCRATCHSEG*/);
 
-	if (debug > 1)
-		grub_printf ("err=%X\n", err);
+	printf_debug ("err=%X\n", err);
   DEBUG_SLEEP
 
 	//version = 0;
@@ -618,8 +607,7 @@ get_diskinfo (unsigned long drive, struct geometry *geometry, unsigned long lba1
 		    {
 			if (probe_bpb((struct master_and_dos_boot_sector *)0x2F000/*SCRATCHADDR*/))
 			{
-				if (debug > 1)
-					printf_warning ("\nWarning: Unrecognized partition table for drive %X. Please rebuild it using\na Microsoft-compatible FDISK tool(err=%d). Current C/H/S=%d/%d/%d\n", drive, err, geometry->cylinders, geometry->heads, geometry->sectors);
+				printf_warning ("\nWarning: Unrecognized partition table for drive %X. Please rebuild it using\na Microsoft-compatible FDISK tool(err=%d). Current C/H/S=%d/%d/%d\n", drive, err, geometry->cylinders, geometry->heads, geometry->sectors);
 				goto failure_probe_boot_sector;
 			}
 			err = (int)"BPB";
@@ -638,35 +626,30 @@ get_diskinfo (unsigned long drive, struct geometry *geometry, unsigned long lba1
 yes_fdd:
 	    if (drive & 0x80)
 	    if (probed_cylinders != geometry->cylinders)
-		if (debug > 1)
-		    printf_warning ("\nWarning: %s cylinders(%d) is not equal to the BIOS one(%d).\n", err, probed_cylinders, geometry->cylinders);
+		printf_warning ("\nWarning: %s cylinders(%d) is not equal to the BIOS one(%d).\n", err, probed_cylinders, geometry->cylinders);
 
 	    geometry->cylinders = probed_cylinders;
 
 	    if (probed_heads != geometry->heads)
-		if (debug > 1)
-		    printf_warning ("\nWarning: %s heads(%d) is not equal to the BIOS one(%d).\n", err, probed_heads, geometry->heads);
+		printf_warning ("\nWarning: %s heads(%d) is not equal to the BIOS one(%d).\n", err, probed_heads, geometry->heads);
 
 	    geometry->heads	= probed_heads;
 
 	    if (probed_sectors_per_track != geometry->sectors)
-		if (debug > 1)
-		    printf_warning ("\nWarning: %s sectors per track(%d) is not equal to the BIOS one(%d).\n", err, probed_sectors_per_track, geometry->sectors);
+		printf_warning ("\nWarning: %s sectors per track(%d) is not equal to the BIOS one(%d).\n", err, probed_sectors_per_track, geometry->sectors);
 
 	    geometry->sectors = probed_sectors_per_track;
 
 	    if (probed_total_sectors > total_sectors)
 	    {
 		if (drive & 0x80)
-		if (debug > 1)
 		    printf_warning ("\nWarning: %s total sectors(%d) is greater than the BIOS one(%d).\nSome buggy BIOSes could hang when you access sectors exceeding the BIOS limit.\n", err, probed_total_sectors, total_sectors);
 		geometry->total_sectors	= probed_total_sectors;
 	    }
 
 	    if (drive & 0x80)
 	    if (probed_total_sectors < total_sectors)
-		if (debug > 1)
-		    printf_warning ("\nWarning: %s total sectors(%d) is less than the BIOS one(%d).\n", err, probed_total_sectors, total_sectors);
+		printf_warning ("\nWarning: %s total sectors(%d) is less than the BIOS one(%d).\n", err, probed_total_sectors, total_sectors);
 
 	}
 failure_probe_boot_sector:
@@ -680,12 +663,12 @@ failure_probe_boot_sector:
 		geometry->heads = heads_ok;
 		geometry->sectors = sectors_ok;
 
-		if (debug > 0)
+		if (debug > 1)
 		{
 		    if (err != geometry->heads)
-			grub_printf ("\n!! number of heads for drive %X restored from %d to %d.\n", drive, err, geometry->heads);
+			printf_warning ("\n!! number of heads for drive %X restored from %d to %d.\n", drive, err, geometry->heads);
 		    if (version != geometry->sectors)
-			grub_printf ("\n!! sectors-per-track for drive %X restored from %d to %d.\n", drive, version, geometry->sectors);
+			printf_warning ("\n!! sectors-per-track for drive %X restored from %d to %d.\n", drive, version, geometry->sectors);
 		}
 	}
 	else if (force_geometry_tune==1 || (!(flags & BIOSDISK_FLAG_LBA_EXTENSION) && ! ((*(char *)0x8205) & 0x08)))
@@ -699,9 +682,9 @@ failure_probe_boot_sector:
 		if (debug > 0)
 		{
 		    if (err != geometry->heads)
-			grub_printf ("\nNotice: number of heads for drive %X tuned from %d to %d.\n", drive, err, geometry->heads);
+			printf_warning ("\nNotice: number of heads for drive %X tuned from %d to %d.\n", drive, err, geometry->heads);
 		    if (version != geometry->sectors)
-			grub_printf ("\nNotice: sectors-per-track for drive %X tuned from %d to %d.\n", drive, version, geometry->sectors);
+			printf_warning ("\nNotice: sectors-per-track for drive %X tuned from %d to %d.\n", drive, version, geometry->sectors);
 		}
 	}
 #endif

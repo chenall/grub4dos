@@ -173,19 +173,19 @@ static int try_blksize (int tmp)
 	if (cur_pxe_type == PXE_FILE_TYPE_IPXE) return 0;
 #endif
 	pxe_blksize = tmp;
-	if (debug) grub_printf ("\nTry block size %d ...\n", pxe_blksize);
+	printf_debug0 ("\nTry block size %d ...\n", pxe_blksize);
 	nr = 0;
 	tmp = pxe_open(pxe_tftp_name);
 
 	if (!tmp)
 	{
-		if (debug) grub_printf ("\nFailure: bootfile not found.\n");
+		printf_debug0 ("\nFailure: bootfile not found.\n");
 		return 1;
 	}
 
 	if (filemax <= pxe_blksize)
 	{
-		if (debug) grub_printf ("\nFailure: Size %ld too small.\n", filemax);
+		printf_debug0 ("\nFailure: Size %ld too small.\n", filemax);
 		pxe_close ();
 		return 1;
 	}
@@ -194,18 +194,18 @@ static int try_blksize (int tmp)
 
 	if (nr == PXE_ERR_LEN)
 	{
-		if (debug) grub_printf ("\nFailure: Cannot read the first block.\n");
+		printf_debug0 ("\nFailure: Cannot read the first block.\n");
 		pxe_close ();
 		return 1;
 	}
 
 	if (pxe_blksize != nr && filemax >= nr && nr <= PXE_MAX_BLKSIZE && nr >= PXE_MIN_BLKSIZE)
 	{
-		if (debug) grub_printf ("\npxe_blksize tuned from %d to %d\n", pxe_blksize, nr);
+		printf_debug0 ("\npxe_blksize tuned from %d to %d\n", pxe_blksize, nr);
 		pxe_blksize = nr;
 	}
 
-	if (debug) grub_printf ("\nUse block size %d\n", pxe_blksize);
+	printf_debug0 ("\nUse block size %d\n", pxe_blksize);
 
 	pxe_close ();
 	return 0;
@@ -326,12 +326,9 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 		}
 	}
 
-	if (debug)
-	{
-		printf_debug("\nBoot Server: ");
-		print_ip(pxe_sip);
-		printf_debug("\tBoot File: %s\n", discover_reply->bootfile);
-	}
+	grub_printf("\nBoot Server: ");
+	print_ip(pxe_sip);
+	grub_printf("\tBoot File: %s\n", discover_reply->bootfile);
 
 	set_basedir((char*)discover_reply->bootfile);
 
@@ -342,7 +339,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 	else if (try_blksize (1408) && try_blksize (512))
 	{
 		pxe_blksize = 512;	/* default to 512 */
-		grub_printf ("Warning! Cannot open bootfile. pxe_blksize set to default 512.\n");
+		printf_warning ("Warning! Cannot open bootfile. pxe_blksize set to default 512.\n");
 	}
 
       //grub_strcpy (pxe_tftp_name, "/menu.lst/");
@@ -350,7 +347,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
   else
     {
 	pxe_blksize = (blksize ? blksize : 512);	/* default to 512 */
-	grub_printf ("\nNo bootfile! pxe_blksize set to %d\n", pxe_blksize);
+	printf_warning ("\nNo bootfile! pxe_blksize set to %d\n", pxe_blksize);
 	pxe_tftp_name = (char*)&pxe_tftp_open.FileName[0];
     }
 
@@ -454,7 +451,7 @@ done:
 	char *filename = pxe_tftp_name;
 	if (debug > 1)
 	{
-		grub_printf("\rPXE boot configfile:%s\n",(char *)pxe_tftp_open.FileName);
+		printf_debug("\rPXE boot configfile:%s\n",(char *)pxe_tftp_open.FileName);
 		DEBUG_SLEEP
 	}
 	pxe_close ();
@@ -762,7 +759,7 @@ int pxe_dir (char *dirname)
 
 	if ((grub_u32_t)pxe_tftp_name + grub_strlen(dirname) > (grub_u32_t)&pxe_tftp_open.FileName[127])
 	{
-		if (debug) printf("Error: The file name exceeds the maximum number of characters.\n");
+		printf_debug0("Error: The file name exceeds the maximum number of characters.\n");
 		return 0;
 	}
 

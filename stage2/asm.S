@@ -160,6 +160,9 @@ preset_menu_old:
 codestart:
 	jmp	real_codestart
 
+	. = EXT_C(main) + 0x73
+VARIABLE(debug_msg)
+	.byte 2
 	/* internal variables follow */
 	. = EXT_C(main) + 0x74
 VARIABLE(menu_num_ctrl)

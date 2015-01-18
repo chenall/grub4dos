@@ -2386,12 +2386,12 @@ extern int graphicsmode_func (char *, int);
 
 #ifdef GRUB4DOS_VERSION
 	    if ((unsigned long)saved_partition == 0xFFFFFF)
-		printf ("\rGRUB4DOS " GRUB4DOS_VERSION
+		printf_debug0 ("\rGRUB4DOS " GRUB4DOS_VERSION
 			", root is (0x%X)%s\n",
 			(unsigned long)saved_drive,
 			saved_dir);
 	    else
-		printf ("\rGRUB4DOS " GRUB4DOS_VERSION
+		printf_debug0 ("\rGRUB4DOS " GRUB4DOS_VERSION
 			", root is (0x%X,%d)%s\n",
 			(unsigned long)saved_drive,
 			(unsigned char)(saved_partition >> 16),
@@ -2400,12 +2400,12 @@ extern int graphicsmode_func (char *, int);
 	    if (is_preset)
 	    {
 		if (preset_menu == (const char *)0x800)
-		    printf ("\rProcessing the preset-menu ...\n");
+		    printf_debug0 ("\rProcessing the preset-menu ...\n");
 		else
-		    printf ("\rProcessing the LZMA preset-menu ...\n");
+		    printf_debug0 ("\rProcessing the LZMA preset-menu ...\n");
 	    }
 	    else
-		printf ("\rProcessing menu file %s ...\n", config_file);
+		printf_debug0 ("\rProcessing menu file %s ...\n", config_file);
 	    DEBUG_SLEEP
 	}
 
@@ -2497,7 +2497,7 @@ original_config:
 	    if (debug_boot)
 	    {
 		debug = old_debug; /* restore user-specified debug level. */
-		grub_printf ("\n\nEnd of menu init commands. Press any key to enter command-line or run menu...");
+		printf_debug0 ("\n\nEnd of menu init commands. Press any key to enter command-line or run menu...");
 	    }
 	    DEBUG_SLEEP
 	} /* while (1) */

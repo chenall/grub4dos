@@ -912,6 +912,7 @@ extern void (*disk_read_func) (unsigned long long, unsigned long, unsigned long 
 
 /* The flag for debug mode.  */
 extern int debug;
+extern grub_u8_t debug_msg;
 
 extern unsigned long current_drive;
 extern unsigned long current_partition;
@@ -1281,9 +1282,10 @@ void enter_cmdline (char *heap, int forever);
 //void grub_printf (const char *format,...);
 
 #define grub_printf(...) grub_sprintf(NULL, __VA_ARGS__)
-#define printf_debug(...) grub_sprintf(NULL, __VA_ARGS__)
-#define printf_errinfo(...) grub_sprintf((char*)2, __VA_ARGS__)
-#define printf_warning(...) grub_sprintf((char*)1, __VA_ARGS__)
+#define printf_debug(...) grub_sprintf((char*)2, __VA_ARGS__)
+#define printf_debug0(...) grub_sprintf((char*)1, __VA_ARGS__)
+#define printf_errinfo(...) grub_sprintf((char*)3, __VA_ARGS__)
+#define printf_warning(...) grub_sprintf((char*)2, __VA_ARGS__)
 int grub_sprintf (char *buffer, const char *format, ...);
 int grub_tolower (int c);
 int grub_isspace (int c);

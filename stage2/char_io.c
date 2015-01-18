@@ -115,7 +115,7 @@ void
 print_error (void)
 {
   if (errnum > ERR_NONE && errnum < MAX_ERR_NUM)
-    printf_errinfo ("\nError %u:(http://grub4dos.chenall.net/e/%u)\n\t %s\n", errnum, errnum, err_list[errnum]);
+    grub_printf ("\nError %u:(http://grub4dos.chenall.net/e/%u)\n\t %s\n", errnum, errnum, err_list[errnum]);
 }
 
 char *
@@ -273,14 +273,19 @@ grub_sprintf (char *buffer, const char *format, ...)
   unsigned int accuracy;
   unsigned char *putchar_hook_back=NULL;
   int stdout = 1;
-  if (buffer == (char*)1 || buffer == (char*)2)
+  if (buffer && (grub_u32_t)buffer <= 3)
   {
-    if (debug < 2 && buffer == (char*)1)// show nothing when debug < 2 for warning message
-      return 1;
+     if (!debug_msg) return 1;
+     if ((grub_u32_t)buffer != 3 && debug < (int)buffer)
+        return 1;
 
-    stdout = 0;
-    putchar_hook_back = set_putchar_hook((grub_u8_t*)0);
-    bp=NULL;buffer=NULL;//reset buffer and bp to NULL
+     bp=NULL,buffer=NULL;//reset buffer and bp to NULL
+
+     if (debug_msg < (grub_u32_t)buffer)
+     {
+       stdout = 0;
+       putchar_hook_back = set_putchar_hook((grub_u8_t*)0);
+     }
   }
   //dataptr++;
   //dataptr++;

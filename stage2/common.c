@@ -368,7 +368,11 @@ init_bios_info (void)
   /*
    *  Get information from BIOS on installed RAM.
    */
-  if (debug_boot) printf("DEBUG BOOT selected...\n");
+  if (debug_boot)
+  {
+    debug_msg = 1;
+    printf("DEBUG BOOT selected...\n");
+  }
 
   //saved_mem_lower = get_memsize (0);	/* int12 --------safe enough */
   saved_mem_lower = (*(unsigned short *)0x413);
@@ -537,7 +541,7 @@ init_bios_info (void)
 	{
 	    PXENV_GET_CACHED_INFO_t get_cached_info;
 
-	    printf("begin pxe scan... ");
+	    printf_debug0("begin pxe scan... ");
 	    pxe_scan ();
 	    DEBUG_SLEEP
 
@@ -548,13 +552,13 @@ init_bios_info (void)
 		get_cached_info.PacketType = PXENV_PACKET_TYPE_DHCP_ACK;
 		get_cached_info.Buffer = get_cached_info.BufferSize = 0;
 
-		printf("\rbegin pxe call(type=DHCP_ACK)...            ");
+		printf_debug0("\rbegin pxe call(type=DHCP_ACK)...            ");
 		pxe_call (PXENV_GET_CACHED_INFO, &get_cached_info);
 		DEBUG_SLEEP
 
 		if (get_cached_info.Status)
 		{
-			grub_printf ("\nFatal: DHCP_ACK failure!\n");
+			printf_debug0 ("\nFatal: DHCP_ACK failure!\n");
 			goto pxe_init_fail;
 		}
 
@@ -571,13 +575,13 @@ init_bios_info (void)
 		get_cached_info.PacketType = PXENV_PACKET_TYPE_CACHED_REPLY;
 		get_cached_info.Buffer = get_cached_info.BufferSize = 0;
 
-		printf("\rbegin pxe call(type=CACHED_REPLY)...            ");
+		printf_debug0("\rbegin pxe call(type=CACHED_REPLY)...            ");
 		pxe_call (PXENV_GET_CACHED_INFO, &get_cached_info);
 		DEBUG_SLEEP
 
 		if (get_cached_info.Status)
 		{
-			grub_printf ("\nFatal: CACHED_REPLY failure!\n");
+			printf_debug0 ("\nFatal: CACHED_REPLY failure!\n");
 pxe_init_fail:
 			pxe_keep = 0;
 			pxe_unload ();
@@ -730,8 +734,7 @@ failed_dos_boot_drive:
     }
 #undef FIND_DRIVES
 
-    if (debug > 1)
-	printf("boot drive=%X, %s\n", boot_drive,(cdrom_drive == GRUB_INVALID_DRIVE ? "Not CD":"Is CD"));
+    printf_debug("boot drive=%X, %s\n", boot_drive,(cdrom_drive == GRUB_INVALID_DRIVE ? "Not CD":"Is CD"));
   DEBUG_SLEEP
   
   if (cdrom_drive == GRUB_INVALID_DRIVE
@@ -752,7 +755,7 @@ failed_dos_boot_drive:
       /* Get the geometry.  */
       if (debug > 1)
       {
-	grub_printf ("\rget_cdinfo(%X),", drive);
+	printf_debug ("\rget_cdinfo(%X),", drive);
 	DEBUG_SLEEP
       }
       cdrom_drive = get_cdinfo (drive, &tmp_geom);
@@ -824,8 +827,7 @@ failed_dos_boot_drive:
 //	*(char *)0x8205 |= 0x01;
 //  }
 
-  if (debug > 1)
-    grub_printf("\rcdrom_drive == %X\n", cdrom_drive);
+  printf_debug("\rcdrom_drive == %X\n", cdrom_drive);
   DEBUG_SLEEP
 
   /* check if the no-emulation-mode bootable cdrom exists. */
@@ -900,7 +902,7 @@ set_root:
 		if (! probe_mbr ((struct master_and_dos_boot_sector *)initrd_addr, 0, initrd_size, 0))
 		    ram_drive = 0xfe;	/* partition table is valid, so let it be a harddrive */
 		else
-		    grub_printf ("\nUnrecognized partition table for RAM DRIVE; assuming floppy. Please rebuild\nit using a Microsoft-compatible FDISK tool, if the INITRD is a hard-disk image.\n");
+		    printf_debug0 ("\nUnrecognized partition table for RAM DRIVE; assuming floppy. Please rebuild\nit using a Microsoft-compatible FDISK tool, if the INITRD is a hard-disk image.\n");
 	    }
 	}
   }
@@ -914,7 +916,7 @@ set_root:
   if (use_lba1sector && run_line("geometry --lba1sector",1))
   {
     int chk;
-    printf("\nYou pressed the `S` key, and \"geometry --lba1sector\" is successfully executed\n  for drive 0x%X.This will Slow but Secure disk read for Buggy BIOS.\n",boot_drive);
+    printf_debug0("\nYou pressed the `S` key, and \"geometry --lba1sector\" is successfully executed\n  for drive 0x%X.This will Slow but Secure disk read for Buggy BIOS.\n",boot_drive);
     while((chk = run_line("pause --wait=5",1)))
     {
        chk &= 0xdf;
