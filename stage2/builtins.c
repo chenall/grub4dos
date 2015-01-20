@@ -4037,7 +4037,6 @@ debug_func (char *arg, int flags)
     debug_prog = 1;
     ret = command_func(arg,flags);
     debug_prog = 0;
-    debug_break = 0;
     debug_check_memory = 0;
     return ret;
   }
@@ -15125,6 +15124,7 @@ when all batch script is exit the prog_pid is 0;
 struct bat_array
 {
 	int pid;
+	int debug_break;
 	struct bat_label *entry;
 	/*
 	 (char **)(entry + 0x80) is the entry of bat_script to run.
@@ -15437,8 +15437,8 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 		*p_cmd = '\0';
 
-		if (debug_break && !debug_check_memory && debug_break == (grub_u32_t)(p_entry-bat_entry)) debug_bat = debug_prog = 1;
-		if (debug_prog) printf("S[%d]:[%s]\n",((grub_u32_t)(p_entry-bat_entry)),p_buff);
+		if (p_bat_prog->debug_break && (p_bat_prog->debug_break == (grub_u32_t)(p_entry-bat_entry))) debug_bat = debug_prog = 1;
+		if (debug_prog) printf("S[%d#%d]:[%s]\n",prog_pid,((grub_u32_t)(p_entry-bat_entry)),p_buff);
 		if (debug_bat)
 		{
 			Next_key:
@@ -15469,31 +15469,32 @@ static int bat_run_script(char *filename,char *arg,int flags)
 					char buff[12];
 					grub_u64_t t;
 					buff[0] = 0;
+					printf("Current:\nDebug Check Memory [0x%x]=>0x%x\nDebug Break Line: %d\n",debug_check_memory,debug_break,p_bat_prog->debug_break);
 					get_cmdline_str.prompt = &msg_password[8];
 					get_cmdline_str.maxlen = sizeof (buff) - 1;
 					get_cmdline_str.echo_char = 0;
 					get_cmdline_str.readline = 0;
 					get_cmdline_str.cmdline = (grub_u8_t*)buff;
 					get_cmdline ();
-					debug_break = debug_check_memory = 0;
 
 					if (buff[0] == '+' || buff[0] == '-' || buff[0] == '*') p_bat = &buff[1];
 					else p_bat = buff;
 
 					if (safe_parse_maxint (&p_bat, &t))
 					{
-						debug_break = t;
 						if (buff[0] == '*')
 						{
-							debug_check_memory = debug_break;
+							debug_check_memory = t;
 							debug_break = *(int*)debug_check_memory;
 							printf("\rDebug Check Memory [0x%x]=>0x%x\n",debug_check_memory,debug_break);
 						}
 						else
 						{
-							if (buff[0] == '-') debug_break = (grub_u32_t)(p_entry-bat_entry) - debug_break;
-							else if (buff[0] == '+') debug_break += (grub_u32_t)(p_entry-bat_entry);
-							if (debug_break) printf("\rDebug Break Line: %d\n",debug_break);
+							if (buff[0] == '-') t = (grub_u32_t)(p_entry-bat_entry) - (int)t;
+							else if (buff[0] == '+') t += (grub_u32_t)(p_entry-bat_entry);
+
+							p_bat_prog->debug_break = t;
+							printf("\rDebug Break Line: %d\n",p_bat_prog->debug_break);
 						}
 					}
 					goto Next_key;
@@ -15761,6 +15762,7 @@ static int grub_exec_run(char *program, int flags)
 		label_entry[0].label = "eof";
 		label_entry[0].line = i_bat;
 		p_bat_array->pid = prog_pid;
+		p_bat_array->debug_break = 0;
 		p_bat_array->entry = label_entry;
 		p_bat_prog = p_bat_array;
 		pid = bat_run_script(filename, arg,flags | BUILTIN_BAT_SCRIPT | BUILTIN_USER_PROG);//run batch script from line 0;
