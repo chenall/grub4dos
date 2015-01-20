@@ -6893,7 +6893,13 @@ static struct builtin builtin_halt =
 
 static void print_doc(char *doc,int left)
 {
-  int max_doc_len = current_term->chars_per_line;
+	int max_doc_len = current_term->chars_per_line;
+	if (putchar_hooked)
+	{
+		grub_printf(doc);
+		return;
+	}
+
 	while (*doc)
 	{
 		int i;
