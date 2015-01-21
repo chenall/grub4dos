@@ -84,8 +84,8 @@ cp $COPY_FILES grub4dos-${VER} || exit $?
 cd grub4dos-${VER}
 # generate bootlace64.com
 if [ -f bootlace.com ]; then
-	set dummy `ls -l bootlace.com`
-	dd if=bootlace.com of=bootlace.head bs=1 count=64 skip=28672           #"7F 45 4C 46 02" position in the bootlace.com		redress: skip +(-) 512
+	Seek=$((0x`objdump -s bootlace.com|awk '/7f45/{print $1|"sed s/4/0/"}'`))
+	dd if=bootlace.com of=bootlace.head bs=1 count=64 skip=$Seek
 	dd if=bootlace.com of=bootlace.body bs=1 skip=64
 	cat bootlace.head bootlace.body > bootlace64.com
 	chmod a+x bootlace64.com
