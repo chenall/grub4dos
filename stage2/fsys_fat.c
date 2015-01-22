@@ -45,8 +45,8 @@ struct fat_superblock
   long long cached_fat;
   unsigned long file_cluster;
   unsigned long long contig_size;
-//  unsigned long current_cluster_num;
-	unsigned long long current_cluster_num;
+  unsigned long current_cluster_num;
+  
   unsigned long current_cluster;
 };
 	unsigned int fats_type;
@@ -352,9 +352,9 @@ label_exfat:
 unsigned long long
 fat_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
-  unsigned long long logical_clust;
+  unsigned long logical_clust;
   unsigned long offset;
-  unsigned long ret = 0;
+  unsigned long long ret = 0;
   unsigned long long size;
 	unsigned long long sector;
 
