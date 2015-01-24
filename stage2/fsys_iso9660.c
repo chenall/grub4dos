@@ -141,14 +141,14 @@ iso9660_mount (void)
   	if (! devread(sector, 0, 0x100, (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90))
 			return 0;
   	//Check UDF_STANDARD_ID
-  	if ( ! memcmp ((char *)(PRIMDESC->id), UDF_STANDARD_ID, 5))	//UDF_STANDARD_ID="BEA01"
-   	{
-   		iso_type = 1;	
+	if ( (iso_types & (1<<ISO_TYPE_udf)) && ! memcmp ((char *)(PRIMDESC->id), UDF_STANDARD_ID, 5))	//UDF_STANDARD_ID="BEA01"
+	{
+		iso_type = ISO_TYPE_udf;
 	  	INODE->file_start = 0;
 			break;
 		}
 	}   
-	if (iso_type == 1)
+	if (iso_type == ISO_TYPE_udf)
 	{
 		sector = 0x100;
 		//The reading anchor Volume Descriptor Pointer
@@ -167,7 +167,7 @@ iso9660_mount (void)
 			{
 				case UDF_Partition:	//Partition descriptor
 					udf_partition_start = UDF_DESC->Partition_PartitionStartingLocation;	//Partition start (the relative logical sector base address)
-					fsmax = UDF_DESC->Partition_PartitionLength;													//Volume space size
+					fsmax = UDF_DESC->Partition_PartitionLength;				//Volume space size
 					sector = udf_partition_start;
 					break;
 				case UDF_FileSet: //File Set Descriptor
@@ -178,7 +178,7 @@ iso9660_mount (void)
 					break;	
 			}
 		}
-		return 1;				
+		return 1;
 	}
 	else
 	{
@@ -186,19 +186,19 @@ iso9660_mount (void)
 	  {
 	  	emu_iso_sector_size_2048 = 1;
 			devread(sector, 0, 0x800, (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90);
-	  	if ((PRIMDESC->type.l == ISO_VD_ENHANCED)
+		if ((iso_types & (1<<ISO_TYPE_Joliet)) && (PRIMDESC->type.l == ISO_VD_ENHANCED)
 	  		&& (! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, 5)) && (*(unsigned short *)((char *)PRIMDESC  + 0x58) == 0x2F25))	//ISO_STANDARD_ID="CD001"
 			{
-	 			ISO_SUPER->vol_sector = sector;	
+				ISO_SUPER->vol_sector = sector;
 	  		INODE->file_start = 0;
 	  		fsmax = PRIMDESC->volume_space_size.l;
-				iso_type = 2;	//iso9600_Joliet			
+				iso_type = ISO_TYPE_Joliet;	//iso9600_Joliet
 				extent = idr->extent.l;
 				return 1;
 			}
 	  	if ((PRIMDESC->type.l == ISO_VD_END)
 	  		&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, 5))	//ISO_VD_END=255=end
-	  		 break;				
+			break;
 		}
 		emu_iso_sector_size_2048 = 1;
 		devread(16, 0, 0x800, (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90);
@@ -208,9 +208,9 @@ iso9660_mount (void)
     devread (extent, 0, size, (unsigned long long)(unsigned int)(char *)DIRREC, 0xedde0d90);
     idr = (struct iso_directory_record *)DIRREC;
     idr = (struct iso_directory_record *)((char *)idr + idr->length.l);
-    idr = (struct iso_directory_record *)((char *)idr + idr->length.l);   
-    if ((idr->length.l - idr->name_len.l	- sizeof(struct iso_directory_record)	+ sizeof(idr->name)) > 1)
-			iso_type = 3; //iso9600_RockRidge     																					
+    idr = (struct iso_directory_record *)((char *)idr + idr->length.l);
+    if ((iso_types & (1<<ISO_TYPE_RockRidge)) && (idr->length.l - idr->name_len.l - sizeof(struct iso_directory_record) + sizeof(idr->name)) > 1)
+			iso_type = ISO_TYPE_RockRidge; //iso9600_RockRidge
  		if ((PRIMDESC->type.l == ISO_VD_PRIMARY)
 	  	&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, 5))
 		{
@@ -220,8 +220,8 @@ iso9660_mount (void)
 			return 1;
 		}
 		return 0;
- 	}  
-}   
+	}
+}
 
 int
 iso9660_dir (char *dirname)
