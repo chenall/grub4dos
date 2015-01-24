@@ -1072,7 +1072,7 @@ next_file1:
 		char *name = initrd + 1;
 		initrd = skip_to (SKIP_WITH_TERMINATE |1, initrd);
 		struct cpio_header *cpio = (struct cpio_header *)(grub_u32_t)moveto;
-		grub_u32_t name_len = grub_strlen(name);
+		grub_u32_t name_len = grub_strlen(name) + 1;
 		grub_open (initrd);
 		memset(cpio,'0',sizeof(struct cpio_header));
 		memcpy(cpio->c_magic,CPIO_MAGIC,sizeof(cpio->c_magic));
