@@ -7546,9 +7546,8 @@ probe_bpb (struct master_and_dos_boot_sector *BS)
   unsigned long i,j; 
   /* first, check ext2 grldr boot sector */
 //  probed_total_sectors = BS->total_sectors_long;
- 	if (*(unsigned short *)((char *)BS)  == 0x2EEB)										//"jmp + 0x30"
-	{
-		if ((int)(char *)BS == 0x8000 && *(unsigned short *)((char *)0x2F000 + 0x438) == 0xEF53)
+ 	if (*(unsigned short *)((char *)BS)  == 0x2EEB										//"jmp + 0x30"
+		&& ((int)(char *)BS == 0x8000 && *(unsigned short *)((char *)0x2F000 + 0x438) == 0xEF53))
 		{
 	
   /* at 0D: (byte)Sectors per block. Valid values are 2, 4, 8, 16 and 32. */
@@ -7606,14 +7605,13 @@ probe_bpb (struct master_and_dos_boot_sector *BS)
   sectors_per_cylinder = probed_heads * probed_sectors_per_track;
 	probed_total_sectors = *(unsigned long *)((char *)0x2F000 + 0x404);
   probed_cylinders = (probed_total_sectors + sectors_per_cylinder - 1) / sectors_per_cylinder;
-	}
-failed_ext2_grldr:
 
   filesystem_type = 5;
-  
   /* BPB probe success */
   return 0;
 	}
+	
+failed_ext2_grldr:
 
 	/* Second, check exfat grldr boot sector */
 	if (*(unsigned long long *)((char *)BS + 03) != 0x2020205441465845)	//'EXFAT   '

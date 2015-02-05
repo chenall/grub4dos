@@ -658,11 +658,19 @@ succeeded_dos_boot_drive:
 	/* check if there is a valid volume-boot-sector at 0x7C00. */
 	if (probe_bpb((struct master_and_dos_boot_sector *)0x7C00))
 		goto failed_dos_boot_drive;
-	dos_part_start = *((unsigned long *) (0x7C00 + 0x1C));
 //	j = (dos_part_start ? 0x80 : 0);
 	j = boot_drive;
+	if (*((unsigned long long *) (0x7C00 + 3)) == 0x2020205441465845)	//exfat
+	{
+		dos_part_start = *((unsigned long *) (0x7C00 + 0x40));
+		k = ( j | 0xfe << 8 | 0x3f << 16);
+	}
+	else
+	{
+	dos_part_start = *((unsigned long *) (0x7C00 + 0x1C));
 	k = ( j | ((*(unsigned short *)(0x7C00 + 0x1A) - 1) << 8)
 		| ((*(unsigned short *)(0x7C00 + 0x18)) << 16) );
+	}
 	if (! k)
 		goto failed_dos_boot_drive;
 //	boot_drive = j;
