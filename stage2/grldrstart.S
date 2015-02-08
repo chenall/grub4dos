@@ -186,8 +186,6 @@ mbr_boot_number:
         
         cmpb    $0x00, %dl
         je      1f
-        cmpb    $0x80, %dl
-        je      1f 
         movb    $0x80, %dl
 1:        
 	pushw	%ss		/* SS=CS */
@@ -3634,8 +3632,7 @@ print_ntfs:
 	/* The caller will change this to
 	 *	ljmp	$0x9400, $(try_next_partition - _start1)
 	 */
-error_go_back:
-1:	jmp	1b
+	jmp 1f
 
         . = Entry_nt + 0x1e0
 
@@ -3648,6 +3645,12 @@ nt_boot_image:
 msg_DiskReadError_nt:
 	.ascii	"0\0" 
 
+	. = Entry_nt + 0x1f4
+	
+error_go_back:
+1:
+	jmp	1b
+	
 	. = Entry_nt + 0x1fc
 
 	.word	0, 0xAA55
@@ -7013,9 +7016,11 @@ Check_PartitionTable:
 	jc	4b
 	jmp 	5f	
 3:      
-        lodsw
-        cmpw    $0xAA55, %ax
-        je      1f
+//        lodsw
+//        cmpw    $0xAA55, %ax
+//        je      1f
+	clc
+	jmp 1f
 5:
 	stc		                /* invalid partition table */        
 1:
