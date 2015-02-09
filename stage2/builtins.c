@@ -15165,7 +15165,7 @@ static int bat_find_label(char *label)
 
 static int bat_get_args(char *arg,char *buff,int flags)
 {
-	char *p = ((char *)0x4CA40);
+	char *p = ((char *)WENV_TMP);
 	char *s1 = buff;
 	int isParam0 = (flags & 0xff);
 
@@ -15187,7 +15187,7 @@ static int bat_get_args(char *arg,char *buff,int flags)
 			while ((*p++ = *arg++) != ')')
 				;
 			*p = 0;
-			case_convert((char*)0x4CA40,'A');
+			case_convert((char*)WENV_TMP,'A');
 		}
 	}
 	else if (isParam0) // if is Param 0
@@ -15202,10 +15202,10 @@ static int bat_get_args(char *arg,char *buff,int flags)
 	}
 	if (*arg != '/')
 		*p++ = '/';
-	if (p + strlen(arg) >= (char *)0x4CA40 + 0xA0)
+	if (p + strlen(arg) >= (char *)WENV_TMP + 0x80)
 		goto quit;
 	sprintf(p,"%s",arg);
-	p = ((char *)0x4CA40);
+	p = ((char *)WENV_TMP);
 	flags >>= 8;
 
 	if (flags & 0x20) buff += sprintf(buff,"%s",p_bat_prog->md);
