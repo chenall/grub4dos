@@ -445,7 +445,7 @@ success:
     }
 
     fontx = fonty = 0;
-    graphics_inited = 1;
+    graphics_inited = graphics_mode;
 
     return 1;
 }
