@@ -955,7 +955,7 @@ boot_func (char *arg, int flags)
 //			if (query_block_entries != 1)
 			if (query_block_entries <= 0 || query_block_entries > DRIVE_MAP_FRAGMENT)
 			{
-				errnum = ERR_NON_CONTIGUOUS;
+				errnum = ERR_MANY_FRAGMENTS;
 				break;
 			}
 			*(unsigned long*)0x20000C = map_start_sector[0];
@@ -9212,7 +9212,7 @@ map_func (char *arg, int flags)
 
 //    if (query_block_entries != 1 && mem == -1ULL)
 	if (query_block_entries <= 0 || query_block_entries > DRIVE_MAP_FRAGMENT)
-	return ! (errnum = ERR_NON_CONTIGUOUS);
+	return ! (errnum = ERR_MANY_FRAGMENTS);
 
 //    start_sector = map_start_sector; /* in big 2048-byte sectors */
 		start_sector = map_start_sector[0]; 	
@@ -10315,7 +10315,7 @@ set_ok:
 		q->slot_len = k*16 + 4;
 
 		if ((p + (char)*p - filename) > FRAGMENT_MAP_SLOT_SIZE)
-			return ! (errnum = ERR_NON_CONTIGUOUS);
+			return ! (errnum = ERR_MANY_FRAGMENTS);
 	}
 	
 no_fragment:
@@ -10811,12 +10811,10 @@ partnew_func (char *arg, int flags)
       }
 
       query_block_entries = -1; /* query block list only */
-//			query_block_entries = 4;
       blocklist_func (arg, flags);
       if (errnum == 0)
       {
-//	if (query_block_entries != 1)
-		if (query_block_entries <= 0 || query_block_entries > DRIVE_MAP_FRAGMENT)
+	if (query_block_entries != 1)
 		return ! (errnum = ERR_NON_CONTIGUOUS);
 	new_start = map_start_sector[0];
 	new_len = (filemax + 0x1ff) >> SECTOR_BITS;
