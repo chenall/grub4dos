@@ -293,8 +293,6 @@ endup:
 	
 
 helper_call_c:        
-	movb	%dl, (Boot_dl -  _start1)
-helper_call_d:
         movw    $0x01be, %si
 
 1:
@@ -332,29 +330,28 @@ add_sub_si:
 	cmpw	$0x01fe, %si	/* 0x81, 0xFE, 0xfe, 0x01 */
 				/* All entries checked done? */
 	jb	1b		/* No, check the next entry */
+	ja 2f
 
-1:
-try_floppy:
-
-        cmpb    $0x7f, %dl
-        jne     1f
-        incb    %dl
-1:        
-	andb	$0x80, %dl			//8n->80, 00->00
-	xorw	$0x80, %dx			//80->00, 00->80
-	cmpb	%dl, (Boot_dl -  _start1)
-	je	boot_prev_mbr
-	orb	%dl, %dl
-	jne	Error_modify
+	testb $1, (Boot_dl - _start1)
+	jne boot_prev_mbr
+	orb $1, (Boot_dl - _start1)
+	testb $2, (Boot_dl - _start1)
+	jne 1b
 	pushw	$0x7c00
 	popw	%es
 	movb	$1, %al
 	xorb	%dh, %dh
-	xorw	%bx, %bx				//ES:BX=20c0:0000	
+	xorw	%bx, %bx	
 	call	read_disk_with_reset_and_dec_di
 	jc	endup
-	jmp	helper_call_d		
+	jmp	helper_call_c	
 
+2:
+try_HD:
+	testb $1, (Boot_dl - _start1)
+	jne boot_prev_mbr
+	orb $1, (Boot_dl - _start1)
+	jmp	Error_modify
 
 int13:
 	pushw	%ds
@@ -5816,7 +5813,7 @@ helper_start:
    
 	addw    $4, %si
 	andb    $0x7f, (help_mark - _start1)
-
+	andb $0xfd, (Boot_dl - _start1)
 
 	/* Format of partition information blocks.
 	 *
@@ -5920,6 +5917,10 @@ helper_start:
 	andb    $0x7f, %cs:(mbr_disable - _start1)
 	call	boot_prev_mbr	//Error_modify
 3:
+	pushw	%cs
+	popw	%ds
+	pushw	$FS_BOOT
+	popw	%es
 	/* modify code at 2b to be "jmp 4f" */
 	
         movw	$(0xEB | ((4f - 2b - 2) << 8)), (2b - _start1)
@@ -6583,7 +6584,6 @@ move_entries_and_return:
 	js	3f
 	movb	$0xff, %dh	/* partition # for floppy is "whole drive" */
 3:	
-	movw %dx, 20(%bp)	
 	movw	$0x1fe, %ax	
         movw	$(add_sub_si + 5 - _start1), %di	
 	movw	%ax, (%di)		/* 0x1fe */
@@ -6656,19 +6656,17 @@ inc_hard_drive:
 	/* The new partition table might be empty or invalid.
 	 * Move the new partition table onto the old one while checking
 	 */
-        pushw   %si
 	movw	$0x7fbe, %si
 	call    Check_PartitionTable
-	popw	%si
-        jb      2b               
-        movw	$0x7fbe, %si        
+        jb      2b                     
 	movw	$0x01be, %di
-	movw    $0x20, %cx
+	movw    $0x21, %cx
 	repz    movsw
 
 	/* Now the partition table is OK */
 
-	movb	%dl, 20(%bp)	/* adjust BP in the stack */
+	movw	%dx, 8(%bp)
+	orb $2, (Boot_dl - _start1)
 
 	movw	$0x1b2, 4(%bp)	/* adjust SI in the stack */
 
@@ -6785,7 +6783,7 @@ self_modify_once:
 	/* when we get here, SI should be 0x1b2, and BP high holds DL */ 
 	addw	$12, %si	/* 0x83, 0xC6, 0x0C */
 	movw	%bp, %ax
-
+	movb	%al, %dl
 	/* note: DS=0x9400 */
 
 	/* restore the original code:	addw	$12, %si */ 
@@ -7016,11 +7014,9 @@ Check_PartitionTable:
 	jc	4b
 	jmp 	5f	
 3:      
-//        lodsw
-//        cmpw    $0xAA55, %ax
-//        je      1f
-	clc
-	jmp 1f
+        lodsw
+        cmpw    $0xAA55, %ax
+        je      1f
 5:
 	stc		                /* invalid partition table */        
 1:
