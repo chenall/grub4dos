@@ -337,10 +337,10 @@ add_sub_si:
 	orb $1, (Boot_dl - _start1)
 	testb $2, (Boot_dl - _start1)
 	jne 1b
-	pushw	$0x7c00
+	pushw	$FS_BOOT
 	popw	%es
-	movb	$1, %al
-	xorb	%dh, %dh
+	movb	$4, %al
+	xorw	%dx, %dx
 	xorw	%bx, %bx	
 	call	read_disk_with_reset_and_dec_di
 	jc	endup
