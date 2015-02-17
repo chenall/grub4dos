@@ -3342,7 +3342,7 @@ sb:
 
 //Calculation exfat volume boot record checksum
 //si=the index entry (from 0 to cx) eax=checksum  cx=volume boot record check bytes (0x1600)
-//	xorw	%si, %si	//Initialize the index
+	movl	$MBR(0), %esi	//Initialize the index
 	xorl	%eax, %eax	//Initialize the checksum
 	movl	$MBR(0x1600), %ecx	//Bytes volume boot record check
 3:
