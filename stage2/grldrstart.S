@@ -343,9 +343,10 @@ add_sub_si:
 	xorw	%dx, %dx
 	xorw	%bx, %bx	
 	call	read_disk_with_reset_and_dec_di
-	jc	endup
-	jmp	helper_call_c	
-
+	jnc helper_call_c
+	movw $(No_floppy - _start1), %si       
+	call print_message
+	jmp boot_prev_mbr
 2:
 try_HD:
 	testb $1, (Boot_dl - _start1)
@@ -7665,7 +7666,8 @@ extended_message:
 	.ascii	"Extended: \0"
 invalid_message:
 	.ascii	"invalid or null \0"
-
+No_floppy:
+	.ascii	"\r\nNo floppy \0"
 
 press_hot_key_name:
 
