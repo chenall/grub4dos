@@ -2458,6 +2458,9 @@ extent_fh:
         xorb    %ah, %ah
 	xchgw	%ax, %cx	/* CX=name_len */
 	repz cmpsb
+	jnz	5f
+	xchgw	%ax, %cx	/* movb	$0, %al */
+	scasb
 5:
 	popl	%eax		/* This is possible inode number for grldr */
 	popw	%si
@@ -2467,14 +2470,9 @@ extent_fh:
 	movw	%ds, %di	/* DI=0x1000 */
 	popw	%ds		/* DS=0 */
 
-//	stc			/* indicates the new inode is for grldr */
+	stc			/* indicates the new inode is for grldr */
+	jz	4b		/* grldr is found with EAX=inode number */
 
-//	jz	4b		/* grldr is found with EAX=inode number */
-	jne 101f
-	cmpb $0, %es:(%di)
-	stc
-	je 4b
-101:
 	addw	%dx, %si
 	cmpw	0x0e(%bp), %si	/* bytes per block */
 	jb	2b
@@ -5471,6 +5469,9 @@ extent_fh_mbr:
         xorb    %ah, %ah
 	xchgw	%ax, %cx	/* CX=name_len */
 	repz    cmpsb
+	jnz	5f
+	xchgw	%ax, %cx	/* movb	$0, %al */
+	scasb	
 5:
 	popl	%eax		/* This is possible inode number for grldr */
 	popw	%si
@@ -5480,14 +5481,9 @@ extent_fh_mbr:
 	movw	%ds, %di	/* DI=0x1000 */
 	popw	%ds		/* DS=0 */
 
-//	stc			/* indicates the new inode is for grldr */
+	stc			/* indicates the new inode is for grldr */
+	jz	4b		/* grldr is found with EAX=inode number */
 
-//	jz	4b		/* grldr is found with EAX=inode number */
-	jne 101f
-	cmpb $0, %es:(%di)
-	stc
-	je 4b
-101:
 	addw	%dx, %si
 	cmpw	0x0e(%bp), %si	/* bytes per block */
 	jb	2b
