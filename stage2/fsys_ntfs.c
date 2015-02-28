@@ -1019,8 +1019,7 @@ static int read_attr(char* cur_mft,unsigned long long dest,unsigned long long of
           char *pa;
 
           pa=ofs2ptr(new_pos);
-//          if (*pa!=attr)
-					if((unsigned char)*pa != attr) 
+          if (*pa!=attr)
             break;
           if (valueat(pa,8,unsigned long)>vcn)
             break;
