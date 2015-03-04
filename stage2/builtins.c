@@ -5281,7 +5281,7 @@ static int insmod_func(char *arg,int flags)
 	    else
             {
 		p_mod->name.ln.flag = LONG_MOD_NAME_FLAG;
-		p_mod->name.ln.len = sprintf(p_mod->data + filemax,"%s",name);
+		p_mod->name.ln.len = sprintf(p_mod->data + filemax,"%s",name) + 1;
             }
 
             ret = grub_mod_add(p_mod);
