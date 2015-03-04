@@ -118,6 +118,7 @@ fi
 cd $SOURCE_DIR
 if [ -d ipxe ] ; then
 	cd ipxe/src
+	[ -d .git ] && git pull
 	make bin/undionly.kpxe EMBED=$SOURCE_DIR/ipxegrldr.ipxe,${GRUB4DOS_TEMP}/grub4dos-${VER}/grldr && cp -af bin/undionly.kpxe ${GRUB4DOS_TEMP}/grub4dos-${VER}/ipxegrldr
 	cd $SOURCE_DIR
 fi
