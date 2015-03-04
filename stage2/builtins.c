@@ -14536,14 +14536,13 @@ echo_func (char *arg,int flags)
       
       grub_putchar((unsigned char)*arg, 255);
    }
-
+   if (current_term->setcolorstate)
+	  current_term->setcolorstate (COLOR_STATE_STANDARD);
 	if ((echo_ec & 1) == 0)
 	{
 		grub_putchar('\r', 255);
 		grub_putchar('\n', 255);
 	}
-   if (current_term->setcolorstate)
-	  current_term->setcolorstate (COLOR_STATE_STANDARD);
    if (xy_changed)
 	gotoxy(saved_x, saved_y);	//restore cursor
    return 1;
