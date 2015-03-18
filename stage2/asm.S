@@ -9311,6 +9311,8 @@ Cache:
 	.fill 0x150,1,0x00
 Stack:
 //=================================================================================================================
+hub_ports:
+	.word   0
 n_ports:
 	.word   0       
 Init_cs:
@@ -9861,7 +9863,7 @@ usb_probe:
 	movw $(Get_Hub - USB2DRI), %si
 	call Control_transfer
 	movzbw 2(%di), %cx
-	movw %cx, (n_ports - USB2DRI)
+	movw %cx, (hub_ports - USB2DRI)
 2:
 	movw $(Set_Hub_Power - USB2DRI), %si
 	call Control_transfer_hub 
@@ -9870,7 +9872,7 @@ usb_probe:
 	loop 2b
 	movw $200, %ax
 	call Delay
-	movw (n_ports - USB2DRI), %cx
+	movw (hub_ports - USB2DRI), %cx
 2:
 	movw $(Get_Port_Status - USB2DRI), %si
 	call Control_transfer_hub 
@@ -10003,6 +10005,8 @@ jscl:
 	
 	
 Device_enumerate:   
+	movb $0, (dev_count - USB2DRI)
+	movb $0, (max_id - USB2DRI)
 	movw $0x44, %si
 	movw (n_ports - USB2DRI), %cx 
 1:        
@@ -10118,6 +10122,22 @@ host_initialization:
 	call Read_Base_address
 	xorw %cx, %cx
 	movb %ah, %cl
+	jcxz 1f
+2:				
+	pushw %cx
+	pushw (bus_device_function - USB2DRI)
+	movb $1, %al
+	call Read_Write_Configuration
+	addw $4, %sp
+	cmpb $1, %al
+	je 2f
+	orb %ah, %ah
+	je 1f
+	addb %ah, %cl
+	jmp 2b
+1:
+	jmp 3f		
+2:
 	movw %cx, %si
 	leaw 02(%si), %dx 
 	
@@ -10158,6 +10178,7 @@ host_initialization:
 	call Read_Write_Configuration
 	addw $06, %sp               
 
+3:
 	call init_QH_AsyncListAddr
 
 	movl $0x00010001, %eax
