@@ -8095,6 +8095,8 @@ DriLUN:
 	.byte   0
 DriType:
 	.byte   0	
+SectorSize:
+	.word   0
 Capacity:
 	.long   0
 StartSector:
@@ -8176,6 +8178,8 @@ qTD1_Linear:
 	.long   0
 ds_Linear:
 	.long   0  	
+Sector_Size:
+	.word   0
 Disk_sector:
 	.long   0
 Start_sector:
@@ -8374,6 +8378,8 @@ Find_drive_info:
 	movb %al, (_lun - USB2DRI)
 	movb (DriType - Dri)(%si), %al
 	movb %al, (_type - USB2DRI)
+	movw (SectorSize - Dri)(%si), %ax
+	movw %ax, (Sector_Size - USB2DRI)
 	movl (Capacity - Dri)(%si), %eax 
 	movl %eax, (Disk_sector - USB2DRI)
 	movl (StartSector - Dri)(%si), %eax 
@@ -8470,7 +8476,8 @@ int13_48:
 	xorl %edx, %edx
 	divl %ecx
 	movl %eax, 04(%si)        
-	movw $0x200, 0x18(%si)
+	movw %cs:(Sector_Size - USB2DRI), %ax
+	movw %ax, 0x18(%si)
 	popw %dx
 	jmp int13_00_04_16_17_18_44_47
 	
@@ -9055,11 +9062,7 @@ Read_write_usb:
 	movb %ah, (TokenContent + 2 - SCSI)(%si)        
 	movb %bl, (TokenContent + 8 - SCSI)(%si)
 	movb %bh, (TokenContent + 7 - SCSI)(%si)  
-	movw $0x200, %ax
-	cmpb $5, (_type - USB2DRI)
-	jne 1f
-	movw $0x800, %ax
-1:
+	movw (Sector_Size - USB2DRI), %ax
 	mulw %bx
 	movw %dx, (TSize + 2 - SCSI)(%si)
 	movw %ax, (TSize - SCSI)(%si) 
@@ -9162,7 +9165,7 @@ Read_write_usb:
 	je 1f
 	decw (_bx - USB2DRI) 
 	je 1f
-	addw $0x200, %di
+	addw (Sector_Size - USB2DRI), %di
 	incl (_eax - USB2DRI) 
 	movl (_eax - USB2DRI), %eax 
 	movb (_cl - USB2DRI), %cl 
@@ -9311,8 +9314,6 @@ Cache:
 	.fill 0x150,1,0x00
 Stack:
 //=================================================================================================================
-hub_ports:
-	.word   0
 n_ports:
 	.word   0       
 Init_cs:
@@ -9327,9 +9328,9 @@ dev_count:
 
 
 #define mem_mbr         0
-#define mem_pbr         mem_mbr + 0x800
-#define mem_fd          mem_mbr + 0xa00
-#define mem_hd          mem_mbr + 0xe00
+#define mem_pbr         mem_mbr + 0x1000
+#define mem_fd          mem_mbr + 0x2000
+#define mem_hd          mem_mbr + 0x2400
 
 
 
@@ -9812,15 +9813,11 @@ csdyd:
 	xchgb %ah, %al
 	movl %eax, (Capacity - USB2DRI)(%si) 
 	
-	cmpb $0, (_type - USB2DRI)
-	je 2f
-	cmpw $8, (Cache - USB2DRI + 6)
-	jne 1f
-	jmp 3f
-2:
-	cmpw $2, (Cache - USB2DRI + 6)
-	jne 1f
-3:
+	movw (Cache - USB2DRI + 6), %ax
+	xchgb %ah, %al
+	movw %ax, (SectorSize - USB2DRI)(%si)
+	movw %ax, (Sector_Size - USB2DRI)
+
 	call Define_disk_No	
 	jc 1f
 	
@@ -9863,7 +9860,7 @@ usb_probe:
 	movw $(Get_Hub - USB2DRI), %si
 	call Control_transfer
 	movzbw 2(%di), %cx
-	movw %cx, (hub_ports - USB2DRI)
+	movw %cx, (n_ports - USB2DRI)
 2:
 	movw $(Set_Hub_Power - USB2DRI), %si
 	call Control_transfer_hub 
@@ -9872,7 +9869,7 @@ usb_probe:
 	loop 2b
 	movw $200, %ax
 	call Delay
-	movw (hub_ports - USB2DRI), %cx
+	movw (n_ports - USB2DRI), %cx
 2:
 	movw $(Get_Port_Status - USB2DRI), %si
 	call Control_transfer_hub 
@@ -10005,8 +10002,6 @@ jscl:
 	
 	
 Device_enumerate:   
-	movb $0, (dev_count - USB2DRI)
-	movb $0, (max_id - USB2DRI)
 	movw $0x44, %si
 	movw (n_ports - USB2DRI), %cx 
 1:        
