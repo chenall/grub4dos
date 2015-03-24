@@ -871,7 +871,7 @@ static grub_u32_t tftp_get_size(void)
 
   pxe_call (PXENV_TFTP_GET_FSIZE, tftp_get_fsize);
   filemax = tftp_get_fsize->FileSize;
-  filepos = 0;
+
   if (tftp_get_fsize->Status)
     return 0;
 
