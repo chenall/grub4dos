@@ -15484,7 +15484,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	/*copy filename to buff*/
 	i = grub_strlen(filename);
 	grub_memmove(cmd_buff,filename,i+1);
-	p_buff = cmd_buff + ((i+0xf) & ~0xf);
+	p_buff = cmd_buff + ((i + 16) & ~0xf);
 	s[0] = cmd_buff;
 	/*copy arg to buff*/
 	grub_memmove(p_buff, arg, ret);
