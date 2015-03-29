@@ -933,8 +933,8 @@ static void cl_refresh (int full, int len)
       if (i == lpos)
 		lpos_fontx = fontx;
 
-      if (lpos_fontx == 0)
-	printf ("\nReport bug! lpos=%d, start=%d, len=%d, llen=%d, plen=%d, section=%d\n", lpos, start, len, llen, plen, section);
+      if (len && lpos_fontx == 0)
+	printf_warning ("\nReport bug! lpos=%d, start=%d, len=%d, llen=%d, plen=%d, section=%d\n", lpos, start, len, llen, plen, section);
 
       /* Fill up the rest of the line with spaces.  */
       for (; i < start + len; i++)
