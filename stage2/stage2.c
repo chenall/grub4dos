@@ -85,7 +85,7 @@ lzma:
 static long temp_entryno;
 static short temp_num;
 static char * *titles;	/* title array, point to 256 strings. */
-extern int (*hotkey_func)(char *titles,int flags);
+extern int (*hotkey_func)(char *titles,int flags,int flags1);
 static unsigned short *title_boot;
 static int default_help_message_destoyed = 1;
 /*
@@ -793,7 +793,8 @@ restart1:
 	  if (config_entries && hotkey_func)
 	  {
 			putchar_hooked = (unsigned char*)0x800;
-			c = hotkey_func(0,-1);
+			//0x4b40 flags HK,
+			c = hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno);
 			putchar_hooked = 0;
 			if (c == -1)
 			    goto restart1;
@@ -2563,7 +2564,7 @@ done_config_file:
 	/* Run menu interface.  */
 	/* cur_entry point to the first menu item command. */
 	if (hotkey_func)
-		hotkey_func(0,0);
+		hotkey_func(0,0,-1);
 	run_menu ((char *)titles, cur_entry, /*num_entries,*/ config_entries + config_len, default_entry);
     }
     goto restart2;
