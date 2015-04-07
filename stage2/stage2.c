@@ -556,6 +556,8 @@ run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *h
 		pass_config = wee_skip_to(password_buf,SKIP_WITH_TERMINATE);
 
 restart1:
+  //clear temp_num when restart menu
+  temp_num = 0;
   /* Dumb terminal always use all entries for display 
      invariant for TERM_DUMB: first_entry == 0  */
   if (! (current_term->flags & TERM_DUMB))
