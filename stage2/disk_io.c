@@ -267,7 +267,7 @@ rawdisk_read (unsigned long drive, unsigned long long sector, unsigned long nsec
     // Compare with previous read data
     if (plast[0] != BADDATA1) 
     {   // Read data changed, error.
-	grub_printf("\nFatal! Inconsistent data read from (0x%X)%ld+%d\n",drive,sector,nsec);
+	printf_errinfo("\nFatal! Inconsistent data read from (0x%X)%ld+%d\n",drive,sector,nsec);
 	return -1; // error
     }
     return 0; // success
