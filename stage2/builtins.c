@@ -14731,7 +14731,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 	int ou_len = 0x200;
 	if (*p == '%')
 		p++;
-	for (i=0;i<=MAX_VAR_LEN && (unsigned char)*p >='.';i++)
+	for (i=0;i<MAX_VAR_LEN && (unsigned char)*p >='.';i++)
 	{
 		if (*p == '^')
 			break;
@@ -14753,8 +14753,13 @@ int envi_cmd(const char *var,char * const env,int flags)
 	{
 		return (*p == '^' || *p== '%')?p-var:0;
 	}
-	if (*p && (flags != 1 || (*var == '%' && *p != '%')))
-		return 0;
+	if (*p)
+	{
+		if (flags == 0)
+			return !(errnum = ERR_BAD_ARGUMENT);
+		else if (flags != 1 || (*var == '%' && *p != '%'))
+			return 0;
+	}
 
 	/*
 	i >= 60  system variables.
