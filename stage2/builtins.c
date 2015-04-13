@@ -14883,14 +14883,14 @@ int envi_cmd(const char *var,char * const env,int flags)
 		return count;
 	}
 
-	char ch[MAX_VAR_LEN +1] = "\0\0\0\0\0\0\0\0";
+	char ch[MAX_VAR_LEN +2] = "\0\0\0\0\0\0\0\0\0\0";
 	char *p = (char *)var;
 	char *p_name = NULL;
 	int ou_start = 0;
 	int ou_len = 0x200;
 	if (*p == '%')
 		p++;
-	for (i=0;i<MAX_VAR_LEN && (unsigned char)*p >='.';i++)
+	for (i=0;i<=MAX_VAR_LEN && (unsigned char)*p >='.';i++)
 	{
 		if (*p == '^')
 			break;
@@ -14912,13 +14912,17 @@ int envi_cmd(const char *var,char * const env,int flags)
 	{
 		return (*p == '^' || *p== '%')?p-var:0;
 	}
-	if (*p)
+
+	if (flags == 0 && *p && i > MAX_VAR_LEN )
 	{
-		if (flags == 0)
-			return !(errnum = ERR_BAD_ARGUMENT);
-		else if (flags != 1 || (*var == '%' && *p != '%'))
-			return 0;
+		errnum = ERR_BAD_ARGUMENT;
+		return 0;
 	}
+	if (ch[MAX_VAR_LEN])
+		printf_warning("Warning: VAR name [%s] shortened to 8 chars!\n",ch);
+	if (*p && (flags != 1 || (*var == '%' && *p != '%')))
+		return 0;
+
 
 	/*
 	i >= 60  system variables.
