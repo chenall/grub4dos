@@ -24,6 +24,7 @@
  *  2. Don't support encrypted file
  *  3. Don't support >4K non-resident attribute list and $BITMAP
  *	2014.06.01 Support <=8K non-resident attribute list
+ *	2015.05.27 Support to write resident attribute data(<900 byte files)
  */
 
 #ifdef FSYS_NTFS
@@ -106,7 +107,7 @@
 #define get_rflag(a)	(ctx->flags & (a))
 
 static unsigned long mft_size,idx_size,spc,blocksize,mft_start;
-static unsigned char log2_bps, log2_bpc, log2_spc;
+static unsigned char log2_bps, log2_bpc, log2_spc, file_backup[48];
 
 typedef struct {
   int flags;
@@ -145,12 +146,21 @@ typedef struct {
 //#endif
 #define dbg_printf	if (((unsigned long)debug) >= 0x7FFFFFFF) printf
 
-static int fixup(char* buf,int len,char* magic)
+static int fixup(char* buf,int len,char* magic,int tag)
 {
   int ss;
-  char *pu;
+  char *pu, *qu;
   unsigned us;
 
+	if (tag)
+	{
+		grub_memmove64 ((unsigned long long)(unsigned int)buf,(unsigned long long)(unsigned int)file_backup,12);
+	}
+	else
+	{
+		grub_memmove64 ((unsigned long long)(unsigned int)file_backup,(unsigned long long)(unsigned int)buf,48);
+	}	
+	
   if (valueat(buf,0,unsigned long)!=valueat(magic,0,unsigned long))
     {
       dbg_printf("%s label not found\n",magic);
@@ -163,19 +173,33 @@ static int fixup(char* buf,int len,char* magic)
       dbg_printf("Size not match %d!=%d\n",(ss*blocksize),(len*512));
       return 0;
     }
-  pu=buf+valueat(buf,4,unsigned short);
+  qu=pu=buf+valueat(buf,4,unsigned short);
   us=valueat(pu,0,unsigned short);
   buf-=2;
   while (ss>0)
     {
       buf+=blocksize;
       pu+=2;
-      if (valueat(buf,0,unsigned short)!=us)
+//      if (valueat(buf,0,unsigned short)!=us)
+//        {
+//          dbg_printf("Fixup signature not match\n");
+//          return 0;
+//        }
+//      valueat(buf,0,unsigned short)=valueat(pu,0,unsigned short);
+			if (tag)
+			{
+				valueat(pu,0,unsigned short)=valueat(buf,0,unsigned short);
+				valueat(buf,0,unsigned short)=valueat(qu,0,unsigned short);
+			}
+			else
+			{
+				if (valueat(buf,0,unsigned short)!=us)
         {
           dbg_printf("Fixup signature not match\n");
           return 0;
         }
       valueat(buf,0,unsigned short)=valueat(pu,0,unsigned short);
+			}
       ss--;
     }
   return 1;
@@ -217,7 +241,7 @@ back:
                       return NULL;
                     }
 
-                  if (! fixup(emft_buf,mft_size,"FILE"))
+                  if (! fixup(emft_buf,mft_size,"FILE",0))
                     {
                       dbg_printf("Invalid MFT at 0x%X\n",(valueat(pa,0x10,unsigned long)));
                       return NULL;
@@ -756,7 +780,7 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
     unsigned long vcn, blk_size;
     unsigned char log2_blk_size;
     read_ctx cc, *ctx;
-    int ret;
+    int ret=0;
 
     if (len == 0)
 	return 1;
@@ -767,8 +791,15 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
     {
 	if (write == 0x900ddeed)	/* write */
 	{
-		grub_printf ("Fatal: Cannot write resident/small file! Enlarge it to 2KB and try again.\n");
-		return 0;
+//		grub_printf ("Fatal: Cannot write resident/small file! Enlarge it to 2KB and try again.\n");
+//		return 0;
+		if (grub_memcmp64 ((unsigned long long)(unsigned int)cur_mft + 0x10,(unsigned long long)(unsigned int)file_backup + 0x10, 0x20))
+			goto fail;
+		grub_memmove64 (((unsigned long long)(unsigned int)(pa + valueat(pa,0x14,unsigned long))+ofs),dest,len);
+		fixup(cur_mft,mft_size,"FILE",1);
+		if (! devread(mft_start + valueat(file_backup,0x2c,unsigned long) * mft_size,0,mft_size << log2_bps,(unsigned long long)(unsigned int)cur_mft,0x900ddeed))
+			goto fail;
+		return 1;
 	}
 	if (ofs + len > valueat(pa,0x10,unsigned long))
 	{
@@ -878,7 +909,7 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
 	(! read_block (ctx, 0ULL, ((vcn - ctx->target_vcn) << log2_spc) >> 3, 0, 0xedde0d90)))
 	return 0;
 
-    ret = 0;
+ //   ret = 0;
 
     if ((cached) && (valueat(pa,0xC,unsigned short) & (FLAG_COMPRESSED + FLAG_SPARSE))==0)
 	disk_read_func = disk_read_hook;
@@ -1040,7 +1071,7 @@ static int read_mft(char* buf,unsigned long mftno)
       dbg_printf("Read MFT 0x%X fails\n",mftno);
       return 0;
     }
-  return fixup(buf,mft_size,"FILE");
+  return fixup(buf,mft_size,"FILE",0);
 }
 
 static int init_file(char* cur_mft,unsigned long mftno)
@@ -1250,7 +1281,7 @@ static int scan_dir(char* cur_mft,char *fn)
           if (*bitmap & v)
             {
               if ((! read_attr(cur_mft,(unsigned long long)(unsigned int)sbuf,i*((unsigned long long)idx_size<<BLK_SHR),((unsigned long long)idx_size<<BLK_SHR),0, 0xedde0d90)) ||
-                  (! fixup(sbuf,idx_size,"INDX")))
+                  (! fixup(sbuf,idx_size,"INDX",0)))
                 goto error;
               ret=list_file(cur_mft,fn,&sbuf[0x18+valueat(sbuf,0x18,unsigned short)]);
               if (ret>=0)
@@ -1342,7 +1373,7 @@ int ntfs_mount (void)
   if (! devread(mft_start,0,mft_size << BLK_SHR,(unsigned long long)(unsigned int)mmft, 0xedde0d90))
     return 0;
 
-  if (! fixup(mmft,mft_size,"FILE"))
+  if (! fixup(mmft,mft_size,"FILE",0))
     return 0;
 
   if (! locate_attr(mmft,AT_DATA))
