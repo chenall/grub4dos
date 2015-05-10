@@ -336,12 +336,8 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	if (offset > 0)
 	{
 	  if (query_block_entries >= 0)
-	  {
-		unsigned long len = sectorsize - offset;
-		if (len > length) len = length;
-		grub_printf("%s%ld[%d-%d]", (blklst_num_entries ? "," : ""),
-			(unsigned long long)(sector - part_start), offset, (offset + len));
-	  }
+			grub_printf("%s%ld[%d-%d]", (blklst_num_entries ? "," : ""),
+				(unsigned long long)(sector - part_start), offset, (offset + length));
 	  blklst_num_entries++;
 	}
       else

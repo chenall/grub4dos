@@ -815,6 +815,13 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
 	}
 	if (dest)
 		grub_memmove64 (dest, (unsigned long long)(unsigned int)(pa + valueat(pa,0x14,unsigned long) + ofs), len);
+	
+	if (my_mft == valueat(cur_mft,0x2c,unsigned long))
+	{
+		disk_read_func = disk_read_hook;
+		devread(my_lba, pa - cur_mft + valueat(pa,0x14,unsigned long), len, 0, write);
+		disk_read_func = NULL;
+	}
 	return 1;
     }
 
