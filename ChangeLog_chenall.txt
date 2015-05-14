@@ -1,4 +1,12 @@
 ﻿更新说明：
+2015-05-14（yaya）
+	改进 NTFS 文件系统：
+	对于驻留属性文件（小文件），可以写，也可用 blocklist 显示信息。
+	对于非驻留属性列表，取消长度限制。
+
+2015-03-23（yaya）
+	内置 usb2.0 可以驱动原生4k扇区磁盘
+
 2014-10-29
 	1.(tinybit) Workaround for BIOS of BENQ notebook that only supports 1.
 

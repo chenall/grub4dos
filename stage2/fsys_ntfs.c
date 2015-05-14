@@ -24,7 +24,8 @@
  *  2. Don't support encrypted file
  *  3. Don't support >4K non-resident attribute list and $BITMAP
  *	2014.06.01 Support <=8K non-resident attribute list
- *	2015.05.27 Support to write resident attribute data(<900 byte files)
+ *	2015.04.27 Support to write resident attribute data(<900 byte files)
+ *	2015.05.13 Support arbitrary length non-resident attribute list
  */
 
 #ifdef FSYS_NTFS
@@ -121,8 +122,7 @@ typedef struct {
 #define TEMP_BUF	NAME_BUF		/* 4096 bytes */
 #define mmft		((char *)((FSYS_BUF)+4096))
 #define cmft		(mmft+1024+1024+4096)
-//#define sbuf		(cmft+1024+1024+4096)	/* 4096 bytes */
-#define sbuf		(cmft+1024+1024+4096*2)	/* 4096 bytes */
+#define sbuf		(cmft+1024+1024+4096)	/* 4096 bytes */
 #define cbuf		(sbuf+4096)		/* 4096 bytes */
 
 #define attr_flg	valueat(cur_mft,0,unsigned short)
@@ -132,6 +132,8 @@ typedef struct {
 #define attr_end	valueat(cur_mft,6,unsigned short)
 
 #define save_pos	valueat(cur_mft,8,unsigned long long)
+#define list_len	valueat(cur_mft,16,unsigned short)
+#define list_ofs	valueat(cur_mft,18,unsigned short)
 
 #define emft_buf	(cur_mft+1024)
 #define edat_buf	(cur_mft+2048)
@@ -154,7 +156,7 @@ static int fixup(char* buf,int len,char* magic,int tag)
 
 	if (tag)
 	{
-		grub_memmove64 ((unsigned long long)(unsigned int)buf,(unsigned long long)(unsigned int)file_backup,16);
+		grub_memmove64 ((unsigned long long)(unsigned int)buf,(unsigned long long)(unsigned int)file_backup,20);
 	}
 	else
 	{
@@ -208,12 +210,15 @@ static int fixup(char* buf,int len,char* magic,int tag)
 static int read_mft(char* cur_mft,unsigned long mftno);
 static int read_attr(char* cur_mft,unsigned long long dest,unsigned long long ofs,unsigned long long len,int cached,unsigned long write);
 static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned long long ofs,unsigned long long len,int cached,unsigned long write);
+static int read_list(char* cur_mft,char* pa,int cached,unsigned long write);
 
 static void init_attr(char* cur_mft)
 {
   attr_flg=0;
   attr_nxt=ptr2ofs(cur_mft+valueat(cur_mft,0x14,unsigned short));
   attr_end=0;
+	list_len=0;
+	list_ofs=0;
 }
 
 static char* find_attr(char* cur_mft,unsigned char attr)
@@ -267,6 +272,23 @@ back:
               return NULL;
             }
         }
+			if (list_len)
+			{
+				list_ofs += 4096;
+				attr_nxt=ptr2ofs(cur_mft+valueat(cur_mft,0x14,unsigned short));
+				pa=ofs2ptr(attr_nxt);
+				while ((unsigned char)*pa!=0xFF)
+				{
+					attr_cur=attr_nxt;
+					attr_nxt+=valueat(pa,4,unsigned long);
+					pa=ofs2ptr(attr_nxt);
+					if ((unsigned char)*pa==0x20)
+						break;
+				}
+				if (! read_list(cur_mft,pa,0,0xedde0d90))
+					return NULL;
+				goto back;
+			}
       return NULL;
     }
   pa=ofs2ptr(attr_nxt);
@@ -285,23 +307,10 @@ back:
       pa=ofs2ptr(attr_end);
       if (pa[8])
         {
-          unsigned long n;
-
-          n = (valueat(pa,0x30,unsigned long) + 511) & (~511);
-//          if (n>4096 || valueat(pa,0x34,unsigned long)!=0)
-					if ((cur_mft==mmft && n>4096) || (cur_mft==cmft && n>4096*2) || valueat(pa,0x34,unsigned long)!=0)
-            {
-              dbg_printf("Non-resident attribute list too large\n");
-              return NULL;
-            }
           attr_cur=attr_end;
-          if (! read_data(cur_mft,pa,(unsigned long long)(unsigned int)edat_buf,0,n,0, 0xedde0d90))
-            {
-              dbg_printf("Fail to read non-resident attribute list\n");
-              return NULL;
-            }
-          attr_nxt=ptr2ofs(edat_buf);
-          attr_end=ptr2ofs(edat_buf+valueat(pa,0x30,unsigned long));
+				list_len = valueat(pa,0x30,unsigned long);
+				if (! read_list(cur_mft,pa,0,0xedde0d90))
+					return NULL;
         }
       else
         {
@@ -344,6 +353,30 @@ back:
       goto back;
     }
   return NULL;
+}
+
+static int read_list(char* cur_mft,char* pa,int cached,unsigned long write)
+{
+	unsigned long long n;
+	if (list_len > 4096)
+	{
+		attr_end=ptr2ofs(edat_buf+4096);
+		n = 4096;
+		list_len -= 4096;
+	}
+	else
+	{
+		attr_end=ptr2ofs(edat_buf+list_len);
+		n = (list_len + blocksize -1) & (~(blocksize -1));
+		list_len = 0;
+	}
+	if (! read_data(cur_mft,pa,(unsigned long long)(unsigned int)edat_buf,(unsigned long long)(unsigned int)list_ofs,n,cached, write))
+	{
+		dbg_printf("Fail to read non-resident attribute list\n");
+		return 0;
+	}
+	attr_nxt=ptr2ofs(edat_buf);
+	return 1;
 }
 
 static char* locate_attr(char* cur_mft,unsigned char attr)
@@ -800,7 +833,7 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
 //		return 0;
 		if (my_mft != valueat(cur_mft,0x2c,unsigned long))
 			goto fail;
-		if (grub_memcmp64 ((unsigned long long)(unsigned int)cur_mft + 16,(unsigned long long)(unsigned int)file_backup + 16, 32))
+		if (grub_memcmp64 ((unsigned long long)(unsigned int)cur_mft + 20,(unsigned long long)(unsigned int)file_backup + 20, 28))
 			goto fail;
 		grub_memmove64 (((unsigned long long)(unsigned int)(pa + valueat(pa,0x14,unsigned long))+ofs),dest,len);
 		fixup(cur_mft,mft_size,"FILE",1);
