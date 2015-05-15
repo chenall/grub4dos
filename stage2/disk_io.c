@@ -1523,6 +1523,8 @@ set_device (char *device)
 	  part_choice ++;
 	  device++;
 
+	  if (current_drive == FB_DRIVE && fb_status)
+	    current_drive = (unsigned char)(fb_status >> 8);
 	  if (*device >= '0' && *device <= '9')
 	    {
 	      unsigned long long ull;
