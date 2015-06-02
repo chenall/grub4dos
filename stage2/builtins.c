@@ -8134,7 +8134,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 	   */
 	  if (! BS->P[i].start_lba)
 	  {
-		printf_errinfo ("Error: partition %d should not start at sector 0(the MBR sector).\n", i);
+		printf_warning ("Warning: partition %d should not start at sector 0(the MBR sector).\n", i);
 		ret_val = 4;
 		goto err_print_hex;
 	  }
