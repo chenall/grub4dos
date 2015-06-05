@@ -966,6 +966,7 @@ extern unsigned long long gzip_filemax;
 
 extern unsigned long emu_iso_sector_size_2048;
 
+#define ISO_TYPE_9660 0
 #define ISO_TYPE_udf 1
 #define ISO_TYPE_Joliet 2
 #define ISO_TYPE_RockRidge 3

@@ -58,9 +58,9 @@ struct iso_inode_info {
 #define RRCONT_BUF      ((unsigned char *)(FSYS_BUF + 4096))
 #define NAME_BUF        ((unsigned char *)(FSYS_BUF + 6144))
 #define DIRREC					((struct iso_directory_record *)(FSYS_BUF + 8192))
-#define UDF_DIRREC   		((struct udf_FileIdentifier *)(FSYS_BUF + 8192))
+#define UDF_DIRREC   		((struct udf_descriptor *)(FSYS_BUF + 8192))
 
-int iso_type;		//0/1/2/3=iso9600/udf/iso9600_Joliet/iso9600_RockRidge
+int iso_type;		//0/1/2/3=ISO_TYPE_9660/ISO_TYPE_udf/ISO_TYPE_Joliet/ISO_TYPE_RockRidge
 unsigned long udf_partition_start;
 
 #if 0
@@ -132,7 +132,7 @@ iso9660_mount (void)
 //
 //  return 0;
 //}
-    iso_type = 0;
+    iso_type = ISO_TYPE_9660;	//0
 		udf_partition_start = 0;
 	//Test UDF system
 	for (sector = 16 ; sector < 32 ; sector++)
@@ -241,10 +241,12 @@ iso9660_dir (char *dirname)
 	unsigned char *utf8 = (unsigned char *) RRCONT_BUF;
 	char *name;
 	int j, k;
-	struct udf_FileIdentifier *idru;
+	struct udf_descriptor *idr_udf_105;
+	struct udf_FileIdentifier *idr_udf_101;
 	char tmp_name1[256];
 
   idr = &PRIMDESC->root_directory_record;
+  idr_udf_105 = (struct udf_descriptor *)UDF_DESC;
   INODE->file_start = 0;
 
   do
@@ -273,9 +275,10 @@ iso9660_dir (char *dirname)
 	*ch = 0;
 	pathlen = ch - tmp_name;
 	
-	if (iso_type == 1)
+	if (iso_type == ISO_TYPE_udf)
 	{	
-		unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + UDF_DESC->FileEntry_LengthofExtendedAttributes);
+//		unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + UDF_DESC->FileEntry_LengthofExtendedAttributes);
+		unsigned long *tmp = (unsigned long *)(&idr_udf_105->FileEntry_BaseAddress + idr_udf_105->FileEntry_LengthofExtendedAttributes);
 		size = *tmp;
 		extent = *(tmp + 1) + udf_partition_start;
 	}
@@ -298,18 +301,18 @@ iso9660_dir (char *dirname)
 //	  extent++;
 
 	  idr = (struct iso_directory_record *)DIRREC;
-	  idru = (struct udf_FileIdentifier *)DIRREC;	
+	  idr_udf_101 = (struct udf_FileIdentifier *)DIRREC;	
 //	  for (; idr->length.l > 0;
 //	       idr = (struct iso_directory_record *)((char *)idr + idr->length.l) )
 		for (; size > 0 ;)
 	    {
-	      if (iso_type == 1)
+	      if (iso_type == ISO_TYPE_udf)
 			{		
-				name_len = idru->NameLength;		
+				name_len = idr_udf_101->NameLength;		
 				if (name_len == 0) 
 					goto ssss;
 				name_len--;
-				name = (char *)(&idru->NameBaseAddress + idru->LengthofImplementationUse);
+				name = (char *)(&idr_udf_101->NameBaseAddress + idr_udf_101->LengthofImplementationUse);
 	  		if (name[0] == 8)
 	  		{
 	  			name++;  			
@@ -322,7 +325,7 @@ iso9660_dir (char *dirname)
 	  			name_len = unicode_to_utf8 ((unsigned short *)name, utf8, (unsigned long)(name_len/2));		
 				}
 				name = (char *)utf8;
-				file_type = (idru->FileCharacteristics & 2) ? ISO_DIRECTORY : ISO_REGULAR;
+				file_type = (idr_udf_101->FileCharacteristics & 2) ? ISO_DIRECTORY : ISO_REGULAR;
 			}		
 			else
 			{	      
@@ -333,7 +336,7 @@ iso9660_dir (char *dirname)
 
 	      file_type = (idr->flags.l & 2) ? ISO_DIRECTORY : ISO_REGULAR;
 	    }
-	    if (iso_type != 1)
+	    if (iso_type != ISO_TYPE_udf)
 			{
 	      if (name_len == 1)
 		{
@@ -342,7 +345,7 @@ iso9660_dir (char *dirname)
 //		    continue;
 				goto ssss;
 		}
-		if (iso_type == 2)
+		if (iso_type == ISO_TYPE_Joliet)
 		{
 			big_to_little (name, name_len);
 			name_len = unicode_to_utf8 ((unsigned short *)name, utf8, (unsigned long)(name_len/2));
@@ -356,7 +359,7 @@ iso9660_dir (char *dirname)
 		  if (name_len > 1 && name[name_len - 1] == '.')
 		    name_len--;		/* truncate trailing dot */
 		}
-		if (iso_type == 0)
+		if (iso_type == ISO_TYPE_9660)	//0
 			goto dddd;	
 	      /*
 	       *  Parse Rock-Ridge extension
@@ -539,12 +542,14 @@ dddd:
 		       */
 		      if (pathlen == name_len)
 			{
-						if (iso_type == 1)
+						if (iso_type == ISO_TYPE_udf)
 						{
-							size = idru->FileEntryLength;																		//File entry length in bytes
-							extent = idru->FileEntryLocation + udf_partition_start;					//File entrance logical sector						
+							size = idr_udf_101->FileEntryLength;																		//File entry length in bytes
+							extent = idr_udf_101->FileEntryLocation + udf_partition_start;					//File entrance logical sector						
 							emu_iso_sector_size_2048 = 1;
-							devread (extent, 0, size, (unsigned long long)(unsigned int)(char *)UDF_DESC, 0xedde0d90);
+//							devread (extent, 0, size, (unsigned long long)(unsigned int)(char *)UDF_DESC, 0xedde0d90);
+							devread (extent, 0, size, (unsigned long long)(unsigned int)(char *)UDF_DIRREC, 0xedde0d90);
+							idr_udf_105 = (struct udf_descriptor *)UDF_DIRREC;
 						}	
 			  if (*dirname == '/')
 			    {
@@ -560,10 +565,11 @@ dddd:
 			      errnum = ERR_BAD_FILETYPE;
 			      return 0;
 			    }
-			    if (iso_type == 1)
+			    if (iso_type == ISO_TYPE_udf)
 			 		{
-						unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + UDF_DESC->FileEntry_LengthofExtendedAttributes);
-			  		INODE->file_start = *(tmp + 1);
+//						unsigned long *tmp = (unsigned long *)(&UDF_DESC->FileEntry_BaseAddress + UDF_DESC->FileEntry_LengthofExtendedAttributes);
+						unsigned long *tmp = (unsigned long *)(&idr_udf_105->FileEntry_BaseAddress + idr_udf_105->FileEntry_LengthofExtendedAttributes);
+			  		INODE->file_start = *(tmp + 1) + udf_partition_start;
 			  		filepos = 0;
 			  		filemax = *tmp;	  			
 			  		return 1;		    				
@@ -604,9 +610,9 @@ dddd:
 		}
 //	    } /* for */
 ssss:			
-		if (iso_type == 1)
+		if (iso_type == ISO_TYPE_udf)
 		{
-			name = (char *)(&idru->NameBaseAddress + idru->LengthofImplementationUse + idru->NameLength);
+			name = (char *)(&idr_udf_101->NameBaseAddress + idr_udf_101->LengthofImplementationUse + idr_udf_101->NameLength);
 			//int j;
 			for (j = 0; j < 4; j++)
 			{
@@ -617,8 +623,8 @@ ssss:
 			}
 			if (j >= 4)
 				break;
-				size -= (unsigned long)((unsigned long long *)name - (unsigned long long *)idru);
-				idru = (struct udf_FileIdentifier *)name;
+				size -= (unsigned long)((unsigned long long *)name - (unsigned long long *)idr_udf_101);
+				idr_udf_101 = (struct udf_FileIdentifier *)name;
 		}
 		else
 		{
@@ -680,7 +686,7 @@ iso9660_read (unsigned long long buf, unsigned long long len, unsigned long writ
       disk_read_func = disk_read_hook;
 
 //      blkoffset = devread (INODE->file_start + sector, blkoffset, size, buf, write);
-			blkoffset = devread (INODE->file_start + sector + udf_partition_start, blkoffset, size, buf, write);
+			blkoffset = devread (INODE->file_start + sector, blkoffset, size, buf, write);
 
       disk_read_func = NULL;
 
