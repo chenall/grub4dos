@@ -1360,7 +1360,11 @@ struct decomp_entry
   unsigned long long (*read_func) (unsigned long long buf, unsigned long long len, unsigned long write);
 };
 
-#define NUM_DECOM 2
+#define DECOMP_TYPE_GZ   0
+#define DECOMP_TYPE_LZMA 1
+#define DECOMP_TYPE_LZ4  2
+#define DECOMP_TYPE_VHD  3
+#define NUM_DECOM 4
 
 extern struct decomp_entry decomp_table[NUM_DECOM];
 extern int decomp_type;
@@ -1371,6 +1375,12 @@ unsigned long long gunzip_read (unsigned long long buf, unsigned long long len, 
 int dec_lzma_open (void);
 void dec_lzma_close (void);
 unsigned long long dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long write);
+int dec_lz4_open (void);
+void dec_lz4_close (void);
+unsigned long long dec_lz4_read (unsigned long long buf, unsigned long long len, unsigned long write);
+int dec_vhd_open(void);
+void dec_vhd_close(void);
+unsigned long long dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned long write);
 #endif /* NO_DECOMPRESSION */
 
 int rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write);

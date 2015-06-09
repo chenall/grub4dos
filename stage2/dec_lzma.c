@@ -1218,7 +1218,7 @@ dec_lzma_open (void)
 			lzmadec.inpPos = 0;
 			lzmadec.inpSize = 0;
 			LzmaDec_Init(&lzmadec);
-			decomp_type = 1;
+			decomp_type = DECOMP_TYPE_LZMA;
 			compressed_file = 1;
 			cfm = filemax; filemax = ufm;
 			cfp = filepos; filepos = ufp;

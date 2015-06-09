@@ -8434,6 +8434,7 @@ fragment_map_slot_find(char *p, unsigned long from)
 	return 0;
 }
 
+unsigned long map_image_HPC, map_image_SPT;
 
 static unsigned long long map_mem_min = 0x100000;
 static unsigned long long map_mem_max = (-4096ULL);
@@ -8477,6 +8478,7 @@ map_func (char *arg, int flags)
   unsigned long long max_sectors = -1ULL;
   filesystem_type = -1;
   start_sector = sector_count = 0;
+  map_image_HPC = 0; map_image_SPT = 0;
   blklst_num_entries = 0;
   
 #if	MAP_NUM_16
@@ -9407,6 +9409,12 @@ failed_probe_BPB:
   goto geometry_probe_ok;
 
 geometry_probe_failed:
+
+  if (map_image_HPC && map_image_SPT) {
+	  heads_per_cylinder = map_image_HPC;
+	  sectors_per_track = map_image_SPT;
+	  goto geometry_probe_ok;
+  }
 
   if (BPB_H || BPB_S)
   {

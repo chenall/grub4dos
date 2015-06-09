@@ -147,7 +147,9 @@ am_pre_stage2_exec_OBJECTS = pre_stage2_exec-asm.$(OBJEXT) \
 	pre_stage2_exec-cmdline.$(OBJEXT) \
 	pre_stage2_exec-common.$(OBJEXT) \
 	pre_stage2_exec-console.$(OBJEXT) \
+	pre_stage2_exec-dec_lz4.$(OBJEXT) \
 	pre_stage2_exec-dec_lzma.$(OBJEXT) \
+	pre_stage2_exec-dec_vhd.$(OBJEXT) \
 	pre_stage2_exec-disk_io.$(OBJEXT) \
 	pre_stage2_exec-fsys_ext2fs.$(OBJEXT) \
 	pre_stage2_exec-fsys_fat.$(OBJEXT) \
@@ -603,7 +605,7 @@ STAGE2_COMPILE = $(STAGE2_CFLAGS) -fno-builtin -nostdinc \
 
 # For stage2 target.
 pre_stage2_exec_SOURCES = asm.S bios.c boot.c builtins.c char_io.c \
-	cmdline.c common.c console.c dec_lzma.c disk_io.c fsys_ext2fs.c \
+	cmdline.c common.c console.c dec_lz4.c dec_lzma.c dec_vhd.c disk_io.c fsys_ext2fs.c \
 	fsys_fat.c fsys_ntfs.c fsys_ffs.c fsys_iso9660.c fsys_jfs.c fsys_minix.c \
     fsys_reiserfs.c fsys_ufs2.c fsys_vstafs.c fsys_xfs.c fsys_pxe.c fsys_initrd.c fsys_ipxe.c fsys_fb.c gunzip.c \
 	hercules.c md5.c serial.c stage2.c terminfo.c tparm.c graphics.c
@@ -733,7 +735,9 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-cmdline.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-common.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-console.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-dec_lz4.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-dec_lzma.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-dec_vhd.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-disk_io.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_ext2fs.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_fat.Po@am__quote@
@@ -984,6 +988,20 @@ pre_stage2_exec-console.obj: console.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-console.obj `if test -f 'console.c'; then $(CYGPATH_W) 'console.c'; else $(CYGPATH_W) '$(srcdir)/console.c'; fi`
 
+pre_stage2_exec-dec_lz4.o: dec_lz4.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-dec_lz4.o -MD -MP -MF $(DEPDIR)/pre_stage2_exec-dec_lz4.Tpo -c -o pre_stage2_exec-dec_lz4.o `test -f 'dec_lz4.c' || echo '$(srcdir)/'`dec_lz4.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/pre_stage2_exec-dec_lz4.Tpo $(DEPDIR)/pre_stage2_exec-dec_lz4.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='dec_lz4.c' object='pre_stage2_exec-dec_lz4.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-dec_lz4.o `test -f 'dec_lz4.c' || echo '$(srcdir)/'`dec_lz4.c
+
+pre_stage2_exec-dec_lz4.obj: dec_lz4.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-dec_lz4.obj -MD -MP -MF $(DEPDIR)/pre_stage2_exec-dec_lz4.Tpo -c -o pre_stage2_exec-dec_lz4.obj `if test -f 'dec_lz4.c'; then $(CYGPATH_W) 'dec_lz4.c'; else $(CYGPATH_W) '$(srcdir)/dec_lz4.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/pre_stage2_exec-dec_lz4.Tpo $(DEPDIR)/pre_stage2_exec-dec_lz4.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='dec_lz4.c' object='pre_stage2_exec-dec_lz4.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-dec_lz4.obj `if test -f 'dec_lz4.c'; then $(CYGPATH_W) 'dec_lz4.c'; else $(CYGPATH_W) '$(srcdir)/dec_lz4.c'; fi`
+
 pre_stage2_exec-dec_lzma.o: dec_lzma.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-dec_lzma.o -MD -MP -MF $(DEPDIR)/pre_stage2_exec-dec_lzma.Tpo -c -o pre_stage2_exec-dec_lzma.o `test -f 'dec_lzma.c' || echo '$(srcdir)/'`dec_lzma.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/pre_stage2_exec-dec_lzma.Tpo $(DEPDIR)/pre_stage2_exec-dec_lzma.Po
@@ -997,6 +1015,20 @@ pre_stage2_exec-dec_lzma.obj: dec_lzma.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='dec_lzma.c' object='pre_stage2_exec-dec_lzma.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-dec_lzma.obj `if test -f 'dec_lzma.c'; then $(CYGPATH_W) 'dec_lzma.c'; else $(CYGPATH_W) '$(srcdir)/dec_lzma.c'; fi`
+
+pre_stage2_exec-dec_vhd.o: dec_vhd.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-dec_vhd.o -MD -MP -MF $(DEPDIR)/pre_stage2_exec-dec_vhd.Tpo -c -o pre_stage2_exec-dec_vhd.o `test -f 'dec_vhd.c' || echo '$(srcdir)/'`dec_vhd.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/pre_stage2_exec-dec_vhd.Tpo $(DEPDIR)/pre_stage2_exec-dec_vhd.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='dec_vhd.c' object='pre_stage2_exec-dec_vhd.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-dec_vhd.o `test -f 'dec_vhd.c' || echo '$(srcdir)/'`dec_vhd.c
+
+pre_stage2_exec-dec_vhd.obj: dec_vhd.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-dec_vhd.obj -MD -MP -MF $(DEPDIR)/pre_stage2_exec-dec_vhd.Tpo -c -o pre_stage2_exec-dec_vhd.obj `if test -f 'dec_vhd.c'; then $(CYGPATH_W) 'dec_vhd.c'; else $(CYGPATH_W) '$(srcdir)/dec_vhd.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/pre_stage2_exec-dec_vhd.Tpo $(DEPDIR)/pre_stage2_exec-dec_vhd.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='dec_vhd.c' object='pre_stage2_exec-dec_vhd.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-dec_vhd.obj `if test -f 'dec_vhd.c'; then $(CYGPATH_W) 'dec_vhd.c'; else $(CYGPATH_W) '$(srcdir)/dec_vhd.c'; fi`
 
 pre_stage2_exec-disk_io.o: disk_io.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-disk_io.o -MD -MP -MF $(DEPDIR)/pre_stage2_exec-disk_io.Tpo -c -o pre_stage2_exec-disk_io.o `test -f 'disk_io.c' || echo '$(srcdir)/'`disk_io.c

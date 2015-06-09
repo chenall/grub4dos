@@ -138,7 +138,9 @@ int decomp_type;
 struct decomp_entry decomp_table[NUM_DECOM] =
 {
 	{"gz",gunzip_test_header,gunzip_close,gunzip_read},
-	{"lzma",dec_lzma_open,dec_lzma_close,dec_lzma_read}
+	{"lzma",dec_lzma_open,dec_lzma_close,dec_lzma_read},
+	{"lz4",dec_lz4_open,dec_lz4_close,dec_lz4_read},
+	{"vhd",dec_vhd_open,dec_vhd_close,dec_vhd_read},
 };
 
 /* internal variables only */
@@ -274,8 +276,13 @@ gunzip_test_header (void)
 {
   unsigned char buf[10];
   
-  /* check lzma first */
+  /* check lz4 */
+  if (dec_lz4_open ())
+	goto test_dec;
+  /* check lzma */
   if (dec_lzma_open ())
+	goto test_dec;
+  if (dec_vhd_open())
 	goto test_dec;
 
   /* "compressed_file" is already reset to zero by this point */
@@ -331,7 +338,7 @@ gunzip_test_header (void)
 
   initialize_tables ();
 
-  decomp_type = 0;
+  decomp_type = DECOMP_TYPE_GZ;
   compressed_file = 1;
   gunzip_swap_values ();
   /*

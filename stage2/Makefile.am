@@ -60,7 +60,7 @@ STAGE2_COMPILE = $(STAGE2_CFLAGS) -fno-builtin -nostdinc \
 
 # For stage2 target.
 pre_stage2_exec_SOURCES = asm.S bios.c boot.c builtins.c char_io.c \
-	cmdline.c common.c console.c dec_lzma.c disk_io.c fsys_ext2fs.c \
+	cmdline.c common.c console.c dec_lz4.c dec_lzma.c dec_vhd.c disk_io.c fsys_ext2fs.c \
 	fsys_fat.c fsys_ntfs.c fsys_ffs.c fsys_iso9660.c fsys_jfs.c fsys_minix.c \
     fsys_reiserfs.c fsys_ufs2.c fsys_vstafs.c fsys_xfs.c fsys_pxe.c fsys_initrd.c fsys_ipxe.c fsys_fb.c gunzip.c \
 	hercules.c md5.c serial.c stage2.c terminfo.c tparm.c graphics.c
