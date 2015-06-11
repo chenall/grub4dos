@@ -27,51 +27,46 @@
 
 #ifndef NO_DECOMPRESSION
 
-#define makeUInt32(b0,b1,b2,b3) (((unsigned long)(unsigned char)b0) + ((unsigned long)(unsigned char)b1<<8) + ((unsigned long)(unsigned char)b2<<16) + ((unsigned long)(unsigned char)b3<<24))
-#define makeUInt64(b0,b1,b2,b3,b4,b5,b6,b7) (((unsigned long long)makeUInt32(b0,b1,b2,b3)) + ((unsigned long long)makeUInt32(b4,b5,b6,b7)<<32))
-
 typedef struct VHDFooter {
-	unsigned char cookie[8];
-	unsigned char features[4];
-	unsigned char fileFormatVersion[4];
-	unsigned char dataOffset[8];
-	unsigned char timeStamp[4];
+	unsigned char cookie[8];//string conectix
+	grub_u32_t features;
+	grub_u32_t fileFormatVersion;
+	grub_u64_t dataOffset;
+	grub_u32_t timeStamp;
 	unsigned char creatorApplication[4];
-	unsigned char creatorVersion[4];
-	unsigned char creatorHostOS[4];
-	unsigned char originalSize[8];
-	unsigned char currentSize[8];
+	grub_u32_t creatorVersion;
+	grub_u32_t creatorHostOS;
+	grub_u64_t originalSize;
+	grub_u64_t currentSize;
 	struct {
-		unsigned char cylinder[2];
+		unsigned short cylinder;
 		unsigned char heads;
 		unsigned char sectorsPerTrack;
 	} diskGeometry;
-	unsigned char diskType[4];
-	unsigned char checksum[4];
+	grub_u32_t diskType;
+	grub_u32_t checksum;
 	unsigned char uniqueId[16];
 	unsigned char savedState;
 	unsigned char reserved[427];
 } VHDFooter;
 
-#define VHD_FOOTER_COOKIE      "conectix"
-#define VHD_FOOTER_COOKIE_REV  0x636F6E6563746978ULL
-#define VHD_DYNAMIC_COOKIE     "cxsparse"
-#define VHD_DYNAMIC_COOKIE_REV 0x6378737061727365ULL
+#define VHD_FOOTER_COOKIE      0x78697463656E6F63ULL
+#define VHD_DYNAMIC_COOKIE     0x6573726170737863ULL
 
 #define VHD_DISKTYPE_FIXED      2
 #define VHD_DISKTYPE_DYNAMIC    3
 #define VHD_DISKTYPE_DIFFERENCE 4
 
 typedef struct VHDDynamicDiskHeader {
-	unsigned char cookie[8];
-	unsigned char dataOffset[8];
-	unsigned char tableOffset[8];
-	unsigned char headerVersion[4];
-	unsigned char maxTableEntries[4];
-	unsigned char blockSize[4];
-	unsigned char checksum[4];
+	unsigned char cookie[8];//string cxsparse
+	grub_u64_t dataOffset;
+	grub_u64_t tableOffset;
+	grub_u32_t headerVersion;
+	grub_u32_t maxTableEntries;
+	grub_u32_t blockSize;
+	grub_u32_t checksum;
 	unsigned char parentUniqueID[16];
-	unsigned char parentTimeStamp[4];
+	grub_u32_t parentTimeStamp;
 	unsigned char reserved[4];
 	unsigned char parentUnicodeName[512];
 	unsigned char parentLocaterEntry[8][24];
@@ -102,26 +97,58 @@ extern unsigned long map_image_SPT;
 VHDFileControl *vhdfc;
 
 unsigned int log2pot32(unsigned long x);
-unsigned short readBE16(unsigned char *p);
-unsigned long readBE32(unsigned char *p);
-unsigned long long readBE64(unsigned char *p);
+grub_u32_t bswap_32(grub_u32_t *x);
+void bswap_64(grub_u64_t *x);
+void vhd_footer_in(VHDFooter *footer);
+void vhd_header_in(VHDDynamicDiskHeader *header);
 
 unsigned int log2pot32(unsigned long x) {
 	// x must be power of two
 	return ((x & 0xFFFF0000) ? 16 : 0) | ((x & 0xFF00FF00) ? 8 : 0) | ((x & 0xF0F0F0F0) ? 4 : 0) | ((x & 0xCCCCCCCC) ? 2 : 0) | ((x & 0xAAAAAAAA) ? 1 : 0);
 }
-unsigned short readBE16(unsigned char *p) {
-	unsigned char *pb = (unsigned char *)p;
-	return (((unsigned short)pb[0] << 8) + pb[1]);
+
+grub_u32_t bswap_32(grub_u32_t *x)
+{
+  grub_u32_t i = *x;
+  *x = ((i & 0xFF000000) >> 24) |
+       ((i & 0x00FF0000) >> 8)  |
+       ((i & 0x0000FF00) << 8)  |
+       ((i & 0x000000FF) << 24);
+   return *x;
 }
-unsigned long readBE32(unsigned char *p) {
-	unsigned char *pb = (unsigned char *)p;
-	return (((((((unsigned long)pb[0] << 8) + pb[1]) << 8) + pb[2]) << 8) + pb[3]);
+
+void bswap_64(grub_u64_t *x)
+{
+  grub_u32_t hi = (grub_u32_t)*x;
+  grub_u32_t lo = (grub_u32_t)(*x >> 32);
+  *x = ((grub_u64_t)bswap_32(&hi)<<32)|bswap_32(&lo);
 }
-unsigned long long readBE64(unsigned char *p) {
-	unsigned char *pb = (unsigned char *)p;
-	return (((((((((((((((unsigned long long)pb[0] << 8) + pb[1]) << 8) + pb[2]) << 8) + pb[3]) << 8) + pb[4]) << 8) + pb[5]) << 8) + pb[6]) << 8) + pb[7]);
+
+void vhd_footer_in(VHDFooter *footer)
+{
+//	bswap_32(&footer->features);
+//	bswap_32(&footer->fileFormatVersion);
+	bswap_64(&footer->dataOffset);
+//	bswap_32(&footer->timeStamp);
+//	bswap_32(&footer->creatorVersion);
+//	bswap_32(&footer->creatorHostOS);
+//	bswap_64(&footer->originalSize);
+	bswap_64(&footer->currentSize);
+	bswap_32(&footer->diskType);
+//	bswap_32(&footer->checksum);
 }
+
+void vhd_header_in(VHDDynamicDiskHeader *header)
+{
+//	bswap_64(&header->dataOffset);
+	bswap_64(&header->tableOffset);
+//	bswap_32(&header->headerVersion);
+	bswap_32(&header->maxTableEntries);
+	bswap_32(&header->blockSize);
+//	bswap_32(&header->checksum);
+//	bswap_32(&header->parentTimeStamp);
+}
+
 
 void
 dec_vhd_close(void)
@@ -146,79 +173,77 @@ dec_vhd_open(void)
 	VHDFooter footer;
 	VHDDynamicDiskHeader dynaheader;
 
-	if (no_decompression) return 0;
-
+  if (filemax < 0x10000) return 0;//file is to small
 	/* Now it does not support openning more than 1 file at a time. 
 	   Make sure previously allocated memory blocks is freed. 
 	   Don't need this line if grub_close is called for every openned file before grub_open is called for next file. */
 	dec_vhd_close();
 
-	memset(&footer, 0, 512);
-	memset(&dynaheader, 0, 1024);
+	memset(&footer, 0, sizeof(footer));
+	memset(&dynaheader, 0, sizeof(dynaheader));
 
-	filepos = (filemax - 1) & (unsigned long long)(-512LL);
-	int bytestoread = filemax - filepos;
-	int bytesread = (int)grub_read((unsigned long)&footer, bytestoread, 0xedde0d90);
+	int bytesread = (int)grub_read((unsigned long)&footer, 0x200, 0xedde0d90);
 
-	if (bytesread < 511) {
+	//if (bytesread < 511) {
 		// grub_printf("bytesread %d < 511\n",bytesread);
-		return 0;
-	}
-	if (readBE64(footer.cookie)!=VHD_FOOTER_COOKIE_REV) {
-		// grub_printf("cookie %lX != %lX\n", readBE64(footer.cookie), VHD_FOOTER_COOKIE_REV);
-		return 0;
+	//	goto quit;
+	//}
+	if (*(grub_u64_t*)&footer.cookie!=VHD_FOOTER_COOKIE) {
+		// grub_printf("cookie %lX != %lX\n", footer.cookie, VHD_FOOTER_COOKIE);
+		goto quit;
 	}
 
-	unsigned long diskType = readBE32(footer.diskType);
-	if (/*diskType != VHD_DISKTYPE_FIXED && */diskType != VHD_DISKTYPE_DYNAMIC) {
+  vhd_footer_in(&footer);
+
+	if (footer.diskType != VHD_DISKTYPE_DYNAMIC) {
 		/* Differencing disk and unknown diskType are not supported */
-		// grub_printf("diskType %d not supported\n", diskType);
-		return 0;
+		goto quit;
 	}
 
-	if (diskType == VHD_DISKTYPE_DYNAMIC) {
-		unsigned long long dataOffset = readBE64(footer.dataOffset);
-		if (dataOffset + 1024 > filemax) {
+//	if (footer.diskType == VHD_DISKTYPE_DYNAMIC) {
+		if (footer.dataOffset + sizeof(dynaheader) > filemax) {
 			// grub_printf("footer dataOffset %lX\n", dataOffset);
-			return 0;
+			goto quit;
 		}
-		filepos = dataOffset;
-		bytesread = (int)grub_read((unsigned long)&dynaheader, 1024, 0xedde0d90);
-	}
+		filepos = footer.dataOffset;
+		bytesread = (int)grub_read((unsigned long)&dynaheader, sizeof(dynaheader), 0xedde0d90);
+//	}
 
 	vhdfc = (VHDFileControl*) grub_malloc(sizeof(VHDFileControl));
 	if (!vhdfc) {
-		return 0;
+		goto quit;
 	}
 
 	memset(vhdfc, 0, sizeof(VHDFileControl));
+	vhd_header_in(&dynaheader);
 	vhdfc->cFileMax = filemax;
-	vhdfc->volumeSize = readBE64(footer.currentSize);
-	vhdfc->diskType = readBE32(footer.diskType);
-	if (vhdfc->diskType == VHD_DISKTYPE_FIXED) {
-	} else if (vhdfc->diskType == VHD_DISKTYPE_DYNAMIC) {
-		vhdfc->tableOffset = readBE64(dynaheader.tableOffset);
-		vhdfc->blockSize = readBE32(dynaheader.blockSize);
+	vhdfc->volumeSize = footer.currentSize;
+	vhdfc->diskType = footer.diskType;
+	//if (vhdfc->diskType == VHD_DISKTYPE_FIXED) {
+	//} else if (vhdfc->diskType == VHD_DISKTYPE_DYNAMIC) {
+		vhdfc->tableOffset = dynaheader.tableOffset;
+		vhdfc->blockSize = dynaheader.blockSize;
 		vhdfc->blockSizeLog2 = log2pot32(vhdfc->blockSize);
-		vhdfc->batEntries = readBE32(dynaheader.maxTableEntries);
+		vhdfc->batEntries = dynaheader.maxTableEntries;
 		unsigned long batSize = (vhdfc->batEntries * 4 + 511)&(-512LL);
 		vhdfc->blockAllocationTable = grub_malloc(batSize);
 		vhdfc->blockBitmapSize = vhdfc->blockSize / (512 * 8);
 		vhdfc->blockBitmapAndData = grub_malloc(vhdfc->blockBitmapSize + vhdfc->blockSize);
 		vhdfc->blockData = vhdfc->blockBitmapAndData + vhdfc->blockBitmapSize;
 		filepos = vhdfc->tableOffset;
-		grub_read((unsigned long)vhdfc->blockAllocationTable, batSize, GRUB_READ);
+		grub_read((grub_u64_t)(int)vhdfc->blockAllocationTable, batSize, GRUB_READ);
 		vhdfc->currentBlockOffset = -1LL;
-	}
+	//}
 	map_image_HPC = footer.diskGeometry.heads;
 	map_image_SPT = footer.diskGeometry.sectorsPerTrack;
 	compressed_file = 1;
 	decomp_type = DECOMP_TYPE_VHD;
 	filemax = vhdfc->volumeSize;
+quit:
 	filepos = 0;
 
 	errnum = ERR_NONE;
-	return 1;
+	return compressed_file;
 }
 
 unsigned long long
@@ -229,9 +254,9 @@ dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned long write
 	filemax = vhdfc->cFileMax;
 	if (filepos + len > vhdfc->volumeSize)
 		len = (filepos <= vhdfc->volumeSize) ? vhdfc->volumeSize - filepos : 0;
-	if (vhdfc->diskType == VHD_DISKTYPE_FIXED) {
-		ret = grub_read(buf, len, write);
-	} else {
+	//if (vhdfc->diskType == VHD_DISKTYPE_FIXED) {
+	//	ret = grub_read(buf, len, write);
+	//} else {
 		// VHD_DISKTYPE_DYNAMIC
 		if (write == GRUB_WRITE) {
 			errnum = ERR_WRITE_GZIP_FILE;
@@ -247,7 +272,8 @@ dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned long write
 			unsigned long long blockOffset = (unsigned long long)blockNumber << vhdfc->blockSizeLog2;
 			unsigned long offsetInBlock = (unsigned long)(uFilePos - blockOffset);
 			unsigned long txLen = (rem < vhdfc->blockSize - offsetInBlock) ? rem : vhdfc->blockSize - offsetInBlock;
-			unsigned long blockLBA = readBE32(vhdfc->blockAllocationTable + blockNumber * 4);
+			grub_u32_t blockLBA = *(grub_u32_t*)(vhdfc->blockAllocationTable + blockNumber * 4);
+			bswap_32(&blockLBA);
 			// grub_printf("read bn %x of %x txlen %x lba %x\n", blockNumber, offsetInBlock, txLen, blockLBA);
 			if (blockLBA == 0xFFFFFFFF) {
 				// unused block on dynamic VHD. read zero
@@ -270,7 +296,7 @@ dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned long write
 			ret += txLen;
 		}
 		filepos = uFilePos;
-	}
+//	}
 	compressed_file = 1;
 	filemax = vhdfc->volumeSize;
 	return ret;
