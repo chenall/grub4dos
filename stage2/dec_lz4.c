@@ -245,7 +245,7 @@ dec_lz4_read(unsigned long long buf, unsigned long long len, unsigned long write
 				break;
 			}
 		}
-		while (lz4dec.nextBlockSize && lz4dec.dicPos + lz4dec.blockMaxSize <= LZ4_DICBUFSIZE) {
+		/*while (lz4dec.nextBlockSize && lz4dec.dicPos + lz4dec.blockMaxSize <= LZ4_DICBUFSIZE) */{
 			/* All existing wanted data from dic have been copied. We will have to decompress more data. */
 			/* Read next compressed block (with optional checksum) with next block size */
 			unsigned long blockSize = lz4dec.nextBlockSize;
@@ -268,7 +268,7 @@ dec_lz4_read(unsigned long long buf, unsigned long long len, unsigned long write
 				unsigned int dicPosSrc = lz4dec.dicPos - 65536;
 				memmove(lz4dec.dic, lz4dec.dic + dicPosSrc, 65536);
 				lz4dec.dicPos = 65536;
-				lz4dec.dicFilePos -= dicPosSrc;
+				lz4dec.dicFilePos += dicPosSrc;
 				outSkip -= dicPosSrc;
 			}
 
