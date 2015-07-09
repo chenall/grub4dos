@@ -478,6 +478,8 @@ extern unsigned long font_spacing;
 extern unsigned long line_spacing;
 extern void rectangle(int left, int top, int length, int width, int line);
 extern int hex (int v);
+#define MENU_TITLE					0x3A8000
+#define MENU_TITLE_LENGTH		0x800
 /* The Chinese patch will begin at here */
 
 /* multiboot stuff */
@@ -723,6 +725,7 @@ struct border {
 	unsigned char menu_box_h;
 	unsigned char menu_box_b;
 	unsigned char border_w;
+	unsigned char menu_help_x;
 } __attribute__ ((packed));
 
 extern struct border menu_border;
@@ -746,6 +749,19 @@ extern struct linux_kernel_header *linux_header;
 
 extern unsigned long free_mem_start;
 extern unsigned long free_mem_end;
+
+extern unsigned char menu_tab;
+extern unsigned char menu_font_spacing;
+extern unsigned char menu_line_spacing;
+
+#ifdef SUPPORT_GRAPHICS
+extern unsigned long current_x_resolution;
+extern unsigned long current_y_resolution;
+extern unsigned long current_bits_per_pixel;
+extern unsigned long current_bytes_per_scanline;
+extern unsigned long current_bytes_per_pixel;
+extern unsigned long current_phys_base;
+#endif
 
 struct mem_alloc_array
 {

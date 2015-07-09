@@ -3165,7 +3165,7 @@ disk_address_packet_ready:
 	xorw	%di, %di
 	testw	$0x400, %cs:4(%bp)
 	je	no_sp
-	movw	$(hooked_fragment_map - int13_handler), %bp
+	movw	$(EXT_C(hooked_fragment_map) - int13_handler), %bp
 	
 2:
 	cmpb	$0, %cs:(%bp)
@@ -7951,7 +7951,7 @@ ENTRY(init_usb)
 	.align	32
 
 ENTRY(USB2DRI)
-
+USB2DRI:
 	.code16
 	
 	jmp Initialization

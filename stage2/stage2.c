@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  GRUB  --  GRand Unified Bootloader
  *  Copyright (C) 2000,2001,2002,2004,2005  Free Software Foundation, Inc.
  *
@@ -68,26 +68,25 @@ lzma:
   return grub_read ((unsigned long long)(unsigned int)buf, max_len, 0xedde0d90);
 }
 
-#define MENU_BOX_X	(menu_border.menu_box_x)
+#define MENU_BOX_X	(menu_border.menu_box_x > 2 ? menu_border.menu_box_x : 2)
 //#define MENU_BOX_W	(menu_border.menu_box_w)
 //#define MENU_BOX_W	(menu_border.menu_box_w ? menu_border.menu_box_w : current_term->chars_per_line - 4)
-#define MENU_BOX_W	(menu_border.menu_box_w ? menu_border.menu_box_w : current_term->chars_per_line - 3)
+#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < current_term->chars_per_line - MENU_BOX_X - 1) ? menu_border.menu_box_w : current_term->chars_per_line - MENU_BOX_X - 1)
 #define MENU_BOX_Y	(menu_border.menu_box_y)
 /* window height */
-#define MENU_BOX_H	(menu_border.menu_box_h?menu_border.menu_box_h:(current_term->max_lines - 6 - menu_border.menu_box_y)) //current_term->max_lines - 8
-
+#define MENU_BOX_H	((menu_border.menu_box_h && menu_border.menu_box_h < current_term->max_lines - MENU_BOX_Y - 6)?menu_border.menu_box_h:(current_term->max_lines - MENU_BOX_Y - 6))
 /* line end */
 #define MENU_BOX_E	(MENU_BOX_X + MENU_BOX_W)
 
 /* window bottom */
-#define MENU_BOX_B	(menu_border.menu_box_b?menu_border.menu_box_b:(current_term->max_lines - 6)) //current_term->max_lines - 7
+#define MENU_BOX_B	((menu_border.menu_box_b > MENU_BOX_Y + MENU_BOX_H - 1 && menu_border.menu_box_b < current_term->max_lines - 6)?menu_border.menu_box_b:(current_term->max_lines - 6))
 
 static long temp_entryno;
 static short temp_num;
 static char * *titles;	/* title array, point to 256 strings. */
 extern int (*hotkey_func)(char *titles,int flags,int flags1);
 static unsigned short *title_boot;
-static int default_help_message_destoyed = 1;
+//static int default_help_message_destoyed = 1;
 /*
 	unsigned char disp_ul;
 	unsigned char disp_ur;
@@ -100,33 +99,46 @@ static int default_help_message_destoyed = 1;
 	unsigned char menu_box_y; // first line number 
 	unsigned char menu_box_h;
 	unsigned char menu_box_b;
+	unsigned char border_w;
+	unsigned char menu_help_x
 */
-struct border menu_border = {218,191,192,217,196,179,2,0,2,0,0,2}; /* console */
+struct border menu_border = {218,191,192,217,196,179,2,0,4,0,0,2,1}; /* console */
 //struct border menu_border = {20,21,22,19,15,14,2,0,2,0,0}; /* graphics */
 
-static void print_help_message (const char *message)
+static void print_help_message (const char *message,int flags)
 {
 	grub_u32_t j,x;
 	grub_u8_t c = *message;
-	for (j = 1; j < 5; ++j)
+
+	if (flags==2)	
 	{
-		if (c == '\n')
-			c = *(++message);
-		gotoxy (0, MENU_BOX_B + j);
-		for (x = 0; x < MENU_BOX_X - 2; ++x)
-			grub_putchar (' ', 255);
-		for (; fontx <= MENU_BOX_E;)
+		for (j=1; j<3; ++j)
 		{
-			if (c && c != '\n')
-			{
-				grub_putchar (c, 255);
-				c = *(++message);
-			}
-			else
+			gotoxy (menu_border.menu_help_x, MENU_BOX_B + j);
+			for (x = 0; x < current_term->chars_per_line; x++)
 				grub_putchar (' ', 255);
 		}
-		for (x = fontx; x < current_term->chars_per_line/* - 1*/; x++)
-			grub_putchar (' ', 255);
+	}
+	else
+	{
+		for (j=(flags ? 1 : 3); j<(flags ? 3 : 6); ++j)
+		{
+			if (c == '\n')
+				c = *(++message);
+			gotoxy (menu_border.menu_help_x, MENU_BOX_B + j);
+			for (; fontx <= MENU_BOX_E;)
+			{
+				if (c && c != '\n')
+				{
+					grub_putchar (c, 255);
+					c = *(++message);
+				}
+				else
+					grub_putchar (' ', 255);
+			}
+			for (x = fontx; x < current_term->chars_per_line/* - 1*/; x++)
+				grub_putchar (' ', 255);
+		}
 	}
 }
 
@@ -136,43 +148,38 @@ print_default_help_message (char *config_entries)
 	grub_u32_t	i;
 	char		buff[256];
 
-	for(i=1;i<5;++i)
-	{
-		gotoxy (0, MENU_BOX_B + i);
-		printf("%.*s",current_term->chars_per_line,0);
-	}
-
-	i = grub_sprintf (buff,"\n Use the %c and %c keys to highlight an entry.",
-		   (unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
+if (menu_tab & 0x20)
+		i = grub_sprintf (buff,"\n用 %c 和 %c 键选择菜单。",
+		(unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
+	else
+		i = grub_sprintf (buff,"\nUse the %c and %c keys to highlight an entry.",
+		(unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
 
       if (! auth && password_buf)
 	{
-#if 0
-#ifdef SUPPORT_GFX
-	  if (*graphics_file)
-	    {
-	      grub_strcpy (buff + i,"\
-	WARNING: graphical menu doesn\'t work\
-	in conjunction with the password feature\n" );
-	      i = grub_strlen(buff);
-	    }
-#endif
-#endif
-	  grub_strcpy (buff + i," Press ENTER or \'b\' to boot.\n"
-		" Press \'p\' to gain privileged control.");
+		if (menu_tab & 0x20)
+			grub_strcpy (buff + i,"按回车键或 b 键启动。\n"
+			"按 p 获得特殊权限控制。");
+		else
+			grub_strcpy (buff + i,"Press ENTER or \'b\' to boot.\n"
+			"Press \'p\' to gain privileged control.");
 	}
 	else
 	{
-		grub_strcpy(buff + i,(config_entries?(" Press ENTER or \'b\' to boot.\n"
-			" Press \'e\' to edit the commands before booting, or \'c\' for a command-line.")
-			:(" At a selected line, press \'e\' to edit, \'d\' to delete,"
-			" or \'O\'/\'o\' to open a new line before/after. When done, "
-			"press \'b\' to boot, \'c\' for a command-line, or ESC to go back to the main menu.")
-			));
+		if (menu_tab & 0x20)
+			grub_strcpy(buff + i,(config_entries?("按回车键或 b 键启动。\n"
+			"按 e 键可在启动前逐条编辑菜单命令行，按 c 键进入命令行。")
+			:("在当前行，按 e 键进行编辑，d 键进行删除。\n"
+			"按 O 和 o 键分别在其之前或之后插入新行。\n"
+			"编辑结束时，按 b 启动，c 键进入命令行，ESC 键退回到主菜单。")));
+		else
+			grub_strcpy(buff + i,(config_entries?(" Press ENTER or \'b\' to boot.\n"
+			"Press \'e\' to edit the commands before booting, or \'c\' for a command-line.")
+			:(" At a selected line, press \'e\' to edit, \'d\' to delete,\n"
+			"or \'O\'/\'o\' to open a new line before/after.\n"
+			"When done, press \'b\' to boot, \'c\' for a command-line, or ESC to go back to the main menu.")));
 	}
-
-	print_help_message(buff);
-	default_help_message_destoyed = 0;
+	print_help_message(buff,0);
 }
 
 
@@ -314,8 +321,8 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 	{
 		//ret = grub_putchar (' ', ret);
 		//if ((long)ret < 0)
-		//	break;
-		grub_putchar (' ', ret);
+			break;
+		//grub_putchar (' ', ret);
 	}
     }
 
@@ -331,14 +338,15 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 
 	if (c == '\n')
 	{
-		default_help_message_destoyed = 1;
-		print_help_message(entry);
+//		default_help_message_destoyed = 1;
+		print_help_message(entry,1);
 	}
-	else if (default_help_message_destoyed)
+//	else if (default_help_message_destoyed)
+	else
 	{
-		print_default_help_message (config_entries);
+//		print_default_help_message (config_entries);
+		print_help_message(entry,2);
 	}
-	gotoxy (MENU_BOX_E, y);
   }
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
@@ -558,6 +566,8 @@ run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *h
 restart1:
   //clear temp_num when restart menu
   temp_num = 0;
+	font_spacing = menu_font_spacing;
+	line_spacing = menu_line_spacing;
   /* Dumb terminal always use all entries for display 
      invariant for TERM_DUMB: first_entry == 0  */
   if (! (current_term->flags & TERM_DUMB))
@@ -647,9 +657,28 @@ restart1:
   /* Only display the menu if the user wants to see it. */
   if (show_menu)
     {
-      init_page ();
+			cls ();
+			if (menu_tab & 0x80)
+				init_page ();
       //setcursor (0);
-
+			
+			if (menu_tab & 0x40)
+			{
+				unsigned char *p = (unsigned char *)MENU_TITLE;
+				unsigned char i,j;
+			
+				i = menu_tab & 0xf;
+				if (current_term->setcolorstate)
+					current_term->setcolorstate (COLOR_STATE_HEADING);
+				for (j=0; j<i;j++)
+				{
+					gotoxy (*(unsigned long *)(p + j*0x108), *(unsigned long *)(p + j*0x108 + 4));
+					grub_printf("%-*.*s",current_term->chars_per_line,current_term->chars_per_line,p + j*0x108 + 8);
+				}
+				if (current_term->setcolorstate)
+					current_term->setcolorstate (COLOR_STATE_STANDARD);
+			}
+			
       if (current_term->flags & TERM_DUMB)
 	print_entries_raw (num_entries, first_entry, menu_entries);
       else /* print border */
@@ -721,7 +750,8 @@ restart1:
       else
 	print_entries (first_entry, entryno, menu_entries);
     }
-   if (menu_init_script_file[0] != 0 )	command_func(menu_init_script_file,BUILTIN_MENU);
+   if (menu_init_script_file[0] != 0 )	
+	 command_func(menu_init_script_file,BUILTIN_MENU);
   /* XX using RT clock now, need to initialize value */
   while ((time1 = getrtsecs()) == 0xFF);
 
@@ -756,24 +786,32 @@ restart1:
 			   entryno, grub_timeout);
 	  else
 	    {
-	      unsigned long x;
-	      unsigned long ret;
-	      unsigned char tmp_buf[512];
-	      unsigned char *p;
-	      unsigned char ch = ' ';
+//	      unsigned long x;
+//	      unsigned long ret;
+//	      unsigned char tmp_buf[512];
+//	      unsigned char *p;
+//	      unsigned char ch = ' ';
 
-	      grub_sprintf ((char*)tmp_buf, " The highlighted entry will be booted automatically in %d seconds.", grub_timeout);
-	      gotoxy (0, MENU_BOX_B + 5);
-	      p = tmp_buf;
-	      for (x = 0; x < current_term->chars_per_line; x = fontx)
-	      {
-		if (ch >= ' ')
-			ch = *p++;
-		ret = current_term->chars_per_line - x;
-		ret = grub_putchar ((ch >= ' ' ? ch : ' '), ret);
-		if ((long)ret < 0)
-			break;
-	      }
+//	      grub_sprintf ((char*)tmp_buf, " The highlighted entry will be booted automatically in %d seconds.", grub_timeout);
+//	      gotoxy (0, MENU_BOX_B + 5);
+//	      p = tmp_buf;
+//	      for (x = 0; x < current_term->chars_per_line; x = fontx)
+//	      {
+//		if (ch >= ' ')
+//			ch = *p++;
+//		ret = current_term->chars_per_line - x;
+//		ret = grub_putchar ((ch >= ' ' ? ch : ' '), ret);
+//		if ((long)ret < 0)
+//			break;
+//	      }
+				
+				gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + default_entry); 
+				if (current_term->setcolorstate)
+					current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+				grub_printf("%2d",grub_timeout);
+				if (current_term->setcolorstate)
+	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+				
 	      gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
 	    }
 	  
@@ -827,7 +865,7 @@ restart1:
 
 	  if (grub_timeout >= 0)
 	    {
-	      unsigned long x;
+//	      unsigned long x;
 
 	      if (current_term->setcolorstate)
 		  current_term->setcolorstate (COLOR_STATE_HELPTEXT);
@@ -835,11 +873,19 @@ restart1:
 	      if (current_term->flags & TERM_DUMB)
 		grub_putchar ('\r', 255);
 	      else
-		gotoxy (0, MENU_BOX_B + 5);
-	      for (x = 0; x < current_term->chars_per_line; x++)
-	      {
-		grub_putchar (' ', 255);
-	      }
+//		gotoxy (0, MENU_BOX_B + 5);
+//	      for (x = 0; x < current_term->chars_per_line; x++)
+//	      {
+//		grub_putchar (' ', 255);
+//	      }
+				
+				gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + default_entry); 
+				if (current_term->setcolorstate)
+					current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+				grub_printf("  ");
+				if (current_term->setcolorstate)
+	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+				
 	      grub_timeout = -1;
 	      fallback_entryno = -1;
 	      if (! (current_term->flags & TERM_DUMB))
@@ -1067,11 +1113,11 @@ done_key_handling:
 	  if (current_term->setcolorstate)
 	      current_term->setcolorstate (COLOR_STATE_HEADING);
 
-	  if (debug > 0)
-	  {
-		gotoxy (MENU_BOX_E - 4, MENU_BOX_Y - 2);
-		grub_printf ("%3d ", (first_entry + entryno));
-	  }
+//	  if (debug > 0)
+//	  {
+//		gotoxy (MENU_BOX_E - 4, MENU_BOX_Y - 2);
+//		grub_printf ("%3d ", (first_entry + entryno));
+//	  }
 	  gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
 
 	  if (current_term->setcolorstate)
@@ -1208,6 +1254,8 @@ done_key_handling:
 		{
 		  int new_num_entries = 0, i = 0;
 		  char *new_heap;
+			font_spacing = 0;
+			line_spacing = 0;
 
 		  if (num_entries == 0)
 		    {
@@ -1321,7 +1369,11 @@ done_key_handling:
 		}
 	      if (((char)c) == 'c')
 		{
-		  enter_cmdline (heap, 0);
+			font_spacing = 0;
+			line_spacing = 0;
+			setcursor (1);
+			cls ();
+			enter_cmdline (heap, 0);
 		  goto restart1;
 		}
 	    }
@@ -1345,7 +1397,8 @@ done_key_handling:
 ////      (*current_term->shutdown)();
 ////      current_term = term_table; /* assumption: console is first */
 ////    }
-
+	font_spacing = 0;
+	line_spacing = 0;
   fallbacked_entries = 0;
   while (1)
     {

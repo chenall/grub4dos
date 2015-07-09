@@ -162,6 +162,8 @@ static char chainloader_file[256];
 static char chainloader_file_orig[256];
 
 static const char *warning_defaultfile = "# WARNING: If you want to edit this file directly, do not remove any line";
+static struct vbe_controller *controller = (struct vbe_controller *)0x8000;//use 512 bytes
+static struct vbe_mode *mode = (struct vbe_mode *)0x700;//use 255 bytes
 
 void set_full_path(char *dest, char *arg, grub_u32_t max_len);
 void set_full_path(char *dest, char *arg, grub_u32_t max_len)
@@ -13534,8 +13536,8 @@ static struct builtin builtin_testload =
 #endif
 
 
-static struct vbe_controller *controller = (struct vbe_controller *)0x8000;//use 512 bytes
-static struct vbe_mode *mode = (struct vbe_mode *)0x700;//use 255 bytes
+//static struct vbe_controller *controller = (struct vbe_controller *)0x8000;//use 512 bytes
+//static struct vbe_mode *mode = (struct vbe_mode *)0x700;//use 255 bytes
 /* testvbe MODE */
 static int
 testvbe_func (char *arg, int flags)
@@ -14309,11 +14311,11 @@ int
 graphicsmode_func (char *arg, int flags)
 {
 #ifdef SUPPORT_GRAPHICS
-  extern unsigned long current_x_resolution;
-  extern unsigned long current_y_resolution;
-  extern unsigned long current_bits_per_pixel;
-  extern unsigned long current_bytes_per_scanline;
-  extern unsigned long current_phys_base;
+//  extern unsigned long current_x_resolution;
+//  extern unsigned long current_y_resolution;
+//  extern unsigned long current_bits_per_pixel;
+//  extern unsigned long current_bytes_per_scanline;
+//  extern unsigned long current_phys_base;
   unsigned long long tmp_graphicsmode;
   int old_graphics_mode = graphics_mode;
   char *x_restrict = "0:-1";
@@ -14413,7 +14415,7 @@ xyz_done:
 	    if (mode->memory_model != 6) /* Direct Color */
 		continue;
 	      
-	    if (mode->bits_per_pixel != 24 && mode->bits_per_pixel != 32)
+	    if (mode->bits_per_pixel != 24 && mode->bits_per_pixel != 32 && mode->bits_per_pixel != 16 && _Z_ < 0x10)
 		continue;
 	    }
 	    /* ok, find out one valid mode. */
@@ -14453,6 +14455,7 @@ xyz_done:
 	current_x_resolution = x;
 	current_y_resolution = y;
 	current_bits_per_pixel = z;
+	current_bytes_per_pixel = (z+7)/8;
 #undef _X_
 #undef _Y_
 #undef _Z_
@@ -14637,6 +14640,53 @@ echo_func (char *arg,int flags)
       {
 		echo_ec |= 2;
       }
+		else if (grub_memcmp(arg,"-v",2) == 0)
+		{
+			init_page ();;
+		}
+		else if (grub_memcmp(arg,"-rrggbb",7) == 0 )
+		{
+			int i,j,k;
+			unsigned long long color=0;
+			
+			if (graphics_mode <= 0xFF) //vga
+			{
+				printf("Please use in VBE mode.");
+				return 1;
+			}
+
+			if (y < current_term->max_lines-1)
+				y++;
+			else
+				putchar('\n', 255);
+
+			gotoxy(x,y);
+
+			for (i=0;i<6;i++)
+			{
+				for (j=0;j<6;j++)
+				{
+					for (k=0;k<6;k++)
+					{
+						current_color_64bit = color;	//00 33 66 99 cc ff
+						printf("0x%06x",color);
+						printf("  ");
+						color += 0x33;
+					}
+					color &= 0xffff00;
+					color -= 0x100;
+					color += 0x3300;
+				}
+				color &= 0xff0000;
+				color -= 0x10000;
+				color += 0x330000;
+			}
+			if (current_term->setcolorstate)
+				current_term->setcolorstate(COLOR_STATE_STANDARD);
+			if (xy_changed)
+				gotoxy(saved_x, saved_y);
+			return 1;
+		}
       else break;
    	 arg = skip_to (0,arg);
    }
@@ -14714,13 +14764,15 @@ static struct builtin builtin_echo =
 {
    "echo",
    echo_func,
-   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
-   "echo [-P:XXYY] [-h] [-e] [-n] [[$[ABCD]]MESSAGE ...] ",
-   "-P:XXYY position control line(XX) and column(YY). "
-   "-h      show a color panel. "
-   "-n      do not output the trailing newline."
-   "-e      enable interpretation of backslash escapes."
-   "$[ABCD] the color for MESSAGE.(console only). "
+   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+   "echo [-P:XXYY] [-h] [-e] [-n] [-v] [-rrggbb] [[$[ABCD]]MESSAGE ...] ",
+   "-P:XXYY position control line(XX) and column(YY).\n"
+   "-h      show a color panel.\n"
+   "-n      do not output the trailing newline.\n"
+   "-e      enable interpretation of backslash escapes.\n"
+   "-v      show version and memory information.\n"
+	 "-rrggbb show 24 bit colors.\n"
+   "$[ABCD] the color for MESSAGE.(console only).\n"
    "A blink-, B light-, C BG, D FG."
 };
 
@@ -15251,6 +15303,178 @@ static struct builtin builtin_setlocal =
    setlocal_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
 };
+
+
+unsigned char menu_tab = 0x80;
+unsigned char menu_font_spacing = 0;
+unsigned char menu_line_spacing = 0;
+
+static int
+setmenu_func(char *arg, int flags)
+{
+	char *p = (char *)MENU_TITLE;
+	char *tem;
+	unsigned long long val;
+	struct border tmp_broder = {218,191,192,217,196,179,2,0,4,0,0,2,1};
+
+	for (; *arg && *arg != '\n' && *arg != '\r';)  
+	{
+		if (grub_memcmp (arg, "--title=", 8) == 0)
+		{
+			unsigned char i;
+			char *p1;
+			i = menu_tab & 0xf;
+			arg += 8;
+			if (safe_parse_maxint (&arg, &val))
+				*(unsigned long *)(p + i*0x108) = val;
+			else
+				*(unsigned long *)(p + i*0x108) = 2;
+			arg = skip_to (1, arg);
+			if (safe_parse_maxint (&arg, &val))
+				*(unsigned long *)(p + i*0x108 + 4) = val;
+			else
+				*(unsigned long *)(p + i*0x108 + 4) = 3;
+			while (*arg != '=')
+				arg++;
+			arg++;
+			p1 = p + i*0x108 + 8;
+			for (; *arg && *arg != '\n' && *arg != '\r' && *arg != '-'; p1++,arg++)
+				*p1 = *arg;
+			*p1 = 0;
+			menu_tab |= 0x40;
+			menu_tab++;
+    }
+		else if (grub_memcmp (arg, "--u", 3) == 0)
+		{
+			menu_tab &= 0xbf;
+			menu_tab |= 0x80;
+			menu_tab &= 0xdf;
+			menu_font_spacing = 0;
+			menu_line_spacing = 0;
+			font_spacing = 0;
+			line_spacing = 0;
+			current_term->max_lines = current_y_resolution / font_h;
+			current_term->chars_per_line = current_x_resolution / font_w;
+			*(unsigned char *)0x8274 = 0;
+			memmove ((char *)&menu_border,(char *)&tmp_broder,sizeof(tmp_broder));
+			return 1;
+		}
+    else if (grub_memcmp (arg, "--ver-on", 8) == 0)
+		{
+			menu_tab |= 0x80;
+			arg += 8;
+		}
+		else if (grub_memcmp (arg, "--ver-off", 9) == 0)
+		{
+			menu_tab &= 0x7f;
+			arg += 9;
+		}
+		else if (grub_memcmp (arg, "--lang=en", 9) == 0)
+		{
+			menu_tab &= 0xdf;
+			arg += 9;
+		}
+		else if (grub_memcmp (arg, "--lang=zh", 9) == 0)
+		{
+			menu_tab |= 0x20;
+			arg += 9;
+		}
+		else if (grub_memcmp (arg, "--box", 5) == 0)
+		{
+			arg = skip_to (0, arg);
+			for (; *arg && *arg != '\n' && *arg != '\r' && *arg != '-';)
+			{
+				tem = arg + 2;
+				if (safe_parse_maxint (&tem, &val))
+				{
+					switch(*arg)
+					{
+						case 'x':
+							menu_border.menu_box_x = val;
+							break;
+						case 'w':
+							if (val != 0)
+								menu_border.menu_box_w = val;
+							else
+								menu_border.menu_box_w = current_term->chars_per_line - menu_border.menu_box_x * 2 + 1;
+							break;
+						case 'y':
+							menu_border.menu_box_y = val;
+							break;
+						case 'h':
+							menu_border.menu_box_h = val;
+							break;
+						case 'l':
+							if (val > 3)
+								val = 3;
+							menu_border.border_w = val;
+							break;
+						default:
+							break;
+					}
+				}
+				arg = tem;
+				arg++;
+				while (*arg == ' ' || *arg == '\t')
+					arg++;
+			}
+		}
+		else if (grub_memcmp (arg, "--auto-num", 10) == 0)
+		{
+			*(unsigned char *)0x8274 = 1;
+			arg += 10;
+		}
+		else if (grub_memcmp (arg, "--line-spacing=", 15) == 0)
+		{
+			arg += 15;
+			safe_parse_maxint (&arg, &val);
+			menu_line_spacing = val;
+			line_spacing = val;
+			current_term->max_lines = current_y_resolution / (font_h + line_spacing);
+		}
+		else if (grub_memcmp (arg, "--font-spacing=", 15) == 0)
+		{
+			arg += 15;
+			safe_parse_maxint (&arg, &val);
+			menu_font_spacing = val;
+			font_spacing = val;
+			current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
+		}
+		else if (grub_memcmp (arg, "--help=", 7) == 0)	//--menu-help=x=y
+		{
+			arg += 7;
+			if (safe_parse_maxint (&arg, &val))
+				menu_border.menu_help_x = val;
+			arg = skip_to (1, arg);
+			if (safe_parse_maxint (&arg, &val))
+				menu_border.menu_box_b = val;
+		}
+		else
+			return 0;
+		
+		while(*arg && !isspace(*arg) && *arg != '-')
+			arg++;
+		while (*arg == ' ' || *arg == '\t')
+			arg++;
+  }
+	return 1;
+}
+
+static struct builtin builtin_setmenu =
+{
+  "setmenu",
+  setmenu_func,
+  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
+  "setmenu --parameter | --parameter | ... ",
+  "--ver-on --ver-off --lang=en --lang=zh --auto-num --u\n"
+	"--font-spacing=[s] --line-spacing=[s]\n"
+  "--title=[x]=[y]=[title] --help=[x]=[y]\n"
+  "--box x=[x] y=[y] w=[w] h=[h] l=[l]\n"
+	"Note: [w]=0 in the middle. [l]=0 no display border."
+};
+
+
+
 
 static int endlocal_func(char *arg, int flags)
 {
@@ -16052,6 +16276,7 @@ struct builtin *builtin_table[] =
   &builtin_set,
   &builtin_setkey,
   &builtin_setlocal,
+  &builtin_setmenu,
   &builtin_setvbe,
   &builtin_shift,
 #ifdef SUPPORT_GRAPHICS

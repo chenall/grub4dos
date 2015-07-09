@@ -584,10 +584,17 @@ init_page (void)
   unsigned char tmp_buf[128];
   //unsigned char ch = ' ';
 
-  cls ();
+//  cls ();
 
-  if (current_term->setcolorstate)
+	if(cursor_state==2)
+	{
+		if (current_term->setcolorstate)
       current_term->setcolorstate (COLOR_STATE_HEADING);
+	}else
+	{
+		if (current_term->setcolorstate)
+      current_term->setcolorstate (COLOR_STATE_STANDARD);
+	}
 
   grub_sprintf ((char *)tmp_buf,
 		" GRUB4DOS " GRUB4DOS_VERSION ", Mem: %dK/%dM/%ldM, End: %X",
@@ -605,7 +612,7 @@ init_page (void)
 void
 init_page (void)
 {
-  cls ();
+//  cls ();
 
   grub_printf ("GNU GRUB  version %s  (%dK lower / %dK upper memory)\n",
 	  version_string, saved_mem_lower, saved_mem_upper);
