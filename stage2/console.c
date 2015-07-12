@@ -37,7 +37,9 @@ static int console_color[COLOR_STATE_MAX] = {
   /* represents the user defined colors for heading line */
   [COLOR_STATE_HEADING] = A_NORMAL,
   /* represents the user defined colors for border */
-  [COLOR_STATE_BORDER] = A_NORMAL
+  [COLOR_STATE_BORDER] = A_NORMAL,
+  /* represents the user defined colors for notes */
+  [COLOR_STATE_NOTES] = A_NORMAL
 };
 
 static unsigned long long console_color_64bit[COLOR_STATE_MAX] = {
@@ -51,7 +53,9 @@ static unsigned long long console_color_64bit[COLOR_STATE_MAX] = {
   /* represents the user defined colors for heading line */
   [COLOR_STATE_HEADING] = 0xAAAAAA,
   /* represents the user defined colors for border */
-  [COLOR_STATE_BORDER] = 0x3399
+  [COLOR_STATE_BORDER] = 0x3399,
+  /* represents the user defined colors for notes */
+  [COLOR_STATE_NOTES] = 0xAAAAAA
 };
 
 static color_state console_color_state = COLOR_STATE_STANDARD;

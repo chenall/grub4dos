@@ -3247,6 +3247,10 @@ color_func (char *arg, int flags)
 		{
 			state_t = COLOR_STATE_BORDER;
 		}
+		else if (memcmp(arg,"notes",5) == 0)
+		{
+			state_t = COLOR_STATE_NOTES;
+		}
 		else
 			return 0;
 		normal = skip_to(1,arg);
@@ -3325,12 +3329,13 @@ static struct builtin builtin_color =
   "color",
   color_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
-  "color NORMAL [HIGHLIGHT [HELPTEXT [HEADING]]]\n",
+  "color NORMAL [HIGHLIGHT [HELPTEXT [HEADING [NOTES]]]]\n",
   "Change the menu colors. The color NORMAL is used for most"
   " lines in the menu, and the color HIGHLIGHT is used to highlight the"
   " line where the cursor points. If you omit HIGHLIGHT, then the"
   " inverted color of NORMAL is used for the highlighted line. If you"
   " omit HELPTEXT and/or HEADING, then NORMAL is used."
+	" NOTES the color of the notes for the menu item."
   " The format of a color is \"FG/BG\". FG and BG are symbolic color names."
   " A symbolic color name must be one of these: black, blue, green,"
   " cyan, red, magenta, brown, light-gray, dark-gray, light-blue,"
@@ -15349,6 +15354,7 @@ setmenu_func(char *arg, int flags)
 			menu_tab &= 0xbf;
 			menu_tab |= 0x80;
 			menu_tab &= 0xdf;
+			menu_tab &= 0xef;
 			menu_font_spacing = 0;
 			menu_line_spacing = 0;
 			font_spacing = 0;
@@ -15378,6 +15384,16 @@ setmenu_func(char *arg, int flags)
 		{
 			menu_tab |= 0x20;
 			arg += 9;
+		}
+		else if (grub_memcmp (arg, "--help-on", 9) == 0)
+		{
+			menu_tab &= 0xef;
+			arg += 9;
+		}
+		else if (grub_memcmp (arg, "--help-off", 10) == 0)
+		{
+			menu_tab |= 0x10;
+			arg += 10;
 		}
 		else if (grub_memcmp (arg, "--box", 5) == 0)
 		{
@@ -15445,9 +15461,6 @@ setmenu_func(char *arg, int flags)
 			arg += 7;
 			if (safe_parse_maxint (&arg, &val))
 				menu_border.menu_help_x = val;
-			arg = skip_to (1, arg);
-			if (safe_parse_maxint (&arg, &val))
-				menu_border.menu_box_b = val;
 		}
 		else
 			return 0;
@@ -15466,9 +15479,10 @@ static struct builtin builtin_setmenu =
   setmenu_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
   "setmenu --parameter | --parameter | ... ",
-  "--ver-on --ver-off --lang=en --lang=zh --auto-num --u\n"
+  "--ver-on --ver-off --help-on --help-off\n"
+	"--lang=en --lang=zh --auto-num --u\n"
 	"--font-spacing=[s] --line-spacing=[s]\n"
-  "--title=[x]=[y]=[title] --help=[x]=[y]\n"
+  "--title=[x]=[y]=[title] --help=[x]\n"
   "--box x=[x] y=[y] w=[w] h=[h] l=[l]\n"
 	"Note: [w]=0 in the middle. [l]=0 no display border."
 };

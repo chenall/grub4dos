@@ -38,6 +38,8 @@ typedef enum
   COLOR_STATE_HEADING,
   /* represents the user defined colors for border */
   COLOR_STATE_BORDER,
+  /* represents the user defined colors for notes */
+  COLOR_STATE_NOTES,
   /*Number of user defined colors*/
   COLOR_STATE_MAX
 } color_state;

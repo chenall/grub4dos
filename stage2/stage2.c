@@ -79,7 +79,7 @@ lzma:
 #define MENU_BOX_E	(MENU_BOX_X + MENU_BOX_W)
 
 /* window bottom */
-#define MENU_BOX_B	((menu_border.menu_box_b > MENU_BOX_Y + MENU_BOX_H - 1 && menu_border.menu_box_b < current_term->max_lines - 6)?menu_border.menu_box_b:(current_term->max_lines - 6))
+#define MENU_BOX_B	(MENU_BOX_Y + MENU_BOX_H + 1)
 
 static long temp_entryno;
 static short temp_num;
@@ -107,37 +107,49 @@ struct border menu_border = {218,191,192,217,196,179,2,0,4,0,0,2,1}; /* console 
 
 static void print_help_message (const char *message,int flags)
 {
-	grub_u32_t j,x;
+	grub_u32_t j,x,k;
 	grub_u8_t c = *message;
 
 	if (flags==2)	
 	{
-		for (j=1; j<3; ++j)
+		for (j=0; j<current_term->max_lines - MENU_BOX_B - 4; ++j)
 		{
-			gotoxy (menu_border.menu_help_x, MENU_BOX_B + j);
+			gotoxy (MENU_BOX_X, MENU_BOX_B + j);
 			for (x = 0; x < current_term->chars_per_line; x++)
 				grub_putchar (' ', 255);
 		}
 	}
 	else
 	{
-		for (j=(flags ? 1 : 3); j<(flags ? 3 : 6); ++j)
+		if(flags==0)
+			k = 4;
+		else
+			k = current_term->max_lines - MENU_BOX_B - 4 + (menu_tab&0x10)/4;
+
+		for (j=0; j<k; ++j)
 		{
-			if (c == '\n')
-				c = *(++message);
-			gotoxy (menu_border.menu_help_x, MENU_BOX_B + j);
-			for (; fontx <= MENU_BOX_E;)
-			{
-				if (c && c != '\n')
-				{
-					grub_putchar (c, 255);
+			if(flags==0 && (menu_tab&0x10)==0)
+				gotoxy (menu_border.menu_help_x, current_term->max_lines - 4 + j);
+			else if(flags==1)
+				gotoxy (MENU_BOX_X, MENU_BOX_B + j);
+
+			if(flags==1 || (flags==0 && (menu_tab&0x10)==0))
+ 			{
+				if (c == '\n')
 					c = *(++message);
+				for (; fontx <= MENU_BOX_E;)
+				{
+					if (c && c != '\n')
+					{
+						grub_putchar (c, 255);
+						c = *(++message);
+					}
+					else
+						grub_putchar (' ', 255);
 				}
-				else
+				for (x = fontx; x < current_term->chars_per_line/* - 1*/; x++)
 					grub_putchar (' ', 255);
 			}
-			for (x = fontx; x < current_term->chars_per_line/* - 1*/; x++)
-				grub_putchar (' ', 255);
 		}
 	}
 }
@@ -146,7 +158,7 @@ static void
 print_default_help_message (char *config_entries)
 {
 	grub_u32_t	i;
-	char		buff[256];
+	char		buff[512];
 
 if (menu_tab & 0x20)
 		i = grub_sprintf (buff,"\n用 %c 和 %c 键选择菜单。",
@@ -177,7 +189,8 @@ if (menu_tab & 0x20)
 			"Press \'e\' to edit the commands before booting, or \'c\' for a command-line.")
 			:(" At a selected line, press \'e\' to edit, \'d\' to delete,\n"
 			"or \'O\'/\'o\' to open a new line before/after.\n"
-			"When done, press \'b\' to boot, \'c\' for a command-line, or ESC to go back to the main menu.")));
+			"When done, press \'b\' to boot, \'c\' for a command-line, or ESC to go back to the main menu."
+			"                                                                                ")));
 	}
 	print_help_message(buff,0);
 }
@@ -331,7 +344,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   if (highlight && ((config_entries == (char*)titles)))
   {
 	if (current_term->setcolorstate)
-	    current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+	    current_term->setcolorstate (COLOR_STATE_NOTES);
 	
 	while (c && c != '\n')
 		c = *(++entry);
