@@ -50,7 +50,7 @@ static unsigned char *VSHADOW8 = (unsigned char *)0x3CBF20;	//unsigned char VSHA
 //static unsigned short text[80 * 30];
 static unsigned long *text = (unsigned long *)0x3FC000; // length in bytes = 100*37*4 = 0x39D0
 
-extern unsigned long splashimage_loaded;
+//extern unsigned long splashimage_loaded;
 
 /* constants to define the viewable area */
 unsigned long x1 = 80;

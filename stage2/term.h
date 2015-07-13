@@ -36,10 +36,10 @@ typedef enum
   COLOR_STATE_HELPTEXT,
   /* represents the user defined colors for heading line */
   COLOR_STATE_HEADING,
-  /* represents the user defined colors for border */
-  COLOR_STATE_BORDER,
   /* represents the user defined colors for notes */
   COLOR_STATE_NOTES,
+  /* represents the user defined colors for border */
+  COLOR_STATE_BORDER,
   /*Number of user defined colors*/
   COLOR_STATE_MAX
 } color_state;

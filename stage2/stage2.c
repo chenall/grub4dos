@@ -80,6 +80,7 @@ lzma:
 
 /* window bottom */
 #define MENU_BOX_B	(MENU_BOX_Y + MENU_BOX_H + 1)
+#define MENU_HELP_Y	((menu_border.menu_help_y && menu_border.menu_help_y < current_term->max_lines - 4)?menu_border.menu_help_y:(current_term->max_lines - 4))
 
 static long temp_entryno;
 static short temp_num;
@@ -100,9 +101,10 @@ static unsigned short *title_boot;
 	unsigned char menu_box_h;
 	unsigned char menu_box_b;
 	unsigned char border_w;
-	unsigned char menu_help_x
+	unsigned char menu_help_x;
+	unsigned char menu_help_y;
 */
-struct border menu_border = {218,191,192,217,196,179,2,0,4,0,0,2,1}; /* console */
+struct border menu_border = {218,191,192,217,196,179,2,0,4,0,0,2,1,0}; /* console */
 //struct border menu_border = {20,21,22,19,15,14,2,0,2,0,0}; /* graphics */
 
 static void print_help_message (const char *message,int flags)
@@ -112,7 +114,7 @@ static void print_help_message (const char *message,int flags)
 
 	if (flags==2)	
 	{
-		for (j=0; j<current_term->max_lines - MENU_BOX_B - 4; ++j)
+		for (j=0; j<MENU_HELP_Y - MENU_BOX_B + (menu_tab&0x10)/4; ++j)
 		{
 			gotoxy (MENU_BOX_X, MENU_BOX_B + j);
 			for (x = 0; x < current_term->chars_per_line; x++)
@@ -124,12 +126,12 @@ static void print_help_message (const char *message,int flags)
 		if(flags==0)
 			k = 4;
 		else
-			k = current_term->max_lines - MENU_BOX_B - 4 + (menu_tab&0x10)/4;
+			k = MENU_HELP_Y - MENU_BOX_B + (menu_tab&0x10)/4;
 
 		for (j=0; j<k; ++j)
 		{
 			if(flags==0 && (menu_tab&0x10)==0)
-				gotoxy (menu_border.menu_help_x, current_term->max_lines - 4 + j);
+				gotoxy (menu_border.menu_help_x, MENU_HELP_Y + j);
 			else if(flags==1)
 				gotoxy (MENU_BOX_X, MENU_BOX_B + j);
 
@@ -332,8 +334,11 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 	}
       else
 	{
-		//ret = grub_putchar (' ', ret);
-		//if ((long)ret < 0)
+		if((splashimage_loaded & 0xf)!=2 || graphics_mode < 0xff)
+			if (current_term->setcolorstate)
+				current_term->setcolorstate (COLOR_STATE_NORMAL);
+		ret = grub_putchar (' ', ret);
+		if ((long)ret < 0)
 			break;
 		//grub_putchar (' ', ret);
 	}

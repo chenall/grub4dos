@@ -478,6 +478,7 @@ extern unsigned long font_spacing;
 extern unsigned long line_spacing;
 extern void rectangle(int left, int top, int length, int width, int line);
 extern int hex (int v);
+extern unsigned long splashimage_loaded;
 #define MENU_TITLE					0x3A8000
 #define MENU_TITLE_LENGTH		0x800
 /* The Chinese patch will begin at here */
@@ -726,6 +727,7 @@ struct border {
 	unsigned char menu_box_b;
 	unsigned char border_w;
 	unsigned char menu_help_x;
+	unsigned char menu_help_y;
 } __attribute__ ((packed));
 
 extern struct border menu_border;

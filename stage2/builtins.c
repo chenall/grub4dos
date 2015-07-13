@@ -3264,6 +3264,11 @@ color_func (char *arg, int flags)
 		}
 		state |= 1<<state_t;
 	}
+	if((state&(1<<COLOR_STATE_NOTES))==0)
+	{
+		state |= 1<<COLOR_STATE_NOTES;
+		new_color[COLOR_STATE_NOTES] = new_color[COLOR_STATE_HELPTEXT];
+	}
 	current_term->setcolor (state,new_color);
 	errnum = 0;
 	return 1;
@@ -3278,7 +3283,7 @@ color_func (char *arg, int flags)
   if (new_normal_color >> 8)	/* disable blinking */
 	blinking = 0;
 
-  new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[COLOR_STATE_NORMAL] = new_normal_color;
+  new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[COLOR_STATE_NORMAL] = new_color[COLOR_STATE_NOTES] = new_normal_color;
 
   /* The second argument is optional, so set highlight_color
      to inverted NORMAL_COLOR.  */
@@ -3292,13 +3297,18 @@ color_func (char *arg, int flags)
   else
 	{
 		int i;
-		for (i=COLOR_STATE_HIGHLIGHT;i<=COLOR_STATE_HEADING && *arg;++i)
+		for (i=COLOR_STATE_HIGHLIGHT;i<=COLOR_STATE_NOTES && *arg;++i)
 		{
 			normal = arg;
 			arg = skip_to (0, arg);
 			new_color[i] = (unsigned long long)(long long)color_number (normal);
 			if (((int)new_color[i] < 0) && ! safe_parse_maxint (&normal, &new_color[i]))
 			{
+				if(i==COLOR_STATE_NOTES)
+				{
+					new_color[i] = new_color[i-2];
+					break;
+				}
 				return 0;
 			}
 			/*comment by chenall 2011-11-30 why do this? I think not need.*/
@@ -3319,7 +3329,7 @@ color_func (char *arg, int flags)
     (1<<COLOR_STATE_HELPTEXT) |
     (1<<COLOR_STATE_HEADING
    */
-  current_term->setcolor (0x1E,new_color);
+  current_term->setcolor (0x3E,new_color);
 
   return 1;
 }
@@ -15343,7 +15353,7 @@ setmenu_func(char *arg, int flags)
 				arg++;
 			arg++;
 			p1 = p + i*0x108 + 8;
-			for (; *arg && *arg != '\n' && *arg != '\r' && *arg != '-'; p1++,arg++)
+			for (; *arg && *arg != '\n' && *arg != '\r' && (*arg != '-' || *(arg+1) != '-'); p1++,arg++)
 				*p1 = *arg;
 			*p1 = 0;
 			menu_tab |= 0x40;
@@ -15461,6 +15471,9 @@ setmenu_func(char *arg, int flags)
 			arg += 7;
 			if (safe_parse_maxint (&arg, &val))
 				menu_border.menu_help_x = val;
+			arg = skip_to (1, arg);
+			if (safe_parse_maxint (&arg, &val))
+				menu_border.menu_help_y = val;
 		}
 		else
 			return 0;
@@ -15482,7 +15495,7 @@ static struct builtin builtin_setmenu =
   "--ver-on --ver-off --help-on --help-off\n"
 	"--lang=en --lang=zh --auto-num --u\n"
 	"--font-spacing=[s] --line-spacing=[s]\n"
-  "--title=[x]=[y]=[title] --help=[x]\n"
+  "--title=[x]=[y]=[title] --help=[x]=[y]\n"
   "--box x=[x] y=[y] w=[w] h=[h] l=[l]\n"
 	"Note: [w]=0 in the middle. [l]=0 no display border."
 };
