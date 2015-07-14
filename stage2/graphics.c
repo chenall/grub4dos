@@ -920,12 +920,16 @@ static int read_image_bmp(int type)
 		for(x=0;x<bmih.biWidth;++x)
 		{
 			grub_read((unsigned long long)(unsigned int)(char*)&bftmp,bfbit, GRUB_READ);
-			bmp = (unsigned char *)SPLASH_IMAGE+x*current_bytes_per_pixel+y*current_bytes_per_scanline;
-			if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
-//				bmp[x] = bftmp;
-				*(unsigned long *)bmp = bftmp;
-			else
-				*(unsigned short *)bmp = (unsigned short)pixel_shift(bftmp);
+			if(y < SPLASH_H && x < SPLASH_W)
+				if(y < current_y_resolution && x < current_x_resolution)
+				{
+					bmp = (unsigned char *)SPLASH_IMAGE+x*current_bytes_per_pixel+y*current_bytes_per_scanline;
+					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+//				bmp[x] = bftmp;		//
+						*(unsigned long *)bmp = bftmp;
+					else
+						*(unsigned short *)bmp = (unsigned short)pixel_shift(bftmp);
+				}
 		}
 	}
 	return 2;
