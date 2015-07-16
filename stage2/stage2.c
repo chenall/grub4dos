@@ -81,6 +81,7 @@ lzma:
 /* window bottom */
 #define MENU_BOX_B	(MENU_BOX_Y + MENU_BOX_H + 1)
 #define MENU_HELP_Y	((menu_border.menu_help_y && menu_border.menu_help_y < current_term->max_lines - 4)?menu_border.menu_help_y:(current_term->max_lines - 4))
+#define MENU_NOTES_Y (menu_border.menu_notes_y?menu_border.menu_notes_y:(MENU_HELP_Y - menu_border.num_line_notes))
 
 static long temp_entryno;
 static short temp_num;
@@ -103,8 +104,11 @@ static unsigned short *title_boot;
 	unsigned char border_w;
 	unsigned char menu_help_x;
 	unsigned char menu_help_y;
+	unsigned char menu_notes_x;
+	unsigned char menu_notes_y;
+	unsigned char num_line_notes;
 */
-struct border menu_border = {218,191,192,217,196,179,2,0,4,0,0,2,1,0}; /* console */
+struct border menu_border = {218,191,192,217,196,179,2,0,4,0,0,2,1,0,1,0,1}; /* console */
 //struct border menu_border = {20,21,22,19,15,14,2,0,2,0,0}; /* graphics */
 
 static void print_help_message (const char *message,int flags)
@@ -114,9 +118,9 @@ static void print_help_message (const char *message,int flags)
 
 	if (flags==2)	
 	{
-		for (j=0; j<MENU_HELP_Y - MENU_BOX_B + (menu_tab&0x10)/4; ++j)
+		for (j=0; j<menu_border.num_line_notes; ++j)
 		{
-			gotoxy (MENU_BOX_X, MENU_BOX_B + j);
+			gotoxy (menu_border.menu_notes_x, MENU_NOTES_Y + j);
 			for (x = 0; x < current_term->chars_per_line; x++)
 				grub_putchar (' ', 255);
 		}
@@ -126,20 +130,20 @@ static void print_help_message (const char *message,int flags)
 		if(flags==0)
 			k = 4;
 		else
-			k = MENU_HELP_Y - MENU_BOX_B + (menu_tab&0x10)/4;
+			k = menu_border.num_line_notes;
 
 		for (j=0; j<k; ++j)
 		{
-			if(flags==0 && (menu_tab&0x10)==0)
+			if(flags==0)
 				gotoxy (menu_border.menu_help_x, MENU_HELP_Y + j);
 			else if(flags==1)
-				gotoxy (MENU_BOX_X, MENU_BOX_B + j);
+				gotoxy (menu_border.menu_notes_x, MENU_NOTES_Y + j);
 
 			if(flags==1 || (flags==0 && (menu_tab&0x10)==0))
- 			{
+			{
 				if (c == '\n')
 					c = *(++message);
-				for (; fontx <= MENU_BOX_E;)
+				for (; fontx <= (flags?(current_term->chars_per_line - menu_border.menu_notes_x):(current_term->chars_per_line - menu_border.menu_help_x));)
 				{
 					if (c && c != '\n')
 					{
@@ -160,7 +164,7 @@ static void
 print_default_help_message (char *config_entries)
 {
 	grub_u32_t	i;
-	char		buff[512];
+	char		buff[256];
 
 if (menu_tab & 0x20)
 		i = grub_sprintf (buff,"\n用 %c 和 %c 键选择菜单。",
@@ -191,8 +195,8 @@ if (menu_tab & 0x20)
 			"Press \'e\' to edit the commands before booting, or \'c\' for a command-line.")
 			:(" At a selected line, press \'e\' to edit, \'d\' to delete,\n"
 			"or \'O\'/\'o\' to open a new line before/after.\n"
-			"When done, press \'b\' to boot, \'c\' for a command-line, or ESC to go back to the main menu."
-			"                                                                                ")));
+			"When done, press \'b\' to boot, \'c\' for a command-line,\n"
+			"or ESC to go back to the main menu.")));
 	}
 	print_help_message(buff,0);
 }
@@ -690,15 +694,26 @@ restart1:
 				unsigned char i,j;
 			
 				i = menu_tab & 0xf;
-				if (current_term->setcolorstate)
-					current_term->setcolorstate (COLOR_STATE_HEADING);
+				unsigned long long col = current_color_64bit;
 				for (j=0; j<i;j++)
 				{
-					gotoxy (*(unsigned long *)(p + j*0x108), *(unsigned long *)(p + j*0x108 + 4));
-					grub_printf("%-*.*s",current_term->chars_per_line,current_term->chars_per_line,p + j*0x108 + 8);
+					gotoxy (*(unsigned long *)(p + j*0x10c), *(unsigned long *)(p + j*0x10c + 4));
+					if((current_color_64bit = *(unsigned long *)(p + j*0x10c + 8)) == 0xffffffff)
+					{
+						if(*(unsigned long *)(p + j*0x10c + 4) < MENU_BOX_Y)
+						{
+							if (current_term->setcolorstate)
+								current_term->setcolorstate (COLOR_STATE_HEADING);
+						}
+						else if(*(unsigned long *)(p + j*0x10c + 4) >= MENU_BOX_B)
+						{
+							if (current_term->setcolorstate)
+								current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+						}
+					}	
+					grub_printf("%-*.*s",current_term->chars_per_line,current_term->chars_per_line,p + j*0x10c + 0xc);
 				}
-				if (current_term->setcolorstate)
-					current_term->setcolorstate (COLOR_STATE_STANDARD);
+				current_color_64bit = col;
 			}
 			
       if (current_term->flags & TERM_DUMB)

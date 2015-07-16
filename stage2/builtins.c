@@ -15330,30 +15330,29 @@ setmenu_func(char *arg, int flags)
 	char *p = (char *)MENU_TITLE;
 	char *tem;
 	unsigned long long val;
-	struct border tmp_broder = {218,191,192,217,196,179,2,0,4,0,0,2,1};
+	struct border tmp_broder = {218,191,192,217,196,179,2,0,4,0,0,2,1,0,1,0,1};
 
 	for (; *arg && *arg != '\n' && *arg != '\r';)  
 	{
-		if (grub_memcmp (arg, "--title=", 8) == 0)
+		if (grub_memcmp (arg, "--string=", 9) == 0)
 		{
 			unsigned char i;
 			char *p1;
 			i = menu_tab & 0xf;
-			arg += 8;
+			arg += 9;
 			if (safe_parse_maxint (&arg, &val))
-				*(unsigned long *)(p + i*0x108) = val;
-			else
-				*(unsigned long *)(p + i*0x108) = 2;
-			arg = skip_to (1, arg);
-			if (safe_parse_maxint (&arg, &val))
-				*(unsigned long *)(p + i*0x108 + 4) = val;
-			else
-				*(unsigned long *)(p + i*0x108 + 4) = 3;
-			while (*arg != '=')
-				arg++;
+				*(unsigned long *)(p + i*0x10c) = val;			//x
 			arg++;
-			p1 = p + i*0x108 + 8;
-			for (; *arg && *arg != '\n' && *arg != '\r' && (*arg != '-' || *(arg+1) != '-'); p1++,arg++)
+			if (safe_parse_maxint (&arg, &val))
+				*(unsigned long *)(p + i*0x10c + 4) = val;	//y
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				*(unsigned long *)(p + i*0x10c + 8) = val;	//color
+			else
+				*(unsigned long *)(p + i*0x10c + 8) = -1;		
+			arg += 2;
+			p1 = p + i*0x10c + 0xc;
+			for (; *arg && *arg != '"'; p1++,arg++)
 				*p1 = *arg;
 			*p1 = 0;
 			menu_tab |= 0x40;
@@ -15471,9 +15470,21 @@ setmenu_func(char *arg, int flags)
 			arg += 7;
 			if (safe_parse_maxint (&arg, &val))
 				menu_border.menu_help_x = val;
-			arg = skip_to (1, arg);
+			arg++;
 			if (safe_parse_maxint (&arg, &val))
 				menu_border.menu_help_y = val;
+		}
+		else if (grub_memcmp (arg, "--notes=", 8) == 0)	//--menu-help=x=y
+		{
+			arg += 8;
+			if (safe_parse_maxint (&arg, &val))
+				menu_border.menu_notes_x = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				menu_border.menu_notes_y = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				menu_border.num_line_notes = val;
 		}
 		else
 			return 0;
@@ -15495,7 +15506,8 @@ static struct builtin builtin_setmenu =
   "--ver-on --ver-off --help-on --help-off\n"
 	"--lang=en --lang=zh --auto-num --u\n"
 	"--font-spacing=[s] --line-spacing=[s]\n"
-  "--title=[x]=[y]=[title] --help=[x]=[y]\n"
+  "string=[x]=[y]=[color]=[\"string\"]\n"
+	"--notes=[x]=[y]=[line] --help=[x]=[y]\n"
   "--box x=[x] y=[y] w=[w] h=[h] l=[l]\n"
 	"Note: [w]=0 in the middle. [l]=0 no display border."
 };

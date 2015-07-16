@@ -728,6 +728,9 @@ struct border {
 	unsigned char border_w;
 	unsigned char menu_help_x;
 	unsigned char menu_help_y;
+	unsigned char menu_notes_x;
+	unsigned char menu_notes_y;
+	unsigned char num_line_notes;
 } __attribute__ ((packed));
 
 extern struct border menu_border;
