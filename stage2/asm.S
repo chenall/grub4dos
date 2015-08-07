@@ -9611,7 +9611,7 @@ Define_disk_No:
 
 	call Get_dri
 	movw %si, %bx	
-	cmpb $5, (_type - USB2DRI)
+	cmpb $5, %cs:(_type - USB2DRI)
 	jne 1f
 							
 	cmpb $0x90, %dl
