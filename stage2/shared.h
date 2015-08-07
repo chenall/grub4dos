@@ -727,10 +727,8 @@ struct border {
 	unsigned char menu_box_b;
 	unsigned char border_w;
 	unsigned char menu_help_x;
-	unsigned char menu_help_y;
-	unsigned char menu_notes_x;
-	unsigned char menu_notes_y;
-	unsigned char num_line_notes;
+	unsigned char menu_help_w;
+	unsigned char menu_keyhelp_y_offset;
 } __attribute__ ((packed));
 
 extern struct border menu_border;
@@ -756,8 +754,14 @@ extern unsigned long free_mem_start;
 extern unsigned long free_mem_end;
 
 extern unsigned char menu_tab;
+extern unsigned char num_string;
 extern unsigned char menu_font_spacing;
 extern unsigned char menu_line_spacing;
+extern int password_x;
+extern unsigned char timeout_x;
+extern unsigned char timeout_y;
+extern unsigned long long timeout_color;
+extern unsigned long long keyhelp_color;
 
 #ifdef SUPPORT_GRAPHICS
 extern unsigned long current_x_resolution;

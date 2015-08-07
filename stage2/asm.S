@@ -285,7 +285,7 @@ VARIABLE(addr_system_functions)
 VARIABLE(addr_system_variables)
 	.long	ABS(EXT_C(system_variables))
 VARIABLE(menu_cfg) /*char menu_cfg[]*/
-	.long 0x10
+	.long 0x1110
 VARIABLE(iso_types)/*char iso_types*/
 	.byte 0xff
 	. = EXT_C(main) + 0x110

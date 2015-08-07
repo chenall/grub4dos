@@ -3247,10 +3247,6 @@ color_func (char *arg, int flags)
 		{
 			state_t = COLOR_STATE_BORDER;
 		}
-		else if (memcmp(arg,"notes",5) == 0)
-		{
-			state_t = COLOR_STATE_NOTES;
-		}
 		else
 			return 0;
 		normal = skip_to(1,arg);
@@ -3264,11 +3260,6 @@ color_func (char *arg, int flags)
 		}
 		state |= 1<<state_t;
 	}
-	if((state&(1<<COLOR_STATE_NOTES))==0)
-	{
-		state |= 1<<COLOR_STATE_NOTES;
-		new_color[COLOR_STATE_NOTES] = new_color[COLOR_STATE_HELPTEXT];
-	}
 	current_term->setcolor (state,new_color);
 	errnum = 0;
 	return 1;
@@ -3281,9 +3272,9 @@ color_func (char *arg, int flags)
 	}
 
   if (new_normal_color >> 8)	/* disable blinking */
-	blinking = 0;
 
-  new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[COLOR_STATE_NORMAL] = new_color[COLOR_STATE_NOTES] = new_normal_color;
+	blinking = 0;
+  new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[COLOR_STATE_NORMAL] = new_normal_color;
 
   /* The second argument is optional, so set highlight_color
      to inverted NORMAL_COLOR.  */
@@ -3297,20 +3288,13 @@ color_func (char *arg, int flags)
   else
 	{
 		int i;
-		for (i=COLOR_STATE_HIGHLIGHT;i<=COLOR_STATE_NOTES && *arg;++i)
+		for (i=COLOR_STATE_HIGHLIGHT;i<=COLOR_STATE_HEADING && *arg;++i)
 		{
 			normal = arg;
 			arg = skip_to (0, arg);
 			new_color[i] = (unsigned long long)(long long)color_number (normal);
 			if (((int)new_color[i] < 0) && ! safe_parse_maxint (&normal, &new_color[i]))
-			{
-				if(i==COLOR_STATE_NOTES)
-				{
-					new_color[i] = new_color[i-2];
-					break;
-				}
 				return 0;
-			}
 			/*comment by chenall 2011-11-30 why do this? I think not need.*/
 			//if (new_color[i] & 0xff00)	/* disable blinking */
 			//{
@@ -3329,7 +3313,7 @@ color_func (char *arg, int flags)
     (1<<COLOR_STATE_HELPTEXT) |
     (1<<COLOR_STATE_HEADING
    */
-  current_term->setcolor (0x3E,new_color);
+  current_term->setcolor (0x1E,new_color);
 
   return 1;
 }
@@ -3339,13 +3323,12 @@ static struct builtin builtin_color =
   "color",
   color_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
-  "color NORMAL [HIGHLIGHT [HELPTEXT [HEADING [NOTES]]]]\n",
+  "color NORMAL [HIGHLIGHT [HELPTEXT [HEADING ]]]\n",
   "Change the menu colors. The color NORMAL is used for most"
   " lines in the menu, and the color HIGHLIGHT is used to highlight the"
   " line where the cursor points. If you omit HIGHLIGHT, then the"
   " inverted color of NORMAL is used for the highlighted line. If you"
   " omit HELPTEXT and/or HEADING, then NORMAL is used."
-	" NOTES the color of the notes for the menu item."
   " The format of a color is \"FG/BG\". FG and BG are symbolic color names."
   " A symbolic color name must be one of these: black, blue, green,"
   " cyan, red, magenta, brown, light-gray, dark-gray, light-blue,"
@@ -13201,11 +13184,13 @@ terminal_func (char *arg, int flags)
 		if (! safe_parse_maxint (&arg, &lines))
 			return 0;
 		font_spacing = (unsigned char)lines;
+		menu_font_spacing = (unsigned char)lines;
 		if (*arg++ == ':')
 		{
 			if (! safe_parse_maxint (&arg, &lines))
 				return 0;
 			line_spacing = (unsigned char)lines;
+			menu_line_spacing = (unsigned char)lines;
 		}
 		if (graphics_inited && graphics_mode > 0xFF)
 		{
@@ -15320,9 +15305,14 @@ static struct builtin builtin_setlocal =
 };
 
 
-unsigned char menu_tab = 0x80;
+unsigned char menu_tab = 0;
+unsigned char num_string = 0;
 unsigned char menu_font_spacing = 0;
 unsigned char menu_line_spacing = 0;
+unsigned char timeout_x = 0;
+unsigned char timeout_y = 0;
+unsigned long long timeout_color = 0;
+unsigned long long keyhelp_color = 0;
 
 static int
 setmenu_func(char *arg, int flags)
@@ -15330,7 +15320,7 @@ setmenu_func(char *arg, int flags)
 	char *p = (char *)MENU_TITLE;
 	char *tem;
 	unsigned long long val;
-	struct border tmp_broder = {218,191,192,217,196,179,2,0,4,0,0,2,1,0,1,0,1};
+	struct border tmp_broder = {218,191,192,217,196,179,2,0,2,0,0,2,0,0,0};
 
 	for (; *arg && *arg != '\n' && *arg != '\r';)  
 	{
@@ -15338,7 +15328,7 @@ setmenu_func(char *arg, int flags)
 		{
 			unsigned char i;
 			char *p1;
-			i = menu_tab & 0xf;
+			i = num_string;
 			arg += 9;
 			if (safe_parse_maxint (&arg, &val))
 				*(unsigned long *)(p + i*0x10c) = val;			//x
@@ -15355,15 +15345,24 @@ setmenu_func(char *arg, int flags)
 			for (; *arg && *arg != '"'; p1++,arg++)
 				*p1 = *arg;
 			*p1 = 0;
-			menu_tab |= 0x40;
-			menu_tab++;
+			num_string++;		
+    }
+		else if (grub_memcmp (arg, "--timeout=", 10) == 0)
+		{
+			arg += 10;
+			if (safe_parse_maxint (&arg, &val))
+				timeout_x = val;			//x
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				timeout_y = val;	//y
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				timeout_color = val;	//color
     }
 		else if (grub_memcmp (arg, "--u", 3) == 0)
 		{
-			menu_tab &= 0xbf;
-			menu_tab |= 0x80;
-			menu_tab &= 0xdf;
-			menu_tab &= 0xef;
+			menu_tab = 0;
+			num_string = 0;
 			menu_font_spacing = 0;
 			menu_line_spacing = 0;
 			font_spacing = 0;
@@ -15376,12 +15375,12 @@ setmenu_func(char *arg, int flags)
 		}
     else if (grub_memcmp (arg, "--ver-on", 8) == 0)
 		{
-			menu_tab |= 0x80;
+			menu_tab &= 0x7f;
 			arg += 8;
 		}
 		else if (grub_memcmp (arg, "--ver-off", 9) == 0)
 		{
-			menu_tab &= 0x7f;
+			menu_tab |= 0x80;
 			arg += 9;
 		}
 		else if (grub_memcmp (arg, "--lang=en", 9) == 0)
@@ -15394,15 +15393,15 @@ setmenu_func(char *arg, int flags)
 			menu_tab |= 0x20;
 			arg += 9;
 		}
-		else if (grub_memcmp (arg, "--help-on", 9) == 0)
+		else if (grub_memcmp (arg, "--left-align", 12) == 0)
 		{
-			menu_tab &= 0xef;
-			arg += 9;
+			menu_tab &= 0xbf;
+			arg += 12;
 		}
-		else if (grub_memcmp (arg, "--help-off", 10) == 0)
+		else if (grub_memcmp (arg, "--right-align", 13) == 0)
 		{
-			menu_tab |= 0x10;
-			arg += 10;
+			menu_tab |= 0x40;
+			arg += 13;
 		}
 		else if (grub_memcmp (arg, "--box", 5) == 0)
 		{
@@ -15439,52 +15438,57 @@ setmenu_func(char *arg, int flags)
 					}
 				}
 				arg = tem;
-				arg++;
 				while (*arg == ' ' || *arg == '\t')
 					arg++;
 			}
 		}
-		else if (grub_memcmp (arg, "--auto-num", 10) == 0)
+		else if (grub_memcmp (arg, "--auto-num-on", 13) == 0)
 		{
 			*(unsigned char *)0x8274 = 1;
-			arg += 10;
+			arg += 13;
 		}
-		else if (grub_memcmp (arg, "--line-spacing=", 15) == 0)
+		else if (grub_memcmp (arg, "--auto-num-off", 14) == 0)
 		{
-			arg += 15;
-			safe_parse_maxint (&arg, &val);
-			menu_line_spacing = val;
-			line_spacing = val;
-			current_term->max_lines = current_y_resolution / (font_h + line_spacing);
+			*(unsigned char *)0x8274 = 0;
+			arg += 14;
 		}
 		else if (grub_memcmp (arg, "--font-spacing=", 15) == 0)
 		{
 			arg += 15;
-			safe_parse_maxint (&arg, &val);
-			menu_font_spacing = val;
-			font_spacing = val;
-			current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
+			if(safe_parse_maxint (&arg, &val))
+			{
+				menu_font_spacing = val;
+				font_spacing = val;
+				current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
+			}
+			arg++;
+			if(safe_parse_maxint (&arg, &val))
+			{
+				menu_line_spacing = val;
+				line_spacing = val;
+				current_term->max_lines = current_y_resolution / (font_h + line_spacing);
+			}	
 		}
-		else if (grub_memcmp (arg, "--help=", 7) == 0)	//--menu-help=x=y
+		else if (grub_memcmp (arg, "--keyhelp=", 10) == 0)	//--keyhelp=y_offset=color
+		{
+			arg += 10;
+			if (safe_parse_maxint (&arg, &val))
+				menu_border.menu_keyhelp_y_offset = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				keyhelp_color = val;
+		}
+		else if (grub_memcmp (arg, "--help=", 7) == 0)	//--help=x=w=y
 		{
 			arg += 7;
 			if (safe_parse_maxint (&arg, &val))
 				menu_border.menu_help_x = val;
 			arg++;
 			if (safe_parse_maxint (&arg, &val))
-				menu_border.menu_help_y = val;
-		}
-		else if (grub_memcmp (arg, "--notes=", 8) == 0)	//--menu-help=x=y
-		{
-			arg += 8;
-			if (safe_parse_maxint (&arg, &val))
-				menu_border.menu_notes_x = val;
+				menu_border.menu_help_w = val;
 			arg++;
 			if (safe_parse_maxint (&arg, &val))
-				menu_border.menu_notes_y = val;
-			arg++;
-			if (safe_parse_maxint (&arg, &val))
-				menu_border.num_line_notes = val;
+				menu_border.menu_box_b = val;								//y
 		}
 		else
 			return 0;
@@ -15503,13 +15507,21 @@ static struct builtin builtin_setmenu =
   setmenu_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
   "setmenu --parameter | --parameter | ... ",
-  "--ver-on --ver-off --help-on --help-off\n"
-	"--lang=en --lang=zh --auto-num --u\n"
-	"--font-spacing=[s] --line-spacing=[s]\n"
-  "string=[x]=[y]=[color]=[\"string\"]\n"
-	"--notes=[x]=[y]=[line] --help=[x]=[y]\n"
+  "--ver-on* --ver-off --lang=en* --lang=zh --u\n"
+	"--left-align* --right-align --auto-num-off* --auto-num-on\n"
+  "--font-spacing=[font]:[line]. default 0\n"
+  "--string=[x]=[y]=[color]=[\"string\"]\n"
   "--box x=[x] y=[y] w=[w] h=[h] l=[l]\n"
-	"Note: [w]=0 in the middle. [l]=0 no display border."
+  "Note: [w]=0 in the middle. [l]=0 no display border\n"
+  "--help=[x]=[w]=[y]\n"
+	"Note: [x]=0* determine by the border. [w]=0 in the middle.\n"
+	"--keyhelp=[y_offset]=[color]\n"
+	"Note: [y_offset]=0* entryhelp and keyhelp in the same area,entryhelp cover keyhelp.\n"
+	"      [y_offset]!=0 keyhelp to entryhelp line offset.two coexist.\n"
+	"      [y_offset]<=4, entryhelp display line number.\n"
+	"      [color] default 'color helptext'.\n"
+	"--timeout=[x]=[y]=[color]\n"
+	"* indicates default"
 };
 
 

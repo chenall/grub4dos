@@ -68,27 +68,29 @@ lzma:
   return grub_read ((unsigned long long)(unsigned int)buf, max_len, 0xedde0d90);
 }
 
-#define MENU_BOX_X	(menu_border.menu_box_x > 2 ? menu_border.menu_box_x : 2)
+#define MENU_BOX_X	((menu_border.menu_box_x > 2) ? menu_border.menu_box_x : 2)
 //#define MENU_BOX_W	(menu_border.menu_box_w)
 //#define MENU_BOX_W	(menu_border.menu_box_w ? menu_border.menu_box_w : current_term->chars_per_line - 4)
-#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < current_term->chars_per_line - MENU_BOX_X - 1) ? menu_border.menu_box_w : current_term->chars_per_line - MENU_BOX_X - 1)
+#define MENU_BOX_W	(menu_border.menu_box_w ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X - 1))
 #define MENU_BOX_Y	(menu_border.menu_box_y)
 /* window height */
-#define MENU_BOX_H	((menu_border.menu_box_h && menu_border.menu_box_h < current_term->max_lines - MENU_BOX_Y - 6)?menu_border.menu_box_h:(current_term->max_lines - MENU_BOX_Y - 6))
+#define MENU_BOX_H	(menu_border.menu_box_h ? menu_border.menu_box_h : (current_term->max_lines - MENU_BOX_Y - 6))
 /* line end */
 #define MENU_BOX_E	(MENU_BOX_X + MENU_BOX_W)
 
 /* window bottom */
-#define MENU_BOX_B	(MENU_BOX_Y + MENU_BOX_H + 1)
-#define MENU_HELP_Y	((menu_border.menu_help_y && menu_border.menu_help_y < current_term->max_lines - 4)?menu_border.menu_help_y:(current_term->max_lines - 4))
-#define MENU_NOTES_Y (menu_border.menu_notes_y?menu_border.menu_notes_y:(MENU_HELP_Y - menu_border.num_line_notes))
+#define MENU_BOX_B	(menu_border.menu_box_b?menu_border.menu_box_b:(current_term->max_lines - 6))
+#define MENU_HELP_X ((menu_border.menu_help_x && menu_border.menu_help_x < current_term->chars_per_line) ? menu_border.menu_help_x : (MENU_BOX_X - 2))
+#define MENU_HELP_E (menu_border.menu_help_x ? (menu_border.menu_help_w ? (menu_border.menu_help_x + menu_border.menu_help_w) : (current_term->chars_per_line - MENU_HELP_X)) : (MENU_BOX_E + 1))
+#define NUM_LINE_ENTRYHELP ((menu_border.menu_keyhelp_y_offset && menu_border.menu_keyhelp_y_offset < 5) ? menu_border.menu_keyhelp_y_offset : 4)
 
 static long temp_entryno;
 static short temp_num;
 static char * *titles;	/* title array, point to 256 strings. */
 extern int (*hotkey_func)(char *titles,int flags,int flags1);
 static unsigned short *title_boot;
-//static int default_help_message_destoyed = 1;
+static int default_help_message_destoyed = 1;
+static int num_text_char(char *p);
 /*
 	unsigned char disp_ul;
 	unsigned char disp_ur;
@@ -103,24 +105,23 @@ static unsigned short *title_boot;
 	unsigned char menu_box_b;
 	unsigned char border_w;
 	unsigned char menu_help_x;
-	unsigned char menu_help_y;
-	unsigned char menu_notes_x;
-	unsigned char menu_notes_y;
-	unsigned char num_line_notes;
+	unsigned char menu_help_w;
+	unsigned char menu_keyhelp_y_offset;
 */
-struct border menu_border = {218,191,192,217,196,179,2,0,4,0,0,2,1,0,1,0,1}; /* console */
+struct border menu_border = {218,191,192,217,196,179,2,0,2,0,0,2,0,0,0}; /* console */
 //struct border menu_border = {20,21,22,19,15,14,2,0,2,0,0}; /* graphics */
 
 static void print_help_message (const char *message,int flags)
 {
 	grub_u32_t j,x,k;
 	grub_u8_t c = *message;
+	int start_offcet = 0;
 
 	if (flags==2)	
 	{
-		for (j=0; j<menu_border.num_line_notes; ++j)
+		for (j=0; j<NUM_LINE_ENTRYHELP; ++j)
 		{
-			gotoxy (menu_border.menu_notes_x, MENU_NOTES_Y + j);
+			gotoxy (MENU_HELP_X, MENU_BOX_B + 1 + j);
 			for (x = 0; x < current_term->chars_per_line; x++)
 				grub_putchar (' ', 255);
 		}
@@ -130,22 +131,31 @@ static void print_help_message (const char *message,int flags)
 		if(flags==0)
 			k = 4;
 		else
-			k = menu_border.num_line_notes;
+			k = NUM_LINE_ENTRYHELP;
 
 		for (j=0; j<k; ++j)
 		{
 			if(flags==0)
-				gotoxy (menu_border.menu_help_x, MENU_HELP_Y + j);
+				gotoxy (MENU_HELP_X, MENU_BOX_B + 1 + menu_border.menu_keyhelp_y_offset + j);
 			else if(flags==1)
-				gotoxy (menu_border.menu_notes_x, MENU_NOTES_Y + j);
+				gotoxy (MENU_HELP_X, MENU_BOX_B + 1 + j);
 
-			if(flags==1 || (flags==0 && (menu_tab&0x10)==0))
+			if(flags==1 || flags==0)
 			{
 				if (c == '\n')
 					c = *(++message);
-				for (; fontx <= (flags?(current_term->chars_per_line - menu_border.menu_notes_x):(current_term->chars_per_line - menu_border.menu_help_x));)
+				
+				if((menu_tab & 0x40))
 				{
-					if (c && c != '\n')
+//					start_offcet = current_term->chars_per_line - MENU_HELP_X - num_text_char((char *)message);
+					start_offcet = MENU_HELP_E - num_text_char((char *)message);
+					if(start_offcet<MENU_HELP_X)
+						start_offcet=MENU_HELP_X;
+				}
+
+				for (; fontx < MENU_HELP_E;)
+				{
+					if (c && c != '\n' && fontx >= start_offcet)
 					{
 						grub_putchar (c, 255);
 						c = *(++message);
@@ -198,7 +208,10 @@ if (menu_tab & 0x20)
 			"When done, press \'b\' to boot, \'c\' for a command-line,\n"
 			"or ESC to go back to the main menu.")));
 	}
+	if(keyhelp_color)
+		current_color_64bit = keyhelp_color;
 	print_help_message(buff,0);
+	default_help_message_destoyed = 0;
 }
 
 
@@ -283,7 +296,37 @@ myatoi (void)
 
 // END OF STEVE6375 ADDED CODE
 
+static int
+num_text_char(char *p)
+{
+	int i=0;
+	unsigned long un16=0;
 
+	for(;*p && *p != '\n' && *p != '\r';)
+	{
+		if((*p & 0x80) == 0)
+		{
+			p++;
+			i++;
+			continue;
+		}else if((*p & 0xe0) == 0xc0)
+		{
+			p+=2;
+			i++;
+			continue;
+		}else if((*p & 0xf0) == 0xe0)
+		{
+			un16=(long)(*p & 0xf)<<12 | (long)(*(p+1) & 0x3f)<<6 | (long)(*(p+2) & 0x3f);
+			if(un16 >= 0x4e00 && un16 <= 0x9fff)
+				i+=2;
+			else
+				i++;
+			p+=3;
+		}
+	}
+
+	return i;
+}
 
 /* Print an entry in a line of the menu box.  */
 extern char menu_cfg[];
@@ -294,13 +337,27 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   int x;
   unsigned char c = 0;
   char *entry = get_entry (config_entries, entryno);
+	int start_offcet = 0;
+	int end_offcet = 0;
+	
   if (current_term->setcolorstate)
     current_term->setcolorstate (highlight ? COLOR_STATE_HIGHLIGHT : COLOR_STATE_NORMAL);
   
   is_highlight = highlight;
 
-  gotoxy (MENU_BOX_X - 1, y);
-  grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[0]) : ' ', 255);
+  if(!(menu_tab & 0x40))
+	{
+		gotoxy (MENU_BOX_X - 1, y);
+		grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[0]) : ' ', 255);
+	}
+	else
+	{
+		gotoxy (MENU_BOX_E - 1, y);
+		grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[1]) : ' ', 255);
+		end_offcet = 1;
+		gotoxy (MENU_BOX_E - 4, y);
+	}
+
   if (entry)
   {
 	if (config_entries == (char*)titles)
@@ -313,18 +370,35 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 			if (!(c & menu_num_ctrl[0]) || !*entry || *entry == '\n')
 				printf("   ");
 			else
-				printf("%2d%c",(menu_num_ctrl[0] > 1)?entryno:title_boot[entryno],menu_num_ctrl[1]);
+			{
+				if(!(menu_tab & 0x40))
+					printf("%2d%c",(menu_num_ctrl[0] > 1)?entryno:title_boot[entryno],menu_num_ctrl[1]);
+				else
+				{
+					printf("%c%2d",menu_num_ctrl[1],(menu_num_ctrl[0] > 1)?entryno:title_boot[entryno]);
+					end_offcet = 4;
+				}
+			}
 		}
 	}
 	c = *entry;
   }
 
-  for (x = MENU_BOX_X; x < MENU_BOX_E; x = fontx)
+	if((menu_tab & 0x40))
+	{
+		if(entry)
+			start_offcet = MENU_BOX_E - num_text_char(entry);
+		if(start_offcet < MENU_BOX_X)
+			start_offcet = MENU_BOX_X;
+		gotoxy (MENU_BOX_X, y);
+	}
+
+  for (x = fontx; x < MENU_BOX_E - end_offcet; x = fontx)
     {
       unsigned int ret;
 
-      ret = MENU_BOX_E - x;
-      if (c && c != '\n' /* && x <= MENU_BOX_W*/)
+      ret = MENU_BOX_E - x - end_offcet;
+      if (c && c != '\n' /* && x <= MENU_BOX_W*/ && x >= start_offcet - end_offcet)
 	{
 		
 		ret = grub_putchar ((unsigned char)c, ret);
@@ -357,21 +431,28 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   if (highlight && ((config_entries == (char*)titles)))
   {
 	if (current_term->setcolorstate)
-	    current_term->setcolorstate (COLOR_STATE_NOTES);
+	    current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 	
 	while (c && c != '\n')
 		c = *(++entry);
 
 	if (c == '\n')
 	{
-//		default_help_message_destoyed = 1;
+		default_help_message_destoyed = 1;
 		print_help_message(entry,1);
 	}
 //	else if (default_help_message_destoyed)
 	else
 	{
-//		print_default_help_message (config_entries);
-		print_help_message(entry,2);
+		if(!(menu_border.menu_keyhelp_y_offset))
+		{
+//			if (current_term->setcolorstate)
+//				current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+			if (default_help_message_destoyed)
+				print_default_help_message (config_entries);
+		}
+		else
+			print_help_message(entry,2);
 	}
   }
   if (current_term->setcolorstate)
@@ -569,6 +650,7 @@ run_script (char *script, char *heap)
   return 1;	/* use fallback. */
 }
 
+int password_x;
 static int fallbacked_entries;
 static int old_c;
 static int old_c_count;
@@ -684,20 +766,26 @@ restart1:
   if (show_menu)
     {
 			cls ();
-			if (menu_tab & 0x80)
+			if (!(menu_tab & 0x80))
 				init_page ();
       //setcursor (0);
 			
-			if (menu_tab & 0x40)
+			if (num_string)
 			{
 				unsigned char *p = (unsigned char *)MENU_TITLE;
 				unsigned char i,j;
+				int start_offcet = 0;
 			
-				i = menu_tab & 0xf;
+				i = num_string;
 				unsigned long long col = current_color_64bit;
 				for (j=0; j<i;j++)
 				{
-					gotoxy (*(unsigned long *)(p + j*0x10c), *(unsigned long *)(p + j*0x10c + 4));
+					if((menu_tab & 0x40))
+						start_offcet = current_term->chars_per_line - *(unsigned long *)((char *)p + j*0x10c) - num_text_char((char *)p + j*0x10c + 0xc);
+					else
+						start_offcet = *(unsigned long *)(p + j*0x10c);
+					
+					gotoxy (start_offcet, *(unsigned long *)(p + j*0x10c + 4));
 					if((current_color_64bit = *(unsigned long *)(p + j*0x10c + 8)) == 0xffffffff)
 					{
 						if(*(unsigned long *)(p + j*0x10c + 4) < MENU_BOX_Y)
@@ -705,7 +793,7 @@ restart1:
 							if (current_term->setcolorstate)
 								current_term->setcolorstate (COLOR_STATE_HEADING);
 						}
-						else if(*(unsigned long *)(p + j*0x10c + 4) >= MENU_BOX_B)
+						else if(*(unsigned long *)(p + j*0x10c + 4) > MENU_BOX_B)
 						{
 							if (current_term->setcolorstate)
 								current_term->setcolorstate (COLOR_STATE_HELPTEXT);
@@ -772,9 +860,6 @@ restart1:
 
 	  /* lower-right corner */
 	  grub_putchar (DISP_LR, 255);
-
-	  //if (current_term->setcolorstate)
-	  //  current_term->setcolorstate (COLOR_STATE_STANDARD);
 	}
 
       if (current_term->setcolorstate)
@@ -841,10 +926,21 @@ restart1:
 //		if ((long)ret < 0)
 //			break;
 //	      }
-				
-				gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + default_entry); 
+		if(timeout_x || timeout_y || timeout_color)
+		{
+			gotoxy (timeout_x,timeout_y);
+			current_color_64bit = timeout_color;
+		}
+		else
+		{
+				if(!(menu_tab & 0x40))
+					gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + entryno);
+				else
+					gotoxy (MENU_BOX_X - 1, MENU_BOX_Y + entryno);	
+
 				if (current_term->setcolorstate)
 					current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+		}
 				grub_printf("%2d",grub_timeout);
 				if (current_term->setcolorstate)
 	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
@@ -909,16 +1005,27 @@ restart1:
 
 	      if (current_term->flags & TERM_DUMB)
 		grub_putchar ('\r', 255);
-	      else
+//	      else
 //		gotoxy (0, MENU_BOX_B + 5);
 //	      for (x = 0; x < current_term->chars_per_line; x++)
 //	      {
 //		grub_putchar (' ', 255);
 //	      }
-				
-				gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + default_entry); 
+		if(timeout_x || timeout_y || timeout_color)
+		{
+			gotoxy (timeout_x,timeout_y);
+			current_color_64bit = timeout_color;
+		}
+		else
+		{
+				if(!(menu_tab & 0x40))
+					gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + entryno);
+				else
+					gotoxy (MENU_BOX_X - 1, MENU_BOX_Y + entryno);
+
 				if (current_term->setcolorstate)
 					current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+		}		
 				grub_printf("  ");
 				if (current_term->setcolorstate)
 	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
@@ -1254,7 +1361,11 @@ done_key_handling:
 		  if (current_term->flags & TERM_DUMB)
 		    grub_printf ("\r                                    ");
 		  else
-		    gotoxy (MENU_BOX_X - 2, MENU_BOX_H + 6);
+				gotoxy (MENU_HELP_X, (MENU_HELP_X ? MENU_BOX_B : (MENU_BOX_B + 1)));
+
+			password_x = MENU_HELP_X;
+			if (current_term->setcolorstate)
+	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 
 		  if (! check_password (password_buf, password_type))
 		    {

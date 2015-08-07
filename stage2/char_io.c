@@ -862,7 +862,10 @@ static void cl_refresh (int full, int len)
 	  /* From the start to the end.  */
 	  len = CMDLINE_WIDTH;
 	  pos = 0;
-	  gotoxy (0, fonty);
+	  if(cursor_state==2)
+			gotoxy (password_x, fonty);
+		else
+			gotoxy (0, fonty);
 
 	  /* Recompute the section number.  */
 	  if (lpos + plen < len)
