@@ -937,593 +937,444 @@ static int read_image_bmp(int type)
 
 
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/*	本程序代码来源于：百度文库>专业资料>IT/计算机>计算机软件及应  “JPEG解码程序”  笔者：winbyL 
-		资料链接：http://pan.baidu.com/share/link?shareid=460931&uk=2500441596
-		本程序由 yaya 于 2015_07_07 补充、完善。
-*/
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//Jpeg functions
 static int read_image_jpg(int type);
-void Initialize_Fast_IDCT(void);
-void idctrow(short *blk);
-void idctcol(short *blk);
-void Fast_IDCT(short *block);
-long EstablishHuffman(unsigned short *p, long m);
-long ScanningHuffman(unsigned short *p1, unsigned short *p2, long n, long DCAC);
-int FF00(void);
-int RST(void);
-unsigned long rr=0, gg=0, bb=0;
-short	YDC=0, CbDC=0, CrDC=0;
-short	DU[6][8][8]={};
-unsigned char	*pTmp = (unsigned char*)JPG_FILE;
+static int InitTag();
+static void InitTable();
+static int Decode();
+static int DecodeMCUBlock();
+static int HufBlock(unsigned char dchufindex,unsigned char achufindex);
+static int DecodeElement();
+static void IQtIZzMCUComponent(short flag);
+static void IQtIZzBlock(short *s ,int *d,short flag);
+static void GetYUV(short flag);
+static void StoreBuffer();
+static unsigned char ReadByte();
+static void Initialize_Fast_IDCT();
+static void Fast_IDCT(int * block);
+static void idctrow(int * blk);
+static void idctcol(int * blk);
+//////////////////////////////////////////////////
+//variables used in jpeg function
+short SampRate_Y_H,SampRate_Y_V;
+short SampRate_U_H,SampRate_U_V;
+short SampRate_V_H,SampRate_V_V;
+short H_YtoU,V_YtoU,H_YtoV,V_YtoV;
+short Y_in_MCU,U_in_MCU,V_in_MCU;
+unsigned char *lp = (unsigned char*)JPG_FILE;;
+short qt_table[3][64];
+short comp_num;
+unsigned char comp_index[3];
+unsigned char YDcIndex,YAcIndex,UVDcIndex,UVAcIndex;
+unsigned char HufTabIndex;
+short *YQtTable,*UQtTable,*VQtTable;
+unsigned char And[9]={0,1,3,7,0xf,0x1f,0x3f,0x7f,0xff};
+short code_pos_table[4][16],code_len_table[4][16];
+unsigned short code_value_table[4][256];
+unsigned short huf_max_value[4][16],huf_min_value[4][16];
+short BitPos,CurByte;
+short rrun,vvalue;
+short MCUBuffer[10*64];
+int QtZzMCUBuffer[10*64];
+short BlockBuffer[64];
+short ycoef,ucoef,vcoef;
+int IntervalFlag;
+short interval=0;
+int Y[4*64],U[4*64],V[4*64];
+unsigned long sizei,sizej;
+short restart;
+static long iclip[1024];
+static long	*iclp;
 unsigned long long size;
-long iJPG, lJPG, mJPG, xJPG, yJPG, zJPG;
-short DC=0;
-long data_size=0;
-
-static int read_image_jpg(int type)
+///////////////////////////////////////////////
+static void GetYUV(short flag)
 {
-	long i, j, k, l, m, n, x, y;
-	unsigned char	w0, w1, w2, w3, h0, h1, h2, h3;
-	long Red, Green, Blue;
-	unsigned long	MCU;												//Minimum Coded Unit
-	unsigned char	MCU_count;
-	unsigned char	QTN;
-	unsigned char	HTN;
-
-	unsigned char	ColorNum;
-	unsigned char	HY,VY;
-	unsigned char	res_Interval;
-	unsigned char	Y_QT,Cb_QT,Cr_QT;
-	unsigned char	YDC_HT,YAC_HT,CbDC_HT,CbAC_HT,CrDC_HT,CrAC_HT;
-	
-	unsigned char	*pSOF0=0, *pSOS=0, *pDRI=0;
-	unsigned char	*pDQT[4]={0,0,0,0};
-	unsigned char	*pDHT[4]={0,0,0,0};
-	unsigned short	QT[4][8][8]={};
-	unsigned short	DCHT[2][256][3]={};
-	unsigned short	ACHT[2][256][3]={};
-	short	vector[8][8]={};
-	
-
+	short	H=SampRate_Y_H;
+	short	VV=SampRate_Y_V;
+	short	i,j,k,h;
+	int *buf=Y;
+	int *pQtZzMCU=QtZzMCUBuffer;
+	switch(flag)
+	{
+	case 1:
+		H=SampRate_U_H;
+		VV=SampRate_U_V;
+		buf=U;
+		pQtZzMCU=QtZzMCUBuffer+Y_in_MCU*64;
+		break;
+	case 2:
+		H=SampRate_V_H;
+		VV=SampRate_V_V;
+		buf=V;
+		pQtZzMCU=QtZzMCUBuffer+(Y_in_MCU+U_in_MCU)*64;
+		break;
+	}
+	for (i=0;i<VV;i++)
+		for(j=0;j<H;j++)
+			for(k=0;k<8;k++)
+				for(h=0;h<8;h++)
+					buf[(i*8+k)*SampRate_Y_H*8+j*8+h]=*pQtZzMCU++;
+}
+///////////////////////////////////////////////////////////////////////////////
+static void StoreBuffer()
+{
+	short i,j;
 	unsigned char *lfb;
-	short	*pVec=0;	
-	
+	unsigned char R,G,B;
+	int y,u,v,rr,gg,bb;
+	unsigned long color;
 
-	filepos = 0;
-	if (!(size=grub_read((unsigned long long)(unsigned int)(char*)pTmp, 0x8000, GRUB_READ)))
+	for(i=0;i<SampRate_Y_V*8;i++)
 	{
-		return !printf("Error:Read JPG FileLoading JPG image ......\n");
-	}
-	printf("Loading JPG image ......\n");
-	pTmp += 2;
-	//--------------------------------------------------------------确定主要段的位置
-	i = 0;
-	j = 0;
-	while(1)
-	{
-		while(pTmp[0]!=0xff)
-			pTmp++;
-		switch(pTmp[1])
+		if((sizei+i)<SPLASH_H && (sizei+i)<current_y_resolution)
 		{
-			case 0xc0:				//SOF0段
-				pSOF0 = pTmp;
-				break;
-			case 0xda:				//SOS段
-				pSOS = pTmp;
-				break;
-			case 0xdd:				//DRI段
-				pDRI = pTmp;
-				break;
-			case 0xdb:				//DQT段
-				pDQT[i] = pTmp;
-				i++;
-				break;
-			case 0xc4:				//DHT段
-				pDHT[j] = pTmp;
-				j++;
-				break;
-			default:
-				break;
-		}
-		if(pTmp[1] == 0xda)		//SOS段后即为图片数据部分
-			break;
-		else if((pTmp[1]&0xe0)==0xe0)
-			pTmp += MAKEWORD(pTmp[3],pTmp[2])+2;  	//pTmp前移到下一个段
-		else
-			pTmp += 2;
-	}
-	//-----------------------------------------------------------------获取图片相关属性
-	SPLASH_H = MAKEWORD(pSOF0[6],pSOF0[5]);
-	SPLASH_W = MAKEWORD(pSOF0[8],pSOF0[7]);
-	ColorNum = pSOF0[9];
-	
-	//***********获取采样系数，对应QT表及HT表
-	switch(ColorNum)					
-	{
-		case 1:						//灰度图
-			HY = pSOF0[11] >> 4;
-			VY = pSOF0[11] & 0x0f;
-			Y_QT = pSOF0[12];
-			YDC_HT = pSOS[6] >> 4;
-			YAC_HT = pSOS[6] & 0x0f;
-			data_size = HY*VY;
-			break;
-		
-		case 3:						//YCbCr彩色图
-			for(i=0; i<3; i++)  //---QT
-				switch(pSOF0[10 + i*3])
-				{
-					case 1:
-						HY = pSOF0[11 + i*3] >> 4;
-						VY = pSOF0[11 + i*3] & 0x0f;
-						Y_QT = pSOF0[12 + i*3];
-						break;
-					case 2:
-						data_size += (pSOF0[11 + i*3] >> 4)*(pSOF0[11 + i*3] & 0x0f);
-						Cb_QT = pSOF0[12 + i*3];
-						break;
-					case 3:
-						data_size += (pSOF0[11 + i*3] >> 4)*(pSOF0[11 + i*3] & 0x0f);
-						Cr_QT = pSOF0[12 + i*3];
-						break;
-					default:
-						break;
-				}
-			for(i=0; i<3; i++)  //---HT
-				switch(pSOS[5 + i*2])
-				{
-					case 1:
-						YDC_HT = pSOS[6 + i*2] >> 4;
-						YAC_HT = pSOS[6 + i*2] & 0x0f;
-						break;
-					case 2:
-						CbDC_HT = pSOS[6 + i*2] >> 4;
-						CbAC_HT = pSOS[6 + i*2] & 0x0f;
-						break;
-					case 3:
-						CrDC_HT = pSOS[6 + i*2] >> 4;
-						CrAC_HT = pSOS[6 + i*2] & 0x0f;
-						break;
-					default:
-						break;
-				}
-			data_size += HY*VY;
-			break;
-		
-		default:					//暂不支持CMYK彩色图
-			break;
-	}
-
-	//*****************重新开始间隔
-	if(pDRI)
-	{
-		res_Interval = MAKEWORD(pDRI[5],pDRI[4]);	//MCU重新开始间隔
-	}
-	else
-		res_Interval = 0;
-	//--------------------------------------------------------------------建立QT表  量化表
-	for(i=0; i<4; i++)
-	{
-		if(pDQT[i])
-		{
-			l = MAKEWORD(pDQT[i][3],pDQT[i][2]);						//段长度
-			pTmp = pDQT[i]+4;
-			
-			while(l > 2)	//1个DQT段可能有多个QT表
+			for(j=0;j<SampRate_Y_H*8;j++)
 			{
-				j = pTmp[0] & 0x0f;
-				k = pTmp[0] >> 4;
-				if(k == 0)				//8位精度
+				if((sizej+j)<SPLASH_W && (sizej+j)<current_x_resolution)
 				{
-					for(x=0; x<8; x++)
-						for(y=0; y<8; y++)
-							QT[j][x][y] = (unsigned short)(pTmp[1+8*x+y]);
-				}
-				else							//16位精度
-				{
-					for(x=0; x<8; x++)
-						for(y=0; y<8; y++)
-							QT[j][x][y] = MAKEWORD(pTmp[2+16*x+2*y],pTmp[1+16*x+2*y]);
-				}
-				pTmp += 64*(k+1) + 1;
-				l -= 64*(k+1) + 1;
-			}
-		}	
-	}
-	//--------------------------------------------------------------------建立Huffman树	
-	for(i=0; i<4; i++)
-	{
-		if(pDHT[i])
-		{
-			l = MAKEWORD(pDHT[i][3],pDHT[i][2]);	//段长度
-			pTmp = pDHT[i]+4;
-			
-			while(l > 2)													//1个DHT段中可能有多个HT
-			{
-				m = 0;
-				
-				j = pTmp[0] & 0x0f;
-				k = pTmp[0] >> 4;
-				if(k == 0)													//DC
-					m=EstablishHuffman((unsigned short *)&DCHT[j][0][0],m);
-				else
-					m=EstablishHuffman((unsigned short *)&ACHT[j][0][0],m);				
-
-				pTmp += m+17;
-				l -= m+17;
-			}
-		}
-	}
-	//--------------------------------------------------------------------------------读取图片数据，并进行解码
-		MCU = ((SPLASH_W+8*HY-1)/(8*HY))*((SPLASH_H+8*VY-1)/(8*VY));	//计算有几个MCU
-		pTmp = pSOS +	MAKEWORD(pSOS[3],pSOS[2]) + 2;
-		size -= ((unsigned long)pTmp - (unsigned long)JPG_FILE);
-		iJPG = 0;																				//当前位数
-		MCU_count = 0;																	//记录已处理的MCU个数，当有RST标记时使用
-		w3 = 0; h3 = 0;																	//每块MCU的起始偏移
-//======================================================================================================
-//======================================================================================================
-	while(MCU--)
-	{
-	//---------------------------------------------------------------读取1个MCU
-		for(n=0; n<data_size; n++)
-		{
-			zJPG = 0;	  //读出来的数据
-			mJPG = 1;   //已读位数
-			lJPG = 0;	  //DU中已有的数量
-			xJPG = 0;	  //DU中的x坐标
-			yJPG = 0;	  //DU中的y坐标	
-			//------------------------------------读取1个DU
-			while(lJPG<64)
-			{
-				RST();	
-				for(; iJPG<8; iJPG++,mJPG++)
-				{
-					zJPG = (zJPG<<1) | (((*pTmp)>>(7-iJPG)) & 0x01);
-					if(lJPG == 0)				//---DC
+					y=Y[i*8*SampRate_Y_H+j];
+					u=U[(i/V_YtoU)*8*SampRate_Y_H+j/H_YtoU];
+					v=V[(i/V_YtoV)*8*SampRate_Y_H+j/H_YtoV];																						
+					rr=((y<<8)+18*u+367*v)>>8;	
+					gg=((y<<8)-159*u-220*v)>>8;
+					bb=((y<<8)+411*u-29*v)>>8;
+					R=(unsigned char)rr;
+					G=(unsigned char)gg;
+					B=(unsigned char)bb;
+					if (rr&0xffffff00)
 					{
-						if(n==data_size-2)
-						{
-							HTN = CbDC_HT;
-							DC = CbDC;
-						}
-						else if(n==data_size-1)
-						{
-							HTN= CrDC_HT;
-							DC = CrDC;
-						}
-						else
-						{
-							HTN = YDC_HT;
-							DC = YDC;
-						}
-
-						ScanningHuffman((unsigned short *)&DCHT[HTN][0][0],(unsigned short *)&DU[n][0][0],n,0);	
+						if (rr>255)
+							R=255;
+						else if (rr<0)
+							R=0;
 					}
-					else					//---AC
-					{					
-						if(n==data_size-2)
-							HTN = CbAC_HT;
-						else if(n==data_size-1)
-							HTN = CrAC_HT;
-						else
-							HTN = YAC_HT;
-
-						ScanningHuffman((unsigned short *)&ACHT[HTN][0][0],(unsigned short *)&DU[n][0][0],n,1);
-					}
-					if(lJPG == 64)																		//已读完一个DU
-						break;
-				}
-				if(lJPG == 64)																			//若因为已读完一个DU而退出for循环，将i前移（因为前面break，不会执行i++）
-				{
-					iJPG++;
-					if(iJPG == 8)
+					if (gg&0xffffff00)
 					{
-						iJPG = 0;					
-						FF00();
+						if (gg>255)
+							G=255;
+						else if (gg<0)
+							G=0;
 					}
-				}
-				else																						//若是因为读完一个字节而退出for循环，i=0（即下一字节）
-				{
-					iJPG = 0;
-					FF00();
-				}
-			}
-		}
-		//*********注意：i和pTmp记录了当前读到的数据位置，因此，下面的处理动作不能改变i和pTmp*********//
-		//---------------------------------------------------------------处理1个MCU
-		for(n=0; n<data_size; n++)
-		{					
-			//-------------------------反Zig-zag编码
-			pVec = &DU[n][0][0];
-			for(x=0; x<8; x++)															//参考《zigzag扫描》文件红色部分//
-				for(y=0; y<8; y++)
-					vector[x][y] = pVec[Zig_Zag[x][y]];
-			for(x=0; x<8; x++)
-				for(y=0; y<8; y++)
-					DU[n][x][y] = vector[x][y];
-			//--------------------------反量化
-			if(n < data_size-2)
-				QTN = Y_QT;
-			else if(n == data_size)
-				QTN = Cb_QT;
-			else
-				QTN = Cr_QT;
-			for(x=0; x<8; x++)
-				for(y=0; y<8; y++)
-					DU[n][x][y] = (short)(DU[n][x][y] * QT[QTN][x][y]);	
-			//---------------------------IDCT
-			Fast_IDCT(&DU[n][0][0]);
-		}							
-		for(n=0; n<data_size-2; n++)		//Y值统一加上128
-			for(x=0; x<8; x++)
-				for(y=0; y<8; y++)
-					DU[n][x][y] += 128;
-			//-------------------------------------------------------------YCrCb模型转换成RGB模型，并重组图片
-		for(n=0,h2=0; h2<VY; h2++)
-			for(w2=0; w2<HY; w2++,n++)
-			{
-				for(h1=0; h1<8/VY; h1++)
-					for(w1=0; w1<8/HY; w1++)
+					if (bb&0xffffff00)
 					{
-						for(h0=0; h0<VY; h0++)
-							for(w0=0; w0<HY; w0++)
-							{
-								if((h3*8*VY+h2*8+h1*VY+h0) < SPLASH_H && (w3*8*HY+w2*8+w1*HY+w0) < SPLASH_W)
-									if((h3*8*VY+h2*8+h1*VY+h0) < current_y_resolution && (w3*8*HY+w2*8+w1*HY+w0) < current_x_resolution)
-									{
-										Red = (long)(DU[n][h1*VY+h0][w1*HY+w0]
-												+ DU[data_size-1][4*h2+h1][4*w2+w1] 
-												+ DU[data_size-1][4*h2+h1][4*w2+w1]/2 - DU[data_size-1][4*h2+h1][4*w2+w1]/16 - DU[data_size-1][4*h2+h1][4*w2+w1]/32);
-										Green = (long)(DU[n][h1*VY+h0][w1*HY+w0]
-												- DU[data_size-2][4*h2+h1][4*w2+w1]/4 - DU[data_size-2][4*h2+h1][4*w2+w1]/16 - DU[data_size-2][4*h2+h1][4*w2+w1]/32 
-												- DU[data_size-1][4*h2+h1][4*w2+w1]/2 -DU[data_size-1][4*h2+h1][4*w2+w1]/4 + DU[data_size-1][4*h2+h1][4*w2+w1]/32);
-										Blue = (long)(DU[n][h1*VY+h0][w1*HY+w0] 
-												+ DU[data_size-2][4*h2+h1][4*w2+w1]
-												+ DU[data_size-2][4*h2+h1][4*w2+w1]/2 + DU[data_size-2][4*h2+h1][4*w2+w1]/4 + DU[data_size-2][4*h2+h1][4*w2+w1]/32);
-										Red = (Red>255)?255:((Red<0)?0:Red);		//注意R，G，B的范围
-										Green = (Green>255)?255:((Green<0)?0:Green);
-										Blue = (Blue>255)?255:((Blue<0)?0:Blue);
-										lfb = (unsigned char *)SPLASH_IMAGE + (w3*8*HY+w2*8+w1*HY+w0)*current_bytes_per_pixel + (h3*8*VY+h2*8+h1*VY+h0)*current_bytes_per_scanline;
-										if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
-										{
-											*lfb++ = Blue;
-											*lfb++ = Green;
-											*lfb++ = Red;
-										}
-										else
-										{
-											Blue = Red<<16 | Green<<8 | Blue;
-											*(unsigned short *)lfb = (unsigned short)pixel_shift((unsigned long)Blue);
-										}
-									}
-							}
+						if (bb>255)
+							B=255;
+						else if (bb<0)
+							B=0;
 					}
-			}
-		if((++w3) == (SPLASH_W+8*HY-1)/(8*HY))	//下一块16*16(MCU)
-		{
-			h3++;
-			w3 = 0;
-		}
-		if(res_Interval && (++MCU_count) == res_Interval)		//若存在重新开始间隔，则作出处理
-		{
-			if(iJPG)
-			{
-				pTmp += 1;
-				size--;
-				iJPG = 0;
-			}
-			YDC=0; CbDC=0; CrDC=0;
-			MCU_count = 0;
-			while(pTmp[0]!=0xff)
-			{
-				pTmp++;
-				size--;
+					lfb = (unsigned char *)SPLASH_IMAGE + (unsigned long)(sizei+i)*current_bytes_per_scanline + (sizej+j)*current_bytes_per_pixel;
+					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+					{
+						*lfb++ = B;
+						*lfb++ = G;
+						*lfb++ = R;
+					}
+					else
+					{
+						color = (((unsigned long)R)<<16) | (((unsigned long)G)<<8) | (unsigned long)B;
+						*(unsigned short *)lfb = (unsigned short)pixel_shift(color);
+					}
+				}
 			}
 		}
 	}
-	return 2;
+}
+///////////////////////////////////////////////////////////////////////////////
+static int DecodeMCUBlock()
+{
+	short *lpMCUBuffer;
+	short i,j;
+	int funcret;
+
+	if (IntervalFlag)
+	{
+		lp+=2;
+		size-=2;
+		ycoef=ucoef=vcoef=0;
+		BitPos=0;
+		CurByte=0;
+	}
+	switch(comp_num)
+	{
+	case 3:
+		lpMCUBuffer=MCUBuffer;
+		for (i=0;i<SampRate_Y_H*SampRate_Y_V;i++)  //Y
+		{
+			funcret=HufBlock(YDcIndex,YAcIndex);
+			if (funcret!=1)
+				return funcret;
+			BlockBuffer[0]=BlockBuffer[0]+ycoef;
+			ycoef=BlockBuffer[0];
+			for (j=0;j<64;j++)
+				*lpMCUBuffer++=BlockBuffer[j];
+		}
+		for (i=0;i<SampRate_U_H*SampRate_U_V;i++)  //U
+		{
+			funcret=HufBlock(UVDcIndex,UVAcIndex);
+			if (funcret!=1)
+				return funcret;
+			BlockBuffer[0]=BlockBuffer[0]+ucoef;
+			ucoef=BlockBuffer[0];
+			for (j=0;j<64;j++)
+				*lpMCUBuffer++=BlockBuffer[j];
+		}
+		for (i=0;i<SampRate_V_H*SampRate_V_V;i++)  //V
+		{
+			funcret=HufBlock(UVDcIndex,UVAcIndex);
+			if (funcret!=1)
+				return funcret;
+			BlockBuffer[0]=BlockBuffer[0]+vcoef;
+			vcoef=BlockBuffer[0];
+			for (j=0;j<64;j++)
+				*lpMCUBuffer++=BlockBuffer[j];
+		}
+		break;
+	case 1:
+		lpMCUBuffer=MCUBuffer;
+		funcret=HufBlock(YDcIndex,YAcIndex);
+		if (funcret!=1)
+			return funcret;
+		BlockBuffer[0]=BlockBuffer[0]+ycoef;
+		ycoef=BlockBuffer[0];
+		for (j=0;j<64;j++)
+			*lpMCUBuffer++=BlockBuffer[j];
+		for (i=0;i<128;i++)
+			*lpMCUBuffer++=0;
+		break;
+	default:
+		return 0;
+	}
+	return 1;
 }
 
-int FF00(void)
+static unsigned char ReadByte()
 {
-	if(pTmp[0]==0xff && pTmp[1]==0x00)
+	unsigned char  i;
+	unsigned long long len;
+
+	i=*(lp++);
+	size--;
+	if(i==0xff)
 	{
-		pTmp+=2;
-		size-=2;
-	}
-	else
-	{
-		pTmp+=1;
+		lp++;
 		size--;
 	}
-	return 1;
-}	
-
-int RST(void)
-{
-	while(pTmp[0]==0xff)
-	{
-		if(pTmp[1]==0x00)
-			break;
-		else if(pTmp[1]>=0xd0 && pTmp[1]<=0xd7) //RST标记
-		{
-			pTmp+=2;
-			size-=2;
-		}
-		else
-		{
-			pTmp++;
-			size--;
-		}
-	}
+	BitPos=8;
+	CurByte=i;
+	
 	if(size <= 16)
 	{
-		grub_memmove64((unsigned long long)(int)JPG_FILE,(unsigned long long)(int)pTmp,(unsigned long long)size);
-		size+=grub_read((unsigned long long)(unsigned int)(char*)JPG_FILE+size, 0x7e00, GRUB_READ);
-		pTmp=(unsigned char*)JPG_FILE;
+		grub_memmove64((unsigned long long)(int)JPG_FILE,(unsigned long long)(int)lp,(unsigned long long)size);
+		len=grub_read((unsigned long long)(unsigned int)(char*)JPG_FILE+size, 0x7e00, GRUB_READ);
+		size+=len;
+		lp=(unsigned char*)JPG_FILE;
 	}
-	return 1;
+	return i;
 }
+///////////////////////////////////////////////////////////////////////
 
-
-long EstablishHuffman(unsigned short *p, long m)
+static int DecodeElement()
 {
-	long x;
-	long y = 1;
-	long z = 0;
-	p[1] = 0;
-	for(x=0; x<16; x++)
-		if(pTmp[1+x])
-		{
-			p[0] = x + 1;
-			pTmp[1+x]--;
-			m++;															//记录表长	
-			break;
-		}		
-	for(; x<16; x++)
-	{	 
-		if(pTmp[1+x])
-		{
-			p[y*3] = x + 1;
-			if((p[(y-1)*3+1]+1) == (1<<x))		//若加1后，已够位，则不用左移
-				p[y*3+1] = p[(y-1)*3+1] + 1;
-			else															//否则，左移到够位
-				p[y*3+1] = (p[(y-1)*3+1] + 1) << z;
-			y++;
-			pTmp[1+x]--;
-			m++;
-			while(pTmp[1+x]--)
-			{
-				p[y*3] = x + 1;
-				p[y*3+1] = p[(y-1)*3+1] + 1;
-				y++;
-				m++;
-			}
-			z = 1;
-		}
-		else
-			z++;				
-	}	
-	for(x=0; x<m; x++)
-		p[x*3+2] = pTmp[17+x];
-	return m;
-}
+	int thiscode,tempcode;
+	unsigned short temp,valueex;
+	short codelen;
+	unsigned char hufexbyte,runsize,tempsize,sign;
+	unsigned char newbyte,lastbyte;
 
-long ScanningHuffman(unsigned short *p1, unsigned short *p2, long n, long DCAC)
-{
-	short Diff;
-	long j;
-	long k=0;																		//Huffman树的行号
-	while(1)																		//***扫描Huffman树***  dc//
+	if(BitPos >= 1)
 	{
-		if(p1[k*3] > mJPG)
-			break;
-		if(p1[k*3] == mJPG && p1[k*3+1] == zJPG)
+		BitPos--;
+		thiscode=(unsigned char)CurByte>>BitPos;
+		CurByte=CurByte&And[BitPos];
+	}
+	else
+	{
+		lastbyte=ReadByte();
+		BitPos--;
+		newbyte=CurByte&And[BitPos];
+		thiscode=lastbyte>>7;
+		CurByte=newbyte;
+	}
+	codelen=1;
+	while ((thiscode<huf_min_value[HufTabIndex][codelen-1])||
+		  (code_len_table[HufTabIndex][codelen-1]==0)||
+		  (thiscode>huf_max_value[HufTabIndex][codelen-1]))
+	{
+		if(BitPos>=1)
 		{
-			zJPG = 0;
-			
-			if(DCAC==1)
-			{
-				if(p1[k*3+2] == 0)									//EOB：即此DU后面都是0
-				{
-					for(; xJPG<8; xJPG++)
-					{
-						for(; yJPG<8; yJPG++)
-							p2[xJPG*8+yJPG]=0;
-						yJPG = 0;
-					}
-					lJPG = 64;
-					break;
-				}						
-				j = p1[k*3+2] >> 4;									//高四位：充零个数
-				while(j--)
-				{
-					p2[xJPG*8+yJPG]=0;
-					lJPG++;
-					yJPG++;
-					if(yJPG == 8)
-						{	xJPG++; yJPG=0;	}
-				}						
-				j = p1[k*3+2] & 0x0f;								//低四位：后面数字的位数
-			}
-			else 									
-				j = p1[k*3+2];											//记录权值，表示Diff的位数，即接下来要读入的位数
-			
-			while(j--)
-			{
-				if((++iJPG) == 8)										//前移pTmp时，同样要处理图片数据中的0xff
-				{
-					FF00();
-					RST();
-					iJPG = 0;
-				}
-				zJPG = (zJPG<<1) | (((*pTmp)>>(7-iJPG)) & 0x01);	//读数据
-			}
-			if(DCAC==1)
-				j = p1[k*3+2] & 0x0f;
-			else						
-				j = p1[k*3+2] & 0x0f;								//恢复j的值
-			
-			if(zJPG < (1<<(j-1)))									//处理"按位数存储"
-				Diff = (short)(zJPG - ((2<<(j-1)) - 1));
-			else
-				Diff = (short)zJPG;
-			
-			if(DCAC==1)										
-				p2[xJPG*8+yJPG]=Diff;								//*-*存储AC*-*//
-			else
-			{							
-				p2[xJPG*8+yJPG]=DC + Diff;					//*-*存储第一个值DC*-*//
-				if(n==data_size-2)
-					CbDC = p2[xJPG*8+yJPG];
-				else if(n==data_size-1)
-					CrDC = p2[xJPG*8+yJPG];
-				else
-					YDC = p2[xJPG*8+yJPG];
-			}
-			yJPG++;
-			if(DCAC==1)
-				if(yJPG == 8)
-					{	xJPG++; yJPG=0;	}
-			
-			lJPG++;
-			zJPG = 0;
-			mJPG = 0;
-			break;
+			BitPos--;
+			tempcode=(unsigned char)CurByte>>BitPos;
+			CurByte=CurByte&And[BitPos];
 		}
 		else
-			k++;
+		{
+			lastbyte=ReadByte();
+			BitPos--;
+			newbyte=CurByte&And[BitPos];
+			tempcode=(unsigned char)lastbyte>>7;
+			CurByte=newbyte;
+		}
+		thiscode=(thiscode<<1)+tempcode;
+		codelen++;
+		if(codelen>16)
+			return 0;
+	}  //while
+	temp=thiscode-huf_min_value[HufTabIndex][codelen-1]+code_pos_table[HufTabIndex][codelen-1],HufTabIndex;
+	hufexbyte=(unsigned char)code_value_table[HufTabIndex][temp];
+	rrun=(short)(hufexbyte>>4);
+	runsize=hufexbyte&0x0f;
+	if(runsize==0)
+	{
+		vvalue=0;
+		return 1;
+	}
+	tempsize=runsize;
+	if(BitPos>=runsize)
+	{
+		BitPos-=runsize;
+		valueex=(unsigned char)CurByte>>BitPos;
+		CurByte=CurByte&And[BitPos];
+	}
+	else
+	{
+		valueex=CurByte;
+		tempsize-=BitPos;
+		while(tempsize>8)
+		{
+			lastbyte=ReadByte();
+			valueex=(valueex<<8)+(unsigned char)lastbyte;
+			tempsize-=8;
+		}  //while
+		lastbyte=ReadByte();
+		BitPos-=tempsize;
+		valueex=(valueex<<tempsize)+(lastbyte>>BitPos);
+		CurByte=lastbyte&And[BitPos];
+	}  //else
+	sign=valueex>>(runsize-1);
+	if(sign)
+		vvalue=valueex;
+	else
+	{
+		valueex=valueex^0xffff;
+		temp=0xffff<<runsize;
+		vvalue=-(short)(valueex^temp);
 	}
 	return 1;
 }
-
-unsigned long pixel_shift(unsigned long color)
+//////////////////////////////////////////////////////////////////
+static int HufBlock(unsigned char dchufindex,unsigned char achufindex)
 {
-	unsigned long r,g,b;
-	//颜色补偿
-	b = color & 0xff;
-	g = (color >> 8) & 0xff;
-	r = (color >> 16) & 0xff;
-	if((r += rr) >= 0x100)
-		r = 0xff;
-	if((g += gg) >= 0x100)
-		g = 0xff;
-	if((b += bb) >= 0x100)
-		b = 0xff;
-	rr = r & 0xf;
-	gg = g & 07;
-	bb = b & 0xf;
-	//颜色合成
-	color = (r>>3)<<11 | (g>>2)<<5 | b>>3;
-	return color;
+	short count=0;
+	short i;
+	int funcret;
+
+	//dc
+	HufTabIndex=dchufindex;
+	funcret=DecodeElement();
+	if(funcret!=1)
+		return funcret;
+
+	BlockBuffer[count++]=vvalue;
+	//ac
+	HufTabIndex=achufindex;
+	while (count<64)
+	{
+		funcret=DecodeElement();
+		if(funcret!=1)
+			return funcret;
+		if ((rrun==0)&&(vvalue==0))
+		{
+			for (i=count;i<64;i++)
+				BlockBuffer[i]=0;
+			count=64;
+		}
+		else
+		{
+			for (i=0;i<rrun;i++)
+				BlockBuffer[count++]=0;
+			BlockBuffer[count++]=vvalue;
+		}
+	}
+	return 1;
 }
+/////////////////////////////////////////////////////////////////////////////////////
+static void IQtIZzMCUComponent(short flag)
+{
+	short H=SampRate_Y_H;
+	short VV=SampRate_Y_V;
+	short i,j;
+	int *pQtZzMCUBuffer=QtZzMCUBuffer;
+	short  *pMCUBuffer=MCUBuffer;
 
-static short iclip[1024];
-static short *iclp=0;
+	switch(flag)
+	{
+	case 1:
+		H=SampRate_U_H;
+		VV=SampRate_U_V;
+		pMCUBuffer=MCUBuffer+Y_in_MCU*64;
+		pQtZzMCUBuffer=QtZzMCUBuffer+Y_in_MCU*64;
+		break;
+	case 2:
+		H=SampRate_V_H;
+		VV=SampRate_V_V;
+		pMCUBuffer=MCUBuffer+(Y_in_MCU+U_in_MCU)*64;
+		pQtZzMCUBuffer=QtZzMCUBuffer+(Y_in_MCU+U_in_MCU)*64;
+		break;
+	}
+	for(i=0;i<VV;i++)
+		for (j=0;j<H;j++)
+			IQtIZzBlock(pMCUBuffer+(i*H+j)*64,pQtZzMCUBuffer+(i*H+j)*64,flag);
+}
+//////////////////////////////////////////////////////////////////////////////////////////
+static void IQtIZzBlock(short  *s ,int * d,short flag)
+{
+	short i,j;
+	short tag;
+	short *pQt=YQtTable;
+	int buffer2[8][8];
+	int *buffer1;
+	short offset=128;
 
-void Initialize_Fast_IDCT(void)
+	switch(flag)
+	{
+	case 1:
+		pQt=UQtTable;
+		offset=0;
+		break;
+	case 2:
+		pQt=VQtTable;
+		offset=0;
+		break;
+	}
+
+	for(i=0;i<8;i++)
+		for(j=0;j<8;j++)
+		{
+			tag=Zig_Zag[i][j];
+			buffer2[i][j]=(int)s[tag]*(int)pQt[tag];
+		}
+	buffer1=(int *)buffer2;
+	Fast_IDCT(buffer1);
+	for(i=0;i<8;i++)
+		for(j=0;j<8;j++)
+			d[i*8+j]=buffer2[i][j]+offset;
+}
+///////////////////////////////////////////////////////////////////////
+static void Fast_IDCT(int * block)
+{
+	short i;
+
+	for (i=0; i<8; i++)
+		idctrow(block+8*i);
+
+	for (i=0; i<8; i++)
+		idctcol(block+i);
+}
+///////////////////////////////////////////////////////////////////////
+static void Initialize_Fast_IDCT()
 {
 	short i;
 
@@ -1531,21 +1382,18 @@ void Initialize_Fast_IDCT(void)
 	for(i=-512; i<512; i++)
 		iclp[i] = (i<-256)?-256:((i>255)?255:i);
 }
-
-void idctrow(short *blk)
+////////////////////////////////////////////////////////////////////////
+static void idctrow(int * blk)
 {
-	int x0, x11, x2, x3, x4, x5, x6, x7, x8;
-	
+	int x0, x01, x2, x3, x4, x5, x6, x7, x8;
 	//intcut
-	if (!((x11 = blk[4]<<11) | (x2 = blk[6]) | (x3 = blk[2]) |
+	if (!((x01 = blk[4]<<11) | (x2 = blk[6]) | (x3 = blk[2]) |
 		(x4 = blk[1]) | (x5 = blk[7]) | (x6 = blk[5]) | (x7 = blk[3])))
 	{
 		blk[0]=blk[1]=blk[2]=blk[3]=blk[4]=blk[5]=blk[6]=blk[7]=blk[0]<<3;
 		return;
 	}
-	
-	x0 = (blk[0]<<11) + 128; // for proper rounding in the fourth stage 
-	
+	x0 = (blk[0]<<11) + 128; // for proper rounding in the fourth stage
 	//first stage
 	x8 = W7*(x4+x5);
 	x4 = x8 + (W1-W7)*x4;
@@ -1553,18 +1401,16 @@ void idctrow(short *blk)
 	x8 = W3*(x6+x7);
 	x6 = x8 - (W3-W5)*x6;
 	x7 = x8 - (W3+W5)*x7;
-	
 	//second stage
-	x8 = x0 + x11;
-	x0 -= x11;
-	x11 = W6*(x3+x2);
-	x2 = x11 - (W2+W6)*x2;
-	x3 = x11 + (W2-W6)*x3;
-	x11 = x4 + x6;
+	x8 = x0 + x01;
+	x0 -= x01;
+	x01 = W6*(x3+x2);
+	x2 = x01 - (W2+W6)*x2;
+	x3 = x01 + (W2-W6)*x3;
+	x01 = x4 + x6;
 	x4 -= x6;
 	x6 = x5 + x7;
 	x5 -= x7;
-	
 	//third stage
 	x7 = x8 + x3;
 	x8 -= x3;
@@ -1572,33 +1418,29 @@ void idctrow(short *blk)
 	x0 -= x2;
 	x2 = (181*(x4+x5)+128)>>8;
 	x4 = (181*(x4-x5)+128)>>8;
-	
 	//fourth stage
-	blk[0] = (x7+x11)>>8;
+	blk[0] = (x7+x01)>>8;
 	blk[1] = (x3+x2)>>8;
 	blk[2] = (x0+x4)>>8;
 	blk[3] = (x8+x6)>>8;
 	blk[4] = (x8-x6)>>8;
 	blk[5] = (x0-x4)>>8;
 	blk[6] = (x3-x2)>>8;
-	blk[7] = (x7-x11)>>8;
+	blk[7] = (x7-x01)>>8;
 }
-
-void idctcol(short *blk)
+//////////////////////////////////////////////////////////////////////////////
+static void idctcol(int * blk)
 {
-	int x0, x11, x2, x3, x4, x5, x6, x7, x8;
-
+	int x0, x01, x2, x3, x4, x5, x6, x7, x8;
 	//intcut
-	if(!((x11 = (blk[8*4]<<8)) | (x2 = blk[8*6]) | (x3 = blk[8*2]) |
+	if (!((x01 = (blk[8*4]<<8)) | (x2 = blk[8*6]) | (x3 = blk[8*2]) |
 		(x4 = blk[8*1]) | (x5 = blk[8*7]) | (x6 = blk[8*5]) | (x7 = blk[8*3])))
 	{
 		blk[8*0]=blk[8*1]=blk[8*2]=blk[8*3]=blk[8*4]=blk[8*5]
 			=blk[8*6]=blk[8*7]=iclp[(blk[8*0]+32)>>6];
 		return;
 	}
-	
 	x0 = (blk[8*0]<<8) + 8192;
-
 	//first stage
 	x8 = W7*(x4+x5) + 4;
 	x4 = (x8+(W1-W7)*x4)>>3;
@@ -1606,18 +1448,16 @@ void idctcol(short *blk)
 	x8 = W3*(x6+x7) + 4;
 	x6 = (x8-(W3-W5)*x6)>>3;
 	x7 = (x8-(W3+W5)*x7)>>3;
-	
 	//second stage
-	x8 = x0 + x11;
-	x0 -= x11;
-	x11 = W6*(x3+x2) + 4;
-	x2 = (x11-(W2+W6)*x2)>>3;
-	x3 = (x11+(W2-W6)*x3)>>3;
-	x11 = x4 + x6;
+	x8 = x0 + x01;
+	x0 -= x01;
+	x01 = W6*(x3+x2) + 4;
+	x2 = (x01-(W2+W6)*x2)>>3;
+	x3 = (x01+(W2-W6)*x3)>>3;
+	x01 = x4 + x6;
 	x4 -= x6;
 	x6 = x5 + x7;
 	x5 -= x7;
-	
 	//third stage
 	x7 = x8 + x3;
 	x8 -= x3;
@@ -1625,32 +1465,305 @@ void idctcol(short *blk)
 	x0 -= x2;
 	x2 = (181*(x4+x5)+128)>>8;
 	x4 = (181*(x4-x5)+128)>>8;
-	
 	//fourth stage
-	blk[8*0] = iclp[(x7+x11)>>14];
+	blk[8*0] = iclp[(x7+x01)>>14];
 	blk[8*1] = iclp[(x3+x2)>>14];
 	blk[8*2] = iclp[(x0+x4)>>14];
 	blk[8*3] = iclp[(x8+x6)>>14];
 	blk[8*4] = iclp[(x8-x6)>>14];
 	blk[8*5] = iclp[(x0-x4)>>14];
 	blk[8*6] = iclp[(x3-x2)>>14];
-	blk[8*7] = iclp[(x7-x11)>>14];
+	blk[8*7] = iclp[(x7-x01)>>14];
 }
-
-void Fast_IDCT(short *block)
+//////////////////////////////////////////////////////////////////////////////
+static int Decode()
 {
-	short i;
-	
+	int funcret;
+	size -= ((unsigned long)lp - (unsigned long)JPG_FILE);
+
+	Y_in_MCU=SampRate_Y_H*SampRate_Y_V;		//2*2=4		2*1=2		1*1=1
+	U_in_MCU=SampRate_U_H*SampRate_U_V;		//1:1=1
+	V_in_MCU=SampRate_V_H*SampRate_V_V;		//1:1=1
+	H_YtoU=SampRate_Y_H/SampRate_U_H;			//2/1=2						1/1=1
+	V_YtoU=SampRate_Y_V/SampRate_U_V;			//2/1=2		1/1=1
+	H_YtoV=SampRate_Y_H/SampRate_V_H;			//2/1=2						1/1=1
+	V_YtoV=SampRate_Y_V/SampRate_V_V;			//2/1=2		1/1=1
 	Initialize_Fast_IDCT();
-	
-	for (i=0; i<8; i++)
-		idctrow(block+8*i);
-
-	for(i=0; i<8; i++)
-		idctcol(block+i);
+	while((funcret=DecodeMCUBlock())==1)
+	{
+		interval++;
+		if((restart)&&(interval % restart==0))
+			 IntervalFlag=1;
+		else
+			IntervalFlag=0;
+		IQtIZzMCUComponent(0);
+		IQtIZzMCUComponent(1);
+		IQtIZzMCUComponent(2);
+		GetYUV(0);
+		GetYUV(1);
+		GetYUV(2);
+		StoreBuffer();
+		sizej+=SampRate_Y_H*8;
+		if(sizej>=SPLASH_W)
+		{
+			sizej=0;
+			sizei+=SampRate_Y_V*8;
+		}
+		if ((sizej==0)&&(sizei>=SPLASH_H))
+			break;
+	}
+	return 1;
 }
+/////////////////////////////////////////////////////////////////////////////////////////
+static void InitTable()
+{
+	short i,j;
+	sizei=sizej=0;
+	SPLASH_W=SPLASH_H=0;
+	rrun=vvalue=0;
+	BitPos=0;
+	CurByte=0;
+	IntervalFlag=0;
+	restart=0;
+	for(i=0;i<3;i++)
+		for(j=0;j<64;j++)
+			qt_table[i][j]=0;
+	comp_num=0;
+	HufTabIndex=0;
+	for(i=0;i<3;i++)
+		comp_index[i]=0;
+	for(i=0;i<4;i++)
+		for(j=0;j<16;j++)
+		{
+			code_len_table[i][j]=0;
+			code_pos_table[i][j]=0;
+			huf_max_value[i][j]=0;
+			huf_min_value[i][j]=0;
+		}
+	for(i=0;i<4;i++)
+		for(j=0;j<256;j++)
+			code_value_table[i][j]=0;
+	
+	for(i=0;i<10*64;i++)
+	{
+		MCUBuffer[i]=0;
+		QtZzMCUBuffer[i]=0;
+	}
+	for(i=0;i<4*64;i++)
+	{
+		Y[i]=0;
+		U[i]=0;
+		V[i]=0;		
+	}
+	for(i=0;i<64;i++)
+		BlockBuffer[i]=0;
+	ycoef=ucoef=vcoef=0;
+//	return 1;
+}
+/////////////////////////////////////////////////////////////////////////
+static int InitTag()
+{
+	int	finish=0;
+	unsigned char	id;
+	short	llength;
+	short	i,j,k;
+	short	huftab1,huftab2;
+	short	huftabindex;
+	unsigned char	hf_table_index;
+	unsigned char	qt_table_index;
+	unsigned char	comnum;
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	unsigned char	*lptemp;
+	short	ccount;
+
+//	lp=lpJpegBuf+2;
+	lp+=2;
+
+	while (!finish)
+	{
+		while(*lp != 0xff)
+			lp++;
+		id=*(lp+1);
+		lp+=2;
+		switch (id)
+		{
+		case M_APP0:		//e0
+			llength=MAKEWORD(*(lp+1),*lp);
+			lp+=llength;
+			break;
+		case M_DQT:			//db
+			llength=MAKEWORD(*(lp+1),*lp);
+			qt_table_index=(*(lp+2))&0x0f;
+			lptemp=lp+3;
+			if(llength<80)
+			{
+				for(i=0;i<64;i++)
+					qt_table[qt_table_index][i]=(short)*(lptemp++);
+			}
+			else
+			{
+				for(i=0;i<64;i++)
+					qt_table[qt_table_index][i]=(short)*(lptemp++);
+				qt_table_index=(*(lptemp++))&0x0f;
+				for(i=0;i<64;i++)
+					qt_table[qt_table_index][i]=(short)*(lptemp++);
+			}
+			lp+=llength;		
+			break;
+		case M_SOF0:		//c0
+	 		llength=MAKEWORD(*(lp+1),*lp);
+	 		SPLASH_H=MAKEWORD(*(lp+4),*(lp+3));
+	 		SPLASH_W=MAKEWORD(*(lp+6),*(lp+5));
+			comp_num=*(lp+7);
+			if((comp_num!=1)&&(comp_num!=3))
+				return 0;
+			if(comp_num==3)
+			{
+				comp_index[0]=*(lp+8);
+				SampRate_Y_H=(*(lp+9))>>4;
+				SampRate_Y_V=(*(lp+9))&0x0f;
+				YQtTable=(short *)qt_table[*(lp+10)];
+
+				comp_index[1]=*(lp+11);
+				SampRate_U_H=(*(lp+12))>>4;
+				SampRate_U_V=(*(lp+12))&0x0f;
+				UQtTable=(short *)qt_table[*(lp+13)];
+
+				comp_index[2]=*(lp+14);
+				SampRate_V_H=(*(lp+15))>>4;
+				SampRate_V_V=(*(lp+15))&0x0f;
+				VQtTable=(short *)qt_table[*(lp+16)];
+			}
+			else
+			{
+				comp_index[0]=*(lp+8);
+				SampRate_Y_H=(*(lp+9))>>4;
+				SampRate_Y_V=(*(lp+9))&0x0f;
+				YQtTable=(short *)qt_table[*(lp+10)];
+
+				comp_index[1]=*(lp+8);
+				SampRate_U_H=1;
+				SampRate_U_V=1;
+				UQtTable=(short *)qt_table[*(lp+10)];
+
+				comp_index[2]=*(lp+8);
+				SampRate_V_H=1;
+				SampRate_V_V=1;
+				VQtTable=(short *)qt_table[*(lp+10)];
+			}
+			lp+=llength;						    
+			break;
+		case M_DHT:			//c4
+			llength=MAKEWORD(*(lp+1),*lp);
+			{
+	 			hf_table_index=*(lp+2);
+				lp+=2;
+				while (hf_table_index!=0xff)
+				{
+					huftab1=(short)hf_table_index>>4;     //huftab1=0,1
+			 		huftab2=(short)hf_table_index&0x0f;   //huftab2=0,1
+					huftabindex=huftab1*2+huftab2;
+					lptemp=lp+1;
+					ccount=0;
+					for (i=0; i<16; i++)
+					{
+						code_len_table[huftabindex][i]=(short)(*(lptemp++));
+						ccount+=code_len_table[huftabindex][i];
+					}
+					ccount+=17;
+					j=0;
+					for (i=0; i<16; i++)
+						if(code_len_table[huftabindex][i]!=0)
+						{
+							k=0;
+							while(k<code_len_table[huftabindex][i])
+							{
+								code_value_table[huftabindex][k+j]=(short)(*(lptemp++));
+								k++;
+							}
+							j+=k;
+						}
+					i=0;
+					while (code_len_table[huftabindex][i]==0)
+						i++;
+					for (j=0;j<i;j++)
+					{
+						huf_min_value[huftabindex][j]=0;
+						huf_max_value[huftabindex][j]=0;
+					}
+					huf_min_value[huftabindex][i]=0;
+					huf_max_value[huftabindex][i]=code_len_table[huftabindex][i]-1;
+					for (j=i+1;j<16;j++)
+					{
+						huf_min_value[huftabindex][j]=(huf_max_value[huftabindex][j-1]+1)<<1;
+						huf_max_value[huftabindex][j]=huf_min_value[huftabindex][j]+code_len_table[huftabindex][j]-1;
+					}
+					code_pos_table[huftabindex][0]=0;
+					for (j=1;j<16;j++)
+						code_pos_table[huftabindex][j]=code_len_table[huftabindex][j-1]+code_pos_table[huftabindex][j-1];
+					lp+=ccount;
+					hf_table_index=*lp;
+				}  //while
+			}  //else
+			break;
+		case M_DRI:		//dd
+			llength=MAKEWORD(*(lp+1),*lp);
+			restart=MAKEWORD(*(lp+3),*(lp+2));
+			lp+=llength;
+			break;
+		case M_SOS:		//da
+			llength=MAKEWORD(*(lp+1),*lp);
+			comnum=*(lp+2);
+			if(comnum!=comp_num)
+				return 0;
+			lptemp=lp+3;
+			for (i=0;i<comp_num;i++)
+			{
+				if(*lptemp==comp_index[0])
+				{
+					YDcIndex=(*(lptemp+1))>>4;   //Y
+					YAcIndex=((*(lptemp+1))&0x0f)+2;
+				}
+				else{
+					UVDcIndex=(*(lptemp+1))>>4;   //U,V
+					UVAcIndex=((*(lptemp+1))&0x0f)+2;
+				}
+				lptemp+=2;
+			}
+			lp+=llength;
+			finish=1;
+			break;
+		case M_EOI: 	//d9   
+			return 0;
+			break;
+		default:
+ 			if ((id&0xf0)!=0xd0)
+			{
+				llength=MAKEWORD(*(lp+1),*lp);
+	 			lp+=llength;
+			}
+			else lp+=2;
+			break;
+		}  //switch
+	} //while
+	return 1;
+}
+/////////////////////////////////////////////////////////////////
+static int
+read_image_jpg(int type)
+{
+	filepos = 0;
+	if (!(size=grub_read((unsigned long long)(unsigned int)(char*)lp, 0x8000, GRUB_READ)))
+		return !printf("Error:Read JPG File\n");
+	InitTable();
+	InitTag();
+	Decode();
+	return 2;
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 
 /* Read in the splashscreen image and set the palette up appropriately.
  * Format of splashscreen is an xpm (can be gzipped) with 16 colors and
@@ -1800,6 +1913,29 @@ read_image_xpm (int type)
 
     return 1;
 }
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+unsigned long rr, gg, bb;
+unsigned long pixel_shift(unsigned long color)
+{
+	unsigned long r,g,b;
+
+	b = color & 0xff;
+	g = (color >> 8) & 0xff;
+	r = (color >> 16) & 0xff;
+	if((r += rr) >= 0x100)
+		r = 0xff;
+	if((g += gg) >= 0x100)
+		g = 0xff;
+	if((b += bb) >= 0x100)
+		b = 0xff;
+	rr = r & 0xf;
+	gg = g & 07;
+	bb = b & 0xf;
+
+	color = (r>>3)<<11 | (g>>2)<<5 | b>>3;
+	return color;
+}
+
 
 static int read_image()
 {

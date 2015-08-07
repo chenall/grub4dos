@@ -29,8 +29,16 @@
 #define JPG_FILE						0x3A0000
 #define JPG_FILE_LENGTH			0x8000
 #define	IMAGE_BUFFER				0x1000000
-#define	IMAGE_BUFFER_LENGTH	0xa8c000		// 1920*1440*4
+#define	IMAGE_BUFFER_LENGTH	0x753000		// 1600*1200*4
 #define MAKEWORD(a, b) (((unsigned long)((unsigned char)(a) & 0xff)) | ((unsigned long)(((unsigned char)(b) & 0xff) << 8)))
+
+#define M_SOF0  (unsigned char)0xc0
+#define M_DHT   (unsigned char)0xc4
+#define M_EOI   (unsigned char)0xd9
+#define M_SOS   (unsigned char)0xda
+#define M_DQT   (unsigned char)0xdb
+#define M_DRI   (unsigned char)0xdd
+#define M_APP0  (unsigned char)0xe0
 
 #define W1 2841 /* 2048*sqrt(2)*cos(1*pi/16) */
 #define W2 2676 /* 2048*sqrt(2)*cos(2*pi/16) */
