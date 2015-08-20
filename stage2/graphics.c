@@ -1,6 +1,6 @@
 ﻿/* graphics.c - graphics mode support for GRUB */
 /* Implemented as a terminal type by Jeremy Katz <katzj@redhat.com> based
- * on a patch by Paulo C閟ar Pereira de Andrade <pcpa@conectiva.com.br>
+ * on a patch by Paulo C�sar Pereira de Andrade <pcpa@conectiva.com.br>
  */
 /*
  *  GRUB  --  GRand Unified Bootloader
@@ -499,18 +499,68 @@ check_scroll (void)
 static unsigned long
 print_unicode (unsigned long max_width)
 {
-    unsigned long i, j;
-    unsigned long pat;
+    unsigned long i, j, k;
+//    unsigned long pat;
     unsigned long char_width;
     unsigned long bgcolor;
     unsigned long CursorX,CursorY;
-	unsigned char *lfb;
+	unsigned char *lfb, *pat, *p;
+	unsigned char column;
+	unsigned char num_wide = (font_h+7)/8;
+	unsigned char tem;
+	unsigned long long dot_matrix;
+	unsigned char buf[64*64/8];
 
     char_width = 2;				/* wide char */
-    pat = UNIFONT_START + (unicode << 5);
+//    pat = UNIFONT_START + (unicode << 5);
+		pat = (unsigned char *)UNIFONT_START + unicode*num_wide*font_h;
 
-    if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
-	{ --char_width; pat += 16; }		/* narrow char */
+//    if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
+//	{ --char_width; pat += 16; }		/* narrow char */
+	if (font_type==BIN && scan_mode==HORIZ)
+	{
+		p = pat;
+		//HORIZ to VERTI
+		for (i = 0; i < font_h; i++)
+		{
+			dot_matrix = 0;
+			for (j=0; j<font_h; j++)
+			{
+				unsigned long long t = 0;
+				t = p[(i>>3)+(j*num_wide)];
+				if (store_mode==H_TO_L)
+					dot_matrix |= ((t >> ((8*num_wide-1-i) & 7)) & 1) << j;
+				else	//store_mode==L_TO_H
+					dot_matrix |= ((t >> (i & 7)) & 1) << j;	
+			}
+			for (j=0; j<num_wide; j++)
+				buf[i*num_wide +j] = (dot_matrix >> j*8)&0xff;
+		}
+		pat = buf;
+	}
+
+	p = pat;
+	if (font_type)	//BIN,etc
+		p += num_wide*font_w;
+	i=0;
+	while (i<num_wide*font_w && *p==0)
+	{
+		i++;
+		p++;
+	}
+	if (i==num_wide*font_w || unicode < 0x80)
+	{
+		--char_width;
+		if (!font_type)	//hex
+			pat += num_wide*font_w;
+	}
+#if 0
+		if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)  //narrow_char_indicator=????????
+		{
+			--char_width;
+			pat += num_wide*font_w;
+		}		/* narrow char */
+#endif
 
     if (max_width < char_width)
 	return (1 << 31) | invalid | (byte_SN << 8); // printed width = 0
@@ -543,6 +593,7 @@ print_unicode (unsigned long max_width)
 	CursorX += font_spacing>>1;
 	CursorY += line_spacing>>1;
 
+#if 0
     /* print dot matrix of the unicode char */
     for (i = 0; i < char_width * font_w; ++i)
     {
@@ -560,7 +611,39 @@ print_unicode (unsigned long max_width)
 			}
 	}
     }
+#endif
 
+	/* print dot matrix of the unicode char */
+	for (i = 0; i < char_width * font_w; ++i)
+	{
+		unsigned long tmp_x = CursorX + i;
+		dot_matrix = 0;
+		for(j = 0; j < num_wide; j++)
+		{
+			column = *(unsigned char *)pat;
+			pat++;
+			if (font_type==BIN && scan_mode==VERTI && store_mode==H_TO_L)
+			{
+				tem = 0;
+				for(k = 0; k < 8; k++)		//l to h
+					tem |= ((column & (0x80 >> k))?(1<< k):0);
+				column = tem;
+			}
+			dot_matrix |= (((unsigned long long)column) << j*8);
+		}
+		for (j = 0; j < font_h; ++j)
+		{
+	    /* print char using foreground and background colors. */
+	    if ((dot_matrix >> j) & 1)
+			{
+				if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+					SetPixel (tmp_x, CursorY + j,current_color_64bit);
+				else
+					SetPixel (tmp_x, CursorY + j,pixel_shift(current_color_64bit));
+			}
+		}
+	}
+//#endif
     fontx += char_width;
     if (cursor_state & 1)
     {

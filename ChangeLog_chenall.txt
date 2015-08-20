@@ -1,4 +1,19 @@
 ﻿更新说明：
+2015-08-20（yaya）
+  1.支持非 16*16 字体。
+    在 font 函数增加参数：
+    --hex* --bin 字库输出类型；
+    --horiz-scan* --verti-scan 点阵字符扫描模式；
+    --h-to-l* --l-to-h 点阵字符在字节的存储方式；
+    --font-high=[font_h] 点阵字符的高与宽（应当相等）。
+    注：* 是默认项。
+    例子：font /my.hex
+          font --bin --verti-scan --l-to-h --font-high=20 /2_20.dzk
+          font --bin --font-high=20 /1_20.dzk
+    内置字库，如果不是 16*16 字体，头部需声明：DotSize=[font_h]。
+    受内存限制，当前大字库可支持到 32*32，中文小字库可支持到 40*40.
+  2.不再支持 vga 图形模式。
+
 2015-07-07（yaya）
   1.支持每像素16位彩色模式（64K 5:6:5）。
   2.支持 jpg（jpeg，jpe）图像格式。

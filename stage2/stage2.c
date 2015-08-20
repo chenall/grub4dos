@@ -926,21 +926,22 @@ restart1:
 //		if ((long)ret < 0)
 //			break;
 //	      }
-		if(timeout_x || timeout_y || timeout_color)
-		{
+		if(timeout_x || timeout_y)
 			gotoxy (timeout_x,timeout_y);
-			current_color_64bit = timeout_color;
-		}
 		else
 		{
 				if(!(menu_tab & 0x40))
 					gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + entryno);
 				else
 					gotoxy (MENU_BOX_X - 1, MENU_BOX_Y + entryno);	
+		}
 
+		if(timeout_color)
+			current_color_64bit = timeout_color;
+		else
 				if (current_term->setcolorstate)
 					current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
-		}
+
 				grub_printf("%2d",grub_timeout);
 				if (current_term->setcolorstate)
 	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
@@ -1011,21 +1012,22 @@ restart1:
 //	      {
 //		grub_putchar (' ', 255);
 //	      }
-		if(timeout_x || timeout_y || timeout_color)
-		{
+		if(timeout_x || timeout_y)
 			gotoxy (timeout_x,timeout_y);
-			current_color_64bit = timeout_color;
-		}
 		else
 		{
 				if(!(menu_tab & 0x40))
 					gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + entryno);
 				else
 					gotoxy (MENU_BOX_X - 1, MENU_BOX_Y + entryno);
+		}
 
-				if (current_term->setcolorstate)
-					current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
-		}		
+		if(timeout_color)
+			current_color_64bit = timeout_color;
+		else
+			if (current_term->setcolorstate)
+				current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+	
 				grub_printf("  ");
 				if (current_term->setcolorstate)
 	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);

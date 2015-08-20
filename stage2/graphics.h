@@ -31,6 +31,12 @@
 #define	IMAGE_BUFFER				0x1000000
 #define	IMAGE_BUFFER_LENGTH	0x753000		// 1600*1200*4
 #define MAKEWORD(a, b) (((unsigned long)((unsigned char)(a) & 0xff)) | ((unsigned long)(((unsigned char)(b) & 0xff) << 8)))
+#define HEX    0
+#define BIN    1
+#define HORIZ  0
+#define VERTI  1
+#define H_TO_L 0
+#define L_TO_H 1
 
 #define M_SOF0  (unsigned char)0xc0
 #define M_DHT   (unsigned char)0xc4

@@ -4643,7 +4643,8 @@ static struct builtin builtin_fallback =
 /* command */
 static char command_path[128]="(bd)/BOOT/GRUB/";
 static int command_path_len = 15;
-#define GRUB_MOD_ADDR (SYSTEM_RESERVED_MEMORY - 0x100000)
+//#define GRUB_MOD_ADDR (SYSTEM_RESERVED_MEMORY - 0x100000)
+#define GRUB_MOD_ADDR (0xF00000)
 #define UTF8_BAT_SIGN 0x54414221BFBBEFULL
 #define LONG_MOD_NAME_FLAG 0xEb
 struct exec_array
@@ -5863,6 +5864,10 @@ get_nibble (unsigned long c)
 //static unsigned long old_narrow_char_indicator = 0;
 #define	old_narrow_char_indicator	narrow_char_indicator
 int font_func (char *arg, int flags);
+unsigned char font_type;
+unsigned char scan_mode;
+unsigned char store_mode;
+
 /* font */
 /* load unifont to UNIFONT_START */
 /*
@@ -5876,11 +5881,19 @@ font_func (char *arg, int flags)
   unsigned long len;
   unsigned long unicode;
   unsigned long narrow_indicator;
-  unsigned char buf[80];
+//  unsigned char buf[80];
+	unsigned char buf[1024];	//64*64
   unsigned long valid_lines;
   unsigned long saved_filepos;
   extern unsigned char *font8x16;
+	unsigned long long val;
+	unsigned char num_wide;
+	unsigned char num_narrow;
+	unsigned char tag[]={'d','o','t','s','i','z','e','='};
 
+	font_type = 0;
+	scan_mode = 0;
+	store_mode = 0;
   valid_lines = 0;
 
   errnum = 0;
@@ -5890,6 +5903,69 @@ font_func (char *arg, int flags)
 	goto build_default_VGA_font;
   }
 
+	for (; *arg && *arg != '/' && *arg != '(';)
+	{
+		if (grub_memcmp (arg, "--hex", 5) == 0)
+		{
+			arg += 5;
+			font_type = 0;
+		}
+		if (grub_memcmp (arg, "--bin", 5) == 0)
+		{
+			arg += 5;
+			font_type = 1;
+		}
+		else if (grub_memcmp (arg, "--horiz-scan", 12) == 0)
+		{
+			arg += 12;
+			scan_mode = 0;
+		}
+		else if (grub_memcmp (arg, "--verti-scan", 12) == 0)
+		{
+			arg += 12;
+			scan_mode = 1;
+		}
+		else if (grub_memcmp (arg, "--h-to-l", 8) == 0)
+		{
+			arg += 8;
+			store_mode = 0;
+		}
+		else if (grub_memcmp (arg, "--l-to-h", 8) == 0)
+		{
+			arg += 8;
+			store_mode = 1;
+		}
+		else if (grub_memcmp (arg, "--font-high=", 12) == 0)
+		{
+			arg += 12;
+			if (safe_parse_maxint (&arg, &val))
+			{	
+				if (font_h != val)
+				{
+				font_h = val;
+				font_w = val>>1;
+				current_term->max_lines = current_y_resolution / (font_h + line_spacing);
+				current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
+				memset ((char *)UNIFONT_START, 0, 0x800000);
+				}
+			}
+		}
+		else
+			break;
+
+		while (*arg == ' ' || *arg == '\t')
+			arg++;
+	}
+	if (font_type)
+	{
+		if (! grub_open(arg))
+			return 0;
+		filepos =0;
+		len = grub_read((unsigned long long)(unsigned int)(char*)UNIFONT_START, filemax, 0xedde0d90);
+		grub_close();
+		return 1;
+	}
+	
   if (! grub_open(arg))
 	return 0;
 
@@ -5901,12 +5977,16 @@ font_func (char *arg, int flags)
 
   memset ((char *)0x100000, 0, 0x10000);	/* clear 64K at 1M */
 
+	num_wide = (font_h+7)/8;
+	num_narrow = ((font_h/2+7)/8)<<1;
 redo:
 
-  while	(((saved_filepos = filepos), (len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 38, 0xedde0d90))))
+//  while	(((saved_filepos = filepos), (len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 38, 0xedde0d90))))
+	while	(((saved_filepos = filepos), (len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 6+font_h*num_narrow, 0xedde0d90))))
   {
 //printf ("begin valid_lines=%d, buf=%s\n", valid_lines, buf);
-    if (len != 38 || buf[4] != ':')
+//    if (len != 38 || buf[4] != ':')
+		if (len != 6+font_h*num_narrow || buf[4] != ':')
     {
 	errnum = ERR_UNIFONT_FORMAT;
 	break;
@@ -5923,7 +6003,8 @@ redo:
 	unicode |= (tmp << ((3 - i) << 2));
     }
 
-    if (buf[37] == '\n' || buf[37] == '\r')	/* narrow char */
+//    if (buf[37] == '\n' || buf[37] == '\r')	/* narrow char */
+		if (buf[5+font_h*num_narrow] == '\n' || buf[5+font_h*num_narrow] == '\r')	/* narrow char */
     {
 	/* discard if it is a control char(we will re-map control chars) */
 	if (unicode <= 0x1F)
@@ -5933,6 +6014,7 @@ redo:
 	}
 
 	/* simply put the 8x16 dot matrix at the right half */
+#if 0
 	for (j = 0; j < 8; j++)
 	{
 	    unsigned short tmp = 0;
@@ -5948,12 +6030,31 @@ redo:
 	}
 	/* set to the old_narrow_char_indicator */
 	*(unsigned long *)(UNIFONT_START + (unicode << 5)) = old_narrow_char_indicator;
+#endif
+			for (j=0; j<font_w; j++)
+			{
+				unsigned long long dot_matrix = 0;
+				for (k=0; k<font_h; k++)
+				{
+					unsigned long long t = 0;
+					t = get_nibble (buf[5+(j>>2)+(k*num_narrow)]);
+					if (errnum)
+						goto close_file;
+					dot_matrix |= ((t >> ((4*num_narrow-1-j) & 3)) & 1) << k;
+				}
+				for (k=0; k<num_wide; k++)
+					((unsigned char *)(UNIFONT_START + unicode*num_wide*font_h + num_wide*font_h/2))[j*num_wide+k] = (dot_matrix >> k*8)&0xff;
+				/* the first integer is to be checked for narrow_char_indicator */
+			}
+			*(unsigned long *)(UNIFONT_START + unicode*num_wide*font_h) = old_narrow_char_indicator; 
     }
     else
     {
 	/* read additional 32 chars and see if it end in a LF */
-	len = grub_read((unsigned long long)(unsigned int)(char*)(buf+38), 32, 0xedde0d90);
-	if (len != 32 || (buf[69] != '\n' && buf[69] != '\r'))
+//	len = grub_read((unsigned long long)(unsigned int)(char*)(buf+38), 32, 0xedde0d90);
+	len = grub_read((unsigned long long)(unsigned int)(char*)(buf+6+font_h*num_narrow), font_h*(num_wide*2-num_narrow), 0xedde0d90);
+//	if (len != 32 || (buf[69] != '\n' && buf[69] != '\r'))
+	if (len != font_h*(num_wide*2-num_narrow) || (buf[5+font_h*num_wide*2] != '\n' && buf[5+font_h*num_wide*2] != '\r'))
 	{
 	    errnum = ERR_UNIFONT_FORMAT;
 	    break;
@@ -5971,6 +6072,7 @@ redo:
 	*(unsigned char *)(0x100000 + unicode) |= 1;	/* bit 0 */
 
 	/* put the 16x16 dot matrix */
+#if 0
 	for (j = 0; j < 16; j++)
 	{
 	    unsigned short tmp = 0;
@@ -5992,6 +6094,29 @@ redo:
 		*(unsigned char *)(0x100000 + tmp) |= 16;	/* bit 4 */
 	    }
 	}
+#endif
+			for (j=0; j<font_h; j++)
+			{
+				unsigned long long dot_matrix = 0;
+				for (k=0; k<font_h; k++)
+				{
+					unsigned long long t = 0;
+					t = get_nibble (buf[5+(j>>2)+(k*num_wide*2)]);
+					if (errnum)
+						goto close_file;
+					dot_matrix |= ((t >> ((8*num_wide-1-j) & 3)) & 1) << k;
+				}
+				for (k=0; k<num_wide; k++)
+					((unsigned char *)(UNIFONT_START + unicode*num_wide*font_h))[j*num_wide+k] = (dot_matrix >> k*8)&0xff;
+				/* the first integer is to be checked for narrow_char_indicator */
+				if (j == 0)
+				{
+					/* set bit 4: this integer already used by this wide char, so
+					* it will not be used as the narrow_char_indicator.
+					*/
+					*(unsigned char *)(0x100000 + (unsigned short)(dot_matrix & 0xffff)) |= 16;	/* bit 4 */
+				}
+			}
     }
     valid_lines++;
 //printf ("end valid_lines=%d, buf=%s\n", valid_lines, buf);
@@ -6007,6 +6132,7 @@ close_file:
 //		return 0;
 
 	filepos = saved_filepos;
+	i=0;
 	while ((len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 1, 0xedde0d90)))
 	{
 		if (buf[0] == '\n' || buf[0] == '\r')
@@ -6016,6 +6142,31 @@ close_file:
 		}
 		if (buf[0] == '\0')	/* NULL encountered ? */
 			break;		/* yes, end */
+
+		if ((buf[0] | 0x20)== tag[i])
+			i++;
+		else
+			i=0;
+		if (i==8)
+		{
+			grub_read((unsigned long long)(unsigned int)(char*)&buf, 5, 0xedde0d90);
+			char *p = (char *)buf;
+			i=0;
+			if (safe_parse_maxint (&p, &val))
+			{
+				if (font_h != val)
+				{
+					font_h = val;
+					font_w = val>>1;
+					current_term->max_lines = current_y_resolution / (font_h + line_spacing);
+					current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
+					memset ((char *)UNIFONT_START, 0, 0x800000);
+					num_wide = (font_h+7)/8;
+					num_narrow = ((font_h/2+7)/8)<<1;
+				}
+			}
+			filepos -= 2;
+		}
 	}
   }
 
@@ -6044,7 +6195,8 @@ loop:
     /* old wide chars should not use this i as leading integer */
     for (j = 0x80; j < 0x10000; j++)
     {
-	if (*(unsigned long *)(UNIFONT_START + (j << 5)) == i)
+//	if (*(unsigned long *)(UNIFONT_START + (j << 5)) == i)
+	if (*(unsigned long *)(UNIFONT_START + (j*num_wide*font_h)) == i)
 		goto loop; /* the i was used by old wide char j, failed */
     }
     /* the i is not used by all wide chars, and got it! */
@@ -6060,13 +6212,15 @@ loop:
   for (i = 0xFFFF; (long)i >= 0; i--)
   {
     if ((!((*(unsigned char *)(0x100000 + i)) & 1) /* not a new wide char */
-	&& (*(unsigned long *)(UNIFONT_START + (i << 5))
+//	&& (*(unsigned long *)(UNIFONT_START + (i << 5))
+	&& (*(unsigned long *)(UNIFONT_START + (i*num_wide*font_h))
 		 == old_narrow_char_indicator)	/* not an old wide char */
 	)
 	|| i <= 0x7F
        )
     {
-	*(unsigned long *)(UNIFONT_START + (i << 5)) = narrow_indicator;
+//	*(unsigned long *)(UNIFONT_START + (i << 5)) = narrow_indicator;
+	*(unsigned long *)(UNIFONT_START + (i*num_wide*font_h)) = narrow_indicator;
     }
   }
 
@@ -6187,8 +6341,10 @@ static struct builtin builtin_font =
   "font",
   font_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "font [FILE]",
-  "Load unifont file FILE, or clear the font if no FILE specified."
+  "font [--hex* | --bin][--horiz-scan* | --verti-scan][--h-to-l* | --l-to-h][--font-high=[font_h]][FILE]",
+  "Load unifont file FILE, or clear the font if no FILE specified.\n"
+	"* indicates default. The font should be the same height and width.\n"
+	"The built-in Font head should have 'DotSize=[font_h]'."
 };
 #endif /* SUPPORT_GRAPHICS */
 
@@ -15514,14 +15670,16 @@ static struct builtin builtin_setmenu =
   "--box x=[x] y=[y] w=[w] h=[h] l=[l]\n"
   "Note: [w]=0 in the middle. [l]=0 no display border\n"
   "--help=[x]=[w]=[y]\n"
-	"Note: [x]=0* determine by the border. [w]=0 in the middle.\n"
+	"Note: [x]=0* menu start and width. [x]<>0 and [w]=0 Entire display width minus 2x.\n"
 	"--keyhelp=[y_offset]=[color]\n"
 	"Note: [y_offset]=0* entryhelp and keyhelp in the same area,entryhelp cover keyhelp.\n"
 	"      [y_offset]!=0 keyhelp to entryhelp line offset.two coexist.\n"
 	"      [y_offset]<=4, entryhelp display line number.\n"
-	"      [color] default 'color helptext'.\n"
+	"      [color]=0* default 'color helptext'.\n"
 	"--timeout=[x]=[y]=[color]\n"
-	"* indicates default"
+	"Note: [x]=[y]=0* located at the end of the selected item.\n"
+	"Note: [color]=0* default 'color highlight'.\n"
+	"* indicates default. Use 0xRRGGBB to represent colors."
 };
 
 

@@ -51,6 +51,7 @@
 
 /* unifont start at 24M */
 #define UNIFONT_START		0x1800000
+#define UNIFONT_START_SIZE		0x800000		//32*32
 
 #define narrow_char_indicator	(*(unsigned long *)(UNIFONT_START + ('A' << 5)))
 
@@ -762,6 +763,9 @@ extern unsigned char timeout_x;
 extern unsigned char timeout_y;
 extern unsigned long long timeout_color;
 extern unsigned long long keyhelp_color;
+extern unsigned char font_type;
+extern unsigned char scan_mode;
+extern unsigned char store_mode;
 
 #ifdef SUPPORT_GRAPHICS
 extern unsigned long current_x_resolution;

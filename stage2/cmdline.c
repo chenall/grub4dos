@@ -228,7 +228,8 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 
 #define PRINTF_BUFFER ((unsigned char *)SYSTEM_RESERVED_MEMORY + 0x20000)
 //char *pre_cmdline = (char *)0x4CB08;
-static char *cmd_buffer = ((char *)SYSTEM_RESERVED_MEMORY - 0x10000);
+//static char *cmd_buffer = ((char *)SYSTEM_RESERVED_MEMORY - 0x10000);
+static char *cmd_buffer = ((char *)0x3A9000);
 
 int expand_var(const char *str,char *out,const unsigned int len_max)
 {
