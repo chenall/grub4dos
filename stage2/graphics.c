@@ -1,4 +1,4 @@
-ï»¿/* graphics.c - graphics mode support for GRUB */
+/* graphics.c - graphics mode support for GRUB */
 /* Implemented as a terminal type by Jeremy Katz <katzj@redhat.com> based
  * on a patch by Paulo César Pereira de Andrade <pcpa@conectiva.com.br>
  */
@@ -39,6 +39,7 @@ extern unsigned long graphics_inited;
 char splashimage[128];
 
 #define VSHADOW VSHADOW1
+#if 0
 /* 8x16 dot array, total chars = 80*30. plano size = 80*30*16 = 38400 bytes */
 /* 8x16 dot array, total chars = 100*37. plano size = 800*600/8 = 60000 bytes */
 static unsigned char *VSHADOW1 = (unsigned char *)0x3A0000;	//unsigned char VSHADOW1[60000];
@@ -49,7 +50,7 @@ static unsigned char *VSHADOW8 = (unsigned char *)0x3CBF20;	//unsigned char VSHA
  * scroll and the like */
 //static unsigned short text[80 * 30];
 static unsigned long *text = (unsigned long *)0x3FC000; // length in bytes = 100*37*4 = 0x39D0
-
+#endif
 //extern unsigned long splashimage_loaded;
 
 /* constants to define the viewable area */
@@ -83,7 +84,7 @@ static void graphics_scroll (void);
 void SetPixel (unsigned long x, unsigned long y, unsigned long color);
 void XorPixel (unsigned long x, unsigned long y, unsigned long color);
 static int read_image (void);
-static void graphics_cursor (int set);
+//static void graphics_cursor (int set);
 static void vbe_cursor (int set);
 void rectangle(int left, int top, int length, int width, int line);
 extern void (*graphics_CURSOR) (int set);
@@ -93,7 +94,7 @@ static inline void outb(unsigned short port, unsigned char val)
 {
     __asm __volatile ("outb %0,%1"::"a" (val), "d" (port));
 }
-
+#if 0
 static void MapMask(int value) {
     outb(0x3c4, 2);
     outb(0x3c5, value);
@@ -104,7 +105,7 @@ static void BitMask(int value) {
     outb(0x3ce, 8);
     outb(0x3cf, value);
 }
-
+#endif
 extern void memmove_forward_SSE (void *dst, const void *src, unsigned int len);
 
 #if 0
@@ -266,7 +267,7 @@ static inline void * _memcpy_forward(void *dst, const void *src, unsigned int le
 }
 #endif
 #endif
-
+#if 0
 static inline void _memset(void *dst, unsigned char data, unsigned int len)
 {
     int r0,r1,r2,r3;
@@ -280,7 +281,7 @@ static inline void _memset(void *dst, unsigned char data, unsigned int len)
 	:"0"(len),"1"(dst),"2"(data)
 	:"memory");
 }
-
+#endif
 void SetPixel (unsigned long x, unsigned long y, unsigned long color)
 {
 	unsigned char *lfb;
@@ -333,8 +334,8 @@ void XorPixel (unsigned long x, unsigned long y, unsigned long color)
 int
 graphics_init (void)
 {
-    if (! graphics_CURSOR)
-	  graphics_CURSOR = (void *)&graphics_cursor;
+//    if (! graphics_CURSOR)
+//	  graphics_CURSOR = (void *)&graphics_cursor;
 	
     if (! graphics_inited)
     {
@@ -371,6 +372,7 @@ graphics_init (void)
 	    //graphics_inited = 1;
 	    //return 1;
 	}
+#if 0
 	else
 	{
 	    unsigned long tmp_mode;
@@ -437,6 +439,14 @@ success:
 		plano_size = (800 * 600) / 8;
 	    }
 	}
+#endif
+success:
+	current_term->chars_per_line = x1 = 100;
+	current_term->max_lines = y1 = 37;
+	xpixels = 800;
+	ypixels = 600;
+	plano_size = (800 * 600) / 8;
+
 	menu_border.disp_ul = 0x14;
 	menu_border.disp_ur = 0x15;
 	menu_border.disp_ll = 0x16;
@@ -688,7 +698,8 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
         { fontx = 0; check_scroll (); }
 
     if (graphics_mode <= 0xFF)
-	goto vga;
+//	goto vga;
+			return 0;
 
     /* VBE */
 
@@ -798,7 +809,7 @@ multibyte:
     return print_unicode (max_width);
 
 //////////////////////////////////////////////////////////////////////////////
-
+#if 0
 vga:
     if ((char)ch == '\n')
     {
@@ -831,6 +842,7 @@ vga:
 	graphics_CURSOR(1);
     }
     return 1;
+#endif
 }
 
 /* get the current location of the cursor */
@@ -856,14 +868,16 @@ graphics_gotoxy (int x, int y)
 void
 graphics_cls (void)
 {
-    int i;
-    unsigned char *mem, *s1, *s2, *s4, *s8;
+//    int i;
+//    unsigned char *mem, *s1, *s2, *s4, *s8;
+	unsigned char *mem,*s1;
 
     fontx = 0;
     fonty = 0;
 
     if (graphics_mode <= 0xFF)
-	goto vga;
+//	goto vga;
+			return;
 
     /* VBE */
     #if 0
@@ -904,7 +918,7 @@ graphics_cls (void)
     if (cursor_state & 1)
 	    graphics_CURSOR(1);
     return;
-
+#if 0
 vga:
     mem = (unsigned char*)VIDEOMEM;
 
@@ -953,7 +967,7 @@ vga:
     memmove_forward_SSE (mem, s8, plano_size);
 
     MapMask(15);
- 
+#endif
 }
 
 static int read_image_bmp(int type)
@@ -1847,7 +1861,7 @@ read_image_jpg(int type)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-
+#if 0
 /* Read in the splashscreen image and set the palette up appropriately.
  * Format of splashscreen is an xpm (can be gzipped) with 16 colors and
  * 640x480. */
@@ -1996,6 +2010,7 @@ read_image_xpm (int type)
 
     return 1;
 }
+#endif
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 unsigned long rr, gg, bb;
 unsigned long pixel_shift(unsigned long color)
@@ -2039,6 +2054,8 @@ static int read_image()
 		*splashimage = 1;
 		if (graphics_mode < 0xFF)
 		{
+			return 0;
+#if 0
 			unsigned char *s1;
 			unsigned char *s2;
 			unsigned char *s4;
@@ -2052,6 +2069,7 @@ static int read_image()
 				((long *)s1)[i] = ((long *)s2)[i] = ((long *)s4)[i] = ((long *)s8)[i] = 0;
 			graphics_set_palette( 0, background);
 			graphics_set_palette(15, foreground);
+#endif
 		}
 		return 1;
 	}
@@ -2066,10 +2084,12 @@ static int read_image()
 	{
 		splashimage_loaded |= read_image_bmp(graphics_mode > 0xFF);
 	}
+#if 0
 	else if (grub_memcmp(buf, "/* XPM */\n", 10) == 0) /* XPM */
 	{
 		splashimage_loaded |= read_image_xpm(graphics_mode > 0xFF);
 	}
+#endif
 	else if (*(unsigned short*)buf == 0xD8FF)
 	{
 		splashimage_loaded |= read_image_jpg(graphics_mode > 0xFF);
@@ -2211,6 +2231,7 @@ vbe_cursor (int set)
 #endif
 }
 
+#if 0
 static unsigned char chr[16 << 2];
 static unsigned char mask[16];
 
@@ -2315,5 +2336,5 @@ put_pattern:
 
     MapMask(15);
 }
-
+#endif
 #endif /* SUPPORT_GRAPHICS */
