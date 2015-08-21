@@ -551,6 +551,7 @@ print_unicode (unsigned long max_width)
 
 	p = pat;
 	if (font_type)	//BIN,etc
+	{
 		p += num_wide*font_w;
 	i=0;
 	while (i<num_wide*font_w && *p==0)
@@ -559,18 +560,13 @@ print_unicode (unsigned long max_width)
 		p++;
 	}
 	if (i==num_wide*font_w || unicode < 0x80)
-	{
 		--char_width;
-		if (!font_type)	//hex
-			pat += num_wide*font_w;
 	}
-#if 0
-		if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)  //narrow_char_indicator=????????
+	else if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
 		{
 			--char_width;
 			pat += num_wide*font_w;
 		}		/* narrow char */
-#endif
 
     if (max_width < char_width)
 	return (1 << 31) | invalid | (byte_SN << 8); // printed width = 0
