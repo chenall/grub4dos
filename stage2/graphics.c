@@ -350,13 +350,13 @@ graphics_init (void)
 	{
 	    if (graphics_mode == 0x102)
 	    {
-		if (set_vbe_mode (graphics_mode) != 0x004F)
-		{
+//		if (set_vbe_mode (graphics_mode) != 0x004F)
+//		{
 			graphics_end ();
 			return !(errnum = ERR_SET_VBE_MODE);
-		}
-		graphics_mode = 0x6A;
-		goto success;
+//		}
+//		graphics_mode = 0x6A;
+//		goto success;
 	    }
 	    if (set_vbe_mode (graphics_mode | (1 << 14)) != 0x004F)
 	    {
@@ -440,13 +440,6 @@ success:
 	    }
 	}
 #endif
-success:
-	current_term->chars_per_line = x1 = 100;
-	current_term->max_lines = y1 = 37;
-	xpixels = 800;
-	ypixels = 600;
-	plano_size = (800 * 600) / 8;
-
 	menu_border.disp_ul = 0x14;
 	menu_border.disp_ur = 0x15;
 	menu_border.disp_ll = 0x16;
@@ -1703,6 +1696,8 @@ static int InitTag()
 			}
 			lp+=llength;		
 			break;
+		case M_SOF2:		//c2
+			return 0;
 		case M_SOF0:		//c0
 	 		llength=MAKEWORD(*(lp+1),*lp);
 	 		SPLASH_H=MAKEWORD(*(lp+4),*(lp+3));
@@ -1849,7 +1844,8 @@ read_image_jpg(int type)
 	if (!(size=grub_read((unsigned long long)(unsigned int)(char*)lp, 0x8000, GRUB_READ)))
 		return !printf("Error:Read JPG File\n");
 	InitTable();
-	InitTag();
+	if (!(InitTag()))
+		return 1;
 	Decode();
 	return 2;
 }

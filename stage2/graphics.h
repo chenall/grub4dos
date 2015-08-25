@@ -39,6 +39,7 @@
 #define L_TO_H 1
 
 #define M_SOF0  (unsigned char)0xc0
+#define M_SOF2  (unsigned char)0xc2
 #define M_DHT   (unsigned char)0xc4
 #define M_EOI   (unsigned char)0xd9
 #define M_SOS   (unsigned char)0xda
