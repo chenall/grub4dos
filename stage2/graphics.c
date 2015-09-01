@@ -513,6 +513,39 @@ print_unicode (unsigned long max_width)
 	unsigned char tem;
 	unsigned long long dot_matrix;
 	unsigned char buf[64*64/8];
+	
+	CursorX = fontx * (font_w + font_spacing);
+	CursorY = fonty * (font_h + line_spacing);
+
+	//print triangle
+	if (unicode==0x10 || unicode==0x11)
+	{
+		lfb = (unsigned char *)(current_phys_base + CursorY*current_bytes_per_scanline + CursorX*current_bytes_per_pixel);
+		for (i=0;i<font_w;++i)
+		{
+			if (unicode==0x10)
+				p = lfb + i*current_bytes_per_pixel + ((font_w>>1)+(i>>1))*current_bytes_per_scanline;
+			else
+				p = lfb + (font_w-i-1)*current_bytes_per_pixel + ((font_w>>1)+(i>>1))*current_bytes_per_scanline;
+
+			for (j=0;j<font_w-i;++j)
+			{
+				if (current_bytes_per_pixel == 3)
+				{
+					*(unsigned short *)p = (unsigned short)current_color_64bit;
+					*(p+2) = (unsigned char)(current_color_64bit>>16);
+				}
+				else if(current_bytes_per_pixel == 4)
+					*(unsigned long *)p = (unsigned long)current_color_64bit;
+				else
+					*(unsigned short *)p = (unsigned short)pixel_shift((unsigned long)current_color_64bit);
+				
+				p += current_bytes_per_scanline;
+			}
+		}
+		char_width = 1;
+		goto triangle;
+	}
 
     char_width = 2;				/* wide char */
 //    pat = UNIFONT_START + (unicode << 5);
@@ -576,8 +609,8 @@ print_unicode (unsigned long max_width)
 	else
 		bgcolor = 0;
 
-	CursorX = fontx * (font_w + font_spacing);
-	CursorY = fonty * (font_h + line_spacing);
+//	CursorX = fontx * (font_w + font_spacing);
+//	CursorY = fonty * (font_h + line_spacing);
 	for (i = 0; i<char_width * (font_w+font_spacing);++i)
 	{
 		unsigned long tmp_x = CursorX + i;
@@ -643,6 +676,7 @@ print_unicode (unsigned long max_width)
 		}
 	}
 //#endif
+triangle:
     fontx += char_width;
     if (cursor_state & 1)
     {

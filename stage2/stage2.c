@@ -177,8 +177,7 @@ print_default_help_message (char *config_entries)
 	char		buff[256];
 
 if (menu_tab & 0x20)
-		i = grub_sprintf (buff,"\n用 %c 和 %c 键选择菜单。",
-		(unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
+		i = grub_sprintf (buff,"\n用 ↑ 和 ↓ 键选择菜单。");
 	else
 		i = grub_sprintf (buff,"\nUse the %c and %c keys to highlight an entry.",
 		(unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
