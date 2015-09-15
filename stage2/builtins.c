@@ -6201,6 +6201,7 @@ loop:
     }
     /* the i is not used by all wide chars, and got it! */
     narrow_indicator = i;
+		narrow_char_indicator = i;
   }
 
   if (narrow_indicator == 0)
