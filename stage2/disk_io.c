@@ -702,10 +702,10 @@ print_fsys_type (void)
 					printf ("is udf, ");
 					break;
 				case 2:
-					printf ("is iso9600_Joliet, ");
+					printf ("is iso9660_Joliet, ");
 					break;
 				case 3:
-					printf ("is iso9600_RockRidge, ");
+					printf ("is iso9660_RockRidge, ");
 					break;
 				default:
 					printf ("is %s, ", fsys_table[fsys_type].name);
