@@ -5887,7 +5887,6 @@ font_func (char *arg, int flags)
   unsigned long saved_filepos;
   extern unsigned char *font8x16;
 	unsigned long long val;
-	unsigned char num_wide;
 	unsigned char num_narrow;
 	unsigned char tag[]={'d','o','t','s','i','z','e','='};
 
@@ -6201,7 +6200,6 @@ loop:
     }
     /* the i is not used by all wide chars, and got it! */
     narrow_indicator = i;
-		narrow_char_indicator = i;
   }
 
   if (narrow_indicator == 0)

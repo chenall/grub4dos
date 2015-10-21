@@ -53,7 +53,8 @@
 #define UNIFONT_START		0x1800000
 #define UNIFONT_START_SIZE		0x800000		//32*32
 
-#define narrow_char_indicator	(*(unsigned long *)(UNIFONT_START + ('A' << 5)))
+//#define narrow_char_indicator	(*(unsigned long *)(UNIFONT_START + ('A' << 5)))
+#define narrow_char_indicator	(*(unsigned long *)(UNIFONT_START + 'A'*num_wide*font_h))
 
 /* graphics video memory */
 #define VIDEOMEM 0xA0000
@@ -475,6 +476,7 @@ extern unsigned long cursor_state;
 extern unsigned long graphics_mode;
 extern unsigned long font_w;
 extern unsigned long font_h;
+extern unsigned char num_wide;
 extern unsigned long font_spacing;
 extern unsigned long line_spacing;
 extern void rectangle(int left, int top, int length, int width, int line);

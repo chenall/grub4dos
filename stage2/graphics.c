@@ -58,6 +58,7 @@ unsigned long x1 = 80;
 unsigned long y1 = 30;
 unsigned long font_w = 8;
 unsigned long font_h = 16;
+unsigned char num_wide = (16+7)/8;
 unsigned long font_spacing = 0;
 unsigned long line_spacing = 0;
 unsigned long xpixels = 640;
@@ -509,7 +510,6 @@ print_unicode (unsigned long max_width)
     unsigned long CursorX,CursorY;
 	unsigned char *lfb, *pat, *p;
 	unsigned char column;
-	unsigned char num_wide = (font_h+7)/8;
 	unsigned char tem;
 	unsigned long long dot_matrix;
 	unsigned char buf[64*64/8];
