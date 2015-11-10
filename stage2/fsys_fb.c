@@ -78,6 +78,19 @@ struct fbm_file
   char name[0];
 } __attribute__((packed));
 
+/*
+ * version 1.7
+ * struct fbm_file
+ * {
+ *   uchar size;
+ *   uchar flag;
+ *   uchar4 data_start;
+ *   unsigned long long data_size;
+ *   uchar4 data_time;
+ *   char name[0];
+ * } __attribute__((packed));
+*/
+
 static int fb_inited = FB_DRIVE;
 static unsigned long fb_drive;
 static uchar4 fb_ofs;
@@ -205,7 +218,8 @@ static int fb_init (void)
 		goto init_end;
 	}
 
-	if ((data->ver_major != 1) || (data->ver_minor != 6))
+//	if ((data->ver_major != 1) || (data->ver_minor != 6))
+	if ((data->ver_major != 1) || (data->ver_minor != 6 && data->ver_minor != 7))
 	{
 		ret = 0;
 		goto init_end;
@@ -389,6 +403,9 @@ int fb_dir (char *dirname)
   unsigned long found = 0;
   unsigned long i;
   char *dirpath;
+	struct fb_mbr m;
+	struct fb_data *data;
+	data = (struct fb_data *)&m;
   while (*dirname == '/')
     dirname++;
   dirpath = dirname;
@@ -408,9 +425,11 @@ int fb_dir (char *dirname)
       char ch1;
 
       /* copy cur_file->name to tmp_name, and quote spaces with '\\' */
-      for (j = 0, k = 0; j < cur_file->size - 12; j++)
+//      for (j = 0, k = 0; j < cur_file->size - 12; j++)
+		for (j = 0, k = 0; j < cur_file->size - (data->ver_minor==6)?12:16; j++)
 	{
-	  if (! (ch1 = cur_file->name[j]))
+//	  if (! (ch1 = cur_file->name[j]))
+		if (! (ch1 = cur_file->name[j+(data->ver_minor==6)?0:4]))
 		break;
 	  if (ch1 == ' ')
 		tmp_name[k++] = '\\';
@@ -430,7 +449,8 @@ int fb_dir (char *dirname)
 	if (substring (dirname, tmp_name/*cur_file->name*/, 1) == 0)
 	  {
 	    found = 1;
-	    filemax = cur_file->data_size;
+//			filemax = cur_file->data_size;
+	    filemax = (data->ver_minor==6)?cur_file->data_size:(*(unsigned long long *)(&cur_file->data_size));
 	    break;
 	  }
 
