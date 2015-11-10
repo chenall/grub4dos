@@ -7115,7 +7115,17 @@ help_func (char *arg, int flags)
 	  for (; i < MAX_SHORT_DOC_LEN; i++)
 	    grub_putchar (' ');
 #else
-	    printf("%-*.*s",MAX_SHORT_DOC_LEN,MAX_SHORT_DOC_LEN-1,(*builtin)->short_doc?(*builtin)->short_doc:(*builtin)->name);
+		int i,j=MAX_SHORT_DOC_LEN;
+		for (i = 0; (i < MAX_SHORT_DOC_LEN) && ((*builtin)->short_doc[i] != 0); i++)
+		{
+			if ((*builtin)->short_doc[i] == '\n')
+			{
+				j=i;
+				break;
+			}
+		}
+//	    printf("%-*.*s",MAX_SHORT_DOC_LEN,MAX_SHORT_DOC_LEN-1,(*builtin)->short_doc?(*builtin)->short_doc:(*builtin)->name);
+			printf("%-*.*s",MAX_SHORT_DOC_LEN,j-1,(*builtin)->short_doc?(*builtin)->short_doc:(*builtin)->name);
 #endif
 	  if (! left)
 	    grub_putchar ('\n', 255);
