@@ -90,7 +90,7 @@ struct fbm_file
  *   char name[0];
  * } __attribute__((packed));
 */
-
+char ver_min;
 static int fb_inited = FB_DRIVE;
 static unsigned long fb_drive;
 static uchar4 fb_ofs;
@@ -225,6 +225,7 @@ static int fb_init (void)
 		goto init_end;
 	}
 
+	ver_min = data->ver_minor;
 	list_used = data->list_used;
 
 	/* if the dir list exceeds 64K, safely exit with failure. */
@@ -403,9 +404,7 @@ int fb_dir (char *dirname)
   unsigned long found = 0;
   unsigned long i;
   char *dirpath;
-	struct fb_mbr m;
-	struct fb_data *data;
-	data = (struct fb_data *)&m;
+
   while (*dirname == '/')
     dirname++;
   dirpath = dirname;
@@ -426,10 +425,10 @@ int fb_dir (char *dirname)
 
       /* copy cur_file->name to tmp_name, and quote spaces with '\\' */
 //      for (j = 0, k = 0; j < cur_file->size - 12; j++)
-		for (j = 0, k = 0; j < cur_file->size - (data->ver_minor==6)?12:16; j++)
+		for (j = 0, k = 0; j < cur_file->size - ((ver_min==6)?12:16); j++)
 	{
 //	  if (! (ch1 = cur_file->name[j]))
-		if (! (ch1 = cur_file->name[j+(data->ver_minor==6)?0:4]))
+		if (! (ch1 = cur_file->name[j+((ver_min==6)?0:4)]))
 		break;
 	  if (ch1 == ' ')
 		tmp_name[k++] = '\\';
@@ -450,7 +449,7 @@ int fb_dir (char *dirname)
 	  {
 	    found = 1;
 //			filemax = cur_file->data_size;
-	    filemax = (data->ver_minor==6)?cur_file->data_size:(*(unsigned long long *)(&cur_file->data_size));
+	    filemax = (ver_min==6)?cur_file->data_size:(*(unsigned long long *)(&cur_file->data_size));
 	    break;
 	  }
 
