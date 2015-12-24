@@ -5058,7 +5058,11 @@ command_func (char *arg, int flags)
 	prog_len = filemax;
 	psp_len = ((arg_len + strlen(file_path)+ 16) & ~0xF) + 0x10 + 0x20;
 //	psp = (char *)grub_malloc(prog_len * 2 + psp_len);
+	#if 0
 	tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
+	#else
+	tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len * 2);
+	#endif
 
 //	if (psp == NULL)
 	if (tmp == NULL)
@@ -5067,7 +5071,11 @@ command_func (char *arg, int flags)
 	}
 
 //	program = psp + psp_len;//(psp + psp_len) = entry point of program.
+	#if 0
 	program = (char *)((int)(tmp + 4095) & ~4095); /* 4K align the program */
+	#else
+	program = (char *)((int)(tmp + psp_len + 4095) & ~4095); /* 4K align the program */
+	#endif
 	psp = (char *)((int)(program + prog_len + 16) & ~0x0F);
 
 	unsigned long long *end_signature = (unsigned long long *)(program + (unsigned long)filemax - 8);
@@ -5143,7 +5151,7 @@ command_func (char *arg, int flags)
 					regs.ss = 0x1000;
 					regs.esp = 0xFFFE;
 				}
-				grub_free(psp);
+				grub_free(tmp);
 				grub_close();
 				ret = realmode_run ((unsigned long)&regs);
 				/* restore memory 0x10000 - 0xA0000 */
@@ -5172,33 +5180,32 @@ command_func (char *arg, int flags)
 
 	if (*end_signature == 0xBCBAA7BA03051805ULL)
 	{
-		if (*(unsigned long long *)(program + (unsigned long)filemax - 0x20) != 0x646E655F6E69616D) /* main_end */
+		if (*(unsigned long long *)(program + (unsigned long)filemax - 0x20) == 0x646E655F6E69616D) /* main_end New Version*/
 		{
-			errnum = ERR_EXEC_FORMAT;
-			grub_close ();
+			char * tmp1;
+			char * program1;
+			unsigned long *bss_end = (unsigned long *)(program + (unsigned long)filemax - 0x24);
 			grub_free(tmp);
-			return 0;
-		}
+			prog_len = *bss_end;
+			tmp1 = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
 
-		char * tmp1;
-		char * program1;
-		unsigned long *bss_end = (unsigned long *)(program + (unsigned long)filemax - 0x24);
-		grub_free(tmp);
-		prog_len = *bss_end;
-		tmp1 = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
-
-		if (tmp1 == NULL)
-		{
-			goto fail;
+			if (tmp1 == NULL)
+			{
+				goto fail;
+			}
+			program1 = (char *)((int)(tmp1 + 4095) & ~4095); /* 4K align the program */
+			if (tmp1 != tmp)
+			{
+				grub_memmove (program1, program, (unsigned long)filemax);
+				program = program1;
+				tmp = tmp1;
+			}
+			psp = (char *)((int)(program + prog_len + 16) & ~0x0F);
 		}
-		program1 = (char *)((int)(tmp1 + 4095) & ~4095); /* 4K align the program */
-		if (tmp1 != tmp)
+		else
 		{
-			grub_memmove (program1, program, (unsigned long)filemax);
-			program = program1;
-			tmp = tmp1;
+			psp = program - psp_len;
 		}
-		psp = (char *)((int)(program + prog_len + 16) & ~0x0F);
 	}
 	program[prog_len] = '\0';
 	grub_memset(psp, 0, psp_len);
