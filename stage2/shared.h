@@ -1192,6 +1192,15 @@ void stop_floppy (void);
 
 #define BAT_SIGN 0x54414221UL
 
+/* The table for a psp_end*/
+typedef struct {
+	unsigned long len;
+	unsigned long proglen;
+	unsigned long arg;
+	unsigned long path;
+	char filename[0];
+} __attribute__ ((packed)) psp_info_t;
+
 /* The table for a builtin.  */
 struct builtin
 {
