@@ -16396,7 +16396,7 @@ static int grub_exec_run(char *program, char *psp, int flags)
 		unsigned long i_bat = 1,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
 		grub_u32_t size = grub_strlen(program);
 
-		p_bat_array->size = size + 1;
+		p_bat_array->size = size++;
 		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",program + size,PI->proglen - size);
 
 		if (debug_prog)
