@@ -5074,7 +5074,7 @@ command_func (char *arg, int flags)
 					regs.ss = 0x1000;
 					regs.esp = 0xFFFE;
 				}
-				grub_free(psp);
+				grub_free(tmp);
 				grub_close();
 				ret = realmode_run ((unsigned long)&regs);
 				/* restore memory 0x10000 - 0xA0000 */
@@ -5103,34 +5103,44 @@ command_func (char *arg, int flags)
 
 	if (*end_signature == 0xBCBAA7BA03051805ULL)
 	{
-		if (*(unsigned long long *)(program + (unsigned long)filemax - 0x20) != 0x646E655F6E69616D) /* main_end */
+		if (*(unsigned long long *)(program + prog_len - 0x20) == 0x646E655F6E69616D) /* main_end New Version*/
 		{
-			errnum = ERR_EXEC_FORMAT;
-			grub_close ();
+			char * tmp1;
+			char * program1;
+			unsigned long *bss_end = (unsigned long *)(program + prog_len - 0x24);
+			if (prog_len != *bss_end){
+				grub_free(tmp);
+				prog_len = *bss_end;
+				tmp1 = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
+				if (tmp1 == NULL)
+				{
+					goto fail;
+				}
+				program1 = (char *)((int)(tmp1 + 4095) & ~4095); /* 4K align the program */
+				if (tmp1 != tmp)
+				{
+					grub_memmove (program1, program, (unsigned long)filemax);
+					program = program1;
+					tmp = tmp1;
+				}
+				psp = (char *)((int)(program + prog_len + 16) & ~0x0F);
+			}
+		} else {//the old program
+			char *program1;
+			printf_warning ("\nWarning! The program is outdated!\n");
+			psp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
 			grub_free(tmp);
-			return 0;
-		}
-
-		char * tmp1;
-		char * program1;
-		unsigned long *bss_end = (unsigned long *)(program + (unsigned long)filemax - 0x24);
-		grub_free(tmp);
-		prog_len = *bss_end;
-		tmp1 = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
-
-		if (tmp1 == NULL)
-		{
-			goto fail;
-		}
-		program1 = (char *)((int)(tmp1 + 4095) & ~4095); /* 4K align the program */
-		if (tmp1 != tmp)
-		{
-			grub_memmove (program1, program, (unsigned long)filemax);
+			if (psp == NULL)
+			{
+				goto fail;
+			}
+			program1 = psp + psp_len;
+			grub_memmove (program1, program, prog_len);
 			program = program1;
-			tmp = tmp1;
+			tmp = psp;
 		}
-		psp = (char *)((int)(program + prog_len + 16) & ~0x0F);
 	}
+
 	program[prog_len] = '\0';
 	grub_memset(psp, 0, psp_len);
 	grub_memmove (psp + 16, arg , arg_len + 1);/* copy args into somewhere in PSP. */
@@ -5150,11 +5160,18 @@ command_func (char *arg, int flags)
 	*(unsigned long *)(psp + psp_len - 12) = flags;		/* flags is here. */
 	*(unsigned long *)(psp + psp_len - 16) = psp_len - 16;/*program filename here.*/
 	*(unsigned long *)(psp + psp_len - 20) = prog_len;//program length
-	*(unsigned long *)(psp + psp_len - 24) = program - filename; 
+	*(unsigned long *)(psp + psp_len - 24) = psp_len - (filename - psp);
 #endif
+	{//New psp info
+		psp_info_t *PI = (psp_info_t*)psp;
+		PI->proglen=prog_len;
+		PI->arg=(unsigned short)(cmd_arg - arg) + 16;
+		PI->path=arg_len + 1 + 16;
+	}
 	/* (free_mem_start + pid - 16) is reserved for full pathname of the program file. */
 	int pid;
 	++prog_pid;
+
 	pid = grub_exec_run(program, psp, flags);
 	/* on exit, release the memory. */
 //	grub_free(psp);
@@ -16352,9 +16369,8 @@ static struct builtin builtin_shift =
 static int grub_exec_run(char *program, char *psp, int flags)
 {
 	int pid;
-	char *psp_end = psp + *(unsigned long *)psp;
-//	char *arg = program - (*(unsigned long *)(program - 8));
-	char *arg = psp_end - (*(unsigned long *)(psp_end - 8));
+	psp_info_t *PI=(psp_info_t *)psp;
+	char *arg = psp + PI->arg;
 		/* kernel image is destroyed, so invalidate the kernel */
 	if (kernel_type < KERNEL_TYPE_CHAINLOADER)
 		kernel_type = KERNEL_TYPE_NONE;
@@ -16370,18 +16386,18 @@ static int grub_exec_run(char *program, char *psp, int flags)
 		if (p_bat_array == NULL)
 			return 0;
 //		p_bat_array->path = program - (*(unsigned long *)(program - 24));
-		p_bat_array->path = psp_end - (*(unsigned long *)(psp_end - 24));
+		p_bat_array->path = psp + PI->path;
 		struct bat_array *p_bat_array_orig = p_bat_prog;
 
-		char *filename = psp_end - (*(unsigned long *)(psp_end - 16));
+		char *filename = PI->filename;
 		char *p_bat = program;
 		struct bat_label *label_entry =(struct bat_label *)((char *)p_bat_array + 0x200);
 		char **bat_entry = (char **)(label_entry + 0x80);//0x400/sizeof(label_entry)
 		unsigned long i_bat = 1,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
 		grub_u32_t size = grub_strlen(program);
 
-		p_bat_array->size = size++;
-		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",program + size,*(unsigned long *)(psp_end - 20) - size);
+		p_bat_array->size = size + 1;
+		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",program + size,PI->proglen - size);
 
 		if (debug_prog)
 		{
@@ -16439,6 +16455,7 @@ static int grub_exec_run(char *program, char *psp, int flags)
 		pid = bat_run_script(filename, arg,flags | BUILTIN_BAT_SCRIPT | BUILTIN_USER_PROG);//run batch script from line 0;
 
 		p_bat_prog = p_bat_array_orig;
+
 		grub_free(p_bat_array);
 		return pid;
 	}
