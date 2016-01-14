@@ -14185,7 +14185,8 @@ VARIABLE(grub_putchar)
 	.long	ABS(EXT_C(grub_close))
 	.long 0				//reserved
 	.long 0				//reserved
-	.long 0				//reserved
+  VARIABLE(disk_read_hook)
+	.long 0//reserved
 	.long	ABS(EXT_C(devread))
 	.long	ABS(EXT_C(devwrite))
 	.long	ABS(EXT_C(next_partition))

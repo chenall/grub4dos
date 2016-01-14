@@ -31,7 +31,7 @@ unsigned long long
 block_read_func (unsigned long long buf, unsigned long long len, unsigned long write);
 
 /* instrumentation variables */
-void (*disk_read_hook) (unsigned long long, unsigned long, unsigned long) = NULL;
+//void (*disk_read_hook) (unsigned long long, unsigned long, unsigned long) = NULL;
 void (*disk_read_func) (unsigned long long, unsigned long, unsigned long) = NULL;
 
 /* Forward declarations.  */
