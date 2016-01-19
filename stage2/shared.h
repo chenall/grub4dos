@@ -482,6 +482,7 @@ extern unsigned long line_spacing;
 extern void rectangle(int left, int top, int length, int width, int line);
 extern int hex (int v);
 extern unsigned long splashimage_loaded;
+extern unsigned long X_offset,Y_offset;
 #define MENU_TITLE					0x3A8000
 #define MENU_TITLE_LENGTH		0x800
 /* The Chinese patch will begin at here */

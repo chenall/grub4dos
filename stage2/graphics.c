@@ -1041,9 +1041,9 @@ static int read_image_bmp(int type)
 		{
 			grub_read((unsigned long long)(unsigned int)(char*)&bftmp,bfbit, GRUB_READ);
 			if(y < SPLASH_H && x < SPLASH_W)
-				if(y < current_y_resolution && x < current_x_resolution)
+				if((y+Y_offset) < current_y_resolution && (x+X_offset) < current_x_resolution)
 				{
-					bmp = (unsigned char *)SPLASH_IMAGE+x*current_bytes_per_pixel+y*current_bytes_per_scanline;
+					bmp = (unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline;
 					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
 //				bmp[x] = bftmp;		//
 						*(unsigned long *)bmp = bftmp;
@@ -1149,11 +1149,11 @@ static void StoreBuffer()
 
 	for(i=0;i<SampRate_Y_V*8;i++)
 	{
-		if((sizei+i)<SPLASH_H && (sizei+i)<current_y_resolution)
+		if((sizei+i)<SPLASH_H && (sizei+i+Y_offset)<current_y_resolution)
 		{
 			for(j=0;j<SampRate_Y_H*8;j++)
 			{
-				if((sizej+j)<SPLASH_W && (sizej+j)<current_x_resolution)
+				if((sizej+j)<SPLASH_W && (sizej+j+X_offset)<current_x_resolution)
 				{
 					y=Y[i*8*SampRate_Y_H+j];
 					u=U[(i/V_YtoU)*8*SampRate_Y_H+j/H_YtoU];
@@ -1185,7 +1185,7 @@ static void StoreBuffer()
 						else if (bb<0)
 							B=0;
 					}
-					lfb = (unsigned char *)SPLASH_IMAGE + (unsigned long)(sizei+i)*current_bytes_per_scanline + (sizej+j)*current_bytes_per_pixel;
+					lfb = (unsigned char *)SPLASH_IMAGE + (unsigned long)(sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel;
 					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
 					{
 						*lfb++ = B;

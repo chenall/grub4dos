@@ -4117,6 +4117,7 @@ static int terminal_func (char *arg, int flags);
 #ifdef SUPPORT_GRAPHICS
 extern char splashimage[128];
 int graphicsmode_func (char *arg, int flags);
+unsigned long X_offset=0,Y_offset=0;
 
 static int
 splashimage_func(char *arg, int flags)
@@ -4125,11 +4126,23 @@ splashimage_func(char *arg, int flags)
     /* If ARG is empty, we reset SPLASHIMAGE.  */
     unsigned long type = 0;
     unsigned long h,w;
+    unsigned long long val;
     if (*arg)
     {
 	if (strlen(arg) > 127)
 		return ! (errnum = ERR_WONT_FIT);
     
+	if (grub_memcmp (arg, "--offset=", 9) == 0)	//--offset=x=y
+	{
+		arg += 9;
+		if (safe_parse_maxint (&arg, &val))
+			X_offset = val;
+		arg = skip_to (1, arg);
+		if (safe_parse_maxint (&arg, &val))
+			Y_offset = val;
+		arg = skip_to (0, arg);
+	} 
+   
 	if (! grub_open(arg))
 		return 0;
 	grub_read((unsigned long long)(unsigned int)&type,2,GRUB_READ);
@@ -4164,7 +4177,7 @@ static struct builtin builtin_splashimage =
   "splashimage",
   splashimage_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
-  "splashimage FILE",
+  "splashimage --offset=[x]=[y] FILE",
   "Load FILE as the background image when in graphics mode."
 };
 
