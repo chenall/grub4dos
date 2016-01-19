@@ -8301,7 +8301,7 @@ int
 probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, unsigned long sector_count1, unsigned long part_start1)
 {
   unsigned long i, j;
-  unsigned long lba_total_sectors = 0;
+//  unsigned long lba_total_sectors = 0;
   unsigned long non_empty_entries;
   unsigned long HPC;
   unsigned long SPT;
@@ -8372,8 +8372,8 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 		ret_val = 5;
 		goto err_print_hex;
 	  }
-	  if (lba_total_sectors < BS->P[i].start_lba+BS->P[i].total_sectors)
-	      lba_total_sectors = BS->P[i].start_lba+BS->P[i].total_sectors;
+//	  if (lba_total_sectors < BS->P[i].start_lba+BS->P[i].total_sectors)
+//	      lba_total_sectors = BS->P[i].start_lba+BS->P[i].total_sectors;
 	  /* the partitions should not overlap each other */
 	  for (j = 0; j < i; j++)
 	  {
@@ -8436,8 +8436,11 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 		goto err_print_hex;
 	  }
 	  S[i+4] = Y;
-	  L[i+4] = BS->P[i].start_lba + BS->P[i].total_sectors;
-	  if (start_sector1 == part_start1)/* extended partition is pretending to be a whole drive */
+    if (BS->P[i].total_sectors != 0xffffffff)
+      L[i+4] = BS->P[i].start_lba + BS->P[i].total_sectors;
+    else
+      L[i+4] = 0xffffffff;
+	  if (start_sector1 == part_start1 && L[i+4] != 0xffffffff)/* extended partition is pretending to be a whole drive */
 		L[i+4] +=(unsigned long) part_start1;
 	  if (L[i+4] < Y)
 	  {
