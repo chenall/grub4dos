@@ -15647,6 +15647,16 @@ setmenu_func(char *arg, int flags)
 			menu_tab |= 0x40;
 			arg += 13;
 		}
+		else if (grub_memcmp (arg, "--highlight-short", 17) == 0)
+		{
+			menu_tab &= 0xef;
+			arg += 17;
+		}
+		else if (grub_memcmp (arg, "--highlight-full", 16) == 0)
+		{
+			menu_tab |= 0x10;
+			arg += 16;
+		}
 		else if (grub_memcmp (arg, "--box", 5) == 0)
 		{
 			arg = skip_to (0, arg);
@@ -15753,6 +15763,7 @@ static struct builtin builtin_setmenu =
   "setmenu --parameter | --parameter | ... ",
   "--ver-on* --ver-off --lang=en* --lang=zh --u\n"
 	"--left-align* --right-align --auto-num-off* --auto-num-on\n"
+	"--highlight-short* --highlight-full\n"
   "--font-spacing=[font]:[line]. default 0\n"
   "--string=[x]=[y]=[color]=[\"string\"]\n"
   "--box x=[x] y=[y] w=[w] h=[h] l=[l]\n"

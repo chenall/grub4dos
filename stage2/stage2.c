@@ -411,6 +411,8 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 	}
       else
 	{
+		if (!(menu_tab & 0x10))
+		{
 		unsigned long long clo = current_color_64bit;
 		if(splashimage_loaded & 2)
 			current_color_64bit = 0;
@@ -419,9 +421,11 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 				current_term->setcolorstate (COLOR_STATE_NORMAL);
 		ret = grub_putchar (' ', ret);
 		current_color_64bit = clo;
-		if ((long)ret < 0)
-			break;
-		//grub_putchar (' ', ret);
+//		if ((long)ret < 0)
+//			break;
+		}
+		else
+			grub_putchar (' ', ret);
 	}
     }
 
