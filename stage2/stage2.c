@@ -738,7 +738,7 @@ restart1:
 	  /* If GRUB_TIMEOUT is expired, boot the default entry.  */
 	  if (grub_timeout >=0
 	      && (time1 = getrtsecs ()) != time2
-	      && time1 != 0xFF)
+	      /* && time1 != 0xFF */)
 	    {
 	      if (grub_timeout <= 0)
 		{
@@ -892,7 +892,7 @@ restart1:
       //cur_entry = NULL;
 	//cur_entry = menu_entries; /* for modified menu */
 
-      if (grub_timeout >= 0 && (time1 = getrtsecs()) != time2 && time1 != 0xFF)
+      if (grub_timeout >= 0 && (time1 = getrtsecs()) != time2 /* && time1 != 0xFF */)
 	{
 	  if (grub_timeout <= 0)
 	    {
@@ -955,6 +955,8 @@ restart1:
 	  grub_timeout--;
 	}
 
+	if ((animated_type & 0x0f) == 1)
+		animated();
       /* Check for a keypress, however if TIMEOUT has been expired
 	 (GRUB_TIMEOUT == -1) relax in GETKEY even if no key has been
 	 pressed.  
@@ -986,7 +988,11 @@ restart1:
 			}
 	  }
 	  else
+		{
+			while (((animated_type & 0x0f) == 1) && (checkkey () == -1))
+				animated();
 		c = /*ASCII_CHAR*/ (getkey ());
+		}
 
 	  if (! old_c_count_end)
 	  {

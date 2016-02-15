@@ -15746,10 +15746,11 @@ gottime:
 	 */
 	pushl	%ecx
 	movl	0x46C, %eax
-	movl	$5, %ecx	/* 5 seconds */
-	mull	%ecx
+//	movl	$5, %ecx	/* 5 seconds */
+//	mull	%ecx
 	xorl	%edx, %edx
-	movl	$91, %ecx	/* 91 ticks = 5 seconds */
+//	movl	$91, %ecx	/* 91 ticks = 5 seconds */
+	movl	$18, %ecx
 	divl	%ecx
 	xorl	%edx, %edx
 	movl	$60, %ecx

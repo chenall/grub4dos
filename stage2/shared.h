@@ -777,6 +777,15 @@ extern unsigned long current_bits_per_pixel;
 extern unsigned long current_bytes_per_scanline;
 extern unsigned long current_bytes_per_pixel;
 extern unsigned long current_phys_base;
+extern unsigned long fill_color;
+extern unsigned char animated_type;
+extern unsigned char animated_delay;
+extern unsigned char animated_sequence_num;
+extern unsigned short animated_offset_x;
+extern unsigned short animated_offset_y;
+extern char animated_name[57];
+extern int animated (void);
+extern int splashimage_func(char *arg, int flags);
 #endif
 
 struct mem_alloc_array

@@ -4117,16 +4117,28 @@ static int terminal_func (char *arg, int flags);
 #ifdef SUPPORT_GRAPHICS
 extern char splashimage[128];
 int graphicsmode_func (char *arg, int flags);
-unsigned long X_offset=0,Y_offset=0;
+unsigned long X_offset,Y_offset;
+int vbe_fill_color (unsigned long color);
+unsigned char animated_type=0;           //bit0-3:  0/1/2=empty/one/loop   bit4-7:   0/1=normal/background_transparent 
+unsigned char animated_delay;
+unsigned char animated_sequence_num;
+unsigned short animated_offset_x;
+unsigned short animated_offset_y;
+char animated_name[57];
+unsigned long fill_color;
+int splashimage_func(char *arg, int flags);
 
-static int
+int
 splashimage_func(char *arg, int flags)
 {
     errnum = 0;
     /* If ARG is empty, we reset SPLASHIMAGE.  */
-    unsigned long type = 0;
-    unsigned long h,w;
+//    unsigned long type = 0;
+//    unsigned long h,w;
     unsigned long long val;
+    X_offset=0,Y_offset=0;
+    animated_delay = 0;
+    fill_color = 0;
     if (*arg)
     {
 	if (strlen(arg) > 127)
@@ -4142,29 +4154,62 @@ splashimage_func(char *arg, int flags)
 			Y_offset = val;
 		arg = skip_to (0, arg);
 	} 
+  else if (grub_memcmp (arg, "--fill-color=", 13) == 0)
+  {
+    arg += 13;
+    if (safe_parse_maxint (&arg, &val))
+      fill_color = val;
+    vbe_fill_color(fill_color);
+    goto fill;
+  }
+  else if (grub_memcmp (arg, "--animated=", 11) == 0)
+  {
+  arg += 11;
+  if (safe_parse_maxint (&arg, &val))
+		animated_type = val;
+  arg++;
+  if (safe_parse_maxint (&arg, &val))
+    animated_delay = val;
+  arg++;
+  if (safe_parse_maxint (&arg, &val))
+    animated_sequence_num = val;
+  arg++;
+  if (safe_parse_maxint (&arg, &val))
+    animated_offset_x = val;
+  arg++;
+  if (safe_parse_maxint (&arg, &val))
+    animated_offset_y = val;
+  arg++;
+  strcpy(animated_name, arg);
+	
+	if ((animated_type & 0x0f) == 2)
+		animated();
+  return 1;
+  }    
    
-	if (! grub_open(arg))
-		return 0;
-	grub_read((unsigned long long)(unsigned int)&type,2,GRUB_READ);
-	if (type == 0x4D42)
-	{
-		filepos = 18;
-		grub_read((unsigned long long)(unsigned int)&w,4,GRUB_READ);
-		grub_read((unsigned long long)(unsigned int)&h,4,GRUB_READ);
+//		if (! grub_open(arg))
+//			return 0;
+//		grub_read((unsigned long long)(unsigned int)&type,2,GRUB_READ);
+//		if (type == 0x4D42)
+//		{
+//			filepos = 18;
+//			grub_read((unsigned long long)(unsigned int)&w,4,GRUB_READ);
+//			grub_read((unsigned long long)(unsigned int)&h,4,GRUB_READ);
+//		}
+//		grub_close();
 	}
-	grub_close();
-    }
 
     strcpy(splashimage, arg);
-	if (type == 0x4D42 && (!graphics_inited || graphics_mode < 0xFF)) //BMP
-	{
-		char tmp[16];
-		sprintf(tmp,"-1 %d %d",w,h);
-		if (graphicsmode_func(tmp,1))
-			return 1;
-	}
-	graphics_end();
-	current_term = term_table + 1;	/* terminal graphics */
+//	if (type == 0x4D42 && (!graphics_inited || graphics_mode < 0xFF)) //BMP
+//	{
+//		char tmp[16];
+//		sprintf(tmp,"-1 %d %d",w,h);
+//		if (graphicsmode_func(tmp,1))
+//			return 1;
+//	}
+//	graphics_end();
+//	current_term = term_table + 1;	/* terminal graphics */
+fill:
 	if (! graphics_init())
 		return ! (errnum = ERR_EXEC_FORMAT);
 	//graphics_cls();
@@ -4178,6 +4223,12 @@ static struct builtin builtin_splashimage =
   splashimage_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
   "splashimage --offset=[x]=[y] FILE",
+  "splashimage --fill-color=[0xrrggbb]\n"
+  "splashimage --animated=[type]=[delay]=[sequence_num]=[offset_x]=[offset_y]=[name]\n"
+  "type: bit0-3:  0/1/2=empty/one/loop\n"
+  "      bit4-7:  0/1=normal/background_transparent\n"
+  "delay: ticks\n"
+  "naming rules for name: xxxxx-01.xxx; xxxxx-02.xxx; ...; xxxxx-'sequence_num'.xxx\n"
   "Load FILE as the background image when in graphics mode."
 };
 
