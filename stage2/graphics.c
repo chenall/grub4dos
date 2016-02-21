@@ -1037,9 +1037,12 @@ unsigned long delay0, old_tick, name_len;
 int animated (void)
 {
 	unsigned long cur_tick, delay1;
-	char tmp[128];
+	char num=0, tmp[128];
 	unsigned long long val;
 	char *p;
+
+	if (!animated_type)
+		return 0;
 
   if (animated_delay)
   {
@@ -1047,10 +1050,14 @@ int animated (void)
 		animated_delay=0;
     old_tick=currticks();
     name_len=grub_strlen(animated_name);
-		if ((animated_type & 0x0f) == 2)
+		if (!(animated_type & 0x10) && (animated_type & 0x0f))
 		{
-			setcursor (2);
-			cls ();
+			num=animated_type & 0xf;
+			if (!(splashimage_loaded & 2) || !(cursor_state & 2))
+			{
+				setcursor (2);
+				cls ();
+			}
 		}
 	}
  
@@ -1067,9 +1074,14 @@ int animated (void)
   		
     if (delay0 <= delay1)
     {
+			if (!(animated_type & 0x10) && (animated_type & 0x0f) && !num)
+			{
+				animated_type = 0;
+				return 1;
+			}
 			sprintf(tmp,"--offset=%d=%d %s",animated_offset_x,animated_offset_y,animated_name);
 			use_phys_base=1;
-			if ((animated_type & 0xf0) == 0x10)
+			if (animated_type & 0x80)
 				background_transparent=1;
 			splashimage_func(tmp,1);
 			use_phys_base=0;
@@ -1087,21 +1099,15 @@ int animated (void)
 			p=&animated_name[name_len-6];
 			safe_parse_maxint (&p, &val);
 
-			if (val>animated_sequence_num)
+			if (val>animated_last_num)
 			{
-				if ((animated_type & 0x0f) == 2)
-				{
-					animated_type = 0;
-					return 1;
-				}
-				else
-				{
-					animated_name[name_len-5]=0x31;
-					animated_name[name_len-6]=0x30;
-				}
+				if (!(animated_type & 0x10) && (animated_type & 0x0f))
+					num--;
+				animated_name[name_len-5]=0x31;
+				animated_name[name_len-6]=0x30;
 			} 
 		}  
-		if ((animated_type & 0x0f) == 1)
+		if (animated_type & 0x10)
 			return 1;
   } 
 	return 0;
@@ -1144,8 +1150,8 @@ static int read_image_bmp(int type)
 	bfbit = bmih.biBitCount>>3;
 	bftmp = 0;
 	//bftmp = (bmih.biWidth*(bmih.biBitCount>>3)+3)&~3;
-	SPLASH_W = bmih.biWidth;
-	SPLASH_H = bmih.biHeight;
+//	SPLASH_W = bmih.biWidth;
+//	SPLASH_H = bmih.biHeight;
 //	unsigned long *bmp = SPLASH_IMAGE;
 	unsigned char *bmp;
 	if (debug > 0)
@@ -1165,7 +1171,7 @@ static int read_image_bmp(int type)
 				else if (bftmp==0)
 					RGB=0;
 			}
-			if(y < SPLASH_H && x < SPLASH_W)
+			if(y < bmih.biHeight && x < bmih.biWidth)
 				if((y+Y_offset) < current_y_resolution && (x+X_offset) < current_x_resolution)
 				{
 					if (use_phys_base !=1)
@@ -1176,22 +1182,23 @@ static int read_image_bmp(int type)
 					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
 					{
 //				bmp[x] = bftmp;		//
-						if((background_transparent == 1)	&& (bftmp & 0xff)==((bftmp & 0xff00)>>8) &&	(bftmp & 0xff)==((bftmp & 0xff0000)>>16)
-								&& ((RGB==0xff) ? ((bftmp & 0xff)>=0xf0) :	((RGB==0) ? ((bftmp & 0xff)<=0x1f) : (bftmp==bftmp0))))
+						if((background_transparent == 1)	&& (((bftmp & 0xff)==((bftmp & 0xff00)>>8) &&	(bftmp & 0xff)==((bftmp & 0xff0000)>>16) && RGB!=0xaa)?
+								((RGB==0xff) ? ((bftmp & 0xff)>=0xf0) :	((bftmp & 0xff)<=0x1f)) : (bftmp==bftmp0)))
 							*(unsigned long *)bmp = *(unsigned long *)((unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline);
 						else
 							*(unsigned long *)bmp = bftmp;
 					}
 					else
 					{
-						if((background_transparent == 1)	&& (bftmp & 0xff)==((bftmp & 0xff00)>>8) &&	(bftmp & 0xff)==((bftmp & 0xff0000)>>16)
-								&& ((RGB==0xff) ? ((bftmp & 0xff)>=0xf0) :	((RGB==0) ? ((bftmp & 0xff)<=0x1f) : (bftmp==bftmp0))))
+						if((background_transparent == 1)	&& (((bftmp & 0xff)==((bftmp & 0xff00)>>8) &&	(bftmp & 0xff)==((bftmp & 0xff0000)>>16) && RGB!=0xaa)?
+								((RGB==0xff) ? ((bftmp & 0xff)>=0xf0) :	((bftmp & 0xff)<=0x1f)) : (bftmp==bftmp0)))
 							*(unsigned short *)bmp = *(unsigned short *)((unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline);
 						else
 							*(unsigned short *)bmp = (unsigned short)pixel_shift(bftmp);
 					}
 				}
 		}
+		filepos += ((bmih.biWidth*bfbit&3)?(4-(bmih.biWidth*bfbit&3)):0);
 	}
 	return 2;
 }
@@ -1349,8 +1356,8 @@ static void StoreBuffer()
 						lfb = (unsigned char *)current_phys_base + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel;
 					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
 					{
-						if((background_transparent == 1)	&& B==G &&	B==R
-								&& ((RGB==0xff) ? (B>=0xf0) :	((RGB==0) ? (B<=0x1f) : (B==B0 && G==G0 && R==R0))))
+						if((background_transparent == 1)	&& ((B==G &&	B==R && RGB!=0xaa)?
+								((RGB==0xff) ? (B>=0xf0) : (B<=0x1f)) : (B==B0 && G==G0 && R==R0)))
 							*(unsigned long *)lfb = *(unsigned long *)((unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel);
 						else
 						{
@@ -1361,8 +1368,8 @@ static void StoreBuffer()
 					}
 					else
 					{
-						if((background_transparent == 1)	&& B==G &&	B==R
-								&& ((RGB==0xff) ? (B>=0xf0) :	((RGB==0) ? (B<=0x1f) : (B==B0 && G==G0 && R==R0))))
+						if((background_transparent == 1)	&& ((B==G &&	B==R && RGB!=0xaa)?
+								((RGB==0xff) ? (B>=0xf0) : (B<=0x1f)) : (B==B0 && G==G0 && R==R0)))
 							*(unsigned short *)lfb = *(unsigned short *)((unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel);
 						else
 						{

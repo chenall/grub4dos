@@ -4119,9 +4119,9 @@ extern char splashimage[128];
 int graphicsmode_func (char *arg, int flags);
 unsigned long X_offset,Y_offset;
 int vbe_fill_color (unsigned long color);
-unsigned char animated_type=0;           //bit0-3:  0/1/2=empty/one/loop   bit4-7:   0/1=normal/background_transparent 
+unsigned char animated_type=0;           //bit 0-3:times   bit 4:repeat forever  bit 7:transparent background  type=00:disable
 unsigned char animated_delay;
-unsigned char animated_sequence_num;
+unsigned char animated_last_num;
 unsigned short animated_offset_x;
 unsigned short animated_offset_y;
 char animated_name[57];
@@ -4167,12 +4167,14 @@ splashimage_func(char *arg, int flags)
   arg += 11;
   if (safe_parse_maxint (&arg, &val))
 		animated_type = val;
+	if (!animated_type)
+		return 1;
   arg++;
   if (safe_parse_maxint (&arg, &val))
     animated_delay = val;
   arg++;
   if (safe_parse_maxint (&arg, &val))
-    animated_sequence_num = val;
+    animated_last_num = val;
   arg++;
   if (safe_parse_maxint (&arg, &val))
     animated_offset_x = val;
@@ -4180,9 +4182,17 @@ splashimage_func(char *arg, int flags)
   if (safe_parse_maxint (&arg, &val))
     animated_offset_y = val;
   arg++;
+	if (! grub_open(arg))
+	{
+		animated_type = 0;
+		return 0;
+	}
+	else
+		grub_close();
+		
   strcpy(animated_name, arg);
 	
-	if ((animated_type & 0x0f) == 2)
+	if (!(animated_type & 0x10) && (animated_type & 0x0f))
 		animated();
   return 1;
   }    
@@ -4224,11 +4234,11 @@ static struct builtin builtin_splashimage =
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
   "splashimage --offset=[x]=[y] FILE",
   "splashimage --fill-color=[0xrrggbb]\n"
-  "splashimage --animated=[type]=[delay]=[sequence_num]=[offset_x]=[offset_y]=[name]\n"
-  "type: bit0-3:  0/1/2=empty/one/loop\n"
-  "      bit4-7:  0/1=normal/background_transparent\n"
+  "splashimage --animated=[type]=[delay]=[last_num]=[offset_x]=[offset_y]=[name]\n"
+  "type: bit 0-3:times  bit 4:repeat forever  bit 7:transparent background\n"
+  "      type=00:disable\n"
   "delay: ticks\n"
-  "naming rules for name: xxxxx-01.xxx; xxxxx-02.xxx; ...; xxxxx-'sequence_num'.xxx\n"
+  "naming rules for name: xxxxx01.xxx; xxxxx02.xxx; ...; xxxxx'last_num'.xxx\n"
   "Load FILE as the background image when in graphics mode."
 };
 

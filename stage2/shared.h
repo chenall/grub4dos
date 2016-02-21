@@ -780,7 +780,7 @@ extern unsigned long current_phys_base;
 extern unsigned long fill_color;
 extern unsigned char animated_type;
 extern unsigned char animated_delay;
-extern unsigned char animated_sequence_num;
+extern unsigned char animated_last_num;
 extern unsigned short animated_offset_x;
 extern unsigned short animated_offset_y;
 extern char animated_name[57];

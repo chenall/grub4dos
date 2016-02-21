@@ -955,7 +955,7 @@ restart1:
 	  grub_timeout--;
 	}
 
-	if ((animated_type & 0x0f) == 1)
+	if ((animated_type & 0x10) && (grub_timeout >= 0))
 		animated();
       /* Check for a keypress, however if TIMEOUT has been expired
 	 (GRUB_TIMEOUT == -1) relax in GETKEY even if no key has been
@@ -989,7 +989,7 @@ restart1:
 	  }
 	  else
 		{
-			while (((animated_type & 0x0f) == 1) && (checkkey () == -1))
+			while ((animated_type & 0x10) && (checkkey () == -1))
 				animated();
 		c = /*ASCII_CHAR*/ (getkey ());
 		}
