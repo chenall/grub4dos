@@ -4127,6 +4127,7 @@ unsigned short animated_offset_y;
 char animated_name[57];
 unsigned long fill_color;
 int splashimage_func(char *arg, int flags);
+int background_transparent=0;
 
 int
 splashimage_func(char *arg, int flags)
@@ -4136,6 +4137,7 @@ splashimage_func(char *arg, int flags)
 //    unsigned long type = 0;
 //    unsigned long h,w;
     unsigned long long val;
+		int backup_x, backup_y;
     X_offset=0,Y_offset=0;
     animated_delay = 0;
     fill_color = 0;
@@ -4144,12 +4146,16 @@ splashimage_func(char *arg, int flags)
 	if (strlen(arg) > 127)
 		return ! (errnum = ERR_WONT_FIT);
     
-	if (grub_memcmp (arg, "--offset=", 9) == 0)	//--offset=x=y
+	if (grub_memcmp (arg, "--offset=", 9) == 0)	//--offset=type=x=y
 	{
 		arg += 9;
 		if (safe_parse_maxint (&arg, &val))
+			if (val & 0x80)
+				background_transparent=1;
+		arg++;
+		if (safe_parse_maxint (&arg, &val))
 			X_offset = val;
-		arg = skip_to (1, arg);
+		arg++;
 		if (safe_parse_maxint (&arg, &val))
 			Y_offset = val;
 		arg = skip_to (0, arg);
@@ -4158,17 +4164,22 @@ splashimage_func(char *arg, int flags)
   {
     arg += 13;
     if (safe_parse_maxint (&arg, &val))
+		{
       fill_color = val;
     vbe_fill_color(fill_color);
     goto fill;
+		}
+		return 0;
   }
   else if (grub_memcmp (arg, "--animated=", 11) == 0)
   {
   arg += 11;
   if (safe_parse_maxint (&arg, &val))
+	{
 		animated_type = val;
 	if (!animated_type)
 		return 1;
+	}
   arg++;
   if (safe_parse_maxint (&arg, &val))
     animated_delay = val;
@@ -4181,14 +4192,7 @@ splashimage_func(char *arg, int flags)
   arg++;
   if (safe_parse_maxint (&arg, &val))
     animated_offset_y = val;
-  arg++;
-	if (! grub_open(arg))
-	{
-		animated_type = 0;
-		return 0;
-	}
-	else
-		grub_close();
+  arg = skip_to (0, arg);
 		
   strcpy(animated_name, arg);
 	
@@ -4220,10 +4224,13 @@ splashimage_func(char *arg, int flags)
 //	graphics_end();
 //	current_term = term_table + 1;	/* terminal graphics */
 fill:
+	backup_x = fontx;
+	backup_y = fonty;
 	if (! graphics_init())
 		return ! (errnum = ERR_EXEC_FORMAT);
 	//graphics_cls();
-
+	fontx = backup_x;
+	fonty = backup_y;
     return 1;
 }
 
@@ -4232,9 +4239,10 @@ static struct builtin builtin_splashimage =
   "splashimage",
   splashimage_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
-  "splashimage --offset=[x]=[y] FILE",
+  "splashimage [--offset=[type]=[x]=[y]] FILE",
+  "type: bit 7:transparent background\n"
   "splashimage --fill-color=[0xrrggbb]\n"
-  "splashimage --animated=[type]=[delay]=[last_num]=[offset_x]=[offset_y]=[name]\n"
+  "splashimage --animated=[type]=[delay]=[last_num]=[x]=[y] START_FILE\n"
   "type: bit 0-3:times  bit 4:repeat forever  bit 7:transparent background\n"
   "      type=00:disable\n"
   "delay: ticks\n"

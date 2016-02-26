@@ -454,7 +454,7 @@ success:
     if (! read_image ())
     {
 	//set_videomode (3/*saved_videomode*/);
-	graphics_end ();
+//	graphics_end ();
 	return !(errnum = ERR_LOAD_SPLASHIMAGE);
     }
   }
@@ -1031,7 +1031,6 @@ vbe_fill_color (unsigned long color)
 
 int animated (void);
 int use_phys_base=0;
-int background_transparent=0;
 unsigned long delay0, old_tick, name_len;
 
 int animated (void)
@@ -1040,9 +1039,6 @@ int animated (void)
 	char num=0, tmp[128];
 	unsigned long long val;
 	char *p;
-
-	if (!animated_type)
-		return 0;
 
   if (animated_delay)
   {
@@ -1059,9 +1055,8 @@ int animated (void)
 				cls ();
 			}
 		}
-	}
- 
-	while (1)
+	} 
+	while (animated_type && (cursor_state & 2))
 	{
 		cur_tick=currticks();
 		
@@ -1079,13 +1074,10 @@ int animated (void)
 				animated_type = 0;
 				return 1;
 			}
-			sprintf(tmp,"--offset=%d=%d %s",animated_offset_x,animated_offset_y,animated_name);
+			sprintf(tmp,"--offset=%d=%d=%d %s",(animated_type & 0x80),animated_offset_x,animated_offset_y,animated_name);
 			use_phys_base=1;
-			if (animated_type & 0x80)
-				background_transparent=1;
 			splashimage_func(tmp,1);
 			use_phys_base=0;
-			background_transparent=0;
 
 			if (animated_name[name_len-5]<0x39)
 				animated_name[name_len-5] += 1; 
@@ -1154,8 +1146,8 @@ static int read_image_bmp(int type)
 //	SPLASH_H = bmih.biHeight;
 //	unsigned long *bmp = SPLASH_IMAGE;
 	unsigned char *bmp;
-	if (debug > 0)
-		printf("Loading splashimage...\n");
+//	if (debug > 0)
+//		printf("Loading splashimage...\n");
 	for(y=bmih.biHeight-1;y>=0;--y)
 	{
 //		bmp = SPLASH_IMAGE+y*SPLASH_W;
@@ -1200,6 +1192,7 @@ static int read_image_bmp(int type)
 		}
 		filepos += ((bmih.biWidth*bfbit&3)?(4-(bmih.biWidth*bfbit&3)):0);
 	}
+	background_transparent=0;
 	return 2;
 }
 
@@ -2061,6 +2054,7 @@ read_image_jpg(int type)
 	if (!(InitTag()))
 		return 1;
 	Decode();
+	background_transparent=0;
 	return 2;
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -14979,7 +14979,7 @@ ENTRY(console_getkey)
 	call	remap_ascii_char	/* ESI changed */
 	movzwl	%dx, %eax
 #else
-
+4:
 	call	EXT_C(prot_to_real)
 
 	.code16
@@ -15008,7 +15008,9 @@ ENTRY(console_getkey)
 	/* then, use enhanced check key function */
 	movb	$0x11, %ah		#; check enhanced key
 	int	$0x16
-	jz	1b			#; no keypress, loop
+//	jz	1b			#; no keypress, loop
+	movl	$0xFFFFFFFF, %edx	/* value for no key-press */
+	jz	3f			/* jump if no key-press */
 
 	/* found an enhanced key */
 	movb	$0x10, %ah		#; get the enhanced key
@@ -15029,12 +15031,19 @@ ENTRY(console_getkey)
 1:
 	movzwl	%ax, %edx
 	//call	translate_keycode
-
+3:
 	call	EXT_C(real_to_prot)
 	.code32
 
 	sti
 
+	cmpl	$0xFFFFFFFF, %edx
+	jne	1f
+	testb $0x10, animated_type
+	jz 4b
+	call animated
+	jmp 4b
+1:
 	call	remap_ascii_char	/* ESI changed */
 	movzwl	%dx, %eax
 #endif

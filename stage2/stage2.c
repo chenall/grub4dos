@@ -988,11 +988,7 @@ restart1:
 			}
 	  }
 	  else
-		{
-			while ((animated_type & 0x10) && (checkkey () == -1))
-				animated();
 		c = /*ASCII_CHAR*/ (getkey ());
-		}
 
 	  if (! old_c_count_end)
 	  {

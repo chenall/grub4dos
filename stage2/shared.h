@@ -786,6 +786,7 @@ extern unsigned short animated_offset_y;
 extern char animated_name[57];
 extern int animated (void);
 extern int splashimage_func(char *arg, int flags);
+extern int background_transparent;
 #endif
 
 struct mem_alloc_array

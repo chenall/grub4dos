@@ -1,9 +1,9 @@
 ﻿更新说明：
-2016-02-21（yaya）
+2016-02-26（yaya）
   1.增加图像背景色设置方法。    splashimage --fill-color=[0xrrggbb]
     作用之一，作为小图像的背景。
     作用之二，直接作为菜单的背景（即不加载图像背景）。此时只设置字体的前景色即可。
-  2.增加动画菜单。    splashimage --animated=[type]=[delay]=[last_num]=[offset_x]=[offset_y]=[name]
+  2.增加动画菜单。    splashimage --animated=[type]=[delay]=[last_num]=[x]=[y] START_FILE
     类型[type]：bit 0-3: 播放次数    bit 4: 永远重复    bit 7: 透明背景
                 type=00：禁止播放
                 播放n次：序列图像各显示n次，时间独占。可作为启动前导、序幕。
@@ -13,8 +13,11 @@
                 提醒：请以16进制方式输入。否则易错。
     延迟[delay]：序列图像之间的延迟。单位是滴答，即1/18.2秒。
     序列数[last_num]：序列图像总数（2位数，从1开始计数）。
-    偏移[offset_x]、[offset_y]：图像偏移，单位像素。
-    名称[name]：图像名称，可包含路径。命名规则：xxxxx01.xxx; xxxxx02.xxx; ...; xxxxx'last_num'.xxx 。
+    偏移[x]、[y]：图像偏移，单位像素。
+    起始图像文件名 START_FILE：xxxxx01.xxx。
+    图像文件名，可包含路径。命名规则：xxxxx01.xxx; xxxxx02.xxx; ...; xxxxx'last_num'.xxx 。
+  3.增加固定图像的背景色可以透明。  splashimage [--offset=[type]=[x]=[y]] FILE
+    类型[type]：bit 7: 透明背景
 
 2016-02-14（yaya）
   setmenu 函数增加菜单项目背景短/满参数(默认短)
