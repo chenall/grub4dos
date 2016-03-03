@@ -1044,7 +1044,8 @@ int animated (void)
   {
 		delay0 = animated_delay;
 		animated_delay=0;
-    old_tick=currticks();
+    cur_tick=currticks();
+		old_tick=cur_tick-0x100;
     name_len=grub_strlen(animated_name);
 		if (!(animated_type & 0x10) && (animated_type & 0x0f))
 		{
@@ -1076,27 +1077,44 @@ int animated (void)
 			}
 			sprintf(tmp,"--offset=%d=%d=%d %s",(animated_type & 0x80),animated_offset_x,animated_offset_y,animated_name);
 			use_phys_base=1;
-			splashimage_func(tmp,1);
-			use_phys_base=0;
-
+			if (! splashimage_func(tmp,1))
+				animated_type = 0;
+			use_phys_base=0; 
 			if (animated_name[name_len-5]<0x39)
 				animated_name[name_len-5] += 1; 
 			else
 			{
 				animated_name[name_len-5]=0x30;
-				animated_name[name_len-6] += 1;
+				if (animated_name[name_len-6]>=0x30 && animated_name[name_len-6]<0x39)
+					animated_name[name_len-6] += 1;
+				else if (animated_name[name_len-6]==0x39)
+				{
+					animated_name[name_len-6]=0x30;
+					if (animated_name[name_len-7]>=0x30 && animated_name[name_len-7]<0x39)
+						animated_name[name_len-7] += 1;
+					else if (animated_name[name_len-7]==0x39)
+						animated_name[name_len-7]=0x30;
+				}
 			}
  
 			old_tick=cur_tick;
+			if (animated_name[name_len-7]>=0x30 && animated_name[name_len-7]<=0x39)
+				p=&animated_name[name_len-7];
+			else if (animated_name[name_len-6]>=0x30 && animated_name[name_len-6]<=0x39)
 			p=&animated_name[name_len-6];
+			else
+				p=&animated_name[name_len-5];
 			safe_parse_maxint (&p, &val);
 
-			if (val>animated_last_num)
+			if (val>animated_last_num || !val)
 			{
 				if (!(animated_type & 0x10) && (animated_type & 0x0f))
 					num--;
 				animated_name[name_len-5]=0x31;
+				if (animated_name[name_len-6]>=0x30 && animated_name[name_len-6]<=0x39)
 				animated_name[name_len-6]=0x30;
+				if (animated_name[name_len-7]>=0x30 && animated_name[name_len-7]<=0x39)
+					animated_name[name_len-7]=0x30;
 			} 
 		}  
 		if (animated_type & 0x10)

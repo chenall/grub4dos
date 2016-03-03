@@ -4222,8 +4222,8 @@ splashimage_func(char *arg, int flags)
 //			return 1;
 //	}
 //	graphics_end();
-//	current_term = term_table + 1;	/* terminal graphics */
 fill:
+	current_term = term_table + 1;	/* terminal graphics */
 	backup_x = fontx;
 	backup_y = fonty;
 	if (! graphics_init())
@@ -4246,7 +4246,7 @@ static struct builtin builtin_splashimage =
   "type: bit 0-3:times  bit 4:repeat forever  bit 7:transparent background\n"
   "      type=00:disable\n"
   "delay: ticks\n"
-  "naming rules for name: xxxxx01.xxx; xxxxx02.xxx; ...; xxxxx'last_num'.xxx\n"
+  "naming rules for START_FILE: *n.???   n: 1-9 or 01-99 or 001-999\n"
   "Load FILE as the background image when in graphics mode."
 };
 
