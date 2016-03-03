@@ -107,7 +107,7 @@
 #define set_rflag(a,b)	if (b) ctx->flags|=(a); else ctx->flags&=~(a);
 #define get_rflag(a)	(ctx->flags & (a))
 
-static unsigned long mft_size,idx_size,spc,blocksize,mft_start,my_lba,my_mft;
+static unsigned long mft_size,idx_size,spc,blocksize,mft_start;
 static unsigned char log2_bps, log2_bpc, log2_spc, file_backup[48];
 
 typedef struct {
@@ -182,12 +182,6 @@ static int fixup(char* buf,int len,char* magic,int tag)
     {
       buf+=blocksize;
       pu+=2;
-//      if (valueat(buf,0,unsigned short)!=us)
-//        {
-//          dbg_printf("Fixup signature not match\n");
-//          return 0;
-//        }
-//      valueat(buf,0,unsigned short)=valueat(pu,0,unsigned short);
 			if (tag)
 			{
 				valueat(pu,0,unsigned short)=valueat(buf,0,unsigned short);
@@ -783,11 +777,6 @@ static int read_block(read_ctx* ctx, unsigned long long buf, unsigned long num, 
 				dbg_printf("Read/Write Error\n");
 				return 0;
 			}
-			if (write != 0x900ddeed && valueat((char *)(unsigned int)buf,0,unsigned long) == 0x454c4946)
-			{
-				my_lba = s;
-				my_mft = valueat((char *)(unsigned int)buf,0x2c,unsigned long);
-			}
 		}
 		if (buf)
 			buf += ((unsigned long long)nn << BLK_SHR);
@@ -831,13 +820,11 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
 	{
 //		grub_printf ("Fatal: Cannot write resident/small file! Enlarge it to 2KB and try again.\n");
 //		return 0;
-		if (my_mft != valueat(cur_mft,0x2c,unsigned long))
-			goto fail;
-		if (grub_memcmp64 ((unsigned long long)(unsigned int)cur_mft + 20,(unsigned long long)(unsigned int)file_backup + 20, 28))
+		if (valueat(file_backup,0x2c,unsigned long) != valueat(cur_mft,0x2c,unsigned long))
 			goto fail;
 		grub_memmove64 (((unsigned long long)(unsigned int)(pa + valueat(pa,0x14,unsigned long))+ofs),dest,len);
 		fixup(cur_mft,mft_size,"FILE",1);
-		if (! devread(my_lba,0,mft_size << log2_bps,(unsigned long long)(unsigned int)cur_mft,0x900ddeed))
+		if (! devread(mft_start + valueat(cur_mft,0x2c,unsigned long) * mft_size,0,mft_size << log2_bps,(unsigned long long)(unsigned int)cur_mft,0x900ddeed))
 			goto fail;
 		return 1;
 	}
@@ -849,12 +836,9 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
 	if (dest)
 		grub_memmove64 (dest, (unsigned long long)(unsigned int)(pa + valueat(pa,0x14,unsigned long) + ofs), len);
 	
-	if (my_mft == valueat(cur_mft,0x2c,unsigned long))
-	{
 		disk_read_func = disk_read_hook;
-		devread(my_lba, pa - cur_mft + valueat(pa,0x14,unsigned long), len, 0, write);
+		devread(mft_start + valueat(cur_mft,0x2c,unsigned long) * mft_size, pa - cur_mft + valueat(pa,0x14,unsigned long), len, 0, GRUB_LISTBLK);
 		disk_read_func = NULL;
-	}
 	return 1;
     }
 
