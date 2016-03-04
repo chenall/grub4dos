@@ -4141,6 +4141,11 @@ splashimage_func(char *arg, int flags)
     X_offset=0,Y_offset=0;
     animated_delay = 0;
     fill_color = 0;
+	if (graphics_mode <= 0xff)
+	{
+		printf_warning("Warning! Non VBE mode\n");
+		return 0;
+	}
     if (*arg)
     {
 	if (strlen(arg) > 127)
@@ -6043,6 +6048,8 @@ font_func (char *arg, int flags)
   errnum = 0;
   if (arg == NULL || *arg == '\0')
   {
+		if (current_term == term_table + 1)
+			return 0;
 	valid_lines--;	// let valid_lines = -1, a non-zero value for TRUE.
 	goto build_default_VGA_font;
   }
@@ -14640,6 +14647,11 @@ graphicsmode_func (char *arg, int flags)
   {
 //    if (debug > 0)
 //	grub_printf (" Current graphics mode setting is 0x%X\n", graphics_mode);
+		if (current_term == term_table)
+		{
+			printf_debug0 (" Graphics mode number was already 3\n");
+			return 3;
+		} 
     tmp_graphicsmode = graphics_mode;
     goto enter_graphics_mode;
   }

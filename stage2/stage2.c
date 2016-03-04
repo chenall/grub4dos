@@ -675,7 +675,7 @@ run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *h
 		pass_config = wee_skip_to(password_buf,SKIP_WITH_TERMINATE);
 
 restart1:
-	if (current_term == term_table)
+	if (current_term == term_table && graphics_mode > 0xff)
 	{
 		current_term = term_table + 1;
 		graphics_inited = graphics_mode;

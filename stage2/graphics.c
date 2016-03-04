@@ -500,7 +500,7 @@ static void
 check_scroll (void)
 {
     ++fonty;
-    if (fonty >= y1)
+    if (fonty >= current_term->max_lines)
     {
 	--fonty;
 	graphics_scroll();
@@ -610,7 +610,7 @@ print_unicode (unsigned long max_width)
 	graphics_CURSOR(0);
 
     /* print CRLF and scroll if needed */
-    if (fontx + char_width > x1)
+    if (fontx + char_width > current_term->chars_per_line)
 	{ fontx = 0; check_scroll (); }
 
 	if (!(splashimage_loaded & 2) || !(cursor_state & 2) || (is_highlight && current_color_64bit >> 32))
@@ -689,7 +689,7 @@ triangle:
     fontx += char_width;
     if (cursor_state & 1)
     {
-	if (fontx >= x1)
+	if (fontx >= current_term->chars_per_line)
 	    { fontx = 0; check_scroll (); }
 	graphics_CURSOR(1);
     }
@@ -726,7 +726,7 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
 {
     unsigned long ret;
 
-    if (fontx >= x1)
+    if (fontx >= current_term->chars_per_line)
         { fontx = 0; check_scroll (); }
 
     if (graphics_mode <= 0xFF)
@@ -2361,7 +2361,7 @@ graphics_scroll (void)
 		    /*((y1 - 1) << 4)*/ current_y_resolution * current_bytes_per_scanline);
     }
 
-    for (i=0;i<x1;++i)
+    for (i=0;i<current_term->chars_per_line;++i)
 	graphics_putchar(' ',1);
     gotoxy(0,fonty);
     cursor_state = old_state;
