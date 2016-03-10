@@ -448,7 +448,7 @@ static int run_cmd_line (char *heap,int flags)
 		    errnum = -1;
 		    break;
 		}
-		if (errnum >= 2000 || status == 0 || (status & 12))
+		if (errnum == MAX_ERR_NUM || errnum >= 2000 || status == 0 || (status & 12))
 		{
 			break;
 		}

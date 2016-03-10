@@ -577,6 +577,11 @@ run_script (char *script, char *heap)
 
   while (1)
     {
+		if (errnum == MAX_ERR_NUM)
+		{
+			errnum=ERR_NONE;
+			return 0;
+		}
       if (errnum && errorcheck)
 	break;
 

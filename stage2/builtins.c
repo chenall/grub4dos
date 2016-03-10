@@ -16428,9 +16428,15 @@ static struct builtin builtin_call =
 
 static int exit_func(char *arg, int flags)
 {
-	long long t = 0;
-	read_val(&arg, &t);
-	errnum = 1000 + t;
+  if (flags == BUILTIN_SCRIPT)
+  {
+    errnum = MAX_ERR_NUM;
+  } else
+  {
+    long long t = 0;
+    read_val(&arg, &t);
+    errnum = 1000 + t;
+  }
 	return errnum;
 }
 
@@ -16438,9 +16444,9 @@ static struct builtin builtin_exit =
 {
   "exit",
   exit_func,
-  BUILTIN_BAT_SCRIPT,
+  BUILTIN_BAT_SCRIPT | BUILTIN_SCRIPT,
   "exit [n]",
-  "Exit batch script with a status of N."
+  "Exit batch script with a status of N or Exit menu script"
 };
 
 static int shift_func(char *arg, int flags)
