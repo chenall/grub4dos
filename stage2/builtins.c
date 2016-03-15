@@ -16361,6 +16361,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 
 static int goto_func(char *arg, int flags)
 {
+	errorcheck_func ("on",0);
 	errnum = ERR_BAT_GOTO;
 	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
 	{
