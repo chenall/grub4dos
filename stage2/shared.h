@@ -778,6 +778,7 @@ extern unsigned long current_bytes_per_scanline;
 extern unsigned long current_bytes_per_pixel;
 extern unsigned long current_phys_base;
 extern unsigned long fill_color;
+extern unsigned char animated_enable;
 extern unsigned char animated_type;
 extern unsigned char animated_delay;
 extern unsigned char animated_last_num;

@@ -965,7 +965,7 @@ restart1:
 	  grub_timeout--;
 	}
 
-	if ((animated_type & 0x10) && (grub_timeout >= 0))
+	if ((animated_type & 0x10) && (grub_timeout >= 0) && animated_enable)
 		animated();
       /* Check for a keypress, however if TIMEOUT has been expired
 	 (GRUB_TIMEOUT == -1) relax in GETKEY even if no key has been
@@ -1058,6 +1058,12 @@ restart1:
 		first_entry = entryno = 0;
 		goto done_key_handling;
 	    }
+			
+		if (c==0x3c00)
+		{
+			animated_enable ^= 1;
+			goto restart1;
+		}
 
 	  /* We told them above (at least in SUPPORT_SERIAL) to use
 	     '^' or 'v' so accept these keys.  */

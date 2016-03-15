@@ -4141,11 +4141,7 @@ splashimage_func(char *arg, int flags)
     X_offset=0,Y_offset=0;
     animated_delay = 0;
     fill_color = 0;
-	if (graphics_mode <= 0xff)
-	{
-		printf_warning("Warning! Non VBE mode\n");
-		return 0;
-	}
+    animated_enable = 1;
     if (*arg)
     {
 	if (strlen(arg) > 127)
@@ -4252,6 +4248,7 @@ static struct builtin builtin_splashimage =
   "      type=00:disable\n"
   "delay: ticks\n"
   "naming rules for START_FILE: *n.???   n: 1-9 or 01-99 or 001-999\n"
+  "hotkey F2,control animation:  Play/stop.\n"
   "Load FILE as the background image when in graphics mode."
 };
 
