@@ -1243,7 +1243,7 @@ short SampRate_U_H,SampRate_U_V;
 short SampRate_V_H,SampRate_V_V;
 short H_YtoU,V_YtoU,H_YtoV,V_YtoV;
 short Y_in_MCU,U_in_MCU,V_in_MCU;
-unsigned char *lp = (unsigned char*)JPG_FILE;;
+unsigned char *lp;
 short qt_table[3][64];
 short comp_num;
 unsigned char comp_index[3];
@@ -1261,7 +1261,7 @@ int QtZzMCUBuffer[10*64];
 short BlockBuffer[64];
 short ycoef,ucoef,vcoef;
 int IntervalFlag;
-short interval=0;
+short interval;
 int Y[4*64],U[4*64],V[4*64];
 unsigned long sizei,sizej;
 short restart;
@@ -1868,7 +1868,10 @@ static void InitTable()
 	}
 	for(i=0;i<64;i++)
 		BlockBuffer[i]=0;
+	for(i=0;i<1024;i++)
+		iclip[i]=0;
 	ycoef=ucoef=vcoef=0;
+	interval=0;
 //	return 1;
 }
 /////////////////////////////////////////////////////////////////////////
@@ -2066,6 +2069,7 @@ static int
 read_image_jpg(int type)
 {
 	filepos = 0;
+	lp = (unsigned char*)JPG_FILE;
 	if (!(size=grub_read((unsigned long long)(unsigned int)(char*)lp, 0x8000, GRUB_READ)))
 		return !printf("Error:Read JPG File\n");
 	InitTable();
