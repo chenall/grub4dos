@@ -69,17 +69,15 @@ lzma:
 }
 
 #define MENU_BOX_X	((menu_border.menu_box_x > 2) ? menu_border.menu_box_x : 2)
-//#define MENU_BOX_W	(menu_border.menu_box_w)
-//#define MENU_BOX_W	(menu_border.menu_box_w ? menu_border.menu_box_w : current_term->chars_per_line - 4)
-#define MENU_BOX_W	(menu_border.menu_box_w ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X - 1))
+#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X - 1))
 #define MENU_BOX_Y	(menu_border.menu_box_y)
 /* window height */
-#define MENU_BOX_H	(menu_border.menu_box_h ? menu_border.menu_box_h : (current_term->max_lines - MENU_BOX_Y - 6))
+#define MENU_BOX_H	((menu_border.menu_box_h && menu_border.menu_box_h < (current_term->max_lines - MENU_BOX_Y - 6 - menu_border.menu_keyhelp_y_offset)) ? menu_border.menu_box_h : (current_term->max_lines - MENU_BOX_Y - 6 - menu_border.menu_keyhelp_y_offset))
 /* line end */
 #define MENU_BOX_E	(MENU_BOX_X + MENU_BOX_W)
 
 /* window bottom */
-#define MENU_BOX_B	(menu_border.menu_box_b?menu_border.menu_box_b:(current_term->max_lines - 6))
+#define MENU_BOX_B	((menu_border.menu_box_b && menu_border.menu_box_b < (current_term->max_lines - 6 - menu_border.menu_keyhelp_y_offset)) ? menu_border.menu_box_b : (current_term->max_lines - 6 - menu_border.menu_keyhelp_y_offset))
 #define MENU_HELP_X ((menu_border.menu_help_x && menu_border.menu_help_x < current_term->chars_per_line) ? menu_border.menu_help_x : (MENU_BOX_X - 2))
 #define MENU_HELP_E (menu_border.menu_help_x ? (menu_border.menu_help_w ? (menu_border.menu_help_x + menu_border.menu_help_w) : (current_term->chars_per_line - MENU_HELP_X)) : (MENU_BOX_E + 1))
 #define NUM_LINE_ENTRYHELP ((menu_border.menu_keyhelp_y_offset && menu_border.menu_keyhelp_y_offset < 5) ? menu_border.menu_keyhelp_y_offset : 4)
@@ -177,7 +175,7 @@ print_default_help_message (char *config_entries)
 	char		buff[256];
 
 if (menu_tab & 0x20)
-		i = grub_sprintf (buff,"\n用 ↑ 和 ↓ 键选择菜单。");
+		i = grub_sprintf (buff,"\n按↑和↓选择菜单。");
 	else
 		i = grub_sprintf (buff,"\nUse the %c and %c keys to highlight an entry.",
 		(unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
@@ -185,8 +183,8 @@ if (menu_tab & 0x20)
       if (! auth && password_buf)
 	{
 		if (menu_tab & 0x20)
-			grub_strcpy (buff + i,"按回车键或 b 键启动。\n"
-			"按 p 获得特殊权限控制。");
+			grub_strcpy (buff + i,"按回车或b启动。\n"
+			"按p获得特权控制。");
 		else
 			grub_strcpy (buff + i,"Press ENTER or \'b\' to boot.\n"
 			"Press \'p\' to gain privileged control.");
@@ -194,11 +192,11 @@ if (menu_tab & 0x20)
 	else
 	{
 		if (menu_tab & 0x20)
-			grub_strcpy(buff + i,(config_entries?("按回车键或 b 键启动。\n"
-			"按 e 键可在启动前逐条编辑菜单命令行，按 c 键进入命令行。")
-			:("在当前行，按 e 键进行编辑，d 键进行删除。\n"
-			"按 O 和 o 键分别在其之前或之后插入新行。\n"
-			"编辑结束时，按 b 启动，c 键进入命令行，ESC 键退回到主菜单。")));
+			grub_strcpy(buff + i,(config_entries?("按回车或b启动。\n"
+			"按e可在启动前编辑菜单命令,按c进入命令行。")
+			:("在当前行按e进行编辑,按d进行删除。\n"
+			"按O和o分别在其之前或之后插入新行。\n"
+			"编辑结束时按b启动,按c进入命令行,按ESC退回到主菜单。")));
 		else
 			grub_strcpy(buff + i,(config_entries?(" Press ENTER or \'b\' to boot.\n"
 			"Press \'e\' to edit the commands before booting, or \'c\' for a command-line.")
@@ -680,11 +678,6 @@ run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *h
 		pass_config = wee_skip_to(password_buf,SKIP_WITH_TERMINATE);
 
 restart1:
-	if (current_term == term_table && graphics_mode > 0xff)
-	{
-		current_term = term_table + 1;
-		graphics_inited = graphics_mode;
-	}
   //clear temp_num when restart menu
   temp_num = 0;
 	font_spacing = menu_font_spacing;
@@ -2535,7 +2528,7 @@ extern int graphicsmode_func (char *, int);
 	     * should not load it again here. The same as below.
 	     * See issue 160. */
 	    /* Clear the narrow_char_indicator for the NULL char only. */
-	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
+//	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
 	    if (use_preset_menu/* != (const char *)0x800*/)
 	    {
 		/* load the font embedded in preset menu. */
@@ -2555,7 +2548,7 @@ extern int graphicsmode_func (char *, int);
 		}
 		//font_func (NULL, 0);	/* clear the font */
 		/* Clear the narrow_char_indicator for the NULL char only. */
-		*(unsigned long *)UNIFONT_START = 0;//Enable next font command.
+//		*(unsigned long *)UNIFONT_START = 0;//Enable next font command.
 	    }
 #endif /* SUPPORT_GRAPHICS */
 
@@ -2571,11 +2564,11 @@ extern int graphicsmode_func (char *, int);
 	    extern int font_func (char *, int);
 	    //font_func (NULL, 0);	/* clear the font */
 	    /* Clear the narrow_char_indicator for the NULL char only. */
-	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
+//	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
 	    font_func (config_file, 0);
 	    //font_func (NULL, 0);	/* clear the font */
 	    /* Clear the narrow_char_indicator for the NULL char only. */
-	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
+//	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
 #endif /* SUPPORT_GRAPHICS */
 	}
 	use_preset_menu = 0;	/* Disable preset menu.  */

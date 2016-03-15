@@ -4134,8 +4134,8 @@ splashimage_func(char *arg, int flags)
 {
     errnum = 0;
     /* If ARG is empty, we reset SPLASHIMAGE.  */
-//    unsigned long type = 0;
-//    unsigned long h,w;
+    unsigned long type = 0;
+    unsigned long h,w;
     unsigned long long val;
 		int backup_x, backup_y;
     X_offset=0,Y_offset=0;
@@ -4202,27 +4202,28 @@ splashimage_func(char *arg, int flags)
   return 1;
   }    
    
-//		if (! grub_open(arg))
-//			return 0;
-//		grub_read((unsigned long long)(unsigned int)&type,2,GRUB_READ);
-//		if (type == 0x4D42)
-//		{
-//			filepos = 18;
-//			grub_read((unsigned long long)(unsigned int)&w,4,GRUB_READ);
-//			grub_read((unsigned long long)(unsigned int)&h,4,GRUB_READ);
-//		}
-//		grub_close();
+		if (! grub_open(arg))
+			return 0;
+		grub_read((unsigned long long)(unsigned int)&type,2,GRUB_READ);
+		if (type == 0x4D42)
+		{
+			filepos = 18;
+			grub_read((unsigned long long)(unsigned int)&w,4,GRUB_READ);
+			grub_read((unsigned long long)(unsigned int)&h,4,GRUB_READ);
+		}
+		grub_close();
 	}
 
     strcpy(splashimage, arg);
-//	if (type == 0x4D42 && (!graphics_inited || graphics_mode < 0xFF)) //BMP
-//	{
-//		char tmp[16];
-//		sprintf(tmp,"-1 %d %d",w,h);
-//		if (graphicsmode_func(tmp,1))
-//			return 1;
-//	}
-//	graphics_end();
+	if (type == 0x4D42 && (!graphics_inited || graphics_mode < 0xFF)) //BMP
+	{
+		char tmp[16];
+		sprintf(tmp,"-1 %d %d",w,h);
+		if (graphicsmode_func(tmp,1))
+			return 1;
+	}
+	if (! animated_type)
+	graphics_end();
 fill:
 	current_term = term_table + 1;	/* terminal graphics */
 	backup_x = fontx;
@@ -6000,7 +6001,7 @@ static unsigned long
 get_nibble (unsigned long c)
 {
 	unsigned long tmp;
-	tmp = ((c > '9') ? (c - 'A' + 10) : (c - '0'));
+	tmp = ((c > '9') ? ((c & 0xdf)- 'A' + 10) : (c - '0'));
 	if (tmp & 0xFFFFFFF0)
 	{
 	    errnum = ERR_UNIFONT_FORMAT;
@@ -6008,12 +6009,28 @@ get_nibble (unsigned long c)
 	return tmp;
 }
 
+extern unsigned long ged_unifont_simp (unsigned long unicode);
+extern unsigned long
+ged_unifont_simp (unsigned long unicode)
+{
+	int i;
+	for (i = 0; i < 4; i++)
+	{
+		if (unicode >= unifont_simp[i].start && unicode <= unifont_simp[i].end)
+			return unicode - unifont_simp[i].offset;
+	}
+	return 0;
+}
+
 //static unsigned long old_narrow_char_indicator = 0;
 #define	old_narrow_char_indicator	narrow_char_indicator
 int font_func (char *arg, int flags);
-unsigned char font_type;
-unsigned char scan_mode;
-unsigned char store_mode;
+//unsigned char font_type;
+//unsigned char scan_mode;
+//unsigned char store_mode;
+int (*hotkey_func)(char *titles,int flags,int flags1);
+struct simp unifont_simp[]={{0,0xff,0},{0x2e80,0x9fbf,0x2d80},{0xf900,0xfaff,0x86c0},{0xfe30,0xffef,0x89f0}};
+unsigned char unifont_simp_on;
 
 /* font */
 /* load unifont to UNIFONT_START */
@@ -6036,23 +6053,29 @@ font_func (char *arg, int flags)
 	unsigned long long val;
 	unsigned char num_narrow;
 	unsigned char tag[]={'d','o','t','s','i','z','e','='};
+	unsigned long font_h_old = font_h;
+	unsigned long font_h_new = 0;
 
-	font_type = 0;
-	scan_mode = 0;
-	store_mode = 0;
+//	font_type = 0;
+//	scan_mode = 0;
+//	store_mode = 0;
   valid_lines = 0;
 
   errnum = 0;
   if (arg == NULL || *arg == '\0')
   {
-		if (current_term == term_table + 1)
+		if (font_h != 16)
 			return 0;
 	valid_lines--;	// let valid_lines = -1, a non-zero value for TRUE.
 	goto build_default_VGA_font;
   }
 
-	for (; *arg && *arg != '/' && *arg != '(';)
+	if (flags)
 	{
+		unifont_simp_on = 0;
+	for (; *arg && *arg != '/' && *arg != '(' && *arg != '\n' && *arg != '\r';)
+	{
+#if 0
 		if (grub_memcmp (arg, "--hex", 5) == 0)
 		{
 			arg += 5;
@@ -6084,18 +6107,32 @@ font_func (char *arg, int flags)
 			store_mode = 1;
 		}
 		else if (grub_memcmp (arg, "--font-high=", 12) == 0)
+#endif
+		if (grub_memcmp (arg, "--font-high=", 12) == 0)
 		{
 			arg += 12;
 			if (safe_parse_maxint (&arg, &val))
-			{	
-				if (font_h != val)
-				{
-				font_h = val;
-				font_w = val>>1;
-				current_term->max_lines = current_y_resolution / (font_h + line_spacing);
-				current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
-				memset ((char *)UNIFONT_START, 0, 0x800000);
-				}
+				font_h_new = val;
+		}
+		else if (grub_memcmp (arg, "--simp=", 7) == 0)
+		{
+			len	=	0;
+			arg += 7;
+			unifont_simp_on = 1;
+			for (i = 0; i < 4; i++)
+			{
+				if (safe_parse_maxint (&arg, &val))
+					unifont_simp[i].start = val;
+				else
+					break;
+				arg++;
+				if (safe_parse_maxint (&arg, &val))
+					unifont_simp[i].end = val;
+				arg++;
+				unifont_simp[i].offset = unifont_simp[i].start - len;
+				len += unifont_simp[i].end - unifont_simp[i].start + 1;
+				if (*arg != 0x3d)		//"="
+					break;
 			}
 		}
 		else
@@ -6104,24 +6141,52 @@ font_func (char *arg, int flags)
 		while (*arg == ' ' || *arg == '\t')
 			arg++;
 	}
+	}
+
+	if (! grub_open(arg))
+		return 0;
+	
+	if (flags)
+	{
+	if (!font_h_new)
+	{
+		font_h = 16;
+		font_w = 8;
+	}
+	else
+	{
+		font_h = font_h_new;
+		font_w = font_h_new/2;
+	}
+	
+	if (font_h_old != font_h)
+	{
+		current_term->max_lines = current_y_resolution / (font_h + line_spacing);
+		current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
+		if (hotkey_func)
+			memset ((char *)UNIFONT_START, 0, 0x600000);
+		else
+			memset ((char *)UNIFONT_START, 0, 0x800000);
+		
+		if (font_h == 16)
+			font_func (NULL, 0);
+	}	
+#if 0
 	if (font_type)
 	{
-		if (! grub_open(arg))
-			return 0;
 		filepos =0;
 		len = grub_read((unsigned long long)(unsigned int)(char*)UNIFONT_START, filemax, 0xedde0d90);
 		grub_close();
 		return 1;
 	}
+#endif
+	}
 	
-  if (! grub_open(arg))
-	return 0;
-
   if (filemax >> 32)	// file too long
 	return !(errnum = ERR_WONT_FIT);
 
-  if (*(unsigned long *)UNIFONT_START)
-	return !(errnum = ERR_UNIFONT_RELOAD);
+//  if (*(unsigned long *)UNIFONT_START)
+//	return !(errnum = ERR_UNIFONT_RELOAD);
 
   memset ((char *)0x100000, 0, 0x10000);	/* clear 64K at 1M */
 
@@ -6179,6 +6244,8 @@ redo:
 	/* set to the old_narrow_char_indicator */
 	*(unsigned long *)(UNIFONT_START + (unicode << 5)) = old_narrow_char_indicator;
 #endif
+		if (unifont_simp_on)
+			unicode = ged_unifont_simp (unicode);
 			for (j=0; j<font_w; j++)
 			{
 				unsigned long long dot_matrix = 0;
@@ -6215,7 +6282,8 @@ redo:
 	/* discard if it is internally used INVALID chars 0xDC80 - 0xDCFF */
 	if (unicode >= 0xDC80 && unicode <= 0xDCFF)
 	    continue;
-
+	if (unifont_simp_on)
+		unicode = ged_unifont_simp (unicode);
 	/* set bit 0: this unicode char is a wide char. */
 	*(unsigned char *)(0x100000 + unicode) |= 1;	/* bit 0 */
 
@@ -6297,9 +6365,10 @@ close_file:
 			i=0;
 		if (i==8)
 		{
-			grub_read((unsigned long long)(unsigned int)(char*)&buf, 5, 0xedde0d90);
+			grub_read((unsigned long long)(unsigned int)(char*)&buf, 10, 0xedde0d90);
 			char *p = (char *)buf;
 			i=0;
+			unifont_simp_on = 0;
 			if (safe_parse_maxint (&p, &val))
 			{
 				if (font_h != val)
@@ -6311,9 +6380,11 @@ close_file:
 					memset ((char *)UNIFONT_START, 0, 0x800000);
 					num_wide = (font_h+7)/8;
 					num_narrow = ((font_h/2+7)/8)<<1;
+					if ((p[1]|0x20)=='s' && (p[2]|0x20)=='i' && (p[3]|0x20)=='m' && (p[4]|0x20)=='p')
+						unifont_simp_on = 1;
 				}
 			}
-			filepos -= 2;
+			filepos -= 7;
 		}
 	}
   }
@@ -6465,7 +6536,7 @@ ROM_font_loaded:
   }
 
   /* clear the narrow_char_indicator for the NULL char only */
-  *(unsigned long *)UNIFONT_START = 0;	/* to enable the next font command */
+//  *(unsigned long *)UNIFONT_START = 0;	/* to enable the next font command */
 
   /* initialize or restore the original ROM 8x16 font for each ASCII char. */
   for (i = 0; i <= 0x7F; i++)
@@ -6489,10 +6560,11 @@ static struct builtin builtin_font =
   "font",
   font_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "font [--hex* | --bin][--horiz-scan* | --verti-scan][--h-to-l* | --l-to-h][--font-high=[font_h]][FILE]",
+  "font [--font-high=font_h] [--simp=[start0,end0,...,start3,end3]] [FILE]",
+  "Default font_h=16.  chinese can use '--simp='.\n"	
   "Load unifont file FILE, or clear the font if no FILE specified.\n"
-	"* indicates default. The font should be the same height and width.\n"
-	"The built-in Font head should have 'DotSize=[font_h]'."
+	"The font should be the same height and width.\n"
+	"The built-in Font head should have 'DotSize=[font_h],['simp']'."
 };
 #endif /* SUPPORT_GRAPHICS */
 
@@ -14642,13 +14714,6 @@ graphicsmode_func (char *arg, int flags)
   errnum = 0;
   if (! *arg)
   {
-//    if (debug > 0)
-//	grub_printf (" Current graphics mode setting is 0x%X\n", graphics_mode);
-		if (current_term == term_table)
-		{
-			printf_debug0 (" Graphics mode number was already 3\n");
-			return 3;
-		} 
     tmp_graphicsmode = graphics_mode;
     goto enter_graphics_mode;
   }

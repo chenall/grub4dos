@@ -707,7 +707,7 @@ typedef enum
   ERR_SET_VGA_MODE,
   ERR_LOAD_SPLASHIMAGE,
   ERR_UNIFONT_FORMAT,
-  ERR_UNIFONT_RELOAD,
+//  ERR_UNIFONT_RELOAD,
   ERR_DIVISION_BY_ZERO,
 
   MAX_ERR_NUM,
@@ -766,9 +766,9 @@ extern unsigned char timeout_x;
 extern unsigned char timeout_y;
 extern unsigned long long timeout_color;
 extern unsigned long long keyhelp_color;
-extern unsigned char font_type;
-extern unsigned char scan_mode;
-extern unsigned char store_mode;
+//extern unsigned char font_type;
+//extern unsigned char scan_mode;
+//extern unsigned char store_mode;
 
 #ifdef SUPPORT_GRAPHICS
 extern unsigned long current_x_resolution;
@@ -965,6 +965,15 @@ extern int fsys_type;
 
 //extern inline unsigned long log2_tmp (unsigned long word);
 extern unsigned long unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n);
+
+struct simp
+{
+  unsigned short start;
+  unsigned short end;
+	unsigned short offset;
+};
+extern struct simp unifont_simp[4];
+extern unsigned char unifont_simp_on;
 
 /* The information for a disk geometry. The CHS information is only for
    DOS/Partition table compatibility, and the real number of sectors is

@@ -350,7 +350,7 @@ VARIABLE(usb_drive_num)
 	.byte	0,0,0,0,0,0,0,0
 VARIABLE(usb_md_address)
 	.word	0
-VARIABLE(animated_enable)		//bit 7:   0 = disable; 1 = enable
+VARIABLE(animated_enable)		//bit 0:   0 = disable; 1 = enable
 	.byte	0
 	
 	. = EXT_C(main) + 0x160	

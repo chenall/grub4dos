@@ -509,19 +509,20 @@ check_scroll (void)
 		++count_lines;
 }
 
+unsigned long ged_unifont_simp (unsigned long unicode);
 static unsigned long
 print_unicode (unsigned long max_width)
 {
-    unsigned long i, j, k;
+    unsigned long i, j/*, k*/;
 //    unsigned long pat;
     unsigned long char_width;
     unsigned long bgcolor;
     unsigned long CursorX,CursorY;
 	unsigned char *lfb, *pat, *p;
 	unsigned char column;
-	unsigned char tem;
+//	unsigned char tem;
 	unsigned long long dot_matrix;
-	unsigned char buf[64*64/8];
+//	unsigned char buf[64*64/8];
 	
 	CursorX = fontx * (font_w + font_spacing);
 	CursorY = fonty * (font_h + line_spacing);
@@ -556,12 +557,15 @@ print_unicode (unsigned long max_width)
 		goto triangle;
 	}
 
+	if (unifont_simp_on)
+		unicode = ged_unifont_simp (unicode);
     char_width = 2;				/* wide char */
 //    pat = UNIFONT_START + (unicode << 5);
 		pat = (unsigned char *)UNIFONT_START + unicode*num_wide*font_h;
 
 //    if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
 //	{ --char_width; pat += 16; }		/* narrow char */
+#if 0
 	if (font_type==BIN && scan_mode==HORIZ)
 	{
 		p = pat;
@@ -598,6 +602,8 @@ print_unicode (unsigned long max_width)
 		--char_width;
 	}
 	else if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
+#endif
+		if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
 		{
 			--char_width;
 			pat += num_wide*font_w;
@@ -663,6 +669,7 @@ print_unicode (unsigned long max_width)
 		{
 			column = *(unsigned char *)pat;
 			pat++;
+#if 0
 			if (font_type==BIN && scan_mode==VERTI && store_mode==H_TO_L)
 			{
 				tem = 0;
@@ -670,6 +677,7 @@ print_unicode (unsigned long max_width)
 					tem |= ((column & (0x80 >> k))?(1<< k):0);
 				column = tem;
 			}
+#endif
 			dot_matrix |= (((unsigned long long)column) << j*8);
 		}
 		for (j = 0; j < font_h; ++j)
