@@ -6014,7 +6014,7 @@ extern unsigned long
 ged_unifont_simp (unsigned long unicode)
 {
 	int i;
-	for (i = 0; i < 4; i++)
+	for (i = 0; i < 8; i++)
 	{
 		if (unicode >= unifont_simp[i].start && unicode <= unifont_simp[i].end)
 			return unicode - unifont_simp[i].offset;
@@ -6029,7 +6029,7 @@ int font_func (char *arg, int flags);
 //unsigned char scan_mode;
 //unsigned char store_mode;
 int (*hotkey_func)(char *titles,int flags,int flags1);
-struct simp unifont_simp[]={{0,0xff,0},{0x2e80,0x9fbf,0x2d80},{0xf900,0xfaff,0x86c0},{0xfe30,0xffef,0x89f0}};
+struct simp unifont_simp[]={{0,0x7f,0},{0x2000,0x206f,0x1f80},{0x2190,0x21ff,0x20a0},{0x2e80,0x303f,0x2d20},{0x31c0,0x9fbf,0x2ea0},{0xf900,0xfaff,0x87e0},{0xfe30,0xffef,0x8b10}};
 unsigned char unifont_simp_on;
 
 /* font */
@@ -6220,7 +6220,7 @@ redo:
 		if (buf[5+font_h*num_narrow] == '\n' || buf[5+font_h*num_narrow] == '\r')	/* narrow char */
     {
 	/* discard if it is a control char(we will re-map control chars) */
-	if (unicode <= 0x1F)
+	if (unicode <= 0x17)
 	{
 	    //valid_lines++;
 	    continue;
@@ -6560,7 +6560,7 @@ static struct builtin builtin_font =
   "font",
   font_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "font [--font-high=font_h] [--simp=[start0,end0,...,start3,end3]] [FILE]",
+  "font [--font-high=font_h] [--simp=[start0,end0,...,start7,end7]] [FILE]",
   "Default font_h=16.  chinese can use '--simp='.\n"	
   "Load unifont file FILE, or clear the font if no FILE specified.\n"
 	"The font should be the same height and width.\n"

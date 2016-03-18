@@ -972,7 +972,7 @@ struct simp
   unsigned short end;
 	unsigned short offset;
 };
-extern struct simp unifont_simp[4];
+extern struct simp unifont_simp[8];
 extern unsigned char unifont_simp_on;
 
 /* The information for a disk geometry. The CHS information is only for
