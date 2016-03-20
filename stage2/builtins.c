@@ -6220,11 +6220,11 @@ redo:
 		if (buf[5+font_h*num_narrow] == '\n' || buf[5+font_h*num_narrow] == '\r')	/* narrow char */
     {
 	/* discard if it is a control char(we will re-map control chars) */
-	if (unicode <= 0x17)
-	{
+//	if (unicode <= 0x1F)
+//	{
 	    //valid_lines++;
-	    continue;
-	}
+//	    continue;
+//	}
 
 	/* simply put the 8x16 dot matrix at the right half */
 #if 0
@@ -11893,6 +11893,8 @@ parse_string (char *arg)
 					/* hex */
 					int val;
 
+					while (1)
+					{
 					p++;
 					ch = *p;
 					if (ch <= '9' && ch >= '0')
@@ -11900,7 +11902,11 @@ parse_string (char *arg)
 					else if ((ch <= 'F' && ch >= 'A') || (ch <='f' && ch >= 'a'))
 						val = (ch + 9) & 0xf;
 					else
-						return len;	/* error encountered */
+//						return len;	/* error encountered */
+					{
+						p--;
+						break;
+					}
 
 					p++;
 					ch = *p;
@@ -11913,6 +11919,9 @@ parse_string (char *arg)
 					    --p;
 
 					*arg++ = val;
+					len++;
+					}
+					len--;
 				}
 					break;
 				default:
@@ -14944,6 +14953,7 @@ static struct builtin builtin_initscript =
 };
 
 
+int big_to_little (char *filename, unsigned int n);	//unicode16  Tai Mei turn a small tail
 static int
 echo_func (char *arg,int flags)
 {
@@ -15082,6 +15092,20 @@ echo_func (char *arg,int flags)
 	{
 		flags = parse_string(arg);
 		arg[flags] = 0;
+		if (flags == 1 && (unsigned char)arg[0] >= 0x80)
+		{
+			arg[2] = 0;
+			arg[1] = arg[0];
+			arg[0] = 0;
+			flags = 2;
+		}
+		if (flags != 1)
+		{
+			unsigned char utf8[128];
+			big_to_little (arg,flags);
+			unicode_to_utf8((unsigned short *)arg, utf8, flags/2);
+			arg=(char *)utf8;
+		}
 	}
 	saved_color = current_color & 0x70;
 	saved_color_64 = current_color_64bit & 0xFFFFFFFF00000000LL;
@@ -15157,6 +15181,7 @@ static struct builtin builtin_echo =
    "-h      show a color panel.\n"
    "-n      do not output the trailing newline.\n"
    "-e      enable interpretation of backslash escapes.\n"
+   "        '\'x[unicode]  display unicode characters.\n"
    "-v      show version and memory information.\n"
 	 "-rrggbb show 24 bit colors.\n"
    "$[ABCD] the color for MESSAGE.(console only).\n"
