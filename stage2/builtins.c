@@ -15037,6 +15037,10 @@ echo_func (char *arg,int flags)
       {
 		echo_ec |= 2;
       }
+		else if (grub_memcmp(arg,"-u",2) == 0)
+		{
+			echo_ec |= 4;
+		}
 		else if (grub_memcmp(arg,"-v",2) == 0)
 		{
 			init_page ();;
@@ -15089,6 +15093,11 @@ echo_func (char *arg,int flags)
    }
 
 	if (echo_ec & 2)
+	{
+		flags = parse_string(arg);
+		arg[flags] = 0;
+	}
+	if (echo_ec & 4)
 	{
 		flags = parse_string(arg);
 		arg[flags] = 0;
@@ -15176,16 +15185,16 @@ static struct builtin builtin_echo =
    "echo",
    echo_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-   "echo [-P:XXYY] [-h] [-e] [-n] [-v] [-rrggbb] [[$[ABCD]]MESSAGE ...] ",
+   "echo [-P:XXYY] [-h | -e | -u] [-n] [-v] [-rrggbb] [[$[ABCD]]MESSAGE ...] ",
    "-P:XXYY position control line(XX) and column(YY).\n"
    "-h      show a color panel.\n"
    "-n      do not output the trailing newline.\n"
    "-e      enable interpretation of backslash escapes.\n"
-   "        '\'x[unicode]  display unicode characters.\n"
+   "-u      \\xnnnn show unicode characters.\n"
    "-v      show version and memory information.\n"
 	 "-rrggbb show 24 bit colors.\n"
    "$[ABCD] the color for MESSAGE.(console only).\n"
-   "A blink-, B light-, C BG, D FG."
+   "A=blink- (text mode) or BG light- (graphics mode), B=FG light-, C=BG, D=FG."
 };
 
 static int if_func(char *arg,int flags)
