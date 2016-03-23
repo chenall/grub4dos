@@ -11888,13 +11888,11 @@ parse_string (char *arg)
 				case 'v':
 					*arg++ = '\v';
 					break;
-				case 'x':
+				case 'x':		//\xnn
 				{
 					/* hex */
 					int val;
 
-					while (1)
-					{
 					p++;
 					ch = *p;
 					if (ch <= '9' && ch >= '0')
@@ -11902,11 +11900,7 @@ parse_string (char *arg)
 					else if ((ch <= 'F' && ch >= 'A') || (ch <='f' && ch >= 'a'))
 						val = (ch + 9) & 0xf;
 					else
-//						return len;	/* error encountered */
-					{
-						p--;
-						break;
-					}
+						return len;	/* error encountered */
 
 					p++;
 					ch = *p;
@@ -11919,9 +11913,43 @@ parse_string (char *arg)
 					    --p;
 
 					*arg++ = val;
-					len++;
+				}
+					break;
+				case 'X':		//\Xnnnn
+				{
+					/* hex */
+					int val, i = 0;
+					char uni[4];
+
+					while (i < 2)
+					{
+						p++;
+						ch = *p;
+						if (ch <= '9' && ch >= '0')
+							val = ch & 0xf;
+						else if ((ch <= 'F' && ch >= 'A') || (ch <='f' && ch >= 'a'))
+							val = (ch + 9) & 0xf;
+						else
+							return len;	/* error encountered */
+						
+						p++;
+						ch = *p;
+						if (ch <= '9' && ch >= '0')
+							val = (val << 4) | (ch & 0xf);
+						else if ((ch <= 'F' && ch >= 'A') || (ch <='f' && ch >= 'a'))
+							val = (val << 4) | ((ch + 9) & 0xf);
+						else
+							--p;
+
+						uni[i] = val;
+						i++;
 					}
-					len--;
+					uni[3] = uni[0];
+					uni[0] = uni[1];
+					uni[1] = uni[3];
+					i=unicode_to_utf8((unsigned short *)uni, (unsigned char *)arg, 1);
+					arg += i;
+					len += i - 1;
 				}
 					break;
 				default:
@@ -14953,7 +14981,6 @@ static struct builtin builtin_initscript =
 };
 
 
-int big_to_little (char *filename, unsigned int n);	//unicode16  Tai Mei turn a small tail
 static int
 echo_func (char *arg,int flags)
 {
@@ -15006,7 +15033,10 @@ echo_func (char *arg,int flags)
 	    if (y < current_term->max_lines-1)
 		y++;
 	    else
+			{
+				current_color_64bit = 0xAAAAAA;
 		putchar('\n', 255);
+			}
 
 	    gotoxy(x,y);
 
@@ -15037,10 +15067,6 @@ echo_func (char *arg,int flags)
       {
 		echo_ec |= 2;
       }
-		else if (grub_memcmp(arg,"-u",2) == 0)
-		{
-			echo_ec |= 4;
-		}
 		else if (grub_memcmp(arg,"-v",2) == 0)
 		{
 			init_page ();;
@@ -15096,25 +15122,6 @@ echo_func (char *arg,int flags)
 	{
 		flags = parse_string(arg);
 		arg[flags] = 0;
-	}
-	if (echo_ec & 4)
-	{
-		flags = parse_string(arg);
-		arg[flags] = 0;
-		if (flags == 1 && (unsigned char)arg[0] >= 0x80)
-		{
-			arg[2] = 0;
-			arg[1] = arg[0];
-			arg[0] = 0;
-			flags = 2;
-		}
-		if (flags != 1)
-		{
-			unsigned char utf8[128];
-			big_to_little (arg,flags);
-			unicode_to_utf8((unsigned short *)arg, utf8, flags/2);
-			arg=(char *)utf8;
-		}
 	}
 	saved_color = current_color & 0x70;
 	saved_color_64 = current_color_64bit & 0xFFFFFFFF00000000LL;
@@ -15185,12 +15192,13 @@ static struct builtin builtin_echo =
    "echo",
    echo_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-   "echo [-P:XXYY] [-h | -e | -u] [-n] [-v] [-rrggbb] [[$[ABCD]]MESSAGE ...] ",
+   "echo [-P:XXYY] [-h] [-e] [-n] [-v] [-rrggbb] [[$[ABCD]]MESSAGE ...] ",
    "-P:XXYY position control line(XX) and column(YY).\n"
    "-h      show a color panel.\n"
    "-n      do not output the trailing newline.\n"
    "-e      enable interpretation of backslash escapes.\n"
-   "-u      \\xnnnn show unicode characters.\n"
+   "        \\xnn show UTF-8 characters.\n"
+   "        \\Xnnnn show unicode characters.\n"
    "-v      show version and memory information.\n"
 	 "-rrggbb show 24 bit colors.\n"
    "$[ABCD] the color for MESSAGE.(console only).\n"
