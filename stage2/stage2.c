@@ -78,7 +78,7 @@ lzma:
 #define MENU_BOX_E	(MENU_BOX_X + MENU_BOX_W)
 
 /* window bottom */
-#define MENU_BOX_B	((menu_border.menu_box_b && menu_border.menu_box_b < (current_term->max_lines - 6 - MENU_KEYHELP_Y_OFFSET)) ? menu_border.menu_box_b : (current_term->max_lines - 6 - MENU_KEYHELP_Y_OFFSET))
+#define MENU_BOX_B	((menu_border.menu_box_b) ? menu_border.menu_box_b : (current_term->max_lines - 6 - MENU_KEYHELP_Y_OFFSET))
 #define MENU_HELP_X ((menu_border.menu_help_x && menu_border.menu_help_x < current_term->chars_per_line) ? menu_border.menu_help_x : (MENU_BOX_X - 2))
 #define MENU_HELP_E (menu_border.menu_help_x ? (menu_border.menu_help_w ? (menu_border.menu_help_x + menu_border.menu_help_w) : (current_term->chars_per_line - MENU_HELP_X)) : (MENU_BOX_E + 1))
 #define NUM_LINE_ENTRYHELP ((MENU_KEYHELP_Y_OFFSET == 0) ? 4 : MENU_KEYHELP_Y_OFFSET)	//
