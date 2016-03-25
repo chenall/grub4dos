@@ -6029,7 +6029,7 @@ int font_func (char *arg, int flags);
 //unsigned char scan_mode;
 //unsigned char store_mode;
 int (*hotkey_func)(char *titles,int flags,int flags1);
-struct simp unifont_simp[]={{0,0x7f,0},{0x2000,0x206f,0x1f80},{0x2190,0x21ff,0x20a0},{0x2e80,0x303f,0x2d20},{0x31c0,0x9fbf,0x2ea0},{0xf900,0xfaff,0x87e0},{0xfe30,0xffef,0x8b10}};
+struct simp unifont_simp[]={{0,0xff,0},{0x2000,0x206f,0x1f00},{0x2190,0x21ff,0x2020},{0x2e80,0x303f,0x2ca0},{0x31c0,0x9fbf,0x2e20},{0xf900,0xfaff,0x8760},{0xfe30,0xffef,0x8a90}};
 unsigned char unifont_simp_on;
 
 /* font */
@@ -15771,6 +15771,8 @@ setmenu_func(char *arg, int flags)
 				*(unsigned long *)(p + i*0x10c + 8) = -1;		
 			arg += 2;
 			p1 = p + i*0x10c + 0xc;
+			i = parse_string(arg);
+			arg[i] = 0;
 			for (; *arg && *arg != '"'; p1++,arg++)
 				*p1 = *arg;
 			*p1 = 0;
