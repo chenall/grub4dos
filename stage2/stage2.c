@@ -120,6 +120,8 @@ static void print_help_message (const char *message,int flags)
 	{
 		for (j=0; j<NUM_LINE_ENTRYHELP; ++j)
 		{
+			if (MENU_BOX_B + 1 + j > current_term->max_lines)
+				return;
 			gotoxy (MENU_HELP_X, MENU_BOX_B + 1 + j);
 			for (x = 0; x < current_term->chars_per_line; x++)
 				grub_putchar (' ', 255);
@@ -135,9 +137,17 @@ static void print_help_message (const char *message,int flags)
 		for (j=0; j<k; ++j)
 		{
 			if(flags==0)
+			{
+				if (MENU_BOX_B + 1 + menu_border.menu_keyhelp_y_offset + j > current_term->max_lines)
+					return;
 				gotoxy (MENU_HELP_X, MENU_BOX_B + 1 + menu_border.menu_keyhelp_y_offset + j);
+			}
 			else if(flags==1)
+			{
+				if (MENU_BOX_B + 1 + j > current_term->max_lines)
+					return;
 				gotoxy (MENU_HELP_X, MENU_BOX_B + 1 + j);
+			}
 
 			if(flags==1 || flags==0)
 			{
@@ -1378,7 +1388,12 @@ done_key_handling:
 		  if (current_term->flags & TERM_DUMB)
 		    grub_printf ("\r                                    ");
 		  else
+			{
+				if (MENU_BOX_B + 1 > current_term->max_lines)
+					gotoxy (MENU_HELP_X, MENU_BOX_H);
+				else
 				gotoxy (MENU_HELP_X, (MENU_HELP_X ? MENU_BOX_B : (MENU_BOX_B + 1)));
+			}
 
 			password_x = MENU_HELP_X;
 			if (current_term->setcolorstate)
