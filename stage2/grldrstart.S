@@ -2027,90 +2027,7 @@ Entry_ext2:
 
 	/* read root dir to 0000:1000, and grldr to 1000:0000 */
 
-4:
-	/* EAX holds the inode number: for root dir or grldr */
-
-	/* These 3 PUSHes is intended to place 1000:0000 onto the stack for
-	 * grldr. For root dir, the stack is not used since CF is cleared.
-	 * Although there is no corresponding POPs, this is safe enough
-	 * because the program comes here only twice: the first is for
-	 * the root dir, and the second is for grldr.
-	 *
-	 * For root dir, CF=0 and ZF=1. For grldr, CF=1.
-	 */
-
-	pushw	%di		/* 0x1000, see "jz 4b" below. */
-	pushw	%ss		/* 0x0000 */
-	pushfw
-
-	/* SP=0x7bf4 for root dir, or 0x7bee for grldr */
-
-	decl	%eax		/* EAX=(inode - 1) */
-
-	/* inode numbers are far less than 0x7fffffff, so it is safe to
-	 * initialise EDX with CDQ */
-
-	cdq			/* let EDX=0 */
-
-	divl	0x28(%bp)	/* s_inodes_per_group */
-				/* EAX=group number */
-	pushl	%edx		/* EDX=inode number in the group */
-
-	/* group numbers are far less than 0x7fffffff, so it is safe to
-	 * initialise EDX with CDQ */
-
-	cdq			/* let EDX=0 */
-	shll	$5, %eax	/* EAX=relative displacement of the group descriptor */ 
-	
-	testb   $0x40, 02(%bp)  /* filesystem 64? */
-	je      1f              /* no */
-	shll	$1, %eax        /* Group Descriptor Accounted for 64 bytes */
-1:	
-	
-	divl	0x0e(%bp)	/* bytes per block */
-				/* EAX=relative block number for the group descriptor */
-				/* DX=displacement in the block */
-				/* EDX high=0 */
-
-	pushw	%dx		/* we don't care about EDX high word, because it is 0 '*/
-
-	addl	0x2c(%bp), %eax	/* EAX=absolute block number for the group descriptor */
-				/* CF=0, ZF=0 */
-
-	call	read_block	/* 0000:1000 points to the block data containing the group descriptor */
-				/* ES changed and > 0, BX=0x1000 */
-				/* ECX=EDX=0 */
-				/* CF=0, ZF=0 */
-
-	popw	%si		/* DS:[BX+SI] points to the group descriptor */
-				/* DS:[BX+SI+8] points to the starting block number of the group inode table */
-
-	popl	%eax		/* inode number in the group */
-	movw	0x26(%bp), %dx	/* EDX=inode size */
-	mull	%edx		/* EDX:EAX=relative displacement of the inode struct */
-
-	divl	0x0e(%bp)	/* bytes per block */
-				/* EAX=relative block number for the inode struct */
-	pushw	%dx		/* DX=displacement of the inode struct in the block */
-				/* EDX high=0 */
-
-	addl	8(%bx, %si), %eax	/* EAX=absolute block number for the inode struct */
-					/* CF=0, ZF=0 */
-
-	call	read_block	/* 0000:1000 points to the block data containing the inode struct */
-				/* ES changed and > 0, BX=0x1000 */
-				/* ECX=EDX=0 */
-				/* CF=0, ZF=0 */
-
-	popw	%si		/* DS:[BX+SI] points to the inode struct */
-
-	addw	%bx, %si	/* DS:SI points to the inode struct */ 
-	
-	testl   $0x80000, 0x20(%si)     /* Node using the extents way to store data, */
-	                                /* rather than the original direct_indirect index model to store data? */
-	jne     extent                  /* yes */
-	
-	jmp extent_fh              
+	jmp 4f
          
 /* Read sectors from disk, using LBA or CHS
  * input:	EAX   = 32-bit LBA sector number
@@ -2195,6 +2112,25 @@ ebios_ext2:
 	incl 	%eax		/* next sector, here ZF=0 */
 	loop	2b
 	ret
+  
+disk_error_ext2:
+
+	movw	$(msg_DiskReadError_ext2 - Entry_ext2 + 0x7c00), %si
+
+boot_error_ext2:
+
+/* prints string DS:SI (modifies AX BX SI) */
+
+//print_ext2:
+1:
+	lodsb	(%si), %al	/* get token */
+	//xorw	%bx, %bx	/* video page 0 */
+	movb	$0x0e, %ah	/* print it */
+	int	$0x10		/* via TTY mode */
+	cmpb	$0, %al		/* end of string? */
+	jne	1b		/* until done */
+
+1:	jmp	1b 
 
 	//. = . - (. - readDisk_ext2)/74
 	
@@ -2212,7 +2148,88 @@ msg_DiskReadError_ext2:
   . = Entry_ext2 + 0x1fc       
 	.word	0, 0xAA55
 
-extent_fh:
+4:
+	/* EAX holds the inode number: for root dir or grldr */
+
+	/* These 3 PUSHes is intended to place 1000:0000 onto the stack for
+	 * grldr. For root dir, the stack is not used since CF is cleared.
+	 * Although there is no corresponding POPs, this is safe enough
+	 * because the program comes here only twice: the first is for
+	 * the root dir, and the second is for grldr.
+	 *
+	 * For root dir, CF=0 and ZF=1. For grldr, CF=1.
+	 */
+	movw	$0x1000, %di
+	pushw	%di		/* 0x1000, see "jz 4b" below. */
+	pushw	%ss		/* 0x0000 */
+	pushfw
+
+	/* SP=0x7bf4 for root dir, or 0x7bee for grldr */
+
+	decl	%eax		/* EAX=(inode - 1) */
+
+	/* inode numbers are far less than 0x7fffffff, so it is safe to
+	 * initialise EDX with CDQ */
+
+	cdq			/* let EDX=0 */
+
+	divl	0x28(%bp)	/* s_inodes_per_group */
+				/* EAX=group number */
+	pushl	%edx		/* EDX=inode number in the group */
+
+	/* group numbers are far less than 0x7fffffff, so it is safe to
+	 * initialise EDX with CDQ */
+
+	cdq			/* let EDX=0 */
+	shll	$5, %eax	/* EAX=relative displacement of the group descriptor */ 
+	
+	testb   $0x40, 02(%bp)  /* filesystem 64? */
+	je      1f              /* no */
+	shll	$1, %eax        /* Group Descriptor Accounted for 64 bytes */
+1:	
+	
+	divl	0x0e(%bp)	/* bytes per block */
+				/* EAX=relative block number for the group descriptor */
+				/* DX=displacement in the block */
+				/* EDX high=0 */
+
+	pushw	%dx		/* we don't care about EDX high word, because it is 0 '*/
+
+	addl	0x2c(%bp), %eax	/* EAX=absolute block number for the group descriptor */
+				/* CF=0, ZF=0 */
+
+	call	read_block	/* 0000:1000 points to the block data containing the group descriptor */
+				/* ES changed and > 0, BX=0x1000 */
+				/* ECX=EDX=0 */
+				/* CF=0, ZF=0 */
+
+	popw	%si		/* DS:[BX+SI] points to the group descriptor */
+				/* DS:[BX+SI+8] points to the starting block number of the group inode table */
+
+	popl	%eax		/* inode number in the group */
+	movw	0x26(%bp), %dx	/* EDX=inode size */
+	mull	%edx		/* EDX:EAX=relative displacement of the inode struct */
+
+	divl	0x0e(%bp)	/* bytes per block */
+				/* EAX=relative block number for the inode struct */
+	pushw	%dx		/* DX=displacement of the inode struct in the block */
+				/* EDX high=0 */
+
+	addl	8(%bx, %si), %eax	/* EAX=absolute block number for the inode struct */
+					/* CF=0, ZF=0 */
+
+	call	read_block	/* 0000:1000 points to the block data containing the inode struct */
+				/* ES changed and > 0, BX=0x1000 */
+				/* ECX=EDX=0 */
+				/* CF=0, ZF=0 */
+
+	popw	%si		/* DS:[BX+SI] points to the inode struct */
+
+	addw	%bx, %si	/* DS:SI points to the inode struct */ 
+	
+	testl   $0x80000, 0x20(%si)     /* Node using the extents way to store data, */
+	                                /* rather than the original direct_indirect index model to store data? */
+	jne     extent                  /* yes */
 	
 	/* Move the inode struct to a known safe area(0000:0fa8 - 0000:0fff),
 	 * that is, 0x58 bytes immediately before 0000:1000. We care about only
@@ -2423,7 +2440,7 @@ extent_fh:
 	 * So we check all dir entries in the block to see if anyone
 	 * matches grldr.
 	 */
-
+find_grldr:
 	xorw	%si, %si
 	pushw	%ss
 	popw	%es		/* ES=0 */
@@ -2524,13 +2541,13 @@ extent:
         addw    $0x28, %si
 1:        
         cmpw    $0xf30a, (%si)  /* Magic signature? */
-        jne     extent_fh       /* Not */
+        jne     disk_error_ext2 /* Not */
         movw    02(%si), %cx    /* number of effective index or leaves */
         cmpw    $0, 06(%si)     /* Leaf node? */
         je      2f              /* yes */
         /* ext4_extent_idx */
         addw    $0x0c, %si      /* Each leaf or index accounted 0x0c bytes */
-        xorb    %ah, %ah        /* cf=zf=0 ES:BX=0000:1000 */
+        movb	$0x40, %ah				/* cf=0,zf=1 ES:BX=0000:1000 */
         sahf                    /* ah->flag, ES:BX=0000:1000 */
         movl    4(%si), %eax
         call    read_block
@@ -2546,7 +2563,10 @@ extent:
         call    read_block_e
         popw    %cx
         loop    1b
-        jmp     boot_now 
+        popfw
+        pushfw
+        jc	boot_now
+        jmp	find_grldr 
 
 read_block_c:
 
@@ -2596,25 +2616,6 @@ read_block_e:
 	call	readDisk_ext2
 	jb      disk_error_ext2
 	ret
-        
-disk_error_ext2:
-
-	movw	$(msg_DiskReadError_ext2 - Entry_ext2 + 0x7c00), %si
-
-boot_error_ext2:
-
-/* prints string DS:SI (modifies AX BX SI) */
-
-//print_ext2:
-1:
-	lodsb	(%si), %al	/* get token */
-	//xorw	%bx, %bx	/* video page 0 */
-	movb	$0x0e, %ah	/* print it */
-	int	$0x10		/* via TTY mode */
-	cmpb	$0, %al		/* end of string? */
-	jne	1b		/* until done */
-
-1:	jmp	1b 
 	
 	. = Entry_ext2 + 0x3fc
 	.word	0, 0xAA55	       	
@@ -5191,7 +5192,7 @@ Entry_ext2_mbr:
 	 *
 	 * For root dir, CF=0 and ZF=1. For grldr, CF=1.
 	 */
-
+	movw	$0x1000, %di
 	pushw	%di		/* 0x1000, see "jz 4b" below. */
 	pushw	%ss		/* 0x0000 */ 
 	pushfw
@@ -5264,7 +5265,6 @@ Entry_ext2_mbr:
 	                                /* rather than the original direct_indirect index model to store data? */
 	jne     extent_mbr              /* yes */
 	
-extent_fh_mbr:
 	/* Move the inode struct to a known safe area(0000:0fa8 - 0000:0fff),
 	 * that is, 0x58 bytes immediately before 0000:1000. We care about only
 	 * the beginning 0x58 bytes of the 0x80-byte inode struct, the last
@@ -5434,7 +5434,7 @@ extent_fh_mbr:
 	 * So we check all dir entries in the block to see if anyone
 	 * matches grldr.
 	 */
-
+find_grldr_mbr:
 	xorw	%si, %si
 	pushw	%ss
 	popw	%es		/* ES=0 */
@@ -5574,13 +5574,13 @@ extent_mbr:
         addw    $0x28, %si
 1:        
         cmpw    $0xf30a, (%si)  /* Magic signature? */
-        jne     extent_fh_mbr   /* Not */
+        jne     disk_error_12_64_ext   /* Not */
         movw    02(%si), %cx    /* number of effective index or leaves */
         cmpw    $0, 06(%si)     /* Leaf node? */
         je      2f              /* yes */
         /* ext4_extent_idx */
         addw    $0x0c, %si      /* Each leaf or index accounted 0x0c bytes */
-        xorb    %ah, %ah        /* cf=zf=0 ES:BX=0000:1000 */
+        movb	$0x40, %ah				/* cf=0,zf=1 ES:BX=0000:1000 */
         sahf
         movl    4(%si), %eax    /* Lower 32 bits of physical block */
         call    read_block_mbr
@@ -5596,7 +5596,10 @@ extent_mbr:
         call    read_block_e_mbr
         popw    %cx
         loop    1b
-        jmp     boot_now_mbr
+        popfw
+        pushfw
+        jc	boot_now_mbr
+        jmp	find_grldr_mbr
 
         .align	16
 
