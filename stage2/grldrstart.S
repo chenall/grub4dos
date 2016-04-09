@@ -1892,6 +1892,7 @@ Entry_ext2:
 	xorw	%ax, %ax	/* 0x31, 0xC0; CF=0, ZF=1 */
 	movw	%ax, %ss	/* constant SS=0 */
 	movw	%ax, %ds
+	movw	%ax, %fs
 	
 	movw	$0x7c00, %sp
 
@@ -2502,6 +2503,9 @@ find_grldr:
 	/* We are lucky that CF=0, which indicates we are dealing with
 	 * the root dir.
 	 */
+	movw	%fs, %ax
+	orw	%ax, %ax
+	jnz	1f
 
 3:
         
@@ -2510,7 +2514,7 @@ find_grldr:
 	incl	(0x0c - 0x58)(%di)
 	decl	(0x08 - 0x58)(%di)
 	jnz	1b
-
+1:
 	movw	$(msg_No_grldr_ext2 - Entry_ext2 + 0x7c00), %si
 
 	jnc	boot_error_ext2		/* grldr not found in the root dir */
@@ -2566,6 +2570,7 @@ extent:
         popfw
         pushfw
         jc	boot_now
+        movw	%si, %fs
         jmp	find_grldr 
 
 read_block_c:
@@ -4760,6 +4765,7 @@ Entry_12_64_ext:                                    /* cs=ds=es=0000 ss=2000 */
         movw	%ax, %ss	                /* stack and BP-relative moves up, too */
         movw    %bp, %sp                        /* ss:sp=0000:7c00 */
 	movw	%ax, %ds
+	movw	%ax, %fs
 	sti
         /* Save the drive letter */	
         /* Read all the root directory to 2000:0000 */
@@ -5493,6 +5499,9 @@ find_grldr_mbr:
 	/* We are lucky that CF=0, which indicates we are dealing with
 	 * the root dir.
 	 */
+	movw	%fs, %ax
+	orw	%ax, %ax
+	jnz	1f
 
 3:
 
@@ -5501,7 +5510,7 @@ find_grldr_mbr:
 	incl	(0x0c - 0x58)(%di)
 	decl	(0x08 - 0x58)(%di)
 	jnz	1b
-
+1:
         jnc     grldr_error_12_64_ext
 
 	/* All grldr blocks have been loaded to memory starting at 1000:0000,
@@ -5599,6 +5608,7 @@ extent_mbr:
         popfw
         pushfw
         jc	boot_now_mbr
+        movw	%si, %fs
         jmp	find_grldr_mbr
 
         .align	16
