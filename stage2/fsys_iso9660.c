@@ -288,24 +288,20 @@ iso9660_dir (char *dirname)
       extent = idr->extent.l;
   }
 
-//      while (size > 0)
-//	{
-          emu_iso_sector_size_2048 = 1;
-//	  if (! devread (extent, 0, ISO_SECTOR_SIZE, (unsigned long long)(unsigned int)(char *)DIRREC, 0xedde0d90))
-		if (! devread (extent, 0, size, (unsigned long long)(unsigned int)(char *)DIRREC, 0xedde0d90))	
-	    {
+      while (size > 0)
+	{
+			emu_iso_sector_size_2048 = 1;
+			if (! devread (extent, 0, ISO_SECTOR_SIZE, (unsigned long long)(unsigned int)(char *)DIRREC, 0xedde0d90))	
+			{
 	      errnum = ERR_FSYS_CORRUPT;
 	      return 0;
 	    }
-	  
-//	  extent++;
+			extent++;
+			idr = (struct iso_directory_record *)DIRREC;
+			idr_udf_101 = (struct udf_FileIdentifier *)DIRREC;	
 
-	  idr = (struct iso_directory_record *)DIRREC;
-	  idr_udf_101 = (struct udf_FileIdentifier *)DIRREC;	
-//	  for (; idr->length.l > 0;
-//	       idr = (struct iso_directory_record *)((char *)idr + idr->length.l) )
-		for (; size > 0 ;)
-	    {
+		for (; idr->length.l > 0; )
+	  {
 	      if (iso_type == ISO_TYPE_udf)
 			{		
 				name_len = idr_udf_101->NameLength;		
@@ -623,29 +619,16 @@ ssss:
 			}
 			if (j >= 4)
 				break;
-				size -= (unsigned long)((unsigned long long *)name - (unsigned long long *)idr_udf_101);
 				idr_udf_101 = (struct udf_FileIdentifier *)name;
 		}
 		else
-		{
-			size -= idr->length.l;
 			idr = (struct iso_directory_record *)((char *)idr + idr->length.l);
-			if (idr->length.l == 0)
-			{
-				if (size < ISO_SECTOR_SIZE)
-					break;
-				unsigned short skip_bit = size%ISO_SECTOR_SIZE;
-				idr = (struct iso_directory_record *)((char *)idr + skip_bit);
-				size -= skip_bit;
-				if (idr->length.l == 0)
-					break;
-			}
-		}
-	} 	//for (; size > 0 ;)						
-//	  if (size < ISO_SECTOR_SIZE)
-//		break;
-//	  size -= ISO_SECTOR_SIZE;
-//	} /* size>0 */
+	} /* for */
+				
+	  if (size < ISO_SECTOR_SIZE)
+		break;
+	  size -= ISO_SECTOR_SIZE;
+	} /* size>0 */
 
       if (*dirname == '/' || print_possibilities >= 0)
 	{
