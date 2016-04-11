@@ -244,6 +244,7 @@ iso9660_dir (char *dirname)
 	struct udf_descriptor *idr_udf_105;
 	struct udf_FileIdentifier *idr_udf_101;
 	char tmp_name1[256];
+	int name_offset=0;
 
   idr = &PRIMDESC->root_directory_record;
   idr_udf_105 = (struct udf_descriptor *)UDF_DESC;
@@ -291,16 +292,16 @@ iso9660_dir (char *dirname)
       while (size > 0)
 	{
 			emu_iso_sector_size_2048 = 1;
-			if (! devread (extent, 0, ISO_SECTOR_SIZE, (unsigned long long)(unsigned int)(char *)DIRREC, 0xedde0d90))	
+			if (! devread (extent, 0, ISO_SECTOR_SIZE*2, (unsigned long long)(unsigned int)(char *)DIRREC, 0xedde0d90))	
 			{
 	      errnum = ERR_FSYS_CORRUPT;
 	      return 0;
 	    }
 			extent++;
 			idr = (struct iso_directory_record *)DIRREC;
-			idr_udf_101 = (struct udf_FileIdentifier *)DIRREC;	
+			idr_udf_101 = (struct udf_FileIdentifier *)((char *)DIRREC+name_offset);
 
-		for (; idr->length.l > 0; )
+		for (; ((iso_type == ISO_TYPE_udf)?(idr_udf_101->Tag != 0):(idr->length.l > 0)); )
 	  {
 	      if (iso_type == ISO_TYPE_udf)
 			{		
@@ -617,8 +618,12 @@ ssss:
 				else
 					name++;
 			}
-			if (j >= 4)
+			if ((int)(name - (char*)UDF_DIRREC) > ISO_SECTOR_SIZE)
+			{
+				name_offset = (int)(name - (char*)UDF_DIRREC - ISO_SECTOR_SIZE);
 				break;
+			}
+			else
 				idr_udf_101 = (struct udf_FileIdentifier *)name;
 		}
 		else
