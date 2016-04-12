@@ -244,7 +244,7 @@ iso9660_dir (char *dirname)
 	struct udf_descriptor *idr_udf_105;
 	struct udf_FileIdentifier *idr_udf_101;
 	char tmp_name1[256];
-	int name_offset=0;
+	int name_offset;
 
   idr = &PRIMDESC->root_directory_record;
   idr_udf_105 = (struct udf_descriptor *)UDF_DESC;
@@ -288,6 +288,7 @@ iso9660_dir (char *dirname)
       size = idr->size.l;
       extent = idr->extent.l;
   }
+	name_offset=0;
 
       while (size > 0)
 	{
