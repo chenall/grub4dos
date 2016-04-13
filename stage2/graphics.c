@@ -441,6 +441,8 @@ success:
 	    }
 	}
 #endif
+	else
+		return !(errnum = ERR_SET_VBE_MODE);
 	menu_border.disp_ul = 0x14;
 	menu_border.disp_ur = 0x15;
 	menu_border.disp_ll = 0x16;
@@ -1038,6 +1040,7 @@ vbe_fill_color (unsigned long color)
 
 
 int animated (void);
+extern int use_phys_base;
 int use_phys_base=0;
 unsigned long delay0, old_tick, name_len;
 
@@ -1087,7 +1090,6 @@ int animated (void)
 			use_phys_base=1;
 			if (! splashimage_func(tmp,1))
 				animated_type = 0;
-			use_phys_base=0; 
 			if (animated_name[name_len-5]<0x39)
 				animated_name[name_len-5] += 1; 
 			else
@@ -1156,6 +1158,7 @@ static int read_image_bmp(int type)
 	} __attribute__ ((packed)) bmih;
 	unsigned long bftmp,bfbit,bftmp0=0;
 	int x,y;
+	unsigned long source;
 	if (type == 0)
 		return 0;
 	filepos = 10;
@@ -1197,28 +1200,27 @@ static int read_image_bmp(int type)
 					else
 						bmp = (unsigned char *)current_phys_base+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline;
 					
-					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
-					{
-//				bmp[x] = bftmp;		//
-						if((background_transparent == 1)	&& (((bftmp & 0xff)==((bftmp & 0xff00)>>8) &&	(bftmp & 0xff)==((bftmp & 0xff0000)>>16) && RGB!=0xaa)?
+					if(background_transparent	&& (((bftmp & 0xff)==((bftmp & 0xff00)>>8) &&	(bftmp & 0xff)==((bftmp & 0xff0000)>>16) && RGB!=0xaa)?
 								((RGB==0xff) ? ((bftmp & 0xff)>=0xf0) :	((bftmp & 0xff)<=0x1f)) : (bftmp==bftmp0)))
-							*(unsigned long *)bmp = *(unsigned long *)((unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline);
-						else
-							*(unsigned long *)bmp = bftmp;
-					}
+						source = *(unsigned long *)((unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline);
+					else if ((graphic_type & 1) && is_highlight)
+						source = current_color_64bit & 0xffffffff;
+					else if ((graphic_type & 2) && is_highlight)
+						source = bftmp ^ 0xffffffff;
 					else
-					{
-						if((background_transparent == 1)	&& (((bftmp & 0xff)==((bftmp & 0xff00)>>8) &&	(bftmp & 0xff)==((bftmp & 0xff0000)>>16) && RGB!=0xaa)?
-								((RGB==0xff) ? ((bftmp & 0xff)>=0xf0) :	((bftmp & 0xff)<=0x1f)) : (bftmp==bftmp0)))
-							*(unsigned short *)bmp = *(unsigned short *)((unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline);
-						else
-							*(unsigned short *)bmp = (unsigned short)pixel_shift(bftmp);
-					}
+						source = bftmp;
+						
+					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+//				bmp[x] = bftmp;		//
+						*(unsigned long *)bmp = source;
+					else
+						*(unsigned short *)bmp = (unsigned short)pixel_shift(source);
 				}
 		}
 		filepos += ((bmih.biWidth*bfbit&3)?(4-(bmih.biWidth*bfbit&3)):0);
 	}
 	background_transparent=0;
+	use_phys_base=0;
 	return 2;
 }
 
@@ -1314,6 +1316,7 @@ static void StoreBuffer()
 	unsigned char R,G,B;
 	int y,u,v,rr,gg,bb;
 	unsigned long color;
+	unsigned long source;
 
 	for(i=0;i<SampRate_Y_V*8;i++)
 	{
@@ -1373,29 +1376,22 @@ static void StoreBuffer()
 						lfb = (unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel;
 					else				
 						lfb = (unsigned char *)current_phys_base + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel;
-					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
-					{
-						if((background_transparent == 1)	&& ((B==G &&	B==R && RGB!=0xaa)?
+					
+					color = (((unsigned long)R)<<16) | (((unsigned long)G)<<8) | (unsigned long)B;
+					if(background_transparent	&& ((B==G && B==R && RGB!=0xaa)?
 								((RGB==0xff) ? (B>=0xf0) : (B<=0x1f)) : (B==B0 && G==G0 && R==R0)))
-							*(unsigned long *)lfb = *(unsigned long *)((unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel);
-						else
-						{
-						*lfb++ = B;
-						*lfb++ = G;
-						*lfb++ = R;
-						} 
-					}
+						source = *(unsigned long *)((unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel);
+					else if ((graphic_type & 1) && is_highlight)
+						source = current_color_64bit & 0xffffffff;
+					else if ((graphic_type & 2) && is_highlight)
+						source = color ^ 0xffffffff;
 					else
-					{
-						if((background_transparent == 1)	&& ((B==G &&	B==R && RGB!=0xaa)?
-								((RGB==0xff) ? (B>=0xf0) : (B<=0x1f)) : (B==B0 && G==G0 && R==R0)))
-							*(unsigned short *)lfb = *(unsigned short *)((unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel);
-						else
-						{
-						color = (((unsigned long)R)<<16) | (((unsigned long)G)<<8) | (unsigned long)B;
-						*(unsigned short *)lfb = (unsigned short)pixel_shift(color);
-						}
-					}
+						source = color;
+					
+					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+						*(unsigned long *)lfb = source;
+					else
+						*(unsigned short *)lfb = (unsigned short)pixel_shift(source);
 				}
 			}
 		}
@@ -2085,6 +2081,7 @@ read_image_jpg(int type)
 		return 1;
 	Decode();
 	background_transparent=0;
+	use_phys_base=0;
 	return 2;
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

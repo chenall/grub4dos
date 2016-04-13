@@ -3342,6 +3342,7 @@ static int
 configfile_func (char *arg, int flags)
 {
   errnum = 0;
+	graphic_type = 0;
 	if (flags & BUILTIN_USER_PROG)
 	{
 		if (! grub_open (arg))
@@ -4139,9 +4140,7 @@ splashimage_func(char *arg, int flags)
     unsigned long long val;
 		int backup_x, backup_y;
     X_offset=0,Y_offset=0;
-    animated_delay = 0;
     fill_color = 0;
-    animated_enable = 1;
     if (*arg)
     {
 	if (strlen(arg) > 127)
@@ -4196,7 +4195,7 @@ splashimage_func(char *arg, int flags)
   arg = skip_to (0, arg);
 		
   strcpy(animated_name, arg);
-	
+	animated_enable = 1;
 	if (!(animated_type & 0x10) && (animated_type & 0x0f))
 		animated();
   return 1;
@@ -4222,7 +4221,7 @@ splashimage_func(char *arg, int flags)
 		if (graphicsmode_func(tmp,1))
 			return 1;
 	}
-	if (! animated_type)
+	if (! animated_type && ! graphic_type )
 	graphics_end();
 fill:
 	current_term = term_table + 1;	/* terminal graphics */
@@ -15742,6 +15741,13 @@ unsigned char timeout_x = 0;
 unsigned char timeout_y = 0;
 unsigned long long timeout_color = 0;
 unsigned long long keyhelp_color = 0;
+unsigned char graphic_type = 0;
+unsigned char graphic_row;
+unsigned char graphic_list;
+unsigned short graphic_wide;
+unsigned short graphic_high;
+unsigned short row_space;
+char graphic_file[128];
 
 static int
 setmenu_func(char *arg, int flags)
@@ -15802,6 +15808,7 @@ setmenu_func(char *arg, int flags)
 			current_term->chars_per_line = current_x_resolution / font_w;
 			*(unsigned char *)0x8274 = 0;
 			memmove ((char *)&menu_border,(char *)&tmp_broder,sizeof(tmp_broder));
+			graphic_type = 0;
 			return 1;
 		}
     else if (grub_memcmp (arg, "--ver-on", 8) == 0)
@@ -15867,6 +15874,7 @@ setmenu_func(char *arg, int flags)
 							menu_border.menu_box_y = val;
 							break;
 						case 'h':
+							if (! graphic_type)
 							menu_border.menu_box_h = val;
 							break;
 						case 'l':
@@ -15931,6 +15939,32 @@ setmenu_func(char *arg, int flags)
 			if (safe_parse_maxint (&arg, &val))
 				menu_border.menu_box_b = val;								//y
 		}
+		else if (grub_memcmp (arg, "--graphic-entry=", 16) == 0)	//--graphic-entry=type=row=list=wide=high=row_space FILE 
+		{
+			arg += 16;
+			if (safe_parse_maxint (&arg, &val))
+				graphic_type = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				graphic_row = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				graphic_list = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				graphic_wide = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				graphic_high = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				row_space = val;
+			else
+				row_space = 0x20;
+			arg++;
+			strcpy(graphic_file, arg);
+			menu_border.menu_box_h = graphic_row * graphic_list;
+		}
 		else
 			return 0;
 		
@@ -15965,7 +15999,10 @@ static struct builtin builtin_setmenu =
 	"--timeout=[x]=[y]=[color]\n"
 	"Note: [x]=[y]=0* located at the end of the selected item.\n"
 	"Note: [color]=0* default 'color highlight'.\n"
-	"* indicates default. Use 0xRRGGBB to represent colors."
+	"* indicates default. Use 0xRRGGBB to represent colors.\n"
+	"setmenu --graphic-entry=type=row=list=wide=high=row_space START_FILE\n"
+	"type: bit0:highlight  bit1:flip  bit2:box  bit7:transparent background\n"
+	"naming rules for START_FILE: *n.???   n: 00-99\n"
 };
 
 

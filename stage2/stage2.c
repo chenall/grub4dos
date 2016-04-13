@@ -339,6 +339,7 @@ num_text_char(char *p)
 /* Print an entry in a line of the menu box.  */
 extern char menu_cfg[];
 extern unsigned char menu_num_ctrl[];
+int use_phys_base;
 static void
 print_entry (int y, int highlight,int entryno, char *config_entries)
 {
@@ -352,6 +353,22 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
     current_term->setcolorstate (highlight ? COLOR_STATE_HIGHLIGHT : COLOR_STATE_NORMAL);
   
   is_highlight = highlight;
+	if (graphic_type)
+	{
+		char tmp[128];
+		int file_len=grub_strlen(graphic_file);
+		int www = (font_w * MENU_BOX_W) / graphic_list;
+		graphic_file[file_len-6] = ((entryno%num_entries) / 10) | 0x30;
+		graphic_file[file_len-5] = ((entryno%num_entries) % 10) | 0x30;
+		sprintf(tmp,"--offset=%d=%d=%d %s",(graphic_type & 0x80),(font_w*MENU_BOX_X+((y-MENU_BOX_Y)%graphic_list)*(www)),(font_h*MENU_BOX_Y+((y-MENU_BOX_Y)/graphic_list)*(graphic_high+row_space)),graphic_file);
+		use_phys_base=1;
+		splashimage_func(tmp,1);
+//		use_phys_base=0; 
+		if ((graphic_type & 4) && highlight)
+			rectangle((font_w*MENU_BOX_X+((y-MENU_BOX_Y)%graphic_list)*(www)),(font_h*MENU_BOX_Y+((y-MENU_BOX_Y)/graphic_list)*(graphic_high+row_space)),graphic_wide,graphic_high,3);
+		c = *entry;
+		goto graphic_end;
+	}
 
   if(!(menu_tab & 0x40))
 	{
@@ -437,7 +454,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 			grub_putchar (' ', ret);
 	}
     }
-
+graphic_end:
   is_highlight = 0;
 
   if (highlight && ((config_entries == (char*)titles)))
@@ -835,6 +852,9 @@ restart1:
 		x = (MENU_BOX_X - 2) * i + (i>>1);
 		y = (MENU_BOX_Y)*j-(j>>1);
 		w = (MENU_BOX_W + 2) * i;
+		if (graphic_type)
+			h = (graphic_high+row_space) * graphic_row;
+		else
 		h = (MENU_BOX_H + 1) * j;
 		rectangle(x,y,w,h,menu_border.border_w);
 	}
@@ -1493,9 +1513,12 @@ done_key_handling:
 		  if (config_entries && new_num_entries)
 		  {
 		    int old_num_entries = num_entries;
+				unsigned char graphic_type_back = graphic_type;
+				graphic_type = 0;
 		    num_entries = new_num_entries;
 		    run_menu (heap, NULL, /*new_num_entries,*/ new_heap, 0);	/* recursive!! */
 		    num_entries = old_num_entries;
+				graphic_type = graphic_type_back;
 		    goto restart1;
 		  }
 		  //else

@@ -769,6 +769,13 @@ extern unsigned long long keyhelp_color;
 //extern unsigned char font_type;
 //extern unsigned char scan_mode;
 //extern unsigned char store_mode;
+extern unsigned char graphic_type;
+extern unsigned char graphic_row;
+extern unsigned char graphic_list;
+extern unsigned short graphic_wide;
+extern unsigned short graphic_high;
+extern unsigned short row_space;
+extern char graphic_file[128];
 
 #ifdef SUPPORT_GRAPHICS
 extern unsigned long current_x_resolution;
