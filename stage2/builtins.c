@@ -4218,7 +4218,7 @@ splashimage_func(char *arg, int flags)
 	{
 		char tmp[16];
 		sprintf(tmp,"-1 %d %d",w,h);
-		if (graphicsmode_func(tmp,1))
+		if (graphicsmode_func(tmp,1) || graphics_mode < 0xFF)
 			return 1;
 	}
 	if (! animated_type && ! graphic_type )
@@ -14912,7 +14912,7 @@ enter_graphics_mode:
 	if (current_term->startup)
 		current_term->startup();
       }
-      else
+      else if (graphics_mode > 0xFF)
       {
 	current_term = term_table + 1;	/* terminal graphics */
 	if (current_term->startup)

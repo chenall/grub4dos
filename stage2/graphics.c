@@ -64,7 +64,7 @@ unsigned long line_spacing = 0;
 unsigned long xpixels = 640;
 unsigned long ypixels = 480;
 unsigned long plano_size = 38400;
-unsigned long graphics_mode = 0x12;
+unsigned long graphics_mode = 3;
 unsigned long current_x_resolution;
 unsigned long current_y_resolution;
 unsigned long current_bits_per_pixel;
