@@ -14372,6 +14372,13 @@ usb_func (char *arg, int flags)
 			{
 				floppies_orig = (*(char*)0x410);
 				harddrives_orig = (*(char*)0x475);
+        if (usb_drive_num[0] == 0)
+        {
+          fd_geom[0].flags |= BIOSDISK_FLAG_LBA_EXTENSION;
+          fd_geom[0].heads = 0xff;
+          fd_geom[0].sectors = 0x3f;
+          fd_geom[0].cylinders = (unsigned long)fd_geom[0].total_sectors / 0xff / 0x3f;
+        }
 				if (debug > 0)
 				{
 					int i; 

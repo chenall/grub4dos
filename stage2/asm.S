@@ -9477,7 +9477,9 @@ Sector_comparison:
 	je 1b
 	cmpw $0x01e3, %cx
 	jne 3f
-	addw $3, %cx
+	subw $3, %cx
+	addw $3, %si
+	addw $3, %di
 	jmp 1b
 2:
 	clc
