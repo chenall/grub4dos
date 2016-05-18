@@ -267,7 +267,7 @@ iso9660_dir (char *dirname)
 					*ch++ = *dirname++;
 					*ch++ = *dirname++;
 				}	
-				if (isspace(*dirname) || *dirname == '/')
+				if (/*isspace(*dirname) || */*dirname == '/')
 					break;
 		if (ch - tmp_name >= 255 || !(*ch = *dirname))
 			break;
