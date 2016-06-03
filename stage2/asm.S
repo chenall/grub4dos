@@ -9672,7 +9672,9 @@ Define_disk_No:
 	loop 1b
 	jmp 2f
 1:
-	
+	subw $mem_mbr, %di
+	shrw $4, %di
+	movw %di, %bp
   movw $mem_pbr, %di
   call read_hdd
   jmp 1f
@@ -9695,7 +9697,13 @@ Define_disk_No:
 	jnc 3f
   movw $mem_pbr, %di
   call Sector_comparison
-	jnc 3f
+//	jnc 3f
+  jc 4f
+  movw %bp, %fs:(0x8208+2)
+  movw %bp, %fs:(0x829c+2)
+  movw %bp, %fs:(0x831c+2)
+  jmp 3f
+4:
   decb %ch
   je 2f
   addw $0x200, %si
@@ -9726,6 +9734,7 @@ Define_disk_No:
 	movb $0, %cs:(Number - USB2DRI)(%bx)
 	movb $0, %fs:0x8280
 	movb $0, %fs:0x82a0
+	movb $0, %fs:0x8318
 	jmp 5f
 not_map_80:
 	decb %cl
@@ -10334,7 +10343,7 @@ Determine_delay_units:
 	movw %ax, (Count_1ms - USB2DRI) 
 	ret
 	
-	. = USB2DRI + 0x1700
+	. = USB2DRI + 0x1720
 			
 /* ********************  USB2DRI end  ****************************** */ 
 

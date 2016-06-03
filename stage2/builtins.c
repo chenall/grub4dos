@@ -14362,7 +14362,6 @@ usb_func (char *arg, int flags)
 			if (! safe_parse_maxint (&p, &tmp))
 				return 0;
 			usb_delay = tmp;
-			return 1;
 		}
     else if (grub_memcmp (arg, "--init", 6) == 0)
 		{
@@ -14413,7 +14412,7 @@ usb_func (char *arg, int flags)
       return ! (errnum = ERR_BAD_ARGUMENT);
 			arg = skip_to (0, arg);
   }
-  return 1;
+  return 0;
 }
 
 static struct builtin builtin_usb =
