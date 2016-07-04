@@ -2367,7 +2367,7 @@ graphics_scroll (void)
     {/* VBE */
 
 	memmove_forward_SSE ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline * (font_h + line_spacing)),
-		    /*((y1 - 1) << 4)*/ current_y_resolution * current_bytes_per_scanline);
+		    (y1 - 1) * current_bytes_per_scanline * (font_h + line_spacing));
     }
 
     for (i=0;i<current_term->chars_per_line;++i)
