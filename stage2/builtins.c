@@ -1482,7 +1482,7 @@ cat_func (char *arg, int flags)
 						/* write len_r bytes at string replace to file!! */
 						grub_read ((unsigned long long)(unsigned int)replace,len_r, 0x900ddeed);
 						i += len_r;
-						if (filepos < filepos_bak)
+//						if (filepos < filepos_bak)
 							filepos = filepos_bak;
 					}
 					else
