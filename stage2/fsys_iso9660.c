@@ -202,6 +202,9 @@ iso9660_mount (void)
 		}
 		emu_iso_sector_size_2048 = 1;
 		devread(16, 0, 0x800, (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90);
+		if ((PRIMDESC->type.l != ISO_VD_PRIMARY)
+				|| memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, 5))
+			return 0;
     size = idr->size.l;
 		extent = idr->extent.l;
     emu_iso_sector_size_2048 = 1;
@@ -211,15 +214,15 @@ iso9660_mount (void)
     idr = (struct iso_directory_record *)((char *)idr + idr->length.l);
     if ((iso_types & (1<<ISO_TYPE_RockRidge)) && (idr->length.l - idr->name_len.l - sizeof(struct iso_directory_record) + sizeof(idr->name)) > 1)
 			iso_type = ISO_TYPE_RockRidge; //iso9600_RockRidge
- 		if ((PRIMDESC->type.l == ISO_VD_PRIMARY)
-	  	&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, 5))
-		{
+// 		if ((PRIMDESC->type.l == ISO_VD_PRIMARY)
+//	  	&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, 5))
+//		{
         ISO_SUPER->vol_sector = 16;
 	  	INODE->file_start = 0;
 	  	fsmax = PRIMDESC->volume_space_size.l;
 			return 1;
-		}
-		return 0;
+//		}
+//		return 0;
 	}
 }
 
