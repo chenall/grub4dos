@@ -704,6 +704,9 @@ run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *h
    */
    if (password_buf)//Make sure that PASSWORD is NUL-terminated.
 		pass_config = wee_skip_to(password_buf,SKIP_WITH_TERMINATE);
+		
+	/* clear keyboard buffer before boot */
+  while (console_checkkey () != -1) console_getkey ();
 
 restart1:
   //clear temp_num when restart menu
