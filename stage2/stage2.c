@@ -706,7 +706,7 @@ run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *h
 		pass_config = wee_skip_to(password_buf,SKIP_WITH_TERMINATE);
 		
 	/* clear keyboard buffer before boot */
-  while (console_checkkey () != -1) console_getkey ();
+  while (console_checkkey () == 0x1c0d) console_getkey ();
 
 restart1:
   //clear temp_num when restart menu
