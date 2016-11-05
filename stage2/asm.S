@@ -74,6 +74,7 @@ ENTRY(main)
 	 * bit 2 = 1: disable the "unconditional command-line entrance" feature
 	 * bit 3 = 1: disable geometry tune
 	 * bit 4 = 1: disable startup cdrom drive look-up.
+	 * bit 5 = 1: enable HLT instruction for checkkey idle loop.
 	 */
 	.byte	0
 
@@ -923,7 +924,18 @@ ENTRY(stop)
 hard_stop:
 	sti
 	//hlt
+	call	conditional_hlt
 	jmp hard_stop
+	
+conditional_hlt:
+//DS should already be 0, but ...
+	pushw	$0
+	popw	%ds								// just in case DS changed by buggy BIOS
+	testb	$0x20, 0x8205			// Enable HLT?
+	jz	1f									// No. Skip the HLT instruction.
+	hlt											// Yes. Execute the HLT instruction.
+1:
+	ret											// on return, DS=0
 
 	.code32
 
@@ -15021,6 +15033,7 @@ ENTRY(console_getkey)
 1:
 	sti		/* getkey needs interrupt on */
 	// hlt
+	call	conditional_hlt
 
 	#; work around for Apple BIOS getkey bug
 	#; check the keyboard buffer, until there is a keypress.
@@ -15159,6 +15172,7 @@ ENTRY(console_checkkey)
 
 	sti		/* checkkey needs interrupt on */
 	// hlt
+	call	conditional_hlt
 
 	cmpl	0x46c, %eax	/* timer counter changed by int 8? */
 	loopz	1b		/* no change, wait a timer interrupt */
