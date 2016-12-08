@@ -1274,6 +1274,7 @@ unsigned long long
 dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
     UInt64 outTx, outSkip;
+    UInt64 in_len = len, step_len = 0x800000ULL;
     //grub_printf("LZMA read buf=%lX len=%lX dic=%X inp=%X\n",buf,len,lzmadec.dic,lzmadec.inp);
     //getkey();
 
@@ -1307,6 +1308,8 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 
     outTx = 0;
     outSkip = ufp - dFP;
+    if (len > 0x800000ULL)
+      grub_printf("\r [0M/%ldM]",len>>20);
     //grub_printf ("ufp=%lX dFP=%lX\n", ufp, dFP);
     //getkey();
 
@@ -1354,6 +1357,11 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 	    outTx += outTxCur; 
 	    ufp += outTxCur; 
 	    len -= outTxCur; 
+			if (outTx > step_len)
+			{
+				grub_printf("\r [%ldM/%ldM]",step_len>>20,in_len>>20);
+				step_len += 0x800000ULL;
+			}
 	    //grub_printf (" remaining size %lX\n", len);
 	    //getkey();
 	    if (len == 0)
@@ -1419,7 +1427,7 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 
     //grub_printf ("LZMA read end %lX\n", outTx);
     //getkey();
-
+    grub_printf("\r                        \r");
     return outTx;
 }
 

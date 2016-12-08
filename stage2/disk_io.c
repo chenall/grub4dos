@@ -2321,7 +2321,7 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
      || fsys_table[fsys_type].read_func == pxe_read
 #endif
 #ifndef NO_DECOMPRESSION
-      || (compressed_file && decomp_type != DECOMP_TYPE_GZ)
+      || (compressed_file && decomp_type == DECOMP_TYPE_LZMA)
 #endif /* NO_DECOMPRESSION */
   )
   {
