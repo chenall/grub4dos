@@ -1427,6 +1427,7 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 
     //grub_printf ("LZMA read end %lX\n", outTx);
     //getkey();
+		if (in_len > 0x800000ULL)
     grub_printf("\r                        \r");
     return outTx;
 }
