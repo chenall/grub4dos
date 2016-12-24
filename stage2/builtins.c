@@ -10362,7 +10362,8 @@ map_whole_drive:
 		  || tmpbase + bytes_needed <= start_byte  /* XXX: destination is below the gzip image */
 		  || tmpbase >= start_byte + to_filesize) /* XXX: destination is above the gzip image */
 		{
-		    if (prefer_top)
+				/* Comment out. Now we always prefer top. -- tinybit, 2016-12-21 */
+		    //if (prefer_top)
 		    {
 			if (base < tmpbase)
 			{
@@ -10370,11 +10371,11 @@ map_whole_drive:
 			}
 			continue; // find available region with highest address
 		    }
-		    else
-		    {
-			base = tmpbase; top_end = tmpend;
-			break; // use the first available region
-		    }
+		    //else
+		    //{
+			//base = tmpbase; top_end = tmpend;
+			//break; // use the first available region
+		    //}
 		}
 		else
 		    /* destination overlaps the gzip image */
