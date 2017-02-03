@@ -8861,6 +8861,11 @@ map_func (char *arg, int flags)
   unsigned long in_situ = 0;
   unsigned long in_situ_flags = 0;
   int add_mbt = -1;
+  unsigned long long tmp_mem_max = map_mem_max;
+  /* prefer_top now means "enable blocks above address of 4GB".
+   * By default, prefer_top = 0, meaning that only 32-bit addressable
+   * memory is allowed for the specified virtual mem-drive. 
+						 -- tinybit 2017-01-24 */
   int prefer_top = 0;
   unsigned long long skip_sectors = 0;
   unsigned long long max_sectors = -1ULL;
@@ -9138,28 +9143,34 @@ map_func (char *arg, int flags)
 		char tmp[128];
 #ifndef NO_DECOMPRESSION
 		int no_decompression_bak = no_decompression;
-		int is64bit_bak = is64bit;
 #endif
-		sprintf (tmp, "--add-mbt=0 --heads=%d --sectors-per-track=%d (md)0x%lX+0x%lX (0x%X)", (hooked_drive_map[i].max_head + 1), ((hooked_drive_map[i].max_sector) & 63), (unsigned long long)hooked_drive_map[i].start_sector, (unsigned long long)hooked_drive_map[i].sector_count, hooked_drive_map[i].from_drive);
+		//int is64bit_bak = is64bit;
+		sprintf (tmp, "--add-mbt=0 %s --heads=%d --sectors-per-track=%d (md)0x%lX+0x%lX (0x%X)",  ((((unsigned long long)hooked_drive_map[i].start_sector >= 0x800000ULL) && (hooked_drive_map[i].from_drive != INITRD_DRIVE))? "--top" : ""), (hooked_drive_map[i].max_head + 1), ((hooked_drive_map[i].max_sector) & 63), (unsigned long long)hooked_drive_map[i].start_sector, (unsigned long long)hooked_drive_map[i].sector_count, hooked_drive_map[i].from_drive);
 
 		printf_debug ("Re-map the memdrive (0x%X):\n\tmap %s\n", hooked_drive_map[i].from_drive, tmp);
 		errnum = 0;
 		disable_map_info = 1;
-#ifndef NO_DECOMPRESSION
-		if (hooked_drive_map[i].from_drive == INITRD_DRIVE)
+
+		/* because we are "rehooking", we should not decompress the
+		 * sector data in memory. i.e., no_decompression for all
+		 * mem-drives, not only for the INITRD_DRIVE.
+		 *					tinybit 2017-01-24 */
+
+		//if (hooked_drive_map[i].from_drive == INITRD_DRIVE)
 		{
+#ifndef NO_DECOMPRESSION
 			no_decompression = 1;
-			is64bit = 0;
-		}
 #endif
+			//is64bit = 0;	/* Don't touch is64bit. Instead, we now use --top to control it. -- tinybit 2017-01-24 */
+		}
 		map_func (tmp, flags);
-#ifndef NO_DECOMPRESSION
-		if (hooked_drive_map[i].from_drive == INITRD_DRIVE)
+		//if (hooked_drive_map[i].from_drive == INITRD_DRIVE)
 		{
+#ifndef NO_DECOMPRESSION
 			no_decompression = no_decompression_bak;
-			is64bit = is64bit_bak;
-		}
 #endif
+			//is64bit = is64bit_bak;
+		}
 		disable_map_info = 0;
 
 		if (errnum)
@@ -10273,8 +10284,8 @@ map_whole_drive:
       /* once int13 hooked and at least 1 slot uses mem==1, also hook int15
        */
 
-      if (map_mem_max > 0x100000000ULL && ! is64bit)
-	  map_mem_max = 0x100000000ULL;
+      if (tmp_mem_max > 0x100000000ULL && (! is64bit || ! prefer_top))
+	  tmp_mem_max = 0x100000000ULL;
       if (map_mem_min < 0x100000ULL)
 	  map_mem_min = 0x100000ULL;
 
@@ -10285,14 +10296,24 @@ map_whole_drive:
 
           for (; end_addr > (unsigned long) map; map = (struct AddrRangeDesc *) (((int) map) + 4 + map->size))
 	    {
-	      unsigned long long tmpbase, tmpend, tmpmin;
+	      unsigned long long tmpbase, tmpend, tmpmin, sum;
 	      if (map->Type != MB_ARD_MEMORY)
+		  continue;
+	      if (map->Length == 0)
 		  continue;
 	      tmpmin = (map->BaseAddr > map_mem_min) ?
 			map->BaseAddr : map_mem_min;
 	      tmpmin = ((tmpmin+4095)&(-4096ULL));/* 4KB alignment, round up */
-	      tmpend = (map->BaseAddr + map->Length < map_mem_max) ?
-			map->BaseAddr + map->Length : map_mem_max;
+	      /* consider the case when map->BaseAddr + map->Length overflows.
+	       * It happens if and only if the sum is less than both addends.
+							tinybit 2017-01-24 */
+	      sum = map->BaseAddr + map->Length;
+	      tmpend = tmp_mem_max;
+	      if (sum >= map->BaseAddr && sum >= map->Length) // no overflow
+		{
+		    if (sum < tmp_mem_max)
+			tmpend = sum;
+		}
 	      tmpend &= (-4096ULL);	/* 4KB alignment, round down */
 	      if (tmpend < bytes_needed)
 		  continue;
