@@ -888,6 +888,7 @@ ext2fs_dir (char *dirname)
 #ifdef E2DEBUG
   unsigned char *i;
 #endif	/* E2DEBUG */
+	int empty = 0;
 
   /* loop invariants:
      current_ino = inode to lookup
@@ -1139,6 +1140,8 @@ ext2fs_dir (char *dirname)
 	    {
 	      if (print_possibilities < 0)
 		{
+			if (!empty)
+				return !(errnum = ERR_FILE_NOT_FOUND);
 		  return 1;
 		}
 	      
@@ -1216,6 +1219,8 @@ ext2fs_dir (char *dirname)
 		  if (print_possibilities > 0)
 		    print_possibilities = -print_possibilities;
 		  print_a_completion (tmp_name, 0);
+			if (*tmp_name != 0x2e)
+				empty = 1;
 		}
 
 	      //dp->name[dp->name_len] = saved_c;

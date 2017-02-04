@@ -1,4 +1,7 @@
 ﻿更新说明：
+2017-02-04（yaya）
+	Ls command: Empty Folder returns false.
+
 2016-12-08（yaya）
   修正lz4、vhd不显示解压缩进度指示。增加lzma解压缩进度指示。
 

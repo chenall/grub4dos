@@ -505,6 +505,7 @@ fat_dir (char *dirname)
   int exfat_nextentry =  EXFAT_ENTRY_FILE;
   unsigned long long exfat_filemax = 0;
   unsigned long exfat_file_cluster = 0;
+	int empty = 0;
   
 //  int do_possibilities = 0;
   
@@ -584,6 +585,8 @@ fat_dir (char *dirname)
 		{
 		  /* previously succeeded, so return success */
 		  *rest = ch;	/* XXX: Should restore the byte? */
+			if (!empty)
+				return !(errnum = ERR_FILE_NOT_FOUND);
 		  return 1;
 		}
 	      
@@ -761,6 +764,8 @@ valid_filename:
 	      if (print_possibilities > 0)
 		print_possibilities = -print_possibilities;
 	      print_a_completion ((char *)utf8, 1);
+			if (*(char *)utf8 != 0x2e)
+				empty = 1;
 	    }
 	  continue;
 	}
