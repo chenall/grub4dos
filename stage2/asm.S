@@ -7963,7 +7963,7 @@ ENTRY(init_usb)
 
 /* ********************  USB2DRI start  ****************************** */
 	.align	32
-
+#define cd 1
 ENTRY(USB2DRI)
 USB2DRI:
 	.code16
@@ -7981,7 +7981,7 @@ fd_num:
 	.byte   0
 hd_num:
 	.byte   0
-max_id:
+max_dev:
 	.byte   0	
 ENTRY(max_dri)
 	.byte   0	
@@ -8001,22 +8001,27 @@ old_int13:
 
 
 qh:
-	.fill 0x110,1,0x00                      //QH,qTD
+	.fill 0x90,1,0x00                      //QH,qTD
 
 //qTD1    db      40h dup(0)
-//qTD2    db      40h dup(0)
-//qTD3    db      40h dup(0) 
 
 //QH0     db      40h dup(0)
 //				db		  10h dup(0)    
 
 cbw_qq:
+dCBWSignature:
 	.long   0x43425355
+dCBWTag:
 	.long   0x12345678
+dCBWDataTransferLength:
 	.long   0
+bmCBWFlags:
 	.byte   0
+bCBWLUN:
 	.byte   0
+bCBWCBLength:
 	.byte   0x0c
+CBWCB:
 	.long   0
 	.long   0
 	.long   0
@@ -8068,7 +8073,7 @@ ConProperty:
 ConAddress:
 	.byte   0
 ConSize:
-	.word   12
+	.word   0
 InProperty:
 	.byte   0
 InAddress:
@@ -8087,10 +8092,6 @@ Port_Num_Reg:
 	.byte   0
 HUB_id:
 	.byte   0
-InterfaceNum:
-	.byte   0
-InterfaceValue:
-	.byte   0
 	
 bbbb:
 #define	DevLen	(bbbb - Dev)
@@ -8107,7 +8108,7 @@ DriID:
 	.byte   0
 DriLUN:
 	.byte   0
-#if 0
+#if cd
 DriType:
 	.byte   0	
 #endif
@@ -8124,33 +8125,12 @@ cccc:
 	.fill (DriveLen*7),1,0x00
 
 //----------------------------------------------------------------------------
-	.align 8
-
-SCSI:
-Return:
-	.byte   0
-Direction:
-	.byte   0
-TSize:
-	.long   0
-TOffset:
-	.word   0
-TSection:
-	.word   0
-TokenContent:
-	.byte   0,0,0,0,0,0,0,0,0,0,0,0
-
-dddd:
-#define	TokenLen  dddd - SCSI
-
-
-//----------------------------------------------------------------------------
 	.align	8
 
 Get_device:
 	.byte   0x80,06,00,01,00,00,0x12,00
 Get_Configuration:
-	.byte   0x80,06,00,02,00,00,0x09,00
+	.byte   0x80,06,00,02,00,00,0x20,00
 Get_lun:
 	.byte   0xa1,0xfe,00,00,00,00,01,00
 Set_Configuration:
@@ -8161,33 +8141,31 @@ Clear_endpoint:
 	.byte   02,01,00,00,00,00,00,00
 Bulk_Reset:
 	.byte   0x21,0xff,00,00,00,00,00,00
-Set_Interface:
-	.byte   01,0x0b,00,00,00,00,00,00
 Get_Hub:
 	.byte   0xa0,06,00,0x29,00,00,0x10,00
-Set_Hub_Power:
+Set_HubPort_Power:
 	.byte   0x23,03,0x08,00,00,00,00,00
-Get_Hub_Status:
-	.byte   0xa0,00,00,00,00,00,04,00
-Get_Port_Status:
+Get_HubPort_Status:
 	.byte   0xa3,00,00,00,00,00,04,00
-Clear_Hub_Conne:
+Clear_HubPort_Conne:
 	.byte   0x23,01,0x10,00,00,00,00,00
-Set_Hub_Reset:
+Set_HubPort_Reset:
 	.byte   0x23,03,04,00,00,00,00,00
-Clear_Hub_Reset:
+Clear_HubPort_Reset:
 	.byte   0x23,01,0x14,00,00,00,00,00
 
 _id:
 	.byte   1
 _lun:
 	.byte   0
-#if 0
+#if cd
 _type:
 	.byte   0	
-#endif
-lba1sector:
+Media_types:	
 	.byte   0
+cd_num:	
+	.byte   0xf8
+#endif
 AsyncListAddr:
 	.long   0
 qTD1:
@@ -8204,24 +8182,14 @@ Start_sector:
 	.long   0
 Status:
 	.byte   0
-Error_repeat_Number_Bulk:
-	.byte   0
-Error_repeat_Number_Con:
-	.byte   0
 Read_write_repeat_Number:
 	.byte   0
 Stack_sp:
 	.word   0
 Stack_ss:
 	.word   0
-#if 0
-Media_types:	
-	.byte   0
-#endif
 Ability_Register_Size:
 	.word   0
-not_err:
-	.byte   0
 _eax:
 	.long   0
 _bx:
@@ -8236,8 +8204,15 @@ R_W_Mark:
 	.byte   0
 Save_ah:
 	.byte   0	
-
-
+Return:
+	.byte   0	
+TSize:
+	.long   0
+TOffset:
+	.word   0
+TSection:
+	.word   0
+	
 Entry_int13:
 	call Find_drive_info
 	jnb 1f
@@ -8255,12 +8230,9 @@ Entry_int13:
 	pushw %ds
 	pushw %es
 	pushw %fs
-	pushw %gs
 	pushw $0
 	popw %fs
-	pushw $0xffff
-	popw %gs
-        //ss=ds=0 es=2000 cs=9e00  fs=000 gs=ffff
+        //ss=ds=0 es=2000 cs=9e00  fs=0000
 	cmpb $00, %ah
 	je int13_00_04_16_17_18_44_47
 	cmpb $01, %ah
@@ -8281,9 +8253,9 @@ Entry_int13:
 	je int13_42_43     
 	cmpb $0x43, %ah
 	je int13_42_43
-#if 0
 	cmpb $0x48, %ah
 	je int13_48
+#if cd
 	cmpw $0x4b01, %ax
 	je int13_4b01	
 #endif
@@ -8306,7 +8278,6 @@ int13_00_04_16_17_18_44_47:
 	je 3f
 	orb $01, 0x24(%bp)              //cf=1
 3: 
-	popw %gs
 	popw %fs
 	popw %es
 	popw %ds
@@ -8397,7 +8368,7 @@ Find_drive_info:
 	movb %al, (_id - USB2DRI)
 	movb (DriLUN - Dri)(%si), %al 
 	movb %al, (_lun - USB2DRI)
-#if 0
+#if cd
 	movb (DriType - Dri)(%si), %al
 	movb %al, (_type - USB2DRI)
 #endif
@@ -8480,7 +8451,6 @@ Disk_package:
 	movl 0x08(%si), %eax       
 	ret
 
-#if 0
 int13_48:
 	pushw %ds
 	popw %es
@@ -8503,12 +8473,13 @@ int13_48:
 	movw %ax, 0x18(%si)
 	popw %dx
 	jmp int13_00_04_16_17_18_44_47
-	
+#if cd	
 int13_4b01:			
 	movb $0x13, (%si)
 	movb %cs:(Media_types - USB2DRI), %al
 	movb %al, 1(%si)
-	movb $0xff, 2(%si)
+	movb %cs:(cd_num - USB2DRI), %al
+	movb %al, 2(%si)
 	movb $1, 3(%si)
 	movl %cs:(Start_sector - USB2DRI), %eax
 	movl %eax, 4(%si)
@@ -8570,6 +8541,9 @@ Allow_A20:
 observe:
 	pushw %bx
 	pushw %dx
+	pushw %gs
+	pushw $0xffff
+	popw	%gs
 	pushfl
 	cli
 	movw %fs:0x0000, %ax
@@ -8580,6 +8554,7 @@ observe:
 	movw %bx, %gs:0x0010 
 	popfl
 	xorw %dx, %ax
+	popw %gs
 	popw %dx
 	popw %bx
 	ret
@@ -8615,82 +8590,77 @@ Delay:
 
 
 Remove_qTD:				
-	movw	(qTD1 - USB2DRI), %di
+	pushaw
   xorw	%ax, %ax
-	movw	$0x60, %cx
-	rep	stosw				
+	movw	$0x20, %cx
+	rep	stosw
+	popaw
 	ret	
 	
 	
 Control_transfer_hub:
 	movb %cl, 4(%si)
 Control_transfer:
-	movb	$3, (Error_repeat_Number_Con - USB2DRI)
-3:
 	pushaw
 
-	call Remove_qTD
+	call Determine_device_address
 
-	movl (qTD1_Linear - USB2DRI), %edx
-	addl $0x40, %edx
 	movw (qTD1 - USB2DRI), %di
-	movl %edx, (%di)
-	movl %edx, 4(%di)             
-	movl $0x00080e80, 8(%di)
-	movzwl %si, %eax
-	addl (ds_Linear - USB2DRI), %eax
-	movl %eax, 0x0c(%di)        
+	movw $0x8e80, %ax
+	movw $8, %cx
+	movzwl %si, %edx
+	addl (ds_Linear - USB2DRI), %edx
+	call Con_mon
+	call Set_QH
               
 	movw 6(%si), %cx
 	orw %cx, %cx 
 	je 1f
-	addl $0x40, %edx
-	addw $0x40, %di
 	movb $0, %ah
 	testb $0x80, (%si)
 	je 2f
 	movb $01, %ah
 2:
-	movl %edx, (%di)
-	movl %edx, 4(%di)
 	movb $0x80, %al
-	orb $0x0c, %ah
+	orb $0x8c, %ah
 	orw $0x8000, %cx
-	movw %ax, 8(%di)
-	movw %cx, 0x0a(%di)
-	movl $(Cache - USB2DRI), %eax
-	addl (ds_Linear - USB2DRI), %eax
-	movl %eax, 0x0c(%di)
-
+	movl $(Cache - USB2DRI), %edx
+	addl (ds_Linear - USB2DRI), %edx
+	call Con_mon
+	call Set_QH
+	cmpb $0, (Status - USB2DRI)
+	jne 2f
 1:
-	addw $0x40, %di
 	movb $0x81, %ah
 	testb $0x80, (%si) 
 	je 1f 
 	movb $0x80, %ah
 1:
-	movb $1, (%di)
-	movb $1, 4(%di) 
 	movb $0x80, %al
 	orb $0x0c, %ah
-	movw %ax, 8(%di)
-	movw $0x8000, 0x0a(%di)
-	movb $0, %cl
+	movw $0x8000, %cx
+	xorl %edx, %edx
+	call Con_mon
 	call Set_QH
+2:							
 	popaw
-	cmpb	$0, (Status - USB2DRI)
-	je 1f
-	decb (Error_repeat_Number_Con - USB2DRI)
-	cmpb $0, (Error_repeat_Number_Con - USB2DRI)
-	jne 3b	
-1:							
 	ret
 
+Con_mon:
+	call Remove_qTD
+	movw %ax, 8(%di)
+	movw %cx, 0xa(%di)
+	movl %edx, 0xc(%di)
+	movl $0x1000, %eax
+	andl $0xfffff000, %edx
+	addl %eax, %edx
+	movl %edx, 0x10(%di)
+	movb $1,(%di)
+	movb $1,4(%di)
+	movw $0, %cx
+	ret
 
 Port_Reset:
-	pushw %cx
-	movw $5, %cx
-Reset_Continue:	
 	movl $0x00001100, %eax      
 	call Write_Register
 	movw $100, %ax
@@ -8705,14 +8675,6 @@ Reset_Continue:
 	call Write_Register
 
 	call Read_Register
-	testb $4, %al
-	jne Reset_end
-	andb $0xc, %ah
-	cmpb $4, %ah
-	je Reset_end	
-	loop Reset_Continue	
-Reset_end:
-	popw %cx
 	ret
 	
 	
@@ -8727,19 +8689,18 @@ Determine_device_address:
 
 
 Set_QH:
-	pushw %bx
-	pushw %cx
-	
-	call Determine_device_address
-	movw (qTD1 - USB2DRI), %di
-	addw $0xc0, %di
+	pushw %si
+	pushw %di
+	addw $0x40, %di
 	movb $2, %dl
-	call Get_current_endpoint
-	movb 01(%si), %ch
+	
+	leaw (ConAddress - USB2DRI)(%bx), %si
+	addw %cx, %si
+	movb (%si), %ch
 	andb $0x0f, %ch 
 	shlb $04, %dl
 	orb %dl, %ch
-	movw 02(%si), %ax
+	movw 01(%si), %ax
 	orb %cl, %cl
 	jne 1f
 	orw $0x0800, %ax
@@ -8751,51 +8712,59 @@ Set_QH:
 	movb %cl, 04(%di)
 	movb %ch, 05(%di)
 	movw %ax, 06(%di)
+	
+	movb $0x40, 0xb(%di)
 
 	movl (qTD1_Linear - USB2DRI), %eax
 	movl %eax, 0x0c(%di)
 	movw (qTD1 - USB2DRI), %si
 	pushw %di
 	addw $0x10, %di
-	movw $0x10, %cx
+	movw $0x20, %cx
 	rep movsw
 	popw %di			
+	movb $00, (Status - USB2DRI) 
 
-	movl $0x10021, %eax
+	movl $0x80021, %eax
 	movw $0, %si	
 	call Write_Register
-	movl $0x00800000, %ecx 
+	movl $0x00100000, %ecx 
 1:	
 	movw $04, %si
 	call Read_Register
 	testb $03, %al
 	jne 2f
 	loopl 1b
+	orb $2, (Status - USB2DRI)
 	jmp 1f
 2:
 	movw $04, %si
 	call Write_Register
-	test $02, %al
-	je 2f
-1:
-	movl $0x10001, %eax
-	movw $0, %si
-	call Write_Register 
-	jmp 5f
+	test $01, %al
+	jne 2f
+	orb $4, (Status - USB2DRI)
+	jmp 1f
 2:
-	movb 0x18(%di), %al    
-	testb $0x80, %al
-	jne 2b      
-1:
-	movl $0x10001, %eax
-	movw $0, %si
-	call Write_Register 
-
+	movl $0x00100000, %ecx 
+2:
+	testb $0x80, 0x18(%di)
+	je 2f      
+	loopl 2b
+	orb $8, (Status - USB2DRI)
+2:
 	testb $8, 7(%di)
 	je 1f
-	movw $50, %ax
+	movw $20, %ax
 	call Delay	
 1:
+	pushw %ax
+	movl $0x80001, %eax
+	movw $0, %si
+	call Write_Register 
+	popw %ax
+	cmpb $0, (Status - USB2DRI)
+	jne 6f
+
 	movb 0x18(%di), %al
 	movb 0x19(%di), %ah	
 	andb $0x0c, %ah 
@@ -8804,34 +8773,28 @@ Set_QH:
 	testb $0x40, %al
 	jne 5f 
 	testb $0x20, %al
-	jne 5f              
-	movb $00, (Status - USB2DRI)      
+	jne 5f                   
 3:
-	popw %cx
-	popw %bx
+	movzbl (usb_delay - USB2DRI), %ecx
+	orb %cl, %cl
+	je 1f
+	shll $14, %ecx
+2:
+	loopl 2b
+1:
+	popw %di
+	popw %si
 	ret
 5:
-	movb $01, (Status - USB2DRI)
+	orb $01, (Status - USB2DRI)
+6:
 	jmp 3b
-	
-	
-Get_current_endpoint:
-	movb $4, %al
-	mulb %cl
-	leaw (ConProperty - USB2DRI)(%bx), %si
-	addw %ax, %si
-	ret
-	
 
-Bulk_transfer:
-	movb $3, (Error_repeat_Number_Bulk - USB2DRI)
-4:
-	pushaw
 	
-	pushw %ax 
-	call Determine_device_address 
+Bulk_transfer:
+	pushw %bx
+	movw (qTD1 - USB2DRI), %di
 	call Remove_qTD
-	popw %ax
 	
 	decb %al
 	je 1f
@@ -8853,84 +8816,55 @@ Bulk_transfer:
 	addl %eax, %edx
 	jmp 3f
 2:
-	movw $(SCSI - USB2DRI), %di
-	movb (Direction - SCSI)(%di), %al
+	movb (bmCBWFlags - USB2DRI), %al
+	shrb $7, %al
 	movb %al, (Direction1 - USB2DRI)
-	movl (TOffset - SCSI)(%di), %edx
-	movw (Single_size - USB2DRI), %cx  
+	movl (TOffset - USB2DRI), %edx
+	movw (Single_size - USB2DRI), %cx
 3:
-	movw (qTD1 - USB2DRI), %si
-	movb $01, (%si)
-	movb $01, 04(%si) 
-	movb $0x80, 0x08(%si) 
+	movb $01, (%di)
+	movb $01, 04(%di) 
+	movb $0x80, 0x08(%di) 
 	cmpw $0, %cx
 	je 1f
 	movl $0x1000, %eax    
-	movl %edx, 0x0c(%si)
+	movl %edx, 0x0c(%di)
 	andl $0x0fffff000, %edx
 	addl %eax, %edx
-	movl %edx, 0x10(%si) 
-	addl %eax, %edx
-	movl %edx, 0x14(%si)
-	addl %eax, %edx
-	movl %edx, 0x18(%si)
-	addl %eax, %edx
-	movl %edx, 0x1c(%si)
+	movl %edx, 0x10(%di) 
 1:        
-	leaw (ConProperty - USB2DRI)(%bx), %si 
-	addw $04, %si
-	movb $01, %al
-	testb $01, (Direction1 - USB2DRI) 
+	leaw (InProperty - USB2DRI)(%bx), %si
+	movb (Direction1 - USB2DRI), %al
+	testb $01, %al 
 	jne 1f
-	decb %al
-	addw $04, %si
+	addw $4, %si
 1:
 	testb $0x80, (%si)
 	je 1f
 	orw $0x8000, %cx
 1:
 	orb $0x80, %al
-	movw (qTD1 - USB2DRI), %si
 	orb $0x0c, %al
-	movb %al, 0x09(%si)
-	movw %cx, 0x0a(%si)
-	movb $01, %cl 
-	testb $01, (Direction1 - USB2DRI)      
+	movb %al, 0x09(%di)
+	movw %cx, 0x0a(%di)
+	movw $4, %cx
+	testb $01, %al     
 	jne 1f
 
-	movb $0x81, 0x08(%si)
-	movb $02, %cl
+	movb $0x81, 0x08(%di)
+	movw $8, %cx
 1:  
 	call Set_QH 
-	call Get_current_endpoint
-	andb $0x7f, (%si) 
 	cmpb $0, (Status - USB2DRI)
-	je 2f
+	jne 1f
 
-	pushw (Status - USB2DRI)
-	movb 01(%si), %cl
-
-	movw $(Clear_endpoint - USB2DRI), %si
-	call Control_transfer_hub
-	popw %ax
-	movb %al, (Status - USB2DRI)
-	
-	popaw
-	cmpb $2, %al
-	je 3f
-	decb (Error_repeat_Number_Bulk - USB2DRI)
-	cmpb $0, (Error_repeat_Number_Bulk - USB2DRI)
-	je 3f
-	jmp 4b 				
-2: 
-	movw (qTD1 - USB2DRI), %di
-	addw $0xc0, %di
+	addw $0x40, %di
+	andb $0x7f, (%si)
 	testb $0x80, 0x1b(%di)
 	je 1f 
 	orb $0x80, (%si)
 1:
-	popaw
-3:
+	popw %bx
 	ret
 
 
@@ -8945,51 +8879,33 @@ Reset_Recovery:
 	mov $(Clear_endpoint - USB2DRI), %si
 	mov (OutAddress - USB2DRI)(%bx), %cl
 	call Control_transfer_hub	
-	pushw %bx
-	call Determine_device_address
+	
 	andb $0x7f, (InProperty - USB2DRI)(%bx)
-	andb $0x7f, (OutProperty - USB2DRI)(%bx)
-	popw %bx				
+	andb $0x7f, (OutProperty - USB2DRI)(%bx)			
 	ret			
 	
 
 SCSI_Command:
-	pushw %bx
-	pushw %si
-	pushw %di
-
-	movw $(SCSI - USB2DRI), %bx         
-	movzwl (TOffset - SCSI)(%bx), %eax   
-	movzwl (TSection - SCSI)(%bx), %edx
+	pushaw
+	
+	call Determine_device_address        
+	movzwl (TOffset - USB2DRI), %eax   
+	movzwl (TSection - USB2DRI), %edx
 	shll $04, %edx
 	addl %eax, %edx
-	movl %edx, (TOffset - SCSI)(%bx)
-	movw $0x4000, (Single_size - USB2DRI)
-
-	movw $(cbw_qq - USB2DRI), %si
-	movl (TSize - SCSI)(%bx), %eax
-	movl %eax, 0x08(%si)
-	movb (Direction - SCSI)(%bx), %al
-	testb $01, %al
-	je 1f 
-	movb $0x80, %al     
-1:        
-	movb %al, 0x0c(%si) 
+	movl %edx, (TOffset - USB2DRI)
+	movl (dCBWDataTransferLength - USB2DRI), %eax
+	movl %eax, (TSize - USB2DRI)
+	movw $0x200, (Single_size - USB2DRI)
 	movb (_lun - USB2DRI), %al
-	movb %al, 0x0d(%si)
-	movl (TokenContent - SCSI)(%bx), %eax
-	movl %eax, 0x0f(%si) 
-	movl (TokenContent + 4 - SCSI)(%bx), %eax
-	movl %eax, 0x13(%si)
-	movl (TokenContent + 8 - SCSI)(%bx), %eax
-	movl %eax, 0x17(%si)
-1:      
+	movb %al, (bCBWLUN - USB2DRI)
+
 	movb $01, %al
 	call Bulk_transfer
 	cmpb $0, (Status - USB2DRI)
 	jne 4f
 1:
-	movl (TSize - SCSI)(%bx), %eax 
+	movl (TSize - USB2DRI), %eax 
 	orl %eax, %eax
 	je 2f
 	movzwl (Single_size - USB2DRI), %ecx
@@ -9003,15 +8919,23 @@ SCSI_Command:
 	jne 2f
  
 	movzwl (Single_size - USB2DRI), %eax 
-	addl %eax, (TOffset - SCSI)(%bx)
-	subl %eax, (TSize - SCSI)(%bx)
+	addl %eax, (TOffset - USB2DRI)
+	subl %eax, (TSize - USB2DRI)
 	jmp 1b
 2:  
 	movb $03, %al
 	call Bulk_transfer
 	cmpb $0, (Status - USB2DRI)
-	jne 4f
-  
+	je 3f
+	movw $(Clear_endpoint - USB2DRI), %si
+	movb (InAddress - USB2DRI)(%bx), %cl
+	call Control_transfer_hub 
+	andb $0x7f, (InProperty - USB2DRI)(%bx)		
+	movb $3, %al
+	call Bulk_transfer
+  cmpb $0, (Status - USB2DRI)
+	jne 4f	
+3:  
 	movw $(csw_qq - USB2DRI), %si
 	cmpl $0x53425355, (%si)
 	jne 4f
@@ -9020,19 +8944,16 @@ SCSI_Command:
 	cmpb $0, 0x0c(%si)
 	je 1f 
 	cmpb $1, 0x0c(%si)
-	je 4f 
-	cmpb $2, 0x0c(%si)
-	jne 4f
-	call Reset_Recovery
+	je 3f 
 4:
-	movb $1, (Return - SCSI)(%bx)
+	call Reset_Recovery
+3:
+	movb $1, (Return - USB2DRI)
 	jmp 2f
 1:  
-	movb $0, (Return - SCSI)(%bx)
+	movb $0, (Return - USB2DRI)
 2:
-	popw %di
-	popw %si
-	popw %bx
+	popaw
 	ret
 
 
@@ -9054,9 +8975,7 @@ Read_write_usb:
 	pushw %cs
 	popw %es 
 
-	pushw %di
-	call Remove_scsi
-	popw %di
+	call Remove_CBWCB
         
 	popw %es 
 	pushw %es
@@ -9067,102 +8986,37 @@ Read_write_usb:
 	movw %es, (_es - USB2DRI)
 	movb %cl, (_cl - USB2DRI)
 5:
-	testb $1, (lba1sector - USB2DRI) 
-	je 1f
-	movw $1, %bx
-1:
-	movw $(SCSI - USB2DRI), %si 
-	movb %cl, (Direction - SCSI)(%si) 
-	movb $0x28, (TokenContent - SCSI)(%si)
+	movb $0x80, (bmCBWFlags - USB2DRI)
+	movb $0x28, (CBWCB - USB2DRI)
 	orb %cl, %cl
 	jne 1f
-	movb $0x2a, (TokenContent - SCSI)(%si)
+	movb $0x2a, (CBWCB - USB2DRI)
 1:        
-	movb %al, (TokenContent + 5 - SCSI)(%si) 
-	movb %ah, (TokenContent + 4 - SCSI)(%si)
+	movb %al, (CBWCB - USB2DRI + 5) 
+	movb %ah, (CBWCB - USB2DRI + 4)
 	shrl $0x10, %eax
-	movb %al, (TokenContent + 3 - SCSI)(%si)
-	movb %ah, (TokenContent + 2 - SCSI)(%si)        
-	movb %bl, (TokenContent + 8 - SCSI)(%si)
-	movb %bh, (TokenContent + 7 - SCSI)(%si)  
+	movb %al, (CBWCB - USB2DRI + 3)
+	movb %ah, (CBWCB - USB2DRI + 2)        
+	movb %bl, (CBWCB - USB2DRI + 8)
+	movb %bh, (CBWCB - USB2DRI + 7)  
 	movw (Sector_Size - USB2DRI), %ax
 	mulw %bx
-	movw %dx, (TSize + 2 - SCSI)(%si)
-	movw %ax, (TSize - SCSI)(%si) 
-	movw %di, (TOffset - SCSI)(%si)      
-	movw %es, (TSection - SCSI)(%si)
+	movw %dx, (dCBWDataTransferLength - USB2DRI + 2)
+	movw %ax, (dCBWDataTransferLength - USB2DRI) 
+	movw %di, (TOffset - USB2DRI)      
+	movw %es, (TSection - USB2DRI)
 	pushw %cs
 	popw %es 
 	call Allow_A20  
-	pushw %si
 	movw $0x18, %si
 	call Read_Register
 	cmpl (AsyncListAddr - USB2DRI), %eax
 	je 1f
 	call init_QH_AsyncListAddr
 1:
-	popw %si
 	call SCSI_Command 
-	cmpb $0, (Return - SCSI)(%si) 
+	cmpb $0, (Return - USB2DRI) 
 	je 6f 
-	
-	cmpb $1, %cs:(not_err - USB2DRI)
-	je 4f
-	
-	call Determine_device_address
-	movw (Port_Num_Reg - USB2DRI)(%bx), %cx
-	orb %ch, %ch
-	jne 2f
-	
-	movw %cx, %si
-	call Read_Register
-	testb $4, %al
-	je 1f
-	testb $1, %al
-	jne 4f
-1:				
-	call Port_Reset
-	jmp 3f
-	
-2:
-	pushw (_id - USB2DRI)
-	movb %ch, (_id - USB2DRI)
-	movw  $(Get_Port_Status - USB2DRI), %si
-	call Control_transfer_hub
-	movw (Cache - USB2DRI), %ax
-	testb $2, %al
-	je 1f
-	testb $1, %al
-	jne 4f
-1:	
-	pushaw
-	movw $0x4f03, %ax
-	int $0x10
-	movw $3, %ax	
-	int $0x10
-	movw $(pull_usb - USB2DRI), %si
-	call Show_Character
-2:
-	movb $1, %ah
-	int $0x16
-	jnz 1f
-	movb $0x11, %ah
- 	int $0x16
-	jz 2b
-1:
-	movw $0x4f02, %ax
-	int $0x10
-	movw %fs:0x041c, %ax 
-	movw %ax, %fs:0x041A
-	popaw
-	call Port_Reset_hub		
-	popw (_id - USB2DRI)
-3:
-	movb $0, (DevID - USB2DRI)(%bx)
-	call szsbdz
-	call Reset_Recovery 
-	orb $1, (lba1sector - USB2DRI) 
-4:				
 	movl (_eax - USB2DRI), %eax
 	movw (_bx - USB2DRI), %bx
 	movw (_es - USB2DRI), %es
@@ -9184,20 +9038,8 @@ Read_write_usb:
 	ret
 
 6:
-	testb $1, (lba1sector - USB2DRI) 
-	je 1f
-	decw (_bx - USB2DRI) 
-	je 1f
-	addw (Sector_Size - USB2DRI), %di
-	incl (_eax - USB2DRI) 
-	movl (_eax - USB2DRI), %eax 
-	movb (_cl - USB2DRI), %cl 
-	movw (_es - USB2DRI), %es 
-	jmp 5b
-1:
 	clc
 	jmp 3b
-
 
   
 Read_Base_address:
@@ -9262,23 +9104,24 @@ Protected_Mode:
 	popw %es
 	ret
 
-Remove_scsi:
-	movw $(SCSI - USB2DRI), %di
+Remove_CBWCB:
 	pushaw
-	xorb %al, %al	
-	movw $TokenLen, %cx   
-	rep stosb 
+	movw $(dCBWDataTransferLength - USB2DRI), %di
+	xorw %ax, %ax
+	movw $12, %cx
+	repz stosw
+	movb $0xc, (bCBWCBLength - USB2DRI)
 	popaw
 	ret	
 	
 Port_Reset_hub:	
-	movw $(Clear_Hub_Conne - USB2DRI), %si
+	movw $(Clear_HubPort_Conne - USB2DRI), %si
 	call Control_transfer_hub
-	mov $(Set_Hub_Reset - USB2DRI), %si
+	mov $(Set_HubPort_Reset - USB2DRI), %si
 	call Control_transfer_hub	
 	movw $200, %ax
 	call Delay
-	movw $(Clear_Hub_Reset - USB2DRI), %si
+	movw $(Clear_HubPort_Reset - USB2DRI), %si
 	call Control_transfer_hub
 	ret
 	
@@ -9288,51 +9131,96 @@ szsbdz:
 	movb %al, 2(%si)
 	call Control_transfer
 	movb %al, (DevID - USB2DRI)(%bx)
+	ret
+	
+szpz:
 	movw $(Set_Configuration - USB2DRI), %si
 	call Control_transfer
 	movw $30, %ax
-	call Delay
-	movw $(Set_Interface - USB2DRI), %si
-	movb (InterfaceNum - USB2DRI)(%bx), %al
-	movb %al, 4(%si)
-	movb (InterfaceValue - USB2DRI)(%bx), %al
-	movb %al, 2(%si)
-	call Control_transfer			
+	call Delay		
 	ret	
 
 init_QH_AsyncListAddr:
 	movl (qTD1_Linear - USB2DRI), %eax
-	addl $0xc0, %eax 
-	pushl %eax
+	addl $0x40, %eax 
+	pushw %ax
 	orb $02, %al
 	movw (qTD1 - USB2DRI), %si
-	addw $0xc0, %si 
-	movl %eax, (%si) 
-	movb $01, 0x10(%si)
-	movb $01, 0x14(%si)
-	popl %eax
+	movl %eax, 0x40(%si) 
+	popw %ax
 	movl %eax, (AsyncListAddr - USB2DRI)
 	movw $0x18, %si
 	call Write_Register
 	ret
-	
-Show_Character:
-2:   
-	lodsb
-	orb %al, %al   
-	jz 1f
-	movb $0x0e, %ah
-	int $0x10 
-	jmp 2b
+
+
+Determine_delay_units:   
+	xorw %ax, %ax
+	movw %ax, %fs
+	sti 
+	movw %fs:0x046c, %dx
+	xorl %ecx, %ecx
 1:
+	movw %fs:0x046c, %ax 
+	cmpw %dx, %ax                
+	je 1b                      
+1:
+	cmpw %fs:0x046c, %ax
+	jne 2f 
+	pushw %dx
+	pushw %ax
+	movw $0xcf8, %dx
+	inw %dx, %ax
+	popw %ax
+	popw %dx
+	incl %ecx 
+	cmpl $0, %ecx
+	jmp 1b
+2:
+	xorl %edx, %edx
+	movl %ecx, %eax
+	movl $0x37, %ecx
+	divl %ecx
+	movw %ax, (Count_1ms - USB2DRI) 
+	ret
+	
+	
+xh_hd:
+  call read_dri
+  decb %cl
+  je 1f
+  addw $0x200, %bx
+  incb %dl
+  jmp xh_hd
+1:
+  ret
+  
+	
+Check_bus: 
+	xorl %edi, %edi
+	movw $0xB101, %ax 
+	int $0x1A
+	cmpl $0x20494350, %edx
+	jne 1f
+	movw $0, %si
+	movw $0xB103, %ax 
+	movl $0x000C0320, %ecx 
+	int $0x1A 
+	jb 1f
+	movw %bx, (bus_device_function - USB2DRI)
+	clc
+	ret
+1:
+	stc       
 	ret	
 	
-pull_usb:
-	.ascii  "Flash drive: pull out, and then insert, Press any key to continue.\0"	
 
-	.align	16
+
+Stack:
+	.ascii " DATA "
 Cache:
-
+Ending:
+//=================================================================================================================
 #define mem_mbr         0
 #define mem_pbr         mem_mbr + 0x1000
 #define mem_fd          mem_mbr + 0x2000
@@ -9392,71 +9280,138 @@ bf_hd:
 	popw %ds
 	ret
 
-xh_hd:
-  call read_dri
-  decb %cl
-  je 1f
-  addw $0x200, %bx
-  incb %dl
-  jmp xh_hd
-1:
-  ret
-  
-	
-Check_bus: 
-	xorl %edi, %edi
-	movw $0xB101, %ax 
-	int $0x1A
-	cmpl $0x20494350, %edx
-	jne 1f
-	movw $0, %si
-	movw $0xB103, %ax 
-	movl $0x000C0320, %ecx 
-	int $0x1A 
-	jb 1f
-	movw %bx, (bus_device_function - USB2DRI)
-	clc
-	ret
-1:
-	stc       
-	ret	
-	
+host_initialization:                     
+	call Allow_A20 
+             
+	pushw $0x10 
+	pushw (bus_device_function - USB2DRI)
+	movb $02, %al
+	call Read_Write_Configuration
+	addw $04, %sp
+	movl %eax, (Register_pci - USB2DRI)      
 
-Determine_delay_units:   
-	xorw %ax, %ax
-	movw %ax, %fs
-	decw %ax
-	movw %ax, %gs
-	sti 
-	movw %fs:0x046c, %dx
-	xorl %ecx, %ecx
+	movw %ds, %ax
+	movzwl %ax, %eax
+	shll $04, %eax
+	movl %eax, (ds_Linear - USB2DRI) 
+	call Fill_descriptor
+
+	call Define_qTD1
+
+	movw $0, %si
+	call Read_Base_address 
+	movb %al, (Ability_Register_Size - USB2DRI)
+
+	movw $04, %si 
+	call Read_Base_address
+	andw $0x0F, %ax
+	movw %ax, (n_ports - USB2DRI)
+ 
+	movl $02, %eax
+	movw $0, %si
+	call Write_Register
 1:
-	movw %fs:0x046c, %ax 
-	cmpw %dx, %ax                
-	je 1b                      
+	movw $3, %ax 
+	call Delay
+    
+	movw $0, %si 
+	call Read_Register
+	testw $02, %ax
+	jne 1b 
+
+	movw $0x08, %si 
+	call Read_Base_address
+	xorw %cx, %cx
+	movb %ah, %cl
+	jcxz 1f
+2:				
+	pushw %cx
+	pushw (bus_device_function - USB2DRI)
+	movb $1, %al
+	call Read_Write_Configuration
+	addw $4, %sp
+	cmpb $1, %al
+	je 2f
+	orb %ah, %ah
+	je 1f
+	addb %ah, %cl
+	jmp 2b
 1:
-	cmpw %fs:0x046c, %ax
-	jne 2f 
-	pushw %dx
-	pushw %ax
-	movw $0xcf8, %dx
-	inw %dx, %ax
-	popw %ax
-	popw %dx
-	incl %ecx 
-	cmpl $0, %ecx
-	jmp 1b
+	jmp 3f		
 2:
-	xorl %edx, %edx
-	movl %ecx, %eax
-	movl $0x37, %ecx
-	divl %ecx
-	movb (EXT_C(usb_delay) - USB2DRI), %cl
-	shlw %cl, %ax
-	movw %ax, (Count_1ms - USB2DRI) 
+	movw %cx, %si
+	leaw 02(%si), %dx 
+	
+	pushw %dx 
+	pushw (bus_device_function - USB2DRI)
+	movb $01, %al 
+	call Read_Write_Configuration 
+	addw $04, %sp
+
+	orw $0x100, %ax
+	pushw %ax 
+	pushw %dx 
+	pushw (bus_device_function - USB2DRI)
+	movb $03, %al
+	call Read_Write_Configuration
+	addw $06, %sp
+         
+	movw $0x01F4, %cx        
+2:
+	pushw %dx 
+	pushw (bus_device_function - USB2DRI)
+	movb $01, %al 
+	call Read_Write_Configuration 
+	addw $04, %sp
+	testw $01, %ax
+	je 1f 
+	movw $10, %ax
+	call Delay 
+	loop 2b
+1:
+ 
+	leaw 04(%si), %dx 
+	
+	pushw $00 
+	pushw %dx
+	pushw (bus_device_function - USB2DRI) 
+	movb $03, %al 
+	call Read_Write_Configuration
+	addw $06, %sp               
+
+3:
+	call init_QH_AsyncListAddr
+
+	movl $0x00080001, %eax
+	movw $0, %si
+	call Write_Register
+	
+	movl $0x3f, %eax
+  movw $8, %si
+	call Write_Register
+
+	movw (n_ports - USB2DRI), %cx
+	movw $0x44, %di 
+	jmp 2f
+3: 
+	movl $0x00001000, %eax
+	movw %di, %si
+	call Write_Register
+	addw $04, %di
+	decw %cx
+2:
+	cmpw $0, %cx 
+	ja 3b
+	movw $100, %ax
+	call Delay
+1:        
+
+	movl $0x00000001, %eax
+	movw $0x40, %si   
+	call Write_Register 
+	movw $200, %ax
+	call Delay 
 	ret
-Stack:
-Ending:
 //=================================================================================================================
 n_ports:
 	.word   0       
@@ -9466,7 +9421,7 @@ Config_Length:
 	.byte		0
 Num_Endpoint:
 	.byte		0
-dev_count:
+usb_count:
 	.byte		0
 Interface_ok:
 	.byte		0
@@ -9476,7 +9431,6 @@ Initialization:
 	pushw %ds
 	pushw %es
 	pushw	%fs
-	pushw	%gs
 	pushal
 
 	movw $0x8000, %cs:(Init_cs - USB2DRI)
@@ -9494,7 +9448,7 @@ Initialization:
 	call host_initialization
 	call Device_enumerate
 	movb $0x81,%fs:0x8350
-	cmpb $0, (dev_count - USB2DRI)
+	cmpb $0, (usb_count - USB2DRI)
 	je 3f	
 	call Drive_enumerate
 	movb $0x82, %fs:0x8350			//usb_error
@@ -9516,7 +9470,7 @@ Initialization:
 1:       	
 	
 	movw %fs:0x0413, %ax             
-	subw $4, %ax     
+	subw $3, %ax     
 	movw %ax, %fs:0x0413
 	shlw $6, %ax
 	pushw %ax
@@ -9540,7 +9494,6 @@ Initialization:
 	clc
 4:	
 	popal
-	popw %gs
 	popw %fs
 	popw %es
 	popw %ds
@@ -9640,9 +9593,7 @@ read_hdd:
 	pushw %bx
 	movw $1, %bx
 	movb $1, %cl
-	movb $1, %cs:(not_err - USB2DRI) 
 	call Read_write_usb
-	movb $0, %cs:(not_err - USB2DRI) 
 	popw %bx
 	ret
 	
@@ -9749,16 +9700,17 @@ Define_disk_No:
 
 	call Get_dri
 	movw %si, %bx	
-#if 0
+#if cd
 	cmpb $5, %cs:(_type - USB2DRI)
 	jne 1f
 							
-	cmpb $0x90, %dl
+	cmpb $0x9f, %dl
   jb 2f
   movb %dl, %cs:(Number - USB2DRI)(%bx)
+	movb %dl, %cs:(cd_num - USB2DRI)
   jmp 3f
 2:     
-  movb $0xff, %cs:(Number - USB2DRI)(%bx)
+  movb $0xf8, %cs:(Number - USB2DRI)(%bx)
 3:
 	movl $0x11, %eax
 	movw $mem_mbr, %di
@@ -9832,7 +9784,6 @@ Define_disk_No:
 	jnc 3f
   movw $mem_pbr, %di
   call Sector_comparison
-//	jnc 3f
   jc 4f
   movw %bp, %fs:(0x8208+2)
   movw %bp, %fs:(0x829c+2)
@@ -9895,27 +9846,31 @@ cssq_err:
 Drive_enumerate:   
 	xorw %bx, %bx
 	xorw %si, %si
-	movb $1, (_id - USB2DRI)
 	movb $0, (_lun - USB2DRI)
 	movb $0, (EXT_C(max_dri) - USB2DRI)
+	movzbw (max_dev - USB2DRI), %bp
 0:
 	cmpb $0xf0, (MaxLUN - USB2DRI)(%bx)
 	jb 1f
-	incb (_id - USB2DRI)
+5:
+	decw %bp
+	je 4f
 	addw $DevLen, %bx
 	jmp 0b
 1:
-#if 0
-	call Remove_scsi
-	movb $1, (Direction - SCSI)(%di)			
-	movw $0x24, (TSize - SCSI)(%di)			
+	movb (DevID - USB2DRI)(%bx), %al
+	movb %al, (_id - USB2DRI)
+#if cd
+	call Remove_CBWCB
+	movb $0x80, (bmCBWFlags - USB2DRI)			
+	movb $0x24, (dCBWDataTransferLength - USB2DRI)			
 	movw $(Cache - USB2DRI), %ax		
-	movw %ax, (TOffset - SCSI)(%di)	
-	movw %ds, (TSection - SCSI)(%di)
-	movb $0x12, (TokenContent - SCSI)(%di)	
-	movb $0x24, (TokenContent + 4 - SCSI)(%di)
+	movw %ax, (TOffset - USB2DRI)	
+	movw %ds, (TSection - USB2DRI)
+	movb $0x12, (CBWCB - USB2DRI)	
+	movb $0x24, (CBWCB + 4 - USB2DRI)
 	call SCSI_Command
-	cmpb $0, (Return - SCSI)(%di)
+	cmpb $0, (Return - USB2DRI)
 	jne 1f
 	movb (Cache - USB2DRI), %al	
 	andb $0x1f, %al
@@ -9924,16 +9879,16 @@ Drive_enumerate:
 	movb %al, (_type - USB2DRI)
 #endif
 	pushw %si
-#if 0
+#if cd
 	movw $900, %si
 	cmpb $5, %al
 	je csdyd
 #endif
 	movw $5, %si
 csdyd:	
-	call Remove_scsi
+	call Remove_CBWCB
 	call SCSI_Command
-	cmpb $0, (Return - SCSI)(%di)
+	cmpb $0, (Return - USB2DRI)
 	je 2f
 	decw %si
 	je 3f
@@ -9946,15 +9901,15 @@ csdyd:
 
 2:
 	popw %si
-	call Remove_scsi
-	movb $1, (Direction - SCSI)(%di)			
-	movw $8, (TSize - SCSI)(%di)			
+	call Remove_CBWCB
+	movb $0x80, (bmCBWFlags - USB2DRI)			
+	movb $8, (dCBWDataTransferLength - USB2DRI)			
 	movw $(Cache - USB2DRI), %ax		
-	movw %ax, (TOffset - SCSI)(%di)	
-	movw %ds, (TSection - SCSI)(%di)
-	movb $0x25, (TokenContent - SCSI)(%di)	
+	movw %ax, (TOffset - USB2DRI)	
+	movw %ds, (TSection - USB2DRI)
+	movb $0x25, (CBWCB - USB2DRI)	
 	call SCSI_Command
-	cmpb $0, (Return - SCSI)(%di)
+	cmpb $0, (Return - USB2DRI)
 	jne 1f
 	
 	movl (Cache - USB2DRI), %eax
@@ -9978,13 +9933,13 @@ csdyd:
 
 	movb (_lun - USB2DRI), %al
 	movb %al, (DriLUN - USB2DRI)(%si)
-#if 0
+#if cd
 	movb (_type - USB2DRI), %al
 	movb %al, (DriType - USB2DRI)(%si)
 #endif	
 	incb (EXT_C(max_dri) - USB2DRI)
-    cmpb $8, (EXT_C(max_dri) - USB2DRI)
-    jae 2f
+	cmpb $8, (EXT_C(max_dri) - USB2DRI)
+	jae 4f
 	addw $DriveLen, %si     
 1:
 	movb (_lun - USB2DRI), %al
@@ -9993,16 +9948,15 @@ csdyd:
 	incb (_lun - USB2DRI)
 	jmp 0b 
 1:
-	movb (_id - USB2DRI), %al
-	cmpb (max_id - USB2DRI), %al
-	jae 2f 
 	movb $0, (_lun - USB2DRI)
-	incb (_id - USB2DRI)
-	addw $DevLen, %bx 
-	jmp 0b
-2:        
+	jmp 5b
+4:        
 	ret       	
 
+HUB_PORT:
+	.byte	0
+HUB__ID:
+	.byte	0
 
 usb_probe:
 	pushw %cx
@@ -10015,7 +9969,7 @@ usb_probe:
 	movzbw 2(%di), %cx
 	movw %cx, (n_ports - USB2DRI)
 2:
-	movw $(Set_Hub_Power - USB2DRI), %si
+	movw $(Set_HubPort_Power - USB2DRI), %si
 	call Control_transfer_hub 
 	movw $200, %ax
 	call Delay
@@ -10024,7 +9978,7 @@ usb_probe:
 	call Delay
 	movw (n_ports - USB2DRI), %cx
 2:
-	movw $(Get_Port_Status - USB2DRI), %si
+	movw $(Get_HubPort_Status - USB2DRI), %si
 	call Control_transfer_hub 
 	testw $1, (%di)
 	jne 4f		
@@ -10034,20 +9988,20 @@ usb_probe:
 	jmp 1f
 4:
 	call Port_Reset_hub
-	movw $(Get_Port_Status - USB2DRI), %si
+	movw $(Get_HubPort_Status - USB2DRI), %si
 	call Control_transfer_hub
 	testw $2, (%di)
 	je 3b
 	testw $0x400,(%di)
 	je 3b
 				
+	movb %cl, (HUB_PORT - USB2DRI)
+	movb (_id - USB2DRI), %al
+	movb %al, (HUB__ID - USB2DRI)
 	pushw	%bx
 	pushw (_id - USB2DRI)
 	call Fill_device_structure
 	popw (_id - USB2DRI)
-	movb %cl, (Port_Num_Reg - USB2DRI)(%bx)
-	movb (_id - USB2DRI), %al
-	movb %al, (HUB_id - USB2DRI)(%bx)
 	popw %bx
 	
 	movw $(Cache - USB2DRI), %di	
@@ -10060,33 +10014,50 @@ usb_probe:
 	
 Fill_device_structure:
 	pushw %cx
-	movb (max_id - USB2DRI), %dl
+	cmpb $8, (max_dev - USB2DRI)
+	jae jscl	
+	movb (max_dev - USB2DRI), %dl
 	incb %dl
 	movb %dl, (_id - USB2DRI)
 	call Determine_device_address
 
+	movb (HUB_PORT - USB2DRI), %al
+	orb %al, %al
+	je 1f
+	movb %al, (Port_Num_Reg - USB2DRI)(%bx)
+	movb (HUB__ID - USB2DRI), %al
+	movb %al, (HUB_id - USB2DRI)(%bx)
+	jmp 2f
+1:	
+	movw %si, (Port_Num_Reg - USB2DRI)(%bx)
+2:
 	movw $(Cache - USB2DRI), %di
 	movw $(Get_device - USB2DRI), %si
 	movb $0x40, (ConSize - USB2DRI)(%bx)
 	call Control_transfer
 	cmpb $0, (Status - USB2DRI)
-	jne 5f
-	cmpb $0, 4(%di)
-	je 1f
-	cmpb $9, 4(%di)
-	jne 5f
-1:
+	jne jscl
+	
+	call szsbdz
+	incb (max_dev - USB2DRI)
+
+	pushw 4(%di)
 	movw $(Get_Configuration - USB2DRI), %si  
 	call Control_transfer
-	movw 2(%di), %ax
-	cmpw $0x40, %ax
-	ja 5f
+	popw %cx
+	cmpb $0, (Status - USB2DRI)
+	jne 5f
+	movb 2(%di), %al
 	movb %al, (Config_Length - USB2DRI)
-	movb %al, (Get_Configuration + 6 - USB2DRI) 	
-	call Control_transfer	
 pz_cl:
 	movb 5(%di), %al
 	movb %al, (Set_Configuration + 2 - USB2DRI)
+	cmpb $0, %cl
+	je pdlx
+	cmpb $9, %cl
+	je pdlx
+	call szpz
+	jmp 5f
 pdlx:				
 	movzbw (%di), %ax
 	subb %al, (Config_Length - USB2DRI)
@@ -10109,10 +10080,6 @@ jk_cf:
 	jne pdlx
 jk_cf_0:
 	movb $1, (Interface_ok - USB2DRI)
-	movb 2(%di), %al
-	movb %al, (InterfaceNum - USB2DRI)(%bx)
-	movb 3(%di), %al
-	movb %al, (InterfaceValue - USB2DRI)(%bx)
 	movb 4(%di), %al
 	movb %al, (Num_Endpoint - USB2DRI)
 	jmp pdlx
@@ -10140,7 +10107,7 @@ dd_cl:
 	decb (Num_Endpoint - USB2DRI)
 	jne pdlx									
 4: 
-	call szsbdz
+	call szpz
 	cmpb $0, (OutProperty - USB2DRI)(%bx) 
 	jne getlun
 	movb $0xff, (MaxLUN - USB2DRI)(%bx)
@@ -10150,18 +10117,12 @@ getlun:
 	call Control_transfer
 	movb (Cache - USB2DRI), %al
 	movb %al, (MaxLUN - USB2DRI)(%bx) 
-	incb (dev_count - USB2DRI)
+	incb (usb_count - USB2DRI)
 jscl:
-	incb (max_id - USB2DRI)
 	popw %cx
 	ret	
 5:	
 	movb $0xf0, (MaxLUN - USB2DRI)(%bx)
-	movw $(Set_device_Address - USB2DRI), %si
-	movb (_id - USB2DRI), %al
-	movb %al, 2(%si)
-	call Control_transfer
-	movb %al, (DevID - USB2DRI)(%bx)
 	jmp jscl
 				
 Device_enumerate:   
@@ -10177,12 +10138,12 @@ Device_enumerate:
 	addw $04, %si
 	jmp 1b
 1: 
+	testb $04, %ah
+	jne 1f
 	call Port_Reset    
 	testb $04, %al
 	jne 3f 
-
-	cmpb $4, %ah
-	jne 2b
+1:
 	movl $0x00003002, %eax  
 	call Write_Register
 	movw $03, %ax
@@ -10190,9 +10151,9 @@ Device_enumerate:
 	jmp 2b
 3:  
 	pushw %si
+	movb $0, (HUB_PORT - USB2DRI)
 	call Fill_device_structure
 	popw %si
-	movw %si, (Port_Num_Reg - USB2DRI)(%bx)
 	jmp 2b
 4:
 	xorw %bx, %bx
@@ -10237,146 +10198,12 @@ Define_qTD1:
 	movw %ax, (qTD1 - USB2DRI)
 	ret 	
 
-	
-host_initialization:                     
-	call Allow_A20 
-             
-	pushw $0x10 
-	pushw (bus_device_function - USB2DRI)
-	movb $02, %al
-	call Read_Write_Configuration
-	addw $04, %sp
-	movl %eax, (Register_pci - USB2DRI)      
-
-	movw %ds, %ax
-	movzwl %ax, %eax
-	shll $04, %eax
-	movl %eax, (ds_Linear - USB2DRI) 
-	call Fill_descriptor
-
-	call Define_qTD1
-
-	movw $0, %si
-	call Read_Base_address 
-	movb %al, (Ability_Register_Size - USB2DRI)
-
-	movw $04, %si 
-	call Read_Base_address
-	movb %al, %bl
-	andw $0x0F, %ax
-	movw %ax, (n_ports - USB2DRI)
- 
-	movl $02, %eax
-	movw $0, %si
-	call Write_Register
-1:
-	movw $3, %ax 
-	call Delay
-    
-	movw $0, %si 
-	call Read_Register
-	testw $02, %ax
-	jne 1b 
-
-	movw $0x08, %si 
-	call Read_Base_address
-	xorw %cx, %cx
-	movb %ah, %cl
-	jcxz 1f
-2:				
-	pushw %cx
-	pushw (bus_device_function - USB2DRI)
-	movb $1, %al
-	call Read_Write_Configuration
-	addw $4, %sp
-	cmpb $1, %al
-	je 2f
-	orb %ah, %ah
-	je 1f
-	addb %ah, %cl
-	jmp 2b
-1:
-	jmp 3f		
-2:
-	movw %cx, %si
-	leaw 02(%si), %dx 
-	
-	pushw %dx 
-	pushw (bus_device_function - USB2DRI)
-	movb $01, %al 
-	call Read_Write_Configuration 
-	addw $04, %sp
-
-	orw $0x100, %ax
-	pushw %ax 
-	pushw %dx 
-	pushw (bus_device_function - USB2DRI)
-	movb $03, %al
-	call Read_Write_Configuration
-	addw $06, %sp
-         
-	movw $0x01F4, %cx        
-2:
-	pushw %dx 
-	pushw (bus_device_function - USB2DRI)
-	movb $01, %al 
-	call Read_Write_Configuration 
-	addw $04, %sp
-	testw $01, %ax
-	je 1f 
-	movw $10, %ax
-	call Delay 
-	loop 2b
-1:
- 
-	leaw 04(%si), %dx 
-	
-	pushw $00 
-	pushw %dx
-	pushw (bus_device_function - USB2DRI) 
-	movb $03, %al 
-	call Read_Write_Configuration
-	addw $06, %sp               
-
-3:
-	call init_QH_AsyncListAddr
-
-	movl $0x00010001, %eax
-	movw $0, %si
-	call Write_Register
- 
-	testb $0x10, %bl
-	je 1f
-	movw (n_ports - USB2DRI), %cx
-	movw $0x44, %di 
-	jmp 2f
-3: 
-	movl $0x00001000, %eax
-	movw %di, %si
-	call Write_Register
-	addw $04, %di
-	decw %cx
-2:
-	cmpw $0, %cx 
-	ja 3b
-	movw $100, %ax
-	call Delay
-1:        
-
-	movl $0x00000001, %eax
-	movw $0x40, %si   
-	call Write_Register 
-	movw $50, %ax
-	call Delay 
-	ret	
-	
-
 set_410_1:
 	orb $1, %fs:0x0410
 	andb $0x3f, %fs:0x0410
 	ret
 	
-	. = USB2DRI + 0x1500
+	. = USB2DRI + 0x13c0
 			
 /* ********************  USB2DRI end  ****************************** */ 
 

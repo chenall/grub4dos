@@ -1,4 +1,10 @@
 ﻿更新说明：
+2017-03-06（yaya）
+  USB2.0 驱动更新。
+	支持“AMD SB700/SB710/SB750 主板”，支持“神舟q230b网络本”等。
+	可以通过参数 delay 微调传输速度。
+	感谢网友求道者及gnuxwy提供帮助。
+
 2017-02-04（yaya）
 	Ls command: Empty Folder returns false.
 

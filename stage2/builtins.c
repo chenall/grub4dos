@@ -14378,14 +14378,14 @@ usb_func (char *arg, int flags)
   {
     if (grub_memcmp (arg, "--delay=", 8) == 0)
 		{
-			char *p;
 			unsigned long long tmp;
-			p = arg + 8;
-			if (! safe_parse_maxint (&p, &tmp))
+			arg += 8;
+			if (! safe_parse_maxint (&arg, &tmp))
 				return 0;
 			usb_delay = tmp;
+			arg = skip_to (0, arg);
 		}
-    else if (grub_memcmp (arg, "--init", 6) == 0)
+    if (grub_memcmp (arg, "--init", 6) == 0)
 		{
 			printf("\r... Scanning USB devices ...   ");
 			init_usb(); 
@@ -14425,16 +14425,13 @@ usb_func (char *arg, int flags)
 							printf("USB device is not ready.  \n");
 							break;
 					}
-//				pause_func ("--wait=10", flags);
 				}	
 			}
 			return 1;
 		}
     else
       return ! (errnum = ERR_BAD_ARGUMENT);
-			arg = skip_to (0, arg);
   }
-  return 0;
 }
 
 static struct builtin builtin_usb =
@@ -14442,9 +14439,9 @@ static struct builtin builtin_usb =
   "usb",
   usb_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "usb --delay=P | --init",
+  "usb [--delay=P] --init",
   "Initialise usb2.0 device."
-  " P specifies delay. 0=basic, 1=basic*2, 2=basic*4, 3=basic*8."
+  "P: specifies delay,reduce speed. default 0, other 1,2,3,4 etc."
 };
 
 
