@@ -353,14 +353,16 @@ jfs_dir (char *dirname)
 		for (; *dirname == '/'; dirname++);
 
 		//for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/'; rest++);
-		for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/'; rest++)
+		for (rest = dirname; (ch = *rest) /*&& !isspace (ch)*/ && ch != '/'; rest++)
 		{
+#if 0
 			if (ch == '\\')
 			{
 				rest++;
 				if (! (ch = *rest))
 					break;
 			}
+#endif
 		}
 
 		*rest = 0;

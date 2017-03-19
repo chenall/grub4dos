@@ -370,14 +370,16 @@ minix_dir (char *dirname)
 	  //len = 0;
 	  //while (dirname[len] && !isspace (dirname[len]))
 	  //  len++;
-	  for (len = 0; (ch = dirname[len]) && !isspace (ch); len++)
+	  for (len = 0; (ch = dirname[len]) /*&& !isspace (ch)*/; len++)
 	  {
+#if 0
 		if (ch == '\\')
 		{
 			len++;
 			if (! (ch = dirname[len]))
 				break;
 		}
+#endif
 	  }
 
 	  /* Get the symlink size. */
@@ -454,14 +456,16 @@ minix_dir (char *dirname)
       /* skip to next slash or end of filename (space) */
 //      for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/';
 //	   rest++);
-      for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/'; rest++)
+      for (rest = dirname; (ch = *rest) /*&& !isspace (ch)*/ && ch != '/'; rest++)
       {
+#if 0
 	if (ch == '\\')
 	{
 		rest++;
 		if (! (ch = *rest))
 			break;
 	}
+#endif
       }
 
       /* look through this directory and find the next filename component */
@@ -536,8 +540,10 @@ minix_dir (char *dirname)
 	      {
 		if (! (ch1 = dp->name[j]))
 			break;
+#if 0
 		if (ch1 == ' ')
 			tmp_name[k++] = '\\';
+#endif
 		tmp_name[k++] = ch1;
 	      }
 	      tmp_name[k] = 0;

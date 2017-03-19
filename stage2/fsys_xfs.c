@@ -413,8 +413,10 @@ next_dentry (xfs_ino_t *ino)
 	{
 		if (! (ch1 = name[j]))
 			break;
+#if 0
 		if (ch1 == ' ')
 			tmp_name[k++] = '\\';
+#endif
 		tmp_name[k++] = ch1;
 	}
 	tmp_name[k] = 0;
@@ -627,14 +629,16 @@ xfs_dir (char *dirname)
 		for (; *dirname == '/'; dirname++);
 
 		//for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/'; rest++);
-		for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/'; rest++)
+		for (rest = dirname; (ch = *rest) /*&& !isspace (ch)*/ && ch != '/'; rest++)
 		{
+#if 0
 			if (ch == '\\')
 			{
 				rest++;
 				if (! (ch = *rest))
 					break;
 			}
+#endif
 		}
 		*rest = 0;
 

@@ -341,7 +341,7 @@
 #define KEY_NPAGE       0x5100
 #define KEY_PPAGE       0x4900
 #define A_NORMAL        0x7
-#define A_REVERSE       0x70
+#define A_REVERSE       0xF				//0x70
 
 /* In old BSD curses, A_NORMAL and A_REVERSE are not defined, so we
    define them here if they are undefined.  */

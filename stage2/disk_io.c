@@ -215,14 +215,18 @@ unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n)
 	{
 		if (uni <= 0x007F)
 		{
+#if 0
 			if (uni != ' ')
+#endif
 				utf8[k++] = uni;
+#if 0
 			else
 			{
 				/* quote the SPACE with a backslash */
 				utf8[k++] = '\\';
 				utf8[k++] = uni;
 			}
+#endif
 		}
 		else if (uni <= 0x07FF)
 		{
@@ -1644,13 +1648,25 @@ static int set_filename(char *filename)
 {
 	char ch = nul_terminate(filename);
 	int i = grub_strlen(filename);
-	filename[i] = ch;
+	int j = grub_strlen(saved_dir);
+	int k;
+
 	if (i >= sizeof(open_filename) || (relative_path && grub_strlen(saved_dir)+i >= sizeof(open_filename)))
 		return !(errnum = ERR_WONT_FIT);
+
 	if (relative_path)
-		grub_sprintf (open_filename, "%s%.*s", saved_dir, i,filename);
-	else
-		grub_sprintf (open_filename, "%.*s", i,filename);
+		grub_sprintf (open_filename, "%s", saved_dir);
+
+	for (k = 0; filename[k]; k++)
+	{
+		if (filename[k] == '"' || filename[k] == '\\' )
+			continue;
+		else
+			open_filename[j++] = filename[k];
+	}	
+	open_filename[j] = 0;
+	filename[i] = ch;
+
 	return 1;
 }
 

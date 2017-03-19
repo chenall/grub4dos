@@ -45,7 +45,7 @@ static unsigned long long console_color_64bit[COLOR_STATE_MAX] = {
   /* represents the user defined colors for normal text */
   [COLOR_STATE_NORMAL] = 0xAAAAAA,
   /* represents the user defined colors for highlighted text */
-  [COLOR_STATE_HIGHLIGHT] = 0xAAAAAA00000000ULL,
+  [COLOR_STATE_HIGHLIGHT] = 0xFFFFFF,								//0xAAAAAA00000000ULL,
   /* represents the user defined colors for help text */
   [COLOR_STATE_HELPTEXT] = 0xAAAAAA,
   /* represents the user defined colors for heading line */

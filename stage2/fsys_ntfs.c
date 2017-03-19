@@ -33,6 +33,7 @@
 #include "shared.h"
 #include "filesys.h"
 #include "iamath.h"
+#include "term.h"
 
 //#define NTFS_DEBUG	1
 
@@ -1187,7 +1188,18 @@ static int list_file(char* cur_mft,char *fn,char *pos)
 #ifdef FS_UTIL
                       print_completion_ex(utf8,valueat(pos,0,unsigned long),valueat(pos,0x40,unsigned long),(valueat(pos,0x48,unsigned long) & ATTR_DIRECTORY)?FS_ATTR_DIRECTORY:0);
 #else
+											unsigned long long clo64 = current_color_64bit;
+											unsigned long clo = current_color;
+											if (valueat(pos,0x48,unsigned long) & ATTR_DIRECTORY)
+											{
+												if (current_term->setcolorstate)
+													current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+												current_color_64bit &= 0x0000000000ffffff;
+											current_color &= 0xf;
+											}
                       print_a_completion((char *)utf8, 1);
+											current_color_64bit = clo64;
+											current_color = clo;
 #endif
                     }
                 }
@@ -1444,14 +1456,16 @@ int ntfs_dir (char *dirname)
       char *next/*, ch*/;
 
       /* skip to next slash or end of filename (space) */
-      for (next = dirname; (ch = *next) && ch != '/' && !isspace (ch); next++)
+      for (next = dirname; (ch = *next) && ch != '/' /*&& !isspace (ch)*/; next++)
       {
+#if 0
 	if (ch == '\\')
 	{
 		next++;
 		if (! (ch = *next))
 			break;
 	}
+#endif
       }
 
       *next = 0;

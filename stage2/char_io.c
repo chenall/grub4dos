@@ -2046,6 +2046,12 @@ nul_terminate (char *str)
 
   while ((ch = *str) && ! grub_isspace (ch))
   {
+		if (ch == '"')
+		{
+			str++;
+			while (*str != '"')
+				str++;
+		}
 	if (ch == '\\')
 	{
 		str++;

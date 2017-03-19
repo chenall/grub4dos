@@ -430,8 +430,10 @@ int fb_dir (char *dirname)
 //	  if (! (ch1 = cur_file->name[j]))
 		if (! (ch1 = cur_file->name[j+((ver_min==6)?0:4)]))
 		break;
+#if 0
 	  if (ch1 == ' ')
 		tmp_name[k++] = '\\';
+#endif
 	  tmp_name[k++] = ch1;
 	}
 	tmp_name[k] = 0;

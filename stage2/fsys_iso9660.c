@@ -34,6 +34,7 @@
 #include "shared.h"
 #include "filesys.h"
 #include "iso9660.h"
+#include "term.h"
 
 /* iso9660 super-block data in memory */
 struct iso_sb_info {
@@ -266,11 +267,13 @@ iso9660_dir (char *dirname)
 //	;
       for (ch = tmp_name;*dirname;++dirname)
 	{
+#if 0
 		if (*dirname == '\\')
 				{
 					*ch++ = *dirname++;
 					*ch++ = *dirname++;
 				}	
+#endif
 				if (/*isspace(*dirname) || */*dirname == '/')
 					break;
 		if (ch - tmp_name >= 255 || !(*ch = *dirname))
@@ -516,6 +519,7 @@ dddd:
 	      filemax = MAXINT;
 			for (j = 0, k = 0;j < name_len;)
 			{
+#if 0
 				if (name[j] == '\\')
 				{
 					tmp_name1[k++] = name[j++];
@@ -529,6 +533,7 @@ dddd:
 					tmp_name1[k++] = name[j++];
 				}
 				else
+#endif
 					tmp_name1[k++] = name[j++];
 			}
 			tmp_name1[k] = 0;
@@ -605,8 +610,18 @@ dddd:
 //			tmp_name1[k++] = ch1;
 //		      }
 //		      tmp_name1[k] = 0;
-
+					unsigned long long clo64 = current_color_64bit;
+					unsigned long clo = current_color;
+					if (file_type == ISO_DIRECTORY)
+					{
+						if (current_term->setcolorstate)
+							current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+						current_color_64bit &= 0x0000000000ffffff;
+						current_color &= 0xf;
+					}
 		      print_a_completion (tmp_name1, 0);
+					current_color_64bit = clo64;
+					current_color = clo;
 		    }
 		}
 //	    } /* for */

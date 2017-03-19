@@ -138,14 +138,16 @@ vstafs_dir (char *dirname)
       while (*dirname == '/') dirname++;
       //fn = dirname;
       //while ((ch = *fn) && ch != '/' && ! isspace (ch)) fn++;
-      for (fn = dirname; (ch = *fn) && ch != '/' && !isspace (ch); fn++)
+      for (fn = dirname; (ch = *fn) && ch != '/' /*&& !isspace (ch)*/; fn++)
       {
+#if 0
 	if (ch == '\\')
 	{
 		fn++;
 		if (! (ch = *fn))
 			break;
 	}
+#endif
       }
       *fn = 0;
       
@@ -163,8 +165,10 @@ vstafs_dir (char *dirname)
 	  {
 		if (! (ch1 = d->name[j]))
 			break;
+#if 0
 		if (ch1 == ' ')
 			tmp_name[k++] = '\\';
+#endif
 		tmp_name[k++] = ch1;
 	  }
 	  tmp_name[k] = 0;

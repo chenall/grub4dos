@@ -35,6 +35,7 @@
 #include "shared.h"
 #include "filesys.h"
 #include "iamath.h"
+#include "term.h"
 
 static int mapblock1, mapblock2;
 
@@ -1003,14 +1004,16 @@ ext2fs_dir (char *dirname)
 	  //len = 0;
 	  //while (dirname[len] && !isspace (dirname[len]))
 	  //  len++;
-	  for (len = 0; (ch = dirname[len]) && !isspace (ch); len++)
+	  for (len = 0; (ch = dirname[len]) /*&& !isspace (ch)*/; len++)
 	  {
+#if 0
 		if (ch == '\\')
 		{
 			len++;
 			if (! (ch = dirname[len]))
 				break;
 		}
+#endif
 	  }
 
 	  /* Get the symlink size. */
@@ -1111,14 +1114,16 @@ ext2fs_dir (char *dirname)
       /* skip to next slash or end of filename (space) */
 //      for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/';
 //	   rest++);
-      for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/'; rest++)
+      for (rest = dirname; (ch = *rest) /*&& !isspace (ch)*/ && ch != '/'; rest++)
       {
+#if 0
 	if (ch == '\\')
 	{
 		rest++;
 		if (! (ch = *rest))
 			break;
 	}
+#endif
       }
 
       /* look through this directory and find the next filename component */
@@ -1204,8 +1209,10 @@ ext2fs_dir (char *dirname)
 	      {
 		if (! (ch1 = dp->name[j]))
 			break;
+#if 0
 		if (ch1 == ' ')
 			tmp_name[k++] = '\\';
+#endif
 		tmp_name[k++] = ch1;
 	      }
 	      tmp_name[k] = 0;
@@ -1218,7 +1225,18 @@ ext2fs_dir (char *dirname)
 		{
 		  if (print_possibilities > 0)
 		    print_possibilities = -print_possibilities;
+			unsigned long long clo64 = current_color_64bit;
+			unsigned long clo = current_color;	
+			if (dp->file_type == 2)
+			{
+				if (current_term->setcolorstate)
+					current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+				current_color_64bit &= 0x0000000000ffffff;
+				current_color &= 0xf;
+			}
 		  print_a_completion (tmp_name, 0);
+			current_color_64bit = clo64;
+			current_color = clo;
 			if (*tmp_name != 0x2e)
 				empty = 1;
 		}

@@ -256,14 +256,16 @@ loop:
     }
 
   //for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/'; rest++);
-  for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/'; rest++)
+  for (rest = dirname; (ch = *rest) /*&& !isspace (ch)*/ && ch != '/'; rest++)
   {
+#if 0
 	if (ch == '\\')
 	{
 		rest++;
 		if (! (ch = *rest))
 			break;
 	}
+#endif
   }
 
   *rest = 0;
@@ -306,8 +308,10 @@ loop:
 	{
 		if (! (ch1 = dp->d_name[j]))
 			break;
+#if 0
 		if (ch1 == ' ')
 			tmp_name[k++] = '\\';
+#endif
 		tmp_name[k++] = ch1;
 	}
 	tmp_name[k] = 0;

@@ -23,6 +23,7 @@
 #include "filesys.h"
 #include "iamath.h"
 #include "fat.h"
+#include "term.h"
 
 struct fat_superblock 
 {
@@ -556,15 +557,16 @@ fat_dir (char *dirname)
   filemax = MAXINT;
   
   /* check if the dirname ends in a slash(saved in CH) and end it in a NULL */
-  //for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/'; rest++);
-  for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/'; rest++)
+  for (rest = dirname; (ch = *rest) /*&& !isspace (ch)*/ && ch != '/'; rest++)
   {
+#if 0
 	if (ch == '\\')
 	{
 		rest++;
 		if (! (ch = *rest))
 			break;
 	}
+#endif
   }
   
   *rest = 0;
@@ -763,7 +765,18 @@ valid_filename:
 	    {
 	      if (print_possibilities > 0)
 		print_possibilities = -print_possibilities;
+				unsigned long long clo64 = current_color_64bit;
+				unsigned long clo = current_color;
+				if ((FAT_SUPER->fat_type == 64 && exfat_attrib & 0x10) || (FAT_SUPER->fat_type != 64 && FAT_DIRENTRY_ATTRIB (dir_buf) & 0x10))
+				{
+					if (current_term->setcolorstate)
+						current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+						current_color_64bit &= 0x0000000000ffffff;
+						current_color &= 0xf;
+				}
 	      print_a_completion ((char *)utf8, 1);
+				current_color_64bit = clo64;
+				current_color = clo;
 			if (*(char *)utf8 != 0x2e)
 				empty = 1;
 	    }
