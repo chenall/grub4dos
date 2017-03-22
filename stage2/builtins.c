@@ -14374,8 +14374,8 @@ static int
 usb_func (char *arg, int flags)
 {
   errnum = 0;
-  for (;;)
-  {
+  int i;
+
     if (grub_memcmp (arg, "--delay=", 8) == 0)
 		{
 			unsigned long long tmp;
@@ -14389,30 +14389,29 @@ usb_func (char *arg, int flags)
 		{
 			printf("\r... Scanning USB devices ...   ");
 			init_usb(); 
-			if (usb_count_error < 0x80)
+			if (!(usb_count_error & 0x80))
 			{
 				floppies_orig = (*(char*)0x410);
 				harddrives_orig = (*(char*)0x475);
-        if (usb_drive_num[0] == 0)
+				printf_debug0("\rFound %d USB devices. Device Num:", usb_count_error);
+				for (i = 0; i < usb_count_error ; i++)
+				{
+        if (usb_drive_num[i] == 0)
         {
           fd_geom[0].flags |= BIOSDISK_FLAG_LBA_EXTENSION;
           fd_geom[0].heads = 0xff;
           fd_geom[0].sectors = 0x3f;
           fd_geom[0].cylinders = (unsigned long)fd_geom[0].total_sectors / 0xff / 0x3f;
         }
-				if (debug > 0)
-				{
-					int i; 
-					printf("\rFound %d USB devices. Device Num:", usb_count_error);
-					for (i = 0; i < usb_count_error ; i++)
-					{
-						printf(" 0x%x;", usb_drive_num[i]);
-					}
-				}	
-			} else {
-				if (debug > 0)
-				{
-					printf("\rError %x. No USB device found. ", (usb_count_error));
+					else if (usb_drive_num[i] >= 0x9f)
+						cdrom_drive = usb_drive_num[i];
+					
+					printf_debug0(" 0x%x;", usb_drive_num[i]);
+				}
+			}
+			else
+			{
+					printf_debug0("\rError %x. No USB device found. ", (usb_count_error));				
 					switch (usb_count_error)
 					{
 						case 0x80:
@@ -14425,13 +14424,11 @@ usb_func (char *arg, int flags)
 							printf("USB device is not ready.  \n");
 							break;
 					}
-				}	
 			}
 			return 1;
 		}
     else
       return ! (errnum = ERR_BAD_ARGUMENT);
-  }
 }
 
 static struct builtin builtin_usb =
