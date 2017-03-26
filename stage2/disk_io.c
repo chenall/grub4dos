@@ -1174,7 +1174,7 @@ int
 real_open_partition (int flags)
 {
   dest_partition = current_partition;
-
+  grub_memset(vol_name, 0, 32);
   cur_part_offset = 0;
   /* network drive */
   if ((current_drive == NETWORK_DRIVE) || (current_drive==PXE_DRIVE))

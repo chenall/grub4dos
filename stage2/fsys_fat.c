@@ -75,6 +75,7 @@ fat_mount (void)
   struct fat_bpb bpb;
   __u32  first_fat;
   __u32  magic;
+  char vol[4] = {'/','$','v',0};
   
   /* Check partition type for harddisk */
 //  if (((current_drive & 0x80) || (current_slice != 0))
@@ -245,6 +246,8 @@ fat_mount (void)
 
 	fats_type = FAT_SUPER->fat_type;
   FAT_SUPER->cached_fat = - 2 * FAT_CACHE_SIZE;
+	fat_dir (vol);
+	errnum = 0;
   return 1;
 
 label_exfat:
@@ -347,6 +350,8 @@ label_exfat:
 
 	fats_type = FAT_SUPER->fat_type;
   FAT_SUPER->cached_fat = - 2 * FAT_CACHE_SIZE;
+	fat_dir (vol);
+	errnum = 0;
   return 1;
 }
 
@@ -491,6 +496,7 @@ fat_read (unsigned long long buf, unsigned long long len, unsigned long write)
   return errnum ? 0 : ret;
 }
 
+char vol_name[32];
 int
 fat_dir (char *dirname)
 {
@@ -507,6 +513,7 @@ fat_dir (char *dirname)
   unsigned long long exfat_filemax = 0;
   unsigned long exfat_file_cluster = 0;
 	int empty = 0;
+  int i, j;
   
 //  int do_possibilities = 0;
   
@@ -601,13 +608,20 @@ fat_dir (char *dirname)
       
       if (FAT_SUPER->fat_type == 64)
       {
+				if ((EXFAT_DIRENTRY_ATTRIB (dir_buf) == EXFAT_ENTRY_LABEL)
+					&& *dirname == '$' && *(dirname+1) == 'v')
+				{
+					for (i=0; i < *(unsigned char *)(dir_buf+1); i++)
+						filename[i]	= *(unsigned short *)(dir_buf+2+i*2);
+					filename[i] = 0;
+					goto valid_filename;
+				}	
 	if (EXFAT_DIRENTRY_ATTRIB (dir_buf) != exfat_nextentry)
 	{
 	  exfat_nextentry = EXFAT_ENTRY_FILE;
 	  continue;
 	}
 	{
-	  int i;
 	  switch (EXFAT_DIRENTRY_ATTRIB (dir_buf))
 	  {
 	    case EXFAT_ENTRY_FILE:
@@ -662,7 +676,7 @@ fat_dir (char *dirname)
 	   * We just write the part of the long filename this entry
 	   * describes and continue with the next dir entry.
 	   */
-	  int i, offset;
+	  int offset;
 	  unsigned char id = FAT_LONGDIR_ID(dir_buf);
 	  
 	  if ((id & 0x40)) 
@@ -687,13 +701,27 @@ fat_dir (char *dirname)
 	    filename[offset+i] = *(unsigned short *)(dir_buf+longdir_pos[i]);
 	  continue;
 	}
-      
+		if ((FAT_DIRENTRY_ATTRIB (dir_buf) == FAT_ATTRIB_VOL)
+			&& *dirname == '$' && *(dirname+1) == 'v')
+		{
+			for (i=0; i<11; i++)
+				filename[i] = dir_buf[i];
+			filename[i] = 0;
+			goto valid_filename;
+		}
+		if ((FAT_DIRENTRY_ATTRIB (dir_buf) == FAT_ATTRIB_VOL)
+			&& *dirname == '$' && *(dirname+1) == 'v')
+		{ 
+			for (i=0; i<11; i++)
+				filename[i] = dir_buf[i];
+			filename[i] = 0;
+			goto valid_filename;
+		}      
       if (!FAT_DIRENTRY_VALID (dir_buf))
 	continue;
 
       if (alias_checksum != -1 && slot == 0)
 	{
-	  int i;
 	  unsigned char sum;
 	  
 	  slot = -2;
@@ -735,7 +763,7 @@ short_name:
 short_name:
       /* XXX convert to 8.3 filename format here */
       {
-	unsigned int i, j, c, y;
+	unsigned int c, y;
 #define TOLOWER(c,y) (((y) && ((unsigned)((c) - 'A') < 26)) ? ((c)|0x20) : (c))
 	
 	y = (dir_buf[12] & 0x08);	// filename base in lower case
@@ -756,8 +784,14 @@ short_name:
 
       
 valid_filename:
-      unicode_to_utf8 (filename, utf8, 832);
+		j = unicode_to_utf8 (filename, utf8, 832);
 
+		if ((FAT_SUPER->fat_type != 64 && FAT_DIRENTRY_ATTRIB (dir_buf) == FAT_ATTRIB_VOL) || (FAT_SUPER->fat_type == 64 && EXFAT_DIRENTRY_ATTRIB (dir_buf) == EXFAT_ENTRY_LABEL))
+		{
+			for (i=0; i<j; i++)
+				vol_name[i] = utf8[i];
+			return 1;
+		}
       if (print_possibilities && ch != '/')
 	{
 //	print_filename:

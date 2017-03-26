@@ -1424,6 +1424,26 @@ int ntfs_mount (void)
       dbg_printf("No $DATA in master MFT\n");
       return 0;
     }
+
+	if (init_file(cmft,FILE_VOLUME))
+	{
+		char *pa;
+		int i, j;
+		char uni[32]={0};
+		
+		pa=locate_attr(cmft,AT_VOLUME_NAME);
+		if (pa != NULL)
+		{
+			j = pa[0x10];
+			pa += pa[0x14];
+			for (i=0; i<j; i++)
+				uni[i] = pa[i];
+			uni[i] = 0;
+			uni[i+1] = 0;
+			unicode_to_utf8 ((unsigned short *)uni, (unsigned char *)vol_name, 832);
+		}
+	}			
+		
   return 1;
 }
 

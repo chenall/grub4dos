@@ -98,6 +98,7 @@ struct fat_bpb {
 #define FAT_ATTRIB_NOT_OK_MASK    0xC8
 #define FAT_ATTRIB_DIR            0x10
 #define FAT_ATTRIB_LONGNAME       0x0F
+#define FAT_ATTRIB_VOL            0x08
 
 /*
  *  Defines for FAT directory entries

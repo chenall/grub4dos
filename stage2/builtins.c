@@ -6574,7 +6574,8 @@ static struct builtin builtin_font =
  * Contributed by Jing Liu ( fartersh-1@yahoo.com )
  */
 //static void print_root_device (char *buffer);
-static void get_uuid (char* uuid_found);
+static void get_uuid (char* uuid_found, int tag);
+static void get_vol (char* vol_found, int tag);
 static int
 uuid_func (char *arg, int flags)
 {
@@ -6582,8 +6583,40 @@ uuid_func (char *arg, int flags)
 //  unsigned long tmp_drive = saved_drive;
 //  unsigned long tmp_partition = saved_partition;
   char root_found[16] = "";
-  char uuid_found[100];
+  char uuid_found[32];
+	char uuid_tag[5] = {'U','U','I','D',0};
+	char vol_tag[8] = {'V','O','L','_','b','p','b',0};
+	char *p;
+	int write = 0;
 
+	if (flags && grub_memcmp (arg, "--write-uuid", 12) == 0)
+	{
+		write = 1;
+		arg += 12;
+		arg = skip_to (0, arg);
+	}
+	if (!flags && grub_memcmp (arg, "--write-vol-bpb", 15) == 0)
+	{
+		write = 2;
+		arg += 15;
+		arg = skip_to (0, arg);
+	}
+	if (flags)
+		p = uuid_tag;
+	else
+		p = vol_tag;
+	if (!flags)
+	{
+		int i=0, j=0;
+		while (arg[i])
+		{
+			if (arg[i] == '"' || arg[i] == '\\' )
+				i++;
+			arg[j++] = arg[i++];
+		}
+			arg[j] = 0;
+	}
+	
 	if (*arg == '(')
 	{
 		set_device (arg);
@@ -6593,17 +6626,24 @@ uuid_func (char *arg, int flags)
 			return 0;
 //		saved_drive = current_drive;
 //		saved_partition = current_partition;
-		grub_memset (uuid_found, 0, 100);
-                if (errnum != ERR_FSYS_MOUNT && fsys_type < NUM_FSYS)
-			get_uuid (uuid_found);
+		grub_memset(uuid_found, 0, 32);
+		if (errnum != ERR_FSYS_MOUNT && fsys_type < NUM_FSYS && !write)
+		{
+			if (flags)
+				get_uuid (uuid_found,0);
+			else
+				get_vol (uuid_found,0);
+		}
 		arg = skip_to (0, arg);
-		if (! *arg )
+		if (! *arg && !write)
 		{
 			/* Print the type of the filesystem.  */
 			if (debug > 0)
 			{
 				print_root_device (NULL,1);
-				grub_printf (": UUID is %s\n\t", ((*uuid_found) ? uuid_found : "(unsupported)"));
+				grub_printf (": %s is \"%s\".%s", p, ((*uuid_found) ? uuid_found : "(unsupported)"),(flags ? ("\n\t") : ""));
+				if (!flags)
+					grub_printf (" VOL_dir is \"%s\"\n\t", ((*vol_name) ? vol_name : "(unsupported)"));
 				print_fsys_type ();
 			}
 //			saved_drive = tmp_drive;
@@ -6612,12 +6652,52 @@ uuid_func (char *arg, int flags)
 			sprintf(ADDR_RET_STR,uuid_found);
 			return (*uuid_found);
 		}
+		if (*arg && write == 1)
+		{
+			unsigned char val;
+			p = uuid_found;
+			while (*arg)
+			{
+				if (*arg == '-')
+					arg++;
+				if (*arg <= '9' && *arg >= '0')
+					val = *arg & 0xf;
+				else if ((*arg | 0x20) <= 'f' && (*arg | 0x20) >= 'a')
+					val = (*arg + 9) & 0xf;
+				else
+					break;
+			
+				arg++;
+				if (*arg <= '9' && *arg >= '0')
+					val = (val << 4) | (*arg & 0xf);
+				else if ((*arg | 0x20) <= 'f' && (*arg | 0x20) >= 'a')
+					val = (val << 4) | ((*arg + 9) & 0xf);
+				else
+					break;
+			
+				*p++ = val;
+				arg++;
+			}
+			get_uuid (uuid_found,1);
+			return 1;
+		}
+		if (*arg && write == 2)
+		{
+			p = uuid_found;
+			while (*arg)
+				*p++ = *arg++;
+			get_vol (uuid_found,1);
+			return 1;
+ 		}
 //		saved_drive = tmp_drive;
 //		saved_partition = tmp_partition;
+		if (write)
+			return ! (errnum = ERR_BAD_ARGUMENT);
 		errnum = ERR_NONE;
 		return ! substring ((char*)uuid_found, arg,1);
 	}
-
+	if (write)
+		return ! (errnum = ERR_BAD_ARGUMENT);
 //  if (! *arg && (flags & (BUILTIN_MENU | BUILTIN_SCRIPT)))
 //    {
 //      if (debug > 0)
@@ -6659,20 +6739,23 @@ uuid_func (char *arg, int flags)
 		  int pc_slice = part >> 16;
 //		  saved_drive = current_drive;
 //		  saved_partition = current_partition;
-		  grub_memset(uuid_found, 0, 100);
-                  if (errnum != ERR_FSYS_MOUNT && fsys_type < NUM_FSYS)
-                    get_uuid(uuid_found);
-		  if (*uuid_found)
-                    {
-                      if (! *arg )
+			if (errnum != ERR_FSYS_MOUNT && fsys_type < NUM_FSYS)
+			{
+				grub_memset(uuid_found, 0, 32);
+				if (flags)
+					get_uuid(uuid_found,0);
+				else
+					get_vol(uuid_found,0);
+			}
+                      if (! *arg)
                         {
-		          if (bsd_part == 0xFF)
-			    grub_printf("(hd%d,%d): UUID is %s\n\t", (drive - 0x80), (unsigned long)(unsigned char)(part >> 16), uuid_found);
-		          else
-			    grub_printf ("(hd%d,%d,%c): UUID is %s\n\t",
-                                          (drive - 0x80), pc_slice, (bsd_part + 'a'), uuid_found);
-                          print_fsys_type();
-		        }
+						grub_printf ("(hd%d,%d%c%c):", (drive - 0x80), pc_slice, ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
+						if (*uuid_found || debug)
+							grub_printf(" %s is \"%s\".%s", p, ((*uuid_found) ? uuid_found : "(unsupported)"),(flags ? ("\n\t") : ""));
+						if (!flags && (*vol_name || debug))
+							grub_printf (" VOL_dir is \"%s\"\n\t", ((*vol_name) ? vol_name : "(unsupported)"));
+						print_fsys_type();
+		          }
                       else if (substring((char*)uuid_found,arg,1) == 0)
                         {
 		          if (bsd_part == 0xFF)
@@ -6682,17 +6765,7 @@ uuid_func (char *arg, int flags)
 			                  (drive - 0x80), pc_slice, (bsd_part + 'a'));
                           goto found;
                         }
-                    }
-                  else if (debug > 0)
-                    {
-		      if (bsd_part == 0xFF)
-                        grub_printf("(hd%d,%d): UUID is (unsupported)\n\t", (drive - 0x80), (unsigned long)(unsigned char)(part >> 16));
-                      else
-                        grub_printf("(hd%d,%d,%c): UUID is (unsupported)\n\t",
-                                     (drive - 0x80), pc_slice, (bsd_part + 'a'));
-                      print_fsys_type();
-                    }
-                }
+		}
 	    }
 
 	  /* We want to ignore any error here.  */
@@ -6714,27 +6787,27 @@ uuid_func (char *arg, int flags)
 	{
 //	  saved_drive = current_drive;
 //	  saved_partition = current_partition;
-          grub_memset(uuid_found, 0, 100);
-          if (errnum != ERR_FSYS_MOUNT && fsys_type < NUM_FSYS)
-            get_uuid(uuid_found);
-          if (*uuid_found)
-            {
-              if (! *arg )
-                {
-                  grub_printf("(fd%d): UUID is %s\n\t", drive, uuid_found);
-                  print_fsys_type();
-                }
-              else if (grub_strcmp((char*)uuid_found,arg) == 0)
+			if (errnum != ERR_FSYS_MOUNT && fsys_type < NUM_FSYS)
+			{
+				grub_memset(uuid_found, 0, 32);
+				if (flags)
+					get_uuid (uuid_found,0);
+				else
+					get_vol (uuid_found,0);
+			}
+			if (! *arg)
+			{
+				if (*uuid_found || debug)
+					grub_printf("(fd%d): %s is \"%s\".%s", drive, p, ((*uuid_found) ? uuid_found : "(unsupported)"),(flags ? ("\n\t") : ""));
+				if (!flags && (*vol_name || debug))
+					grub_printf (" VOL_dir is \"%s\"\n\t", ((*vol_name) ? vol_name : "(unsupported)"));;
+				print_fsys_type();
+			}
+			else if (grub_strcmp((char*)uuid_found,arg) == 0)
                 {
                   grub_sprintf(root_found,"(fd%d)", drive);
                   goto found;
                 }
-            }
-          else if (debug > 0)
-            {
-              grub_printf("(fd%d): UUID is (unsupported)\n\t", drive);
-              print_fsys_type();
-            }
 	}
       errnum = ERR_NONE;
   }
@@ -6761,7 +6834,7 @@ static struct builtin builtin_uuid =
   "uuid",
   uuid_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "uuid [DEVICE] [UUID]",
+  "uuid [--write-uuid] [DEVICE] [UUID]",
   "If DEVICE is not specified, search for filesystem with UUID in all"
   " partitions and set the partition containing the filesystem as new"
   " root(if UUID is specified), or just list uuid's of all filesystems"
@@ -6772,21 +6845,34 @@ static struct builtin builtin_uuid =
 };
 
 static void
-get_uuid (char* uuid_found)
+get_uuid (char* uuid_found, int tag)
 {
   unsigned char uuid[32] = "";
+	int i, n = 0xedde0d90;
     {
 #ifdef FSYS_FAT
       if (grub_memcmp(fsys_table[fsys_type].name, "fat", 3) == 0)
         {
-          char fat_length[2];
-          devread(0, 0x16, 2, (unsigned long long)(unsigned long)fat_length, 0xedde0d90);
-          if (*(unsigned short*)fat_length)
-            // FAT12/16
-            devread(0, 0x27, 4, (unsigned long long)(unsigned long)uuid, 0xedde0d90);
-          else
-            // FAT32
-            devread(0, 0x43, 4, (unsigned long long)(unsigned long)uuid, 0xedde0d90);
+			if (tag)
+			{
+				for (i=0; i<4; i++)
+					uuid[i] = uuid_found[3-i];
+				n = 0x900ddeed;
+			}
+			switch (fats_type)
+			{
+				case 12:
+				case 16:
+					devread(0, 0x27, 4, (unsigned long long)(unsigned long)uuid, n);
+					break;
+				case 32:
+					devread(0, 0x43, 4, (unsigned long long)(unsigned long)uuid, n);
+					break;
+				case 64:
+					devread(0, 0x64, 4, (unsigned long long)(unsigned long)uuid, n);
+					break;
+			}
+				if (!tag)
           grub_sprintf(uuid_found, "%02X%02X-%02X%02X", uuid[3], uuid[2], uuid[1], uuid[0]);
           return;
         }  
@@ -6794,7 +6880,14 @@ get_uuid (char* uuid_found)
 #ifdef FSYS_NTFS
       if (grub_memcmp(fsys_table[fsys_type].name, "ntfs", 4) == 0)
         {
-          devread(0, 0x48, 8, (unsigned long long)(unsigned long)uuid, 0xedde0d90);
+					if (tag)
+					{
+						for (i=0; i<8; i++)
+							uuid[i] = uuid_found[7-i];
+						n = 0x900ddeed;
+					}
+          devread(0, 0x48, 8, (unsigned long long)(unsigned long)uuid, n);
+				if (!tag)
           grub_sprintf(uuid_found, "%02X%02X%02X%02X%02X%02X%02X%02X", uuid[7], uuid[6], uuid[5], uuid[4], uuid[3], uuid[2], uuid[1], uuid[0]);
           return;
         }
@@ -6802,7 +6895,14 @@ get_uuid (char* uuid_found)
 #ifdef FSYS_EXT2FS
       if (grub_memcmp(fsys_table[fsys_type].name, "ext2fs", 6) == 0)
         {
-          devread(2, 0x68, 16, (unsigned long long)(unsigned long)uuid, 0xedde0d90);
+					if (tag)
+					{
+						for (i=0; i<16; i++)
+							uuid[i] = uuid_found[i];
+						n = 0x900ddeed;
+					}
+          devread(2, 0x68, 16, (unsigned long long)(unsigned long)uuid, n);
+				if (!tag)
           grub_sprintf(uuid_found, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x", uuid[0], uuid[1], uuid[2], uuid[3], uuid[4], uuid[5], uuid[6], uuid[7], uuid[8], uuid[9], uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]);
           return;
         }
@@ -6844,6 +6944,72 @@ get_uuid (char* uuid_found)
 #endif
     }
 }
+
+static int
+vol_func (char *arg, int flags)
+{
+	return uuid_func (arg, 0);
+}
+
+static struct builtin builtin_vol =
+{
+  "vol",
+  vol_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
+  "vol [--write-vol-bpb] [DEVICE] [VOL]",
+  "Please refer to UUID."
+};
+
+
+static void
+get_vol (char* vol_found, int tag)
+{
+  unsigned short vol[32]={0};
+	int i, n = 0xedde0d90;
+
+	if (grub_memcmp(fsys_table[fsys_type].name, "fat", 3) == 0)
+	{
+		if (tag)
+			n = 0x900ddeed;
+		switch (fats_type)
+		{
+			case 12:
+			case 16:
+				devread(0, 0x2B, 11, (unsigned long long)(unsigned long)vol_found, n);
+				break;
+			case 32:
+				devread(0, 0x47, 11, (unsigned long long)(unsigned long)vol_found, n);
+				break;
+		}	
+		if (!tag)
+		{
+			for (i = 0; i < 11; i++)
+				vol[i] = vol_found[i];
+		}
+	}  
+	else if (grub_memcmp(fsys_table[fsys_type].name, "ext2fs", 6) == 0)
+	{
+		if (tag)
+			n = 0x900ddeed;
+		devread(2, 0x78, 16, (unsigned long long)(unsigned long)vol_found, n);
+		if (!tag)
+		{
+			for (i = 0; i < 16; i++)
+				vol[i] = vol_found[i];
+		}
+	}
+	else if (tag)
+	{
+		grub_printf("Warning: No VOL_bpb in %s filesystem type.",fsys_table[fsys_type].name);
+		return;
+	}
+
+	if (*vol)
+		unicode_to_utf8 (vol, (unsigned char *)vol_found, 832);
+
+	return;
+}
+
 
 
 /* fstest */
@@ -12450,6 +12616,21 @@ print_root_device (char *buffer,int flag)
 	return;
 }
 
+void print_vol (void);
+void
+print_vol (void)
+{
+	char uuid_found[32] = {0};
+	if (current_drive < 0x9f)
+	{
+		get_vol (uuid_found,0);
+		if (*uuid_found)
+			grub_printf (" VOL_bpb is \"%s\".", uuid_found);
+		if (*vol_name)
+			grub_printf (" VOL_dir is \"%s\".", vol_name);
+	}
+}
+
 static int
 real_root_func (char *arg, int attempt_mnt)
 {
@@ -12600,7 +12781,10 @@ real_root_func (char *arg, int attempt_mnt)
 	    if (! next)
 			print_root_device (NULL,0);
 		if (! next || debug )
-        print_fsys_type ();
+			{
+				print_fsys_type ();
+				print_vol ();
+			}
       }
       else
 	return ! (errnum = ERR_FSYS_MOUNT);
@@ -16860,6 +17044,7 @@ struct builtin *builtin_table[] =
   &builtin_usb,
   &builtin_uuid,
   &builtin_vbeprobe,
+  &builtin_vol,
   &builtin_write,
   0
 };
