@@ -1704,9 +1704,24 @@ dir (char *dirname)
 void
 print_a_completion (char *name, int case_insensitive)
 {
+	char tem[256];
+	char *p = tem;
   /* If NAME is "." or "..", do not count it.  */
   if (grub_strcmp (name, ".") == 0 || grub_strcmp (name, "..") == 0)
     return;
+
+	while (*name)
+	{
+		if (*name == ' ')
+		{
+			*p++ = '\\';
+			*p++ = *name++;
+		}
+		else
+			*p++ = *name++;
+	}
+	*p = 0;
+	name = tem;
 
   if (do_completion)
     {

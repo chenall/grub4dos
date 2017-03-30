@@ -1161,6 +1161,12 @@ real_get_cmdline (void)
 		/* Find the position of the first character in this word.  */
 		for (i = lpos; i > 0; i--)
 		{
+			if (buf[i - 1] == '"')
+			{
+				i--;
+				while (buf[i - 1] != '"')
+					i--;
+			}
 		    if (buf[i - 1] == ' ' || buf[i - 1] == '=')
 		    {
 			/* find backslashes immediately before the space */
