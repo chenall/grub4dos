@@ -1656,6 +1656,8 @@ static int set_filename(char *filename)
 
 	if (relative_path)
 		grub_sprintf (open_filename, "%s", saved_dir);
+	else
+		j = 0;
 
 	for (k = 0; filename[k]; k++)
 	{

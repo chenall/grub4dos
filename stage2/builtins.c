@@ -6585,7 +6585,7 @@ uuid_func (char *arg, int flags)
   char root_found[16] = "";
   char uuid_found[32];
 	char uuid_tag[5] = {'U','U','I','D',0};
-	char vol_tag[8] = {'V','O','L','_','b','p','b',0};
+	char vol_tag[18] = {'V','o','l','u','m','e',' ','N','a','m','e',' ','(','B','P','B',')',0};
 	char *p;
 	int write = 0;
 
@@ -6643,7 +6643,7 @@ uuid_func (char *arg, int flags)
 				print_root_device (NULL,1);
 				grub_printf (": %s is \"%s\".%s", p, ((*uuid_found) ? uuid_found : "(unsupported)"),(flags ? ("\n\t") : ""));
 				if (!flags)
-					grub_printf (" VOL_dir is \"%s\"\n\t", ((*vol_name) ? vol_name : "(unsupported)"));
+					grub_printf (" Volume Name is \"%s\"\n\t", ((*vol_name) ? vol_name : "(unsupported)"));
 				print_fsys_type ();
 			}
 //			saved_drive = tmp_drive;
@@ -6753,7 +6753,7 @@ uuid_func (char *arg, int flags)
 						if (*uuid_found || debug)
 							grub_printf(" %s is \"%s\".%s", p, ((*uuid_found) ? uuid_found : "(unsupported)"),(flags ? ("\n\t") : ""));
 						if (!flags && (*vol_name || debug))
-							grub_printf (" VOL_dir is \"%s\"\n\t", ((*vol_name) ? vol_name : "(unsupported)"));
+							grub_printf (" Volume Name is \"%s\"\n\t", ((*vol_name) ? vol_name : "(unsupported)"));
 						print_fsys_type();
 		          }
                       else if (substring((char*)uuid_found,arg,1) == 0)
@@ -6800,7 +6800,7 @@ uuid_func (char *arg, int flags)
 				if (*uuid_found || debug)
 					grub_printf("(fd%d): %s is \"%s\".%s", drive, p, ((*uuid_found) ? uuid_found : "(unsupported)"),(flags ? ("\n\t") : ""));
 				if (!flags && (*vol_name || debug))
-					grub_printf (" VOL_dir is \"%s\"\n\t", ((*vol_name) ? vol_name : "(unsupported)"));;
+					grub_printf (" Volume Name is \"%s\"\n\t", ((*vol_name) ? vol_name : "(unsupported)"));;
 				print_fsys_type();
 			}
 			else if (grub_strcmp((char*)uuid_found,arg) == 0)
@@ -6837,11 +6837,11 @@ static struct builtin builtin_uuid =
   "uuid [--write-uuid] [DEVICE] [UUID]",
   "If DEVICE is not specified, search for filesystem with UUID in all"
   " partitions and set the partition containing the filesystem as new"
-  " root(if UUID is specified), or just list uuid's of all filesystems"
-  " on all devices(if UUID is not specified). If DEVICE is specified," 
+  " root (if UUID is specified), or just list uuid's of all filesystems"
+  " on all devices (if UUID is not specified). If DEVICE is specified," 
   " return true or false according to whether or not the DEVICE matches"
-  " the specified UUID(if UUID is specified), or just list the uuid of"
-  " DEVICE(if UUID is not specified)."
+  " the specified UUID (if UUID is specified), or just list the uuid of"
+  " DEVICE (if UUID is not specified)."
 };
 
 static void
@@ -12625,9 +12625,9 @@ print_vol (void)
 	{
 		get_vol (uuid_found,0);
 		if (*uuid_found)
-			grub_printf (" VOL_bpb is \"%s\".", uuid_found);
+			grub_printf (" Volume Name(BPB) is \"%s\".", uuid_found);
 		if (*vol_name)
-			grub_printf (" VOL_dir is \"%s\".", vol_name);
+			grub_printf (" Volume Name is \"%s\".", vol_name);
 	}
 }
 
@@ -12781,10 +12781,7 @@ real_root_func (char *arg, int attempt_mnt)
 	    if (! next)
 			print_root_device (NULL,0);
 		if (! next || debug )
-			{
 				print_fsys_type ();
-				print_vol ();
-			}
       }
       else
 	return ! (errnum = ERR_FSYS_MOUNT);
@@ -12867,8 +12864,9 @@ real_root_func (char *arg, int attempt_mnt)
   }
 
   if (debug > 0 && *saved_dir)
-	grub_printf ("The current working directory(i.e., the relative path) is %s\n", saved_dir);
-
+	grub_printf (" The current working directory (relative path) is %s\n", saved_dir);
+	else if (debug && (! *saved_dir))
+		print_vol ();
   /* Clear ERRNUM.  */
   errnum = 0;
   /* If ARG is empty, then return TRUE for harddrive, and FALSE for floppy */

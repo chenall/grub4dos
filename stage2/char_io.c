@@ -1167,6 +1167,12 @@ real_get_cmdline (void)
 				while (buf[i - 1] != '"')
 					i--;
 			}
+			if (buf[i - 1] == '"')
+			{
+				i--;
+				while (buf[i - 1] != '"')
+					i--;
+			}
 		    if (buf[i - 1] == ' ' || buf[i - 1] == '=')
 		    {
 			/* find backslashes immediately before the space */
