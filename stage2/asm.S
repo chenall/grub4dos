@@ -8990,6 +8990,7 @@ Read_write_usb:
 	movb $0x28, (CBWCB - USB2DRI)
 	orb %cl, %cl
 	jne 1f
+	movb $0, (bmCBWFlags - USB2DRI)
 	movb $0x2a, (CBWCB - USB2DRI)
 1:        
 	movb %al, (CBWCB - USB2DRI + 5) 
