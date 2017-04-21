@@ -1051,6 +1051,7 @@ extern unsigned long int13_scheme;	/* controls disk access methods in emulation 
 extern unsigned char atapi_dev_count;	/* ATAPI CDROM DRIVE COUNT */
 extern unsigned long reg_base_addr_append;
 extern unsigned char usb_delay;
+extern unsigned short One_transfer;
 extern unsigned char usb_count_error;
 extern unsigned char usb_drive_num[8];
 extern unsigned long init_usb(void);

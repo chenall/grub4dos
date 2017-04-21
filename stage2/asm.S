@@ -7987,8 +7987,8 @@ ENTRY(max_dri)
 	.byte   0	
 Count_1ms:
 	.word   0
-Single_size:
-	.word   0
+ENTRY(One_transfer)
+	.word   0x4000
 bus_device_function:
 	.word   0
 Register_pci:
@@ -8211,6 +8211,8 @@ TSize:
 TOffset:
 	.word   0
 TSection:
+	.word   0
+Single_size:
 	.word   0
 	
 Entry_int13:
@@ -8832,6 +8834,12 @@ Bulk_transfer:
 	andl $0x0fffff000, %edx
 	addl %eax, %edx
 	movl %edx, 0x10(%di) 
+	addl %eax, %edx
+	movl %edx, 0x14(%di)
+	addl %eax, %edx
+	movl %edx, 0x18(%di)
+	addl %eax, %edx
+	movl %edx, 0x1c(%di)
 1:        
 	leaw (InProperty - USB2DRI)(%bx), %si
 	movb (Direction1 - USB2DRI), %al
@@ -8896,7 +8904,8 @@ SCSI_Command:
 	movl %edx, (TOffset - USB2DRI)
 	movl (dCBWDataTransferLength - USB2DRI), %eax
 	movl %eax, (TSize - USB2DRI)
-	movw $0x200, (Single_size - USB2DRI)
+	movw (One_transfer - USB2DRI), %ax
+	movw %ax, (Single_size - USB2DRI)
 	movb (_lun - USB2DRI), %al
 	movb %al, (bCBWLUN - USB2DRI)
 

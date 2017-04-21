@@ -14564,7 +14564,9 @@ usb_func (char *arg, int flags)
 			arg += 8;
 			if (! safe_parse_maxint (&arg, &tmp))
 				return 0;
-			usb_delay = tmp;
+			if (tmp & 0xf0)
+				One_transfer = 0x200;
+			usb_delay = tmp & 0xf;
 			arg = skip_to (0, arg);
 		}
     if (grub_memcmp (arg, "--init", 6) == 0)
@@ -14618,9 +14620,10 @@ static struct builtin builtin_usb =
   "usb",
   usb_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "usb [--delay=P] --init",
-  "Initialise usb2.0 device."
-  "P: specifies delay,reduce speed. default 0, other 1,2,3,4 etc."
+  "usb [--delay=0xMN] --init",
+  "Initialise usb2.0 device.\n"
+  "M: single transmission sectors. 0: 32 sectors (default); 1: 1 sectors.\n"
+  "N: specifies delay,reduce speed. default 0, other 1,2,3,4 etc."
 };
 
 
