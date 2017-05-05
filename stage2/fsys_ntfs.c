@@ -202,7 +202,7 @@ static int fixup(char* buf,int len,char* magic,int tag)
   return 1;
 }
 
-static int read_mft(char* cur_mft,unsigned long mftno);
+/*static*/ int read_mft(char* buf,unsigned long mftno);
 static int read_attr(char* cur_mft,unsigned long long dest,unsigned long long ofs,unsigned long long len,int cached,unsigned long write);
 static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned long long ofs,unsigned long long len,int cached,unsigned long write);
 static int read_list(char* cur_mft,char* pa,int cached,unsigned long write);
@@ -1096,7 +1096,7 @@ static int read_attr(char* cur_mft,unsigned long long dest,unsigned long long of
   return ret;
 }
 
-static int read_mft(char* buf,unsigned long mftno)
+/*static*/ int read_mft(char* buf,unsigned long mftno)
 {
   if (! read_attr(mmft,(unsigned long long)(unsigned int)buf,mftno*(mft_size << BLK_SHR),((unsigned long long)(mft_size)) << BLK_SHR,0, 0xedde0d90))
     {
@@ -1413,6 +1413,9 @@ int ntfs_mount (void)
   if ((mft_size>MAX_MFT) ||(idx_size>MAX_IDX))
     return 0;
 
+	*(unsigned long long *)0x3e7e00 = mft_start;
+	*(unsigned long long *)0x3e7e08 = spc*valueat(mmft,0x38,unsigned long);
+	
   if (! devread(mft_start,0,mft_size << BLK_SHR,(unsigned long long)(unsigned int)mmft, 0xedde0d90))
     return 0;
 
@@ -1424,26 +1427,6 @@ int ntfs_mount (void)
       dbg_printf("No $DATA in master MFT\n");
       return 0;
     }
-
-	if (init_file(cmft,FILE_VOLUME))
-	{
-		char *pa;
-		int i, j;
-		char uni[32]={0};
-		
-		pa=locate_attr(cmft,AT_VOLUME_NAME);
-		if (pa != NULL)
-		{
-			j = pa[0x10];
-			pa += pa[0x14];
-			for (i=0; i<j; i++)
-				uni[i] = pa[i];
-			uni[i] = 0;
-			uni[i+1] = 0;
-			unicode_to_utf8 ((unsigned short *)uni, (unsigned char *)vol_name, 832);
-		}
-	}			
-		
   return 1;
 }
 

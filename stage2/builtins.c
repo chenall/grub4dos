@@ -6580,26 +6580,20 @@ static int
 uuid_func (char *arg, int flags)
 {
   unsigned long drive;
-//  unsigned long tmp_drive = saved_drive;
-//  unsigned long tmp_partition = saved_partition;
+  unsigned long tmp_drive = saved_drive;
+  unsigned long tmp_partition = saved_partition;
   char root_found[16] = "";
-  char uuid_found[32];
+  char uuid_found[256];
 	char uuid_tag[5] = {'U','U','I','D',0};
-	char vol_tag[18] = {'V','o','l','u','m','e',' ','N','a','m','e',' ','(','B','P','B',')',0};
+	char vol_tag[12] = {'V','o','l','u','m','e',' ','N','a','m','e',0};
 	char *p;
 	int write = 0;
 
-	if (flags && grub_memcmp (arg, "--write-uuid", 12) == 0)
+	if (grub_memcmp (arg, "--write", 7) == 0)
 	{
 		write = 1;
-		arg += 12;
-		arg = skip_to (0, arg);
-	}
-	if (!flags && grub_memcmp (arg, "--write-vol-bpb", 15) == 0)
-	{
-		write = 2;
-		arg += 15;
-		arg = skip_to (0, arg);
+		arg += 7;
+		arg = skip_to (0, arg);	
 	}
 	if (flags)
 		p = uuid_tag;
@@ -6624,9 +6618,7 @@ uuid_func (char *arg, int flags)
 			return 0;
 		if (! open_device ())
 			return 0;
-//		saved_drive = current_drive;
-//		saved_partition = current_partition;
-		grub_memset(uuid_found, 0, 32);
+		grub_memset(uuid_found, 0, 256);
 		if (errnum != ERR_FSYS_MOUNT && fsys_type < NUM_FSYS && !write)
 		{
 			if (flags)
@@ -6641,18 +6633,15 @@ uuid_func (char *arg, int flags)
 			if (debug > 0)
 			{
 				print_root_device (NULL,1);
-				grub_printf (": %s is \"%s\".%s", p, ((*uuid_found) ? uuid_found : "(unsupported)"),(flags ? ("\n\t") : ""));
-				if (!flags)
-					grub_printf (" Volume Name is \"%s\"\n\t", ((*vol_name) ? vol_name : "(unsupported)"));
-				print_fsys_type ();
+				grub_printf (": %s is \"%s\".", p, ((*uuid_found) ? uuid_found : "(unsupported)"));
 			}
-//			saved_drive = tmp_drive;
-//			saved_partition = tmp_partition;
+			saved_drive = tmp_drive;
+			saved_partition = tmp_partition;
 			errnum = ERR_NONE;
 			sprintf(ADDR_RET_STR,uuid_found);
 			return (*uuid_found);
 		}
-		if (*arg && write == 1)
+		if (*arg && write && flags)
 		{
 			unsigned char val;
 			p = uuid_found;
@@ -6681,7 +6670,7 @@ uuid_func (char *arg, int flags)
 			get_uuid (uuid_found,1);
 			return 1;
 		}
-		if (*arg && write == 2)
+		if (*arg && write && !flags)
 		{
 			p = uuid_found;
 			while (*arg)
@@ -6689,33 +6678,46 @@ uuid_func (char *arg, int flags)
 			get_vol (uuid_found,1);
 			return 1;
  		}
-//		saved_drive = tmp_drive;
-//		saved_partition = tmp_partition;
 		if (write)
 			return ! (errnum = ERR_BAD_ARGUMENT);
 		errnum = ERR_NONE;
-		return ! substring ((char*)uuid_found, arg,1);
+		return ! substring ((char*)uuid_found, arg,0);
 	}
 	if (write)
 		return ! (errnum = ERR_BAD_ARGUMENT);
-//  if (! *arg && (flags & (BUILTIN_MENU | BUILTIN_SCRIPT)))
-//    {
-//      if (debug > 0)
-//        grub_printf ("uuid must be used with UUID argument in menu.lst.\n");
-//	return ! (errnum = ERR_BAD_ARGUMENT);
-//    }
-
   errnum = 0;
   /* Search in hard disks first, since floppies are slow */
-#define FIND_DRIVES (*((char *)0x475))
-  for (drive = 0x80; drive < 0x80 + FIND_DRIVES; drive++)
-#undef FIND_DRIVES
+	for (drive = 0; drive <= 0xff; drive++)
     {
       unsigned long part = 0xFFFFFF;
       unsigned long start, len, offset, ext_offset1;
       unsigned long type, entry1;
+		int bsd_part;
+		int pc_slice;
 
-      current_drive = drive;
+		if ((drive > 10 && drive < 0x80) || (drive > (*((char *)0x475) + 0x80) && drive < 0x9f))
+			continue;
+		if (drive >= 0x9f && flags)
+			break;
+
+		saved_drive = current_drive = drive;
+		saved_partition = current_partition = part;
+
+		if (drive < 0x90)
+		{
+			biosdisk_standard (0x02, (unsigned char)drive, 0, 0, 1, 1, 0x2F00);
+			if (!(probe_bpb((struct master_and_dos_boot_sector *)0x2f000)) && open_device())
+				goto qqqqqq;
+			else if (probe_mbr((struct master_and_dos_boot_sector *)0x2f000,0,1,0))
+				continue;	
+		}
+		else
+		{
+			if (open_device ())
+				goto qqqqqq;
+		}
+				
+		saved_drive = current_drive = drive;
       while ((	next_partition_drive		= drive,
 		next_partition_dest		= 0xFFFFFF,
 		next_partition_partition	= &part,
@@ -6735,13 +6737,12 @@ uuid_func (char *arg, int flags)
 	      current_partition = part;
 	      if (open_device ())
 		{
-		  int bsd_part = (part >> 8) & 0xFF;
-		  int pc_slice = part >> 16;
-//		  saved_drive = current_drive;
-//		  saved_partition = current_partition;
+qqqqqq:
+				bsd_part = (part >> 8) & 0xFF;
+				pc_slice = part >> 16;
 			if (errnum != ERR_FSYS_MOUNT && fsys_type < NUM_FSYS)
 			{
-				grub_memset(uuid_found, 0, 32);
+				grub_memset(uuid_found, 0, 256);
 				if (flags)
 					get_uuid(uuid_found,0);
 				else
@@ -6749,24 +6750,20 @@ uuid_func (char *arg, int flags)
 			}
                       if (! *arg)
                         {
-						grub_printf ("(hd%d,%d%c%c):", (drive - 0x80), pc_slice, ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
+						grub_printf ("(%s%x%c%c%c%c):", ((drive<10)?"fd":(drive>=0x9f)?"0x":"hd"),((drive<10 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
 						if (*uuid_found || debug)
-							grub_printf(" %s is \"%s\".%s", p, ((*uuid_found) ? uuid_found : "(unsupported)"),(flags ? ("\n\t") : ""));
-						if (!flags && (*vol_name || debug))
-							grub_printf (" Volume Name is \"%s\"\n\t", ((*vol_name) ? vol_name : "(unsupported)"));
+							grub_printf(" %s is \"%s\".\n", p, ((*uuid_found) ? uuid_found : "(unsupported)"));
 						print_fsys_type();
 		          }
                       else if (substring((char*)uuid_found,arg,1) == 0)
                         {
-		          if (bsd_part == 0xFF)
-                            grub_sprintf(root_found,"(hd%d,%d)", (drive - 0x80), (unsigned long)(unsigned char)(part >> 16));
-                          else
-                            grub_sprintf(root_found,"(hd%d,%d,%c)",
-			                  (drive - 0x80), pc_slice, (bsd_part + 'a'));
-                          goto found;
+                         grub_sprintf(root_found,"(%s%x%c%c%c%c)", ((drive<10)?"fd":(drive>=0x9f)?"0x":"hd"),((drive<10 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
+                         goto found;
                         }
 		}
 	    }
+		if (drive > 0x8f)
+			break;
 
 	  /* We want to ignore any error here.  */
 	  errnum = ERR_NONE;
@@ -6776,45 +6773,9 @@ uuid_func (char *arg, int flags)
       errnum = ERR_NONE;
     }
 
-  /* Floppies.  */
-#define FIND_DRIVES (((*(char*)0x410) & 1)?((*(char*)0x410) >> 6) + 1 : 0)
-  for (drive = 0; drive < 0 + FIND_DRIVES; drive++)
-#undef FIND_DRIVES
-    {
-      current_drive = drive;
-      current_partition = 0xFFFFFF;
-      if (open_device ())
-	{
-//	  saved_drive = current_drive;
-//	  saved_partition = current_partition;
-			if (errnum != ERR_FSYS_MOUNT && fsys_type < NUM_FSYS)
-			{
-				grub_memset(uuid_found, 0, 32);
-				if (flags)
-					get_uuid (uuid_found,0);
-				else
-					get_vol (uuid_found,0);
-			}
-			if (! *arg)
-			{
-				if (*uuid_found || debug)
-					grub_printf("(fd%d): %s is \"%s\".%s", drive, p, ((*uuid_found) ? uuid_found : "(unsupported)"),(flags ? ("\n\t") : ""));
-				if (!flags && (*vol_name || debug))
-					grub_printf (" Volume Name is \"%s\"\n\t", ((*vol_name) ? vol_name : "(unsupported)"));;
-				print_fsys_type();
-			}
-			else if (grub_strcmp((char*)uuid_found,arg) == 0)
-                {
-                  grub_sprintf(root_found,"(fd%d)", drive);
-                  goto found;
-                }
-	}
-      errnum = ERR_NONE;
-  }
-
 found:
-//  saved_drive = tmp_drive;
-//  saved_partition = tmp_partition;
+  saved_drive = tmp_drive;
+  saved_partition = tmp_partition;
   errnum = ERR_NONE;
   if (! *arg)
     return 1;
@@ -6834,7 +6795,7 @@ static struct builtin builtin_uuid =
   "uuid",
   uuid_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "uuid [--write-uuid] [DEVICE] [UUID]",
+  "uuid [--write] [DEVICE] [UUID]",
   "If DEVICE is not specified, search for filesystem with UUID in all"
   " partitions and set the partition containing the filesystem as new"
   " root (if UUID is specified), or just list uuid's of all filesystems"
@@ -6956,57 +6917,232 @@ static struct builtin builtin_vol =
   "vol",
   vol_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "vol [--write-vol-bpb] [DEVICE] [VOL]",
-  "Please refer to UUID."
+  "vol [--write] [DEVICE] [VOLUME]",
+  "If DEVICE is not specified, search for filesystem with volume in all"
+  " partitions and set the partition containing the filesystem as new"
+  " root (if VOLUME is specified), or just list volume's of all filesystems"
+  " on all devices (if VOLUME is not specified). If DEVICE is specified," 
+  " return true or false according to whether or not the DEVICE matches"
+  " the specified Volume (if VOLUME is specified), or just list the volume of"
+  " DEVICE (if VOLUME is not specified)."
 };
 
-
+unsigned int iso_type;
+int read_mft(char* buf,unsigned long mftno);
 static void
-get_vol (char* vol_found, int tag)
+get_vol (char* vol_found, int flags)
 {
-  unsigned short vol[32]={0};
-	int i, n = 0xedde0d90;
+	int i, j, n = 0xedde0d90;
+	unsigned char uni[256]={0};
 
-	if (grub_memcmp(fsys_table[fsys_type].name, "fat", 3) == 0)
+	if (flags)
+		n = 0x900ddeed;
+	
+	if (grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) == 0)
 	{
-		if (tag)
-			n = 0x900ddeed;
-		switch (fats_type)
+#define BUFFER (unsigned char *)(FSYS_BUF + 0x4000)		//0x3E4000
+		if (flags && iso_type != ISO_TYPE_udf)
+			for (i = grub_strlen(vol_found); i<0x20; i++)
+				vol_found[i] = 0x20;
+
+		unsigned short *pb = (unsigned short *)&uni[1];
+		switch (iso_type)
 		{
-			case 12:
-			case 16:
-				devread(0, 0x2B, 11, (unsigned long long)(unsigned long)vol_found, n);
+			case ISO_TYPE_9660:
+			case ISO_TYPE_RockRidge:
+				emu_iso_sector_size_2048 = 1;
+				devread(0x10, 0x28, 0x20, (unsigned long long)(unsigned int)(char *)vol_found, n);
+				if (!flags)
+				{
+					for (i=0; i<0x20; i++)
+					{
+						if (vol_found[i] == ' ' && (vol_found[i] == vol_found[i+1] || i == 0x19))
+							break;
+					}
+					vol_found[i] = 0;
+				}
 				break;
-			case 32:
-				devread(0, 0x47, 11, (unsigned long long)(unsigned long)vol_found, n);
+			case ISO_TYPE_Joliet:
+				if (flags)
+				{
+					for (i = 0; i < 0x10; i++)
+						pb[i] = vol_found[i];
+				}
+				emu_iso_sector_size_2048 = 1;
+				devread(*(unsigned long *)FSYS_BUF, 0x28, 0x20, (unsigned long long)(unsigned int)(char *)uni, n);
+				if (!flags)
+				{
+					big_to_little ((char *)uni, 0x20);
+					unicode_to_utf8 ((unsigned short *)uni, (unsigned char *)vol_found, 0x10);
+				}
 				break;
-		}	
-		if (!tag)
-		{
-			for (i = 0; i < 11; i++)
-				vol[i] = vol_found[i];
+			case ISO_TYPE_udf:
+				emu_iso_sector_size_2048 = 1;
+				devread(*(unsigned long *)FSYS_BUF, 0, 0x800, (unsigned long long)(unsigned int)(char *)BUFFER, 0xedde0d90);
+				if (!flags)
+				{
+					if (*(BUFFER + 0x70) == 16)
+					{
+						big_to_little ((char *)(BUFFER + 0x71), 0x80);
+						unicode_to_utf8 ((unsigned short *)(BUFFER + 0x71), (unsigned char *)vol_found, 0x40);
+					}
+					else
+					{
+						unsigned char *pa = (unsigned char *)(BUFFER + 0x71);
+						while ((*vol_found++ = *pa++));
+						*vol_found = 0;	
+					}
+				}
+				else
+				{
+					j = grub_strlen(vol_found);
+					for (i = 0; i < j; i++)
+					{
+						if (*(BUFFER + 0x70) == 16)
+							pb[i] = vol_found[i];
+						else
+							uni[i] = vol_found[i];
+					}
+					grub_memmove ((unsigned char *)(BUFFER + 0x71),uni,((*(unsigned char *)BUFFER == 16)?(j*2):j));
+					grub_memmove ((unsigned char *)(BUFFER + 0x131),uni,((*(unsigned char *)BUFFER == 16)?(j*2):j));
+					*(unsigned short *)(BUFFER + 8) = grub_crc16 ((unsigned char *)(BUFFER+0x10), *(unsigned short *)(BUFFER+0xa));
+					unsigned char h = 0;
+					for (i=0; i<16; i++)
+					{
+						if (i==4)
+							continue;
+						h += *(unsigned char *)(BUFFER + i);
+					}
+					*(unsigned char *)(BUFFER + 4) = h;
+
+					emu_iso_sector_size_2048 = 1;
+					devread(*(unsigned long *)FSYS_BUF, 0, 0x800, (unsigned long long)(unsigned int)(char *)BUFFER, 0x900ddeed);
+				}
+				break;
 		}
+#undef BUFFER
+	}
+	else if (grub_memcmp(fsys_table[fsys_type].name, "ntfs", 4) == 0)
+	{
+#define BUFFER (unsigned char *)(FSYS_BUF + 0x7000)		//0x3E7000
+		unsigned char *pa;
+		unsigned char *pb;
+
+		read_mft((char*)BUFFER,3);
+		pa = BUFFER+0x38;
+		while (*pa != 0xFF)
+		{
+			if (*pa == 0x60)
+				break;
+			pa += pa[4];
+		}
+		if (*pa != 0xFF && pa[8]==0)
+		{
+			if (!flags)
+			{
+				j = pa[0x10]&255;
+				pa += pa[0x14];
+				for (i=0; i<j; i++)
+					uni[i] = pa[i];
+				uni[i] = 0;
+				uni[i+1] = 0;
+				unicode_to_utf8 ((unsigned short *)uni, (unsigned char *)vol_found, 255);
+			}
+			else
+			{
+				if ((j=grub_strlen(vol_found)) > (pa[4]-pa[0x14])/2)
+					j = (pa[4]-pa[0x14])/2;
+				pa[0x10] = j<<1;
+				pa += pa[0x14];
+				unsigned short *pc = (unsigned short *)pa;
+				for (i=0; i<j; i++)
+					*pc++ = *vol_found++;
+			
+				i = 2;
+				pa = BUFFER + *(unsigned short *)(BUFFER + 4);
+				pb = BUFFER-2;
+				unsigned short k = *pa;
+				while (i>0)
+				{
+					pb += 0x200;
+					pa += 2;
+					*(unsigned short *)pa = *(unsigned short *)pb;
+					*(unsigned short *)pb = k;
+					i--;
+				}
+				devread(*(unsigned long long *)BUFFER+6, 0, 0x400, (unsigned long long)(unsigned int)BUFFER, 0x900ddeed);
+				devread(*(unsigned long long *)(BUFFER+8)+6, 0, 0x400, (unsigned long long)(unsigned int)BUFFER, 0x900ddeed);
+			}
+		}
+#undef BUFFER
+	}
+	else if (grub_memcmp(fsys_table[fsys_type].name, "fat", 3) == 0)
+	{
+#define SUPERBLOCK (unsigned char *)(FSYS_BUF + 0x7E00)		//0x3E7E00
+		unsigned long back_drive = saved_drive;
+		unsigned long back_partition = saved_partition;
+		saved_drive = current_drive;
+		saved_partition = current_partition;
+		i = dir ("/$v\0");
+		saved_drive = back_drive;
+		saved_partition = back_partition;
+		if (!i)
+			return;
+		
+		if (flags)
+			n = 0x900ddeed;
+		
+		filepos -= 32;
+		
+		if (fats_type != 64)
+		{
+			for (i = grub_strlen(vol_found); flags && i<11; i++)
+				vol_found[i] = 0x20;
+			devread (*(unsigned long long *)(SUPERBLOCK+0x58)+(filepos>>9), filepos&0x1ff, 11, (unsigned long long)(unsigned long)vol_found, n);
+			if (flags)
+				return;
+		
+			for (i=0; i<11; i++)
+			{
+				if (vol_found[i] == ' ' && (vol_found[i] == vol_found[i+1] || i == 10))
+					break;
+			}
+			vol_found[i] = 0;
+		}
+		else
+		{
+			if (!flags)
+			{
+				devread (*(unsigned long long *)(SUPERBLOCK+0x58)+(filepos>>9), filepos&0x1ff, 32, (unsigned long long)(unsigned long)vol_found, 0xedde0d90);
+				for (i=0; i < vol_found[1]*2; i++)
+					uni[i]	= vol_found[2+i];
+				uni[i] = 0;
+				uni[i+1] = 0;
+				unicode_to_utf8 ((unsigned short *)uni, (unsigned char *)vol_found, 11);
+			}
+			else
+			{
+				unsigned short *pb = (unsigned short *)&uni[2];
+				uni[0] = 0x83;
+				if ((uni[1] = grub_strlen(vol_found)) > 11)
+					uni[1] = 11;
+				for (i = 0; i < uni[1]; i++)
+					pb[i] = vol_found[i];
+				devread (*(unsigned long long *)(SUPERBLOCK+0x58)+(filepos>>9), filepos&0x1ff, (uni[1]+1)*2, (unsigned long long)(unsigned long)uni, 0x900ddeed);	
+			}
+		}
+#undef SUPERBLOCK
 	}  
 	else if (grub_memcmp(fsys_table[fsys_type].name, "ext2fs", 6) == 0)
 	{
-		if (tag)
-			n = 0x900ddeed;
 		devread(2, 0x78, 16, (unsigned long long)(unsigned long)vol_found, n);
-		if (!tag)
-		{
-			for (i = 0; i < 16; i++)
-				vol[i] = vol_found[i];
-		}
 	}
-	else if (tag)
+	else if (grub_memcmp(fsys_table[fsys_type].name, "fb", 2) == 0)
 	{
-		grub_printf("Warning: No VOL_bpb in %s filesystem type.",fsys_table[fsys_type].name);
-		return;
+		devread(0, 0x47, 11, (unsigned long long)(unsigned long)vol_found, n);
 	}
-
-	if (*vol)
-		unicode_to_utf8 (vol, (unsigned char *)vol_found, 832);
-
+	else if (flags)
+		grub_printf("Warning: No Volume in %s filesystem type.",fsys_table[fsys_type].name);
 	return;
 }
 
@@ -8642,7 +8778,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 #if 0
   if (filemax < 512)
   {
-	printf_errinfo ("Error: filesize(=%d) less than 512.\n", (unsigned long)filemax);
+	printf_debug ("Error: filesize(=%d) less than 512.\n", (unsigned long)filemax);
 	return 1;
   }
 #endif
@@ -8663,7 +8799,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
       /* the boot indicator must be 0x80 (bootable) or 0 (non-bootable) */
       if ((unsigned char)(BS->P[i].boot_indicator << 1))/* if neither 0x80 nor 0 */
       {
-	printf_errinfo ("Error: invalid boot indicator(0x%X) for entry %d.\n", (unsigned char)(BS->P[i].boot_indicator), i);
+	printf_debug ("Error: invalid boot indicator(0x%X) for entry %d.\n", (unsigned char)(BS->P[i].boot_indicator), i);
 	ret_val = 2;
 	goto err_print_hex;
       }
@@ -8671,7 +8807,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 	active_partitions++;
       if (active_partitions > 1)
       {
-	printf_errinfo ("Error: duplicate active flag at entry %d.\n", i);
+	printf_debug ("Error: duplicate active flag at entry %d.\n", i);
 	ret_val = 3;
 	goto err_print_hex;
       }
@@ -8691,7 +8827,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 	  }
 	  if (! BS->P[i].total_sectors)
 	  {
-		printf_errinfo ("Error: number of total sectors in partition %d should not be 0.\n", i);
+		printf_debug ("Error: number of total sectors in partition %d should not be 0.\n", i);
 		ret_val = 5;
 		goto err_print_hex;
 	  }
@@ -8708,7 +8844,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 		(BS->P[i].start_lba - BS->P[j].start_lba < BS->P[j].total_sectors) :
 		(BS->P[j].start_lba - BS->P[i].start_lba < BS->P[i].total_sectors))
 	    {
-		printf_errinfo ("Error: overlapped partitions %d and %d.\n", j, i);
+		printf_debug ("Error: overlapped partitions %d and %d.\n", j, i);
 		ret_val = 6;
 		goto err_print_hex;
 	    }
@@ -8729,7 +8865,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 	  ///* partitions should not start at the first track, the MBR-track */
 	  if (! X /* || BS->P[i].start_lba < Smax */)
 	  {
-		printf_errinfo ("Error: starting S of entry %d should not be 0.\n", i);
+		printf_debug ("Error: starting S of entry %d should not be 0.\n", i);
 		ret_val = 7;
 		goto err_print_hex;
 	  }
@@ -8754,7 +8890,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 	      Smax = Y;
 	  if (! Y)
 	  {
-		printf_errinfo ("Error: ending S of entry %d should not be 0.\n", i);
+		printf_debug ("Error: ending S of entry %d should not be 0.\n", i);
 		ret_val = 8;
 		goto err_print_hex;
 	  }
@@ -8767,13 +8903,13 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
 		L[i+4] +=(unsigned long) part_start1;
 	  if (L[i+4] < Y)
 	  {
-		printf_errinfo ("Error: partition %d ended too near.\n", i);
+		printf_debug ("Error: partition %d ended too near.\n", i);
 		ret_val = 9;
 		goto err_print_hex;
 	  }
 	  if (L[i+4] > 0x100000000ULL)
 	  {
-		printf_errinfo ("Error: partition %d ended too far.\n", i);
+		printf_debug ("Error: partition %d ended too far.\n", i);
 		ret_val = 10;
 		goto err_print_hex;
 	  }
@@ -8799,7 +8935,7 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
   if (non_empty_entries == 0)
   {
 
-	printf_errinfo ("Error: partition table is empty.\n");
+	printf_debug ("Error: partition table is empty.\n");
 	ret_val = 11;
 	goto err_print_hex;
   }
@@ -12591,6 +12727,10 @@ print_root_device (char *buffer,int flag)
 			{
 				grub_printf("(rd");
 			}
+			else if (tmp_drive >= 0x9f)
+			{
+				grub_printf("(0x%x", tmp_drive);
+			}
 			else if (tmp_drive & 0x80)
 			{
 				/* Hard disk drive.  */
@@ -12616,19 +12756,14 @@ print_root_device (char *buffer,int flag)
 	return;
 }
 
-void print_vol (void);
+void print_vol (unsigned long drive);
 void
-print_vol (void)
+print_vol (unsigned long drive)
 {
-	char uuid_found[32] = {0};
-	if (current_drive < 0x9f)
-	{
+	char uuid_found[256] = {0};
 		get_vol (uuid_found,0);
 		if (*uuid_found)
-			grub_printf (" Volume Name(BPB) is \"%s\".", uuid_found);
-		if (*vol_name)
-			grub_printf (" Volume Name is \"%s\".", vol_name);
-	}
+			grub_printf (" Volume Name is \"%s\".", uuid_found);
 }
 
 static int
@@ -12866,7 +13001,7 @@ real_root_func (char *arg, int attempt_mnt)
   if (debug > 0 && *saved_dir)
 	grub_printf (" The current working directory (relative path) is %s\n", saved_dir);
 	else if (debug && (! *saved_dir))
-		print_vol ();
+		print_vol (current_drive);
   /* Clear ERRNUM.  */
   errnum = 0;
   /* If ARG is empty, then return TRUE for harddrive, and FALSE for floppy */

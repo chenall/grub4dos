@@ -269,7 +269,6 @@ get_diskinfo (unsigned long drive, struct geometry *geometry, unsigned long lba1
   if (drive == 0xffff)	/* memory disk */
     {
       unsigned long long total_mem_sectors;
-
       total_mem_sectors = 0;
 
       if (mbi.flags & MB_INFO_MEM_MAP)

@@ -40,8 +40,6 @@ static int next_pc_slice (void);
 static int next_gpt_slice(void);
 static char open_filename[512];
 static unsigned long relative_path;
-extern unsigned int iso_type;
-extern unsigned int fats_type;
 
 int print_possibilities;
 
@@ -273,7 +271,7 @@ rawdisk_read (unsigned long drive, unsigned long long sector, unsigned long nsec
     // Compare with previous read data
     if (plast[0] != BADDATA1) 
     {   // Read data changed, error.
-	printf_errinfo("\nFatal! Inconsistent data read from (0x%X)%ld+%d\n",drive,sector,nsec);
+	printf_warning("\nFatal! Inconsistent data read from (0x%X)%ld+%d\n",drive,sector,nsec);
 	return -1; // error
     }
     return 0; // success
@@ -658,7 +656,7 @@ set_bootdev (int hdbias)
 /*
  *  This prints the filesystem type or gives relevant information.
  */
-
+unsigned int iso_type;
 void
 print_fsys_type (void)
 {
@@ -1174,7 +1172,7 @@ int
 real_open_partition (int flags)
 {
   dest_partition = current_partition;
-  grub_memset(vol_name, 0, 32);
+  grub_memset(vol_name, 0, 256);
   cur_part_offset = 0;
   /* network drive */
   if ((current_drive == NETWORK_DRIVE) || (current_drive==PXE_DRIVE))

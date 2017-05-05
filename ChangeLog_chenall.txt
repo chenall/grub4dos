@@ -1,4 +1,15 @@
 ﻿更新说明：
+2017-05-05(yaya)
+  改进卷标及UUID读写功能。(issue #138)
+  vol [--write] [DEVICE] [VOLUME]
+	uuid [--write] [DEVICE] [UUID]
+  例：vol  显示所有设备的卷标。包括软盘、硬盘、光盘及映像文件。
+      vol DEVICE  显示指定设备的卷标。
+      vol VOLUME  搜索指定卷标的设备，设置为根设备。
+      vol DEVICE VOLUME  验证指定设备的卷标，相同返回真。
+      vol --write DEVICE VOLUME  向指定设备写(修改或创建)卷标。
+        注意：只能在FAT、NTFS文件系统修改卷标。只能写单字符卷标(如英文)。
+
 2017-04-21(yaya)
   修正内置usb驱动参数。
   usb [--delay=0xMN] --init

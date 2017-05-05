@@ -970,7 +970,7 @@ extern unsigned long current_partition;
 
 extern int fsys_type;
 extern unsigned int fats_type;
-extern char vol_name[32];
+extern char vol_name[256];
 
 //extern inline unsigned long log2_tmp (unsigned long word);
 extern unsigned long unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned long n);
@@ -1031,6 +1031,7 @@ extern unsigned long emu_iso_sector_size_2048;
 #define ISO_TYPE_udf 1
 #define ISO_TYPE_Joliet 2
 #define ISO_TYPE_RockRidge 3
+extern unsigned int iso_type;
 extern char iso_types;
 /*
  *  Common BIOS/boot data.
@@ -1375,6 +1376,7 @@ char *grub_strstr (const char *s1, const char *s2);
 char *grub_strtok (char *s, const char *delim);
 int grub_memcmp (const char *s1, const char *s2, int n);
 int grub_crc32(char *data,grub_u32_t size);
+unsigned short grub_crc16(unsigned char *data, int size);
 int grub_strcmp (const char *s1, const char *s2);
 int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitive);
 #define strncmp(s1,s2,n) strncmpx(s1,s2,n,0)
