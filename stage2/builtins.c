@@ -6974,6 +6974,12 @@ get_vol (char* vol_found, int flags)
 				{
 					big_to_little ((char *)uni, 0x20);
 					unicode_to_utf8 ((unsigned short *)uni, (unsigned char *)vol_found, 0x10);
+					for (i=0; i<0x20; i++)
+					{
+						if (vol_found[i] == ' ' && (vol_found[i] == vol_found[i+1] || i == 0x19))
+							break;
+					}
+					vol_found[i] = 0;
 				}
 				break;
 			case ISO_TYPE_udf:
