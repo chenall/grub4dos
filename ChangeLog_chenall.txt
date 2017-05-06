@@ -1,4 +1,9 @@
 ﻿更新说明：
+2017-05-06(yaya)
+  修正批处理文件不能加载 kernel、initrd。
+  修正 mem64 不能正常工作。开放 mem64 函数。
+  修正卷标显示。
+
 2017-05-05(yaya)
   改进卷标及UUID读写功能。(issue #138)
   vol [--write] [DEVICE] [VOLUME]

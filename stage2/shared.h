@@ -48,6 +48,7 @@
  */
 
 #define SYSTEM_RESERVED_MEMORY	0x2000000
+#define LINUX_TMP_MEMORY	0x2800000
 
 /* unifont start at 24M */
 #define UNIFONT_START		0x1800000
