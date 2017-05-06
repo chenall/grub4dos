@@ -2451,7 +2451,7 @@ grub_memset64 (unsigned long long start, unsigned long long c, unsigned long lon
 #define SRC_VIRTUAL_PTR(addr) ((void*)SRC_VIRTUAL_ADDR(addr))
 
 // Set to 0 to test mem64 function
-#define DISABLE_AMD64 1
+#define DISABLE_AMD64 0
 
 extern void memory_paging_init(void);
 extern void memory_paging_enable(void);
@@ -2521,7 +2521,7 @@ void memory_paging_enable()
       asm volatile (
 	"movl %%cr0, %0; movl %%cr4, %1; \n\t"
 	"orl  $0x80000001,%0; \n\t" // CR0.PE(bit0)|PG(bit31)
-	"orl  $0x00000030,%1; \n\t" // CR4.PAE(bit4)|PSE(bit5)
+	"orl  $0x00000030,%1; \n\t" // CR4.PAE(bit5)|PSE(bit4)
 	"movl %1, %%cr4; \n\t"  // set PAE|PSE
 	"movl %2, %%cr3; \n\t"  // point to PDPT
 	"movl %0, %%cr0; \n\t"  // set PE|PG

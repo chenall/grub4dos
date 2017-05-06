@@ -10972,7 +10972,7 @@ ENTRY(mem64)
 	movl	%eax, %cr3			# load new PML4 base
 
 	movl	%cr4, %eax
-	orb	$0x20, %al			# 0x80=PGE, 0x20=PAE, 0x10=PSE
+	orb	$0x30, %al			# 0x80=PGE, 0x20=PAE, 0x10=PSE
 	movl	%eax, %cr4			# load new cr4
 
 	/* rdmsr will change EDX:EAX */
@@ -10995,7 +10995,7 @@ ENTRY(mem64)
 	/* 12(%ebp) = dest */
 	/*  8(%ebp) = func */
 
-	movl	%esp, %ebp		# clear upper 32-bit of %rbp
+	movl	%ebp, %ebp		# clear upper 32-bit of %rbp
 	movl	8(%rbp), %eax
 	testl	%eax, %eax
 	jz	1f
@@ -16805,7 +16805,7 @@ default_iret:
 #define memcmp ((int (*)(const char *, const char *, int))((*(int **)0x8300)[22]))
 #define memmove ((void *(*)(void *, const void *, int))((*(int **)0x8300)[23]))
 #define memset ((void *(*)(void *, int, int))((*(int **)0x8300)[24]))
-#define mem64 ((int (*)(int, unsigned long long, unsigned long long, unsigned long long))((*(int **)0x8300)[25]))
+#define mem64 ((int (*)(int, unsigned long long, unsigned long long, unsigned long long))((*(int **)0x8300)[74]))
 #define open ((int (*)(char *))((*(int **)0x8300)[26]))
 #define read ((unsigned long (*)(unsigned long long, unsigned long long, unsigned long))((*(int **)0x8300)[27]))
 #define close ((void (*)(void))((*(int **)0x8300)[28]))
