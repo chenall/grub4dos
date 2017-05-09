@@ -6952,15 +6952,6 @@ get_vol (char* vol_found, int flags)
 			case ISO_TYPE_RockRidge:
 				emu_iso_sector_size_2048 = 1;
 				devread(0x10, 0x28, 0x20, (unsigned long long)(unsigned int)(char *)vol_found, n);
-				if (!flags)
-				{
-					for (i=0; i<0x20; i++)
-					{
-						if (vol_found[i] == ' ' && (vol_found[i] == vol_found[i+1] || i == 0x19))
-							break;
-					}
-					vol_found[i] = 0;
-				}
 				break;
 			case ISO_TYPE_Joliet:
 				if (flags)
@@ -6974,12 +6965,6 @@ get_vol (char* vol_found, int flags)
 				{
 					big_to_little ((char *)uni, 0x20);
 					unicode_to_utf8 ((unsigned short *)uni, (unsigned char *)vol_found, 0x10);
-					for (i=0; i<0x20; i++)
-					{
-						if (vol_found[i] == ' ' && (vol_found[i] == vol_found[i+1] || i == 0x19))
-							break;
-					}
-					vol_found[i] = 0;
 				}
 				break;
 			case ISO_TYPE_udf:
@@ -6989,28 +6974,26 @@ get_vol (char* vol_found, int flags)
 				{
 					if (*(BUFFER + 0x70) == 16)
 					{
-						big_to_little ((char *)(BUFFER + 0x71), 0x80);
-						unicode_to_utf8 ((unsigned short *)(BUFFER + 0x71), (unsigned char *)vol_found, 0x40);
+						big_to_little ((char *)(BUFFER + 0x71), 30);
+						unicode_to_utf8 ((unsigned short *)(BUFFER + 0x71), (unsigned char *)vol_found, 15);
 					}
 					else
 					{
 						unsigned char *pa = (unsigned char *)(BUFFER + 0x71);
-						while ((*vol_found++ = *pa++));
+						i = 0;
+						while ((*vol_found++ = *pa++) && i++ < 30);
 						*vol_found = 0;	
 					}
 				}
 				else
 				{
-					j = grub_strlen(vol_found);
-					for (i = 0; i < j; i++)
-					{
-						if (*(BUFFER + 0x70) == 16)
-							pb[i] = vol_found[i];
-						else
-							uni[i] = vol_found[i];
-					}
-					grub_memmove ((unsigned char *)(BUFFER + 0x71),uni,((*(unsigned char *)BUFFER == 16)?(j*2):j));
-					grub_memmove ((unsigned char *)(BUFFER + 0x131),uni,((*(unsigned char *)BUFFER == 16)?(j*2):j));
+					i = 0;
+					if (*(BUFFER + 0x70) == 16)
+						while (pb[i] = vol_found[i], i++ <15);
+					else
+						while (uni[i] = vol_found[i], i++ < 30);
+					grub_memmove ((unsigned char *)(BUFFER + 0x71),uni,30);
+					grub_memmove ((unsigned char *)(BUFFER + 0x131),uni,30);
 					*(unsigned short *)(BUFFER + 8) = grub_crc16 ((unsigned char *)(BUFFER+0x10), *(unsigned short *)(BUFFER+0xa));
 					unsigned char h = 0;
 					for (i=0; i<16; i++)
@@ -7025,6 +7008,15 @@ get_vol (char* vol_found, int flags)
 					devread(*(unsigned long *)FSYS_BUF, 0, 0x800, (unsigned long long)(unsigned int)(char *)BUFFER, 0x900ddeed);
 				}
 				break;
+		}
+		if (!flags && iso_type != ISO_TYPE_udf)
+		{
+			for (i=0; i<0x20; i++)
+			{
+				if (vol_found[i] == ' ' && (vol_found[i] == vol_found[i+1] || i == 0x19))
+					break;
+			}
+			vol_found[i] = 0;
 		}
 #undef BUFFER
 	}
@@ -7076,8 +7068,8 @@ get_vol (char* vol_found, int flags)
 					*(unsigned short *)pb = k;
 					i--;
 				}
-				devread(*(unsigned long long *)BUFFER+6, 0, 0x400, (unsigned long long)(unsigned int)BUFFER, 0x900ddeed);
-				devread(*(unsigned long long *)(BUFFER+8)+6, 0, 0x400, (unsigned long long)(unsigned int)BUFFER, 0x900ddeed);
+				devread(*(unsigned long long *)(FSYS_BUF+0x7e00)+6, 0, 0x400, (unsigned long long)(unsigned int)BUFFER, 0x900ddeed);
+				devread(*(unsigned long long *)(FSYS_BUF+0x7e00+8)+6, 0, 0x400, (unsigned long long)(unsigned int)BUFFER, 0x900ddeed);
 			}
 		}
 #undef BUFFER
@@ -10487,6 +10479,8 @@ map_whole_drive:
 				sectors_per_track = (hooked_drive_map[j].max_sector) & 0x3F;
 			}
 			start_sector += hooked_drive_map[j].start_sector;
+			for (k = 0; (k < DRIVE_MAP_FRAGMENT) && (map_start_sector[k] != 0); k++)
+				map_start_sector[k] += hooked_drive_map[j].start_sector;
 		    }
 
 			/* If TO == FROM and whole drive is mapped, and, no map options occur, then delete the entry.  */

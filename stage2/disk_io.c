@@ -248,7 +248,6 @@ static int
 rawdisk_read (unsigned long drive, unsigned long long sector, unsigned long nsec, unsigned long segment)
 {
     const unsigned long BADDATA1 = FOUR_CHAR('B','A','D','?');
-    const unsigned long BADDATA2 = FOUR_CHAR('b','a','d','.');
     unsigned long *plast; /* point to buffer of last sector to be read */
     int r;
     /* Write "BAD?" data to last sector buffer */
@@ -261,20 +260,9 @@ rawdisk_read (unsigned long drive, unsigned long long sector, unsigned long nsec
     /* Check for bad data in last read sector */
     if (plast[0]!=BADDATA1 || plast[1]!=BADDATA1 || plast[2]!=BADDATA1 || plast[3]!=BADDATA1)
 	return 0; // not "BAD?", success
-    // "BAD?", Suspicious
-    // Write different data to buffer.
-    plast[0] = BADDATA2;
-    // Read last sector again
-    r = biosdisk(BIOSDISK_READ, drive, &buf_geom, sector+(nsec-1), 1, ((unsigned long)plast>>4));
-    if (r) // error
-	return r;
-    // Compare with previous read data
-    if (plast[0] != BADDATA1) 
-    {   // Read data changed, error.
+
 	printf_warning("\nFatal! Inconsistent data read from (0x%X)%ld+%d\n",drive,sector,nsec);
 	return -1; // error
-    }
-    return 0; // success
 }
 
 /* Read bytes from DRIVE to BUF. The bytes start at BYTE_OFFSET in absolute
