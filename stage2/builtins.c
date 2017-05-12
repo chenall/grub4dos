@@ -7034,9 +7034,9 @@ get_vol (char* vol_found, int flags)
 				break;
 			pa += pa[4];
 		}
-		if (*pa != 0xFF && pa[8]==0)
+		if (pa[8]==0)
 		{
-			if (!flags)
+			if (!flags && *pa == 0x60)
 			{
 				j = pa[0x10]&255;
 				pa += pa[0x14];
@@ -7046,14 +7046,34 @@ get_vol (char* vol_found, int flags)
 				uni[i+1] = 0;
 				unicode_to_utf8 ((unsigned short *)uni, (unsigned char *)vol_found, 255);
 			}
-			else
+			else if (flags)
 			{
-				if ((j=grub_strlen(vol_found)) > (pa[4]-pa[0x14])/2)
-					j = (pa[4]-pa[0x14])/2;
-				pa[0x10] = j<<1;
+				i = (((j = ((grub_strlen(vol_found))*2)&255) + 7)&0xfff8) + 0x18;
+				if (*pa == 0xff)
+					pa[4] = 0;
+				if (*pa == 0xff || (i > pa[4] && *pa == 0x60))
+				{
+					if (i - pa[4] + *(unsigned long *)(BUFFER + 0x18) > *(unsigned long *)(BUFFER + 0x1c))
+						return;			
+					if (*pa == 0xFF)
+					{
+						grub_memset(pa, 0, i);
+						pa[0] = 0x60;
+						pa[0xa] = pa[0x14] = 0x18;
+						pa[0xe] = 4;
+						*(unsigned long *)&pa[i] = 0xffffffff;
+					}
+					else if (j > pa[4] - 0x18)
+						grub_memmove (pa + i,pa + pa[4],(BUFFER + *(unsigned long *)(BUFFER + 0x18)) - (pa + pa[4]));
+
+					*(unsigned long *)(BUFFER + 0x18) += i - pa[4];
+					pa[4] = i;
+				}
+
+				pa[0x10] = j;
 				pa += pa[0x14];
 				unsigned short *pc = (unsigned short *)pa;
-				for (i=0; i<j; i++)
+				for (i=0; i<j/2; i++)
 					*pc++ = *vol_found++;
 			
 				i = 2;
@@ -7084,7 +7104,7 @@ get_vol (char* vol_found, int flags)
 		i = dir ("/$v\0");
 		saved_drive = back_drive;
 		saved_partition = back_partition;
-		if (!i)
+		if (!i && ((*(unsigned long *)(SUPERBLOCK+0x14)) ? ((filepos-32) >= *(unsigned long *)(SUPERBLOCK+0x14)) : (((filepos-32)&((1<<*(unsigned long *)(SUPERBLOCK+0x34))-1)) == 0)))
 			return;
 		
 		if (flags)
@@ -7096,10 +7116,11 @@ get_vol (char* vol_found, int flags)
 		{
 			for (i = grub_strlen(vol_found); flags && i<11; i++)
 				vol_found[i] = 0x20;
-			devread (*(unsigned long long *)(SUPERBLOCK+0x58)+(filepos>>9), filepos&0x1ff, 11, (unsigned long long)(unsigned long)vol_found, n);
+			vol_found[11] = 8;
+			devread (*(unsigned long long *)(SUPERBLOCK+0x58)+(filepos>>9), filepos&0x1ff, 12, (unsigned long long)(unsigned long)vol_found, n);
 			if (flags)
 				return;
-		
+			vol_found[11] = 0;
 			for (i=0; i<11; i++)
 			{
 				if (vol_found[i] == ' ' && (vol_found[i] == vol_found[i+1] || i == 10))

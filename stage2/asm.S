@@ -4809,6 +4809,7 @@ int13_simple:
 	jmp	2f
 3:
 	movb	%cs:(int13_retry_ah - int13_handler), %ah
+	xorb %al, %al				//Correction write  mapping device fail in real machine     2017.05.10 yaya   
 	int	$0x13
 2:
 	movw	%cs:(int13_retry_ds - int13_handler), %ds
