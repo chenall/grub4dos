@@ -72,6 +72,50 @@ console_setcolorstate (color_state state)
 	console_color_state = state;
 }
 
+unsigned char color_64_to_8 (unsigned long long color64);
+unsigned char color_32_to_4 (unsigned long color32);
+unsigned char
+color_32_to_4 (unsigned long color32)
+{
+  unsigned char r, g, b, col32, col4=0;
+	r = color32 >> 16;
+	g = (color32 >> 8) & 0xff;
+	b = color32 & 0xff;
+	
+	if (r >= g)
+	{
+		if (r >= b)
+			col32 = r;
+		else
+			col32 = b;
+	}
+	else
+	{
+		if (g >= b)
+			col32 = g;
+		else
+			col32 = b;
+	}
+	
+	if (col32 >= 0xaa)
+		col4 |= 8;
+	if (r && r >= col32/2)
+		col4 |= 4;
+	if (g && g >= col32/2)
+		col4 |= 2;
+	if (b && b >= col32/2)
+		col4 |= 1;
+
+	return col4;
+}
+
+unsigned char
+color_64_to_8 (unsigned long long color64)
+{
+    return (color_32_to_4 (color64 >> 32) << 4) | color_32_to_4 (color64 & 0xffffff);
+}
+
+
 unsigned long long
 color_4_to_32 (unsigned char color4)
 {
@@ -112,7 +156,10 @@ console_setcolor(unsigned long state,unsigned long long color[])
 		if (!(state & (1<<i)))
 			continue;
 		if (color[i] > 0xff)
+		{
+			console_color[i] = color_64_to_8(color[i]);
 			console_color_64bit[i] = color[i];
+		}
 		else
 		{
 			console_color[i] = color[i];

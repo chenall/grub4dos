@@ -645,7 +645,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
         printf (", loadaddr=0x%x, text%s=0x%x", cur_addr, str, text_len);
 
       /* we have to increase cur_addr for now... */
-      cur_addr += LINUX_TMP_MEMORY;	/* cur_addr is above LINUX_TMP_MEMORY. */
+      cur_addr += SYSTEM_RESERVED_MEMORY;	/* cur_addr is above SYSTEM_RESERVED_MEMORY. */
 
       /* read text, then read data */
       if (grub_read ((unsigned long long) RAW_ADDR (cur_addr), text_len, 0xedde0d90) != text_len)
@@ -686,7 +686,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	  if (align_4k)
 	    cur_addr = (cur_addr + 0xFFF) & 0xFFFFF000;
 
-	  mbi.syms.a.addr = cur_addr - LINUX_TMP_MEMORY;
+	  mbi.syms.a.addr = cur_addr - SYSTEM_RESERVED_MEMORY;
 
 	  *((int *) RAW_ADDR (cur_addr)) = pu.aout->a_syms;
 	  cur_addr += sizeof (int);
@@ -786,7 +786,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	      if (! memcheck (memaddr, memsiz))
 		goto failure_newline;
 
-	      memaddr += LINUX_TMP_MEMORY;
+	      memaddr += SYSTEM_RESERVED_MEMORY;
 
 	      /* mark memory as used */
 	      if (cur_addr < memaddr + memsiz)
@@ -819,7 +819,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
       filepos = pu.elf->e_shoff;
       if (grub_read ((unsigned long long) RAW_ADDR (cur_addr), tab_size, 0xedde0d90) == tab_size)
 	{
-	  mbi.syms.e.addr = cur_addr - LINUX_TMP_MEMORY;
+	  mbi.syms.e.addr = cur_addr - SYSTEM_RESERVED_MEMORY;
 	  shdr = (Elf32_Shdr *) mbi.syms.e.addr;
 	  cur_addr += tab_size;
 
@@ -852,7 +852,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 		  break;
 		}
 
-	      shdr[i].sh_addr = cur_addr - LINUX_TMP_MEMORY;
+	      shdr[i].sh_addr = cur_addr - SYSTEM_RESERVED_MEMORY;
 	      cur_addr += sec_size;
 	    }
 	}
@@ -939,9 +939,9 @@ load_module (char *module, char *arg)
   mbi.mods_addr = 0x20000; /* yes, multi_boot() will move mll here. */
 
   mll[mbi.mods_count].cmdline = (int) arg;
-  mll[mbi.mods_count].mod_start = cur_addr - LINUX_TMP_MEMORY;
+  mll[mbi.mods_count].mod_start = cur_addr - SYSTEM_RESERVED_MEMORY;
   cur_addr += len;
-  mll[mbi.mods_count].mod_end = cur_addr - LINUX_TMP_MEMORY;
+  mll[mbi.mods_count].mod_end = cur_addr - SYSTEM_RESERVED_MEMORY;
   mll[mbi.mods_count].pad = 0;
 
   /* increment number of modules included */

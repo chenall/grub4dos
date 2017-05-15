@@ -6577,39 +6577,41 @@ static struct builtin builtin_font =
 static void get_uuid (char* uuid_found, int tag);
 static void get_vol (char* vol_found, int tag);
 static int
-uuid_func (char *arg, int flags)
+uuid_func (char *argument, int flags)
 {
   unsigned long drive;
   unsigned long tmp_drive = saved_drive;
   unsigned long tmp_partition = saved_partition;
   char root_found[16] = "";
   char uuid_found[256];
+  char tem[256];
 	char uuid_tag[5] = {'U','U','I','D',0};
 	char vol_tag[12] = {'V','o','l','u','m','e',' ','N','a','m','e',0};
 	char *p;
-	int write = 0;
+	char *arg = tem;
+	int write = 0, i = 0, j = 0;
 
-	if (grub_memcmp (arg, "--write", 7) == 0)
+	if (grub_memcmp (argument, "--write", 7) == 0)
 	{
 		write = 1;
-		arg += 7;
-		arg = skip_to (0, arg);	
+		argument += 7;
+		argument = skip_to (0, argument);	
 	}
 	if (flags)
 		p = uuid_tag;
 	else
 		p = vol_tag;
-	if (!flags)
+
+	while (argument[i])
 	{
-		int i=0, j=0;
-		while (arg[i])
+		if (argument[i] == '"' || argument[i] == '\\' )
 		{
-			if (arg[i] == '"' || arg[i] == '\\' )
-				i++;
-			arg[j++] = arg[i++];
+			i++;
+			continue;
 		}
-			arg[j] = 0;
+		arg[j++] = argument[i++];
 	}
+	arg[j] = 0;
 	
 	if (*arg == '(')
 	{
@@ -6681,7 +6683,7 @@ uuid_func (char *arg, int flags)
 		if (write)
 			return ! (errnum = ERR_BAD_ARGUMENT);
 		errnum = ERR_NONE;
-		return ! substring ((char*)uuid_found, arg,0);
+		return ! substring ((char*)uuid_found, arg,1);
 	}
 	if (write)
 		return ! (errnum = ERR_BAD_ARGUMENT);

@@ -14455,7 +14455,7 @@ VARIABLE(linux_data_real_addr)
 	.long	0
 
 VARIABLE(linux_bzimage_tmp_addr)
-	.long	LINUX_TMP_MEMORY
+	.long	SYSTEM_RESERVED_MEMORY
 
 ENTRY(linux_boot)
 
@@ -14473,7 +14473,7 @@ ENTRY(linux_boot)
 	movl	EXT_C(linux_text_len), %ecx
 	addl	$3, %ecx
 	shrl	$2, %ecx
-	movl	EXT_C(linux_bzimage_tmp_addr), %esi	# LINUX_TMP_MEMORY
+	movl	EXT_C(linux_bzimage_tmp_addr), %esi	# SYSTEM_RESERVED_MEMORY
 	movl	$LINUX_ZIMAGE_ADDR, %edi		# 0x10000
 
 	rep movsl
@@ -14494,7 +14494,7 @@ ENTRY(big_linux_boot)
 	movl	EXT_C(linux_text_len), %ecx
 	addl	$3, %ecx
 	shrl	$2, %ecx
-	movl	EXT_C(linux_bzimage_tmp_addr), %esi	# LINUX_TMP_MEMORY
+	movl	EXT_C(linux_bzimage_tmp_addr), %esi	# SYSTEM_RESERVED_MEMORY
 	movl	$LINUX_BZIMAGE_ADDR, %edi		# 0x100000
 
 	rep movsl
