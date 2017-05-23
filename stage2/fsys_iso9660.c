@@ -62,7 +62,7 @@ struct iso_inode_info {
 #define DIRREC					((struct iso_directory_record *)(FSYS_BUF + 10240))
 #define UDF_DIRREC   		((struct udf_descriptor *)(FSYS_BUF + 10240))	
 
-extern unsigned int iso_type;		//0/1/2/3=ISO_TYPE_9660/ISO_TYPE_udf/ISO_TYPE_Joliet/ISO_TYPE_RockRidge
+unsigned int iso_type;		//0/1/2/3=ISO_TYPE_9660/ISO_TYPE_udf/ISO_TYPE_Joliet/ISO_TYPE_RockRidge
 unsigned long udf_partition_start;
 
 #if 0

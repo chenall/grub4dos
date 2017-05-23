@@ -644,7 +644,6 @@ set_bootdev (int hdbias)
 /*
  *  This prints the filesystem type or gives relevant information.
  */
-unsigned int iso_type;
 void
 print_fsys_type (void)
 {

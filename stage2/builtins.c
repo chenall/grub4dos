@@ -3281,9 +3281,9 @@ color_func (char *arg, int flags)
   if (! *arg)
   {
 	if (new_normal_color >> 8)
-		new_color[COLOR_STATE_HIGHLIGHT] = ((new_normal_color >> 32) | (new_normal_color << 32));
+		new_color[COLOR_STATE_HIGHLIGHT] = 0xffffff;
 	else
-		new_color[COLOR_STATE_HIGHLIGHT] = (((new_normal_color >> 4) & 0xf) | ((new_normal_color & 0xf) << 4));
+		new_color[COLOR_STATE_HIGHLIGHT] = 0xf;
   }
   else
 	{
@@ -3327,7 +3327,7 @@ static struct builtin builtin_color =
   "Change the menu colors. The color NORMAL is used for most"
   " lines in the menu, and the color HIGHLIGHT is used to highlight the"
   " line where the cursor points. If you omit HIGHLIGHT, then the"
-  " inverted color of NORMAL is used for the highlighted line. If you"
+  " 0xf(4 bit) or 0xffffff(32 bit) is used for the highlighted line. If you"
   " omit HELPTEXT and/or HEADING, then NORMAL is used."
   " The format of a color is \"FG/BG\". FG and BG are symbolic color names."
   " A symbolic color name must be one of these: black, blue, green,"
@@ -6635,7 +6635,8 @@ uuid_func (char *argument, int flags)
 			if (debug > 0)
 			{
 				print_root_device (NULL,1);
-				grub_printf (": %s is \"%s\".", p, ((*uuid_found) ? uuid_found : "(unsupported)"));
+				grub_printf (": %s is \"%s\".\n\t", p, ((*uuid_found) ? uuid_found : "(unsupported)"));
+				print_fsys_type();
 			}
 			saved_drive = tmp_drive;
 			saved_partition = tmp_partition;
@@ -6754,7 +6755,7 @@ qqqqqq:
                         {
 						grub_printf ("(%s%x%c%c%c%c):", ((drive<10)?"fd":(drive>=0x9f)?"0x":"hd"),((drive<10 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
 						if (*uuid_found || debug)
-							grub_printf(" %s is \"%s\".\n", p, ((*uuid_found) ? uuid_found : "(unsupported)"));
+							grub_printf("%s%s is \"%s\".\n\t", ((drive<10)?"   ":(drive>=0x9f)?"  ":" "), p, ((*uuid_found) ? uuid_found : "(unsupported)"));
 						print_fsys_type();
 		          }
                       else if (substring((char*)uuid_found,arg,1) == 0)
@@ -6929,7 +6930,6 @@ static struct builtin builtin_vol =
   " DEVICE (if VOLUME is not specified)."
 };
 
-unsigned int iso_type;
 int read_mft(char* buf,unsigned long mftno);
 static void
 get_vol (char* vol_found, int flags)

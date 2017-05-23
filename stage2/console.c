@@ -97,13 +97,13 @@ color_32_to_4 (unsigned long color32)
 			col32 = b;
 	}
 	
-	if (col32 >= 0xaa)
+	if (col32 > 0xaa)
 		col4 |= 8;
-	if (r && r >= col32/2)
+	if (r > col32/2)
 		col4 |= 4;
-	if (g && g >= col32/2)
+	if (g > col32/2)
 		col4 |= 2;
-	if (b && b >= col32/2)
+	if (b > col32/2)
 		col4 |= 1;
 
 	return col4;
