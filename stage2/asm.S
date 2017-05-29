@@ -10880,6 +10880,63 @@ realcseg:
 	/* return on new stack! */
 	DATA32	ret		/* 32-bit RET!! */
 
+	
+	/*********** begin initialising page maps ***********/
+	/* PML4 base, with only one entry(=512G) */
+	
+mem64_paging_initialized:
+	.byte	0
+	
+mem64_paging_init:	
+	.code32
+
+	movl	ABS(EXT_C(page_map_start)), %ebx
+	movl	%ebx, %edi
+	movl	%ebx, %eax
+	addl	$0x1007, %eax
+	stosl					# first PML4 table entry, lo
+	xorl	%eax, %eax
+	stosl					# first PML4 table entry, hi
+
+	/* PDP table, with 512 entries(=512G) */
+	/* entry 0x000 starts at EBX+0x002000 */
+	/* entry 0x001 starts at EBX+0x003000 */
+	/* .................................. */
+	/* entry 0x1FF starts at EBX+0x201000 */
+
+	movl	%ebx, %edi
+	addl	$0x1000, %edi		# PDP table starting at EBX+0x1000
+	movl	$512, %ecx
+1:
+	movl	$(512+2), %eax
+	subl	%ecx, %eax		# EAX=(entry number + 2)
+	shll	$12, %eax
+	addl	%ebx, %eax
+	orb	$0x07, %al
+	stosl					# PDP table entry, lo
+	xorl	%eax, %eax
+	stosl					# PDP table entry, hi
+	loop	1b
+
+	/* PD table, identity mapping, 2M page size, 512*512entries=512G */
+	movl	%ebx, %edi
+	addl	$0x2000, %edi		# PD table starting at EBX+0x2000
+	movl	$(512*512), %ecx
+1:
+	xorl	%edx, %edx
+	movl	$(512*512), %eax
+	subl	%ecx, %eax
+	shldl	$21, %eax, %edx
+	shll	$21, %eax
+	orb	$0x87, %al
+	stosl					# PD table entry, lo
+	movl	%edx, %eax
+	stosl					# PD table entry, hi
+	loop	1b
+	orb $1, ABS(mem64_paging_initialized)
+	ret
+	/***********  end  initialising page maps ***********/
+
 
 /*
  *   int mem64 (int func, __u64 dest, __u64 src, __u64 len)
@@ -10911,6 +10968,8 @@ ENTRY(mem64)
 	pushl	%esi
 	pushl	%edi
 	pushl	%ebx
+	pushfl
+	cli
 
 	/* backup cr3, cr4 */
 	movl	%cr3, %eax
@@ -10918,6 +10977,11 @@ ENTRY(mem64)
 	movl	%cr4, %eax
 	movl	%eax, ABS(old_cr4)		# save cr4
 
+	cmpb $1, ABS(mem64_paging_initialized)
+	je 1f
+	call mem64_paging_init
+1:
+#if 0
 	/* XXX: page maps can initialise only once for efficiency. */
 
 	/*********** begin initialising page maps ***********/
@@ -10968,7 +11032,7 @@ ENTRY(mem64)
 	loop	1b
 
 	/***********  end  initialising page maps ***********/
-
+#endif
 	movl	ABS(EXT_C(page_map_start)), %eax
 	movl	%eax, %cr3			# load new PML4 base
 
@@ -11117,10 +11181,8 @@ ENTRY(mem64)
 	/* ESP not touched, so it need not restore. */
 	//movl	%ebp, %esp
 
-	/* XXX: Is this actually needed? */
-	ljmp	$40, $ABS(1f)		# ljmp to enter 32-bit protected mode
-1:
 	xchgl	%eax, %ebx		# EAX=return value
+	popfl
 	popl	%ebx
 	popl	%edi
 	popl	%esi

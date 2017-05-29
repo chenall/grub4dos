@@ -7103,7 +7103,7 @@ get_vol (char* vol_found, int flags)
 		unsigned long back_partition = saved_partition;
 		saved_drive = current_drive;
 		saved_partition = current_partition;
-		i = dir ("/$v\0");
+		i = dir ("()/$v\0");
 		saved_drive = back_drive;
 		saved_partition = back_partition;
 		if (!i && ((*(unsigned long *)(SUPERBLOCK+0x14)) ? ((filepos-32) >= *(unsigned long *)(SUPERBLOCK+0x14)) : (((filepos-32)&((1<<*(unsigned long *)(SUPERBLOCK+0x34))-1)) == 0)))
@@ -13023,7 +13023,7 @@ real_root_func (char *arg, int attempt_mnt)
 
   if (debug > 0 && *saved_dir)
 	grub_printf (" The current working directory (relative path) is %s\n", saved_dir);
-	else if (debug && (! *saved_dir))
+	else if (debug && (! *saved_dir) && attempt_mnt)
 		print_vol (current_drive);
   /* Clear ERRNUM.  */
   errnum = 0;
