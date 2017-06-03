@@ -6589,13 +6589,19 @@ uuid_func (char *argument, int flags)
 	char vol_tag[12] = {'V','o','l','u','m','e',' ','N','a','m','e',0};
 	char *p;
 	char *arg = tem;
-	int write = 0, i = 0, j = 0;
+	int write = 0, naked = 0, i = 0, j = 0;
 
 	if (grub_memcmp (argument, "--write", 7) == 0)
 	{
 		write = 1;
 		argument += 7;
 		argument = skip_to (0, argument);	
+	}
+	if(grub_memcmp(argument, "--naked", 7) == 0)
+	{
+		naked = 1;
+		argument += 7;
+		argument = skip_to (0, argument);
 	}
 	if (flags)
 		p = uuid_tag;
@@ -6631,8 +6637,13 @@ uuid_func (char *argument, int flags)
 		arg = skip_to (0, arg);
 		if (! *arg && !write)
 		{
-			/* Print the type of the filesystem.  */
-			if (debug > 0)
+			if(naked && flags)
+			{
+				grub_printf("%s", ((*uuid_found) ? uuid_found : "\0"));
+				return (*uuid_found);
+			}
+			/* Print the type of the filesystem to console.  */
+			else if (debug > 0)
 			{
 				print_root_device (NULL,1);
 				grub_printf (": %s is \"%s\".\n\t", p, ((*uuid_found) ? uuid_found : "(unsupported)"));
@@ -6688,6 +6699,11 @@ uuid_func (char *argument, int flags)
 	}
 	if (write)
 		return ! (errnum = ERR_BAD_ARGUMENT);
+	if (naked)
+	{
+		errnum = ERR_BAD_ARGUMENT;
+		return 0;
+	}
   errnum = 0;
   /* Search in hard disks first, since floppies are slow */
 	for (drive = 0; drive <= 0xff; drive++)
@@ -6755,7 +6771,7 @@ qqqqqq:
                         {
 						grub_printf ("(%s%x%c%c%c%c):", ((drive<10)?"fd":(drive>=0x9f)?"0x":"hd"),((drive<10 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
 						if (*uuid_found || debug)
-							grub_printf("%s%s is \"%s\".\n\t", ((drive<10)?"   ":(drive>=0x9f)?"  ":" "), p, ((*uuid_found) ? uuid_found : "(unsupported)"));
+							grub_printf("%s%s is \"%s\".\n\t", ((drive<10)?"   ":(drive>=0x9f)?"  ":" "), p, ((*uuid_found) ? uuid_found :(!flags) ? "no label": "(unsupported)"));
 						print_fsys_type();
 		          }
                       else if (substring((char*)uuid_found,arg,1) == 0)
@@ -6798,7 +6814,7 @@ static struct builtin builtin_uuid =
   "uuid",
   uuid_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "uuid [--write] [DEVICE] [UUID]",
+  "uuid [--naked] [--write] [DEVICE] [UUID]",
   "If DEVICE is not specified, search for filesystem with UUID in all"
   " partitions and set the partition containing the filesystem as new"
   " root (if UUID is specified), or just list uuid's of all filesystems"
@@ -6806,6 +6822,7 @@ static struct builtin builtin_uuid =
   " return true or false according to whether or not the DEVICE matches"
   " the specified UUID (if UUID is specified), or just list the uuid of"
   " DEVICE (if UUID is not specified)."
+	"[--naked] [DEVICE] returns only uuid info for given device."
 };
 
 static void
@@ -10963,10 +10980,10 @@ map_whole_drive:
   
 	
 //          j_count(0)       j_count(1)          j_count(2)         j_count(3)
-//  		©À©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©È
+//  		ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½à©¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½à©¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½à©¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 //  j_start(0)     j_start(1)          j_start(2)          j_start(3)
 //                                                      To_len
-//     ©«©©©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©À©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©È
+//     ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 //     0                                   To_statr
 
 			//Determine the start fragment 
@@ -16056,7 +16073,7 @@ typedef struct _SETLOCAL {
 	unsigned long boot_drive;
 	unsigned long install_partition;
 	int debug;
-	char reserved[8];//é¢„ç•™ä½ç½®ï¼ŒåŒæ—¶ä¹Ÿæ˜¯ä¸ºäº†å‡‘è¶?12å­—èŠ‚ã€?
+	char reserved[8];//é¢„ç•™ä½ç½®ï¼ŒåŒæ—¶ä¹Ÿæ˜¯ä¸ºäº†å‡‘ï¿½?12å­—èŠ‚ï¿½?
 	char var_str[MAX_USER_VARS<<9];//user vars only
 	char saved_dir[256];
 	char command_path[128];
