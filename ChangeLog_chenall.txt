@@ -1,4 +1,13 @@
 ﻿更新说明：
+2017-06-3
+Adding --naked paramater to uuid command.
+It is useful to pass uuid information to linux kernel.
+For example:
+> "uuid --naked (hd3,1) | set myid="
+> "kernel /vmlinuz root=uuid=%myid%"
+Or passing directly:
+> "uuid --naked (hd3,1) | kernel /vmlinuz root=uuid="
+
 2017-05-15(yaya)
   允许批处理文件加载 kernel、initrd，会产生错误。(issue #141)
   修正卷标显示。
