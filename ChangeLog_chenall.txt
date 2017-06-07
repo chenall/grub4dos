@@ -1,4 +1,8 @@
 ﻿更新说明：
+2017-06-07(yaya)
+  增加读写 CD 的 UUID。
+  vol 函数增加参数 --primary。ISO 统一采用传统主卷描述符里的卷标(Linux系统)。
+
 2017-05-15(yaya)
   允许批处理文件加载 kernel、initrd，会产生错误。(issue #141)
   修正卷标显示。

@@ -6567,6 +6567,36 @@ static struct builtin builtin_font =
 };
 #endif /* SUPPORT_GRAPHICS */
 
+void ascii_to_hex (char *arg, char *buf);
+void
+ascii_to_hex (char *arg, char *buf)
+{
+	char val;
+	while (*arg)
+	{
+		if (*arg == '-')
+			arg++;
+		if (*arg <= '9' && *arg >= '0')
+			val = *arg & 0xf;
+		else if ((*arg | 0x20) <= 'f' && (*arg | 0x20) >= 'a')
+			val = (*arg + 9) & 0xf;
+		else
+			break;
+			
+		arg++;
+		if (*arg <= '9' && *arg >= '0')
+			val = (val << 4) | (*arg & 0xf);
+		else if ((*arg | 0x20) <= 'f' && (*arg | 0x20) >= 'a')
+			val = (val << 4) | ((*arg + 9) & 0xf);
+		else
+			break;
+			
+		*buf++ = val;
+		arg++;
+	}
+}
+
+int primary;
 
 /* uuid */
 /* List filesystem UUID in all of partitions or search for filesystem
@@ -6590,13 +6620,23 @@ uuid_func (char *argument, int flags)
 	char *p;
 	char *arg = tem;
 	int write = 0, i = 0, j = 0;
+	primary = 0;
 
+	while (*argument && *argument != '\n' && *argument != '\r' && *argument != '(')
+	{
 	if (grub_memcmp (argument, "--write", 7) == 0)
 	{
 		write = 1;
 		argument += 7;
-		argument = skip_to (0, argument);	
 	}
+	else if (grub_memcmp (argument, "--primary", 9) == 0)
+	{
+		primary = 1;
+		argument += 9;
+	}
+	argument = skip_to (0, argument);
+	}
+	
 	if (flags)
 		p = uuid_tag;
 	else
@@ -6646,30 +6686,7 @@ uuid_func (char *argument, int flags)
 		}
 		if (*arg && write && flags)
 		{
-			unsigned char val;
-			p = uuid_found;
-			while (*arg)
-			{
-				if (*arg == '-')
-					arg++;
-				if (*arg <= '9' && *arg >= '0')
-					val = *arg & 0xf;
-				else if ((*arg | 0x20) <= 'f' && (*arg | 0x20) >= 'a')
-					val = (*arg + 9) & 0xf;
-				else
-					break;
-			
-				arg++;
-				if (*arg <= '9' && *arg >= '0')
-					val = (val << 4) | (*arg & 0xf);
-				else if ((*arg | 0x20) <= 'f' && (*arg | 0x20) >= 'a')
-					val = (val << 4) | ((*arg + 9) & 0xf);
-				else
-					break;
-			
-				*p++ = val;
-				arg++;
-			}
+			ascii_to_hex (arg, uuid_found);
 			get_uuid (uuid_found,1);
 			return 1;
 		}
@@ -6700,8 +6717,6 @@ uuid_func (char *argument, int flags)
 
 		if ((drive > 10 && drive < 0x80) || (drive > (*((char *)0x475) + 0x80) && drive < 0x9f))
 			continue;
-		if (drive >= 0x9f && flags)
-			break;
 
 		saved_drive = current_drive = drive;
 		saved_partition = current_partition = part;
@@ -6812,6 +6827,7 @@ static void
 get_uuid (char* uuid_found, int tag)
 {
   unsigned char uuid[32] = "";
+	unsigned char buf[32] = "";
 	int i, n = 0xedde0d90;
     {
 #ifdef FSYS_FAT
@@ -6906,6 +6922,16 @@ get_uuid (char* uuid_found, int tag)
           return;
         }
 #endif
+#ifdef FSYS_ISO9660
+	if (grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) == 0)
+	{
+		emu_iso_sector_size_2048 = 1;
+		devread(0x10, 0x33e, 16, (unsigned long long)(unsigned int)(char *)uuid, 0xedde0d90);
+		ascii_to_hex ((char *)uuid, (char *)buf);
+		grub_sprintf(uuid_found, "%02x%02x-%02x-%02x-%02x-%02x-%02x-%02x", buf[0],buf[1],buf[2],buf[3],buf[4],buf[5],buf[6],buf[7]);
+		return;
+	}
+#endif
     }
 }
 
@@ -6920,7 +6946,7 @@ static struct builtin builtin_vol =
   "vol",
   vol_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "vol [--write] [DEVICE] [VOLUME]",
+  "vol [--write | --primary] [DEVICE] [VOLUME]",
   "If DEVICE is not specified, search for filesystem with volume in all"
   " partitions and set the partition containing the filesystem as new"
   " root (if VOLUME is specified), or just list volume's of all filesystems"
@@ -6928,6 +6954,7 @@ static struct builtin builtin_vol =
   " return true or false according to whether or not the DEVICE matches"
   " the specified Volume (if VOLUME is specified), or just list the volume of"
   " DEVICE (if VOLUME is not specified)."
+  " Use --primary for ISO Primary Volume Descriptor (as used by linux)."
 };
 
 int read_mft(char* buf,unsigned long mftno);
@@ -6942,6 +6969,12 @@ get_vol (char* vol_found, int flags)
 	
 	if (grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) == 0)
 	{
+		if (primary)
+		{
+			emu_iso_sector_size_2048 = 1;
+				devread(0x10, 0x28, 0x20, (unsigned long long)(unsigned int)(char *)vol_found, n);
+			goto pri;
+		}
 #define BUFFER (unsigned char *)(FSYS_BUF + 0x4000)		//0x3E4000
 		if (flags && iso_type != ISO_TYPE_udf)
 			for (i = grub_strlen(vol_found); i<0x20; i++)
@@ -7011,6 +7044,7 @@ get_vol (char* vol_found, int flags)
 				}
 				break;
 		}
+pri:		
 		if (!flags && iso_type != ISO_TYPE_udf)
 		{
 			for (i=0; i<0x20; i++)
