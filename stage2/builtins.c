@@ -7044,9 +7044,10 @@ get_vol (char* vol_found, int flags)
 				}
 				break;
 		}
-pri:		
+
 		if (!flags && iso_type != ISO_TYPE_udf)
 		{
+pri:
 			for (i=0; i<0x20; i++)
 			{
 				if (vol_found[i] == ' ' && (vol_found[i] == vol_found[i+1] || i == 0x19))
