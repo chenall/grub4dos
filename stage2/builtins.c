@@ -7044,16 +7044,19 @@ get_vol (char* vol_found, int flags)
 				}
 				break;
 		}
-
-		if (!flags && iso_type != ISO_TYPE_udf)
-		{
 pri:
-			for (i=0; i<0x20; i++)
+		if (!flags && (iso_type != ISO_TYPE_udf || primary))
+		{
+			if (iso_type == ISO_TYPE_Joliet && !primary)
+				j = 0x10 - 1;
+			else
+				j = 0x20 - 1;
+			for (i=j; i>=0; i--)
 			{
-				if (vol_found[i] == ' ' && (vol_found[i] == vol_found[i+1] || i == 0x19))
+				if (vol_found[i] != ' ')
 					break;
+				vol_found[i] = 0;
 			}
-			vol_found[i] = 0;
 		}
 #undef BUFFER
 	}
