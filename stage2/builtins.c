@@ -7161,12 +7161,12 @@ pri:
 			if (flags)
 				return;
 			vol_found[11] = 0;
-			for (i=0; i<11; i++)
+			for (i=10; i>=0; i--)
 			{
-				if (vol_found[i] == ' ' && (vol_found[i] == vol_found[i+1] || i == 10))
+				if (vol_found[i] != ' ')
 					break;
+				vol_found[i] = 0;
 			}
-			vol_found[i] = 0;
 		}
 		else
 		{
