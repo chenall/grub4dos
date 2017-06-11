@@ -2676,7 +2676,7 @@ read_block_e:
         02      Byte    90
         03      DWord   "EXFAT   "
         0b      Word    Bytes per sector
-        0d      byte    Sectors per cluster
+        0d      byte    Retention
         0e      DWord   Data start Absolute sector
         12      DWord   The current cluster the absolute sector in fat table
         16      Word    EIOS Mark		Bit 7   EIOS
@@ -2686,7 +2686,7 @@ read_block_e:
         20      DWord   Retention
         24      Byte    Drive number
         25      Byte    Partition number
-        26      Word    Retention
+        26      Word    Sectors per cluster
         28      DWord   FAT table start absolute sector number
         2c      DWord   Retention 
  */        
@@ -2759,9 +2759,9 @@ Entry_exfat:
         movl    %eax, 0x0e(%bp)                 /* Data start Absolute sector */
 
         movb    0x6d(%bp), %cl                  /* Sectors per cluster (power) */
-	movb	$1, %al
-	shlb	%cl, %al
-        movb    %al, 0x0d(%bp)                  /* Sectors per cluster */
+	movw $1, %ax
+	shlw %cl, %ax
+	movw %ax, 0x26(%bp)                  					/* Sectors per cluster */
         movl    0x40(%bp), %eax                 /* Sector Address */
 				movl %eax, 0x1c(%bp)
         pushw   $0x07e0
@@ -2991,12 +2991,12 @@ read_2_sectors:
         pushl   %eax                            /* The second absolutely logical sector */
         subl    0x0e(%bp), %eax                 /* The first relatively logical sector */  /* Data start Absolute sector */
         xorl    %edx, %edx
-        movzbl  0x0d(%bp), %ecx                 /* sectors per cluster */
+        movzwl  0x26(%bp), %ecx                 /* sectors per cluster */
         divl    %ecx                            /* eax=Cluster number  edx=Sector offset */    
-        cmpb    0x0d(%bp), %dl                  /* In the current cluster? */
-        jb      3f                              /* Yes */
+        cmpw    0x26(%bp), %dx                  /* In the current cluster? */
         /* In the next cluster */
         popl    %eax
+        jb 3f																		/* Yes */
         movl    0x60(%bp), %eax                 /* current cluster */
         call    NextCluster                     /* Find the next cluster from the current cluster */
         movl    %eax, 0x60(%bp)                 /* current cluster */
@@ -3013,7 +3013,6 @@ read_2_sectors:
         jmp     1f        
 3:  
         /* In the current cluster */ 
-        popl    %eax                            /* The second absolutely logical sector */
 1:        
         movl    %eax, %esi                      /* The second absolutely logical sector */  
         movw    $1, %cx                         /* Number of sectors read */
@@ -3032,7 +3031,7 @@ read_2_sectors:
 Read_Discontinuous:
         pushw   %es
         pushw   %di
-        movzbw  0x0d(%bp), %di 
+        movw 0x26(%bp), %di 
 1:             
         pushl	%eax                    /* Cluster number */
         pushw   %cx
@@ -4741,7 +4740,7 @@ nt_sector_mark:
         03      DWord   Root directory
         07      DWord   Home directory of the absolute starting sector (fat12/16)
         0b      Word    Bytes per sector
-        0d      byte    Sectors per cluster
+        0d      byte    Sectors per cluster (ext2)
         0e      DWord   Data start Absolute sector 
         12      DWord   The current cluster the absolute sector in fat table
         16      Word    12 64
@@ -4751,7 +4750,7 @@ nt_sector_mark:
         20      DWord   The total number of sectors partition
         24      Byte    Drive number
         25      Byte    Partition number
-        26      Word    Retention
+        26      Word    Sectors per cluster	(fat12/16/32/64)
         28      DWord   FAT table start absolute sector number
         2c      DWord   Root cluster  
  */        
@@ -4902,7 +4901,7 @@ cluster_to_lba_12_64_ext:
 	/* sector = (cluster-2) * clustersize + data_start */
 	decl	%eax
 	decl	%eax 
-	movzbl	0x0d(%bp), %edx		/* sectors per cluster */
+	movzwl	0x26(%bp), %edx		/* sectors per cluster */
 	mull	%edx			/* EDX = 0 */
         addl	0x0e(%bp), %eax         /* Absolute sector */  /* Data start Absolute sector */
 	ret
@@ -5010,12 +5009,12 @@ read_2_sectors_12_64_ext:
         pushl   %eax                            /* The second absolutely logical sector */
         subl    0x0e(%bp), %eax                 /* The first relatively logical sector */  /* Data start Absolute sector */
         xorl    %edx, %edx
-        movzbl  0x0d(%bp), %ecx                 /* sectors per cluster */
+        movzwl  0x26(%bp), %ecx                 /* sectors per cluster */
         divl    %ecx                            /* eax=Cluster number  edx=Sector offset */
-        cmpb    0x0d(%bp), %dl                  /* In the current cluster? */
-        jb      3f                              /* Yes */
+        cmpw    0x26(%bp), %dx                  /* In the current cluster? */
         /* In the next cluster */
         popl    %eax
+        jb 3f																		/* Yes */	
         movl    0x2c(%bp), %eax                 /* current cluster */
         call    NextCluster_12_64_ext           /* Find the next cluster from the current cluster */
         movl    %eax, 0x2c(%bp)                 /* current cluster */
@@ -5032,7 +5031,6 @@ read_2_sectors_12_64_ext:
         jmp     1f        
 3:  
         /* In the current cluster */ 
-        popl    %eax                            /* The second absolutely logical sector */
 1:        
         movl    %eax, 03(%bp)  
         movw    $1, %cx                         /* Number of sectors read */
@@ -5053,7 +5051,7 @@ read_2_sectors_12_64_ext:
 Read_Discontinuous_12_64_ext:
         pushw   %es
         pushw   %di
-        movzbw  0x0d(%bp), %di
+        movw 0x26(%bp), %di
 1:             
         pushl	%eax                    /* Cluster number */
         call    cluster_to_lba_12_64_ext/* Calculate the absolute sector from the cluster */
@@ -6345,7 +6343,7 @@ fat:
         movb    0x6d(%si), %cl                  /* Sectors per cluster (power) */
         popw	%ax
         shlw    %cl, %ax
-        movb    %al, 0x0d(%si)                  /* Sectors per cluster */
+        movw    %ax, 0x26(%si)                  /* Sectors per cluster */
         movl    0x60(%si), %eax
         movl    %eax, 0x2c(%si)                 /* Root clusters */ 
         
@@ -6355,6 +6353,8 @@ fat:
         orb     $1, 02(%si)                     /* fat12 Mark */
 2:        
         pushw   %dx
+        movzbw 0x0d(%si), %ax
+        movw %ax, 0x26(%si)
 				movzwl  0x0e(%si), %ecx                 /* Reserved sector */
         addl    0x1c(%si), %ecx
         movl    %ecx, 0x28(%si)                 /* FAT table start absolute sector number */
@@ -6404,6 +6404,8 @@ fat:
         movl    %eax, 0x0e(%si)                 /* Data start Absolute sector */
         popw    %dx
         movw    %dx, 0x24(%si)        
+        movzbw 0x0d(%si), %ax
+        movw %ax, 0x26(%si)
         movw	$(FAT32_message - _start1), %si      
 3:     
         pushw %si
