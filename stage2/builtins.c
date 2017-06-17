@@ -1245,8 +1245,6 @@ void hexdump(grub_u64_t ofs,char* buf,int len)
            putchar(' ',255);
         else
         {
-grub_printf("hexdump,%x,%x,%x,",k,i,(unsigned char)buf[j]);//
-getkey();
           j = k - i;
           printf("%c",(unsigned long)((((unsigned char)buf[j]>=32) && ((unsigned char)buf[j]!=127))?buf[j]:'.'));
         }
