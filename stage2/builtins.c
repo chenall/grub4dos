@@ -1246,8 +1246,7 @@ void hexdump(grub_u64_t ofs,char* buf,int len)
         else
         {
           j = k - i;
-					char c = (char)((((unsigned char)buf[j]>=32) && ((unsigned char)buf[j]!=127))?buf[j]:'.');
-					putchar(c, 255);
+          putchar((((unsigned char)buf[j]>=32) && ((unsigned char)buf[j]<0x7f))?buf[j]:'.', 255);
         }
       }
 
