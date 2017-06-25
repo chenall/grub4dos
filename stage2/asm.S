@@ -8666,13 +8666,16 @@ Con_mon:
 Port_Reset:
 	movl $0x00001100, %eax      
 	call Write_Register
-	movw $20, %ax
+	movw $100, %ax
 	call Delay
 
-	movl $0x00001002, %eax  
+	movl $0x00001000, %eax  
 	call Write_Register 
 	movw $200, %ax
 	call Delay
+	
+	movl $0x00001007, %eax    
+	call Write_Register
 
 	call Read_Register
 	ret
