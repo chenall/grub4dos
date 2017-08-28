@@ -5559,7 +5559,7 @@ ENTRY(lba_cd_boot)
 
 minimum_mem_lo_in_map:
 	.long	0	/* min ram drive base below 16M */
-minimum_mem_hi_in_map:
+ENTRY(minimum_mem_hi_in_map)
 	.long	0	/* min ram drive base above 16M */
 
 #if 0
@@ -5750,6 +5750,16 @@ int15_e820_handler:
 	subl	%es:(%di), %eax
 	sbbl	%es:4(%di), %edx	/* EDX:EAX=new length */
 	jb	5f			/* start_address is below the base */
+	ja	7f
+	/* now EDX=0 */
+	testl	%eax, %eax		/* EAX also be zero? ZF holds it! */
+	jne 7f
+	/* Change memory address type from 1 (usable) to 2 (reserved). Note
+	 * that original value is long integer of 1 (all higher 3 bytes = 0).
+	 * So only the lowest byte needs to be incremented. */
+	incb	%es:16(%di)		/* memory address type */
+	jmp	5f
+7:
 	subl	%es:8(%di), %eax
 	sbbl	%es:12(%di), %edx	/* EDX:EAX=difference */
 	jnb	5f			/* new length is too big */
@@ -5818,9 +5828,7 @@ int15_e820_handler:
 
 	/* find minimum mem ever used in the drive map slots */
 
-	movl	$-1, %eax	/* 0xffffffff, initialize to maximum value */
-	movl	%eax, %cs:(minimum_mem_hi_in_map - int13_handler)
-	movl	$0x1000000, %cs:(minimum_mem_lo_in_map - int13_handler)
+	movl	%cs:(EXT_C(minimum_mem_hi_in_map) - int13_handler), %eax
 	/* set %si to the drive map */
 #if	MAP_NUM_16
 	movw	$(EXT_C(hooked_drive_map_1) - int13_handler), %si
@@ -5849,31 +5857,19 @@ int15_e820_handler:
 
 	shll	$9, %ebx		/* convert to address in bytes */
 
-	cmpl	$0x1000000, %ebx	/* 16M */
-	jb	7f
 	/* hi mem */
-	cmpl	%ebx, %cs:(minimum_mem_hi_in_map - int13_handler)
+	cmpl	%ebx, %eax
 	jbe	5f
-	movl	%ebx, %cs:(minimum_mem_hi_in_map - int13_handler)
-	jmp	5f
-7:
-	/* lo mem */
-	cmpl	%ebx, %cs:(minimum_mem_lo_in_map - int13_handler)
-	jbe	5f
-	movl	%ebx, %cs:(minimum_mem_lo_in_map - int13_handler)
+	movl	%ebx, %eax
 5:
 	/* try next slot */
 	addw	$DRIVE_MAP_SLOT_SIZE, %si
 	loop	6b
 
+	subl	$0x100000, %eax
+	shrl	$10, %eax
+	movl	%eax, %cs:(minimum_mem_lo_in_map - int13_handler)
 	popal
-
-	cmpl	$-1, %cs:(minimum_mem_hi_in_map - int13_handler)
-	jne	1f
-	cmpl	$0x1000000, %cs:(minimum_mem_lo_in_map - int13_handler)
-	jne	1f
-
-	ljmp	%cs:*(EXT_C(ROM_int15) - int13_handler)
 
 #;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 1:
@@ -5904,76 +5900,19 @@ int15_e820_handler:
 	 * no Compaq machine was detected, or parameter /NOABOVE16 was given.
 	 */
 
-	//movw	$0x3c00, %ax	/* 1-16M mem in K (0x3c00KB = 15MB) */
-	//movw	$0x0300, %bx	/* mem above 16M in 64K blocks */
-4:
-	pushfw
-
-	xorw	%cx, %cx
-	xorw	%dx, %dx
-	//pushfw
-	//lcall	%cs:*(EXT_C(ROM_int15) - int13_handler)
-	call	safe_ROM_int15
-
-	jc	3f
-
-	pushl	%eax
-
-	testw	%cx, %cx
-	jnz	5f
-	testw	%dx, %dx
-	jnz	5f
-	movw	%ax, %cx
-	movw	%bx, %dx
-5:
 	/* between 16M and 4G, we modify BX, DX */
-
-	movl	%cs:(minimum_mem_hi_in_map - int13_handler), %eax
-	cmpl	$-1, %eax		/* 4G - 1 */
-	je	5f
-	subl	$0x1000000, %eax	/* 16M */
-	shrl	$16, %eax	/* AX=mem above 16M in 64K blocks */
-	movw	%ax, %bx
-	movw	%ax, %dx
-	popl	%eax
-	popfw
-	pushfw
-	pushl	%eax
-	jnc	5f
-	movzwl	%bx, %ebx
-	movzwl	%dx, %edx
-5:
-	popl	%eax
-	pushl	%eax
+4:
+	movl	%cs:(minimum_mem_lo_in_map - int13_handler), %ebx
+	subl	$0x3c00, %ebx	/* 16M */
+	shrl	$6, %ebx	/* AX=mem above 16M in 64K blocks */
+	movw	%bx, %dx
 
 	/* between 1M and 16M, we modify AX, CX */
 
-	movl	%cs:(minimum_mem_lo_in_map - int13_handler), %eax
-	cmpl	$0x1000000, %eax	/* 16M */
-	je	5f
-	subl	$0x0100000, %eax	/* 1M */
-	shrl	$10, %eax	/* AX=1-16M mem in K */
+	movw	$0x3c00, %ax
 	movw	%ax, %cx
-	popl	%eax
-	movw	%cx, %ax
-	popfw
-	pushfw
-	pushl	%eax
-	jnc	5f
-	popl	%eax
-	movzwl	%ax, %eax
-	pushl	%eax
-	movzwl	%cx, %ecx
-5:
 
-	popl	%eax
-
-	popfw
 	clc
-	lret	$2
-3:
-	popfw
-	stc
 	lret	$2
 
 #;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -6001,7 +5940,6 @@ int15_e820_handler:
 	//movl	$0x3c00, %eax	/* 1-16M mem in K (0x3c00 = 15MB) */
 	//movl	$0x0300, %ebx	/* mem above 16M in 64K blocks */
 
-	stc
 	jmp	4b
 #;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 1:
@@ -6028,12 +5966,6 @@ int15_e820_handler:
 	pushl	%eax
 
 	movl	%cs:(minimum_mem_lo_in_map - int13_handler), %eax
-	cmpl	$0x1000000, %eax	/* 16M */
-	jb	5f
-	movl	%cs:(minimum_mem_hi_in_map - int13_handler), %eax
-5:
-	subl	$0x0100000, %eax
-	shrl	$10, %eax	/* EAX=extended mem in K */
 	xchgw	%ax, %bx
 	shrl	$16, %eax
 	movb	%al, %cl
@@ -6151,21 +6083,9 @@ int15_e820_handler:
 #;
 #;	jc	3f
 
-	pushl	%eax
-
-	movl	%cs:(minimum_mem_lo_in_map - int13_handler), %eax
-	cmpl	$0x1000000, %eax	/* 16M */
-	jb	5f
-	movl	%cs:(minimum_mem_hi_in_map - int13_handler), %eax
-5:
-	subl	$0x0100000, %eax
-	shrl	$10, %eax	/* EAX=extended mem in K */
-	popw	%dx
-	pushw	%ax
-	shrl	$16, %eax
-	xchgw	%ax, %dx
-
-	popl	%eax
+	movl	%cs:(minimum_mem_lo_in_map - int13_handler), %edx
+	movw	%dx, %ax
+	shrl	$16, %edx
 
 	clc
 	lret	$2
@@ -6196,24 +6116,11 @@ int15_e820_handler:
 #;
 #;	jc	3f
 
-	pushl	%eax
-
 	movl	%cs:(minimum_mem_lo_in_map - int13_handler), %eax
-	cmpl	$0x1000000, %eax	/* 16M */
-	jb	5f
-	movl	%cs:(minimum_mem_hi_in_map - int13_handler), %eax
-5:
-	subl	$0x0100000, %eax
-	shrl	$10, %eax	/* EAX=extended mem in K */
-
 	cmpl	$0x10000, %eax
 	jb	5f
 	movw	$0xFFFF, %ax
 5:
-	addw	$2, %sp
-	pushw	%ax
-	popl	%eax
-
 	clc
 	lret	$2
 #;3:
@@ -6222,7 +6129,7 @@ int15_e820_handler:
 
 1:
 	ljmp	%cs:*(EXT_C(ROM_int15) - int13_handler)
-
+	
 safe_ROM_int15:
 
 	pushw	%ds

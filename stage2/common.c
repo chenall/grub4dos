@@ -483,7 +483,7 @@ init_bios_info (void)
       
       saved_mem_upper = memtmp;
 
-      if (!cont || (memtmp == 0x3c00))
+      if (cont != 0)
 	{
 	  saved_mem_upper += (cont >> 10);
 
@@ -508,7 +508,7 @@ init_bios_info (void)
     }
   DEBUG_SLEEP
   //printf("\r                        \r");	/* wipe out the messages */
-
+  minimum_mem_hi_in_map = (saved_mem_upper<<10)+0x100000;
   mbi.mem_upper = saved_mem_upper;
   mbi.mem_lower = saved_mem_lower;
   mbi.mmap_addr = saved_mmap_addr;

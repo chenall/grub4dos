@@ -1,4 +1,8 @@
 ﻿更新说明：
+2017-08-28(yaya)
+  修正 Windows XP 反馈 0K 错误。(issues #154)
+  修正 int15/ax=e820 等函数。
+
 2017-06-21(yaya)
   cat --hex 函数的文本字符，仅显示0x20-0x7e字符。(issues #150)
 

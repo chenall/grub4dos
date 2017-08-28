@@ -4561,6 +4561,12 @@ static int
 displaymem_func (char *arg, int flags)
 {
   errnum = 0;
+	int sector = 0; 
+	
+	if (grub_memcmp (arg, "--s", 3) == 0)
+		sector = 1;
+	if (!sector)
+	{
   if (get_eisamemsize () != -1)
     grub_printf (" EISA Memory BIOS Interface is present\n");
   if (get_mmap_entry ((void *) SCRATCHADDR, 0) != 0
@@ -4570,7 +4576,7 @@ displaymem_func (char *arg, int flags)
   grub_printf (" Lower memory: %uK, "
 	       "Upper memory (to first chipset hole): %uK\n",
 	       (unsigned long)saved_mem_lower, (unsigned long)saved_mem_upper);
-
+	}
   if (mbi.flags & MB_INFO_MEM_MAP)
     {
       struct AddrRangeDesc *map = (struct AddrRangeDesc *) saved_mmap_addr;
@@ -4585,12 +4591,23 @@ displaymem_func (char *arg, int flags)
 	  if (map->Type == MB_ARD_MEMORY)
 	    str = "Usable RAM";
 	  else
-	    str = "Reserved";
-	  grub_printf ("  %s: Base: 0x%lX, Length: 0x%lX\n",
+	    str = "Reserved  ";
+
+		if (!sector )
+		{
+	  grub_printf ("  %s: Base: 0x%8lX, Length: 0x%8lX\n",
 		       str,
 		       (unsigned long long)(map->BaseAddr),
 		       (unsigned long long)(map->Length));
-
+		} 
+		else if (map->Type == MB_ARD_MEMORY)
+		{
+			grub_printf ("  Usable RAM(Hex): Base: %8lX, Length: %8lX, End: %8lX\n",
+				(unsigned long long)(map->BaseAddr) >> 9,
+				(unsigned long long)(map->Length) >> 9,
+				(unsigned long long)(map->BaseAddr + map->Length) >> 9);
+		}
+					 
 	  map = ((struct AddrRangeDesc *) (((int) map) + 4 + map->size));
 	}
     }
@@ -4603,7 +4620,7 @@ static struct builtin builtin_displaymem =
   "displaymem",
   displaymem_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "displaymem",
+  "displaymem [--s]",
   "Display what GRUB thinks the system address space map of the"
   " machine is, including all regions of physical RAM installed."
 };

@@ -1074,6 +1074,7 @@ extern unsigned long extended_memory;
 extern unsigned long init_free_mem_start;
 extern int config_len;
 extern char menu_init_script_file[32];
+extern unsigned long minimum_mem_hi_in_map;
 /*
  *  Error variables.
  */
