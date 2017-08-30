@@ -4602,7 +4602,7 @@ displaymem_func (char *arg, int flags)
 		} 
 		else if (map->Type == MB_ARD_MEMORY)
 		{
-			grub_printf ("  Usable RAM(Hex): Base: %8lX, Length: %8lX, End: %8lX\n",
+			grub_printf ("  Usable (Hex sectors): Base: %8lX, Length: %8lX, End: %8lX\n",
 				(unsigned long long)(map->BaseAddr) >> 9,
 				(unsigned long long)(map->Length) >> 9,
 				(unsigned long long)(map->BaseAddr + map->Length) >> 9);
@@ -4622,7 +4622,8 @@ static struct builtin builtin_displaymem =
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
   "displaymem [--s]",
   "Display what GRUB thinks the system address space map of the"
-  " machine is, including all regions of physical RAM installed."
+  " machine is, including all regions of physical RAM installed.\n"
+  "--s: Display Usable RAM in units of 512-byte sectors."
 };
 
 /* errnum */

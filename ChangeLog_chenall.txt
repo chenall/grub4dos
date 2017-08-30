@@ -1,6 +1,9 @@
 ﻿更新说明：
+2017-08-30(yaya)
+  displaymem 函数增加参数 --s，以 512 字节扇区的单位显示可用 RAM。
+
 2017-08-28(yaya)
-  修正 Windows XP 反馈 0K 错误。(issues #154)
+  修正 Windows XP 反馈 0K 错误(不点)。(issues #154)
   修正 int15/ax=e820 等函数。
 
 2017-06-21(yaya)
