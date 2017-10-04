@@ -1033,6 +1033,7 @@ extern unsigned long emu_iso_sector_size_2048;
 #define ISO_TYPE_RockRidge 3
 extern unsigned int iso_type;
 extern char iso_types;
+extern unsigned long udf_BytePerSector;
 /*
  *  Common BIOS/boot data.
  */

@@ -6739,7 +6739,7 @@ uuid_func (char *argument, int flags)
 		saved_drive = current_drive = drive;
 		saved_partition = current_partition = part;
 
-		if (drive < 0x90)
+		if (drive < 0x90 && grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) != 0)
 		{
 			biosdisk_standard (0x02, (unsigned char)drive, 0, 0, 1, 1, 0x2F00);
 			if (!(probe_bpb((struct master_and_dos_boot_sector *)0x2f000)) && open_device())
@@ -7021,8 +7021,9 @@ get_vol (char* vol_found, int flags)
 				}
 				break;
 			case ISO_TYPE_udf:
+				if (udf_BytePerSector == 0x800)
 				emu_iso_sector_size_2048 = 1;
-				devread(*(unsigned long *)FSYS_BUF, 0, 0x800, (unsigned long long)(unsigned int)(char *)BUFFER, 0xedde0d90);
+				devread(*(unsigned long *)FSYS_BUF, 0, udf_BytePerSector, (unsigned long long)(unsigned int)(char *)BUFFER, 0xedde0d90);
 				if (!flags)
 				{
 					if (*(BUFFER + 0x70) == 16)
@@ -7057,8 +7058,9 @@ get_vol (char* vol_found, int flags)
 					}
 					*(unsigned char *)(BUFFER + 4) = h;
 
+					if (udf_BytePerSector == 0x800)
 					emu_iso_sector_size_2048 = 1;
-					devread(*(unsigned long *)FSYS_BUF, 0, 0x800, (unsigned long long)(unsigned int)(char *)BUFFER, 0x900ddeed);
+					devread(*(unsigned long *)FSYS_BUF, 0, udf_BytePerSector, (unsigned long long)(unsigned int)(char *)BUFFER, 0x900ddeed);
 				}
 				break;
 		}

@@ -59,9 +59,11 @@
 #define UDF_FileSet 256
 #define UDF_FileEntry 261
 #define UDF_FileIdentifier 257
+#define UDF_ExtendedFileEntry	266
 
 #define ISO_STANDARD_ID "CD001"
 #define UDF_STANDARD_ID "BEA01"
+#define UDF_DomainIdentifie_ID "*OSTA UDF Compliant"
 
 #ifndef ASM_FILE
 
@@ -145,21 +147,31 @@ struct udf_descriptor {
 	u_int8_t bypass1[14];
 	u_int32_t AnchorVolume_MainVolume_ExtentLength;
 	u_int32_t AnchorVolume_MainVolume_ExtentLocation;
-	u_int8_t bypass2[88];
+	u_int8_t bypass2[10];
+	u_int16_t ICB_Flags;
+	u_int8_t bypass3[20];
+	unsigned long long InformationLength;
+	u_int8_t bypass4[48];
 	u_int8_t FileSet_LogicalVolumeIdentifier;
-	u_int8_t bypass3[55];
+	u_int8_t bypass5[55];
 	u_int32_t FileEntry_LengthofExtendedAttributes;
-	u_int8_t bypass4[4];															
+	u_int32_t FileEntry_LengthofAllocationDescriptors;															
 	u_int8_t FileEntry_BaseAddress;
-	u_int8_t bypass5[11];
+	u_int8_t bypass6[11];
 	u_int32_t Partition_PartitionStartingLocation;
 	u_int32_t Partition_PartitionLength;
-	u_int8_t bypass6[208];
+	u_int8_t bypass7[12];
+	u_int32_t ExtFileEntry_LengthofExtendedAttributes;
+	u_int32_t ExtFileEntry_LengthofAllocationDescriptors;													
+	u_int8_t ExtFileEntry_BaseAddress;
+	u_int8_t bypass8[187];
 	u_int32_t FileSet_RootDirectoryLocation;
-	u_int8_t	_unused[1640];
+	u_int8_t bypass9[9];
+	u_int8_t DomainIdentifie[20];
+	u_int8_t	_unused[1617];
 } __attribute__ ((packed));
 
-struct udf_FileIdentifier {
+struct udf_File_Identifier {
 	unsigned short Tag;
 	u_int8_t bypass1[14];
 	unsigned short FileVersion;

@@ -8876,8 +8876,6 @@ Entry_cdrom:
 	orb	$1, (utf16_tag - Entry_cdrom)           	//utf16
 	shrb	$1, %cl                                 //NameLength/2
 2:        
-	cmpb	$5, %cl                                 //NameLength=5?
-	jne	1f                                      	//no
 	leaw	0x27(%bx, %si), %si                    	//Name Address
 	cmpb	$1, (utf16_tag - Entry_cdrom)           //utf16?
 	jne	2f                                      	//no
@@ -8885,14 +8883,16 @@ Entry_cdrom:
 2:        
 	movw	$(cdrom_name - Entry_cdrom), %di       
 3:	
+	cmpb	$0, (%di)
+	je 2f
 	andb	$0xdf, (%si)                            /* Changed to upper case */
 	cmpsb
 	jne	1f
 	cmpb	$1, (utf16_tag - Entry_cdrom)           //utf16?
-	jne	2f                                      	//no
+	jne	3b                                      	//no
 	incw	%si
-2:        
-	loop	3b                                     
+	jmp	3b
+2:                                           
 
 	//Found files
 	addl	(udf_partition_start - Entry_cdrom), %eax       //FileEntry
@@ -9021,7 +9021,7 @@ msg_BootError_cdrom:
 	.ascii	"No "        
 
 cdrom_name:
-	.ascii	"GRLDR\0"
+	.ascii	"GRLDR\0\0\0\0\0\0\0\0"
 
 udf_tag:
 	.ascii  "BEA01"  
@@ -9041,7 +9041,265 @@ udf_partition_start:
 	
 /* ********************  CDROM_bin end  ****************************** */ 
 
+/* ********************  HD_UDF_bin start  ****************************** */ 
+Entry_hd_udf:
+ 
+	cli
+	xorw	%bx, %bx
+	movw	%bx, %ss
+	movw	$0x7c00, %sp            /* temp safe stack space */
+	sti	
+	call	1f
+1:
+	popw	%bx			/* Instruction Pointer of 1b */
+	subw	$(1b - Entry_hd_udf), %bx        /* CS:BX=Entry_hd_udf */
+	shrw	$4, %bx
+	movw	%cs, %ax
+	addw	%ax, %bx		/* BX:0000=Entry_hd_udf */
+	/* Let CS:0000=Entry_hd_udf */
+	pushw	%bx
+	pushw	$(1f - Entry_hd_udf)
+	lret
+1: 
+	movw	%bx, %ds
+	movw	%bx, %es
+	movw	$1, %bp
+	movb	%dl, (driver - Entry_hd_udf)
+  //cs=ds=es=07c0 ss=0000 
+	movl	$1,	%eax
+	movw	$0x200, %bx
+	call	load_hd_udf
+1:	
+	movw	$0x1000, %bx
+	movl	$0x40, %eax
+	movw	$0x20, %cx
+1:
+	call	load_hd_udf
+	pushw	%cx
+	movw	$5, %cx
+	leaw	1(%bx), %si
+	movw	$(hd_udf_tag - Entry_hd_udf), %di	//"BEA01"
+	repz cmpsb
+	popw	%cx
+	je	1f
+	incl	%eax
+	loop	1b
+	jmp 4f
+1:      //udf        
+	movl	$0x100, %eax                            //AnchorVolume
+	call	load_hd_udf
+	movl	0x14(%bx), %eax                         //MainVolume_ExtentLocation
+1:
+	call	load_hd_udf
+	cmpw	$5, (%bx)                               //Partition
+	je	1f
+	incl	%eax
+	jmp	1b
+1:        
+	movl	0xbc(%bx), %eax                         //FileSet
+	movl	%eax, (hd_udf_partition_start - Entry_hd_udf)
+	call	load_hd_udf
+	movl	0x194(%bx), %eax
+	addl	(hd_udf_partition_start - Entry_hd_udf), %eax       //RootDirectoryLocation 
+	call	load_hd_udf
+	
+	movw	$0x09c0, %di
+	call	read_fileEntry
+	jc	4f
+	
+//(101)
+	movw	$0x2000, %bx
+5:
+	testb	$2, 0x12(%bx)                           //Directory?
+	jne	1f                                      	//yes
+	movl	0x18(%bx), %eax                         //lba
+	movw	0x24(%bx), %si                          //LengthofImplementationUse
+	movb	0x13(%bx), %cl                          //NameLength
+	orb	%cl, %cl
+	je	1f
+	decb	%cl
+	movb	$0, (hd_utf16_tag - Entry_hd_udf)				//utf8
+	cmpb	$8, 0x26(%bx, %si)              				//utf8?
+	je	2f                               					//yes
+	orb	$1, (hd_utf16_tag - Entry_hd_udf)     		//utf16
+	shrb	$1, %cl                                 //NameLength/2
+2:        
+	leaw	0x27(%bx, %si), %si                    	//Name Address
+	cmpb	$1, (hd_utf16_tag - Entry_hd_udf)   		//utf16?
+	jne	2f                               					//no
+	incw	%si
+2:        
+	movw	$(hd_udf_name - Entry_hd_udf), %di			//"GRLDR\0"      
+3:	
+	cmpb	$0, (%di)
+	je 2f
+	andb	$0xdf, (%si)                            /* Changed to upper case */
+	cmpsb
+	jne	1f
+	cmpb	$1, (hd_utf16_tag - Entry_hd_udf)   		//utf16?
+	jne	3b                                				//no
+	incw	%si
+	jmp	3b
+1:
+	//File not found
+	movzbw  0x13(%bx), %cx                      	//NameLength
+	addw	0x24(%bx), %cx                          //+LengthofImplementationUse
+	addw	%cx, %bx                                //+NameBaseAddress
+	addw	$0x26, %bx
+	movw	$5, %cx
+1: 
+	cmpw	$0x101, (%bx)                           //UDF_FileIdentifier
+	je	5b                                      	//Continue
+	incw	%bx
+	loop	1b
+	jmp	4f
+	
+2:
+	//Found files
+	addl	(hd_udf_partition_start - Entry_hd_udf), %eax       //FileEntry
+	movw	$0x1000, %bx                            /* buffer offset */
+	call	load_hd_udf
+	movw	$0x2000, %di
+	call	read_fileEntry
+	jc	4f
+	movw	(driver - Entry_hd_udf), %dx
+	ljmp	$0x2000, $0  
 
+
+load_hd_udf:
+	/* input:		EAX	LBA
+	 * output: 	ES:BX
+	 */
+	pushaw 
+	movw	%es, %di
+1:
+	pushl	%eax
+	movw	$0xe00, %si
+	movw	$0x10, (%si)     		 	 /* Packet length */
+	movw	$1, 2(%si)						 /* number of sectors */
+	movw	%bx, 4(%si)            /* buffer offset */
+	movw	%di, 6(%si)            /* buffer segment */
+	movl	%eax, 8(%si)           /* LBA lo 32 bits */
+	movl	$0, 12(%si)            /* LBA hi 32 bits */ 
+	movb	$0x42, %ah
+	movb	(driver - Entry_hd_udf), %dl
+	pushw	%ds
+	pushw	%es
+	int	$0x13
+	popw	%es
+	popw	%ds
+	popl	%eax
+	decw	%bp
+	je	1f
+	leaw	0x20(%di), %di
+	incl	%eax
+	jmp 1b
+1:
+	popaw
+	ret		
+
+	. = Entry_hd_udf + 0x1b6 	
+driver:
+  .byte	0, 0xff
+	
+	. = Entry_hd_udf + 0x1be 
+	
+	.byte	0x80, 0, 0, 1, 7, 0xfe, 0xff, 0xff, 0x20, 0, 0, 0 , 0, 0, 0xf0, 0
+	
+	. = Entry_hd_udf + 0x1fe
+
+	.word	0xAA55	
+        
+	. = Entry_hd_udf + 0x200 		
+
+4:
+	movw	$(msg_BootError_hd_udf - Entry_hd_udf), %si
+1:	
+	lodsb	(%si), %al	/* get token */
+	cmpb	$0, %al		/* end of string? */
+	je	1f
+	movb	$0x0e, %ah	/* print char in AL */
+	int	$0x10		/* via TTY mode */	
+	jmp	1b
+	
+1:      
+	jmp	1b
+
+//(105) or (10a)
+read_fileEntry:
+	pushw	%es
+	cmpw	$0x105, (%bx)
+	jne	1f
+	//105
+	movw	0xa8(%bx), %si
+	movw	0xac(%bx), %cx
+	movw	$0, %dx
+	jmp	2f
+1:
+	//10a
+	movw	0x22(%bx), %ax
+	andw	$7, %ax
+	cmpw	$3, %ax
+	jne	1f
+	movw	0xd0(%bx), %si
+	addw	$0x10d8, %si
+	movw	$0x2000, %di
+	movw	$0x80, %cx
+	rep movsd
+	jmp	4f
+1:
+	cmpw	$0, %ax
+	jne	3f
+	movw	0xd0(%bx), %si
+	movw	0xd4(%bx), %cx
+	movw	$0x28, %dx
+2:	
+	addw	%dx, %si
+	shrw	$3, %cx
+1:
+	movzwl	0xb4(%bx, %si), %eax
+	addl	(hd_udf_partition_start - Entry_hd_udf), %eax
+	pushl	%eax
+	movl	0xb0(%bx, %si), %eax 
+	andl	$0x3fffffff, %eax
+	addl	$0x1ff, %eax
+	shrl	$9, %eax
+	movw	%ax, %bp
+	popl	%eax
+	pushw	%bx
+	xorw	%bx, %bx
+	movw	%di, %es
+	call	load_hd_udf
+	popw	%bx
+	leaw	0x20(%di), %di
+	addw	$8, %bx    
+	loop	1b   
+	clc
+	jmp	4f
+3:
+	stc
+4:	
+	popw	%es
+  ret      
+ 
+	. = Entry_hd_udf + 0x3e0       
+        
+msg_BootError_hd_udf:
+	.ascii	"No "        
+
+hd_udf_name:
+	.ascii	"GRLDR\0\0\0\0\0\0\0\0"
+
+hd_udf_tag:
+	.ascii  "BEA01"  
+        
+hd_utf16_tag:
+	.byte   0     
+        
+hd_udf_partition_start:
+	.long   0  
+ 
+/* ********************  HD_UDF_bin end  ****************************** */ 
 #endif   //defined(GRLDR_INSTALL))
     		      
        

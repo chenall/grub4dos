@@ -1,4 +1,9 @@
 ﻿更新说明：
+2017-10-04(yaya)
+  支持U盘使用udf文件系统。版本至2.01。
+  格式化U盘：在Windows系统的cmd命令行：format u盘驱动器号: /fs:udf /q
+  可启动U盘制作：把grldr_hd_udf.bin复制到U盘逻辑0扇区。
+
 2017-08-30(yaya)
   displaymem 函数增加参数 --s，以 512 字节扇区的单位显示可用 RAM。
 
