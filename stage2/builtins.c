@@ -9203,6 +9203,31 @@ fragment_map_slot_find(char *p, unsigned long from)
 	return 0;
 }
 
+unsigned long analysis (char *arg, int flags);
+unsigned long
+analysis (char *arg, int flags)
+{
+	unsigned long drive;
+	unsigned long long tmp;
+	char *p = arg + 3;
+
+	if (*arg == '(' && *(arg+1) == 'h' && *(arg+2) == 'd')
+	{
+		if (*(arg+3) == ')')
+			tmp = (unsigned char)(0x80 + (*(unsigned char *)0x475));
+		else if (*(arg+3) == '-' && *(arg+4) == '1')
+			tmp = (unsigned char)(0x80 + (*(unsigned char *)0x475 - 1));
+		else if (safe_parse_maxint_with_suffix (&p, &tmp, 9))
+			tmp += 0x80;
+		else
+			return 0;
+	}
+	else if (*arg == '(' && *(arg+1) == ')')
+		tmp = saved_drive;
+	else if (! safe_parse_maxint_with_suffix (&arg, &tmp, 9))
+		return 0;
+	return drive = tmp;
+}
 unsigned long map_image_HPC, map_image_SPT;
 
 static unsigned long long map_mem_min = 0x100000;
@@ -9835,6 +9860,56 @@ map_func (char *arg, int flags)
 	if (max_sectors < 8ULL)
 	    max_sectors = 8ULL;
       }
+		else if (grub_memcmp (arg, "--swap-drive=", 13) == 0)
+		{
+			p = arg + 13;
+			unsigned long drive1, drive2;
+			char tmp[128];
+			k = 0;
+			l = 0;
+			if (!(drive1 = analysis (p, 1)))
+				return 0;
+			while (*p != '=')
+				p++;
+			p++;
+			if (!(drive2 = analysis (p, 1)))
+				return 0;
+			for (i = 0; i < DRIVE_MAP_SIZE; i++)  //bios_drive_map
+			{
+				if (bios_drive_map[i].from_drive == drive1)
+				{
+					bios_drive_map[i].from_drive = drive2;
+					j = i;
+					break;
+				}
+			}
+			if (i == DRIVE_MAP_SIZE)
+				k = 1;
+	
+			for (i = 0; i < DRIVE_MAP_SIZE; i++)  //bios_drive_map
+			{
+				if (i == j)
+					continue;
+				if (bios_drive_map[i].from_drive == drive2)
+				{
+					bios_drive_map[i].from_drive = drive1;
+					break;
+				}
+			}
+			if (i == DRIVE_MAP_SIZE)
+				l = 1;
+			if (k)
+			{
+				sprintf (tmp, "(0x%x) (0x%x)", drive1, drive2);
+				map_func (tmp, flags);
+			}
+			if (l)
+			{
+				sprintf (tmp, "(0x%x) (0x%x)", drive2, drive1);
+				map_func (tmp, flags);
+			}
+			return 1;
+		}
     else
 	break;
     arg = skip_to (0, arg);
@@ -11122,7 +11197,8 @@ no_fragment:
 
   /* if CHS disabled, let MAX_HEAD != 0 to ensure a non-empty slot */
   bios_drive_map[i].max_head = disable_chs_mode | (heads_per_cylinder - 1);
-  bios_drive_map[i].max_sector = (disable_chs_mode ? 0 : in_situ ? 1 : sectors_per_track) | ((read_Only | fake_write) << 7) | (disable_lba_mode << 6);
+//  bios_drive_map[i].max_sector = (disable_chs_mode ? 0 : in_situ ? 1 : sectors_per_track) | ((read_Only | fake_write) << 7) | (disable_lba_mode << 6);
+	bios_drive_map[i].max_sector = (disable_chs_mode ? 0 : sectors_per_track) | ((read_Only | fake_write) << 7) | (disable_lba_mode << 6);
   if (from >= 0x9F && tmp_geom.sector_size != 2048) /* FROM is cdrom and TO is not cdrom. */
 	bios_drive_map[i].max_sector |= 0x0F; /* can be any value > 1, indicating an emulation. */
 
@@ -11252,7 +11328,7 @@ static struct builtin builtin_map =
   "map",
   map_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "map [--status] [--mem[=RESERV]] [--hook] [--unhook] [--unmap=DRIVES]\n [--rehook] [--floppies=M] [--harddrives=N] [--memdisk-raw=RAW]\n [--a20-keep-on=AKO] [--safe-mbr-hook=SMH] [--int13-scheme=SCH]\n [--ram-drive=RD] [--rd-base=ADDR] [--rd-size=SIZE] [[--read-only]\n [--fake-write] [--unsafe-boot] [--disable-chs-mode] [--disable-lba-mode]\n [--heads=H] [--sectors-per-track=S] TO_DRIVE FROM_DRIVE]",
+  "map [--status] [--mem[=RESERV]] [--hook] [--unhook] [--unmap=DRIVES]\n [--rehook] [--floppies=M] [--harddrives=N] [--memdisk-raw=RAW]\n [--a20-keep-on=AKO] [--safe-mbr-hook=SMH] [--int13-scheme=SCH]\n [--ram-drive=RD] [--rd-base=ADDR] [--rd-size=SIZE] [[--read-only]\n [--fake-write] [--unsafe-boot] [--disable-chs-mode] [--disable-lba-mode]\n [--heads=H] [--sectors-per-track=S] [--swap-drivs=DRIVE1=DRIVE2] TO_DRIVE FROM_DRIVE]",
   "Map the drive FROM_DRIVE to the drive TO_DRIVE. This is necessary"
   " when you chain-load some operating systems, such as DOS, if such an"
   " OS resides at a non-first drive. TO_DRIVE can be a disk file, this"
@@ -11270,6 +11346,7 @@ static struct builtin builtin_map =
   "\nThe --mem option indicates a drive in memory."
   "\nif RESERV is used and <= 0, the minimum memory occupied by the memdrive is (-RESERV) in 512-byte-sectors."
   "\nif RESERV is used and > 0,the memdrive will occupy the mem area starting at absolute physical address RESERV in 512-byte-sectors and ending at the end of this mem"
+  "\nIf --swap-drivs=DRIVE1=DRIVE2 is given, swap DRIVE1 and DRIVE2 for FROM_DRIVE."
   " block(usually the end of physical mem)."
 };
 

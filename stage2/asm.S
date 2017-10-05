@@ -2447,7 +2447,7 @@ int13_new_ss:		.word	0
 
 	/* yes, found the map corresponding to drive DL */
 
-	movw	%cs:2(%bp), %ax		/* AL=Hmax, AH=Smax */
+//	movw	%cs:2(%bp), %ax		/* AL=Hmax, AH=Smax */
 
 	/* bit 1-5 already cleared for in-situ */
 	//andb	$0xC1, %ah		/* clear bit 5 - bit 1 */
@@ -2493,12 +2493,13 @@ int13_new_ss:		.word	0
 	/* if sectors per track > 1, this is force geometry screw. */
 
 	movw	%cs:2(%bp), %ax		/* AL=Hmax, AH=Smax */
-	testb	$62, %ah	/* Sectors > 1 means force geom, this -- */
+//	testb	$62, %ah	/* Sectors > 1 means force geom, this -- */
+	testb	$63, %ah	/* Sectors > 1 means force geom, this -- */
 	jnz	drive_emulation	/* -- also leads to drive emulation */
 
 	/* ignore geom and directly map a whole drive */
 
-1:
+//1:
 	/* bit 7 of the TO_S is for in-situ primary partition(alter MBR) */
 
 	/* bits of AH:
@@ -2509,13 +2510,8 @@ int13_new_ss:		.word	0
 	 * So, if AH!=1, it is a restricted disk access;
 	 * and if AH=1, it is a normal disk access.
 	 */
-	cmpb	$1, %ah
-	je	1f
-//	testb	$0x3F, %ah
-//	jz	3f
-//	testb	$0xC0, %ah
-//	jz	1f
-//3:
+//	cmpb	$1, %ah
+//	je	1f
 	call	restricted_map
 1:
 	/* map a whole drive, normal access */

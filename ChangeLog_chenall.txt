@@ -1,4 +1,8 @@
 ﻿更新说明：
+2017-10-05(yaya)
+  修正 --in-situ 参数。因嵌套会丢失插槽的 form_Smax，to_Smax。
+  增加 --swap-drive=DRIVE1=DRIVE2 参数，用于交换 FROM_DRIVE。
+
 2017-10-04(yaya)
   支持U盘使用udf文件系统。版本至2.01。
   格式化U盘：在Windows系统的cmd命令行：format u盘驱动器号: /fs:udf /q
