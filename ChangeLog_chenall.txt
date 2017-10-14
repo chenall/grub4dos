@@ -1,12 +1,17 @@
 ﻿更新说明：
+2017-10-14(yaya)
+  修正udf引导代码。
+  可启动U盘制作：把 grldr.pbr 的 udf 引导代码(0x1400起始)复制到U盘启动分区，
+                 把 MBR 中的分区起始扇区(4字节)复制到启动分区的偏移0xc。
+
 2017-10-05(yaya)
   修正 --in-situ 参数。因嵌套会丢失插槽的 form_Smax，to_Smax。
   增加 --swap-drive=DRIVE1=DRIVE2 参数，用于交换 FROM_DRIVE。
 
 2017-10-04(yaya)
   支持U盘使用udf文件系统。版本至2.01。
+  分区：使用 BOOTICE 分区，主引导记录选 Windows NT 6.x MBR。
   格式化U盘：在Windows系统的cmd命令行：format u盘驱动器号: /fs:udf /q
-  可启动U盘制作：把grldr_hd_udf.bin复制到U盘逻辑0扇区。
 
 2017-08-30(yaya)
   displaymem 函数增加参数 --s，以 512 字节扇区的单位显示可用 RAM。

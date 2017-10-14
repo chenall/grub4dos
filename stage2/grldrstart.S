@@ -9044,6 +9044,23 @@ udf_partition_start:
 /* ********************  HD_UDF_bin start  ****************************** */ 
 Entry_hd_udf:
  
+	jmp 1f
+	
+	. = Entry_hd_udf + 2
+	.byte	0x90
+	.ascii  "UDF"
+	
+hd_utf16_tag:
+	.byte   0     
+        
+hd_udf_partition_start:
+	.long   0  	
+
+	. = Entry_hd_udf + 0xc	
+partition_start:
+ 	.ascii  "hide" 	
+	
+1:
 	cli
 	xorw	%bx, %bx
 	movw	%bx, %ss
@@ -9064,31 +9081,17 @@ Entry_hd_udf:
 	movw	%bx, %ds
 	movw	%bx, %es
 	movw	$1, %bp
-	movb	%dl, (driver - Entry_hd_udf)
-  //cs=ds=es=07c0 ss=0000 
-	movl	$1,	%eax
-	movw	$0x200, %bx
-	call	load_hd_udf
-1:	
 	movw	$0x1000, %bx
-	movl	$0x40, %eax
-	movw	$0x20, %cx
+      
+	movl	(partition_start - Entry_hd_udf), %eax
+	testl	%eax, %eax
+	jne 1f
+	movb	$0xff, %dh
 1:
-	call	load_hd_udf
-	pushw	%cx
-	movw	$5, %cx
-	leaw	1(%bx), %si
-	movw	$(hd_udf_tag - Entry_hd_udf), %di	//"BEA01"
-	repz cmpsb
-	popw	%cx
-	je	1f
-	incl	%eax
-	loop	1b
-	jmp 4f
-1:      //udf        
-	movl	$0x100, %eax                            //AnchorVolume
+	addl	$0x100, %eax                            //AnchorVolume
 	call	load_hd_udf
 	movl	0x14(%bx), %eax                         //MainVolume_ExtentLocation
+	addl	(partition_start - Entry_hd_udf), %eax
 1:
 	call	load_hd_udf
 	cmpw	$5, (%bx)                               //Partition
@@ -9097,6 +9100,7 @@ Entry_hd_udf:
 	jmp	1b
 1:        
 	movl	0xbc(%bx), %eax                         //FileSet
+	addl	(partition_start - Entry_hd_udf), %eax
 	movl	%eax, (hd_udf_partition_start - Entry_hd_udf)
 	call	load_hd_udf
 	movl	0x194(%bx), %eax
@@ -9162,7 +9166,6 @@ Entry_hd_udf:
 	movw	$0x2000, %di
 	call	read_fileEntry
 	jc	4f
-	movw	(driver - Entry_hd_udf), %dx
 	ljmp	$0x2000, $0  
 
 
@@ -9182,7 +9185,6 @@ load_hd_udf:
 	movl	%eax, 8(%si)           /* LBA lo 32 bits */
 	movl	$0, 12(%si)            /* LBA hi 32 bits */ 
 	movb	$0x42, %ah
-	movb	(driver - Entry_hd_udf), %dl
 	pushw	%ds
 	pushw	%es
 	int	$0x13
@@ -9197,20 +9199,6 @@ load_hd_udf:
 1:
 	popaw
 	ret		
-
-	. = Entry_hd_udf + 0x1b6 	
-driver:
-  .byte	0, 0xff
-	
-	. = Entry_hd_udf + 0x1be 
-	
-	.byte	0x80, 0, 0, 1, 7, 0xfe, 0xff, 0xff, 0x20, 0, 0, 0 , 0, 0, 0xf0, 0
-	
-	. = Entry_hd_udf + 0x1fe
-
-	.word	0xAA55	
-        
-	. = Entry_hd_udf + 0x200 		
 
 4:
 	movw	$(msg_BootError_hd_udf - Entry_hd_udf), %si
@@ -9233,6 +9221,7 @@ read_fileEntry:
 	//105
 	movw	0xa8(%bx), %si
 	movw	0xac(%bx), %cx
+	pushw	%dx
 	movw	$0, %dx
 	jmp	2f
 1:
@@ -9250,17 +9239,20 @@ read_fileEntry:
 1:
 	cmpw	$0, %ax
 	jne	3f
+	pushw	%dx
 	movw	0xd0(%bx), %si
 	movw	0xd4(%bx), %cx
 	movw	$0x28, %dx
 2:	
 	addw	%dx, %si
 	shrw	$3, %cx
+	popw	%dx
 1:
 	movzwl	0xb4(%bx, %si), %eax
-	addl	(hd_udf_partition_start - Entry_hd_udf), %eax
+	addl	(hd_udf_partition_start - Entry_hd_udf), %eax       //FileIdentifier
+
 	pushl	%eax
-	movl	0xb0(%bx, %si), %eax 
+	movl	0xb0(%bx, %si), %eax                    //File length in bytes */  
 	andl	$0x3fffffff, %eax
 	addl	$0x1ff, %eax
 	shrl	$9, %eax
@@ -9282,23 +9274,16 @@ read_fileEntry:
 	popw	%es
   ret      
  
-	. = Entry_hd_udf + 0x3e0       
-        
+	. = Entry_hd_udf + 0x1f0       
+       
 msg_BootError_hd_udf:
 	.ascii	"No "        
 
 hd_udf_name:
-	.ascii	"GRLDR\0\0\0\0\0\0\0\0"
-
-hd_udf_tag:
-	.ascii  "BEA01"  
-        
-hd_utf16_tag:
-	.byte   0     
-        
-hd_udf_partition_start:
-	.long   0  
- 
+	.ascii	"GRLDR\0\0\0\0\0\0"
+       
+	. = Entry_hd_udf + 0x1fe
+	.byte   0x55, 0xaa
 /* ********************  HD_UDF_bin end  ****************************** */ 
 #endif   //defined(GRLDR_INSTALL))
     		      

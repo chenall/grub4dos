@@ -13,7 +13,7 @@ RELEASE=grub4dos-${VER}-${DATE}
 COPY_FILES="COPYING README_GRUB4DOS*.txt ChangeLog_*.txt \
 	config.sys default menu.lst grub.pif \
 	stage2/grldr stage2/grub.exe stage2/badgrub.exe stage2/grldr.mbr stage2/bootlace.com \
-	stage2/hmload.com stage2/grldr.pbr stage2/grldr_cd.bin stage2/grldr_hd_udf.bin"
+	stage2/hmload.com stage2/grldr.pbr stage2/grldr_cd.bin"
 
 rm -rf *.zip *.7z *~ || exit $?
 [ -z "$GRUB4DOS_TEMP" ] && GRUB4DOS_TEMP=/tmp/grub4dos-temp
