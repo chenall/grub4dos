@@ -540,7 +540,7 @@ init_bios_info (void)
 	if (! pxe_entry)
 	{
 	    PXENV_GET_CACHED_INFO_t get_cached_info;
-
+			if (debug_boot)
 	    printf_debug0("begin pxe scan... ");
 	    pxe_scan ();
 	    DEBUG_SLEEP
@@ -551,7 +551,7 @@ init_bios_info (void)
 
 		get_cached_info.PacketType = PXENV_PACKET_TYPE_DHCP_ACK;
 		get_cached_info.Buffer = get_cached_info.BufferSize = 0;
-
+		if (debug_boot)
 		printf_debug0("\rbegin pxe call(type=DHCP_ACK)...            ");
 		pxe_call (PXENV_GET_CACHED_INFO, &get_cached_info);
 		DEBUG_SLEEP
@@ -574,7 +574,7 @@ init_bios_info (void)
 
 		get_cached_info.PacketType = PXENV_PACKET_TYPE_CACHED_REPLY;
 		get_cached_info.Buffer = get_cached_info.BufferSize = 0;
-
+		if (debug_boot)
 		printf_debug0("\rbegin pxe call(type=CACHED_REPLY)...            ");
 		pxe_call (PXENV_GET_CACHED_INFO, &get_cached_info);
 		DEBUG_SLEEP
@@ -909,8 +909,11 @@ set_root:
 	    {
 		if (! probe_mbr ((struct master_and_dos_boot_sector *)initrd_addr, 0, initrd_size, 0))
 		    ram_drive = 0xfe;	/* partition table is valid, so let it be a harddrive */
-		else
+		else if (debug_boot)
+		{
 		    printf_debug0 ("\nUnrecognized partition table for RAM DRIVE; assuming floppy. Please rebuild\nit using a Microsoft-compatible FDISK tool, if the INITRD is a hard-disk image.\n");
+DEBUG_SLEEP
+		}
 	    }
 	}
   }
@@ -924,7 +927,9 @@ set_root:
   if (use_lba1sector && run_line("geometry --lba1sector",1))
   {
     int chk;
+		if (debug_boot)
     printf_debug0("\nYou pressed the `S` key, and \"geometry --lba1sector\" is successfully executed\n  for drive 0x%X.This will Slow but Secure disk read for Buggy BIOS.\n",boot_drive);
+DEBUG_SLEEP    
     while((chk = run_line("pause --wait=5",1)))
     {
        chk &= 0xdf;
