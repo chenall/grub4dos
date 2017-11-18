@@ -123,7 +123,7 @@ static void print_help_message (const char *message,int flags)
 			if (MENU_BOX_B + 1 + j > current_term->max_lines)
 				return;
 			gotoxy (MENU_HELP_X, MENU_BOX_B + 1 + j);
-			for (x = 0; x < current_term->chars_per_line; x++)
+			for (x = MENU_HELP_X; x < MENU_HELP_E + 1; x++)
 				grub_putchar (' ', 255);
 		}
 	}
