@@ -16248,11 +16248,14 @@ unsigned short graphic_wide;
 unsigned short graphic_high;
 unsigned short row_space;
 char graphic_file[128];
+struct box DrawBox[16];
+struct string strings[16];
+char *p_string= (char *)MENU_TITLE;
+unsigned long string_total = 0; 
 
 static int
 setmenu_func(char *arg, int flags)
 {
-	char *p = (char *)MENU_TITLE;
 	char *tem;
 	unsigned long long val;
 	struct border tmp_broder = {218,191,192,217,196,179,2,0,2,0,0,2,0,0,0};
@@ -16262,27 +16265,80 @@ setmenu_func(char *arg, int flags)
 		if (grub_memcmp (arg, "--string=", 9) == 0)
 		{
 			unsigned char i;
-			char *p1;
 			i = num_string;
+			if (i > 15)
+				return 0;
 			arg += 9;
+			errorcheck_func ("off",0);
 			if (safe_parse_maxint (&arg, &val))
-				*(unsigned long *)(p + i*0x10c) = val;			//x
-			arg++;
-			if (safe_parse_maxint (&arg, &val))
-				*(unsigned long *)(p + i*0x10c + 4) = val;	//y
-			arg++;
-			if (safe_parse_maxint (&arg, &val))
-				*(unsigned long *)(p + i*0x10c + 8) = val;	//color
+				strings[i].start_x = val;						//x
 			else
-				*(unsigned long *)(p + i*0x10c + 8) = -1;		
+			{
+				num_string = 0;
+				errorcheck_func ("on",0);
+				continue;
+			}
+			errorcheck_func ("on",0);
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				strings[i].start_y = val;							//y
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				strings[i].color = val;								//color	
 			arg += 2;
-			p1 = p + i*0x10c + 0xc;
+			strings[i].addr = (int)p_string;				//addr
 			i = parse_string(arg);
+			string_total += i;
+			if (string_total > 0x800)
+				return 0;
 			arg[i] = 0;
-			for (; *arg && *arg != '"'; p1++,arg++)
-				*p1 = *arg;
-			*p1 = 0;
+			for (; *arg && *arg != '"'; p_string++,arg++)
+				*p_string = *arg;
+			*p_string++ = 0;
 			num_string++;		
+    }
+		if (grub_memcmp (arg, "--draw-box=", 11) == 0)
+		{
+			unsigned char i;
+			
+			arg += 11;
+			errorcheck_func ("off",0);
+			if (safe_parse_maxint (&arg, &val))
+				i = val;
+			else
+			{
+				for (i=0; i<16; i++)
+					DrawBox[i].index = 0;
+				errorcheck_func ("on",0);
+				continue;
+			}
+			errorcheck_func ("on",0);
+			if (*arg != '=')
+			{
+				DrawBox[i].index = 0;
+				continue;
+			}
+			if (i > 16)
+				return 0;
+			DrawBox[i].index = i;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				DrawBox[i].start_x = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				DrawBox[i].start_y = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				DrawBox[i].horiz = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				DrawBox[i].vert = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				DrawBox[i].linewidth = val;
+			arg++;
+			if (safe_parse_maxint (&arg, &val))
+				DrawBox[i].color = val;	
     }
 		else if (grub_memcmp (arg, "--timeout=", 10) == 0)
 		{
@@ -16298,17 +16354,23 @@ setmenu_func(char *arg, int flags)
     }
 		else if (grub_memcmp (arg, "--u", 3) == 0)
 		{
+			int i;
 			menu_tab = 0;
 			num_string = 0;
 			menu_font_spacing = 0;
 			menu_line_spacing = 0;
 			font_spacing = 0;
 			line_spacing = 0;
-			current_term->max_lines = current_y_resolution / font_h;
-			current_term->chars_per_line = current_x_resolution / font_w;
+			if (current_x_resolution && current_y_resolution)
+			{
+				current_term->max_lines = current_y_resolution / font_h;
+				current_term->chars_per_line = current_x_resolution / font_w;
+			}
 			*(unsigned char *)0x8274 = 0;
 			memmove ((char *)&menu_border,(char *)&tmp_broder,sizeof(tmp_broder));
 			graphic_type = 0;
+			for (i=0; i<16; i++)
+				DrawBox[i].index = 0;
 			return 1;
 		}
     else if (grub_memcmp (arg, "--ver-on", 8) == 0)
@@ -16434,7 +16496,12 @@ setmenu_func(char *arg, int flags)
 				menu_border.menu_help_x = val;
 			arg++;
 			if (safe_parse_maxint (&arg, &val))
-				menu_border.menu_help_w = val;
+			{
+				if (menu_border.menu_help_x + val > current_term->chars_per_line)
+					menu_border.menu_help_w = current_term->chars_per_line - menu_border.menu_help_x;
+				else
+					menu_border.menu_help_w = val;
+			}
 			arg++;
 			if (safe_parse_maxint (&arg, &val))
 				menu_border.menu_box_b = val;								//y
@@ -16486,7 +16553,8 @@ static struct builtin builtin_setmenu =
 	"--left-align* --right-align --auto-num-off* --auto-num-on\n"
 	"--highlight-short* --highlight-full\n"
   "--font-spacing=[font]:[line]. default 0\n"
-  "--string=[x]=[y]=[color]=[\"string\"]\n"
+  "--string=[x]=[y]=[color]=[\"string\"]  max 16 commands.\n"
+	"			--string= to delete all strings.\n"
   "--box x=[x] y=[y] w=[w] h=[h] l=[l]\n"
   "Note: [w]=0 in the middle. [l]=0 no display border\n"
   "--help=[x]=[w]=[y]\n"
@@ -16503,6 +16571,11 @@ static struct builtin builtin_setmenu =
 	"setmenu --graphic-entry=type=row=list=wide=high=row_space START_FILE\n"
 	"type: bit0:highlight  bit1:flip  bit2:box  bit7:transparent background\n"
 	"naming rules for START_FILE: *n.???   n: 00-99\n"
+	"--u clear all.\n"
+	"--draw-box=[index]=[start_x]=[start_y]=[horiz]=[vert]=[linewidth]=[color].\n"
+	"			[index]:1-16; [color]:24-bit color; [linewidth]:1-255; all dimensions in pixels.\n"
+	"			--draw-box=[index] to delete the specified index.\n"
+	"			--draw-box= to delete all indexes." 
 };
 
 

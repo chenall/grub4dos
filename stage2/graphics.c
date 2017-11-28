@@ -2384,10 +2384,16 @@ void rectangle(int left, int top, int length, int width, int line)
 	if (!graphics_inited || graphics_mode < 0xff || !line)
 		return;
 
-	y = current_bytes_per_scanline * (width - line);
+	if (width)
+		y = current_bytes_per_scanline * (width - line);
+	else
+		y = 0;
 	z = current_bytes_per_pixel;
 	lfb = (unsigned char *)(current_phys_base + top * current_bytes_per_scanline + left * z);
 
+	if (!length)
+		goto vert;	
+	
 	for (i=0;i<line;++i)
 	{
 		p = lfb + current_bytes_per_scanline*i;
@@ -2407,13 +2413,22 @@ void rectangle(int left, int top, int length, int width, int line)
 			p += z;
 		}
 	}
+vert:
+	if (!width)
+		return;
 
-	y = z * (length - line);
-	lfb += line*current_bytes_per_scanline;
+	if (length)
+	{
+		y = z * (length - line);
+		lfb += line*current_bytes_per_scanline;
+	}
+	else
+		y = 0;
+
 	for (i=0;i<line;++i)
 	{
 		p = lfb + z * i;
-		for (x=line*2;x<width;++x)
+		for (x=(length ? (line*2) : 0);x<width;++x)
 		{
 			if (z == 3)
 			{

@@ -123,7 +123,7 @@ static void print_help_message (const char *message,int flags)
 			if (MENU_BOX_B + 1 + j > current_term->max_lines)
 				return;
 			gotoxy (MENU_HELP_X, MENU_BOX_B + 1 + j);
-			for (x = MENU_HELP_X; x < MENU_HELP_E + 1; x++)
+			for (x = MENU_HELP_X; x < MENU_HELP_E; x++)
 				grub_putchar (' ', 255);
 		}
 	}
@@ -166,13 +166,19 @@ static void print_help_message (const char *message,int flags)
 				{
 					if (c && c != '\n' && fontx >= start_offcet)
 					{
+						if (fontx == MENU_HELP_E - 1)
+							if (c > 0x7F && !(menu_tab & 0x40))
+							{
+								grub_putchar (' ', 255);
+								continue;
+							}
 						grub_putchar (c, 255);
 						c = *(++message);
 					}
 					else
 						grub_putchar (' ', 255);
 				}
-				for (x = fontx; x < current_term->chars_per_line/* - 1*/; x++)
+				for (x = fontx; x < MENU_HELP_E; x++)
 					grub_putchar (' ', 255);
 			}
 		}
@@ -807,39 +813,36 @@ restart1:
 				init_page ();
       //setcursor (0);
 			
+		if (graphics_inited && graphics_mode > 0xff)/*vbe mode call rectangle_func*/
+		{
+			int i,j;
+			unsigned long long col = current_color_64bit;
+			for (i=0; i<16; i++)
+			{
+				if (DrawBox[i].index == 0)
+					continue;	
+				current_color_64bit = DrawBox[i].color;
+				rectangle(DrawBox[i].start_x, DrawBox[i].start_y, DrawBox[i].horiz, DrawBox[i].vert, DrawBox[i].linewidth);
+			}
+			
 			if (num_string)
 			{
-				unsigned char *p = (unsigned char *)MENU_TITLE;
-				unsigned char i,j;
 				int start_offcet = 0;
-			
 				i = num_string;
-				unsigned long long col = current_color_64bit;
-				for (j=0; j<i;j++)
+				
+				for (j=0; j<i+1;j++)
 				{
 					if((menu_tab & 0x40))
-						start_offcet = current_term->chars_per_line - *(unsigned long *)((char *)p + j*0x10c) - num_text_char((char *)p + j*0x10c + 0xc);
+						start_offcet = current_term->chars_per_line - strings[j].start_x - num_text_char((char *)strings[j].addr);
 					else
-						start_offcet = *(unsigned long *)(p + j*0x10c);
-					
-					gotoxy (start_offcet, *(unsigned long *)(p + j*0x10c + 4));
-					if((current_color_64bit = *(unsigned long *)(p + j*0x10c + 8)) == 0xffffffff)
-					{
-						if(*(unsigned long *)(p + j*0x10c + 4) < MENU_BOX_Y)
-						{
-							if (current_term->setcolorstate)
-								current_term->setcolorstate (COLOR_STATE_HEADING);
-						}
-						else if(*(unsigned long *)(p + j*0x10c + 4) > MENU_BOX_B)
-						{
-							if (current_term->setcolorstate)
-								current_term->setcolorstate (COLOR_STATE_HELPTEXT);
-						}
-					}	
-					grub_printf("%-*.*s",current_term->chars_per_line,current_term->chars_per_line,p + j*0x10c + 0xc);
+						start_offcet = strings[j].start_x;
+					gotoxy (start_offcet, strings[j].start_y);
+					current_color_64bit = strings[j].color;
+					grub_printf("%s",strings[j].addr);
 				}
-				current_color_64bit = col;
 			}
+			current_color_64bit = col;
+		}
 			
       if (current_term->flags & TERM_DUMB)
 	print_entries_raw (num_entries, first_entry, menu_entries);

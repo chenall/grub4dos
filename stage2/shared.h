@@ -483,6 +483,26 @@ extern void rectangle(int left, int top, int length, int width, int line);
 extern int hex (int v);
 extern unsigned long splashimage_loaded;
 extern unsigned long X_offset,Y_offset;
+struct box
+{
+	unsigned char index;
+	unsigned short start_x;
+	unsigned short start_y;
+	unsigned short horiz;
+	unsigned short vert;
+	unsigned char linewidth;
+	unsigned long color;
+} __attribute__ ((packed));
+extern struct box DrawBox[16];
+struct string
+{
+	unsigned char start_x;
+	unsigned char start_y;
+	unsigned long long color;
+	int addr;
+} __attribute__ ((packed));
+extern struct string strings[16];
+extern unsigned long string_total;
 #define MENU_TITLE					0x3A8000
 #define MENU_TITLE_LENGTH		0x800
 /* The Chinese patch will begin at here */
