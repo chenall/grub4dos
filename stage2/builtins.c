@@ -3220,12 +3220,15 @@ color_func (char *arg, int flags)
   {
 	color_state state_t;
 	unsigned long state = 0;
+	int i = 0, tag = 0;
 	arg = normal;
 	while (*arg)
 	{
 		if (memcmp(arg,"normal",6) == 0)
 		{
 			state_t = COLOR_STATE_NORMAL;
+			if (i == 0)
+				tag = 1;
 		}
 		else if (memcmp(arg,"highlight",9) == 0)
 		{
@@ -3258,8 +3261,23 @@ color_func (char *arg, int flags)
 			return 0;
 		    new_color[state_t] = new_normal_color ;
 		}
+
+		if (!(new_color[state_t] >> 8))
+			new_color[state_t] = color_8_to_64 (new_color[state_t]);
+
+		if (tag && i==0)
+		{		
+			new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[state_t];		
+			new_color[COLOR_STATE_HIGHLIGHT] = 0xffffff | ((splashimage_loaded & 2)?0:(new_color[state_t] & 0xffffffff00000000));			
+			state |= (1<<COLOR_STATE_HEADING | 1<<COLOR_STATE_HELPTEXT | 1<<COLOR_STATE_HIGHLIGHT);
+		}
+		
 		state |= 1<<state_t;
+		i++;
+		if (tag && !(splashimage_loaded & 2) && ((new_color[state_t] & 0xffffffff00000000) == 0))
+			new_color[state_t] |= (new_color[COLOR_STATE_NORMAL] & 0xffffffff00000000);
 	}
+
 	current_term->setcolor (state,new_color);
 	errnum = 0;
 	return 1;
@@ -3272,29 +3290,34 @@ color_func (char *arg, int flags)
 	}
 
   if (new_normal_color >> 8)	/* disable blinking */
-
 	blinking = 0;
+	
+	if (!(new_normal_color >> 8))
+			new_normal_color = color_8_to_64 (new_normal_color);
   new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[COLOR_STATE_NORMAL] = new_normal_color;
 
   /* The second argument is optional, so set highlight_color
      to inverted NORMAL_COLOR.  */
-  if (! *arg)
-  {
-	if (new_normal_color >> 8)
-		new_color[COLOR_STATE_HIGHLIGHT] = 0xffffff;
-	else
-		new_color[COLOR_STATE_HIGHLIGHT] = 0xf;
-  }
-  else
+		new_color[COLOR_STATE_HIGHLIGHT] = 0xffffff | ((splashimage_loaded & 2)?0:(new_normal_color & 0xffffffff00000000));
+
+	if (*arg)
 	{
 		int i;
 		for (i=COLOR_STATE_HIGHLIGHT;i<=COLOR_STATE_HEADING && *arg;++i)
 		{
 			normal = arg;
 			arg = skip_to (0, arg);
+			if (*normal == 'n')
+				continue;
 			new_color[i] = (unsigned long long)(long long)color_number (normal);
 			if (((int)new_color[i] < 0) && ! safe_parse_maxint (&normal, &new_color[i]))
 				return 0;
+
+			if (!(new_color[i] >> 8))
+				new_color[i] = color_8_to_64 (new_color[i]);
+			
+			if (!(splashimage_loaded & 2) && ((new_color[i] & 0xffffffff00000000) == 0))
+				new_color[i] |= (new_color[COLOR_STATE_NORMAL] & 0xffffffff00000000);
 			/*comment by chenall 2011-11-30 why do this? I think not need.*/
 			//if (new_color[i] & 0xff00)	/* disable blinking */
 			//{
@@ -3332,8 +3355,17 @@ static struct builtin builtin_color =
   " The format of a color is \"FG/BG\". FG and BG are symbolic color names."
   " A symbolic color name must be one of these: black, blue, green,"
   " cyan, red, magenta, brown, light-gray, dark-gray, light-blue,"
-  " light-green, light-cyan, light-red, light-magenta, yellow and white."
-  " You can prefix \"blink-\" to FG if you want a blinking foreground color."
+  " light-green, light-cyan, light-red, light-magenta, yellow and white.\n"
+  "1. Assign colors by target, the order can not be messed up. The color can be replaced by a placeholder n.\n"
+	"e.g. color black/cyan yellow/cyan red/cyan light-green/cyan. (character color/background color, use symbol color.)\n"
+	"e.g. color 0x30 0x3e 0x34 0x3a. (high part=background color, low part=character color, 8 bit number.)\n"
+	"e.g. color 0x888800000000 0x888800ffff00 0x888800880000 0x88880000ff00. (64 bit number.)\n"
+	"e.g. color 0x30. (The rest is the same as NORMAL. Change the console color on the command line.)\n"
+	"e.g. color 0x30 0xe n 0xa. (Background color from NORMAL. placeholder n.)\n"
+	"2. Can assign colors to a specified target. NORMAL should be in the first place.\n"
+	"e.g. color normal=0x888800000000. (The rest is the same as NORMAL.)\n"
+	"e.g. color normal=0x4444440000ffff helptext=0xc highlight=0xd heading=0xe border=0xa. (Background color from NORMAL.)\n"
+	"e.g. color standard=0xFFFFFF. (Change the console color.)"
 };
 
 
@@ -15700,8 +15732,10 @@ static struct builtin builtin_echo =
    "        \\Xnnnn show unicode characters.\n"
    "-v      show version and memory information.\n"
 	 "-rrggbb show 24 bit colors.\n"
-   "$[ABCD] the color for MESSAGE.(console only).\n"
-   "A=blink- (text mode) or BG light- (graphics mode), B=FG light-, C=BG, D=FG."
+   "$[ABCD] the color for MESSAGE.(console only, 8 bit number)\n" 
+   "A=bright background, B=bright characters, C=background color, D=Character color.\n"
+   "$[0xCD] 8 or 64 bit number value for MESSAGE. C=background, D=Character.\n"
+   "$[] using COLOR STATE STANDARD."	
 };
 
 static int if_func(char *arg,int flags)

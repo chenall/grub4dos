@@ -837,7 +837,11 @@ restart1:
 					else
 						start_offcet = strings[j].start_x;
 					gotoxy (start_offcet, strings[j].start_y);
-					current_color_64bit = strings[j].color;
+					current_term->setcolorstate (COLOR_STATE_NORMAL);
+					if ((strings[j].color & 0xffffffff00000000) == 0)
+						current_color_64bit = strings[j].color | (current_color_64bit & 0xffffffff00000000);
+					else
+						current_color_64bit = strings[j].color;
 					grub_printf("%s",strings[j].addr);
 				}
 			}
@@ -980,7 +984,13 @@ restart1:
 		}
 
 		if(timeout_color)
-			current_color_64bit = timeout_color;
+		{
+			current_term->setcolorstate (COLOR_STATE_NORMAL);
+			if ((timeout_color & 0xffffffff00000000) == 0)
+				current_color_64bit = timeout_color | (current_color_64bit & 0xffffffff00000000);
+			else
+				current_color_64bit = timeout_color;
+		}
 		else
 				if (current_term->setcolorstate)
 					current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
@@ -1068,7 +1078,13 @@ restart1:
 		}
 
 		if(timeout_color)
-			current_color_64bit = timeout_color;
+		{
+			current_term->setcolorstate (COLOR_STATE_NORMAL);
+			if ((timeout_color & 0xffffffff00000000) == 0)
+				current_color_64bit = timeout_color | (current_color_64bit & 0xffffffff00000000);
+			else
+				current_color_64bit = timeout_color;
+		}
 		else
 			if (current_term->setcolorstate)
 				current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
