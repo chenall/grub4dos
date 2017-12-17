@@ -453,14 +453,14 @@ real_codestart:
 	movw	$1, %si			/* DS=current int13 code segment */
 	movw	$ABS(int13_handler + 1), %di		/* ES=0 */
 	repz movsb
-
+#ifdef CDROM_INIT
 	/* calculate the new max_cdrom_id. */
 	movw	$2, %si
 	lodsw				/* AL=atapi_dev_count, AH=min_cdrom_id */
 	addb	%ah, %al
 	decw	%ax			/* AL=max_cdrom_id */
 	movb	%al, %cs:ABS(max_cdrom_id)		/* CS=0 */
-
+#endif
 	/* initialize bios_drive_map with hooked_drive_map_1 */
 #if	MAP_NUM_16
 	movw	$(DRIVE_MAP_SIZE * DRIVE_MAP_SLOT_SIZE / 4), %cx
@@ -2048,9 +2048,11 @@ ENTRY(bios_drive_map)
 int13_handler:
 
 	/* memory size in K that int13 handler uses. */
-
+#ifdef CDROM_INIT
 	.byte	((int13_handler_end - int13_handler + 0x3ff) / 0x400)
-
+#else
+	.byte	((cdrom_start - int13_handler + 0x3ff) / 0x400)
+#endif
 	/* 1-byte space reserved. */
 
 	. = int13_handler + 0x2
@@ -2391,7 +2393,7 @@ int13_new_ss:		.word	0
 //	# this check is not too useful, so comment out to save space
 //	cmpb	$0x1a, %ah	/* PS/2 low level format ESDI drive!!!! */
 //	je	error_01_disable	/* disabled in any case */
-
+#ifdef CDROM_INIT
 	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
 	jz	1f		/* no cdrom */
 	cmpb	%cs:(EXT_C(min_cdrom_id) - int13_handler), %dl
@@ -2399,7 +2401,7 @@ int13_new_ss:		.word	0
 	cmpb	%cs:(max_cdrom_id - int13_handler), %dl
 	jbe	edd30_for_cdrom
 1:
-
+#endif
 /****************************************************************************/
 	/* find the drive number from the drive map */
 #if	MAP_NUM_16
@@ -2469,6 +2471,7 @@ int13_new_ss:		.word	0
 	jz	3f			/* not cdrom */
 	testw	$0x2000, %cs:4(%bp)	/* TO_C bit 13=(FROM is cdrom) */
 	jz	3f			/* not cdrom */
+#ifdef CDROM_INIT
 	movb	%cs:1(%bp), %dl		/* DL changed(!!) to TO_drive */
 	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
 	jz	2f	/* no cdrom, so it is a bios drive map. */
@@ -2477,6 +2480,7 @@ int13_new_ss:		.word	0
 	cmpb	%cs:(max_cdrom_id - int13_handler), %dl	/* TO_drive */
 	ja	2f	/* not cdrom, so it is a bios drive map. */
 	jmp	edd30_for_cdrom
+#endif
 3:
 
 	/* S_count being not 1 signals emulation */
@@ -4261,7 +4265,7 @@ normal_disk_drive:
 	movw	$edd30_disk_buffer - int13_handler, %bx
 	movw	%bx, 4(%si)		/* set the buffer offset */
 	movw	%cs:(int13_reg_AX - int13_handler), %ax
-
+#ifdef CDROM_INIT
 	/* check if DL is for anyone of (cd?)'s */
 	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
 	jz	2f			/* no cdX'es */
@@ -4272,10 +4276,11 @@ normal_disk_drive:
 	/* read 1 cdrom sector using our builtin cdrom driver. */
 	movb	$1, %cs:(force_int13 - int13_handler)
 2:
+#endif
 	call	int13_with_retry	/* read a big 2048-byte sector */
-
+#ifdef CDROM_INIT
 	movb	$0, %cs:(force_int13 - int13_handler)
-
+#endif
 	movw	%cs:(int13_cdrom_bx - int13_handler), %bx
 	//popw	%es
 	jc	3f			/* failed */
@@ -4583,9 +4588,10 @@ int13_with_retry:
 
 	/* retry count should be an odd number initially */
 	movb	$5, %cs:(retry_count - int13_handler)
-
+#ifdef CDROM_INIT
 	cmpb	$0, %cs:(force_int13 - int13_handler)
 	jnz	3f	/* we should use current int 13 instead of ROM_int13 */
+#endif
 	call	backup_int13
 3:
 	movb	%ah, %cs:(int13_retry_ah - int13_handler)
@@ -4625,9 +4631,10 @@ int13_with_retry:
 	clc			/* success */
 2:
 	pushfw
-
+#ifdef CDROM_INIT
 	cmpb	$0, %cs:(force_int13 - int13_handler)
 	jnz	2f	/* we have not touched the int 13 vector */
+#endif
 	call	restore_int13
 2:
 	popfw
@@ -4668,9 +4675,10 @@ retry_count:
 
 int13_retry_ah:
 	.byte	0
+#ifdef CDROM_INIT
 force_int13:
 	.byte	0
-
+#endif
 	.align	2
 int13_retry_IP:
 	.word	0
@@ -4718,7 +4726,7 @@ int13_simple:
 	movw	%es, %cs:(int13_retry_es - int13_handler)
 
 	//sti
-
+#ifdef CDROM_INIT
 	cmpb	$0, %cs:(force_int13 - int13_handler)
 	jz	3f
 	/* read 1 cdrom sector using our builtin cdrom driver. */
@@ -4803,6 +4811,7 @@ int13_simple:
 	/* eax changed but no problem */
 
 	jmp	2f
+#endif
 3:
 	movb	%cs:(int13_retry_ah - int13_handler), %ah
 	xorb %al, %al				//Correction write  mapping device fail in real machine     2017.05.10 yaya   
@@ -5539,8 +5548,9 @@ lba_to_chs:
 	ret
 
 /****************************************************************************/
+#ifdef CDROM_INIT
 max_cdrom_id:		.byte	0xE0
-
+#endif
 	.align	4
 ENTRY(e820cycles)
 	.long	-1	/* no limit. set to 0 if int15 will unhook */
@@ -6232,7 +6242,7 @@ ENTRY(hooked_fragment_map)	.space	FRAGMENT_MAP_SLOT_SIZE
 	.ascii	"int13end"
 
 cdrom_start:
-
+#ifdef CDROM_INIT
 /* EDD30 code imported from edd30.asm of Smart Boot Manager. */
 
 /*
@@ -7678,7 +7688,7 @@ ENTRY(reg_base_addr_append)
 			.word	0, 0
 			.word	0, 0		// ending null
 
-
+#endif	//CDROM_INIT
 #;============================================================================
 
 /* void realmode_printf(const char *format, ...)
@@ -10123,7 +10133,7 @@ set_410_1:
 
 
 
-#define CDROM_INIT
+//#define CDROM_INIT
 #ifdef CDROM_INIT
 
 /* unsigned long
@@ -10231,11 +10241,6 @@ ENTRY(init_atapi)
 	popl	%ebp
 	ret
 
-#endif	/* CDROM_INIT */
-
-
-#ifdef CDROM_INIT
-
 init_atapi_cdroms:
 
 	.code16
@@ -10327,10 +10332,6 @@ init_atapi_cdroms:
 cdrom_reg_dev:
 	.ascii	"CDROM device found: Data=%X, Ctrl=%X, dev=%X(Note: 0=master, 1=slave)\r\n\0"
 
-#endif	/* CDROM_INIT */
-
-
-#ifdef CDROM_INIT
 
 /* Called by init_atapi_cdroms
  * Calls reg_setup_base_addr, reg_reset
@@ -10475,10 +10476,6 @@ reg_probe:
 atapi_reg_dev:
 	.ascii	"ATAPI device found: Data=%X, Ctrl=%X, dev=%X(Note: 0=master, 1=slave)\r\n\0"
 
-#endif	/* CDROM_INIT */
-
-
-#ifdef CDROM_INIT
 
 check_atapi_cdrom:
 
@@ -10507,10 +10504,6 @@ check_atapi_cdrom:
 	popaw
 	ret
 
-#endif	/* CDROM_INIT */
-
-
-#ifdef CDROM_INIT
 
 inquiry_atapi:
 
@@ -10559,10 +10552,6 @@ inquiry_atapi:
 	stc
 	ret
 
-#endif	/* CDROM_INIT */
-
-
-#ifdef CDROM_INIT
 
 reg_probe_dev_exist:
 
@@ -16281,12 +16270,13 @@ ENTRY(set_int13_handler)
 
 	/* read available lower memory size */
 	movzwl  0x413, %eax
-	
+#ifdef CDROM_INIT
 	/* KBytes that int13 handler occupies */
 	movl	$((int13_handler_end - int13_handler + 0x3ff) / 0x400), %edx	
 //	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
 	cmpb	$0, ABS(EXT_C(atapi_dev_count))
 	jne	1f
+#endif
 	movl	$((cdrom_start - int13_handler + 0x3ff) / 0x400), %edx	
 1:		
 //	movzbl	ABS(int13_handler), %edx # EDX=KBytes used by new int13_handler
@@ -16299,10 +16289,12 @@ ENTRY(set_int13_handler)
 	shll    $10, %eax	
 	movl    %eax, %edi	# EDI=EAX=destination int13_handler address
 	movl	$ABS(int13_handler), %esi
+#ifdef CDROM_INIT
 	movl	$((int13_handler_end - int13_handler + 3) / 4), %ecx
 //	cmpb	$0, %cs:(EXT_C(atapi_dev_count) - int13_handler)
 	cmpb	$0, ABS(EXT_C(atapi_dev_count))
 	jne	1f
+#endif
 	movl	$((cdrom_start - int13_handler + 3) / 4), %ecx
 1:
 	// cld

@@ -1558,7 +1558,7 @@ static struct builtin builtin_cat =
   "--replace replaces STRING with REPLACE in FILE."
   "--number  use with --locate,the max number for locate",
 };
-
+#ifdef CDROM_INIT
 /* cdrom */
 static int
 cdrom_func (char *arg, int flags)
@@ -1612,7 +1612,7 @@ static struct builtin builtin_cdrom =
   " The high word of P specifies the base register of the control block registers, and"
   " the low word of P specifies the base register of the command block registers."
 };
-
+#endif
 
 /* chainloader */
 static int
@@ -17341,7 +17341,9 @@ struct builtin *builtin_table[] =
   &builtin_calc,
   &builtin_call,
   &builtin_cat,
+#ifdef CDROM_INIT
   &builtin_cdrom,
+#endif
   &builtin_chainloader,
   &builtin_checkrange,
   &builtin_checktime,
