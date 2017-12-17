@@ -4246,12 +4246,17 @@ splashimage_func(char *arg, int flags)
 	}
 
     strcpy(splashimage, arg);
-	if (type == 0x4D42 && (!graphics_inited || graphics_mode < 0xFF)) //BMP
+	if (graphics_mode < 0xFF)
+	{
+	if (type == 0x4D42 && !graphics_inited) //BMP
 	{
 		char tmp[16];
 		sprintf(tmp,"-1 %d %d",w,h);
-		if (graphicsmode_func(tmp,1) || graphics_mode < 0xFF)
+		if (graphicsmode_func(tmp,1))
 			return 1;
+	}
+	else
+		return 0;
 	}
 	if (! animated_type && ! graphic_type )
 	graphics_end();
