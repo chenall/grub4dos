@@ -3191,6 +3191,7 @@ color_number (char *str)
       return color;
 }
 
+extern int color_counting;
 /* color */
 /* Set new colors used for the menu interface. Support two methods to
    specify a color name: a direct integer representation and a symbolic
@@ -3220,14 +3221,14 @@ color_func (char *arg, int flags)
   {
 	color_state state_t;
 	unsigned long state = 0;
-	int i = 0, tag = 0;
+	int tag = 0;
 	arg = normal;
 	while (*arg)
 	{
 		if (memcmp(arg,"normal",6) == 0)
 		{
 			state_t = COLOR_STATE_NORMAL;
-			if (i == 0)
+			if (color_counting == 0)
 				tag = 1;
 		}
 		else if (memcmp(arg,"highlight",9) == 0)
@@ -3265,7 +3266,7 @@ color_func (char *arg, int flags)
 		if (!(new_color[state_t] >> 8))
 			new_color[state_t] = color_8_to_64 (new_color[state_t]);
 
-		if (tag && i==0)
+		if (tag && color_counting==0)
 		{		
 			new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[state_t];		
 			new_color[COLOR_STATE_HIGHLIGHT] = 0xffffff | ((splashimage_loaded & 2)?0:(new_color[state_t] & 0xffffffff00000000));			
@@ -3273,7 +3274,7 @@ color_func (char *arg, int flags)
 		}
 		
 		state |= 1<<state_t;
-		i++;
+		color_counting++;
 		if (tag && !(splashimage_loaded & 2) && ((new_color[state_t] & 0xffffffff00000000) == 0))
 			new_color[state_t] |= (new_color[COLOR_STATE_NORMAL] & 0xffffffff00000000);
 	}
@@ -16303,19 +16304,22 @@ setmenu_func(char *arg, int flags)
 	{
 		if (grub_memcmp (arg, "--string=", 9) == 0)
 		{
-			unsigned char i;
+			unsigned char i, j;
 			i = num_string;
-			if (i > 15)
-				return 0;
 			arg += 9;
 			errorcheck_func ("off",0);
 			if (safe_parse_maxint (&arg, &val))
-				strings[i].start_x = val;						//x
+			{
+				if (i > 15)
+					return 0;
+				else
+					strings[i].start_x = val;						//x
+			}
 			else
 			{
 				num_string = 0;
 				errorcheck_func ("on",0);
-				continue;
+				goto cont;
 			}
 			errorcheck_func ("on",0);
 			arg++;
@@ -16326,17 +16330,19 @@ setmenu_func(char *arg, int flags)
 				strings[i].color = val;								//color	
 			arg += 2;
 			strings[i].addr = (int)p_string;				//addr
-			i = parse_string(arg);
-			string_total += i;
+			for (i=0; arg[i]!='"'; i++);
+			arg[i] = 0;
+			j = parse_string(arg);
+			string_total += j;
 			if (string_total > 0x800)
 				return 0;
-			arg[i] = 0;
-			for (; *arg && *arg != '"'; p_string++,arg++)
-				*p_string = *arg;
+			for (i=0; *arg && i<j; i++)
+				*p_string++ = *arg++;
 			*p_string++ = 0;
 			num_string++;		
+			arg++;
     }
-		if (grub_memcmp (arg, "--draw-box=", 11) == 0)
+		else if (grub_memcmp (arg, "--draw-box=", 11) == 0)
 		{
 			unsigned char i;
 			
@@ -16349,13 +16355,13 @@ setmenu_func(char *arg, int flags)
 				for (i=0; i<16; i++)
 					DrawBox[i].index = 0;
 				errorcheck_func ("on",0);
-				continue;
+				goto cont;
 			}
 			errorcheck_func ("on",0);
 			if (*arg != '=')
 			{
 				DrawBox[i].index = 0;
-				continue;
+				goto cont;
 			}
 			if (i > 16)
 				return 0;
@@ -16573,7 +16579,7 @@ setmenu_func(char *arg, int flags)
 		}
 		else
 			return 0;
-		
+cont:		
 		while(*arg && !isspace(*arg) && *arg != '-')
 			arg++;
 		while (*arg == ' ' || *arg == '\t')

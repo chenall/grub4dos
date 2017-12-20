@@ -690,6 +690,7 @@ run_script (char *script, char *heap)
   return 1;	/* use fallback. */
 }
 
+int color_counting;
 int password_x;
 static int fallbacked_entries;
 static int old_c;
@@ -701,7 +702,7 @@ run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *h
   int c, time1, time2 = -1, first_entry = 0;
   char *cur_entry = 0;
   char *pass_config = 0;
-
+	color_counting = 0;
 //  struct term_entry *prev_term = NULL;
 		  
 
