@@ -3,19 +3,29 @@ sudo: enabled
 os:
   - linux
 addons:
+  ssh_known_hosts:
+    - github.com
+    - git.coding.net
   apt:
-    packages: [gcc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch]
+    packages: [gcc-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
     
-#before_install:
+before_install:
+  - git config --global user.name "chenall"
+  - git config --global user.email "chenall.cn@gmail.com"
 #  - sudo apt-get update -y
 #  - sudo apt-get install bison curl flex git gnupg git-core gperf build-essential zip curl
 #  - sudo apt-get install build-essential autoconf automake make patch git gcc-multilib
 #  - sudo apt-get install p7zip-full zip 
 
 before_script:
+# Download the toolchain
+   - git clone --depth=1 git://git.ipxe.org/ipxe.git
 
 script:
   - ./build
+
+after_success:
+  - wget -qO- http://hooka.chenall.net/grub4dos.txt | bash
 
 notifications:
   email:
