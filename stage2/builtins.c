@@ -16291,6 +16291,7 @@ char graphic_file[128];
 struct box DrawBox[16];
 struct string strings[16];
 char *p_string= (char *)MENU_TITLE;
+extern int new_menu;
 unsigned long string_total = 0; 
 
 static int
@@ -16299,6 +16300,17 @@ setmenu_func(char *arg, int flags)
 	char *tem;
 	unsigned long long val;
 	struct border tmp_broder = {218,191,192,217,196,179,2,0,2,0,0,2,0,0,0};
+
+	if (new_menu == 0)
+	{
+		num_string = 0;
+		string_total = 0;
+		p_string = (char *)MENU_TITLE;
+		int i;
+		for (i=0; i<16; i++)
+			DrawBox[i].index = 0;
+		new_menu = 1;
+	}
 
 	for (; *arg && *arg != '\n' && *arg != '\r';)  
 	{
@@ -16318,6 +16330,8 @@ setmenu_func(char *arg, int flags)
 			else
 			{
 				num_string = 0;
+				string_total = 0;
+				p_string = (char *)MENU_TITLE;
 				errorcheck_func ("on",0);
 				goto cont;
 			}
@@ -16402,6 +16416,8 @@ setmenu_func(char *arg, int flags)
 			int i;
 			menu_tab = 0;
 			num_string = 0;
+			string_total = 0;
+			p_string= (char *)MENU_TITLE;
 			menu_font_spacing = 0;
 			menu_line_spacing = 0;
 			font_spacing = 0;

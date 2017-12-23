@@ -182,7 +182,7 @@ dec_vhd_open(void)
 	memset(&footer, 0, sizeof(footer));
 	memset(&dynaheader, 0, sizeof(dynaheader));
 
-	int bytesread = (int)grub_read((unsigned long)&footer, 0x200, 0xedde0d90);
+	//int bytesread = (int)grub_read((unsigned long)&footer, 0x200, 0xedde0d90);
 
 	//if (bytesread < 511) {
 		// grub_printf("bytesread %d < 511\n",bytesread);
@@ -206,7 +206,7 @@ dec_vhd_open(void)
 			goto quit;
 		}
 		filepos = footer.dataOffset;
-		bytesread = (int)grub_read((unsigned long)&dynaheader, sizeof(dynaheader), 0xedde0d90);
+		//bytesread = (int)grub_read((unsigned long)&dynaheader, sizeof(dynaheader), 0xedde0d90);
 //	}
 
 	vhdfc = (VHDFileControl*) grub_malloc(sizeof(VHDFileControl));

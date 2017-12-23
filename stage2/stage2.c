@@ -690,6 +690,7 @@ run_script (char *script, char *heap)
   return 1;	/* use fallback. */
 }
 
+int new_menu;
 int color_counting;
 int password_x;
 static int fallbacked_entries;
@@ -703,6 +704,7 @@ run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *h
   char *cur_entry = 0;
   char *pass_config = 0;
 	color_counting = 0;
+	new_menu = 0;
 //  struct term_entry *prev_term = NULL;
 		  
 
@@ -831,7 +833,7 @@ restart1:
 				int start_offcet = 0;
 				i = num_string;
 				
-				for (j=0; j<i+1;j++)
+				for (j=0; j<i; j++)
 				{
 					if((menu_tab & 0x40))
 						start_offcet = current_term->chars_per_line - strings[j].start_x - num_text_char((char *)strings[j].addr);
