@@ -4764,7 +4764,8 @@ fallback_func (char *arg, int flags)
 
   fallback_entryno = (i == 0) ? -1 : 0;
   if (go) return (errnum = MAX_ERR_NUM);
-  return 1;
+//  return 1;
+		return 0;
 }
 
 static struct builtin builtin_fallback =
@@ -17140,7 +17141,8 @@ static int goto_func(char *arg, int flags)
 {
 	errorcheck_func ("on",0);
 	errnum = ERR_BAT_GOTO;
-	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
+//	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
+	if (*arg == ':')
 	{
 		return bat_find_label(arg);
 	}

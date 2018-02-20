@@ -590,9 +590,13 @@ extern int checkrange_func (char *arg1, int flags);
 static int
 run_script (char *script, char *heap)
 {
-  char *old_entry = 0;
+//  char *old_entry = 0;
   char *cur_entry = script;
   struct builtin *builtin = 0;
+	char tmp[5] = {'!','B','A','T',0x0a};
+	char cmd_add[16];
+	char *menu_bat;
+	char *p;
 //  char *arg;
 //  grub_error_t errnum_old;//2010-12-16
 
@@ -607,6 +611,38 @@ run_script (char *script, char *heap)
   errnum = 0;
   errorcheck = 1;	/* errorcheck on */
 
+	while (1)
+	{
+		while (*cur_entry++);
+		if (! *cur_entry)
+			break;
+		*(cur_entry - 1) = 0x0a;
+	}
+	menu_bat = (char *)grub_malloc(cur_entry - script + 10 + 512);
+	if (menu_bat == NULL)
+		return 0;
+	p = (char *)(((int)menu_bat + 511) & ~511);
+	grub_memmove (p, &tmp, 5);
+	grub_memmove (p + 5, script, cur_entry - script);
+	grub_sprintf (cmd_add, "(md)%d+%d", (int)p >> 9, ((cur_entry - script + 10 + 511) & ~511) >> 9);
+	command_func (cmd_add, 1);
+	grub_free(menu_bat);
+	
+	if (errnum == MAX_ERR_NUM)
+	{
+		errnum=ERR_NONE;
+		return 0;
+	}
+	if (errnum && errorcheck)
+		goto ppp;
+	
+	/* If any kernel is not loaded, just exit successfully.  */
+	if (kernel_type == KERNEL_TYPE_NONE)
+		return 0;	/* return to main menu. */
+	/* Otherwise, the command boot is run implicitly.  */
+	grub_sprintf (cmd_add, "boot", 5);
+	run_line (cmd_add , BUILTIN_SCRIPT);
+#if 0
   while (1)
     {
 		if (errnum == MAX_ERR_NUM)
@@ -671,7 +707,8 @@ run_script (char *script, char *heap)
       if (! *old_entry)	/* HEAP holds the implicit BOOT command */
 	break;
     } /* while (1) */
-
+#endif
+ppp:
   kernel_type = KERNEL_TYPE_NONE;
 
   /* If a fallback entry is defined, don't prompt a user's intervention.  */
@@ -2415,16 +2452,18 @@ restart_config:
 
 	while (get_line_from_config ((char *) CMDLINE_BUF, NEW_HEAPSIZE, is_preset))
 	{
-	    struct builtin *builtin;
+	    struct builtin *builtin = 0;
 	    char *cmdline = (char *) CMDLINE_BUF;
 	  
 	    /* Get the pointer to the builtin structure.  */
+			if (*cmdline == ':')
+				goto sss;
 	    builtin = find_command (cmdline);
 	    errnum = 0;
 	    if (! builtin)
 		/* Unknown command. Just skip now.  */
 		continue;
-	  
+sss:	  
 	    if ((int)builtin != -1 && builtin->flags == 0)	/* title command */
 	    {
 		if (builtin != &builtin_title)/*If title*/

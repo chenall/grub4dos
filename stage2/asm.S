@@ -14409,7 +14409,8 @@ VARIABLE(linux_data_real_addr)
 	.long	0
 
 VARIABLE(linux_bzimage_tmp_addr)
-	.long	SYSTEM_RESERVED_MEMORY
+//	.long	SYSTEM_RESERVED_MEMORY
+	.long	LINUX_TMP_MEMORY
 
 ENTRY(linux_boot)
 
@@ -15748,7 +15749,8 @@ ENTRY(multi_boot)
 	 * function must be at below 1M, together with real-mode functions.
 	 */
 
-	movl	$(SYSTEM_RESERVED_MEMORY + 0x0100000), %esi
+//	movl	$(SYSTEM_RESERVED_MEMORY + 0x0100000), %esi
+	movl	$(LINUX_TMP_MEMORY + 0x0100000), %esi
 	movl	$0x0100000, %edi				/* 1M */
 	movl	ABS(EXT_C(cur_addr)), %ecx
 	subl	%esi, %ecx
