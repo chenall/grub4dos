@@ -592,7 +592,7 @@ run_script (char *script, char *heap)
 {
 //  char *old_entry = 0;
   char *cur_entry = script;
-  struct builtin *builtin = 0;
+//  struct builtin *builtin = 0;
 	char tmp[5] = {'!','B','A','T',0x0a};
 	char cmd_add[16];
 	char *menu_bat;
@@ -625,10 +625,10 @@ run_script (char *script, char *heap)
 	grub_memmove (p, &tmp, 5);
 	grub_memmove (p + 5, script, cur_entry - script);
 	grub_sprintf (cmd_add, "(md)%d+%d", (int)p >> 9, ((cur_entry - script + 10 + 511) & ~511) >> 9);
-	command_func (cmd_add, 1);
+	command_func (cmd_add, BUILTIN_SCRIPT);
 	grub_free(menu_bat);
 	
-	if (errnum == MAX_ERR_NUM)
+	if (errnum >= 1000)
 	{
 		errnum=ERR_NONE;
 		return 0;
@@ -715,8 +715,10 @@ ppp:
   
   if (fallback_entryno < 0)
     {
+#if 0
       if (! (builtin->flags & BUILTIN_NO_ECHO))
 	grub_printf ("%s\n", heap);
+#endif
       print_error ();
 
       grub_printf ("\nPress any key to continue...");

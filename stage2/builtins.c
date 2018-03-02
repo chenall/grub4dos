@@ -4763,7 +4763,8 @@ fallback_func (char *arg, int flags)
     fallback_entries[i] = -1;
 
   fallback_entryno = (i == 0) ? -1 : 0;
-  if (go) return (errnum = MAX_ERR_NUM);
+//  if (go) return (errnum = MAX_ERR_NUM);
+  if (go) return (errnum = 1000);
 //  return 1;
 		return 0;
 }
@@ -17140,21 +17141,35 @@ static int bat_run_script(char *filename,char *arg,int flags)
 static int goto_func(char *arg, int flags)
 {
 	errorcheck_func ("on",0);
+#if 0
 	errnum = ERR_BAT_GOTO;
-//	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
-	if (*arg == ':')
+	if (flags & BUILTIN_BAT_SCRIPT)//batch script return arg addr.
 	{
 		return bat_find_label(arg);
 	}
 	else
 		return fallback_func(arg,flags);//in menu script call fallback_func to jump next menu.
+#endif
+	unsigned long long val;
+	char *p = arg;
+	if (*arg == '+' || *arg == '-' || safe_parse_maxint (&p, &val))
+	{
+		errnum = ERR_BAT_GOTO;
+		return fallback_func(arg,flags);
+	}
+	errnum = ERR_BAT_GOTO;
+	return bat_find_label(arg);
 }
 
 static struct builtin builtin_goto =
 {
    "goto",
    goto_func,
-   BUILTIN_SCRIPT | BUILTIN_BAT_SCRIPT,
+   BUILTIN_SCRIPT | BUILTIN_BAT_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_MENU | BUILTIN_CMDLINE,
+   "goto [+|-|:]DESTINATION",
+   "e.g. goto [+|-]NUM. Use in menus. Jump to the specified title.\n"
+   "e.g. goto [:]LABEL. Use in batch files or menus. Jump to the specified ':LABEL'.\n"
+   "When the LABEL there is no prefix ':', the LABEL can't be a number."
 };
 
 static int call_func(char *arg,int flags)
@@ -17208,10 +17223,12 @@ static struct builtin builtin_call =
 
 static int exit_func(char *arg, int flags)
 {
+#if 0
   if (flags == BUILTIN_SCRIPT)
   {
     errnum = MAX_ERR_NUM;
   } else
+#endif
   {
     long long t = 0;
     read_val(&arg, &t);
