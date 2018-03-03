@@ -1,6 +1,6 @@
 language: c
 sudo: enabled
-compiler: gcc-4.6
+compiler: gcc-7
 os:
   - linux
 addons:
@@ -8,7 +8,9 @@ addons:
     - github.com
     - git.coding.net
   apt:
-    packages: [gcc-4.6,gcc-4.6-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
+    packages: [gcc-7,gcc-7-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
+    sources: 
+      - ubuntu-toolchain-r-test
     
 before_install:
   - git config --global user.name "chenall"
