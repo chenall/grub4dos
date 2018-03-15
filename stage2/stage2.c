@@ -89,7 +89,7 @@ static char * *titles;	/* title array, point to 256 strings. */
 extern int (*hotkey_func)(char *titles,int flags,int flags1);
 static unsigned short *title_boot;
 static int default_help_message_destoyed = 1;
-static int num_text_char(char *p);
+extern int num_text_char(char *p);
 /*
 	unsigned char disp_ul;
 	unsigned char disp_ur;
@@ -310,7 +310,7 @@ myatoi (void)
 
 // END OF STEVE6375 ADDED CODE
 
-static int
+int
 num_text_char(char *p)
 {
 	int i=0;

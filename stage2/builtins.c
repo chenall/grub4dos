@@ -16295,6 +16295,7 @@ struct string strings[16];
 char *p_string= (char *)MENU_TITLE;
 extern int new_menu;
 unsigned long string_total = 0; 
+int num_text_char(char *p);
 
 static int
 setmenu_func(char *arg, int flags)
@@ -16302,13 +16303,13 @@ setmenu_func(char *arg, int flags)
 	char *tem;
 	unsigned long long val;
 	struct border tmp_broder = {218,191,192,217,196,179,2,0,2,0,0,2,0,0,0};
+	int i;
 
 	if (new_menu == 0)
 	{
 		num_string = 0;
 		string_total = 0;
 		p_string = (char *)MENU_TITLE;
-		int i;
 		for (i=0; i<16; i++)
 			DrawBox[i].index = 0;
 		new_menu = 1;
@@ -16318,41 +16319,53 @@ setmenu_func(char *arg, int flags)
 	{
 		if (grub_memcmp (arg, "--string=", 9) == 0)
 		{
-			unsigned char i, j;
 			i = num_string;
+			int x_horiz_center = 0;
+			int y_count_bottom = 0;
+			int string_width; 
+			char *p;
 			arg += 9;
-			errorcheck_func ("off",0);
-			if (safe_parse_maxint (&arg, &val))
-			{
-				if (i > 15)
-					return 0;
-				else
-					strings[i].start_x = val;						//x
-			}
-			else
+			if (!*arg || *arg == '\n' || *arg == '\r')
 			{
 				num_string = 0;
 				string_total = 0;
 				p_string = (char *)MENU_TITLE;
-				errorcheck_func ("on",0);
 				goto cont;
 			}
-			errorcheck_func ("on",0);
+			if (i > 15)
+				return 0;
+			if (*arg == '=')
+				x_horiz_center++;
+			else if (safe_parse_maxint (&arg, &val))
+				strings[i].start_x = val;						//x
 			arg++;
+			if (*arg == '-')
+			{
+				arg++;
+				y_count_bottom++;
+			}
 			if (safe_parse_maxint (&arg, &val))
-				strings[i].start_y = val;							//y
+			{
+				if (y_count_bottom == 0)
+					strings[i].start_y = val;							//y
+				else
+					strings[i].start_y = current_term->max_lines - val - 1;
+			}
 			arg++;
 			if (safe_parse_maxint (&arg, &val))
 				strings[i].color = val;								//color	
 			arg += 2;
 			strings[i].addr = (int)p_string;				//addr
-			for (i=0; arg[i]!='"'; i++);
-			arg[i] = 0;
-			j = parse_string(arg);
-			string_total += j;
+			p = arg;
+			while (*p++ != '"');
+			*(p - 1) = 0;
+			if (x_horiz_center)
+				strings[i].start_x = ((current_term->chars_per_line - num_text_char(arg)) >> 1) - 1;			//x
+			string_width = parse_string(arg);
+			string_total += string_width;
 			if (string_total > 0x800)
 				return 0;
-			for (i=0; *arg && i<j; i++)
+			while (*arg && string_width--)
 				*p_string++ = *arg++;
 			*p_string++ = 0;
 			num_string++;		
@@ -16360,8 +16373,6 @@ setmenu_func(char *arg, int flags)
     }
 		else if (grub_memcmp (arg, "--draw-box=", 11) == 0)
 		{
-			unsigned char i;
-			
 			arg += 11;
 			errorcheck_func ("off",0);
 			if (safe_parse_maxint (&arg, &val))
@@ -16415,7 +16426,6 @@ setmenu_func(char *arg, int flags)
     }
 		else if (grub_memcmp (arg, "--u", 3) == 0)
 		{
-			int i;
 			menu_tab = 0;
 			num_string = 0;
 			string_total = 0;
@@ -16615,29 +16625,31 @@ static struct builtin builtin_setmenu =
   "--ver-on* --ver-off --lang=en* --lang=zh --u\n"
 	"--left-align* --right-align --auto-num-off* --auto-num-on\n"
 	"--highlight-short* --highlight-full\n"
-  "--font-spacing=[font]:[line]. default 0\n"
-  "--string=[x]=[y]=[color]=[\"string\"]  max 16 commands.\n"
+	"--font-spacing=FONT:LINE. default 0\n"
+	"--string=[X]=[-]Y=COLOR=\"STRING\"  max 16 commands.\n"
+	"Note: there is no X, position in the middle.\n"
+	"Note: -Y represents the count from the bottom.\n"
 	"			--string= to delete all strings.\n"
-  "--box x=[x] y=[y] w=[w] h=[h] l=[l]\n"
-  "Note: [w]=0 in the middle. [l]=0 no display border\n"
-  "--help=[x]=[w]=[y]\n"
-	"Note: [x]=0* menu start and width. [x]<>0 and [w]=0 Entire display width minus 2x.\n"
-	"--keyhelp=[y_offset]=[color]\n"
-	"Note: [y_offset]=0* entryhelp and keyhelp in the same area,entryhelp cover keyhelp.\n"
-	"      [y_offset]!=0 keyhelp to entryhelp line offset.two coexist.\n"
-	"      [y_offset]<=4, entryhelp display line number.\n"
-	"      [color]=0* default 'color helptext'.\n"
-	"--timeout=[x]=[y]=[color]\n"
-	"Note: [x]=[y]=0* located at the end of the selected item.\n"
-	"Note: [color]=0* default 'color highlight'.\n"
+	"--box x=X y=Y w=W h=H l=L\n"
+	"Note: W=0 in the middle. L=0 no display border\n"
+	"--help=X=W=Y\n"
+	"Note: X=0* menu start and width. X<>0 and W=0 Entire display width minus 2x.\n"
+	"--keyhelp=Y_OFFSET=COLOR\n"
+	"Note: Y_OFFSET=0* entryhelp and keyhelp in the same area,entryhelp cover keyhelp.\n"
+	"      Y_OFFSET!=0 keyhelp to entryhelp line offset.two coexist.\n"
+	"      Y_OFFSET<=4, entryhelp display line number.\n"
+	"      COLOR=0* default 'color helptext'.\n"
+	"--timeout=X=Y=COLOR\n"
+	"Note: X=Y=0* located at the end of the selected item.\n"
+	"Note: COLOR=0* default 'color highlight'.\n"
 	"* indicates default. Use 0xRRGGBB to represent colors.\n"
 	"setmenu --graphic-entry=type=row=list=wide=high=row_space START_FILE\n"
 	"type: bit0:highlight  bit1:flip  bit2:box  bit7:transparent background\n"
 	"naming rules for START_FILE: *n.???   n: 00-99\n"
 	"--u clear all.\n"
-	"--draw-box=[index]=[start_x]=[start_y]=[horiz]=[vert]=[linewidth]=[color].\n"
-	"			[index]:1-16; [color]:24-bit color; [linewidth]:1-255; all dimensions in pixels.\n"
-	"			--draw-box=[index] to delete the specified index.\n"
+	"--draw-box=INDEX=START_X=START_y=HORIZ=VERT=LINEWIDTH=COLOR.\n"
+	"			INDEX:1-16; COLOR:24-bit color; LINEWIDTH:1-255; all dimensions in pixels.\n"
+	"			--draw-box=INDEX to delete the specified index.\n"
 	"			--draw-box= to delete all indexes." 
 };
 

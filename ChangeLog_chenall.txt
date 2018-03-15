@@ -1,4 +1,10 @@
 ﻿更新说明：
+2018-03-15(yaya)
+  增强 setmenu --string 函数功能
+  --string=[X]=[-]Y=COLOR="STRING"
+  没有X, 表示水平居中.
+  -Y表示从菜单底部计数.  -0就是最后一行.
+
 2018-02-20(yaya) 
   增强菜单项目脚本处理。
   比如可使用  goto :label
