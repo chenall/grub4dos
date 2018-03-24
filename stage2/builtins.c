@@ -12344,6 +12344,7 @@ static int
 read_func (char *arg, int flags)
 {
   unsigned long long addr, val;
+	int bytes=0;
 
   errnum = 0;
   if (*(long *)arg == 0x2E524156)//VAR. 
@@ -12353,10 +12354,19 @@ read_func (char *arg, int flags)
 	return 0;
     return (*(long **)0x8304)[addr];
   }
+	if (grub_memcmp (arg, "--8", 3) == 0)
+	{
+		bytes=1;
+		arg += 3;
+		arg = skip_to (0, arg);
+	}
   if (! safe_parse_maxint (&arg, &addr))
     return 0;
 
-  val = *(unsigned long *)(unsigned long)(RAW_ADDR (addr));
+	if (!bytes)
+		val = *(unsigned long *)(unsigned long)(RAW_ADDR (addr));
+	else
+		val = *(unsigned long long *)(unsigned long)(RAW_ADDR (addr));
   printf_debug0 ("Address 0x%lx: Value 0x%lx\n", addr, val);
   return val;
 }
@@ -12366,8 +12376,8 @@ static struct builtin builtin_read =
   "read",
   read_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "read ADDR",
-  "Read a 32-bit value from memory at address ADDR and"
+  "read [--8] ADDR",
+  "Read a 32-bit or 64-bit value from memory at address ADDR and"
   " display it in hex format."
 };
 
@@ -12851,7 +12861,10 @@ static struct builtin builtin_write =
   write_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "write [--offset=SKIP] [--bytes=N] ADDR_OR_FILE INTEGER_OR_STRING",
-  "Write a 32-bit value to memory or write a string to file(or device!)."
+  "Write a 32-bit INTEGER to memory ADDR or write a STRING to FILE(or device!)\n"
+  "To memory ADDR: default N=4, otherwise N<=8. Use 0xnnnnnnnn form.\n"
+  "To FILE(or device): default STRING size.\n"
+  "  UTF-8(or hex values) use \\xnn form, UTF-16(big endian) use \\Xnnnn form."
 };
 
 
@@ -15736,8 +15749,8 @@ static struct builtin builtin_echo =
    "-h      show a color panel.\n"
    "-n      do not output the trailing newline.\n"
    "-e      enable interpretation of backslash escapes.\n"
-   "        \\xnn show UTF-8 characters.\n"
-   "        \\Xnnnn show unicode characters.\n"
+   "        \\xnn show UTF-8(or hex values) characters.\n"
+   "        \\Xnnnn show unicode characters(big endian).\n"
    "-v      show version and memory information.\n"
 	 "-rrggbb show 24 bit colors.\n"
    "$[ABCD] the color for MESSAGE.(console only, 8 bit number)\n" 

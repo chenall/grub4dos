@@ -1,4 +1,7 @@
 ﻿更新说明：
+2018-03-24(yaya)
+  函数 read 增加 --8 参数，一次读 8 字节。
+
 2018-03-15(yaya)
   增强 setmenu --string 函数功能
   --string=[X]=[-]Y=COLOR="STRING"
