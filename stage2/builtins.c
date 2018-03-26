@@ -9306,6 +9306,7 @@ map_func (char *arg, int flags)
   unsigned long BPB_S = 0;
   unsigned long in_situ = 0;
   unsigned long in_situ_flags = 0;
+  unsigned short in_situ_id = -1;
   int add_mbt = -1;
   unsigned long long tmp_mem_max = map_mem_max;
   /* prefer_top now means "enable blocks above address of 4GB".
@@ -9850,6 +9851,8 @@ map_func (char *arg, int flags)
 	if (! safe_parse_maxint (&p, &tmp))
 		return 0;
 	in_situ_flags = (unsigned char)tmp;
+	if (*(arg + 10) == '0' && *(arg + 11) == 'x')
+		in_situ_id = (unsigned short)tmp >> 8;
 	in_situ = 1;
       }
     else if (grub_memcmp (arg, "--in-place", 10) == 0)
@@ -11099,6 +11102,7 @@ map_whole_drive:
 
   if (in_situ)
 	bios_drive_map[j].to_cylinder = (in_situ_flags << 8) | (
+		in_situ_id != 0xffff ? in_situ_id :
 		filesystem_type == 1 ? 0x0E /* FAT12 */ :
 		filesystem_type == 2 ? 0x0E /* FAT16 */ :
 		filesystem_type == 3 ? 0x0C /* FAT32 */ :
@@ -11368,7 +11372,7 @@ static struct builtin builtin_map =
   "map",
   map_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "map [--status] [--mem[=RESERV]] [--hook] [--unhook] [--unmap=DRIVES]\n [--rehook] [--floppies=M] [--harddrives=N] [--memdisk-raw=RAW]\n [--a20-keep-on=AKO] [--safe-mbr-hook=SMH] [--int13-scheme=SCH]\n [--ram-drive=RD] [--rd-base=ADDR] [--rd-size=SIZE] [[--read-only]\n [--fake-write] [--unsafe-boot] [--disable-chs-mode] [--disable-lba-mode]\n [--heads=H] [--sectors-per-track=S] [--swap-drivs=DRIVE1=DRIVE2] TO_DRIVE FROM_DRIVE]",
+  "map [--status] [--mem[=RESERV]] [--hook] [--unhook] [--unmap=DRIVES]\n [--rehook] [--floppies=M] [--harddrives=N] [--memdisk-raw=RAW]\n [--a20-keep-on=AKO] [--safe-mbr-hook=SMH] [--int13-scheme=SCH]\n [--ram-drive=RD] [--rd-base=ADDR] [--rd-size=SIZE] [[--read-only]\n [--fake-write] [--unsafe-boot] [--disable-chs-mode] [--disable-lba-mode]\n [--heads=H] [--sectors-per-track=S] [--swap-drivs=DRIVE1=DRIVE2] [--in-situ=FLAGS_AND_ID] TO_DRIVE FROM_DRIVE]",
   "Map the drive FROM_DRIVE to the drive TO_DRIVE. This is necessary"
   " when you chain-load some operating systems, such as DOS, if such an"
   " OS resides at a non-first drive. TO_DRIVE can be a disk file, this"
@@ -11388,6 +11392,7 @@ static struct builtin builtin_map =
   "\nif RESERV is used and > 0,the memdrive will occupy the mem area starting at absolute physical address RESERV in 512-byte-sectors and ending at the end of this mem"
   "\nIf --swap-drivs=DRIVE1=DRIVE2 is given, swap DRIVE1 and DRIVE2 for FROM_DRIVE."
   " block(usually the end of physical mem)."
+  "\nIf --in-situ=FLAGS_AND_ID is given, the low byte is FLAGS(default 0) and the high byte is partition type ID(use 0xnnnn to specify)."
 };
 
 
