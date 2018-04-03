@@ -1,6 +1,6 @@
 language: c
 sudo: enabled
-compiler: gcc-7
+compiler: gcc-4.6
 os:
   - linux
 addons:
@@ -8,7 +8,7 @@ addons:
     - github.com
     - git.coding.net
   apt:
-    packages: [gcc-7,gcc-7-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
+    packages: [gcc-4.6,gcc-4.6-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
     sources: 
       - ubuntu-toolchain-r-test
     
