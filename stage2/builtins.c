@@ -16954,6 +16954,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			continue;
 		}
 
+		int per_cent = 0;
 		while(*p_bat)
 		{
 			if (*p_bat != '%' || (file_ext = p_bat++,*p_bat == '%'))
@@ -16962,6 +16963,13 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				continue;
 			}//file_ext now use for backup p_bat see the loop end.
 
+			if (per_cent)
+			{
+				per_cent = 0;
+				p_bat = file_ext;
+				*p_cmd++ = *p_bat++;
+				continue;
+			}
 			i = 0;
 
 			if (*p_bat == '~')
@@ -17029,6 +17037,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			}
 			else
 			{
+				per_cent = 1;
 				p_bat = file_ext;
 				*p_cmd++ = *p_bat;
 			}
