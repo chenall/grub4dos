@@ -16954,27 +16954,14 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			continue;
 		}
 
-		int per_cent = 0;
-		int asd = 0;
 		while(*p_bat)
 		{
-			while (*p_bat == '%' && *(p_bat+1) == '%' && *(p_bat+2) == '%')
-				p_bat++;
-			if (*p_bat != '%' || (file_ext = p_bat++,*p_bat == '%' && per_cent==0))
+			if (*p_bat != '%' || (file_ext = p_bat++,*p_bat == '%'))
 			{//if *p_bat != '%' or p_bat[1] == '%'(*p_bat == p_bat[1] == '%');
 				*p_cmd++ = *p_bat++;
 				continue;
 			}//file_ext now use for backup p_bat see the loop end.
 
-			if (*p_bat == '^')
-				asd = 1;
-			if (per_cent && asd == 0)
-			{
-				per_cent = 0;
-				p_bat = file_ext;
-				*p_cmd++ = *p_bat++;
-				continue;
-			}
 			i = 0;
 
 			if (*p_bat == '~')
@@ -17042,7 +17029,6 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			}
 			else
 			{
-				per_cent = 1;
 				p_bat = file_ext;
 				*p_cmd++ = *p_bat;
 			}

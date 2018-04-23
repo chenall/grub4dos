@@ -590,10 +590,9 @@ extern int checkrange_func (char *arg1, int flags);
 static int
 run_script (char *script, char *heap)
 {
-//  char *old_entry = 0;
+  char *old_entry = 0;
   char *cur_entry = script;
-//  struct builtin *builtin = 0;
-	char tmp[5] = {'!','B','A','T',0x0a};
+  struct builtin *builtin = 0;
 	char cmd_add[16];
 	char *menu_bat;
 	char *p;
@@ -611,6 +610,8 @@ run_script (char *script, char *heap)
   errnum = 0;
   errorcheck = 1;	/* errorcheck on */
 
+  if (grub_memcmp (cur_entry, "!BAT", 4) == 0)
+  {
 	while (1)
 	{
 		while (*cur_entry++);
@@ -622,8 +623,7 @@ run_script (char *script, char *heap)
 	if (menu_bat == NULL)
 		return 0;
 	p = (char *)(((int)menu_bat + 511) & ~511);
-	grub_memmove (p, &tmp, 5);
-	grub_memmove (p + 5, script, cur_entry - script);
+	grub_memmove (p, script, cur_entry - script);
 	grub_sprintf (cmd_add, "(md)%d+%d", (int)p >> 9, ((cur_entry - script + 10 + 511) & ~511) >> 9);
 	command_func (cmd_add, BUILTIN_SCRIPT);
 	grub_free(menu_bat);
@@ -642,7 +642,9 @@ run_script (char *script, char *heap)
 	/* Otherwise, the command boot is run implicitly.  */
 	grub_sprintf (cmd_add, "boot", 5);
 	run_line (cmd_add , BUILTIN_SCRIPT);
-#if 0
+  goto ppp;
+  }
+
   while (1)
     {
 		if (errnum == MAX_ERR_NUM)
@@ -707,7 +709,7 @@ run_script (char *script, char *heap)
       if (! *old_entry)	/* HEAP holds the implicit BOOT command */
 	break;
     } /* while (1) */
-#endif
+
 ppp:
   kernel_type = KERNEL_TYPE_NONE;
 
@@ -2458,7 +2460,7 @@ restart_config:
 	    char *cmdline = (char *) CMDLINE_BUF;
 	  
 	    /* Get the pointer to the builtin structure.  */
-			if (*cmdline == ':')
+			if (*cmdline == ':' || *cmdline == '!')
 				goto sss;
 	    builtin = find_command (cmdline);
 	    errnum = 0;
