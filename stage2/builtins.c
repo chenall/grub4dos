@@ -4154,7 +4154,7 @@ int graphicsmode_func (char *arg, int flags);
 unsigned long X_offset,Y_offset;
 int vbe_fill_color (unsigned long color);
 unsigned char animated_type=0;           //bit 0-3:times   bit 4:repeat forever  bit 7:transparent background  type=00:disable
-unsigned char animated_delay;
+unsigned short animated_delay;
 unsigned char animated_last_num;
 unsigned short animated_offset_x;
 unsigned short animated_offset_y;
@@ -4215,7 +4215,15 @@ splashimage_func(char *arg, int flags)
 	}
   arg++;
   if (safe_parse_maxint (&arg, &val))
-    animated_delay = val;
+  {
+    if (arg[0]==':' && arg[1]=='m' && arg[2]=='s')
+    {
+      animated_delay = val;
+      arg += 3;
+    }
+    else
+      animated_delay = val * 55;
+  }
   arg++;
   if (safe_parse_maxint (&arg, &val))
     animated_last_num = val;
@@ -4228,9 +4236,7 @@ splashimage_func(char *arg, int flags)
   arg = skip_to (0, arg);
 		
   strcpy(animated_name, arg);
-	animated_enable = 1;
-	if (!(animated_type & 0x10) && (animated_type & 0x0f))
-		animated();
+  animated();
   return 1;
   }    
    
@@ -4281,12 +4287,12 @@ static struct builtin builtin_splashimage =
   "splashimage [--offset=[type]=[x]=[y]] FILE",
   "type: bit 7:transparent background\n"
   "splashimage --fill-color=[0xrrggbb]\n"
-  "splashimage --animated=[type]=[delay]=[last_num]=[x]=[y] START_FILE\n"
-  "type: bit 0-3:times  bit 4:repeat forever  bit 7:transparent background\n"
-  "      type=00:disable\n"
-  "delay: ticks\n"
+  "splashimage --animated=[type]=[duration]=[last_num]=[x]=[y] START_FILE\n"
+  "type: bit 0-3:times  bit 4:repeat forever  bit 5:wait time \n"
+  "      bit 7:transparent background  type=00:disable\n"
+  "duration: [10] unit is a tick. [10:ms] units are milliseconds,\n"
   "naming rules for START_FILE: *n.???   n: 1-9 or 01-99 or 001-999\n"
-  "hotkey F2,control animation:  Play/stop.\n"
+  "hotkey F2,control animation:  play/stop.\n"
   "Load FILE as the background image when in graphics mode."
 };
 
@@ -9343,7 +9349,8 @@ map_func (char *arg, int flags)
 			{
 				if (hooked_drive_map[i].from_drive != (unsigned char)mem)
 					continue;
-				sprintf(ADDR_RET_STR,"0x%lX",(unsigned long long)hooked_drive_map[i].start_sector);
+//				sprintf(tmp,"0x%lX",(unsigned long long)hooked_drive_map[i].start_sector);
+				*(unsigned long *)ADDR_RET_STR = (unsigned long)hooked_drive_map[i].start_sector;
 				return hooked_drive_map[i].sector_count;
 			}
 			return 0;
@@ -10599,7 +10606,7 @@ map_whole_drive:
 				p = (char *)&hooked_fragment_map;
 				filename = p + FRAGMENT_MAP_SLOT_SIZE;
 				p = fragment_map_slot_find(p, from);
-				if (p);
+				if (p)
 				{
 					grub_memmove (p, p + *p, filename - p - *p);
 					grub_memset (filename - *p, 0, *p);
@@ -11312,7 +11319,7 @@ delete_drive_map_slot:
 	p = (char *)&hooked_fragment_map;
 	filename = p + FRAGMENT_MAP_SLOT_SIZE;
 	p = fragment_map_slot_find(p, from);
-	if (p);
+	if (p)
 	{
 		grub_memmove (p, p + *p, filename - p - *p);
 		grub_memset (filename - *p, 0, *p);
@@ -12204,7 +12211,7 @@ static struct builtin builtin_pause =
   "pause",
   pause_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_NO_ECHO,
-  "pause [--wait=T] [MESSAGE ...]",
+  "pause [--test-key] [--wait=T] [MESSAGE ...]",
   "Print MESSAGE, then wait until a key is pressed or T seconds has passed."
 };
 
@@ -17405,6 +17412,163 @@ static int grub_exec_run(char *program, char *psp, int flags)
 	pid = ((int (*)(char *,int))program)(arg, flags | BUILTIN_USER_PROG);/* pid holds return value. */
 	return pid;
 }
+
+unsigned short beep_duration;
+unsigned short *beep_buf_count;
+unsigned char i_count, beep_play, beep_mode, beep_enable = 0;
+extern unsigned short beep_buf[256];
+int beep_func(char *arg, int flags)
+{
+  unsigned long long val;
+  unsigned short *p;
+  unsigned char beep_state;
+  
+  if (beep_enable == 1)
+  {
+    if (i_count == 0)
+      goto play;
+    if (--beep_duration)
+      return 1;
+    else
+    {
+      beep_frequency = 0;
+      console_beep();
+      goto play;
+    }
+  }
+
+  beep_state = 0;
+  beep_mode = 0;
+  beep_duration = 0;
+  beep_play = 1;
+  p = beep_buf;
+
+  while (1)
+  {
+    if (grub_memcmp(arg,"--play=",7) == 0)
+    {
+      arg += 7;
+      if (safe_parse_maxint (&arg, &val))
+        beep_play = val;
+      if (!beep_play)
+      {
+        beep_enable = 0;
+        beep_frequency = 0;
+        console_beep();
+        return 1;
+      }
+    }
+    else if (grub_memcmp(arg,"--start",7) == 0)
+    {
+      arg += 7;
+      beep_state = 1;
+      p = beep_buf;
+    }
+    else if (grub_memcmp(arg,"--mid",5) == 0)
+    {
+      arg += 5;
+      beep_state = 2;
+      p = beep_buf_count;
+    }
+    else if (grub_memcmp(arg,"--end",5) == 0)
+    {
+      arg += 5;
+      beep_state = 0;
+      p = beep_buf_count;
+    }
+    else if (grub_memcmp(arg,"--nowait",8) == 0)
+    {
+      arg += 8;
+      beep_mode = 1;
+    }
+    else
+      break;
+    arg = skip_to (0, arg);
+  }
+
+  while (*arg)
+  {    
+    if (safe_parse_maxint (&arg, &val))
+    {     
+      if (!val)
+        *p++ = 0;
+      else
+        *p++ = 1193180 / (unsigned long)val;
+    }
+    arg = skip_to (0, arg);
+    if (safe_parse_maxint (&arg, &val))
+      *p++ = (unsigned long)val;
+    arg = skip_to (0, arg);
+  }
+  beep_buf_count = p;
+  
+  if (beep_state)
+    return 1;
+  *p++ = 0;
+  *p++ = 0;
+  i_count = 0;
+  
+  if (beep_enable == 0 && beep_mode)
+  {
+    beep_enable = 1;
+    return 1;
+  }
+ 
+play:
+  if (i_count > 252)
+    return 0;
+  beep_frequency = beep_buf[i_count];
+  beep_duration = beep_buf[i_count+1];
+
+  if (beep_frequency == 0 && beep_duration == 0)
+  {
+    if (beep_play < 0xff)
+      beep_play--;
+    if (beep_play == 0)
+    {
+      beep_enable = 0;
+      return 1;
+    }
+    i_count = 0;
+    goto play;
+  }
+  else
+    console_beep();
+
+  if (!beep_mode)
+  {
+    if (console_checkkey () != -1)
+    {
+      console_getkey ();
+      beep_frequency = 0;
+      console_beep();
+      beep_enable = 0;
+      beep_play = 0;
+      return 0;
+    }
+    defer(beep_duration);
+    beep_frequency = 0;
+    console_beep();
+    i_count += 2;
+    goto play;
+  }
+
+  i_count += 2;
+  return 1;
+}
+
+static struct builtin builtin_beep =
+{
+  "beep",
+  beep_func,
+  BUILTIN_BAT_SCRIPT | BUILTIN_SCRIPT | BUILTIN_CMDLINE | BUILTIN_MENU | BUILTIN_HELP_LIST,
+  "beep [--start|--mid|--end] [--play=N] [--nowait] FREQUENCY DURATION FREQUENCY DURATION ...",
+  "FREQUENCY: Hz. DURATION: ms. Max: 126 notes.\n"
+  "N: 0-255. 0 is stop play, 255 is continuous play (any key stops play).\n"
+  "When the syllable is a lot, can be written in different lines.\n"
+  "The use of [--start|--mid|--end] specifies."
+};
+
 
 /* The table of builtin commands. Sorted in dictionary order.  */
 struct builtin *builtin_table[] =
@@ -17412,6 +17576,7 @@ struct builtin *builtin_table[] =
 #ifdef SUPPORT_GRAPHICS
   &builtin_background,
 #endif
+  &builtin_beep,
   &builtin_blocklist,
   &builtin_boot,
   &builtin_calc,

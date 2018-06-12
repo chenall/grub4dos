@@ -2179,7 +2179,7 @@ grub_memcpy(void *dest, const void *src, int len)
 }
 #endif
 
-
+#if 0
 static inline void * _memcpy_forward(void *dst, const void *src, unsigned int len)
 {
     int r0, r1, r2, r3;
@@ -2209,6 +2209,7 @@ static inline void * _memcpy_backward(void *dst, const void *src, unsigned int l
 	: "memory");
     return dst;
 }
+#endif
 static inline int _memcmp(const void *str1, const void *str2, unsigned int len)
 {
     int a, r1, r2, r3;
@@ -2285,6 +2286,7 @@ void * grub_memcpy(void * to, const void * from, unsigned int n)
 void *
 grub_memmove (void *to, const void *from, int len)
 {
+#if 0
    if (memcheck ((int) to, len))
      {
        /* This assembly code is stolen from
@@ -2314,7 +2316,34 @@ grub_memmove (void *to, const void *from, int len)
 			 : "memory");
 	 }
      }
-
+#else  
+  int r0, r1, r2, r3;
+  if (to < from)
+  {
+    __asm__ __volatile__(
+    "movl %%ecx, %0; shrl $2, %%ecx; "
+    "rep; movsl; "
+    "movl %0, %%ecx; andl $3, %%ecx; "
+    "rep; movsb; "
+    : "=&r"(r0), "=&c"(r1), "=&D"(r2), "=&S"(r3)
+    : "1"(len), "2"((long)to), "3"((long)from)
+    : "memory");
+  }
+  else
+  {
+    __asm__ __volatile__(
+    "std; \n\t"
+    "movl %%ecx, %0; andl $3, %%ecx; "
+    "rep; movsb; "
+    "subl $3, %%edi; subl $3, %%esi; "
+    "movl %0, %%ecx; shrl $2, %%ecx; "
+    "rep; movsl; \n\t"
+    "cld; \n\t"
+    : "=&r"(r0),"=&c"(r1), "=&D"(r2), "=&S"(r3)
+    : "1"(len), "2"((long)to+len-1), "3"((long)from+len-1)
+    : "memory");
+  }
+#endif
    return errnum ? NULL : to;
 }
 
@@ -2558,7 +2587,9 @@ grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigne
 
     // forward copy should be faster than backward copy
     // If src_addr < dst_addr < src_addr+len, forward copy is not safe, so we do backward copy in that case. 
+#if 0
     unsigned char backward = ((src_addr < dst_addr) && (dst_addr < src_addr+len));  
+#endif
     unsigned long highaddr = (unsigned long)( dst_addr       >>32)
 			   | (unsigned long)((dst_addr+len-1)>>32)
 			   | (unsigned long)( src_addr       >>32)
@@ -2567,10 +2598,14 @@ grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigne
     { // below 4GB just copy it normally
 	void *pdst = (void*)(unsigned long)dst_addr; 
 	void *psrc = (void*)(unsigned long)src_addr; 
+#if 0
 	if (backward)
 	    _memcpy_backward(pdst, psrc, len);
 	else
 	    _memcpy_forward(pdst, psrc, len);
+#else
+  grub_memmove(pdst, psrc, len);
+#endif
 	errnum = 0; return dst_addr;
     }
     else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_AMD64) && !DISABLE_AMD64)
@@ -2591,10 +2626,14 @@ grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigne
 	{
 	    unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (8MB)
 	    // Copy
+#if 0
 	    if (backward)
 		_memcpy_backward(pdst, psrc, n1);
 	    else
 		_memcpy_forward(pdst, psrc, n1);
+#else
+		grub_memmove(pdst, psrc, n1);
+#endif
 	    // update loop variables
 	    if ((nr -= n1)==0) break;
 	    memory_paging_map_for_transfer((dsta+=n1), (srca+=n1));

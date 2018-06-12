@@ -348,11 +348,13 @@ VARIABLE(buf_drive)
 VARIABLE(usb_count_error)		//bit 7:   0 = usb_count; 1 = usb_error
 	.byte	0
 VARIABLE(usb_drive_num)	
-	.byte	0,0,0,0,0,0,0,0
+	.byte	0,0,0,0
 VARIABLE(usb_md_address)
 	.word	0
-VARIABLE(animated_enable)		//bit 0:   0 = disable; 1 = enable
-	.byte	0
+VARIABLE(count_ms)
+	.word	0
+VARIABLE(beep_frequency)
+	.word	0
 	
 	. = EXT_C(main) + 0x160	
 	
@@ -686,6 +688,30 @@ bootup_a20_failure:
 	.ascii	"\r\ngrub4dos: A20 failure. Please report with error code(if any in the above line).\r\n\0"
 
 1:
+	movw %ds:0x046c, %dx
+	xorl %ecx, %ecx
+1:
+	movw %ds:0x046c, %ax
+	cmpw %dx, %ax
+	je 1b
+1:
+	cmpw %ds:0x046c, %ax
+	jne 2f
+	pushw %dx
+	pushw %ax
+	movw $0xcf8, %dx
+	inw %dx, %ax
+	popw %ax
+	popw %dx
+	incl %ecx 
+	cmpl $0, %ecx
+	jmp 1b
+2:
+	xorl %edx, %edx
+	movl %ecx, %eax
+	movl $0x37, %ecx
+	divl %ecx
+	movw %ax, ABS(EXT_C(count_ms))
 
 	/* transition to protected mode */
 	call EXT_C(real_to_prot)
@@ -7818,6 +7844,50 @@ int13_handler_end:
 	//. = . - (int13_handler_end - int13_handler)/0x2F01
 
 #;============================================================================
+ENTRY(defer)
+
+	.code32
+
+	pushl	%ebp
+	movl	%esp, %ebp
+	pushl	%ebx
+	pushl	%ecx
+	pushl	%edx
+
+	movl	8(%ebp), %ebx
+	movw  EXT_C(count_ms), %dx
+
+	call	EXT_C(prot_to_real)
+	.code16
+
+	movw %bx, %ax
+2:
+	movw %dx, %cx
+3:
+	cmpw %cs:0x046C, %ax
+	jmp 1f
+1:
+	pushw %dx
+	pushw %ax
+	movw $0xcf8, %dx
+	inw %dx, %ax
+	popw %ax
+	popw %dx
+	decw %cx
+	cmpw $0, %cx
+	jne 3b
+	decw %ax
+	jne 2b
+
+	call	EXT_C(real_to_prot)
+	.code32
+
+	popl	%edx
+	popl	%ecx
+	popl	%ebx
+	popl	%ebp
+	ret
+
 /* unsigned long
  * init_usb() : return number of usb devices.
  */
@@ -8036,7 +8106,7 @@ StartSector:
 cccc:        
 #define	DriveLen  (cccc - Dri)
 
-	.fill (DriveLen*7),1,0x00
+	.fill (DriveLen*3),1,0x00
 
 //----------------------------------------------------------------------------
 	.align	8
@@ -9366,23 +9436,23 @@ Initialization:
 	
 	call Determine_delay_units
 	call Check_bus
-	movb $0x80,%fs:0x8350
+	movb $0x80,%fs:ABS(EXT_C(usb_count_error))
 	jb 3f
 	call Disk_Info 
 	call host_initialization
 	call Device_enumerate
-	movb $0x81,%fs:0x8350
+	movb $0x81,%fs:ABS(EXT_C(usb_count_error))
 	cmpb $0, (usb_count - USB2DRI)
 	je 3f	
 	call Drive_enumerate
-	movb $0x82, %fs:0x8350			//usb_error
+	movb $0x82, %fs:ABS(EXT_C(usb_count_error))			//usb_error
 	
 	movb (EXT_C(max_dri) - USB2DRI), %al
 	orb %al, %al
 	je 3f
-	movb %al, %fs:0x8350				//usb_count
+	movb %al, %fs:ABS(EXT_C(usb_count_error))				//usb_count
 	movw $(Number - USB2DRI), %si
-	movw $0x8351, %bx
+	movw $ABS(EXT_C(usb_drive_num)), %bx
 1:				
 	movb (%si), %ah
 	movb %ah, %fs:(%bx)
@@ -9412,7 +9482,7 @@ Initialization:
 	rep movsb 
 	movw %ax, %ds
 	shrw $5, %ax
-	movw %ax, %fs:0x8359
+	movw %ax, %fs:ABS(EXT_C(usb_md_address))
 	call init_QH_AsyncListAddr
 	call Set_int13 
 	clc
@@ -9862,7 +9932,7 @@ csdyd:
 	movb %al, (DriType - USB2DRI)(%si)
 #endif	
 	incb (EXT_C(max_dri) - USB2DRI)
-	cmpb $8, (EXT_C(max_dri) - USB2DRI)
+	cmpb $4, (EXT_C(max_dri) - USB2DRI)
 	jae 4f
 	addw $DriveLen, %si     
 1:
@@ -14879,14 +14949,21 @@ ENTRY(console_getkey)
 
 	cmpl	$0xFFFFFFFF, %edx
 	jne	1f
-	testb $0x10, animated_type
-	jz 4b
+  pushl $1
+  call defer;
+  popl %eax
+  cmpb $0, beep_enable
+  je 2f
+  call beep_func
+2:
 	cmpl $0, graphics_inited
 	je 4b
 	cmpb $0, animated_enable
 	je 4b
 	call animated
-	jmp 4b
+	cmpw $0x3c00, %ax
+	jne 4b
+	movw %ax, %dx
 1:
 	call	remap_ascii_char	/* ESI changed */
 	movzwl	%dx, %eax
@@ -15182,6 +15259,49 @@ ENTRY(console_cls)
 	popl	%ebp
 	ret
 
+
+ENTRY(console_beep)
+
+	.code32
+
+	pushl	%ebp
+	pushl	%ebx
+	pushl	%esi
+	pushl	%edi
+
+	call	EXT_C(prot_to_real)
+	.code16
+
+	sti		/* for hardware interrupt or watchdog */
+	cmpw $0, EXT_C(beep_frequency)
+	je 1f
+	movb $0xb6, %al
+	outb %al, $0x43
+	movw EXT_C(beep_frequency), %ax
+	outb %al, $0x42
+	xchgb %ah, %al
+	outb %al, $0x42
+	inb $0x61, %al
+	orb $3, %al
+	outb %al, $0x61
+	jmp 2f
+1:
+	inb $0x61, %al
+	andb $0xFC, %al
+	outb %al, $0x61
+2:
+	call	EXT_C(real_to_prot)
+	.code32
+
+	sti
+	movw	%dx, %ax
+
+	popl	%edi
+	popl	%esi
+	popl	%ebx
+	popl	%ebp
+	ret
+  
 
 /*
  * void console_setcursor (unsigned long on)
@@ -16453,7 +16573,7 @@ ENTRY(unset_int13_handler)
 	popl	%ebp
 	ret
 
-
+#if 0
 /* memmove using SSE */
 /*
  * void memmove_forward_SSE (void *dst, const void *src, unsigned int len)
@@ -16518,7 +16638,7 @@ ENTRY(memmove_forward_SSE)
 	popl	%edi
 	popl	%esi
 	ret
-
+#endif
 
 /* get_code_end() :  return the address of the end of the code
  * This is here so that it can be replaced by asmstub.c.

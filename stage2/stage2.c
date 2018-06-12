@@ -731,6 +731,7 @@ ppp:
   return 1;	/* use fallback. */
 }
 
+unsigned short beep_buf[256];
 int new_menu;
 int color_counting;
 int password_x;
@@ -741,7 +742,7 @@ static int old_c_count_end;
 static void
 run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *heap, int entryno)
 {
-  int c, time1, time2 = -1, first_entry = 0;
+  int c = 0, time1, time2 = -1, first_entry = 0;
   char *cur_entry = 0;
   char *pass_config = 0;
 	color_counting = 0;
@@ -848,6 +849,8 @@ restart1:
 
   setcursor (2);
   cls();	//clear screen so splash image will work
+  if (animated_type)
+    animated_enable = animated_enable_backup;
 
   /* Only display the menu if the user wants to see it. */
   if (show_menu)
@@ -1049,8 +1052,11 @@ restart1:
 	  grub_timeout--;
 	}
 
-	if ((animated_type & 0x10) && (grub_timeout >= 0) && animated_enable)
+	defer(1);
+	if ((animated_enable) && (grub_timeout >= 0))
 		animated();
+	if ((beep_enable) && (grub_timeout >= 0))
+		beep_func((char *)beep_buf,1);
       /* Check for a keypress, however if TIMEOUT has been expired
 	 (GRUB_TIMEOUT == -1) relax in GETKEY even if no key has been
 	 pressed.  
@@ -1069,6 +1075,15 @@ restart1:
 			//0x4b40 flags HK,
 			c = hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno);
 			putchar_hooked = 0;
+      
+      if (beep_enable)
+      {
+        beep_enable = 0;
+        beep_play = 0;
+        beep_frequency = 0;
+        console_beep();
+      }
+      
 			if (c == -1)
 			    goto restart1;
 			if (c>>16)
@@ -1083,6 +1098,14 @@ restart1:
 	  }
 	  else
 		c = /*ASCII_CHAR*/ (getkey ());
+
+    if (beep_enable)
+    {
+      beep_enable = 0;
+      beep_play = 0;
+      beep_frequency = 0;
+      console_beep();
+    }
 
 	  if (! old_c_count_end)
 	  {
@@ -1151,7 +1174,9 @@ restart1:
 			
 		if (c==0x3c00)
 		{
-			animated_enable ^= 1;
+			if (animated_type)
+        animated_enable ^= 1;
+			animated_enable_backup = animated_enable;
 			goto restart1;
 		}
 
@@ -1589,6 +1614,8 @@ done_key_handling:
 		  }
 		  //else
 		  {
+		      animated_enable_backup = animated_enable;
+		      animated_enable = 0;
 		      setcursor (1); /* show cursor and disable splashimage */
 		      cls ();
 		      print_cmdline_message (0);
@@ -1640,6 +1667,8 @@ done_key_handling:
 		{
 			font_spacing = 0;
 			line_spacing = 0;
+			animated_enable_backup = animated_enable;
+			animated_enable = 0;
 			setcursor (1);
 			cls ();
 			enter_cmdline (heap, 0);
@@ -1653,6 +1682,8 @@ done_key_handling:
   
  boot_entry:
   
+  animated_enable_backup = animated_enable;
+  animated_enable = 0;
   setcursor (1); /* show cursor and disable splashimage */
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
