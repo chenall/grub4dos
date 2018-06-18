@@ -1085,7 +1085,7 @@ int animated (void)
 
     for (i=0; i<animated_last_num; i++)
     {
-			if (((animated_type & 0x0f) && !num) || ((console_checkkey () != -1) && console_getkey ()))
+			if (((animated_type & 0x0f) && !num) || (animated_type & 0x20 && (console_checkkey () != -1) && console_getkey ()))
 			{
         animated_enable = 0;
         animated_type = 0;
