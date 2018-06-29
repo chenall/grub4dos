@@ -1,4 +1,9 @@
 ﻿更新说明：
+2018-6-29(yaya)
+  1. 增加 setmenu --middle-align 参数。菜单项目及菜单项目帮助居中。(issues #179)
+  2. 当菜单边框线宽为零时，不显示三角形及菜单项目自动编号。
+  3. 修正光标尺寸，随点阵字符尺寸而变。(issues #180)
+
 2018-6-12(yaya)
   1. 增加 beep 函数，播放音乐。(issues #175)(issues #176)
   beep [--start|--mid|--end] [--play=N] [--nowait] 频率 持续时间 ...

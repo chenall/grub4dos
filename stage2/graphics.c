@@ -2507,7 +2507,7 @@ vbe_cursor (int set)
 	y = fonty * (font_h+line_spacing);
 	y += line_spacing>>1;
     /* invert the beginning 1 vertical lines of the char */
-	for (j = 2; j < 14; ++j)
+	for (j = 2; j < font_h - 2; ++j)
 	{
 	    XorPixel (x, y + j, -1);
 	}

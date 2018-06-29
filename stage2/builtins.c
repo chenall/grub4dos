@@ -16501,6 +16501,11 @@ setmenu_func(char *arg, int flags)
 			menu_tab |= 0x40;
 			arg += 13;
 		}
+		else if (grub_memcmp (arg, "--middle-align", 14) == 0)
+		{
+			menu_tab |= 8;
+			arg += 14;
+		}
 		else if (grub_memcmp (arg, "--highlight-short", 17) == 0)
 		{
 			menu_tab &= 0xef;
@@ -16648,7 +16653,7 @@ static struct builtin builtin_setmenu =
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
   "setmenu --parameter | --parameter | ... ",
   "--ver-on* --ver-off --lang=en* --lang=zh --u\n"
-	"--left-align* --right-align --auto-num-off* --auto-num-on\n"
+	"--left-align* --right-align --middle-align --auto-num-off* --auto-num-on\n"
 	"--highlight-short* --highlight-full\n"
 	"--font-spacing=FONT:LINE. default 0\n"
 	"--string=[X]=[-]Y=COLOR=\"STRING\"  max 16 commands.\n"

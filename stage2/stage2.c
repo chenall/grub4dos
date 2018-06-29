@@ -154,7 +154,9 @@ static void print_help_message (const char *message,int flags)
 				if (c == '\n')
 					c = *(++message);
 				
-				if((menu_tab & 0x40))
+				if((menu_tab & 8)	&& flags==1)
+          start_offcet = MENU_HELP_X + ((MENU_HELP_E - MENU_HELP_X - num_text_char((char *)message))>>1);
+				else if((menu_tab & 0x40) && flags==1)
 				{
 //					start_offcet = current_term->chars_per_line - MENU_HELP_X - num_text_char((char *)message);
 					start_offcet = MENU_HELP_E - num_text_char((char *)message);
@@ -376,6 +378,9 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		goto graphic_end;
 	}
 
+  gotoxy (MENU_BOX_X, y);
+  if (menu_border.border_w)
+  {
   if(!(menu_tab & 0x40))
 	{
 		gotoxy (MENU_BOX_X - 1, y);
@@ -388,6 +393,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		end_offcet = 1;
 		gotoxy (MENU_BOX_E - 4, y);
 	}
+  }
 
   if (entry)
   {
@@ -396,8 +402,11 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		c = *entry++;
 		expand_var (entry, (char *)SCRATCHADDR, 0x400);
 		entry = (char *)SCRATCHADDR;
-		if (menu_num_ctrl[0])
+		if (menu_num_ctrl[0] && menu_border.border_w)
 		{
+      if(menu_tab & 0x40)
+        end_offcet = 4;
+
 			if (!(c & menu_num_ctrl[0]) || !*entry || *entry == '\n')
 				printf("   ");
 			else
@@ -405,24 +414,27 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 				if(!(menu_tab & 0x40))
 					printf("%2d%c",(menu_num_ctrl[0] > 1)?entryno:title_boot[entryno],menu_num_ctrl[1]);
 				else
-				{
 					printf("%c%2d",menu_num_ctrl[1],(menu_num_ctrl[0] > 1)?entryno:title_boot[entryno]);
-					end_offcet = 4;
-				}
 			}
 		}
 	}
 	c = *entry;
   }
 
-	if((menu_tab & 0x40))
+  if(menu_tab & 0x40)
+    gotoxy (MENU_BOX_X, y);
+
+  if(entry)
+  {
+  if(menu_tab & 8)
+    start_offcet = MENU_BOX_X + ((MENU_BOX_W - num_text_char(entry)) >> 1);
+  else if((menu_tab & 0x40))
 	{
-		if(entry)
-			start_offcet = MENU_BOX_E - num_text_char(entry);
+    start_offcet = MENU_BOX_E - num_text_char(entry);
 		if(start_offcet < MENU_BOX_X)
 			start_offcet = MENU_BOX_X;
-		gotoxy (MENU_BOX_X, y);
 	}
+  }
 
   for (x = fontx; x < MENU_BOX_E - end_offcet; x = fontx)
     {
@@ -879,9 +891,6 @@ restart1:
 				
 				for (j=0; j<i; j++)
 				{
-					if((menu_tab & 0x40))
-						start_offcet = current_term->chars_per_line - strings[j].start_x - num_text_char((char *)strings[j].addr);
-					else
 						start_offcet = strings[j].start_x;
 					gotoxy (start_offcet, strings[j].start_y);
 					current_term->setcolorstate (COLOR_STATE_NORMAL);
