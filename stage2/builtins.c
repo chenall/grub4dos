@@ -16465,6 +16465,7 @@ setmenu_func(char *arg, int flags)
 				current_term->chars_per_line = current_x_resolution / font_w;
 			}
 			*(unsigned char *)0x8274 = 0;
+			*(unsigned short *)0x8308 = 0x1110;
 			memmove ((char *)&menu_border,(char *)&tmp_broder,sizeof(tmp_broder));
 			graphic_type = 0;
 			for (i=0; i<16; i++)
@@ -16494,16 +16495,28 @@ setmenu_func(char *arg, int flags)
 		else if (grub_memcmp (arg, "--left-align", 12) == 0)
 		{
 			menu_tab &= 0xbf;
+			menu_tab &= 0xf7;
 			arg += 12;
 		}
 		else if (grub_memcmp (arg, "--right-align", 13) == 0)
 		{
 			menu_tab |= 0x40;
+			menu_tab &= 0xf7;
 			arg += 13;
 		}
 		else if (grub_memcmp (arg, "--middle-align", 14) == 0)
 		{
 			menu_tab |= 8;
+			arg += 14;
+		}
+		else if (grub_memcmp (arg, "--triangle-on", 13) == 0)
+		{
+			*(unsigned short *)0x8308 = 0x1110;
+			arg += 13;
+		}
+		else if (grub_memcmp (arg, "--triangle-off", 14) == 0)
+		{
+			*(unsigned short *)0x8308 = 0;
 			arg += 14;
 		}
 		else if (grub_memcmp (arg, "--highlight-short", 17) == 0)
@@ -16653,7 +16666,8 @@ static struct builtin builtin_setmenu =
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
   "setmenu --parameter | --parameter | ... ",
   "--ver-on* --ver-off --lang=en* --lang=zh --u\n"
-	"--left-align* --right-align --middle-align --auto-num-off* --auto-num-on\n"
+	"--left-align* --right-align --middle-align\n"
+	"--auto-num-off* --auto-num-on --triangle-on* --triangle-off\n"
 	"--highlight-short* --highlight-full\n"
 	"--font-spacing=FONT:LINE. default 0\n"
 	"--string=[X]=[-]Y=COLOR=\"STRING\"  max 16 commands.\n"

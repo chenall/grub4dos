@@ -379,19 +379,19 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 	}
 
   gotoxy (MENU_BOX_X, y);
-  if (menu_border.border_w)
+  if(menu_tab & 0x40)
+    end_offcet = 1;
+  if (*(unsigned short *)0x8308 == 0x1110)
   {
   if(!(menu_tab & 0x40))
 	{
 		gotoxy (MENU_BOX_X - 1, y);
-		grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[0]) : ' ', 255);
+		grub_putchar(highlight ? (/*menu_num_ctrl[2] = entryno,*/menu_cfg[0]) : ' ', 255);
 	}
 	else
 	{
 		gotoxy (MENU_BOX_E - 1, y);
-		grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[1]) : ' ', 255);
-		end_offcet = 1;
-		gotoxy (MENU_BOX_E - 4, y);
+		grub_putchar(highlight ? (/*menu_num_ctrl[2] = entryno,*/menu_cfg[1]) : ' ', 255);
 	}
   }
 
@@ -402,10 +402,13 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		c = *entry++;
 		expand_var (entry, (char *)SCRATCHADDR, 0x400);
 		entry = (char *)SCRATCHADDR;
-		if (menu_num_ctrl[0] && menu_border.border_w)
+		if (menu_num_ctrl[0])
 		{
       if(menu_tab & 0x40)
+      {
+        gotoxy (MENU_BOX_E - 4, y);
         end_offcet = 4;
+      }
 
 			if (!(c & menu_num_ctrl[0]) || !*entry || *entry == '\n')
 				printf("   ");
@@ -427,10 +430,15 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   if(entry)
   {
   if(menu_tab & 8)
-    start_offcet = MENU_BOX_X + ((MENU_BOX_W - num_text_char(entry)) >> 1);
+  {
+    if(!(menu_tab & 0x40))
+      start_offcet = MENU_BOX_X + ((MENU_BOX_W - num_text_char(entry) + (menu_num_ctrl[0]?3:0)) >> 1);
+    else
+      start_offcet = MENU_BOX_X + ((MENU_BOX_W - num_text_char(entry) - end_offcet) >> 1);
+  }
   else if((menu_tab & 0x40))
 	{
-    start_offcet = MENU_BOX_E - num_text_char(entry);
+    start_offcet = MENU_BOX_E - num_text_char(entry) - end_offcet;
 		if(start_offcet < MENU_BOX_X)
 			start_offcet = MENU_BOX_X;
 	}
@@ -441,7 +449,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
       unsigned int ret;
 
       ret = MENU_BOX_E - x - end_offcet;
-      if (c && c != '\n' /* && x <= MENU_BOX_W*/ && x >= start_offcet - end_offcet)
+      if (c && c != '\n' /* && x <= MENU_BOX_W*/ && x >= start_offcet)
 	{
 		
 		ret = grub_putchar ((unsigned char)c, ret);
