@@ -16569,6 +16569,11 @@ setmenu_func(char *arg, int flags)
 					arg++;
 			}
 		}
+    else if (grub_memcmp (arg, "--auto-num-all-on", 17) == 0)
+		{
+			*(unsigned char *)0x8274 = 2;
+			arg += 17;
+		}
 		else if (grub_memcmp (arg, "--auto-num-on", 13) == 0)
 		{
 			*(unsigned char *)0x8274 = 1;
@@ -16667,7 +16672,7 @@ static struct builtin builtin_setmenu =
   "setmenu --parameter | --parameter | ... ",
   "--ver-on* --ver-off --lang=en* --lang=zh --u\n"
 	"--left-align* --right-align --middle-align\n"
-	"--auto-num-off* --auto-num-on --triangle-on* --triangle-off\n"
+	"--auto-num-off* --auto-num-all-on --auto-num-on --triangle-on* --triangle-off\n"
 	"--highlight-short* --highlight-full\n"
 	"--font-spacing=FONT:LINE. default 0\n"
 	"--string=[X]=[-]Y=COLOR=\"STRING\"  max 16 commands.\n"
@@ -17509,7 +17514,7 @@ int beep_func(char *arg, int flags)
   {    
     if (safe_parse_maxint (&arg, &val))
     {     
-      if (!val)
+      if (val < 20)
         *p++ = 0;
       else
         *p++ = 1193180 / (unsigned long)val;
@@ -17551,7 +17556,7 @@ play:
     i_count = 0;
     goto play;
   }
-  else
+  else if (beep_frequency)
     console_beep();
 
   if (!beep_mode)

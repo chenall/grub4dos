@@ -386,12 +386,12 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   if(!(menu_tab & 0x40))
 	{
 		gotoxy (MENU_BOX_X - 1, y);
-		grub_putchar(highlight ? (/*menu_num_ctrl[2] = entryno,*/menu_cfg[0]) : ' ', 255);
+		grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[0]) : ' ', 255);
 	}
 	else
 	{
 		gotoxy (MENU_BOX_E - 1, y);
-		grub_putchar(highlight ? (/*menu_num_ctrl[2] = entryno,*/menu_cfg[1]) : ' ', 255);
+		grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[1]) : ' ', 255);
 	}
   }
 
@@ -410,7 +410,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
         end_offcet = 4;
       }
 
-			if (!(c & menu_num_ctrl[0]) || !*entry || *entry == '\n')
+			if ((!(c & menu_num_ctrl[0]) && menu_num_ctrl[0] == 1) || !*entry || *entry == '\n')
 				printf("   ");
 			else
 			{
