@@ -1,4 +1,7 @@
 ﻿更新说明：
+2018-9-19(yaya)
+  替换title字符串变量中的换行符。
+
 2018-8-21(yaya)
   增加 setmenu --auto-num-all-on 参数。
   给所有标题编号。(--auto-num-on 参数仅给引导标题编号)

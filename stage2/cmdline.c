@@ -261,6 +261,24 @@ int expand_var(const char *str,char *out,const unsigned int len_max)
 		str += i;
 	}
 	*out = '\0';
+  if (len_max == 0x400)
+  {
+    char *q0 = out_start;
+    char *q1 = out_start;
+
+    while (*q0)
+    {
+      if (*q0 == '\\' && *(q0+1) == 'n')
+      {
+        *q1++ = '\n';
+        q0 += 2;
+      }
+      else
+        *q1++=*q0++;
+    }
+    *q1 = '\0';
+    out = q1;
+  }
 	return out - out_start;
 }
 static int run_cmd_line (char *heap,int flags);
