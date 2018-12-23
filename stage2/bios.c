@@ -591,7 +591,7 @@ get_diskinfo (unsigned long drive, struct geometry *geometry, unsigned long lba1
 	tmp = (unsigned long long)(geometry->cylinders) *
 	      (unsigned long long)(geometry->heads) *
 	      (unsigned long long)(geometry->sectors);
-	if (total_sectors < tmp)
+//	if (total_sectors < tmp)
 	    total_sectors = tmp;
 	geometry->total_sectors = total_sectors;
 
@@ -638,12 +638,14 @@ yes_fdd:
 		printf_warning ("\nWarning: %s sectors per track(%d) is not equal to the BIOS one(%d).\n", err, probed_sectors_per_track, geometry->sectors);
 
 	    geometry->sectors = probed_sectors_per_track;
+		if (probed_total_sectors)
+			geometry->total_sectors	= probed_total_sectors;
 
 	    if (probed_total_sectors > total_sectors)
 	    {
 		if (drive & 0x80)
 		    printf_warning ("\nWarning: %s total sectors(%d) is greater than the BIOS one(%d).\nSome buggy BIOSes could hang when you access sectors exceeding the BIOS limit.\n", err, probed_total_sectors, total_sectors);
-		geometry->total_sectors	= probed_total_sectors;
+//		geometry->total_sectors	= probed_total_sectors;
 	    }
 
 	    if (drive & 0x80)
@@ -730,9 +732,9 @@ failure_probe_boot_sector:
 
 	if (geometry->cylinders == 0)
 		geometry->cylinders = 1;
-	total_sectors = geometry->cylinders * geometry->heads * geometry->sectors;
-	if (geometry->total_sectors < total_sectors)
-	    geometry->total_sectors = total_sectors;
+//	total_sectors = geometry->cylinders * geometry->heads * geometry->sectors;
+//	if (geometry->total_sectors < total_sectors)
+//	    geometry->total_sectors = total_sectors;
 
   /* backup the geometry into array hd_geom or fd_geom. */
 

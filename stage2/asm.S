@@ -8417,6 +8417,8 @@ int13_41:
 
 
 int13_42_43:
+	testl $0xffffffff, 12(%si)
+	jne qtml
 	movb %ah, %cs:(Save_ah - USB2DRI)     
 	call Disk_package
 	movb $01, %cl

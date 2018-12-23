@@ -500,8 +500,13 @@ devread (unsigned long long sector, unsigned long long byte_offset, unsigned lon
     }
 
   /* Check partition boundaries */
-  if (((unsigned long long)(sector + ((byte_offset + byte_len - 1) >> sector_size_bits)) >= (unsigned long long)part_length) && part_start)
-      return !(errnum = ERR_OUTSIDE_PART);
+	if (((unsigned long long)(sector + ((byte_offset + byte_len - 1) >> sector_size_bits)) >= (unsigned long long)part_length))
+	{
+		if (part_start)
+			return !(errnum = ERR_OUTSIDE_PART);
+		else
+			return !(errnum = ERR_READ);
+	}
 
   /* Get the read to the beginning of a partition. */
   sector += byte_offset >> sector_size_bits;

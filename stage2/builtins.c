@@ -8442,6 +8442,7 @@ failed_exfat_grldr:
 
 	if (*(unsigned short *)((char *)BS + 0x16) == 0x6412)							//'12 64'
 	{
+		probed_total_sectors = *(unsigned long *)((char *)BS + 0x20);
 		filesystem_type = 7;																						//fat12-64
 		return 0;
 	}
@@ -9175,8 +9176,8 @@ probe_mbr (struct master_and_dos_boot_sector *BS, unsigned long start_sector1, u
   probed_heads = best_HPC;
   sectors_per_cylinder = probed_heads * probed_sectors_per_track;
   probed_cylinders = (Lmax / sectors_per_cylinder) + 1;
-  if (probed_cylinders < Cmax + 1)
-      probed_cylinders = Cmax + 1;
+//  if (probed_cylinders < Cmax + 1)
+//      probed_cylinders = Cmax + 1;
   probed_total_sectors_round = sectors_per_cylinder * probed_cylinders;
   probed_total_sectors = Lmax + 1;
 
