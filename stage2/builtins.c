@@ -11395,7 +11395,8 @@ static struct builtin builtin_map =
   "\nIf RAW=0, then int15/ah=87h will be used to access memdrives."
   "\nIf one of --status, --hook, --unhook, --rehook, --floppies, --harddrives, --memdisk-raw, --a20-keep-on, --safe-mbr-hook, --int13-scheme,"
   " --ram-drive, --rd-base or --rd-size is given, then any other command-line arguments will be ignored."
-  "\nThe --mem option indicates a drive in memory."
+  "\nThe --mem option indicates a drive in memory(0-4Gb)."
+  "\nThe --mem --top option indicates a drive in memory(>4Gb)."	
   "\nif RESERV is used and <= 0, the minimum memory occupied by the memdrive is (-RESERV) in 512-byte-sectors."
   "\nif RESERV is used and > 0,the memdrive will occupy the mem area starting at absolute physical address RESERV in 512-byte-sectors and ending at the end of this mem"
   "\nIf --swap-drivs=DRIVE1=DRIVE2 is given, swap DRIVE1 and DRIVE2 for FROM_DRIVE."
@@ -15740,6 +15741,8 @@ echo_func (char *arg,int flags)
       }
       
       grub_putchar((unsigned char)*arg, 255);
+      if (!(*arg))
+				break;
    }
    if (current_term->setcolorstate)
 	  current_term->setcolorstate (COLOR_STATE_STANDARD);
