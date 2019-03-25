@@ -348,6 +348,8 @@ num_text_char(char *p)
 extern char menu_cfg[];
 extern unsigned char menu_num_ctrl[];
 int use_phys_base;
+char graphic_file_shift[32];
+
 static void
 print_entry (int y, int highlight,int entryno, char *config_entries)
 {
@@ -366,16 +368,41 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		char tmp[128];
 		int file_len=grub_strlen(graphic_file);
 		int www = (font_w * MENU_BOX_W) / graphic_list;
-		graphic_file[file_len-6] = ((entryno%num_entries) / 10) | 0x30;
-		graphic_file[file_len-5] = ((entryno%num_entries) % 10) | 0x30;
-		sprintf(tmp,"--offset=%d=%d=%d %s",(graphic_type & 0x80),(font_w*MENU_BOX_X+((y-MENU_BOX_Y)%graphic_list)*(www)),(font_h*MENU_BOX_Y+((y-MENU_BOX_Y)/graphic_list)*(graphic_high+row_space)),graphic_file);
+		int graphic_x_offset, graphic_y_offset;
+		int text_y_offset = MENU_BOX_Y+((y-MENU_BOX_Y)*((graphic_high+row_space+font_h+line_spacing-1)/(font_h+line_spacing))/graphic_list);
+	
+		graphic_x_offset = font_w*MENU_BOX_X+((y-MENU_BOX_Y)%graphic_list)*(www);
+
+		if (graphic_type & 0x10)
+			graphic_y_offset = (font_h+line_spacing)*text_y_offset-(graphic_high/2-(font_h+line_spacing)/2);
+		else
+			graphic_y_offset = font_h*MENU_BOX_Y+((y-MENU_BOX_Y)/graphic_list)*(graphic_high+row_space);
+
+		if (entryno >= num_entries)
+		{
+			clear_entry (graphic_x_offset,graphic_y_offset,graphic_wide,graphic_high);
+			entry++;
+		}
+		else
+		{
+		graphic_file[file_len-6] = ((entryno + graphic_file_shift[entryno]) / 10) | 0x30;
+		graphic_file[file_len-5] = ((entryno + graphic_file_shift[entryno]) % 10) | 0x30;
+		sprintf(tmp,"--offset=%d=%d=%d %s",0,graphic_x_offset,graphic_y_offset,graphic_file);
 		use_phys_base=1;
+		graphic_enable = 1;
 		splashimage_func(tmp,1);
-//		use_phys_base=0; 
+		graphic_enable = 0;
 		if ((graphic_type & 4) && highlight)
-			rectangle((font_w*MENU_BOX_X+((y-MENU_BOX_Y)%graphic_list)*(www)),(font_h*MENU_BOX_Y+((y-MENU_BOX_Y)/graphic_list)*(graphic_high+row_space)),graphic_wide,graphic_high,3);
+			rectangle(graphic_x_offset,graphic_y_offset,graphic_wide,graphic_high,3);
+		}
 		c = *entry;
-		goto graphic_end;
+		if (graphic_type & 0x10)
+		{
+			gotoxy ((graphic_x_offset + graphic_wide + font_w -1)/font_w, text_y_offset);
+			goto graphic_mixing;
+		}	
+		else
+			goto graphic_end;
 	}
 
   gotoxy (MENU_BOX_X, y);
@@ -394,7 +421,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[1]) : ' ', 255);
 	}
   }
-
+graphic_mixing:
   if (entry)
   {
 	if (config_entries == (char*)titles)
@@ -2457,6 +2484,7 @@ restart_config:
 	unsigned long debug_in_menu_init = 0;
 	//char *cmdline;
 	int is_preset;
+	grub_memset (graphic_file_shift, 0, 32);
 	menu_init_script_file[0] = 0;
 	{
 	    int is_opened;
@@ -2584,6 +2612,9 @@ sss:
 			}
 			else
 			{
+				int i;
+				for (i = num_entries + ((state & 0xf) ? 1 : 0); i < 32; i++)
+					graphic_file_shift[i] += 1;
 				state |= 0x10;
 				continue;
 			}

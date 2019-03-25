@@ -4152,7 +4152,6 @@ static int terminal_func (char *arg, int flags);
 extern char splashimage[128];
 int graphicsmode_func (char *arg, int flags);
 unsigned long X_offset,Y_offset;
-int vbe_fill_color (unsigned long color);
 unsigned char animated_type=0;           //bit 0-3:times   bit 4:repeat forever  bit 7:transparent background  type=00:disable
 unsigned short animated_delay;
 unsigned char animated_last_num;
@@ -4288,7 +4287,7 @@ static struct builtin builtin_splashimage =
   "type: bit 7:transparent background\n"
   "splashimage --fill-color=[0xrrggbb]\n"
   "splashimage --animated=[type]=[duration]=[last_num]=[x]=[y] START_FILE\n"
-  "type: bit 0-3:times  bit 4:repeat forever  bit 5:wait time \n"
+  "type: bit 0-3:times(0=repeat play)  bit 5:alone\n"
   "      bit 7:transparent background  type=00:disable\n"
   "duration: [10] unit is a tick. [10:ms] units are milliseconds,\n"
   "naming rules for START_FILE: *n.???   n: 1-9 or 01-99 or 001-999\n"
@@ -16313,6 +16312,7 @@ unsigned char timeout_y = 0;
 unsigned long long timeout_color = 0;
 unsigned long long keyhelp_color = 0;
 unsigned char graphic_type = 0;
+unsigned char graphic_enable = 0;
 unsigned char graphic_row;
 unsigned char graphic_list;
 unsigned short graphic_wide;
@@ -16656,6 +16656,7 @@ setmenu_func(char *arg, int flags)
 			arg++;
 			strcpy(graphic_file, arg);
 			menu_border.menu_box_h = graphic_row * graphic_list;
+			menu_border.border_w = 0;
 		}
 		else
 			return 0;
@@ -16697,7 +16698,8 @@ static struct builtin builtin_setmenu =
 	"Note: COLOR=0* default 'color highlight'.\n"
 	"* indicates default. Use 0xRRGGBB to represent colors.\n"
 	"setmenu --graphic-entry=type=row=list=wide=high=row_space START_FILE\n"
-	"type: bit0:highlight  bit1:flip  bit2:box  bit7:transparent background\n"
+	"type: bit0:highlight  bit1:flip  bit2:box  bit3:highlight background\n"
+	"      bit4:Picture and text mixing  bit7:transparent background.\n"
 	"naming rules for START_FILE: *n.???   n: 00-99\n"
 	"--u clear all.\n"
 	"--draw-box=INDEX=START_X=START_y=HORIZ=VERT=LINEWIDTH=COLOR.\n"

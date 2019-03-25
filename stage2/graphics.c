@@ -1012,6 +1012,22 @@ vga:
 #endif
 }
 
+void clear_entry (int x, int y, int w, int h);
+void
+clear_entry (int x, int y, int w, int h)
+{
+	int i;
+	unsigned char *source;
+	unsigned char *objective;
+
+	for (i=0;i<h;i++)
+	{
+		source = (unsigned char *)IMAGE_BUFFER + x*current_bytes_per_pixel + y*current_bytes_per_scanline + i*current_bytes_per_scanline;
+		objective = (unsigned char *)current_phys_base + x*current_bytes_per_pixel + y*current_bytes_per_scanline + i*current_bytes_per_scanline;
+		grub_memmove (objective,source,w*current_bytes_per_pixel);
+	}
+}
+
 void vbe_fill_color (unsigned long color);
 
 void
@@ -1155,7 +1171,7 @@ static int read_image_bmp(int type)
 	} __attribute__ ((packed)) bmih;
 	unsigned long bftmp,bfbit;
 	int x,y;
-	unsigned long source;
+	unsigned long source = 0;
 	unsigned char R,G,B;
 	only = 0;
 	if (type == 0)
@@ -1229,15 +1245,25 @@ static int read_image_bmp(int type)
           B = (bftmp & 0xff0000)>>16;
           G = (bftmp & 0xff00)>>8;
           R = bftmp & 0xff;
-					if(background_transparent	&& (R>=R0) && (R<=R1) && (G>=G0) && (G<=G1) && (B>=B0) && (B<=B1))
-            source = *(unsigned long *)((unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline);
-					else if ((graphic_type & 1) && is_highlight)
-						source = current_color_64bit & 0xffffffff;
-					else if ((graphic_type & 2) && is_highlight)
-						source = bftmp ^ 0xffffffff;
+					if ((R>=R0) && (R<=R1) && (G>=G0) && (G<=G1) && (B>=B0) && (B<=B1))
+					{
+						if (background_transparent || (graphic_enable && (graphic_type & 0x80) && !(is_highlight && (graphic_type & 8))))
+							source = *(unsigned long *)((unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline);
+						else if (graphic_enable && is_highlight && (graphic_type & 8))
+							source = current_color_64bit & 0xffffffff;
+						else if (!graphic_enable || (graphic_enable && !(graphic_type & 0x80) && !(is_highlight && (graphic_type & 8))))
+							source = bftmp;
+					}
 					else
-						source = bftmp;
-						
+					{
+						if (graphic_enable && is_highlight && (graphic_type & 1))	
+							source = current_color_64bit & 0xffffffff;
+						else if (graphic_enable && is_highlight && (graphic_type & 2))
+							source = bftmp ^ 0xffffffff;
+						else
+							source = bftmp;
+					}
+				
 					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
 //				bmp[x] = bftmp;		//
 						*(unsigned long *)bmp = source;
@@ -1343,7 +1369,7 @@ static void StoreBuffer()
 	unsigned char R,G,B;
 	int y,u,v,rr,gg,bb;
 	unsigned long color;
-	unsigned long source;
+	unsigned long source = 0;
 
 	for(i=0;i<SampRate_Y_V*8;i++)
 	{
@@ -1424,15 +1450,26 @@ static void StoreBuffer()
 						lfb = (unsigned char *)current_phys_base + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel;
 					
 					color = (((unsigned long)R)<<16) | (((unsigned long)G)<<8) | (unsigned long)B;
-					if(background_transparent	&& (R>=R0) && (R<=R1) && (G>=G0) && (G<=G1) && (B>=B0) && (B<=B1))
-						source = *(unsigned long *)((unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel);
-					else if ((graphic_type & 1) && is_highlight)
-						source = current_color_64bit & 0xffffffff;
-					else if ((graphic_type & 2) && is_highlight)
-						source = color ^ 0xffffffff;
-					else
-						source = color;
 					
+					if ((R>=R0) && (R<=R1) && (G>=G0) && (G<=G1) && (B>=B0) && (B<=B1))
+					{
+						if (background_transparent || (graphic_enable && (graphic_type & 0x80) && !(is_highlight && (graphic_type & 8))))
+							source = *(unsigned long *)((unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel);
+						else if (graphic_enable && is_highlight && (graphic_type & 8))
+							source = current_color_64bit & 0xffffffff;
+						else if (!graphic_enable || (graphic_enable && !(graphic_type & 0x80) && !(is_highlight && (graphic_type & 8))))
+							source = color;
+					}
+					else
+					{
+						if (graphic_enable && is_highlight && (graphic_type & 1))
+							source = current_color_64bit & 0xffffffff;
+						else if (graphic_enable && is_highlight && (graphic_type & 2))
+							source = color ^ 0xffffffff;
+						else
+							source = color;
+					}
+				
 					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
 						*(unsigned long *)lfb = source;
 					else

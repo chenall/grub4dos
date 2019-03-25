@@ -790,6 +790,7 @@ extern unsigned long long keyhelp_color;
 //extern unsigned char font_type;
 //extern unsigned char scan_mode;
 //extern unsigned char store_mode;
+extern unsigned char graphic_enable;
 extern unsigned char graphic_type;
 extern unsigned char graphic_row;
 extern unsigned char graphic_list;
@@ -797,6 +798,8 @@ extern unsigned short graphic_wide;
 extern unsigned short graphic_high;
 extern unsigned short row_space;
 extern char graphic_file[128];
+extern void clear_entry (int x, int y, int w, int h);
+extern void vbe_fill_color (unsigned long color);
 
 #ifdef SUPPORT_GRAPHICS
 extern unsigned long current_x_resolution;
