@@ -1768,26 +1768,29 @@ sb:
 	movl	0x20(iSI), %eax
 	subl	$16, %eax
 	cmpl	%edx, %eax
-	ja 210f
+	jae 210f
 	
 	movl	$ABS(msg_cannot_install_gpt_partition), %ecx
+	movl	$0x7f, %edi
 3:
 	cmpl	$0, 0x2c(iSI)
 	jne	4f
 	cmpl	$0, 0xa4(iSI)
 	jne	4f
 	movl	0xa0(iSI), %eax
+	orl	%eax, %eax
+	je	4f
 	movl	0x28(iSI), %edx
+	addl	$1, %edx
 	subl	$16, %eax
 	cmpl	%edx, %eax
-	ja 210f
+	jae 210f
 	addl	$0x80, %esi
-	cmpl	$0, 0x20(iSI)
+	subl	$1,	%edi
 	jne	3b
 	jmp 4f
 	
 210:
-	addl	$1, %edx
 	movl	$ABS(msg_cannot_install_gpt_partition), %ecx
 	cmpl	$0x800000, %edx
 	jae	4f

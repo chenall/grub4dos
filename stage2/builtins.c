@@ -4620,6 +4620,7 @@ displaymem_func (char *arg, int flags)
 	       "Upper memory (to first chipset hole): %uK\n",
 	       (unsigned long)saved_mem_lower, (unsigned long)saved_mem_upper);
 	}
+#if 0
   if (mbi.flags & MB_INFO_MEM_MAP)
     {
       struct AddrRangeDesc *map = (struct AddrRangeDesc *) saved_mmap_addr;
@@ -4654,7 +4655,34 @@ displaymem_func (char *arg, int flags)
 	  map = ((struct AddrRangeDesc *) (((int) map) + 4 + map->size));
 	}
     }
+#else
+	grub_printf (" [Address Range Descriptor entries "
+		   "immediately follow (values are 64-bit)]\n");
 
+	unsigned long cont, addr;
+	addr = SCRATCHADDR;
+  cont = 0;	
+	do
+	{
+		cont = get_mmap_entry ((void *) addr, cont);	/* int15/e820 ------ will write memory! */
+		struct AddrRangeDesc *map = (struct AddrRangeDesc *) addr;
+		if (!sector)
+		{
+			grub_printf ("  %s: Base: 0x%8lX, Length: 0x%8lX\n",
+					(map->Type == MB_ARD_MEMORY)?"Usable RAM":"Reserved  ",
+		       map->BaseAddr,
+					 map->Length);
+		}
+		else if (map->Type == MB_ARD_MEMORY)
+		{
+			grub_printf ("  Usable (Hex sectors): Base: %8lX, Length: %8lX, End: %8lX\n",
+					map->BaseAddr / 0x200,
+					map->Length / 0x200,
+					map->BaseAddr + map->Length / 0x200);
+		}
+	}
+  while (cont);	
+#endif
   return 1;
 }
 
@@ -13984,6 +14012,47 @@ static struct keysym keysym_table[] =
   {"ctrlF8",		0x6500},
   {"ctrlF9",		0x6600},
   {"ctrlF10",		0x6700},
+  
+  {"Aq",            0x1000},	// A=Alt or AltGr.	Provided by steve.
+  {"Aw",            0x1100},
+  {"Ae",            0x1200},
+  {"Ar",            0x1300},
+  {"At",            0x1400},
+  {"Ay",            0x1500},
+  {"Au",            0x1600},
+  {"Ai",            0x1700},
+  {"Ao",            0x1800},
+  {"Ap",            0x1900},
+  {"Aa",            0x1e00},
+  {"As",            0x1f00},
+  {"Ad",            0x2000},
+  {"Af",            0x2100},
+  {"Ag",            0x2200},
+  {"Ah",            0x2300},
+  {"Aj",            0x2400},
+  {"Ak",            0x2500},
+  {"Al",            0x2600},
+  {"Az",            0x2c00},
+  {"Ax",            0x2d00},
+  {"Ac",            0x2e00},
+  {"Av",            0x2f00},
+  {"Ab",            0x3000},
+  {"An",            0x3100},
+  {"Am",            0x3200},
+  {"A1",            0x7800},
+  {"A2",            0x7900},
+  {"A3",            0x7A00},
+  {"A4",            0x7B00},
+  {"A5",            0x7C00},
+  {"A6",            0x7D00},
+  {"A7",            0x7E00},
+  {"A8",            0x7F00},
+  {"A9",            0x8000},
+  {"A0",            0x8100},
+  {"oem102",        0x565c},
+  {"shiftoem102",   0x567c},
+  
+  
 };
 
 //static int find_key_code (char *key);
@@ -14103,16 +14172,16 @@ static struct builtin builtin_setkey =
   "setkey",
   setkey_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
-  "setkey [TO_KEY FROM_KEY]",
-  "Change the keyboard map. The key FROM_KEY is mapped to the key TO_KEY."
-  " A key must be an alphabet, a digit, or one of these: escape, exclam,"
-  " at, numbersign, dollar, percent, caret, ampersand, asterisk, parenleft,"
-  " parenright, minus, underscore, equal, plus, backspace, tab, bracketleft,"
-  " braceleft, bracketright, braceright, enter, control, semicolon, colon,"
-  " quote, doublequote, backquote, tilde, shift, backslash, bar, comma,"
-  " less, period, greater, slash, question, alt, space, capslock, FX (X"
-  " is a digit), and delete. If no argument is specified, reset key"
-  " mappings."
+  "setkey [NEW_KEY FROM_KEY]",
+  "Map default USA key FROM_KEY to NEW_KEY."
+  " Key names: 0-9, A-Z, a-z or escape, exclam, at, numbersign, dollar,"			//Provided by steve.
+  " percent, caret, ampersand, asterisk, parenleft, parenright, minus,"
+  " underscore, equal, plus, backspace, tab, bracketleft, braceleft,"
+  " bracketright, braceright, enter, semicolon, colon, quote, doublequote,"
+  " backquote, tilde, shift, backslash, bar, comma, less, period,"
+  " greater, slash, question, alt, space, delete, oem102, shiftoem102"
+  " [ctrl|shift]F1-10. Use A for Alt+(a-z)(0-9), e.g. 'setkey at Av'."
+  " Reset: 'setkey at at' to reset one key, 'setkey' to reset all. "
 };
 
 
