@@ -14051,7 +14051,18 @@ static struct keysym keysym_table[] =
   {"A0",            0x8100},
   {"oem102",        0x565c},
   {"shiftoem102",   0x567c},
-  
+  {"Aminus",        0x8200},
+  {"Aequal",				0x8300},
+  {"Abracketleft",  0x1A00},
+  {"Abracketright", 0x1B00},
+  {"Asemicolon",    0x2700},
+  {"Aquote",        0x2800},
+  {"Abackquote",    0x2900}, // 2a00 is alt+shift
+  {"Abackslash",    0x2b00},
+  {"Asemicolon",    0x2700},
+  {"Acomma",        0x3300},
+  {"Aperiod",       0x3400},
+  {"Aslash",        0x3500},
   
 };
 
@@ -14172,16 +14183,16 @@ static struct builtin builtin_setkey =
   "setkey",
   setkey_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
-  "setkey [NEW_KEY FROM_KEY]",
-  "Map default USA key FROM_KEY to NEW_KEY."
+  "setkey [NEW_KEY USA_KEY]",
+  "Map default USA_KEY to NEW_KEY."
   " Key names: 0-9, A-Z, a-z or escape, exclam, at, numbersign, dollar,"			//Provided by steve.
   " percent, caret, ampersand, asterisk, parenleft, parenright, minus,"
   " underscore, equal, plus, backspace, tab, bracketleft, braceleft,"
   " bracketright, braceright, enter, semicolon, colon, quote, doublequote,"
-  " backquote, tilde, shift, backslash, bar, comma, less, period,"
-  " greater, slash, question, alt, space, delete, oem102, shiftoem102"
-  " [ctrl|shift]F1-10. Use A for Alt+(a-z)(0-9), e.g. 'setkey at Av'."
-  " Reset: 'setkey at at' to reset one key, 'setkey' to reset all. "
+  " backquote, tilde, backslash, bar, comma, less, period, greater,"
+  " slash, question, alt, space, delete, oem102, shiftoem102,"
+  " [ctrl|shift]F1-10. For Alt+ prefix with A, e.g. 'setkey at Aequal'."
+  " Use 'setkey at at' to reset one key, 'setkey' to reset all keys."
 };
 
 
@@ -15748,6 +15759,14 @@ echo_func (char *arg,int flags)
 				gotoxy(saved_x, saved_y);
 			return 1;
 		}
+		else if (grub_memcmp(arg,"-k",2) == 0)
+		{
+			int i;
+			grub_printf("Please press the keyboard:");
+			i = getkey();
+			grub_printf("\rThe keyboard code is %04x.   ",i);
+			return 1;
+		}
       else break;
    	 arg = skip_to (0,arg);
    }
@@ -15837,6 +15856,7 @@ static struct builtin builtin_echo =
    "        \\Xnnnn show unicode characters(big endian).\n"
    "-v      show version and memory information.\n"
 	 "-rrggbb show 24 bit colors.\n"
+   "-k      show keyboard code.\n"
    "$[ABCD] the color for MESSAGE.(console only, 8 bit number)\n" 
    "A=bright background, B=bright characters, C=background color, D=Character color.\n"
    "$[0xCD] 8 or 64 bit number value for MESSAGE. C=background, D=Character.\n"
