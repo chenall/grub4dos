@@ -4194,6 +4194,8 @@ splashimage_func(char *arg, int flags)
 	} 
   else if (grub_memcmp (arg, "--fill-color=", 13) == 0)
   {
+		if (graphics_mode < 0xFF)
+			return !(errnum = ERR_NO_VBE_BIOS);
     arg += 13;
     if (safe_parse_maxint (&arg, &val))
 		{
@@ -4668,10 +4670,11 @@ displaymem_func (char *arg, int flags)
 		struct AddrRangeDesc *map = (struct AddrRangeDesc *) addr;
 		if (!sector)
 		{
-			grub_printf ("  %s: Base: 0x%8lX, Length: 0x%8lX\n",
+			grub_printf ("  %s: Base: 0x%8lX, Length: 0x%8lX, End: 0x%8lX\n",
 					(map->Type == MB_ARD_MEMORY)?"Usable RAM":"Reserved  ",
 		       map->BaseAddr,
-					 map->Length);
+					 map->Length,
+					 map->BaseAddr + map->Length);
 		}
 		else if (map->Type == MB_ARD_MEMORY)
 		{
@@ -9368,6 +9371,10 @@ map_func (char *arg, int flags)
 
 	if (grub_memcmp (arg, "--status", 8) == 0)
 	{
+		int byte = 0;
+		arg += 8;
+		if (grub_memcmp (arg, "-byte", 5) == 0)
+			byte = 1;
 		arg = skip_to(1,arg);
 		if (*arg>='0' && *arg <='9')
 		{
@@ -9453,7 +9460,7 @@ map_func (char *arg, int flags)
 			break;
 		  }
 //		if (debug > 0)
-		  grub_printf ("%02X %02X %02X %02X %04X %02X %02X %016lX %016lX %c%c%c\n", hooked_drive_map[i].from_drive, hooked_drive_map[i].to_drive, hooked_drive_map[i].max_head, hooked_drive_map[i].max_sector, hooked_drive_map[i].to_cylinder, hooked_drive_map[i].to_head, hooked_drive_map[i].to_sector, (unsigned long long)hooked_drive_map[i].start_sector, (unsigned long long)hooked_drive_map[i].sector_count, ((hooked_drive_map[i].to_cylinder & 0x4000) ? 'C' : hooked_drive_map[i].to_drive < 0x80 ? 'F' : hooked_drive_map[i].to_drive == 0xFF ? 'M' : 'H'), ((j < DRIVE_MAP_SIZE) ? '=' : '>'), ((hooked_drive_map[i].max_sector & 0x80) ? ((hooked_drive_map[i].to_sector & 0x40) ? 'F' : 'R') :((hooked_drive_map[i].to_sector & 0x40) ? 'S' : 'U')));
+		  grub_printf ("%02X %02X %02X %02X %04X %02X %02X %016lX %016lX %c%c%c\n", hooked_drive_map[i].from_drive, hooked_drive_map[i].to_drive, hooked_drive_map[i].max_head, hooked_drive_map[i].max_sector, hooked_drive_map[i].to_cylinder, hooked_drive_map[i].to_head, hooked_drive_map[i].to_sector, byte?(((unsigned long long)hooked_drive_map[i].start_sector)*0x200):((unsigned long long)hooked_drive_map[i].start_sector), byte?(((unsigned long long)hooked_drive_map[i].sector_count)*0x200):((unsigned long long)hooked_drive_map[i].sector_count), ((hooked_drive_map[i].to_cylinder & 0x4000) ? 'C' : hooked_drive_map[i].to_drive < 0x80 ? 'F' : hooked_drive_map[i].to_drive == 0xFF ? 'M' : 'H'), ((j < DRIVE_MAP_SIZE) ? '=' : '>'), ((hooked_drive_map[i].max_sector & 0x80) ? ((hooked_drive_map[i].to_sector & 0x40) ? 'F' : 'R') :((hooked_drive_map[i].to_sector & 0x40) ? 'S' : 'U')));
 	    }
 	for (i = 0; i < DRIVE_MAP_SIZE; i++)
 	  {
@@ -9470,7 +9477,7 @@ map_func (char *arg, int flags)
 			continue;
 	      }
 //	    if (debug > 0)
-		  grub_printf ("%02X %02X %02X %02X %04X %02X %02X %016lX %016lX %c<%c\n", bios_drive_map[i].from_drive, bios_drive_map[i].to_drive, bios_drive_map[i].max_head, bios_drive_map[i].max_sector, bios_drive_map[i].to_cylinder, bios_drive_map[i].to_head, bios_drive_map[i].to_sector, (unsigned long long)bios_drive_map[i].start_sector, (unsigned long long)bios_drive_map[i].sector_count, ((bios_drive_map[i].to_cylinder & 0x4000) ? 'C' : bios_drive_map[i].to_drive < 0x80 ? 'F' : bios_drive_map[i].to_drive == 0xFF ? 'M' : 'H'), ((bios_drive_map[i].max_sector & 0x80) ? ((bios_drive_map[i].to_sector & 0x40) ? 'F' : 'R') :((bios_drive_map[i].to_sector & 0x40) ? 'S' : 'U')));
+		  grub_printf ("%02X %02X %02X %02X %04X %02X %02X %016lX %016lX %c<%c\n", bios_drive_map[i].from_drive, bios_drive_map[i].to_drive, bios_drive_map[i].max_head, bios_drive_map[i].max_sector, bios_drive_map[i].to_cylinder, bios_drive_map[i].to_head, bios_drive_map[i].to_sector, byte?(((unsigned long long)bios_drive_map[i].start_sector)*0x200):((unsigned long long)bios_drive_map[i].start_sector), byte?(((unsigned long long)bios_drive_map[i].start_sector)*0x200):((unsigned long long)bios_drive_map[i].sector_count), ((bios_drive_map[i].to_cylinder & 0x4000) ? 'C' : bios_drive_map[i].to_drive < 0x80 ? 'F' : bios_drive_map[i].to_drive == 0xFF ? 'M' : 'H'), ((bios_drive_map[i].max_sector & 0x80) ? ((bios_drive_map[i].to_sector & 0x40) ? 'F' : 'R') :((bios_drive_map[i].to_sector & 0x40) ? 'S' : 'U')));
 	  }
 	return 1;
       }
@@ -11407,7 +11414,7 @@ static struct builtin builtin_map =
   "map",
   map_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "map [--status] [--mem[=RESERV]] [--hook] [--unhook] [--unmap=DRIVES]\n [--rehook] [--floppies=M] [--harddrives=N] [--memdisk-raw=RAW]\n [--a20-keep-on=AKO] [--safe-mbr-hook=SMH] [--int13-scheme=SCH]\n [--ram-drive=RD] [--rd-base=ADDR] [--rd-size=SIZE] [[--read-only]\n [--fake-write] [--unsafe-boot] [--disable-chs-mode] [--disable-lba-mode]\n [--heads=H] [--sectors-per-track=S] [--swap-drivs=DRIVE1=DRIVE2] [--in-situ=FLAGS_AND_ID] TO_DRIVE FROM_DRIVE]",
+  "map [--status[-byte]] [--mem[=RESERV]] [--hook] [--unhook] [--unmap=DRIVES]\n [--rehook] [--floppies=M] [--harddrives=N] [--memdisk-raw=RAW]\n [--a20-keep-on=AKO] [--safe-mbr-hook=SMH] [--int13-scheme=SCH]\n [--ram-drive=RD] [--rd-base=ADDR] [--rd-size=SIZE] [[--read-only]\n [--fake-write] [--unsafe-boot] [--disable-chs-mode] [--disable-lba-mode]\n [--heads=H] [--sectors-per-track=S] [--swap-drivs=DRIVE1=DRIVE2] [--in-situ=FLAGS_AND_ID] TO_DRIVE FROM_DRIVE]",
   "Map the drive FROM_DRIVE to the drive TO_DRIVE. This is necessary"
   " when you chain-load some operating systems, such as DOS, if such an"
   " OS resides at a non-first drive. TO_DRIVE can be a disk file, this"
@@ -12242,6 +12249,7 @@ static struct builtin builtin_pause =
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_NO_ECHO,
   "pause [--test-key] [--wait=T] [MESSAGE ...]",
   "Print MESSAGE, then wait until a key is pressed or T seconds has passed."
+  "--test-key display keyboard code."	
 };
 
 
@@ -15759,12 +15767,32 @@ echo_func (char *arg,int flags)
 				gotoxy(saved_x, saved_y);
 			return 1;
 		}
-		else if (grub_memcmp(arg,"-k",2) == 0)
+		else if (grub_memcmp(arg,"-mem=",3) == 0)	//-mem=offset=length
 		{
-			int i;
-			grub_printf("Please press the keyboard:");
-			i = getkey();
-			grub_printf("\rThe keyboard code is %04x.   ",i);
+			unsigned long long offset;
+			unsigned long long length;
+			unsigned char s[16];
+			unsigned long long j = 16;
+			
+			arg += 5;
+			safe_parse_maxint (&arg, &offset);
+			arg++;
+			safe_parse_maxint (&arg, &length);
+
+			if (j > length)
+				j = length;
+			while (1)
+			{
+				grub_memmove64((unsigned long long)(int)s, offset, j);
+				hexdump(offset,(char*)&s,j);
+				if (quit_print)
+					break;
+				offset += j;
+				length -= j;
+				if (!length)
+					break;
+				j = (length >= 16)?16:length;
+			}
 			return 1;
 		}
       else break;
@@ -15847,7 +15875,7 @@ static struct builtin builtin_echo =
    "echo",
    echo_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-   "echo [-P:XXYY] [-h] [-e] [-n] [-v] [-rrggbb] [[$[ABCD]]MESSAGE ...] ",
+   "echo [-P:XXYY] [-h] [-e] [-n] [-v] [-rrggbb] [-mem=offset=length] [[$[ABCD]]MESSAGE ...] ",
    "-P:XXYY position control line(XX) and column(YY).\n"
    "-h      show a color panel.\n"
    "-n      do not output the trailing newline.\n"
@@ -15856,7 +15884,7 @@ static struct builtin builtin_echo =
    "        \\Xnnnn show unicode characters(big endian).\n"
    "-v      show version and memory information.\n"
 	 "-rrggbb show 24 bit colors.\n"
-   "-k      show keyboard code.\n"
+	 "-mem=offset=length  hexdump.\n"
    "$[ABCD] the color for MESSAGE.(console only, 8 bit number)\n" 
    "A=bright background, B=bright characters, C=background color, D=Character color.\n"
    "$[0xCD] 8 or 64 bit number value for MESSAGE. C=background, D=Character.\n"

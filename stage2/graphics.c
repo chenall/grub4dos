@@ -940,15 +940,25 @@ graphics_cls (void)
 			{
 //				*(unsigned long *)mem = SPLASH_IMAGE[x+y*SPLASH_W];
 				lfb = (unsigned char *)SPLASH_IMAGE + x*current_bytes_per_pixel + y*current_bytes_per_scanline;
-				if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+				if(current_bits_per_pixel == 32)
 					*(unsigned long *)mem = *(unsigned long *)lfb;
+				else if(current_bits_per_pixel == 24)
+				{
+					*(unsigned short *)mem = *(unsigned short *)lfb;
+					*(mem+2) = *(lfb+2);
+				}
 				else
 					*(unsigned short *)mem = *(unsigned short *)lfb;
 			}
 			else
 			{
-				if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+				if(current_bits_per_pixel == 32)
 					*(unsigned long *)mem = color;
+				else if(current_bits_per_pixel == 24)
+				{
+					*(unsigned short *)mem = (unsigned short)color;
+					*(mem+2) = (unsigned char)(color>>16);
+				}
 				else
 					*(unsigned short *)mem = (unsigned short)pixel_shift(color);
 			}
@@ -1036,22 +1046,23 @@ vbe_fill_color (unsigned long color)
   int i;
   unsigned char *p;
   
-  if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
-  {
-    for (i=0;i<(current_x_resolution*current_y_resolution);i++)
-    {
-      p = (unsigned char *)IMAGE_BUFFER + i*4;
-      *(unsigned long *)p = color;
-    }
-  }
-  else
-  {
-    for (i=0;i<(current_x_resolution*current_y_resolution);i++)
-    {
-      p = (unsigned char *)IMAGE_BUFFER + i*2;
-      *(unsigned short *)p = (unsigned short)pixel_shift(color);
-    }
-  }
+	for (i=0;i<(current_x_resolution*current_y_resolution);i++)
+	{
+		p = (unsigned char *)IMAGE_BUFFER + i*current_bytes_per_pixel;
+		switch (current_bits_per_pixel)
+		{
+			case 32:
+				*(unsigned long *)p = color;
+				break;
+			case 24:
+				*(unsigned short *)p = (unsigned short)(color);
+				*(p+2) = (unsigned char)(color>>16);
+				break;
+			default:
+				*(unsigned short *)p = (unsigned short)pixel_shift(color);
+				break;
+		}
+	}
 }
 
 
@@ -1264,9 +1275,14 @@ static int read_image_bmp(int type)
 							source = bftmp;
 					}
 				
-					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+					if(current_bits_per_pixel == 32)
 //				bmp[x] = bftmp;		//
 						*(unsigned long *)bmp = source;
+					else if(current_bits_per_pixel == 24)
+					{
+						*(unsigned short *)bmp = (unsigned short)source;
+						*(bmp+2) = (unsigned char)(source>>16);
+					}
 					else
 						*(unsigned short *)bmp = (unsigned short)pixel_shift(source);
 				}
@@ -1470,8 +1486,13 @@ static void StoreBuffer()
 							source = color;
 					}
 				
-					if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
+					if(current_bits_per_pixel == 32)
 						*(unsigned long *)lfb = source;
+					else if(current_bits_per_pixel == 24)
+					{
+						*(unsigned short *)lfb = (unsigned short)source;
+						*(lfb+2) = (unsigned char)(source>>16);
+					}
 					else
 						*(unsigned short *)lfb = (unsigned short)pixel_shift(source);
 				}

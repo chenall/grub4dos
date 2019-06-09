@@ -35,6 +35,7 @@
  */
 
 #define ASM_FILE
+#define repair_memory_holes 1
 
 #include "filesys.h"
 #include "shared.h"
@@ -5593,12 +5594,12 @@ minimum_mem_lo_in_map:
 	.long	0	/* min ram drive base below 16M */
 ENTRY(minimum_mem_hi_in_map)
 	.long	0	/* min ram drive base above 16M */
-	
+#if (repair_memory_holes)
 ENTRY(prime_end)
 	.long	0,0
 ENTRY(new_end)
 	.long	0,0
-
+#endif
 #if 0
 int15_e820_saved_ebx:
 	.long	0
@@ -5676,6 +5677,15 @@ int15_e820_handler:
 	cmpl	$20, %ecx
 	jb	2f	/* treat this as error: invalid call. */
 
+#if (repair_memory_holes)	
+	orl	%ebx, %ebx
+	jne	3f
+	movl	%ebx, %cs:(prime_end - int13_handler)
+	movl	%ebx, %cs:(prime_end + 4 - int13_handler)
+	movl	%ebx, %cs:(new_end - int13_handler)
+	movl	%ebx, %cs:(new_end + 4 - int13_handler)
+#endif	
+3:
 #if 0
 	cmpl	$1, %ebx
 	jb	8f	/* EBX = 0 : start at beginning */
@@ -5727,7 +5737,7 @@ int15_e820_handler:
 	movl	%es:16(%di), %eax	/* Type: 1 = usable memory. */
 	decl	%eax			/* is it usable? */
 	jz	5f			/* yes, modify usable mem range */
-#if 0
+#if (!repair_memory_holes)
 	/* it is reserved memory. only modify low mem range at this moment. */
 	cmpl	%edx, %cs:(EXT_C(int15nolow) - int13_handler) /* EDX=0 */
 	jnz	4f	/* int15 will not handle low mem */
@@ -5748,26 +5758,26 @@ int15_e820_handler:
 	movl	$0xA0000, %es:8(%di)
 	subl	%eax, %es:8(%di)
 	jmp	4f	/* done modifying reserved low mem range */
-#endif
-
-	andb	$0xfe,	(prime_end - int13_handler)
+#else
+	andb	$0xfe,	%cs:(prime_end - int13_handler)
 	movl	%es:4(%di), %edx
-	cmpl	%edx, (prime_end + 4 - int13_handler)	//0
+	cmpl	%edx, %cs:(prime_end + 4 - int13_handler)	//0
 	jne 4f
 	movl	%es:(%di), %eax
-	cmpl	%eax, (prime_end - int13_handler)
+	cmpl	%eax, %cs:(prime_end - int13_handler)
 	jne 4f
 
-	subl	(new_end - int13_handler), %eax
-	sbbl	(new_end + 4 - int13_handler), %edx
+	subl	%cs:(new_end - int13_handler), %eax
+	sbbl	%cs:(new_end + 4 - int13_handler), %edx
 	addl	%eax, %es:8(%di)
 	adcl	%edx, %es:12(%di)
 
-	movl	(new_end - int13_handler), %eax
-	movl	(new_end + 4 - int13_handler), %edx
+	movl	%cs:(new_end - int13_handler), %eax
+	movl	%cs:(new_end + 4 - int13_handler), %edx
 	movl	%eax, %es:(%di)
 	movl	%edx, %es:4(%di)
 	jmp 4f
+#endif
 5:
 	/* it is usable memory. */
 
@@ -5778,13 +5788,20 @@ int15_e820_handler:
 #else
 	movw	$(EXT_C(hooked_drive_map)-int13_handler-DRIVE_MAP_SLOT_SIZE), %si
 #endif
-	movw	$(DRIVE_MAP_SIZE + 1), %bp
 
+#if (!repair_memory_holes)
+	movw	$(DRIVE_MAP_SIZE + 1), %cx
+#else
+	movw	$(DRIVE_MAP_SIZE + 1), %bp
+#endif
 	popl	%eax		/* available low mem size in bytes */
 	pushl	%eax		/* available low mem size in bytes */
 
-//	cmpl	%edx, %cs:(EXT_C(int15nolow) - int13_handler) /* EDX=0 */
+#if (!repair_memory_holes)
+	cmpl	%edx, %cs:(EXT_C(int15nolow) - int13_handler) /* EDX=0 */
+#else
 	cmpl	$0, %cs:(EXT_C(int15nolow) - int13_handler)
+#endif
 	jz	7f	/* int15 will handle low mem */
 	jmp	5f	/* this "jmp" instruction can be omitted. */
 6:
@@ -5820,8 +5837,10 @@ int15_e820_handler:
 	subl	%es:8(%di), %eax
 	sbbl	%es:12(%di), %edx	/* EDX:EAX=difference */
 	jnb	5f			/* new length is too big */
-//	addl	%eax, %es:8(%di)
-//	adcl	%edx, %es:12(%di)	/* apply new length */
+#if (!repair_memory_holes)
+	addl	%eax, %es:8(%di)
+	adcl	%edx, %es:12(%di)	/* apply new length */
+#else
 	movl	%es:8(%di), %ebx
 	movl	%es:12(%di), %ecx
 	addl	%ebx, %eax
@@ -5830,22 +5849,26 @@ int15_e820_handler:
 	movl	%edx, %es:12(%di)
 	addl	%es:(%di), %eax
 	adcl	%es:4(%di), %edx
-	movl	%eax, (new_end - int13_handler)
-	movl	%edx, (new_end + 4 - int13_handler)
+	movl	%eax, %cs:(new_end - int13_handler)
+	movl	%edx, %cs:(new_end + 4 - int13_handler)
 
-	testb	$1,	(prime_end - int13_handler)
+	testb	$1,	%cs:(prime_end - int13_handler)
 	jne 5f
 	addl	%es:(%di), %ebx
 	adcl	%es:4(%di), %ecx
-	movl	%ebx, (prime_end - int13_handler)
-	movl	%ecx, (prime_end + 4 - int13_handler)
-	orb	$1, (prime_end - int13_handler)
+	movl	%ebx, %cs:(prime_end - int13_handler)
+	movl	%ecx, %cs:(prime_end + 4 - int13_handler)
+	orb	$1, %cs:(prime_end - int13_handler)
+#endif
 5:
 	/* try next slot */
 	addw	$DRIVE_MAP_SLOT_SIZE, %si
-//	loop	6b
+#if (!repair_memory_holes)
+	loop	6b
+#else
 	dec %bp
 	jne 6b
+#endif
 	/* done modifying usable mem range */
 4:
 	popl	%eax		/* available low mem size in bytes */

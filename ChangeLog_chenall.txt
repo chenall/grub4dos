@@ -1,7 +1,4 @@
 ﻿更新说明：
-2019-05-12(yaya)
-  增加 echo -k 参数，显示键盘代码。
-	
 2019-05-07(yaya)
   改进 setkey 命令及帮助，完全支持匈牙利键盘(由 steve 提供)。
   改进 displaymem 及 bootlace 命令。
