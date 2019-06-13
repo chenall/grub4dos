@@ -14634,7 +14634,7 @@ linux_real_mode_startup:
 1:				//linux_setup_seg:
 	.word	0
 
-
+#if 0
 /*
  * void toggle_blinking (void)
  * BIOS call "INT 10H Function 1003h" to toggle intensity/blinking bit
@@ -14680,7 +14680,7 @@ ENTRY(toggle_blinking)
 	popl	%ebx
 	popl	%ebp
 	ret
-
+#endif
 
 /*
  * unsigned int console_putchar (unsigned int c, unsigned int max_width)

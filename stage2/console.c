@@ -25,7 +25,7 @@
    console_putchar, console_checkkey, console_getkey, console_getxy,
    console_gotoxy, console_cls, and console_nocursor.  */
 
-extern void toggle_blinking (void);
+//extern void toggle_blinking (void);
 static int console_color[COLOR_STATE_MAX] = {
   [COLOR_STATE_STANDARD] = A_NORMAL,
   /* represents the user defined colors for normal text */
@@ -155,18 +155,10 @@ console_setcolor(unsigned long state,unsigned long long color[])
 	{
 		if (!(state & (1<<i)))
 			continue;
-		if (color[i] > 0xff)
-		{
 			console_color[i] = color_64_to_8(color[i]);
 			console_color_64bit[i] = color[i];
-		}
-		else
-		{
-			console_color[i] = color[i];
-			console_color_64bit[i] = color_8_to_64(color[i]);
-		}
 	}
-	if (current_term == term_table)	/* console */
-		toggle_blinking ();
+//	if (current_term == term_table)	/* console */
+//		toggle_blinking ();
 	console_setcolorstate(COLOR_STATE_STANDARD);
 }

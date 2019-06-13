@@ -3125,7 +3125,7 @@ static char *color_list[16] =
 };
 
 static int color_number (char *str);
-int blinking = 1;
+//int blinking = 1;
   
   /* Convert the color name STR into the magical number.  */
 static int
@@ -3134,7 +3134,7 @@ color_number (char *str)
       char *ptr;
       int i;
       int color = 0;
-      int tmp_blinking = blinking;
+//      int tmp_blinking = blinking;
       
       /* Find the separator.  */
       for (ptr = str; *ptr && *ptr != '/'; ptr++)
@@ -3146,14 +3146,14 @@ color_number (char *str)
 
       /* If STR contains the prefix "blink-", then set the `blink' bit
 	 in COLOR.  */
-      if (substring ("blink-", str, 0) <= 0)
-	{
-	  if (tmp_blinking == 0)
-		return -1;
-	  tmp_blinking = 0x80;
-	  color = 0x80;
-	  str += 6;
-	}
+//     if (substring ("blink-", str, 0) <= 0)
+//	{
+//	  if (tmp_blinking == 0)
+//		return -1;
+//	  tmp_blinking = 0x80;
+//	  color = 0x80;
+//	  str += 6;
+//	}
       /* Terminate the string STR.  */
       *ptr = 0;
       /* Search for the color name.  */
@@ -3174,12 +3174,12 @@ color_number (char *str)
       for (i = 0; i < 16; i++)
 	if (grub_strcmp (color_list[i], str) == 0)
 	  {
-	    if (i >= 8)
-	    {
-		if (tmp_blinking == 0x80)
-			return -1;
-		tmp_blinking = 0;
-	    }
+//	    if (i >= 8)
+//	    {
+//		if (tmp_blinking == 0x80)
+//			return -1;
+//		tmp_blinking = 0;
+//	    }
 	    color |= i << 4;
 	    break;
 	  }
@@ -3187,7 +3187,7 @@ color_number (char *str)
       if (i == 16)
 	return -1;
 
-      blinking = tmp_blinking;
+//      blinking = tmp_blinking;
       return color;
 }
 
@@ -3202,6 +3202,7 @@ color_func (char *arg, int flags)
   char *normal;
   unsigned long long new_color[COLOR_STATE_MAX];
   unsigned long long new_normal_color;
+  int _64bit = 0;
 
   errnum = 0;
   if (! *arg)
@@ -3212,7 +3213,14 @@ color_func (char *arg, int flags)
 
   if (!(current_term->setcolor))
       return 0;
-  blinking = 1;
+//  blinking = 1;
+	
+	if (memcmp(arg,"--64bit",7) == 0)
+	{
+		_64bit = 1;
+		arg = skip_to (0, arg);
+	}
+	
   normal = arg;
   arg = skip_to (0, arg);
 
@@ -3263,7 +3271,7 @@ color_func (char *arg, int flags)
 		    new_color[state_t] = new_normal_color ;
 		}
 
-		if (!(new_color[state_t] >> 8))
+		if (!(new_color[state_t] >> 8) && _64bit == 0)
 			new_color[state_t] = color_8_to_64 (new_color[state_t]);
 
 		if (tag && color_counting==0)
@@ -3284,19 +3292,19 @@ color_func (char *arg, int flags)
 	return 1;
   }
 
+	if (!(new_normal_color >> 8) && _64bit == 0)
+		new_normal_color = color_8_to_64 (new_normal_color);
+
 	if (!*arg && (flags & (BUILTIN_CMDLINE | BUILTIN_BAT_SCRIPT)))
 	{
 		current_term->setcolor (1,&new_normal_color);
 		return 1;
 	}
 
-  if (new_normal_color >> 8)	/* disable blinking */
-	blinking = 0;
-	
-	if (!(new_normal_color >> 8))
-			new_normal_color = color_8_to_64 (new_normal_color);
-  new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[COLOR_STATE_NORMAL] = new_normal_color;
+//  if (new_normal_color >> 8)	/* disable blinking */
+//	blinking = 0;
 
+  new_color[COLOR_STATE_HEADING] = new_color[COLOR_STATE_HELPTEXT] = new_color[COLOR_STATE_NORMAL] = new_normal_color;
   /* The second argument is optional, so set highlight_color
      to inverted NORMAL_COLOR.  */
 		new_color[COLOR_STATE_HIGHLIGHT] = 0xffffff | ((splashimage_loaded & 2)?0:(new_normal_color & 0xffffffff00000000));
@@ -3314,7 +3322,7 @@ color_func (char *arg, int flags)
 			if (((int)new_color[i] < 0) && ! safe_parse_maxint (&normal, &new_color[i]))
 				return 0;
 
-			if (!(new_color[i] >> 8))
+			if (!(new_color[i] >> 8) && _64bit == 0)
 				new_color[i] = color_8_to_64 (new_color[i]);
 			
 			if (!(splashimage_loaded & 2) && ((new_color[i] & 0xffffffff00000000) == 0))
@@ -3366,7 +3374,8 @@ static struct builtin builtin_color =
 	"2. Can assign colors to a specified target. NORMAL should be in the first place.\n"
 	"e.g. color normal=0x888800000000. (The rest is the same as NORMAL.)\n"
 	"e.g. color normal=0x4444440000ffff helptext=0xc highlight=0xd heading=0xe border=0xa. (Background color from NORMAL.)\n"
-	"e.g. color standard=0xFFFFFF. (Change the console color.)"
+	"e.g. color standard=0xFFFFFF. (Change the console color.)\n"
+	"e.g. color --64bit 0x30. (Make numbers less than 0x100 treated in 64-bit color.)"
 };
 
 
@@ -14670,7 +14679,7 @@ testvbe_func (char *arg, int flags)
     int scanline = controller->version >= 0x0300
       ? mode->linear_bytes_per_scanline : mode->bytes_per_scanline;
     /* FIXME: this assumes that any depth is a modulo of 8.  */
-    int bpp = mode->bits_per_pixel / 8;
+    int bpp = (mode->bits_per_pixel + 7) / 8;
     int width = mode->x_resolution;
     int height = mode->y_resolution;
     int x, y;
@@ -15136,6 +15145,7 @@ vbeprobe_func (char *arg, int flags)
   printf_debug0 (" VBE version %d.%d\n",
 	       (unsigned long) (controller->version >> 8),
 	       (unsigned long)(unsigned char) (controller->version));
+  printf_debug0 (" ModeNum  Attr  Resolution  BitPerPixel  MemoryModel   RGBASize   RGBAPosition\n");
 
   /* Iterate probing modes.  */
   for (mode_list = vbe_far_ptr_to_linear (controller->video_mode);
@@ -15170,13 +15180,26 @@ vbeprobe_func (char *arg, int flags)
 	    default: model = "Unknown"; break;
 	    }
 	  
-	  printf_debug0 ("  %X: %X, %ux%ux%u, %s\n",
+		printf_debug0 ("  0x%-3X    %2X   %4u x %-4u     %2u       %-12s",
 		       (unsigned long) *mode_list,
 		       (unsigned long) mode->mode_attributes,
 		       (unsigned long) mode->x_resolution,
 		       (unsigned long) mode->y_resolution,
 		       (unsigned long) mode->bits_per_pixel,
 		       model);
+					 
+		 if (mode->memory_model == 0x06)
+				printf_debug0 ("   %u:%u:%u:%u    %u:%u:%u:%u\n",	
+					 mode->red_mask_size,
+		       mode->green_mask_size,
+		       mode->blue_mask_size,
+					 mode->reserved_mask_size,
+					 mode->red_field_position,
+		       mode->green_field_position,
+		       mode->blue_field_position,
+					 mode->reserved_field_position);
+			else
+				printf_debug0 ("\n");
 	  
 	  if (mode_number != -1)
 	    break;
@@ -15492,8 +15515,8 @@ xyz_done:
 	    if (mode->memory_model != 6) /* Direct Color */
 		continue;
 	      
-	    if (mode->bits_per_pixel != 24 && mode->bits_per_pixel != 32 && mode->bits_per_pixel != 16 && _Z_ < 0x10)
-		continue;
+//	    if (mode->bits_per_pixel != 24 && mode->bits_per_pixel != 32 && mode->bits_per_pixel != 16 && _Z_ < 0x10)
+//		continue;
 	    }
 	    /* ok, find out one valid mode. */
 	    if (tmp_graphicsmode == *mode_list) /* the specified mode */

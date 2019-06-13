@@ -1048,7 +1048,7 @@ vbe_fill_color (unsigned long color)
   
 	for (i=0;i<(current_x_resolution*current_y_resolution);i++)
 	{
-		p = (unsigned char *)IMAGE_BUFFER + i*current_bytes_per_pixel;
+		p = (unsigned char *)IMAGE_BUFFER + 16 + i*current_bytes_per_pixel;
 		switch (current_bits_per_pixel)
 		{
 			case 32:
@@ -2361,7 +2361,10 @@ unsigned long pixel_shift(unsigned long color)
 	gg = g & 07;
 	bb = b & 0xf;
 
-	color = (r>>3)<<11 | (g>>2)<<5 | b>>3;
+	if (current_bits_per_pixel == 16)
+		color = (r>>3)<<11 | (g>>2)<<5 | b>>3;
+	else
+		color = (r>>3)<<10 | (g>>3)<<5 | b>>3;
 	return color;
 }
 
