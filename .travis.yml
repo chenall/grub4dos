@@ -35,3 +35,15 @@ notifications:
     recipents:
       - chenall.cn@gmail.com
     on_failure: never
+    
+before_deploy:
+    - export TRAVIS_TAG=${TRAVIS_TAG:-$(date -u +%Y-%m-%d)-$(git log --format=%h -1)}
+    - git tag $TRAVIS_TAG
+
+deploy:
+    provider: releases
+    api_key: $GITHUB_TOKEN
+    file: grub4dos-$(cat grub4dos_version)-$(date -u +%Y-%m-%d).7z
+    skip_cleanup: true
+    on:
+      branch: 0.4.6a
