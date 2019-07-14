@@ -1770,7 +1770,16 @@ void ipxe_init(void);
 #endif /* FSYS_PXE */
 
 extern unsigned long fb_status;
-
+extern unsigned long next_partition_drive;
+extern unsigned long next_partition_dest;
+extern unsigned long *next_partition_partition;
+extern unsigned long *next_partition_type;
+extern unsigned long long *next_partition_start;
+extern unsigned long long *next_partition_len;
+extern unsigned long long *next_partition_offset;
+extern unsigned long *next_partition_entry;
+extern unsigned long *next_partition_ext_offset;
+extern char *next_partition_buf;
 #endif /* ! ASM_FILE */
 
 #endif /* ! GRUB_SHARED_HEADER */

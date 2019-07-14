@@ -70,9 +70,9 @@ int print_possibilities;
 
 static int unique;
 static char *unique_string;
-static unsigned long cur_part_offset;
+static unsigned long long cur_part_offset;
 static unsigned long cur_part_addr;
-static unsigned long cur_part_start;
+static unsigned long long cur_part_start;
 static unsigned long cur_part_entry;
 
 static int do_completion;
@@ -102,19 +102,8 @@ part_choice;
  */
 char *mbr = (char *)0x8000; /* 512-byte buffer for any use. */
 
-extern unsigned long next_partition_drive;
-extern unsigned long next_partition_dest;
-extern unsigned long *next_partition_partition;
-extern unsigned long *next_partition_type;
-extern unsigned long *next_partition_start;
-extern unsigned long *next_partition_len;
-extern unsigned long *next_partition_offset;
-extern unsigned long *next_partition_entry;
-extern unsigned long *next_partition_ext_offset;
-extern char *next_partition_buf;
-
 static unsigned long dest_partition;
-static unsigned long part_offset;
+static unsigned long long part_offset;
 static unsigned long entry;
 static unsigned long ext_offset;
 
@@ -790,7 +779,7 @@ redo:
 	if (! rawread (next_partition_drive, sector,(pc_slice_no & 3) * sizeof(GPT_ENT) , sizeof(GPT_ENT), (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
 		return 0;
 	P_GPT_ENT PI = (P_GPT_ENT)(unsigned int)next_partition_buf;
-	if (PI->starting_lba == 0LL || PI->starting_lba > 0xFFFFFFFFL)
+	if (PI->starting_lba == 0LL /*|| PI->starting_lba > 0xFFFFFFFFL*/)
 	{
 		errnum = ERR_NO_PART;
 		return 0;
@@ -799,7 +788,7 @@ redo:
 	if (memcmp(PI->type.raw,"\x16\xE3\xC9\xE3\x5C\x0B\xB8\x4D\x81\x7D\xF9\x2D\xF0\x02\x15\xAE",16) == 0 && next_partition_dest == 0xffffff)
 		goto redo;
 	*next_partition_start = PI->starting_lba;
-	*next_partition_len = (unsigned long)(PI->ending_lba - PI->starting_lba + 1);
+	*next_partition_len = (unsigned long long)(PI->ending_lba - PI->starting_lba + 1);
 	*next_partition_partition = (pc_slice_no << 16) | 0xFFFF;
 	*next_partition_type = PC_SLICE_TYPE_GPT;
 	return 1;
@@ -1128,9 +1117,9 @@ next_part (void)
 	next_partition_dest		= dest_partition;
 	next_partition_partition	= &current_partition;
 	next_partition_type		= &current_slice;
-	next_partition_start		= (unsigned long *)(void *)&part_start;
-	next_partition_len		= (unsigned long *)(void *)&part_length;
-	next_partition_offset		= &part_offset;
+	next_partition_start		= (unsigned long long *)(void *)&part_start;
+	next_partition_len		= (unsigned long long *)(void *)&part_length;
+	next_partition_offset		= (unsigned long long *)(void *)&part_offset;
 	next_partition_entry		= &entry;
 	next_partition_ext_offset	= &ext_offset;
 	next_partition_buf		= mbr;

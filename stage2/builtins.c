@@ -5533,17 +5533,6 @@ static struct builtin builtin_commandline =
 
 extern int bsd_evil_hack;
 
-extern unsigned long next_partition_drive;
-extern unsigned long next_partition_dest;
-extern unsigned long *next_partition_partition;
-extern unsigned long *next_partition_type;
-extern unsigned long *next_partition_start;
-extern unsigned long *next_partition_len;
-extern unsigned long *next_partition_offset;
-extern unsigned long *next_partition_entry;
-extern unsigned long *next_partition_ext_offset;
-extern char *next_partition_buf;
-
 //extern unsigned long dest_partition;
 //static unsigned long entry;
 //static unsigned long ext_offset;
@@ -5627,8 +5616,8 @@ static int
 set_partition_hidden_flag (int hidden)
 {
   unsigned long part = 0xFFFFFF;
-  unsigned long start, len, offset, ext_offset1;
-  unsigned long type, entry1;
+  unsigned long long start, len, offset;
+  unsigned long type, entry1, ext_offset1;
   
 #if 0
   /* The drive must be a hard disk.  */
@@ -5652,9 +5641,9 @@ set_partition_hidden_flag (int hidden)
 		next_partition_dest		= current_partition,
 		next_partition_partition	= &part,
 		next_partition_type		= &type,
-		next_partition_start		= &start,
-		next_partition_len		= &len,
-		next_partition_offset		= &offset,
+		next_partition_start		= (unsigned long long *)(void *)&start,
+		next_partition_len		= (unsigned long long *)(void *)&len,
+		next_partition_offset		= (unsigned long long *)(void *)&offset,
 		next_partition_entry		= &entry1,
 		next_partition_ext_offset	= &ext_offset1,
 		next_partition_buf		= mbr,
@@ -5956,8 +5945,8 @@ find_func (char *arg, int flags)
 				for (drive = (*devtype == 'h')?0x80:0; drive < FIND_DRIVES; drive++)
 				{
 					unsigned long part = 0xFFFFFF;
-					unsigned long start, len, offset, ext_offset1;
-					unsigned long type, entry1;
+					unsigned long long start, len, offset;
+					unsigned long type, entry1, ext_offset1;
 
 					saved_drive = current_drive = drive;
 					saved_partition = current_partition = part;
@@ -5980,9 +5969,9 @@ find_func (char *arg, int flags)
 							next_partition_dest		= 0xFFFFFF,
 							next_partition_partition	= &part,
 							next_partition_type		= &type,
-							next_partition_start		= &start,
-							next_partition_len		= &len,
-							next_partition_offset		= &offset,
+							next_partition_start		= (unsigned long long *)(void *)&start,
+							next_partition_len		= (unsigned long long *)(void *)&len,
+							next_partition_offset		= (unsigned long long *)(void *)&offset,
 							next_partition_entry		= &entry1,
 							next_partition_ext_offset	= &ext_offset1,
 							next_partition_buf		= mbr,
@@ -6809,22 +6798,38 @@ uuid_func (char *argument, int flags)
 	if (write)
 		return ! (errnum = ERR_BAD_ARGUMENT);
   errnum = 0;
-  /* Search in hard disks first, since floppies are slow */
+
 	for (drive = 0; drive <= 0xff; drive++)
     {
       unsigned long part = 0xFFFFFF;
-      unsigned long start, len, offset, ext_offset1;
-      unsigned long type, entry1;
+      unsigned long long start, len, offset;
+      unsigned long type, entry1, ext_offset1;
 		int bsd_part;
 		int pc_slice;
 
-		if ((drive > 10 && drive < 0x80) || (drive > (*((char *)0x475) + 0x80) && drive < 0x9f))
-			continue;
+//		if ((drive > 10 && drive < 0x80) || (drive > (*((char *)0x475) + 0x80) && drive < 0x9f))
+//			continue;
 
+		for (i = 0; i < DRIVE_MAP_SIZE; i++)
+		{
+      if (drive_map_slot_empty (bios_drive_map[i]))
+				break;
+      if (bios_drive_map[i].from_drive == drive)
+				goto yyyyy;
+    }	
+#define FIND_HD (*((char *)0x475))
+#define FIND_FD (((*(char*)0x410) & 1)?((*(char*)0x410) >> 6) + 1 : 0)
+		if (drive < FIND_FD || (drive >=0x80 && drive < 0x80 + FIND_HD))
+#undef FIND_HD
+#undef FIND_FD
+			goto yyyyy;
+		if (drive < 0x9f)	
+ 			continue;
+yyyyy:
 		saved_drive = current_drive = drive;
 		saved_partition = current_partition = part;
 
-		if (drive < 0x90 && grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) != 0)
+		if (drive < 0x9f && grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) != 0)
 		{
 			biosdisk_standard (0x02, (unsigned char)drive, 0, 0, 1, 1, 0x2F00);
 			if (!(probe_bpb((struct master_and_dos_boot_sector *)0x2f000)) && open_device())
@@ -6843,9 +6848,9 @@ uuid_func (char *argument, int flags)
 		next_partition_dest		= 0xFFFFFF,
 		next_partition_partition	= &part,
 		next_partition_type		= &type,
-		next_partition_start		= &start,
-		next_partition_len		= &len,
-		next_partition_offset		= &offset,
+		next_partition_start		= (unsigned long long *)(void *)&start,
+		next_partition_len		= (unsigned long long *)(void *)&len,
+		next_partition_offset		= (unsigned long long *)(void *)&offset,
 		next_partition_entry		= &entry1,
 		next_partition_ext_offset	= &ext_offset1,
 		next_partition_buf		= mbr,
@@ -6871,19 +6876,19 @@ qqqqqq:
 			}
                       if (! *arg)
                         {
-						grub_printf ("(%s%x%c%c%c%c):", ((drive<10)?"fd":(drive>=0x9f)?"0x":"hd"),((drive<10 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
+						grub_printf ("(%s%d%c%c%c%c):", ((drive<0x80)?"fd":(drive>=0x9f)?"":"hd"),((drive<0x80 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
 						if (*uuid_found || debug)
-							grub_printf("%s%s is \"%s\".\n\t", ((drive<10)?"   ":(drive>=0x9f)?"  ":" "), p, ((*uuid_found) ? uuid_found : "(unsupported)"));
+							grub_printf("%s%s is \"%s\".\n\t", ((drive<0x80)?"   ":(drive>=0x9f)?"   ":" "), p, ((*uuid_found) ? uuid_found : "(unsupported)"));
 						print_fsys_type();
 		          }
                       else if (substring((char*)uuid_found,arg,1) == 0)
                         {
-                         grub_sprintf(root_found,"(%s%x%c%c%c%c)", ((drive<10)?"fd":(drive>=0x9f)?"0x":"hd"),((drive<10 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
+                         grub_sprintf(root_found,"(%s%d%c%c%c%c)", ((drive<0x80)?"fd":(drive>=0x9f)?"":"hd"),((drive<0x80 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
                          goto found;
                         }
 		}
 	    }
-		if (drive > 0x8f)
+		if (drive >= 0x9f)
 			break;
 
 	  /* We want to ignore any error here.  */
@@ -11992,8 +11997,8 @@ parttype_func (char *arg, int flags)
 {
   unsigned long long new_type = -1;
   unsigned long part = 0xFFFFFF;
-  unsigned long start, len, offset, ext_offset1;
-  unsigned long type, entry1;
+  unsigned long long start, len, offset;
+  unsigned long type, entry1, ext_offset1;
 
   /* Get the drive and the partition.  */
 
@@ -12038,9 +12043,9 @@ parttype_func (char *arg, int flags)
 		next_partition_dest		= current_partition,
 		next_partition_partition	= &part,
 		next_partition_type		= &type,
-		next_partition_start		= &start,
-		next_partition_len		= &len,
-		next_partition_offset		= &offset,
+		next_partition_start		= (unsigned long long *)(void *)&start,
+		next_partition_len		= (unsigned long long *)(void *)&len,
+		next_partition_offset		= (unsigned long long *)(void *)&offset,
 		next_partition_entry		= &entry1,
 		next_partition_ext_offset	= &ext_offset1,
 		next_partition_buf		= mbr,
@@ -13054,8 +13059,8 @@ real_root_func (char *arg, int attempt_mnt)
   else if (grub_memcmp (arg, "endpart", 7) == 0)
     {
 	unsigned long part = 0xFFFFFF;
-	unsigned long start, len, offset, ext_offset1;
-	unsigned long type, entry1;
+	unsigned long long start, len, offset;
+	unsigned long type, entry1, ext_offset1;
 	
 	/* find MAX/END partition of the current root drive */
 	
@@ -13079,9 +13084,9 @@ real_root_func (char *arg, int attempt_mnt)
 		next_partition_dest		= 0xFFFFFF,
 		next_partition_partition	= &part,
 		next_partition_type		= &type,
-		next_partition_start		= &start,
-		next_partition_len		= &len,
-		next_partition_offset		= &offset,
+		next_partition_start		= (unsigned long long *)(void *)&start,
+		next_partition_len		= (unsigned long long *)(void *)&len,
+		next_partition_offset		= (unsigned long long *)(void *)&offset,
 		next_partition_entry		= &entry1,
 		next_partition_ext_offset	= &ext_offset1,
 		next_partition_buf		= mbr,
