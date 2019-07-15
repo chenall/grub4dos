@@ -43,7 +43,7 @@ before_deploy:
 deploy:
     provider: releases
     api_key: $GITHUB_TOKEN
-    file: $BIN
+    file: grub4dos-$(cat grub4dos_version)-$(date -u +%Y-%m-%d).7z
     skip_cleanup: true
     on:
       branch: 0.4.6a
