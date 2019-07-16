@@ -7,6 +7,7 @@ addons:
   ssh_known_hosts:
     - github.com
     - git.coding.net
+    - git.dev.tencent.com
   apt:
     packages: [gcc-4.6,gcc-4.6-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
     sources: 
@@ -40,10 +41,14 @@ before_deploy:
     - export TRAVIS_TAG=${TRAVIS_TAG:-$(date -u +%Y-%m-%d)-$(git log --format=%h -1)}
     - git tag $TRAVIS_TAG
 
+branches:
+  only: 0.4.6a
+
 deploy:
     provider: releases
     api_key: $GITHUB_TOKEN
     file: grub4dos-$(cat grub4dos_version)-$(date -u +%Y-%m-%d).7z
     skip_cleanup: true
+    overwrite: true
     on:
       branch: 0.4.6a
