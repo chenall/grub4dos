@@ -17061,9 +17061,9 @@ VARIABLE(grub_putchar)
 #define next_partition_dest		((*(unsigned long **)0x8304)[1])
 #define next_partition_partition	((*(unsigned long ***)0x8304)[2])
 #define next_partition_type		((*(unsigned long ***)0x8304)[3])
-#define next_partition_start		((*(unsigned long long ***)0x8304)[2])
-#define next_partition_len		((*(unsigned long long ***)0x8304)[3])
-#define next_partition_offset		((*(unsigned long long ***)0x8304)[4])
+#define next_partition_start		((*(unsigned long long ***)0x8304)[4])
+#define next_partition_len		((*(unsigned long long ***)0x8304)[11])
+#define next_partition_offset		((*(unsigned long long ***)0x8304)[14])
 #define next_partition_entry		((*(unsigned long ***)0x8304)[7])
 #define next_partition_ext_offset	((*(unsigned long ***)0x8304)[8])
 #define next_partition_buf		((*(char ***)0x8304)[9])
@@ -17081,11 +17081,10 @@ VARIABLE(next_partition_partition)
 VARIABLE(next_partition_type)
 	.long	0
 VARIABLE(next_partition_start)
-	.long	0, 0
-VARIABLE(next_partition_len)
-	.long	0, 0
-VARIABLE(next_partition_offset)
-	.long	0, 0
+	.long	0
+	.long	0
+//VARIABLE(next_partition_offset)
+	.long	0
 VARIABLE(next_partition_entry)
 	.long	0
 VARIABLE(next_partition_ext_offset)
@@ -17094,16 +17093,14 @@ VARIABLE(next_partition_buf)
 	.long	0
 VARIABLE(quit_print)
 	.long	0
-//VARIABLE(buf_drive)
-	.long	-1				//reserved
-//VARIABLE(buf_track)
-	.long	-1				//reserved
+VARIABLE(next_partition_len)
+	.long	0
+	.long	0
 VARIABLE(filesystem_type)
 	.long	0
-//VARIABLE(query_block_entries)//reserved
-	.long	0				//reserved
-//VARIABLE(map_start_sector)//reserved
-	.long	0				//reserved
+VARIABLE(next_partition_offset)
+	.long	0
+	.long	0
 	.long	ABS(EXT_C(buf_geom))
 	.long	ABS(EXT_C(tmp_geom))
 	.long	ABS(EXT_C(term_table))
