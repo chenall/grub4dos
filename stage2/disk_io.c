@@ -942,7 +942,7 @@ next_entry:
 
       {
 	unsigned long long tmp_start = (unsigned long long)(unsigned long)(PC_SLICE_START (next_partition_buf, *next_partition_entry));
-	unsigned long long tmp_offset = (unsigned long long)(unsigned long)(*next_partition_offset);
+	unsigned long long tmp_offset = *next_partition_offset;
 	tmp_start += tmp_offset;
 	*next_partition_start = tmp_start;
 	*next_partition_type = PC_SLICE_TYPE (next_partition_buf, *next_partition_entry);
@@ -1117,9 +1117,9 @@ next_part (void)
 	next_partition_dest		= dest_partition;
 	next_partition_partition	= &current_partition;
 	next_partition_type		= &current_slice;
-	next_partition_start		= (unsigned long long *)(void *)&part_start;
-	next_partition_len		= (unsigned long long *)(void *)&part_length;
-	next_partition_offset		= (unsigned long long *)(void *)&part_offset;
+	next_partition_start		= &part_start;
+	next_partition_len		= &part_length;
+	next_partition_offset		= &part_offset;
 	next_partition_entry		= &entry;
 	next_partition_ext_offset	= &ext_offset;
 	next_partition_buf		= mbr;
