@@ -15031,6 +15031,10 @@ ENTRY(console_getkey)
   je 2f
   call beep_func
 2:
+	cmpb $0, string_enable
+	je 2f
+	call string_refresh
+2:
 	cmpl $0, graphics_inited
 	je 4b
 	cmpb $0, animated_enable

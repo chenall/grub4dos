@@ -1096,11 +1096,16 @@ restart1:
 	  grub_timeout--;
 	}
 
-	defer(1);
-	if ((animated_enable) && (grub_timeout >= 0))
-		animated();
-	if ((beep_enable) && (grub_timeout >= 0))
-		beep_func((char *)beep_buf,1);
+	if (grub_timeout >= 0)
+	{
+		defer(1);
+		if (animated_enable)
+			animated();
+		if (beep_enable)
+			beep_func((char *)beep_buf,1);
+		if (string_enable)
+			string_refresh();
+	}
       /* Check for a keypress, however if TIMEOUT has been expired
 	 (GRUB_TIMEOUT == -1) relax in GETKEY even if no key has been
 	 pressed.  

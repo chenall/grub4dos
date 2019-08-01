@@ -1,4 +1,8 @@
 ﻿更新说明：
+2019-08-01(yaya)
+  菜单动态更新日期时间。
+  setmenu --string=x=y=color="date&time"
+
 2019-07-14(yaya)
   支持位于 2TB 后的分区。
 

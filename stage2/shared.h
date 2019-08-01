@@ -504,6 +504,8 @@ struct string
 } __attribute__ ((packed));
 extern struct string strings[16];
 extern unsigned long string_total;
+extern unsigned char string_enable;
+extern void string_refresh(void);
 #define MENU_TITLE					0x3A8000
 #define MENU_TITLE_LENGTH		0x800
 /* The Chinese patch will begin at here */

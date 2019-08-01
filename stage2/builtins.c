@@ -16470,6 +16470,7 @@ char *p_string= (char *)MENU_TITLE;
 extern int new_menu;
 unsigned long string_total = 0; 
 int num_text_char(char *p);
+unsigned char string_enable;
 
 static int
 setmenu_func(char *arg, int flags)
@@ -16483,6 +16484,7 @@ setmenu_func(char *arg, int flags)
 	{
 		num_string = 0;
 		string_total = 0;
+		string_enable = 0;
 		p_string = (char *)MENU_TITLE;
 		for (i=0; i<16; i++)
 			DrawBox[i].index = 0;
@@ -16503,6 +16505,7 @@ setmenu_func(char *arg, int flags)
 			{
 				num_string = 0;
 				string_total = 0;
+				string_enable = 0;
 				p_string = (char *)MENU_TITLE;
 				goto cont;
 			}
@@ -16530,6 +16533,11 @@ setmenu_func(char *arg, int flags)
 				strings[i].color = val;								//color	
 			arg += 2;
 			strings[i].addr = (int)p_string;				//addr
+			if (grub_memcmp (arg, "date&time\"", 10) == 0)
+			{
+				string_enable = i+1;
+				*arg = '"';
+			}
 			p = arg;
 			while (*p++ != '"');
 			*(p - 1) = 0;
@@ -16603,6 +16611,7 @@ setmenu_func(char *arg, int flags)
 			menu_tab = 0;
 			num_string = 0;
 			string_total = 0;
+			string_enable = 0;			
 			p_string= (char *)MENU_TITLE;
 			menu_font_spacing = 0;
 			menu_line_spacing = 0;
@@ -16828,6 +16837,7 @@ static struct builtin builtin_setmenu =
 	"--string=[X]=[-]Y=COLOR=\"STRING\"  max 16 commands.\n"
 	"Note: there is no X, position in the middle.\n"
 	"Note: -Y represents the count from the bottom.\n"
+	"When STRING is date&time, update date and time dynamically.\n"
 	"			--string= to delete all strings.\n"
 	"--box x=X y=Y w=W h=H l=L\n"
 	"Note: W=0 in the middle. L=0 no display border\n"
@@ -16854,7 +16864,34 @@ static struct builtin builtin_setmenu =
 };
 
 
-
+unsigned short refresh = 0;
+void string_refresh(void)
+{
+	int i = string_enable-1;
+	
+	if ((cursor_state & 1) == 1)
+		return;
+	putchar_hooked = 0;
+	if (!refresh)
+	{
+		unsigned long date, time;
+		
+		refresh = 250;
+		get_datetime(&date, &time);
+		unsigned long long col = current_color_64bit;
+		current_term->setcolorstate (COLOR_STATE_NORMAL);
+		gotoxy (strings[i].start_x, strings[i].start_y);
+		if ((strings[i].color & 0xffffffff00000000) == 0)
+			current_color_64bit = strings[i].color | (current_color_64bit & 0xffffffff00000000);
+		else
+			current_color_64bit = strings[i].color;
+		grub_printf("%04X-%02X-%02X %02X:%02X:%02X",(date >> 16),(char)(date >> 8),(char)date,(char)(time >> 24),(char)(time >> 16),(char)(time>>8));
+		current_color_64bit = col;
+	}
+	else
+		refresh--;
+	return;
+}
 
 static int endlocal_func(char *arg, int flags)
 {
