@@ -15633,7 +15633,7 @@ struct builtin builtin_graphicsmode =
   "graphicsmode",
   graphicsmode_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "graphicsmode [0x12 | 0x6A]",
+  "graphicsmode [MODE]",
   "Display/set the graphics mode number for the next graphics init."
   "Return the current graphics mode setting."
 };

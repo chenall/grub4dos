@@ -15507,6 +15507,10 @@ ENTRY(set_videomode)
 	// the caller want to confirm AL=0x1B for a successful return.
 	movb	%al, %cs:(0x8000+64)	// it is certain CS = 0
 1:
+	xorb	%bh, %bh
+	movb	$0, %bl
+	movw	$0x1003, %ax
+	int	$0x10
 	call	EXT_C(real_to_prot)
 	.code32
 
