@@ -793,7 +793,6 @@ run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *h
   char *cur_entry = 0;
   char *pass_config = 0;
 	color_counting = 0;
-	new_menu = 0;
 //  struct term_entry *prev_term = NULL;
 		  
 
@@ -926,6 +925,8 @@ restart1:
 				
 				for (j=0; j<i; j++)
 				{
+					if (strings[j].index == 0)
+						continue;	
 						start_offcet = strings[j].start_x;
 					gotoxy (start_offcet, strings[j].start_y);
 					current_term->setcolorstate (COLOR_STATE_NORMAL);
@@ -2466,6 +2467,7 @@ cmain (void)
     titles = (char * *)(init_free_mem_start + 1024);
     config_entries = (char*)init_free_mem_start + 1024 + 256 * sizeof (char *);
     saved_entryno = 0;
+	new_menu = 0;
     /* Never return.  */
 restart2:
     reset ();

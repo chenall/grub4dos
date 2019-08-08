@@ -14891,7 +14891,8 @@ timeout_func (char *arg, int flags)
   errnum = 0;
   if (! safe_parse_maxint (&arg, &ull))
     return 0;
-
+	if (ull > 99)
+		ull = 99;
   grub_timeout = ull;
   return 1;
 }
@@ -16487,7 +16488,10 @@ setmenu_func(char *arg, int flags)
 		string_enable = 0;
 		p_string = (char *)MENU_TITLE;
 		for (i=0; i<16; i++)
+		{
 			DrawBox[i].index = 0;
+			strings[i].index = 1;
+		}
 		new_menu = 1;
 	}
 
@@ -16513,8 +16517,19 @@ setmenu_func(char *arg, int flags)
 				return 0;
 			if (*arg == '=')
 				x_horiz_center++;
+			else if (grub_memcmp (arg, "date&time", 9) == 0)
+			{
+				string_enable = 0;
+				goto cont;
+			}
 			else if (safe_parse_maxint (&arg, &val))
 				strings[i].start_x = val;						//x
+			if (!*arg || *arg == '\n' || *arg == '\r')
+			{
+				if (val > 0 && val < 17) 
+					strings[val-1].index = 0;
+				goto cont;
+			}
 			arg++;
 			if (*arg == '-')
 			{
@@ -16533,16 +16548,22 @@ setmenu_func(char *arg, int flags)
 				strings[i].color = val;								//color	
 			arg += 2;
 			strings[i].addr = (int)p_string;				//addr
-			if (grub_memcmp (arg, "date&time\"", 10) == 0)
+			if (grub_memcmp (arg, "date&time", 9) == 0)
 			{
 				string_enable = i+1;
-				*arg = '"';
+				arg += 9;
+				*p_string++ = 0;
 			}
 			p = arg;
 			while (*p++ != '"');
 			*(p - 1) = 0;
 			if (x_horiz_center)
+			{
+				if (string_enable && !*arg)
+						strings[i].start_x = ((current_term->chars_per_line - 20) >> 1) - 1;			//x
+				else
 				strings[i].start_x = ((current_term->chars_per_line - num_text_char(arg)) >> 1) - 1;			//x
+			}
 			string_width = parse_string(arg);
 			string_total += string_width;
 			if (string_total > 0x800)
@@ -16829,46 +16850,71 @@ static struct builtin builtin_setmenu =
   setmenu_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
   "setmenu --parameter | --parameter | ... ",
-  "--ver-on* --ver-off --lang=en* --lang=zh --u\n"
+  "--ver-on* --ver-off --lang=en* --lang=zh --u (clear all)\n"
 	"--left-align* --right-align --middle-align\n"
 	"--auto-num-off* --auto-num-all-on --auto-num-on --triangle-on* --triangle-off\n"
 	"--highlight-short* --highlight-full\n"
 	"--font-spacing=FONT:LINE. default 0\n"
 	"--string=[X]=[-]Y=COLOR=\"STRING\"  max 16 commands.\n"
-	"Note: there is no X, position in the middle.\n"
-	"Note: -Y represents the count from the bottom.\n"
-	"When STRING is date&time, update date and time dynamically.\n"
-	"			--string= to delete all strings.\n"
+	"  If no X, text in middle.\n"
+	"  -Y represents the count from the bottom.\n"
+	"  \"STRING\"=\"date&time=FORMAT\"  will update date FORMAT every second.\n"
+	"  e.g. \"date&time=MMM.dd.yyyy  HH:mm:ss\"\n"
+	"  e.g. \"date&time=dd/MMM/yy  AP hh:mm:ss\"\n"
+	"  \"STRING\"=\"date&time\"  ISO8601 format. equivalent to: \"date&time=yyyy-MM-dd  HH:mm:ss\"\n"
+	"  --string=INDEX to disable the specified index.  --string= to clear all strings.\n"
+	"  --string=date&time to disable the date&time.\n"
 	"--box x=X y=Y w=W h=H l=L\n"
-	"Note: W=0 in the middle. L=0 no display border\n"
+	"  If W=0, menu box in middle. L=menu border thickness 0-4, 0=none.\n"
 	"--help=X=W=Y\n"
-	"Note: X=0* menu start and width. X<>0 and W=0 Entire display width minus 2x.\n"
+	"  X=0* menu start and width. X<>0 and W=0 Entire display width minus 2x.\n"
 	"--keyhelp=Y_OFFSET=COLOR\n"
-	"Note: Y_OFFSET=0* entryhelp and keyhelp in the same area,entryhelp cover keyhelp.\n"
-	"      Y_OFFSET!=0 keyhelp to entryhelp line offset.two coexist.\n"
-	"      Y_OFFSET<=4, entryhelp display line number.\n"
-	"      COLOR=0* default 'color helptext'.\n"
+	"  Y_OFFSET=0* entryhelp and keyhelp in the same area,entryhelp cover keyhelp.\n"
+	"  Y_OFFSET!=0 keyhelp to entryhelp line offset.two coexist.\n"
+	"  Y_OFFSET<=4, entryhelp display line number.\n"
+	"  COLOR=0* default 'color helptext'.\n"
 	"--timeout=X=Y=COLOR\n"
-	"Note: X=Y=0* located at the end of the selected item.\n"
-	"Note: COLOR=0* default 'color highlight'.\n"
-	"* indicates default. Use 0xRRGGBB to represent colors.\n"
-	"setmenu --graphic-entry=type=row=list=wide=high=row_space START_FILE\n"
-	"type: bit0:highlight  bit1:flip  bit2:box  bit3:highlight background\n"
-	"      bit4:Picture and text mixing  bit7:transparent background.\n"
-	"naming rules for START_FILE: *n.???   n: 00-99\n"
-	"--u clear all.\n"
+	"  X=Y=0* located at the end of the selected item.\n"
+	"  COLOR=0* default 'color highlight'.\n"
+	"--graphic-entry=type=row=list=wide=high=row_space START_FILE\n"
+	"  type: bit0:highlight  bit1:flip  bit2:box  bit3:highlight background\n"
+	"        bit4:Picture and text mixing  bit7:transparent background.\n"
+	"  Naming rules for START_FILE: *n.???   n: 00-99\n"
 	"--draw-box=INDEX=START_X=START_y=HORIZ=VERT=LINEWIDTH=COLOR.\n"
-	"			INDEX:1-16; COLOR:24-bit color; LINEWIDTH:1-255; all dimensions in pixels.\n"
-	"			--draw-box=INDEX to delete the specified index.\n"
-	"			--draw-box= to delete all indexes." 
+	"  LINEWIDTH:1-255; all dimensions in pixels.\n"
+	"  --draw-box=INDEX to disable the specified index.  --draw-box= to clear all indexes.\n"
+	"Note: * = default. Use only 0xRRGGBB for COLOR. INDEX range is 1-16."
 };
 
+static char *month_list[12] =
+{
+	"Jan",
+	"Feb",
+	"Mar",
+	"Apr",
+	"May",
+	"Jun",
+	"Jul",
+	"Aug",
+	"Sep",
+	"Oct",
+	"Nov",
+	"Dec"
+};
 
 unsigned short refresh = 0;
 void string_refresh(void)
 {
 	int i = string_enable-1;
+	unsigned short year;
+	unsigned char month, day, hour, min, sec;
+	char *p;
 	
+	if (strings[i].index == 0)
+	{
+		string_enable = 0;
+		return;
+	}
 	if ((cursor_state & 1) == 1)
 		return;
 	putchar_hooked = 0;
@@ -16885,7 +16931,59 @@ void string_refresh(void)
 			current_color_64bit = strings[i].color | (current_color_64bit & 0xffffffff00000000);
 		else
 			current_color_64bit = strings[i].color;
-		grub_printf("%04X-%02X-%02X %02X:%02X:%02X",(date >> 16),(char)(date >> 8),(char)date,(char)(time >> 24),(char)(time >> 16),(char)(time>>8));
+	
+		year = date >> 16;
+		month = ((date >> 12) & 0xf) * 10 + ((date >> 8) & 0xf);
+		day = date;
+		hour = ((time >> 28) & 0xf) * 10 + ((time >> 24) & 0xf);
+		min = time >> 16;
+		sec = time >> 8;
+		p = (char *)(strings[i].addr) + 1;
+		if (*p != '=')
+			grub_printf("%04X-%02d-%02X %02d:%02X:%02X", year, month, day, hour, min, sec);
+		else
+		{
+			p++;
+			while(*p)
+			{
+				if (*p == 'y' && *(p+1) == 'y')
+				{
+					if (*(p+2) == 'y' && *(p+3) == 'y')
+					{
+						grub_printf ("%04X", year);
+						p += 2;
+					}
+					else
+						grub_printf ("%02X", (unsigned char)year);
+				}	
+				else if (*p == 'M' && *(p+1) == 'M')
+				{
+					if (*(p+2) == 'M')
+					{
+						grub_printf ("%s", month_list[month - 1]);
+						p++;
+					}
+					else
+						grub_printf ("%02d", month);
+				}
+				else if (*p == 'd' && *(p+1) == 'd')
+					grub_printf ("%02X", day);
+				else if (*p == 'H' && *(p+1) == 'H')
+					grub_printf ("%02d", hour);
+				else if (*p == 'h' && *(p+1) == 'h')
+					grub_printf ("%02d", (hour == 0) ? 12 : ((hour > 12) ? (hour - 12) : hour));
+				else if (*p == 'A' && *(p+1) == 'P')
+					grub_printf ("%s", (hour >= 12) ? "PM" : "AM");
+				else if (*p == 'm' && *(p+1) == 'm')
+					grub_printf ("%02X", min);
+				else if (*p == 's' && *(p+1) == 's')
+					grub_printf ("%02X", sec);
+				else
+					grub_printf ("%c", *p--);
+
+				p += 2;
+			}
+		}
 		current_color_64bit = col;
 	}
 	else

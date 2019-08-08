@@ -1,7 +1,14 @@
 ﻿更新说明：
-2019-08-01(yaya)
-  菜单动态更新日期时间。
-  setmenu --string=x=y=color="date&time"
+2019-08-08(yaya)
+  菜单每秒动态更新日期时间。
+  1. 指定日期时间格式
+  setmenu --string=x=y=color="date&time=FORMAT"
+  例如：“date&time=MMM.dd.yyyy  HH:mm:ss”
+        “date&time=dd/MMM/yy  hh:mm:ss AP"
+  2. 隐含ISO8601标准日期时间格式(yyyy-MM-dd  HH:mm:ss)
+  setmenu --string=x=y=color="date&time”
+	3. 清除日期时间
+  setmenu --string=date&time
 
 2019-07-14(yaya)
   支持位于 2TB 后的分区。

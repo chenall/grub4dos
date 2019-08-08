@@ -497,6 +497,7 @@ struct box
 extern struct box DrawBox[16];
 struct string
 {
+	unsigned char index;
 	unsigned char start_x;
 	unsigned char start_y;
 	unsigned long long color;
