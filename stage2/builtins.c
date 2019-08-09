@@ -14891,7 +14891,7 @@ timeout_func (char *arg, int flags)
   errnum = 0;
   if (! safe_parse_maxint (&arg, &ull))
     return 0;
-	if (ull > 99)
+	if ((int)ull > 99)
 		ull = 99;
   grub_timeout = ull;
   return 1;
