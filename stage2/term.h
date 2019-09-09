@@ -105,8 +105,6 @@ extern struct term_entry *current_term;
 /* The console stuff.  */
 unsigned int console_putchar (unsigned int c, unsigned int max_width);
 
-int console_checkkey (void);
-int console_getkey (void);
 int console_getxy (void);
 void console_gotoxy (int x, int y);
 void console_cls (void);

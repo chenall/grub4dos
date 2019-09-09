@@ -15170,7 +15170,26 @@ ENTRY(console_checkkey)
 
 9:
 	cmpl	$0xFFFFFFFF, %edx
-	je	1f
+	jne 3f
+	pushl $1
+	call defer
+	popl %eax
+	cmpb $0, beep_enable
+	jz 2f
+	call beep_func
+2:
+	cmpb $0, string_enable
+	je 2f
+	call string_refresh
+2:
+	cmpl $0, graphics_inited
+	je 1f
+	cmpb $0, animated_enable
+	je 1f
+	call animated
+	movl $0xFFFFFFFF, %edx
+	jmp 1f
+3:
 	call	remap_ascii_char	/* ESI changed */
 1:
 	mov	%edx, %eax

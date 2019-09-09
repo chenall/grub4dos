@@ -16541,7 +16541,7 @@ setmenu_func(char *arg, int flags)
 				if (y_count_bottom == 0)
 					strings[i].start_y = val;							//y
 				else
-					strings[i].start_y = current_term->max_lines - val - 1;
+					strings[i].start_y = -(val + 1);
 			}
 			arg++;
 			if (safe_parse_maxint (&arg, &val))
@@ -16560,9 +16560,9 @@ setmenu_func(char *arg, int flags)
 			if (x_horiz_center)
 			{
 				if (string_enable && !*arg)
-						strings[i].start_x = ((current_term->chars_per_line - 20) >> 1) - 1;			//x
+						strings[i].start_x = ((current_term->chars_per_line - 20) >> 1);			//x
 				else
-				strings[i].start_x = ((current_term->chars_per_line - num_text_char(arg)) >> 1) - 1;			//x
+				strings[i].start_x = ((current_term->chars_per_line - num_text_char(arg)) >> 1);			//x
 			}
 			string_width = parse_string(arg);
 			string_total += string_width;
@@ -16707,6 +16707,16 @@ setmenu_func(char *arg, int flags)
 		{
 			menu_tab |= 0x10;
 			arg += 16;
+		}
+		else if (grub_memcmp (arg, "--keyhelp-on", 12) == 0)
+		{
+			menu_tab &= 0xfb;
+			arg += 12;
+		}
+    else if (grub_memcmp (arg, "--keyhelp-off", 13) == 0)
+		{
+			menu_tab |= 4;
+			arg += 13;
 		}
 		else if (grub_memcmp (arg, "--box", 5) == 0)
 		{
@@ -16853,7 +16863,7 @@ static struct builtin builtin_setmenu =
   "--ver-on* --ver-off --lang=en* --lang=zh --u (clear all)\n"
 	"--left-align* --right-align --middle-align\n"
 	"--auto-num-off* --auto-num-all-on --auto-num-on --triangle-on* --triangle-off\n"
-	"--highlight-short* --highlight-full\n"
+	"--highlight-short* --highlight-full --keyhelp-on* --keyhelp-off\n"
 	"--font-spacing=FONT:LINE. default 0\n"
 	"--string=[X]=[-]Y=COLOR=\"STRING\"  max 16 commands.\n"
 	"  If no X, text in middle.\n"
@@ -16921,12 +16931,17 @@ void string_refresh(void)
 	if (!refresh)
 	{
 		unsigned long date, time;
+		char y;
 		
 		refresh = 250;
 		get_datetime(&date, &time);
 		unsigned long long col = current_color_64bit;
 		current_term->setcolorstate (COLOR_STATE_NORMAL);
-		gotoxy (strings[i].start_x, strings[i].start_y);
+		if (strings[i].start_y < 0)
+			y = strings[i].start_y + current_term->max_lines;
+		else
+			y = strings[i].start_y;
+		gotoxy (strings[i].start_x, y);
 		if ((strings[i].color & 0xffffffff00000000) == 0)
 			current_color_64bit = strings[i].color | (current_color_64bit & 0xffffffff00000000);
 		else

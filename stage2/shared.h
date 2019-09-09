@@ -499,7 +499,7 @@ struct string
 {
 	unsigned char index;
 	unsigned char start_x;
-	unsigned char start_y;
+	char start_y;
 	unsigned long long color;
 	int addr;
 } __attribute__ ((packed));
@@ -850,6 +850,7 @@ extern int use_config_file;
 #define	use_preset_menu *(unsigned long *)0x307FF8
 /* print debug message on startup if the DEBUG_KEY is pressed. */
 extern int debug_boot;
+extern int console_checkkey (void);
 extern int console_getkey (void);
 extern int console_beep (void);
 extern int beep_func(char *arg, int flags);

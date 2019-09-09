@@ -526,7 +526,7 @@ graphic_end:
 //	else if (default_help_message_destoyed)
 	else
 	{
-		if(!(menu_border.menu_keyhelp_y_offset))
+		if(!(menu_border.menu_keyhelp_y_offset) && !(menu_tab & 4))
 		{
 //			if (current_term->setcolorstate)
 //				current_term->setcolorstate (COLOR_STATE_HELPTEXT);
@@ -909,6 +909,7 @@ restart1:
 		if (graphics_inited && graphics_mode > 0xff)/*vbe mode call rectangle_func*/
 		{
 			int i,j;
+			char y;
 			unsigned long long col = current_color_64bit;
 			for (i=0; i<16; i++)
 			{
@@ -920,15 +921,17 @@ restart1:
 			
 			if (num_string)
 			{
-				int start_offcet = 0;
 				i = num_string;
 				
 				for (j=0; j<i; j++)
 				{
 					if (strings[j].index == 0)
 						continue;	
-						start_offcet = strings[j].start_x;
-					gotoxy (start_offcet, strings[j].start_y);
+					if (strings[j].start_y < 0)
+						y = strings[j].start_y + current_term->max_lines;
+					else
+						y = strings[j].start_y;
+					gotoxy (strings[j].start_x, y);
 					current_term->setcolorstate (COLOR_STATE_NORMAL);
 					if ((strings[j].color & 0xffffffff00000000) == 0)
 						current_color_64bit = strings[j].color | (current_color_64bit & 0xffffffff00000000);
@@ -1004,6 +1007,7 @@ restart1:
       if (current_term->setcolorstate)
 	  current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 
+		if (!(menu_tab & 4))
       print_default_help_message (config_entries);
 
       if (current_term->flags & TERM_DUMB)
