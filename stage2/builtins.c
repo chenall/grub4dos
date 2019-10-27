@@ -6726,6 +6726,8 @@ uuid_func (char *argument, int flags)
 		primary = 1;
 		argument += 9;
 	}
+	else
+		break;
 	argument = skip_to (0, argument);
 	}
 	
