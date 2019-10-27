@@ -664,8 +664,8 @@ dddd:
 					{
 						if (current_term->setcolorstate)
 							current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
-						current_color_64bit &= 0x0000000000ffffff;
-						current_color &= 0xf;
+						current_color_64bit = (current_color_64bit & 0xffffff) | (clo64 & 0xffffff00000000);
+						current_color = (current_color & 0x0f) | (clo & 0xf0);
 					}
 		      print_a_completion (tmp_name1, 0);
 					current_color_64bit = clo64;

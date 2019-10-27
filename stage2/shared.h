@@ -471,6 +471,8 @@ unsigned char * graphics_get_font();
 void graphics_set_palette(int idx, int color);
 unsigned long long color_8_to_64 (unsigned char color8);
 unsigned long long color_4_to_32 (unsigned char color4);
+extern int console_color[6];
+extern unsigned long long console_color_64bit[6];
 extern unsigned long current_color;
 extern unsigned long long current_color_64bit;
 extern unsigned long cursor_state;

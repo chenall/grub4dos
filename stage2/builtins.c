@@ -3207,7 +3207,12 @@ color_func (char *arg, int flags)
   errnum = 0;
   if (! *arg)
   {
-    printf_debug0 ("current color: %X, %lX\n", current_color, current_color_64bit);
+		grub_printf("8_bits  current  normal  highlight  helptext  heading  border  standard\n");
+		grub_printf("        %02x       %02x      %02x         %02x        %02x       %02x      %02x\n",current_color,console_color[1],console_color[2],console_color[3],console_color[4],console_color[5],console_color[0]);
+		grub_printf("64_bits current           normal            highlight\n");
+		grub_printf("        %016lx  %016lx  %016lx\n",current_color_64bit,console_color_64bit[1],console_color_64bit[2]);
+		grub_printf("        helptext          heading           border            standard\n");
+		grub_printf("        %016lx  %016lx  %016lx  %016lx",console_color_64bit[3],console_color_64bit[4],console_color_64bit[5],console_color_64bit[0]);
     return 1;
   }
 
@@ -3375,7 +3380,8 @@ static struct builtin builtin_color =
 	"e.g. color normal=0x888800000000. (The rest is the same as NORMAL.)\n"
 	"e.g. color normal=0x4444440000ffff helptext=0xc highlight=0xd heading=0xe border=0xa. (Background color from NORMAL.)\n"
 	"e.g. color standard=0xFFFFFF. (Change the console color.)\n"
-	"e.g. color --64bit 0x30. (Make numbers less than 0x100 treated in 64-bit color.)"
+	"e.g. color --64bit 0x30. (Make numbers less than 0x100 treated in 64-bit color.)\n"
+	"Display color list if no parameters."
 };
 
 

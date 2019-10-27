@@ -26,7 +26,7 @@
    console_gotoxy, console_cls, and console_nocursor.  */
 
 //extern void toggle_blinking (void);
-static int console_color[COLOR_STATE_MAX] = {
+int console_color[COLOR_STATE_MAX] = {
   [COLOR_STATE_STANDARD] = A_NORMAL,
   /* represents the user defined colors for normal text */
   [COLOR_STATE_NORMAL] = A_NORMAL,
@@ -40,7 +40,7 @@ static int console_color[COLOR_STATE_MAX] = {
   [COLOR_STATE_BORDER] = A_NORMAL
 };
 
-static unsigned long long console_color_64bit[COLOR_STATE_MAX] = {
+unsigned long long console_color_64bit[COLOR_STATE_MAX] = {
   [COLOR_STATE_STANDARD] = 0xAAAAAA,
   /* represents the user defined colors for normal text */
   [COLOR_STATE_NORMAL] = 0xAAAAAA,
@@ -55,7 +55,6 @@ static unsigned long long console_color_64bit[COLOR_STATE_MAX] = {
 
 };
 
-static color_state console_color_state = COLOR_STATE_STANDARD;
 
 void
 console_setcolorstate (color_state state)
@@ -63,13 +62,14 @@ console_setcolorstate (color_state state)
 	if (state >= COLOR_STATE_MAX)
 		state = COLOR_STATE_STANDARD;
 	current_color = console_color[state];
+	current_color_64bit = console_color_64bit[state];
 	if (state == COLOR_STATE_BORDER)
 	{
 		current_color &= 0xf;
 		current_color |= console_color[COLOR_STATE_NORMAL] & 0xf0;
+		current_color_64bit &= 0xffffff;
+		current_color_64bit |= console_color_64bit[COLOR_STATE_NORMAL] & 0xffffff00000000;
 	}
-	current_color_64bit = console_color_64bit[state];
-	console_color_state = state;
 }
 
 unsigned char color_64_to_8 (unsigned long long color64);

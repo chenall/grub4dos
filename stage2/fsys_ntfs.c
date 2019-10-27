@@ -1194,8 +1194,8 @@ static int list_file(char* cur_mft,char *fn,char *pos)
 											{
 												if (current_term->setcolorstate)
 													current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
-												current_color_64bit &= 0x0000000000ffffff;
-											current_color &= 0xf;
+												current_color_64bit = (current_color_64bit & 0xffffff) | (clo64 & 0xffffff00000000);
+												current_color = (current_color & 0x0f) | (clo & 0xf0);
 											}
                       print_a_completion((char *)utf8, 1);
 											current_color_64bit = clo64;
