@@ -408,17 +408,19 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   gotoxy (MENU_BOX_X, y);
   if(menu_tab & 0x40)
     end_offcet = 1;
-  if (*(unsigned short *)0x8308 == 0x1110)
+  if (highlight)
+		menu_num_ctrl[2] = entryno;
+  if (*(unsigned short *)0x8308)
   {
   if(!(menu_tab & 0x40))
 	{
 		gotoxy (MENU_BOX_X - 1, y);
-		grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[0]) : ' ', 255);
+		grub_putchar(highlight ? menu_cfg[0] : ' ', 255);
 	}
 	else
 	{
 		gotoxy (MENU_BOX_E - 1, y);
-		grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[1]) : ' ', 255);
+		grub_putchar(highlight ? menu_cfg[1] : ' ', 255);
 	}
   }
 graphic_mixing:
