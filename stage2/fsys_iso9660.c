@@ -248,7 +248,7 @@ iso9660_dir (char *dirname)
   RR_ptr_t rr_ptr;
   struct rock_ridge *ce_ptr;
   unsigned long pathlen;
-  unsigned long size;
+  unsigned long size = 0;
   unsigned long extent = 0;
   unsigned char file_type;
   unsigned long rr_len;
@@ -265,6 +265,7 @@ iso9660_dir (char *dirname)
 	int name_offset = 0;
 	unsigned long Allocation_offset = 0;
 	long Allocation_Number = 1; 
+	unsigned long *tmp = NULL;
 
   idr = &PRIMDESC->root_directory_record;
   udf_105_or_10a = (struct udf_descriptor *)UDF_ROOT;
@@ -301,30 +302,25 @@ iso9660_dir (char *dirname)
 		if (iso_type == ISO_TYPE_udf)
 		{
 			if (udf_105_or_10a->Tag == UDF_FileEntry)	//105
-				Allocation_Number = udf_105_or_10a->FileEntry_LengthofAllocationDescriptors >> 3;
-			else if ((udf_105_or_10a->ICB_Flags & 7) == 0)
-				Allocation_Number = udf_105_or_10a->ExtFileEntry_LengthofAllocationDescriptors >> 3;
-			else
-				Allocation_Number = 1;
+			{
+				size = udf_105_or_10a->FileEntry_LengthofAllocationDescriptors;
+				tmp = (unsigned long *)(&udf_105_or_10a->FileEntry_BaseAddress + udf_105_or_10a->FileEntry_LengthofExtendedAttributes);
+			}
+			else if (udf_105_or_10a->Tag == UDF_ExtendedFileEntry)	//10a
+			{
+				size = udf_105_or_10a->ExtFileEntry_LengthofAllocationDescriptors;
+				tmp = (unsigned long *)(&udf_105_or_10a->ExtFileEntry_BaseAddress + udf_105_or_10a->ExtFileEntry_LengthofExtendedAttributes);
+			}
+			Allocation_Number = size >> 3;
 		}		
  
 		while (Allocation_Number > 0)
 		{
 			if (iso_type == ISO_TYPE_udf)
 			{	
-				unsigned long *tmp;
-				if (udf_105_or_10a->Tag == UDF_FileEntry)	//105
-				{
-					tmp = (unsigned long *)(&udf_105_or_10a->FileEntry_BaseAddress + udf_105_or_10a->FileEntry_LengthofExtendedAttributes);
-					size = *tmp & 0x3fffffff;
-					extent = *(tmp + 1) + udf_partition_start;		
-				}
-				else	//10a
-				{
-					tmp = (unsigned long *)(&udf_105_or_10a->ExtFileEntry_BaseAddress + udf_105_or_10a->ExtFileEntry_LengthofExtendedAttributes);
 					if ((udf_105_or_10a->ICB_Flags & 7) == 3)
 					{
-						size = udf_105_or_10a->ExtFileEntry_LengthofAllocationDescriptors;
+						Allocation_Number = 1;
 						grub_memmove ((char *)((int)UDF_IDENTIFIER),(char *)((int)tmp),udf_BytePerSector);
 						udf_101 = (struct udf_File_Identifier *)UDF_IDENTIFIER;
 						goto asdf;
@@ -339,7 +335,6 @@ iso9660_dir (char *dirname)
 						errnum = ERR_FSYS_CORRUPT;
 						return 0;
 					}
-				}
 			}
 			else
 			{	
@@ -624,7 +619,6 @@ dddd:
 			    }
 			    if (iso_type == ISO_TYPE_udf)
 			 		{
-						unsigned long *tmp;
 						if (udf_105_or_10a->Tag == UDF_FileEntry)	//105
 							tmp = (unsigned long *)(&udf_105_or_10a->FileEntry_BaseAddress + udf_105_or_10a->FileEntry_LengthofExtendedAttributes);
 						else	//10a
@@ -695,24 +689,20 @@ ssss:
 			{
 				grub_memmove ((char *)((int)UDF_IDENTIFIER - udf_BytePerSector),(char *)((int)UDF_IDENTIFIER),udf_BytePerSector);
 				name_offset = udf_BytePerSector + (int)UDF_IDENTIFIER - (int)name;
-				Allocation_offset += 2;
 				break;
 			}
 		}
 		else
-		{
 			idr = (struct iso_directory_record *)((char *)idr + idr->length.l);
-			if ((int)idr - (int)DIRREC >= ISO_SECTOR_SIZE)
-				break;
-		}
 	} /* for */
 				
-	  if (size < udf_BytePerSector)
+	  if (size <= udf_BytePerSector)
 		break;
 	  size -= udf_BytePerSector;
 	} /* size>0 */
 
 		Allocation_Number--;
+		Allocation_offset += 2;
 		}	
 	
       if (*dirname == '/' || print_possibilities >= 0)
@@ -733,14 +723,15 @@ ssss:
 unsigned long long
 iso9660_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
-  unsigned long sector, blkoffset = 0, size, ret;
+  unsigned long sector, size;
+  unsigned long long blkoffset = 0, ret;
 
   if (INODE->file_start == 0)
     return 0;
 
   ret = 0;
 	unsigned long *p = 0;
-	unsigned long sum = 0;
+	unsigned long long sum = 0;
 
 		if (iso_type == ISO_TYPE_udf)
 		{

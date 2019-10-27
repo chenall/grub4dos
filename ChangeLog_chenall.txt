@@ -1,4 +1,12 @@
 ﻿更新说明：
+2019-10-27(yaya)
+  1. 修正 udf 文件系统处理大于 4Gb 文件的错误。(issues #216)
+  2. 修正 map 函数碎片映射插槽错误。(issues #212)
+  3. 修正 vol 函数不设置新根目录的问题。(issues #214)
+  4. 高亮菜单指示器的形状，可通过0x8308处修改。无论有无指示器，都将所选菜单项保存到0x8276。(issues #213)
+  5. 改进 color 函数。
+  6. 修正 setmenu --string="date&time" 影响倒计时显示的问题。
+
 2019-09-09(yaya)
   1. setmenu 函数增加 --keyhelp-on* --keyhelp-off 参数。
   2. 改进 setmenu --string 负数行设定，不随临时调整字体尺寸而变化。
