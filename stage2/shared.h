@@ -1183,7 +1183,7 @@ struct drive_map_slot
 
 struct fragment_map_slot
 {
-	unsigned char slot_len;
+	unsigned short slot_len;
 	unsigned char from;
 	unsigned char to;
 	unsigned char fragment_num;

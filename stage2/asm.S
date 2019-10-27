@@ -3216,7 +3216,7 @@ disk_address_packet_ready:
 2:
 	cmpb	$0, %cs:(%bp)
 	je	no_sp
-	cmpb	%dl, %cs:1(%bp)
+	cmpb	%dl, %cs:2(%bp)
 	je	2f
 	movzbw	%cs:(%bp), %ax
 	addw	%ax, %bp

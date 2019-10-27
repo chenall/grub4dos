@@ -9268,10 +9268,10 @@ fragment_map_slot_empty(char *p)
 	unsigned long n = FRAGMENT_MAP_SLOT_SIZE;
 	while (n)
 	{
-		if (!*p)
+		if (!(*(unsigned short *)p))
 			return p;
-		n -= *p;
-		p += *p;
+		n -= *(unsigned short *)p;
+		p += *(unsigned short *)p;
 	}
 
 	return 0;
@@ -9283,12 +9283,12 @@ fragment_map_slot_find(char *p, unsigned long from)
 	unsigned long n = FRAGMENT_MAP_SLOT_SIZE;
 	while (n)
 	{
-		if (!*p)
+		if (!(*(unsigned short *)p))
 			return 0;
-		if (*(p+1) == (char)from)
+		if (*(p+2) == (char)from)
 			return p;
-		n -= *p;
-		p += *p;
+		n -= *(unsigned short *)p;
+		p += *(unsigned short *)p;
 	}
 
 	return 0;
@@ -10650,15 +10650,20 @@ map_whole_drive:
     for (i = 0; i < DRIVE_MAP_SIZE; i++)
     {
       /* Perhaps the user wants to override the map.  */
-      if ((bios_drive_map[i].from_drive == from) && (bios_drive_map[i].to_cylinder != 0))
+      if ((bios_drive_map[i].from_drive == from))
 			{
+				if ((hooked_drive_map[i].to_cylinder & (1 << 10)) != 0)
+				{
 				p = (char *)&hooked_fragment_map;
 				filename = p + FRAGMENT_MAP_SLOT_SIZE;
 				p = fragment_map_slot_find(p, from);
 				if (p)
 				{
-					grub_memmove (p, p + *p, filename - p - *p);
-					grub_memset (filename - *p, 0, *p);
+					void *start = filename - *(unsigned short *)p;
+					int len = *(unsigned short *)p;
+					grub_memmove (p, p + *(unsigned short *)p, filename - p - *(unsigned short *)p);
+					grub_memset (start, 0, len);
+				}
 				}
 	break;
 			}
@@ -11274,6 +11279,8 @@ set_ok:
 		p = (char *)&hooked_fragment_map;
 		filename = p;
 		p = fragment_map_slot_empty(p);
+		if ((p + blklst_num_entries*16 + 4 - filename) > FRAGMENT_MAP_SLOT_SIZE)
+			return ! (errnum = ERR_MANY_FRAGMENTS);
 		q = (struct fragment_map_slot *)p;
 
 		q->from = from;
@@ -11283,11 +11290,7 @@ set_ok:
 			q->fragment_data[k*2] = map_start_sector[k];
 			q->fragment_data[k*2+1] = map_num_sectors[k];
 		}
-		q->fragment_num = (char)k;
 		q->slot_len = k*16 + 4;
-
-		if ((p + (char)*p - filename) > FRAGMENT_MAP_SLOT_SIZE)
-			return ! (errnum = ERR_MANY_FRAGMENTS);
 	}
 	
 no_fragment:
@@ -11364,14 +11367,18 @@ delete_drive_map_slot:
 
   grub_memmove ((char *) &bios_drive_map[i], (char *) &bios_drive_map[i + 1], sizeof (struct drive_map_slot) * (DRIVE_MAP_SIZE - i));
 
-
+	if ((hooked_drive_map[i].to_cylinder & (1 << 10)) != 0)
+	{
 	p = (char *)&hooked_fragment_map;
 	filename = p + FRAGMENT_MAP_SLOT_SIZE;
 	p = fragment_map_slot_find(p, from);
 	if (p)
 	{
-		grub_memmove (p, p + *p, filename - p - *p);
-		grub_memset (filename - *p, 0, *p);
+		void *start = filename - *(unsigned short *)p;
+		int len = *(unsigned short *)p;
+		grub_memmove (p, p + *(unsigned short *)p, filename - p - *(unsigned short *)p);
+		grub_memset (start, 0, len);
+	}
 	}
 	
   if (mem != -1ULL)
