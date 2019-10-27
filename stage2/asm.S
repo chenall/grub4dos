@@ -15183,10 +15183,11 @@ ENTRY(console_checkkey)
 	call string_refresh
 2:
 	cmpl $0, graphics_inited
-	je 1f
+	je 5f
 	cmpb $0, animated_enable
-	je 1f
+	je 5f
 	call animated
+5:
 	movl $0xFFFFFFFF, %edx
 	jmp 1f
 3:

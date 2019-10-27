@@ -7878,9 +7878,8 @@ static struct builtin builtin_help =
   "help",
   help_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "help [--all] [PATTERN ...]",
-  "Display helpful information about builtin commands. Not all commands"
-  " aren't shown without the option `--all'."
+  "help [--all | PATTERN ...]",
+  "Display information about built-in commands. Use option `--all' to show all commands."
 };
 
 
@@ -12275,7 +12274,7 @@ static struct builtin builtin_pause =
 {
   "pause",
   pause_func,
-  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_NO_ECHO,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_NO_ECHO,
   "pause [--test-key] [--wait=T] [MESSAGE ...]",
   "Print MESSAGE, then wait until a key is pressed or T seconds has passed."
   "--test-key display keyboard code."	
@@ -16940,7 +16939,7 @@ void string_refresh(void)
 		string_enable = 0;
 		return;
 	}
-	if ((cursor_state & 1) == 1)
+	if ((cursor_state & 1) == 1 || !show_menu)
 		return;
 	putchar_hooked = 0;
 	if (!refresh)
