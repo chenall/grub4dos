@@ -23,7 +23,7 @@ before_install:
 
 before_script:
 # Download the toolchain
-   - git clone --depth=1 git://git.ipxe.org/ipxe.git
+   - git clone --depth=1 http://git.ipxe.org/ipxe.git
 
 script:
   - ./build
