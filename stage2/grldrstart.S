@@ -3547,6 +3547,8 @@ readDisk_nt:
 	pushw	%bx		/* buffer offset */
 	pushw	$1		/* 1 sector to read */
 	pushw	$16		/* size of this parameter block */
+	cmpb	$0x42, (ebios_nt - 1 - Entry_nt)(%bp)
+	je      9f		/* skip both of division by 0 below, avoiding crash caused by fatal interrupt */
 
 	xorl	%ecx, %ecx
 	pushl	0x18(%bp)	/* lo:sectors per track, hi:number of heads */
@@ -3567,6 +3569,7 @@ readDisk_nt:
 	shlb	$6, %ah		/* hi 2bit cylinder ... */
 	orb	%ah, %cl	/* ... should be in CL */
 
+9:
 	movw	$0x201, %ax	/* read 1 sector */
 ebios_nt: /* ebios_nt - 1 points to 0x02 that can be changed to 0x42 */
 
