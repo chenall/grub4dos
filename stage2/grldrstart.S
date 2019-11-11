@@ -3252,7 +3252,7 @@ FAT_Address:
 #define NT_FG_GPOS	8
 
 #define nt_boot_drive	-2(%bp)
-#define nt_blocksize	-4(%bp)
+#define nt_blocksize	0xb(%bp)
 #define nt_spc		-5(%bp)
 #define nt_mft_size	-6(%bp)
 #define nt_idx_size	-7(%bp)
@@ -3333,7 +3333,7 @@ nt_part_ofs:
 	movw	$0x7c00, %bp
 
 	movw	%ax, %ss	/* stack and BP-relative moves up, too */
-	leaw	-0x20(%bp), %sp
+	leaw	-0x20(%bp), %sp	/* We need 0x20 bytes for the local variables nt_boot_drive etc. */
 	pushl	0x8(%si)	/* partition_table_entry.start_sector_ofs (LBA) */
 	sti
 
@@ -3375,9 +3375,7 @@ nt_part_ofs:
 	call	readDisk_nt
 1:
 
-	xorl	%eax, %eax
-	movw	0xb(%bp), %ax		// Bytes per sector (blocksize)
-	movw	%ax, nt_blocksize
+	movzwl	nt_blocksize, %eax	// Bytes per sector (blocksize)
 
 	call	convert_to_power_2
 	movb	%cl, %bl
@@ -3605,15 +3603,6 @@ NTFS_Error:
 	jmp	disk_error_nt
 
 
-// Kernel load address, located at 0x1E8
-//	. = Entry_nt + 0x1e8
-
-//nt_boot_image_end:
-
-nt_loadseg_off:
-	.word	0
-	.word	LOADSEG_NT
-
 // Boot image offset and length, located at 0x1EE
 // Lower 11 bit is offset, higher 5 bit is length
 //	. = Entry_nt + 0x1ec
@@ -3657,6 +3646,10 @@ msg_DiskReadError_nt:
 	.word	0, 0xAA55
 
 // Here starts sector #2
+
+nt_loadseg_off:
+	.word	0
+	.word	LOADSEG_NT
 
 // Input:
 //     DI - current mft
