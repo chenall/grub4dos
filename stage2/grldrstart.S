@@ -1475,6 +1475,7 @@ Entry_12_16:
 	movw	$0x7c00, %bp
 	movw	%bp, %sp        
 	movw	%ax, %ss	/* stack and BP-relative moves up, too */
+	pushl	0x8(%si)	/* partition_table_entry.start_sector_ofs (LBA) */
 	movw	%ax, %ds
 	movw	%ax, %es
 	sti			/* after stack setup, we can use stack */ 
@@ -1489,6 +1490,7 @@ Entry_12_16:
 	int	$0x13
 	popw	%es
 	popw	%ds
+	popl	%eax		/* partition_table_entry.start_sector_ofs (LBA) */
 	jc	1f		/* No EBIOS */
 	cmpw	$0xAA55, %bx
 	jne	1f		/* No EBIOS */
@@ -1496,6 +1498,7 @@ Entry_12_16:
 	jnc	1f              /* No EBIOS */
 	/* EBIOS supported */
 	movb	$0x42, (ebios_12_16 - 1 - Entry_12_16 + 0x7c00)
+	movl	%eax, 0x1c(%bp)	/* copy partition_table_entry.start_sector_ofs to hidden sectors */
 1:
 	/* GET DRIVE PARMS: Calculate start of some disk areas */
 	movzwl	0x0e(%bp), %ebx	/* reserved sectors */
