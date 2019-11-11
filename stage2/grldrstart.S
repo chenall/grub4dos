@@ -2725,8 +2725,8 @@ Entry_exfat:
 //	movw	%ax, %ds
 //	movw	%ax, %es
         movw    %bp, %sp                        /* ss:sp=0000:7c00 */
+	pushl	0x8(%si)	                /* partition_table_entry.start_sector_ofs (LBA) */
 	sti
-	pushw	%ax
 
 	movw	%dx, 0x24(%bp)	/* BIOS passes drive number in DL */
 	
@@ -2738,10 +2738,12 @@ Entry_exfat:
 	movb	$0x41, %ah
 	movw	$0x55AA, %bx
 	int	$0x13
+	popl	%eax		                /* partition_table_entry.start_sector_ofs (LBA) */
 	jc	1f		# No EBIOS
 	rorb	%cl   	        # ror cl: D0 C9
 	jnc	1f		# No EBIOS
 	orb	$0x80, 0x16(%bp)  /* EBIOS supported */
+	movl    %eax, 0x40(%bp)	               /* copy partition_table_entry.start_sector_ofs to hidden sectors */
 	jmp	2f
 1:
 	movb		$0x08, %ah
@@ -2750,6 +2752,7 @@ Entry_exfat:
 	andb    $0x3f, %cl
 	movb    %cl, 0x18(%bp)
 2:
+	pushw	%ss
 	popw	%ds
 	        			
 	movl    0x50(%bp), %eax
