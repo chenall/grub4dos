@@ -1044,6 +1044,7 @@ Entry_32:
 	movb	$0x41, %ah
 	movw	$0x55AA, %bx
 	int	$0x13
+	movl	0x8(%si), %eax	/* partition_table_entry.start_sector_ofs (LBA) */
 	popw	%ds
 	jc	1f		/* No EBIOS */
 	cmpw	$0xAA55, %bx
@@ -1052,6 +1053,7 @@ Entry_32:
 	jnc	1f              /* No EBIOS */
 	/* EBIOS supported */
 	movb	$0x42, (ebios_32 - 1 - Entry_32 + 0x7c00)
+	movl	%eax, 0x1c(%bp)	/* copy partition_table_entry.start_sector_ofs to hidden sectors */
 1:
 //	movb	(Loadusb_32 - Entry_32 + 0x7c00 +1), %al
 //	decb %al				//al=1,When dl = 00 load
