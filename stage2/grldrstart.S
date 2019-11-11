@@ -3334,6 +3334,7 @@ nt_part_ofs:
 
 	movw	%ax, %ss	/* stack and BP-relative moves up, too */
 	leaw	-0x20(%bp), %sp
+	pushl	0x8(%si)	/* partition_table_entry.start_sector_ofs (LBA) */
 	sti
 
 	movw	%dx, nt_boot_drive
@@ -3346,6 +3347,7 @@ nt_part_ofs:
 	int	$0x13
 
 	popw	%ds		/* DS=0 */
+	popl	%eax		/* partition_table_entry.start_sector_ofs (LBA) */
 
 	jc	1f		/* No EBIOS */
 	cmpw	$0xAA55, %bx
@@ -3356,6 +3358,7 @@ nt_part_ofs:
 	jnc	1f		# No EBIOS
 	/* EBIOS supported */
 	movb	$0x42, (ebios_nt - 1 - Entry_nt)(%bp)
+	movl	%eax, 0x1c(%bp)	/* copy partition_table_entry.start_sector_ofs to hidden sectors */
 1:
 
 	pushw	%ss		/* SS=0 */
@@ -3637,13 +3640,8 @@ print_ntfs:
 	int	$0x10		/* via TTY mode */
 	cmpb	$0, %al		/* end of string? */
 	jne	1b		/* until done */
-
-	/* The caller will change this to
-	 *	ljmp	$0x9400, $(try_next_partition - _start1)
-	 */
-	jmp 1f
-
-        . = Entry_nt + 0x1e0
+2:
+	jmp 2b
 
 msg_NTFS_Not_Found_Error:
 	.ascii "No "
@@ -3654,12 +3652,6 @@ nt_boot_image:
 msg_DiskReadError_nt:
 	.ascii	"0\0" 
 
-	. = Entry_nt + 0x1f4
-	
-error_go_back:
-1:
-	jmp	1b
-	
 	. = Entry_nt + 0x1fc
 
 	.word	0, 0xAA55
