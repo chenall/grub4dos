@@ -1,4 +1,13 @@
 ﻿更新说明：
+2019-12-20(yaya)
+  1. 改进 setmenu 字符串功能，增加索引和菜单区域内居中。字符串可以使用背景色。
+     setmenu --string[=iINDEX]=[X|s|m]=[-]Y=COLOR="STRING"
+  iINDEX 范围是 i0-i15. 如果没有 =iINDEX 索引自动递增。
+  如果水平位置是 s 则字符串在全屏居中; 如果水平位置是 m 则字符串在菜单区域内居中。
+
+  2. 动态更新日期时间增加标题，可显示中文。
+     例如：“date&time日期时间：  =MMM.dd.yyyy  HH:mm:ss”
+
 2019-10-27(yaya)
   1. 修正 udf 文件系统处理大于 4Gb 文件的错误。(issues #216)
   2. 修正 map 函数碎片映射插槽错误。(issues #212)

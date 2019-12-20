@@ -915,7 +915,7 @@ restart1:
 			unsigned long long col = current_color_64bit;
 			for (i=0; i<16; i++)
 			{
-				if (DrawBox[i].index == 0)
+				if (DrawBox[i].enable == 0)
 					continue;	
 				current_color_64bit = DrawBox[i].color;
 				rectangle(DrawBox[i].start_x, DrawBox[i].start_y, DrawBox[i].horiz, DrawBox[i].vert, DrawBox[i].linewidth);
@@ -923,11 +923,9 @@ restart1:
 			
 			if (num_string)
 			{
-				i = num_string;
-				
-				for (j=0; j<i; j++)
+				for (j=0; j<16; j++)
 				{
-					if (strings[j].index == 0)
+					if (strings[j].enable == 0)
 						continue;	
 					if (strings[j].start_y < 0)
 						y = strings[j].start_y + current_term->max_lines;
@@ -939,7 +937,7 @@ restart1:
 						current_color_64bit = strings[j].color | (current_color_64bit & 0xffffffff00000000);
 					else
 						current_color_64bit = strings[j].color;
-					grub_printf("%s",strings[j].addr);
+					grub_printf("%s",strings[j].string);
 				}
 			}
 			current_color_64bit = col;
@@ -1110,8 +1108,8 @@ restart1:
 			animated();
 		if (beep_enable)
 			beep_func((char *)beep_buf,1);
-		if (string_enable)
-			string_refresh();
+		if (DateTime_enable)
+			DateTime_refresh();
 	}
       /* Check for a keypress, however if TIMEOUT has been expired
 	 (GRUB_TIMEOUT == -1) relax in GETKEY even if no key has been

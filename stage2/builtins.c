@@ -8170,7 +8170,7 @@ static struct builtin builtin_lock =
   lock_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
   "lock",
-  "Break a command execution unless the user is authenticated."
+  "Break a command execution unless the user is authenticated. errorcheck must be on."
 };
   
 
@@ -16480,12 +16480,10 @@ unsigned short graphic_high;
 unsigned short row_space;
 char graphic_file[128];
 struct box DrawBox[16];
-struct string strings[16];
-char *p_string= (char *)MENU_TITLE;
+struct string* strings = (struct string*) MENU_TITLE;
 extern int new_menu;
-unsigned long string_total = 0; 
 int num_text_char(char *p);
-unsigned char string_enable;
+unsigned char DateTime_enable;
 
 static int
 setmenu_func(char *arg, int flags)
@@ -16498,13 +16496,11 @@ setmenu_func(char *arg, int flags)
 	if (new_menu == 0)
 	{
 		num_string = 0;
-		string_total = 0;
-		string_enable = 0;
-		p_string = (char *)MENU_TITLE;
+		DateTime_enable = 0;
 		for (i=0; i<16; i++)
 		{
-			DrawBox[i].index = 0;
-			strings[i].index = 1;
+			DrawBox[i].enable = 0;
+			strings[i].enable = 0;
 		}
 		new_menu = 1;
 	}
@@ -16513,37 +16509,51 @@ setmenu_func(char *arg, int flags)
 	{
 		if (grub_memcmp (arg, "--string=", 9) == 0)
 		{
-			i = num_string;
 			int x_horiz_center = 0;
 			int y_count_bottom = 0;
-			int string_width; 
 			char *p;
 			arg += 9;
-			if (!*arg || *arg == '\n' || *arg == '\r')
+			if (!*arg)
 			{
 				num_string = 0;
-				string_total = 0;
-				string_enable = 0;
-				p_string = (char *)MENU_TITLE;
+				DateTime_enable = 0;
+				for (i=0; i<16; i++)
+					strings[i].enable = 0;
 				goto cont;
 			}
+
+			if (*arg == 'i')
+			{
+				arg++;
+				if (safe_parse_maxint (&arg, &val))
+					i = val;
+				else
+					i = num_string;
+				if (!*arg)
+				{
+					strings[i].enable = 0;
+					goto cont;
+				}
+				arg++;
+			}
+			else
+				i = num_string;
 			if (i > 15)
 				return 0;
 			if (*arg == '=')
-				x_horiz_center++;
-			else if (grub_memcmp (arg, "date&time", 9) == 0)
+				x_horiz_center = 1;
+			else if (*arg == 's')
 			{
-				string_enable = 0;
-				goto cont;
+				x_horiz_center = 1;
+				arg++;
+			}
+			else if (*arg == 'm')
+			{
+				x_horiz_center = 2;
+				arg++;
 			}
 			else if (safe_parse_maxint (&arg, &val))
 				strings[i].start_x = val;						//x
-			if (!*arg || *arg == '\n' || *arg == '\r')
-			{
-				if (val > 0 && val < 17) 
-					strings[val-1].index = 0;
-				goto cont;
-			}
 			arg++;
 			if (*arg == '-')
 			{
@@ -16561,55 +16571,61 @@ setmenu_func(char *arg, int flags)
 			if (safe_parse_maxint (&arg, &val))
 				strings[i].color = val;								//color	
 			arg += 2;
-			strings[i].addr = (int)p_string;				//addr
+			strings[i].enable = 1;
 			if (grub_memcmp (arg, "date&time", 9) == 0)
 			{
-				string_enable = i+1;
+				DateTime_enable = i + 1;
 				arg += 9;
-				*p_string++ = 0;
 			}
 			p = arg;
 			while (*p++ != '"');
 			*(p - 1) = 0;
-			if (x_horiz_center)
+			if (x_horiz_center == 1)
 			{
-				if (string_enable && !*arg)
-						strings[i].start_x = ((current_term->chars_per_line - 20) >> 1);			//x
+				if (DateTime_enable == i + 1 && !*arg)
+						strings[i].start_x = (current_term->chars_per_line - 20) >> 1;			//x
 				else
-				strings[i].start_x = ((current_term->chars_per_line - num_text_char(arg)) >> 1);			//x
+				strings[i].start_x = (current_term->chars_per_line - num_text_char(arg)) >> 1;
 			}
-			string_width = parse_string(arg);
-			string_total += string_width;
-			if (string_total > 0x800)
-				return 0;
-			while (*arg && string_width--)
-				*p_string++ = *arg++;
-			*p_string++ = 0;
+			else if (x_horiz_center == 2)
+			{
+				if (DateTime_enable == i + 1 && !*arg)
+					strings[i].start_x = menu_border.menu_box_x + ((menu_border.menu_box_w - 20) >> 1);			//x
+				else
+					strings[i].start_x = menu_border.menu_box_x + ((menu_border.menu_box_w - num_text_char(arg)) >> 1);
+			}
+			p = strings[i].string;
+			while (*arg && (p - strings[i].string) < 99)
+				*p++ = *arg++;
+			*p = 0;	
+			p = strings[i].string;
+			if (DateTime_enable == i + 1)
+			{
+				while(*p++ != '=');
+				*(p - 1) = 0;
+			}
 			num_string++;		
 			arg++;
     }
 		else if (grub_memcmp (arg, "--draw-box=", 11) == 0)
 		{
 			arg += 11;
-			errorcheck_func ("off",0);
-			if (safe_parse_maxint (&arg, &val))
-				i = val;
-			else
+			if (!*arg)
 			{
 				for (i=0; i<16; i++)
-					DrawBox[i].index = 0;
-				errorcheck_func ("on",0);
+					DrawBox[i].enable = 0;
 				goto cont;
 			}
-			errorcheck_func ("on",0);
-			if (*arg != '=')
+			if (safe_parse_maxint (&arg, &val))
+				i = val;
+			if (!*arg)
 			{
-				DrawBox[i].index = 0;
+				DrawBox[i].enable = 0;
 				goto cont;
 			}
 			if (i > 16)
 				return 0;
-			DrawBox[i].index = i;
+			DrawBox[i].enable = 1;
 			arg++;
 			if (safe_parse_maxint (&arg, &val))
 				DrawBox[i].start_x = val;
@@ -16645,9 +16661,7 @@ setmenu_func(char *arg, int flags)
 		{
 			menu_tab = 0;
 			num_string = 0;
-			string_total = 0;
-			string_enable = 0;			
-			p_string= (char *)MENU_TITLE;
+			DateTime_enable = 0;			
 			menu_font_spacing = 0;
 			menu_line_spacing = 0;
 			font_spacing = 0;
@@ -16662,7 +16676,10 @@ setmenu_func(char *arg, int flags)
 			memmove ((char *)&menu_border,(char *)&tmp_broder,sizeof(tmp_broder));
 			graphic_type = 0;
 			for (i=0; i<16; i++)
-				DrawBox[i].index = 0;
+			{
+				DrawBox[i].enable = 0;
+				strings[i].enable = 0;
+			}
 			return 1;
 		}
     else if (grub_memcmp (arg, "--ver-on", 8) == 0)
@@ -16879,15 +16896,17 @@ static struct builtin builtin_setmenu =
 	"--auto-num-off* --auto-num-all-on --auto-num-on --triangle-on* --triangle-off\n"
 	"--highlight-short* --highlight-full --keyhelp-on* --keyhelp-off\n"
 	"--font-spacing=FONT:LINE. default 0\n"
-	"--string=[X]=[-]Y=COLOR=\"STRING\"  max 16 commands.\n"
-	"  If no X, text in middle.\n"
+	"--string[=iINDEX]=[X|s|m]=[-]Y=COLOR=\"STRING\"\n"
+	"  iINDEX range is i0-i15. Auto-increments if =iINDEX is omitted.\n"
+	"  If the horizontal position is 's', \"STRING\" centers across the whole screen.\n"
+	"  If the horizontal position is 'm', \"STRING\" centers within menu area.\n"
 	"  -Y represents the count from the bottom.\n"
 	"  \"STRING\"=\"date&time=FORMAT\"  will update date FORMAT every second.\n"
 	"  e.g. \"date&time=MMM.dd.yyyy  HH:mm:ss\"\n"
 	"  e.g. \"date&time=dd/MMM/yy  AP hh:mm:ss\"\n"
 	"  \"STRING\"=\"date&time\"  ISO8601 format. equivalent to: \"date&time=yyyy-MM-dd  HH:mm:ss\"\n"
-	"  --string=INDEX to disable the specified index.  --string= to clear all strings.\n"
-	"  --string=date&time to disable the date&time.\n"
+	"  --string= to disable all strings.\n"
+	"  --string=iINDEX to disable the specified index.\n"
 	"--box x=X y=Y w=W h=H l=L\n"
 	"  If W=0, menu box in middle. L=menu border thickness 0-4, 0=none.\n"
 	"--help=X=W=Y\n"
@@ -16905,9 +16924,9 @@ static struct builtin builtin_setmenu =
 	"        bit4:Picture and text mixing  bit7:transparent background.\n"
 	"  Naming rules for START_FILE: *n.???   n: 00-99\n"
 	"--draw-box=INDEX=START_X=START_y=HORIZ=VERT=LINEWIDTH=COLOR.\n"
-	"  LINEWIDTH:1-255; all dimensions in pixels.\n"
+	"  LINEWIDTH:1-255; all dimensions in pixels. INDEX range is 0-15.\n"
 	"  --draw-box=INDEX to disable the specified index.  --draw-box= to clear all indexes.\n"
-	"Note: * = default. Use only 0xRRGGBB for COLOR. INDEX range is 1-16."
+	"Note: * = default. Use only 0xRRGGBB for COLOR."
 };
 
 static char *month_list[12] =
@@ -16927,16 +16946,16 @@ static char *month_list[12] =
 };
 
 unsigned short refresh = 0;
-void string_refresh(void)
+void DateTime_refresh(void)
 {
-	int i = string_enable-1;
+	int i = DateTime_enable-1;
 	unsigned short year;
 	unsigned char month, day, hour, min, sec;
-	char *p;
+	char *p, *q;
 	
-	if (strings[i].index == 0)
+	if (strings[i].enable == 0)
 	{
-		string_enable = 0;
+		DateTime_enable = 0;
 		return;
 	}
 	if ((cursor_state & 1) == 1 || !show_menu)
@@ -16967,12 +16986,14 @@ void string_refresh(void)
 		hour = ((time >> 28) & 0xf) * 10 + ((time >> 24) & 0xf);
 		min = time >> 16;
 		sec = time >> 8;
-		p = (char *)(strings[i].addr) + 1;
-		if (*p != '=')
+		p = (char *)strings[i].string;
+		if (!*p)
 			grub_printf("%04X-%02d-%02X %02d:%02X:%02X", year, month, day, hour, min, sec);
 		else
 		{
-			p++;
+			q = p;
+			while(*p++);
+			gotoxy (strings[i].start_x + p - q, y);
 			while(*p)
 			{
 				if (*p == 'y' && *(p+1) == 'y')

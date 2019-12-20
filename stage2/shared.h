@@ -488,7 +488,7 @@ extern unsigned long splashimage_loaded;
 extern unsigned long X_offset,Y_offset;
 struct box
 {
-	unsigned char index;
+	unsigned char enable;
 	unsigned short start_x;
 	unsigned short start_y;
 	unsigned short horiz;
@@ -499,16 +499,16 @@ struct box
 extern struct box DrawBox[16];
 struct string
 {
-	unsigned char index;
+	unsigned char enable;
 	unsigned char start_x;
 	char start_y;
 	unsigned long long color;
-	int addr;
+	char string[101];
 } __attribute__ ((packed));
-extern struct string strings[16];
-extern unsigned long string_total;
-extern unsigned char string_enable;
-extern void string_refresh(void);
+
+extern struct string* strings;
+extern unsigned char DateTime_enable;
+extern void DateTime_refresh(void);
 #define MENU_TITLE					0x3A8000
 #define MENU_TITLE_LENGTH		0x800
 /* The Chinese patch will begin at here */

@@ -621,7 +621,7 @@ print_unicode (unsigned long max_width)
     if (fontx + char_width > current_term->chars_per_line)
 	{ fontx = 0; check_scroll (); }
 
-	if (!(splashimage_loaded & 2) || !(cursor_state & 2) || (is_highlight && current_color_64bit >> 32))
+	if (!(splashimage_loaded & 2) || !(cursor_state & 2) || (/*is_highlight &&*/ current_color_64bit >> 32))
 		bgcolor = current_color_64bit >> 32 | 0x1000000;
 	else
 		bgcolor = 0;
