@@ -1,4 +1,7 @@
 ﻿更新说明：
+2019-12-23(chenall)
+  1. 支持多行initrd.
+
 2019-12-20(yaya)
   1. 改进 setmenu 字符串功能，增加索引和菜单区域内居中。字符串可以使用背景色。
      setmenu --string[=iINDEX]=[X|s|m]=[-]Y=COLOR="STRING"

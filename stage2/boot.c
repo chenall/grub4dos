@@ -959,6 +959,7 @@ load_module (char *module, char *arg)
 }
 
 struct linux_kernel_header *linux_header;
+unsigned long initrd_drver_block;
 void cpio_set_field(char *field,unsigned long value);
 
 void cpio_set_field(char *field,unsigned long value)
@@ -976,6 +977,7 @@ load_initrd (char *initrd)
   unsigned long long tmp;
   unsigned long long top_addr;
   char *arg = initrd;
+  char *name = initrd;
 
   linux_header = (struct linux_kernel_header *) (cur_addr - LINUX_SETUP_MOVE_SIZE);
   tmp = ((linux_header->header == LINUX_MAGIC_SIGNATURE && linux_header->version >= 0x0203)
@@ -988,6 +990,7 @@ load_initrd (char *initrd)
 
   if (moveto > 0x100000000ULL)
       moveto = 0x100000000ULL;
+
   top_addr = moveto;
 
   /* XXX: Linux 2.3.xx has a bug in the memory range check, so avoid
@@ -1001,12 +1004,17 @@ load_initrd (char *initrd)
 
   moveto &= 0xfffff000;
 
+  if (debug > 2)
+	printf("linux_header->ramdisk_image: 0x%x,0x%x\ninitrd_start_sector: %lx,top_addr: %lx\n",linux_header->ramdisk_image,linux_header->ramdisk_size,initrd_start_sector,top_addr);
+
 next_file:
 
   if (*initrd == '@')
   {
-    moveto -= 0x200;
-    initrd = skip_to (1, initrd);
+	name = skip_to(1,initrd);
+	moveto -= name - initrd - 1 + sizeof(struct cpio_header);
+	moveto &= ~(CPIO_ALIGN - 1);
+	initrd = name;
   }
 
   if (! grub_open (initrd))
@@ -1040,11 +1048,23 @@ next_file:
 	char map_tmp[64];
 	grub_u32_t cpio_hdr_sz;
 	grub_u32_t cpio_img_sz;
+	
 	tmp = top_addr - moveto;
 	tmp += 0x1FF;
-	tmp >>= 9;	/* sectors needed */
-	sprintf (map_tmp, "--mem=-%d (md)0x800+8 (0x22)", (unsigned long)tmp);	// INITRD_DRIVE
 
+	tmp >>= 9;	/* sectors needed */
+	if (linux_header->ramdisk_size)
+	{
+	    linux_header->ramdisk_size += 0xFFF;
+	    linux_header->ramdisk_size &= 0xFFFFF000;
+		tmp += initrd_drver_block;
+		sprintf (map_tmp, "--mem=-%d (md)0x%x+0x%x (0x22)", (unsigned long)tmp,linux_header->ramdisk_image>>9,linux_header->ramdisk_size>>9);	// INITRD_DRIVE
+		map_func ("(0x22) (0x22)", 0/*flags*/);
+	} else {
+		sprintf (map_tmp, "--mem=-%d (md)0x800+8 (0x22)", (unsigned long)tmp);	// INITRD_DRIVE
+	}
+
+	initrd_drver_block = tmp;
 	if (debug > 1)
 	{
 		printf ("Create INITRD_DRIVE:\tmap %s\n", map_tmp);
@@ -1068,15 +1088,16 @@ next_file:
 		goto fail;
 	}
 	top_addr = moveto = initrd_start_sector << 9;
-	memset ((char *)(unsigned long)top_addr, 0, tmp << 9);
+	moveto += linux_header->ramdisk_size;
+	memset ((char *)(unsigned long)moveto, 0, (tmp << 9)-linux_header->ramdisk_size);
 	initrd = arg;
-	len = 0;
+	len = linux_header->ramdisk_size;
 
 next_file1:
 
 	if (*initrd == '@')
 	{
-		char *name = initrd + 1;
+		name = initrd + 1;
 		initrd = skip_to (SKIP_WITH_TERMINATE |1, initrd);
 		struct cpio_header *cpio = (struct cpio_header *)(grub_u32_t)moveto;
 		grub_u32_t name_len = grub_strlen(name) + 1;
@@ -1088,7 +1109,7 @@ next_file1:
 		cpio_set_field (cpio->c_filesize, filemax);
 		cpio_set_field (cpio->c_namesize, name_len);
 		memcpy((void*)(cpio+1),name,name_len);
-		cpio_hdr_sz = (sizeof(struct cpio_header) + 3 + name_len) & ~3;
+		cpio_hdr_sz = cpio_image_align (sizeof(struct cpio_header) + name_len);
 	}
 	else
 	{
@@ -1112,17 +1133,19 @@ next_file1:
 		goto fail;
 	}
 
-	cpio_img_sz = (tmp + cpio_hdr_sz + 0xFFF) & ~0xFFF;
-	moveto += cpio_img_sz;
+	cpio_img_sz = tmp + cpio_hdr_sz;
 	initrd = arg;
 
 	if (*initrd)
 	{
+		cpio_img_sz += 0xFFF;
+		cpio_img_sz &= 0xFFFFF000;
+		moveto += cpio_img_sz;
 		len += cpio_img_sz;
 		goto next_file1;
 	}
 
-	len += tmp + cpio_hdr_sz;
+	len += cpio_img_sz;
 
 	unset_int13_handler (0);		/* unhook it */
 	set_int13_handler (bios_drive_map);	/* hook it */
@@ -1135,7 +1158,7 @@ next_file1:
   /* FIXME: Should check if the kernel supports INITRD.  */
   linux_header->ramdisk_image = RAW_ADDR (top_addr);
   linux_header->ramdisk_size = len;
-
+  
  fail:
 
   return ! errnum;
