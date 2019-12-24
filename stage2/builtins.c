@@ -16594,6 +16594,7 @@ setmenu_func(char *arg, int flags)
 				else
 					strings[i].start_x = menu_border.menu_box_x + ((menu_border.menu_box_w - num_text_char(arg)) >> 1);
 			}
+			parse_string(arg);
 			p = strings[i].string;
 			while (*arg && (p - strings[i].string) < 99)
 				*p++ = *arg++;
@@ -16601,8 +16602,11 @@ setmenu_func(char *arg, int flags)
 			p = strings[i].string;
 			if (DateTime_enable == i + 1)
 			{
-				while(*p++ != '=');
-				*(p - 1) = 0;
+				while(*p && *p++ != '=');
+				if (*(p - 1) == '=')
+					*(p - 1) = 0;
+				else
+					*(p + 1) = 0;
 			}
 			num_string++;		
 			arg++;
@@ -16987,7 +16991,7 @@ void DateTime_refresh(void)
 		min = time >> 16;
 		sec = time >> 8;
 		p = (char *)strings[i].string;
-		if (!*p)
+		if (!*(p+1))
 			grub_printf("%04X-%02d-%02X %02d:%02X:%02X", year, month, day, hour, min, sec);
 		else
 		{
