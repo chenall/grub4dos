@@ -936,7 +936,7 @@ restart1:
 					if ((strings[j].color & 0xffffffff00000000) == 0)
 						current_color_64bit = strings[j].color | (current_color_64bit & 0xffffffff00000000);
 					else
-						current_color_64bit = strings[j].color;
+						current_color_64bit = strings[j].color | 0x1000000000000000;
 					grub_printf("%s",strings[j].string);
 				}
 			}

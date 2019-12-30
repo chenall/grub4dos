@@ -3361,27 +3361,21 @@ static struct builtin builtin_color =
   color_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
   "color NORMAL [HIGHLIGHT [HELPTEXT [HEADING ]]]\n",
-  "Change the menu colors. The color NORMAL is used for most"
-  " lines in the menu, and the color HIGHLIGHT is used to highlight the"
-  " line where the cursor points. If you omit HIGHLIGHT, then the"
-  " 0xf(4 bit) or 0xffffff(32 bit) is used for the highlighted line. If you"
-  " omit HELPTEXT and/or HEADING, then NORMAL is used."
-  " The format of a color is \"FG/BG\". FG and BG are symbolic color names."
-  " A symbolic color name must be one of these: black, blue, green,"
-  " cyan, red, magenta, brown, light-gray, dark-gray, light-blue,"
-  " light-green, light-cyan, light-red, light-magenta, yellow and white.\n"
-  "1. Assign colors by target, the order can not be messed up. The color can be replaced by a placeholder n.\n"
-	"e.g. color black/cyan yellow/cyan red/cyan light-green/cyan. (character color/background color, use symbol color.)\n"
-	"e.g. color 0x30 0x3e 0x34 0x3a. (high part=background color, low part=character color, 8 bit number.)\n"
+  "Change the menu colors. The color NORMAL is used for most lines in the menu,\n"
+  "  and the color HIGHLIGHT is used to highlight the line where the cursor points.\n"
+  "If you omit HIGHLIGHT, then the 0xffffff(32 bit) is used for the highlighted line.\n"
+  "If you omit HELPTEXT and/or HEADING, then NORMAL is used.\n"
+  "1. Assign colors by target, the order can not be messed up.\n"
+  "   The color can be replaced by a placeholder n.\n"
 	"e.g. color 0x888800000000 0x888800ffff00 0x888800880000 0x88880000ff00. (64 bit number.)\n"
-	"e.g. color 0x30. (The rest is the same as NORMAL. Change the console color on the command line.)\n"
-	"e.g. color 0x30 0xe n 0xa. (Background color from NORMAL. placeholder n.)\n"
 	"2. Can assign colors to a specified target. NORMAL should be in the first place.\n"
 	"e.g. color normal=0x888800000000. (The rest is the same as NORMAL.)\n"
-	"e.g. color normal=0x4444440000ffff helptext=0xc highlight=0xd heading=0xe border=0xa. (Background color from NORMAL.)\n"
+	"e.g. color normal=0x4444440000ffff helptext=0xff0000 highlight=0x00ffff heading=0xffff00\n"
+	"     border=0x00ff00. (Background color from NORMAL.)\n"
 	"e.g. color standard=0xFFFFFF. (Change the console color.)\n"
 	"e.g. color --64bit 0x30. (Make numbers less than 0x100 treated in 64-bit color.)\n"
-	"Display color list if no parameters."
+	"Display color list if no parameters.\n"
+	"Use 'echo -rrggbb' to view colors."
 };
 
 
@@ -16484,6 +16478,8 @@ struct string* strings = (struct string*) MENU_TITLE;
 extern int new_menu;
 int num_text_char(char *p);
 unsigned char DateTime_enable;
+#define MENU_BOX_X	((menu_border.menu_box_x > 2) ? menu_border.menu_box_x : 2)
+#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X - 1))
 
 static int
 setmenu_func(char *arg, int flags)
@@ -16511,6 +16507,7 @@ setmenu_func(char *arg, int flags)
 		{
 			int x_horiz_center = 0;
 			int y_count_bottom = 0;
+			int string_width;
 			char *p;
 			arg += 9;
 			if (!*arg)
@@ -16583,20 +16580,21 @@ setmenu_func(char *arg, int flags)
 			if (x_horiz_center == 1)
 			{
 				if (DateTime_enable == i + 1 && !*arg)
-						strings[i].start_x = (current_term->chars_per_line - 20) >> 1;			//x
+						strings[i].start_x = (current_term->chars_per_line - num_text_char(arg)) >> 1;			//x
 				else
 				strings[i].start_x = (current_term->chars_per_line - num_text_char(arg)) >> 1;
 			}
 			else if (x_horiz_center == 2)
 			{
 				if (DateTime_enable == i + 1 && !*arg)
-					strings[i].start_x = menu_border.menu_box_x + ((menu_border.menu_box_w - 20) >> 1);			//x
+					strings[i].start_x = MENU_BOX_X + ((MENU_BOX_W - num_text_char(arg)) >> 1);			//x
 				else
-					strings[i].start_x = menu_border.menu_box_x + ((menu_border.menu_box_w - num_text_char(arg)) >> 1);
+					strings[i].start_x = MENU_BOX_X + ((MENU_BOX_W - num_text_char(arg)) >> 1);
 			}
-			parse_string(arg);
+			if ((string_width = parse_string(arg)) > 99)
+				return 0;
 			p = strings[i].string;
-			while (*arg && (p - strings[i].string) < 99)
+			while (*arg && string_width--)
 				*p++ = *arg++;
 			*p = 0;	
 			p = strings[i].string;
@@ -16955,7 +16953,7 @@ void DateTime_refresh(void)
 	int i = DateTime_enable-1;
 	unsigned short year;
 	unsigned char month, day, hour, min, sec;
-	char *p, *q;
+	char *p;
 	
 	if (strings[i].enable == 0)
 	{
@@ -16982,7 +16980,7 @@ void DateTime_refresh(void)
 		if ((strings[i].color & 0xffffffff00000000) == 0)
 			current_color_64bit = strings[i].color | (current_color_64bit & 0xffffffff00000000);
 		else
-			current_color_64bit = strings[i].color;
+			current_color_64bit = strings[i].color | 0x1000000000000000;
 	
 		year = date >> 16;
 		month = ((date >> 12) & 0xf) * 10 + ((date >> 8) & 0xf);
@@ -16995,9 +16993,8 @@ void DateTime_refresh(void)
 			grub_printf("%04X-%02d-%02X %02d:%02X:%02X", year, month, day, hour, min, sec);
 		else
 		{
-			q = p;
+			gotoxy (strings[i].start_x + num_text_char(p), y);
 			while(*p++);
-			gotoxy (strings[i].start_x + p - q, y);
 			while(*p)
 			{
 				if (*p == 'y' && *(p+1) == 'y')
