@@ -8045,7 +8045,7 @@ static struct builtin builtin_is64bit =
   "return value bit0=PAE supported bit1=AMD64/Intel64 supported"
 };
 
-
+unsigned long long initrd_addr_max;
 /* kernel */
 static int
 kernel_func (char *arg, int flags)
@@ -8125,6 +8125,9 @@ kernel_func (char *arg, int flags)
 
   kernel_type = suggested_type;
   mb_cmdline += len;
+  linux_header = (struct linux_kernel_header *) (cur_addr - LINUX_SETUP_MOVE_SIZE);
+  initrd_addr_max = (linux_header->header == LINUX_MAGIC_SIGNATURE && linux_header->version >= 0x0203)
+	      	? linux_header->initrd_addr_max : LINUX_INITRD_MAX_ADDRESS;
   return 1;
 }
 
@@ -10851,7 +10854,10 @@ map_whole_drive:
 	  tmp_mem_max = 0x100000000ULL;
       if (map_mem_min < 0x100000ULL)
 	  map_mem_min = 0x100000ULL;
-
+	  //fix initrd error by chenall 2020-01-04 http://bbs.wuyou.net/forum.php?mod=viewthread&tid=417786&extra=page%3D1&page=5
+	  if (from == INITRD_DRIVE && to == 0xffff && tmp_mem_max > initrd_addr_max){ //INITRD_DRIVE
+			tmp_mem_max = initrd_addr_max;
+	  }
       if (mbi.flags & MB_INFO_MEM_MAP)
         {
           struct AddrRangeDesc *map = (struct AddrRangeDesc *) saved_mmap_addr;
@@ -11202,10 +11208,10 @@ map_whole_drive:
   
 	
 //          j_count(0)       j_count(1)          j_count(2)         j_count(3)
-//  		©À©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©È
+//  		â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
 //  j_start(0)     j_start(1)          j_start(2)          j_start(3)
 //                                                      To_len
-//     ©«©©©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©À©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©È
+//     â”‡â”…â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
 //     0                                   To_statr
 
 			//Determine the start fragment 
@@ -16415,7 +16421,7 @@ typedef struct _SETLOCAL {
 	unsigned long boot_drive;
 	unsigned long install_partition;
 	int debug;
-	char reserved[8];//é¢„ç•™ä½ç½®ï¼ŒåŒæ—¶ä¹Ÿæ˜¯ä¸ºäº†å‡‘è¶?12å­—èŠ‚ã€?
+	char reserved[8];//é¢„ç•™ä½ç½®ï¼ŒåŒæ—¶ä¹Ÿæ˜¯ä¸ºäº†å‡‘è¶³12å­—èŠ‚
 	char var_str[MAX_USER_VARS<<9];//user vars only
 	char saved_dir[256];
 	char command_path[128];
