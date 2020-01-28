@@ -15648,9 +15648,15 @@ struct builtin builtin_graphicsmode =
   "graphicsmode",
   graphicsmode_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "graphicsmode [MODE]",
-  "Display/set the graphics mode number for the next graphics init."
-  "Return the current graphics mode setting."
+  "graphicsmode [MODE] [RANGE_X_RESOLUTION [RANGE_Y_RESOLUTION [RANGE_COLOR_DEPTH]]]",
+  "value = -1 - no restriction. Only 24-bit and 32-bit 'Direct Color' modes\n"
+  "  are supported. Examples:\n"
+  "graphicsmode 3 (set text mode - 80x25 characters)\n"
+  "graphicsmode ;; set /A GMODE=%@retval%  (get current mode)\n"
+  "graphicsmode -1 (switch to highest 24 or 32-bit color mode available)\n"
+  "graphicsmode -1 800 -1 24:32  (switch to highest mode for 800 pixel width)\n"
+  "graphicsmode -1 100:1000 100:1000 24:32 (highest mode available below x/y = 1001/1001)\n"
+  "graphicsmode -1 800 600 24:32 (switch to highest 800x600 graphics mode)"
 };
 
 
@@ -16973,6 +16979,8 @@ void DateTime_refresh(void)
 	{
 		unsigned long date, time;
 		char y;
+		int	backup_x = fontx;
+		int	backup_y = fonty;
 		
 		refresh = 250;
 		get_datetime(&date, &time);
@@ -17042,6 +17050,7 @@ void DateTime_refresh(void)
 			}
 		}
 		current_color_64bit = col;
+		gotoxy (backup_x,backup_y);
 	}
 	else
 		refresh--;
