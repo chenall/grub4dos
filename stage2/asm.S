@@ -3218,7 +3218,7 @@ disk_address_packet_ready:
 	je	no_sp
 	cmpb	%dl, %cs:2(%bp)
 	je	2f
-	movzbw	%cs:(%bp), %ax
+	movw	%cs:(%bp), %ax
 	addw	%ax, %bp
 	loop	2b
 2:

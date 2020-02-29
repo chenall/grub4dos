@@ -9266,36 +9266,35 @@ err_print_hex:
   return ret_val;
 }
 
-static char *
-fragment_map_slot_empty(char *p)
+static struct fragment_map_slot *
+fragment_map_slot_empty(struct fragment_map_slot *q)
 {
 	unsigned long n = FRAGMENT_MAP_SLOT_SIZE;
-	while (n)
-	{
-		if (!(*(unsigned short *)p))
-			return p;
-		n -= *(unsigned short *)p;
-		p += *(unsigned short *)p;
-	}
 
-	return 0;
+  while (n)
+  {
+    if (!q->slot_len)
+      return q;
+    n -= q->slot_len;
+    q += q->slot_len;
+  }
+  return 0;
 }
 
-static char *
-fragment_map_slot_find(char *p, unsigned long from)
+static struct fragment_map_slot *
+fragment_map_slot_find(struct fragment_map_slot *q, unsigned long from)
 {
-	unsigned long n = FRAGMENT_MAP_SLOT_SIZE;
-	while (n)
-	{
-		if (!(*(unsigned short *)p))
-			return 0;
-		if (*(p+2) == (char)from)
-			return p;
-		n -= *(unsigned short *)p;
-		p += *(unsigned short *)p;
-	}
-
-	return 0;
+  unsigned long n = FRAGMENT_MAP_SLOT_SIZE;
+  while (n)
+  {
+    if (!q->slot_len)
+      return 0;
+    if (q->from == (char)from)
+      return q;
+    n -= q->slot_len;
+    q += q->slot_len;
+  }
+  return 0;
 }
 
 unsigned long analysis (char *arg, int flags);
@@ -10658,14 +10657,14 @@ map_whole_drive:
 			{
 				if ((hooked_drive_map[i].to_cylinder & (1 << 10)) != 0)
 				{
-				p = (char *)&hooked_fragment_map;
-				filename = p + FRAGMENT_MAP_SLOT_SIZE;
-				p = fragment_map_slot_find(p, from);
-				if (p)
+					q = (struct fragment_map_slot *)&hooked_fragment_map;
+					filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;
+					q = fragment_map_slot_find(q, from);
+				if (q)
 				{
-					void *start = filename - *(unsigned short *)p;
-					int len = *(unsigned short *)p;
-					grub_memmove (p, p + *(unsigned short *)p, filename - p - *(unsigned short *)p);
+					void *start = filename - q->slot_len;
+					int len = q->slot_len;
+					grub_memmove (q, q + q->slot_len,(struct fragment_map_slot *)filename - q - q->slot_len);
 					grub_memset (start, 0, len);
 				}
 				}
@@ -11237,9 +11236,8 @@ map_whole_drive:
 			unsigned long long a = 0;																	//Sum(j_count(k))
 			unsigned long long b = map_num_sectors[0];								//Residual(To_len)
 			unsigned long long c = map_start_sector[0];								//To_statr
-			p = (char *)&hooked_fragment_map;
-			p = fragment_map_slot_find(p, primeval_to);
-			q = (struct fragment_map_slot *)p;
+			q = (struct fragment_map_slot *)&hooked_fragment_map;
+			q = fragment_map_slot_find(q, primeval_to);
 			for (k = 0; (k < DRIVE_MAP_FRAGMENT) && (q->fragment_data[k] != 0); k++)
 			{
 				a += q->fragment_data[k*2+1];														//Sum(j_count(k))
@@ -11283,12 +11281,11 @@ set_ok:
 			goto no_fragment;
 		}
 
-		p = (char *)&hooked_fragment_map;
-		filename = p;
-		p = fragment_map_slot_empty(p);
-		if ((p + blklst_num_entries*16 + 4 - filename) > FRAGMENT_MAP_SLOT_SIZE)
+		q = (struct fragment_map_slot *)&hooked_fragment_map;
+		filename = (char *)q;
+		q = fragment_map_slot_empty(q);
+		if (((char *)q + blklst_num_entries*16 + 4 - filename) > FRAGMENT_MAP_SLOT_SIZE)
 			return ! (errnum = ERR_MANY_FRAGMENTS);
-		q = (struct fragment_map_slot *)p;
 
 		q->from = from;
 		q->to = to;
@@ -11376,14 +11373,14 @@ delete_drive_map_slot:
 
 	if ((hooked_drive_map[i].to_cylinder & (1 << 10)) != 0)
 	{
-	p = (char *)&hooked_fragment_map;
-	filename = p + FRAGMENT_MAP_SLOT_SIZE;
-	p = fragment_map_slot_find(p, from);
-	if (p)
+		q = (struct fragment_map_slot *)&hooked_fragment_map;
+		filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;
+		q = fragment_map_slot_find(q, from);
+	if (q)
 	{
-		void *start = filename - *(unsigned short *)p;
-		int len = *(unsigned short *)p;
-		grub_memmove (p, p + *(unsigned short *)p, filename - p - *(unsigned short *)p);
+		void *start = filename - q->slot_len;
+		int len = q->slot_len;
+		grub_memmove (q, q + q->slot_len, (struct fragment_map_slot *)filename - q - q->slot_len);
 		grub_memset (start, 0, len);
 	}
 	}
@@ -12207,7 +12204,7 @@ static struct builtin builtin_password =
   " md5crypt."
 };
 
-
+
 /* pause */
 static int
 pause_func (char *arg, int flags)

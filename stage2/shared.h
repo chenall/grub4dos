@@ -1188,7 +1188,6 @@ struct fragment_map_slot
 	unsigned short slot_len;
 	unsigned char from;
 	unsigned char to;
-	unsigned char fragment_num;
 	unsigned long long fragment_data[0];
 };
 
