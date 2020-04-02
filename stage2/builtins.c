@@ -11847,7 +11847,7 @@ partnew_func (char *arg, int flags)
 		/*filesystem_type == 5 ?*/ "EXT2 GRLDR"),
 		(BS->dummy1[0] == (char)0xEB ? "with" : "but WITHOUT"),
 		BS->hidden_sectors);
-	if (BS->hidden_sectors != new_start)
+	if (BS->hidden_sectors != new_start && filesystem_type != 6)
 	{
 	    printf_debug0 ("Changing hidden sectors 0x%X to 0x%lX... ", BS->hidden_sectors, (unsigned long long)new_start);
 	    BS->hidden_sectors = new_start;
