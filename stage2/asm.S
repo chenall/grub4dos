@@ -13245,9 +13245,9 @@ ENTRY(get_mmap_entry)
 	movw	%di, %si
 
 	movl	$0xe820, %eax
-	int	$0x15
-//	pushfw
-//	lcall	%cs:*ABS(EXT_C(ROM_int15))
+	//int	$0x15
+	pushfw
+	lcall	%cs:*ABS(EXT_C(ROM_int15))
 
 	jnc	1f
 	movl	$0, %ebx	/* set end indicator */
