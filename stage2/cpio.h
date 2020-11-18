@@ -27,7 +27,7 @@ struct cpio_header {
 #define CPIO_MAGIC "070701"
 #define CPIO_MODE_DIR	0040000
 #define CPIO_ALIGN	4
-static inline grub_u32_t cpio_image_align( grub_u32_t len )
+static inline unsigned int cpio_image_align( unsigned int len )
 {
 	return (len + (CPIO_ALIGN - 1)) & ~(CPIO_ALIGN - 1);
 }

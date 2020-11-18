@@ -46,6 +46,7 @@
 
 #include "pxe.h"
 
+#if 0
 /** Minimum possible opcode used within PXE FILE API */
 #define PXENV_FILE_MIN 0x00e0
 /** Minimum possible opcode used within PXE FILE API */
@@ -130,15 +131,15 @@ typedef struct s_PXENV_FILE_EXEC PXENV_FILE_EXEC_t;
 #define PXENV_FILE_API_CHECK		0x00e6
 /** Parameter block for pxenv_file_api_check() */
 struct s_PXENV_FILE_API_CHECK {
-	PXENV_STATUS_t Status;		/**< PXE status code */
-	grub_u16_t Size;			/**< Size of structure  */
-	grub_u32_t Magic;			/**< Magic number */
-	grub_u32_t Provider;		/**< Implementation identifier */
-	grub_u32_t APIMask;		/**< Supported API functions */
-	grub_u32_t Flags;			/**< Reserved for the future */
+	PXENV_STATUS_t Status;		/**< PXE status code */	//PXE状态码
+	grub_u16_t Size;			/**< Size of structure  */	//结构尺寸
+	grub_u32_t Magic;			/**< Magic number */				//幻数
+	grub_u32_t Provider;		/**< Implementation identifier */	//实现标识符
+	grub_u32_t APIMask;		/**< Supported API functions */			//支持的API函数
+	grub_u32_t Flags;			/**< Reserved for the future */			//为未来保留
 } __attribute__ (( packed ));
 
-typedef struct s_PXENV_FILE_API_CHECK PXENV_FILE_API_CHECK_t;
+typedef struct s_PXENV_FILE_API_CHECK PXENV_FILE_API_CHECK_t;	//file检查api
 
 /** PXE API function code for pxenv_file_exit_hook() */
 #define PXENV_FILE_EXIT_HOOK			0x00e7
@@ -162,22 +163,22 @@ struct s_PXENV_FILE_CMDLINE {
 typedef struct s_PXENV_FILE_CMDLINE PXENV_FILE_CMDLINE_t;
 
 union u_PXENV_ANY {
-	/* Make it easy to read status for any operation */
-	PXENV_STATUS_t				Status;
-	PXENV_GET_CACHED_INFO_t			get_cached_info;
-	PXENV_TFTP_OPEN_t			tftp_open;
-	PXENV_TFTP_CLOSE_t			tftp_close;
-	PXENV_TFTP_READ_t			tftp_read;
-	PXENV_TFTP_GET_FSIZE_t			tftp_get_size;
-	struct s_PXENV_FILE_OPEN		file_open;
-	struct s_PXENV_FILE_CLOSE		file_close;
-	struct s_PXENV_FILE_SELECT		file_select;
-	struct s_PXENV_FILE_READ		file_read;
-	struct s_PXENV_GET_FILE_SIZE		get_file_size;
-	struct s_PXENV_FILE_EXEC		file_exec;
-	struct s_PXENV_FILE_API_CHECK		file_api_check;
-	struct s_PXENV_FILE_EXIT_HOOK		file_exit_hook;
-	struct s_PXENV_FILE_CMDLINE		file_cmdline;
+	/* Make it easy to read status for any operation 轻松读取任何操作的状态*/
+	PXENV_STATUS_t				Status;											//状态
+	PXENV_GET_CACHED_INFO_t			get_cached_info;			//获取缓存的信息
+	PXENV_TFTP_OPEN_t			tftp_open;									//tftp打开
+	PXENV_TFTP_CLOSE_t			tftp_close;								//tftp关闭
+	PXENV_TFTP_READ_t			tftp_read;									//tftp读
+	PXENV_TFTP_GET_FSIZE_t			tftp_get_size;				//tftp获得尺寸
+	struct s_PXENV_FILE_OPEN		file_open;						//file打开
+	struct s_PXENV_FILE_CLOSE		file_close;						//file关闭
+	struct s_PXENV_FILE_SELECT		file_select;				//file选择
+	struct s_PXENV_FILE_READ		file_read;						//file读
+	struct s_PXENV_GET_FILE_SIZE		get_file_size;		//获得文件尺寸
+	struct s_PXENV_FILE_EXEC		file_exec;						//file执行
+	struct s_PXENV_FILE_API_CHECK		file_api_check;		//file检查api
+	struct s_PXENV_FILE_EXIT_HOOK		file_exit_hook;		//file执行挂钩
+	struct s_PXENV_FILE_CMDLINE		file_cmdline;				//file命令行
 };
 
 typedef union u_PXENV_ANY iPXENV_ANY_t;
@@ -186,5 +187,7 @@ extern PXENV_ANY_t pxenv;
 
 extern grub_u32_t has_ipxe;
 extern s_PXE_FILE_FUNC ipxe_file_func;
+#endif
+
 #endif /* iPXE_API_H */
 #endif /* ifdef FSYS_IPXE */

@@ -38,68 +38,38 @@
 
 /* iso9660 super-block data in memory */
 struct iso_sb_info {
-  unsigned long vol_sector;
+  unsigned int vol_sector;
 
 };
 
 /* iso fs inode data in memory */
 struct iso_inode_info {
-  unsigned long file_start;
+  unsigned int file_start;
 };
 
 #define ISO_SUPER	\
     ((struct iso_sb_info *)(FSYS_BUF))
 #define INODE		\
     ((struct iso_inode_info *)(FSYS_BUF+sizeof(struct iso_sb_info)))
-#define PRIMDESC        ((struct iso_primary_descriptor *)(FSYS_BUF + 2048))
-#define UDF_ROOT				((struct udf_descriptor *)(FSYS_BUF + 2048))
-#define RRCONT_BUF      ((unsigned char *)(FSYS_BUF + 4096))
-#define NAME_BUF        ((unsigned char *)(FSYS_BUF + 6144))
-#define OLD_IDENTIFIER			((struct udf_File_Identifier *)(FSYS_BUF + 8192))
-#define DIRREC					((struct iso_directory_record *)(FSYS_BUF + 10240))
-#define UDF_IDENTIFIER			((struct udf_File_Identifier *)(FSYS_BUF + 10240))
-#define UDF_ENTRY   		((struct udf_descriptor *)(FSYS_BUF + 12288))
+#define PRIMDESC        ((struct iso_primary_descriptor *)(FSYS_BUF + 0x800))
+#define UDF_ROOT				((struct udf_descriptor *)(FSYS_BUF + 0x800))
+#define RRCONT_BUF      ((unsigned char *)(FSYS_BUF + 0x1000))
+#define NAME_BUF        ((unsigned char *)(FSYS_BUF + 0x1800))
+#define OLD_IDENTIFIER			((struct udf_File_Identifier *)(FSYS_BUF + 0x2000))
+#define DIRREC					((struct iso_directory_record *)(FSYS_BUF + 0x2800))
+#define UDF_IDENTIFIER			((struct udf_File_Identifier *)(FSYS_BUF + 0x2800))
+#define UDF_ENTRY   		((struct udf_descriptor *)(FSYS_BUF + 0x3000))
 
 unsigned int iso_type;		//0/1/2/3=ISO_TYPE_9660/ISO_TYPE_udf/ISO_TYPE_Joliet/ISO_TYPE_RockRidge
-unsigned long udf_partition_start;
-unsigned long udf_BytePerSector;
-unsigned long udf_EntrySector;
+unsigned int udf_partition_start;
+unsigned int udf_BytePerSector;
+unsigned int udf_EntrySector;
 
-#if 0
-static int
-iso9660_devread (unsigned long sector, unsigned long byte_offset, unsigned long byte_len, char *buf)
-{
-  unsigned short sector_size_lg2 = log2_tmp(buf_geom.sector_size);
-
-  /*
-   * We have to use own devread() function since BIOS return wrong geometry
-   */
-//  if (sector < 0)
-//    {
-//      errnum = ERR_OUTSIDE_PART;
-//      return 0;
-//    }
-  if (byte_len <= 0)
-    return 1;
-
-  sector += (byte_offset >> sector_size_lg2);
-  byte_offset &= (buf_geom.sector_size - 1);
-  asm volatile ("shl%L0 %1,%0"
-		: "=r"(sector)
-		: "Ic"((int8_t)(ISO_SECTOR_BITS - sector_size_lg2)),
-		"0"(sector));
-
-  if (disk_read_hook && debug)
-    printf ("<%d, %d, %d>", sector, byte_offset, byte_len);
-
-  return rawread (current_drive, part_start + sector, byte_offset, byte_len, buf);
-}
-#endif
-
+int iso9660_mount (void);
 int
 iso9660_mount (void)
 {
-	unsigned long sector, size, extent;
+	unsigned int sector, size, extent;
 	struct iso_directory_record *idr;
 	idr = &PRIMDESC->root_directory_record;
 
@@ -109,31 +79,7 @@ iso9660_mount (void)
    *  (2) if current partition is BSD style sub-partition whose ID is
    *  ISO-9660.
    */
-//  if ((current_partition != 0xFFFFFF)
-//      && !IS_PC_SLICE_TYPE_BSD_WITH_FS(current_slice, FS_ISO9660))
-//    return 0;
 
-  /*
-   *  Currently, only FIRST session of MultiSession disks are supported !!!
-   */
-//  for (sector = 16 ; sector < 32 ; sector++)
-//   {
-//      emu_iso_sector_size_2048 = 1;
-//      if (! devread(sector, 0, sizeof(*PRIMDESC), (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90)) 
-//	break;
-//      /* check ISO_VD_PRIMARY and ISO_STANDARD_ID */
-//      if (PRIMDESC->type.l == ISO_VD_PRIMARY
-//	  && ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, sizeof(PRIMDESC->id)))
-//	{
-//	  ISO_SUPER->vol_sector = sector;
-//	  INODE->file_start = 0;
-//	  fsmax = PRIMDESC->volume_space_size.l;
-//	  return 1;
-//	}
-//    }
-//
-//  return 0;
-//}
     iso_type = ISO_TYPE_9660;	//0
 		udf_partition_start = 0;
 	udf_BytePerSector = 0x800;
@@ -141,7 +87,7 @@ iso9660_mount (void)
 	for (sector = 16 ; sector < 32 ; sector++)
  	{
  		emu_iso_sector_size_2048 = 1;
-  	if (! devread(sector, 0, 0x100, (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90))
+  	if (! devread(sector, 0, 0x100, (unsigned long long)(grub_size_t)(char *)PRIMDESC, 0xedde0d90))
 			return 0;
   	//Check UDF_STANDARD_ID
 	if ( (iso_types & (1<<ISO_TYPE_udf)) && ! memcmp ((char *)(PRIMDESC->id), UDF_STANDARD_ID, 5))	//UDF_STANDARD_ID="BEA01"
@@ -156,10 +102,10 @@ iso9660_mount (void)
 		sector = 0x100;
 		//The reading anchor Volume Descriptor Pointer
         emu_iso_sector_size_2048 = 1;
-		devread(sector, 0, 0x800, (unsigned long long)(unsigned int)(char *)UDF_ROOT, 0xedde0d90);
+		devread(sector, 0, 0x800, (unsigned long long)(grub_size_t)(char *)UDF_ROOT, 0xedde0d90);
 		if (UDF_ROOT->Tag != UDF_Anchor)
 		{
-			devread(sector, 0, 0x200, (unsigned long long)(unsigned int)(char *)UDF_ROOT, 0xedde0d90);
+			devread(sector, 0, 0x200, (unsigned long long)(grub_size_t)(char *)UDF_ROOT, 0xedde0d90);
 			if (UDF_ROOT->Tag != UDF_Anchor)	//0002
 				return 0;
 			udf_BytePerSector = 0x200;
@@ -170,7 +116,7 @@ iso9660_mount (void)
 		{
 			if (udf_BytePerSector == 0x800)
 			emu_iso_sector_size_2048 = 1;
-			devread(sector, 0, udf_BytePerSector, (unsigned long long)(unsigned int)(char *)UDF_ROOT, 0xedde0d90);
+			devread(sector, 0, udf_BytePerSector, (unsigned long long)(grub_size_t)(char *)UDF_ROOT, 0xedde0d90);
 			if (i)
 				break;
 			switch (UDF_ROOT->Tag)
@@ -200,7 +146,7 @@ iso9660_mount (void)
 		for (sector = 17 ; sector < 32 ; sector++)
 	  {
 	  	emu_iso_sector_size_2048 = 1;
-			devread(sector, 0, 0x800, (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90);
+			devread(sector, 0, 0x800, (unsigned long long)(grub_size_t)(char *)PRIMDESC, 0xedde0d90);
 		if ((iso_types & (1<<ISO_TYPE_Joliet)) && (PRIMDESC->type.l == ISO_VD_ENHANCED)
 	  		&& (! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, 5)) && (*(unsigned short *)((char *)PRIMDESC  + 0x58) == 0x2F25))	//ISO_STANDARD_ID="CD001"
 			{
@@ -216,42 +162,38 @@ iso9660_mount (void)
 			break;
 		}
 		emu_iso_sector_size_2048 = 1;
-		devread(16, 0, 0x800, (unsigned long long)(unsigned int)(char *)PRIMDESC, 0xedde0d90);
+		devread(16, 0, 0x800, (unsigned long long)(grub_size_t)(char *)PRIMDESC, 0xedde0d90);
 		if ((PRIMDESC->type.l != ISO_VD_PRIMARY)
 				|| memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, 5))
 			return 0;
     size = idr->size.l;
 		extent = idr->extent.l;
     emu_iso_sector_size_2048 = 1;
-    devread (extent, 0, size, (unsigned long long)(unsigned int)(char *)DIRREC, 0xedde0d90);
+    devread (extent, 0, size, (unsigned long long)(grub_size_t)(char *)DIRREC, 0xedde0d90);
     idr = (struct iso_directory_record *)DIRREC;
     idr = (struct iso_directory_record *)((char *)idr + idr->length.l);
     idr = (struct iso_directory_record *)((char *)idr + idr->length.l);
     if ((iso_types & (1<<ISO_TYPE_RockRidge)) && (idr->length.l - idr->name_len.l - sizeof(struct iso_directory_record) + sizeof(idr->name)) > 1)
 			iso_type = ISO_TYPE_RockRidge; //iso9600_RockRidge
-// 		if ((PRIMDESC->type.l == ISO_VD_PRIMARY)
-//	  	&& ! memcmp ((char *)(PRIMDESC->id), ISO_STANDARD_ID, 5))
-//		{
         ISO_SUPER->vol_sector = 16;
 	  	INODE->file_start = 0;
 	  	fsmax = PRIMDESC->volume_space_size.l;
 			return 1;
-//		}
-//		return 0;
 	}
 }
 
+int iso9660_dir (char *dirname);
 int
 iso9660_dir (char *dirname)
 {
   struct iso_directory_record *idr;
   RR_ptr_t rr_ptr;
   struct rock_ridge *ce_ptr;
-  unsigned long pathlen;
-  unsigned long size = 0;
-  unsigned long extent = 0;
+  unsigned int pathlen;
+  unsigned int size = 0;
+  unsigned int extent = 0;
   unsigned char file_type;
-  unsigned long rr_len;
+  unsigned int rr_len;
   unsigned char rr_flag;
   char tmp_name[256];
   char *ch;
@@ -262,10 +204,10 @@ iso9660_dir (char *dirname)
 	struct udf_descriptor *udf_105_or_10a;
 	struct udf_File_Identifier *udf_101;
 	char tmp_name1[256];
-	int name_offset = 0;
-	unsigned long Allocation_offset = 0;
-	long Allocation_Number = 1; 
-	unsigned long *tmp = NULL;
+	grub_size_t name_offset = 0;
+	unsigned int Allocation_offset = 0;
+	int Allocation_Number = 1; 
+	unsigned int *tmp = NULL;
 
   idr = &PRIMDESC->root_directory_record;
   udf_105_or_10a = (struct udf_descriptor *)UDF_ROOT;
@@ -276,20 +218,8 @@ iso9660_dir (char *dirname)
       while (*dirname == '/')	/* skip leading slashes */
 	dirname++;
       /* pathlen = strcspn(dirname, "/\n\t "); */
-//      for (pathlen = 0 ;
-//	   dirname[pathlen]
-//	     && !isspace(dirname[pathlen]) && dirname[pathlen] != '/' ;
-//	   pathlen++)
-//	;
       for (ch = tmp_name;*dirname;++dirname)
 	{
-#if 0
-		if (*dirname == '\\')
-				{
-					*ch++ = *dirname++;
-					*ch++ = *dirname++;
-				}	
-#endif
 				if (/*isspace(*dirname) || */*dirname == '/')
 					break;
 		if (ch - tmp_name >= 255 || !(*ch = *dirname))
@@ -304,12 +234,12 @@ iso9660_dir (char *dirname)
 			if (udf_105_or_10a->Tag == UDF_FileEntry)	//105
 			{
 				size = udf_105_or_10a->FileEntry_LengthofAllocationDescriptors;
-				tmp = (unsigned long *)(&udf_105_or_10a->FileEntry_BaseAddress + udf_105_or_10a->FileEntry_LengthofExtendedAttributes);
+				tmp = (unsigned int *)(&udf_105_or_10a->FileEntry_BaseAddress + udf_105_or_10a->FileEntry_LengthofExtendedAttributes);
 			}
 			else if (udf_105_or_10a->Tag == UDF_ExtendedFileEntry)	//10a
 			{
 				size = udf_105_or_10a->ExtFileEntry_LengthofAllocationDescriptors;
-				tmp = (unsigned long *)(&udf_105_or_10a->ExtFileEntry_BaseAddress + udf_105_or_10a->ExtFileEntry_LengthofExtendedAttributes);
+				tmp = (unsigned int *)(&udf_105_or_10a->ExtFileEntry_BaseAddress + udf_105_or_10a->ExtFileEntry_LengthofExtendedAttributes);
 			}
 			Allocation_Number = size >> 3;
 		}		
@@ -321,7 +251,7 @@ iso9660_dir (char *dirname)
 					if ((udf_105_or_10a->ICB_Flags & 7) == 3)
 					{
 						Allocation_Number = 1;
-						grub_memmove ((char *)((int)UDF_IDENTIFIER),(char *)((int)tmp),udf_BytePerSector);
+						grub_memmove ((char *)((grub_size_t)UDF_IDENTIFIER),(char *)((grub_size_t)tmp),udf_BytePerSector);
 						udf_101 = (struct udf_File_Identifier *)UDF_IDENTIFIER;
 						goto asdf;
 					}
@@ -346,7 +276,7 @@ iso9660_dir (char *dirname)
 	{
 			if (udf_BytePerSector == 0x800)
 			emu_iso_sector_size_2048 = 1;
-			if (! devread (extent, 0, udf_BytePerSector, (unsigned long long)(unsigned int)(char *)DIRREC, 0xedde0d90))	
+			if (! devread (extent, 0, udf_BytePerSector, (unsigned long long)(grub_size_t)(char *)DIRREC, 0xedde0d90))	
 			{
 	      errnum = ERR_FSYS_CORRUPT;
 	      return 0;
@@ -354,7 +284,7 @@ iso9660_dir (char *dirname)
 			extent++;
 			idr = (struct iso_directory_record *)DIRREC;
 
-			udf_101 = (struct udf_File_Identifier *)((int)UDF_IDENTIFIER - name_offset);
+			udf_101 = (struct udf_File_Identifier *)((grub_size_t)UDF_IDENTIFIER - name_offset);
 asdf:
 		for (; ((iso_type == ISO_TYPE_udf)?(udf_101->Tag != 0):(idr->length.l > 0)); )
 	  {
@@ -374,7 +304,7 @@ asdf:
 	  		{
 					name++;
 					big_to_little (name, name_len);
-	  			name_len = unicode_to_utf8 ((unsigned short *)name, utf8, (unsigned long)(name_len/2));		
+	  			name_len = unicode_to_utf8 ((unsigned short *)name, utf8, (unsigned int)(name_len/2));		
 				}
 				name = (char *)utf8;
 				file_type = (udf_101->FileCharacteristics & 2) ? ISO_DIRECTORY : ISO_REGULAR;
@@ -398,7 +328,7 @@ asdf:
 		if (iso_type == ISO_TYPE_Joliet)
 		{
 			big_to_little (name, name_len);
-			name_len = unicode_to_utf8 ((unsigned short *)name, utf8, (unsigned long)(name_len/2));
+			name_len = unicode_to_utf8 ((unsigned short *)name, utf8, (unsigned int)(name_len/2));
 			name = (char *)utf8;
 			goto dddd;
 		}
@@ -429,12 +359,12 @@ asdf:
 		{
 		  if (rr_ptr.rr->version != 1)
 		    {
-		      if (((unsigned long)debug) >= 0x7FFFFFFF)
+		      if (((unsigned int)debug) >= 0x7FFFFFFF)
 			printf(
 			       "Non-supported version (%d) RockRidge chunk "
 			       "`%c%c'\n", rr_ptr.rr->version,
-			       (unsigned long)(unsigned char)rr_ptr.rr->signature,
-			       (unsigned long)(unsigned char)(rr_ptr.rr->signature >> 8));
+			       (unsigned int)(unsigned char)rr_ptr.rr->signature,
+			       (unsigned int)(unsigned char)(rr_ptr.rr->signature >> 8));
 		      rr_flag = 0;
 		    }
 		  else
@@ -552,7 +482,7 @@ asdf:
 		      rr_ptr.ptr = (char *)(RRCONT_BUF + ce_ptr->u.ce.offset.l);
 		      rr_len = ce_ptr->u.ce.size.l;
 		      emu_iso_sector_size_2048 = 1;
-		      if (! devread(ce_ptr->u.ce.extent.l, 0, ISO_SECTOR_SIZE, (unsigned long long)(unsigned int)(char *)(RRCONT_BUF), 0xedde0d90))
+		      if (! devread(ce_ptr->u.ce.extent.l, 0, ISO_SECTOR_SIZE, (unsigned long long)(grub_size_t)(char *)(RRCONT_BUF), 0xedde0d90))
 			{
 			  errnum = 0;	/* this is not fatal. */
 			  break;
@@ -563,7 +493,7 @@ asdf:
 	}	//if (iso_type !== 1)
 dddd:	
 	      filemax = MAXINT;
-			for (j = 0, k = 0;j < name_len;)
+			for (j = 0, k = 0;j < (int)name_len;)
 			{
 #if 0
 				if (name[j] == '\\')
@@ -600,7 +530,7 @@ dddd:
 							extent = udf_101->FileEntryLocation + udf_partition_start;					//File entrance logical sector	
 							if (udf_BytePerSector == 0x800)			
 							emu_iso_sector_size_2048 = 1;
-							devread (extent, 0, size, (unsigned long long)(unsigned int)(char *)UDF_ENTRY, 0xedde0d90);
+							devread (extent, 0, size, (unsigned long long)(grub_size_t)(char *)UDF_ENTRY, 0xedde0d90);
 							udf_105_or_10a = (struct udf_descriptor *)UDF_ENTRY;
 						}	
 			  if (*dirname == '/')
@@ -620,9 +550,9 @@ dddd:
 			    if (iso_type == ISO_TYPE_udf)
 			 		{
 						if (udf_105_or_10a->Tag == UDF_FileEntry)	//105
-							tmp = (unsigned long *)(&udf_105_or_10a->FileEntry_BaseAddress + udf_105_or_10a->FileEntry_LengthofExtendedAttributes);
+							tmp = (unsigned int *)(&udf_105_or_10a->FileEntry_BaseAddress + udf_105_or_10a->FileEntry_LengthofExtendedAttributes);
 						else	//10a
-							tmp = (unsigned long *)(&udf_105_or_10a->ExtFileEntry_BaseAddress + udf_105_or_10a->ExtFileEntry_LengthofExtendedAttributes);
+							tmp = (unsigned int *)(&udf_105_or_10a->ExtFileEntry_BaseAddress + udf_105_or_10a->ExtFileEntry_LengthofExtendedAttributes);
 			  		INODE->file_start = *(tmp + 1) + udf_partition_start;
 			  		filepos = 0;
 			  		filemax = udf_105_or_10a->InformationLength;	 			
@@ -639,27 +569,14 @@ dddd:
 		    }
 		  else	/* Completion */
 		    {
-//		      int j, k;
-//		      char ch1;
-//		      char *tmp_name1 = (char *)(NAME_BUF);
-
 		      if (print_possibilities > 0)
 			print_possibilities = -print_possibilities;
 		      //memcpy(NAME_BUF, name, name_len);
 		      //NAME_BUF[name_len] = '\0';
 
 		      /* copy name to tmp_name1, and quote spaces with '\\' */
-//		      for (j = 0, k = 0; j < name_len; j++)
-//		      {
-//			if (! (ch1 = name[j]))
-//				break;
-//			if (ch1 == ' ')
-//				tmp_name1[k++] = '\\';
-//			tmp_name1[k++] = ch1;
-//		      }
-//		      tmp_name1[k] = 0;
 					unsigned long long clo64 = current_color_64bit;
-					unsigned long clo = current_color;
+					unsigned int clo = current_color;
 					if (file_type == ISO_DIRECTORY)
 					{
 						if (current_term->setcolorstate)
@@ -668,27 +585,27 @@ dddd:
 						current_color = (current_color & 0x0f) | (clo & 0xf0);
 					}
 		      print_a_completion (tmp_name1, 0);
-					current_color_64bit = clo64;
-					current_color = clo;
+					if (cursor_state & 1)
+						current_term->setcolorstate (COLOR_STATE_STANDARD);
+					else
+						current_term->setcolorstate (COLOR_STATE_NORMAL);
 		    }
 		}
-//	    } /* for */
 ssss:			
 		if (iso_type == ISO_TYPE_udf)
 		{
 			name = (char *)(&udf_101->NameBaseAddress + udf_101->LengthofImplementationUse + udf_101->NameLength);
-			//int j;
-			name += (((int)name & 3) ? (4 - ((int)name & 3)) : 0);
+			name += (((grub_size_t)name & 3) ? (4 - ((grub_size_t)name & 3)) : 0);
 			udf_101 = (struct udf_File_Identifier *)name;
 			int temp = 0;
-			if ((int)name + 0x26 - (int)UDF_IDENTIFIER < udf_BytePerSector)
-				temp = (int)(&udf_101->NameBaseAddress + udf_101->LengthofImplementationUse + udf_101->NameLength);
-			if (temp && (temp - (int)UDF_IDENTIFIER <= udf_BytePerSector))	
+			if ((grub_size_t)name + 0x26 - (grub_size_t)UDF_IDENTIFIER < udf_BytePerSector)
+				temp = (grub_size_t)(&udf_101->NameBaseAddress + udf_101->LengthofImplementationUse + udf_101->NameLength);
+			if (temp && (temp - (grub_size_t)UDF_IDENTIFIER <= udf_BytePerSector))	
 				continue;
 			else
 			{
-				grub_memmove ((char *)((int)UDF_IDENTIFIER - udf_BytePerSector),(char *)((int)UDF_IDENTIFIER),udf_BytePerSector);
-				name_offset = udf_BytePerSector + (int)UDF_IDENTIFIER - (int)name;
+				grub_memmove ((char *)((grub_size_t)UDF_IDENTIFIER - udf_BytePerSector),(char *)((grub_size_t)UDF_IDENTIFIER),udf_BytePerSector);
+				name_offset = udf_BytePerSector + (grub_size_t)UDF_IDENTIFIER - (grub_size_t)name;
 				break;
 			}
 		}
@@ -713,15 +630,15 @@ ssss:
 
     next_dir_level:
     ;
-//      dirname += pathlen;
 
     } while (*dirname == '/');
 
   return 1;
 }
 
+unsigned long long iso9660_read (unsigned long long buf, unsigned long long len, unsigned int write);
 unsigned long long
-iso9660_read (unsigned long long buf, unsigned long long len, unsigned long write)
+iso9660_read (unsigned long long buf, unsigned long long len, unsigned int write)
 {
   unsigned long sector, size;
   unsigned long long blkoffset = 0, ret;
@@ -730,15 +647,15 @@ iso9660_read (unsigned long long buf, unsigned long long len, unsigned long writ
     return 0;
 
   ret = 0;
-	unsigned long *p = 0;
+	unsigned int *p = 0;
 	unsigned long long sum = 0;
 
 		if (iso_type == ISO_TYPE_udf)
 		{
 			if (UDF_ENTRY->Tag == UDF_FileEntry)	//105
-				p = (unsigned long *)(&UDF_ENTRY->FileEntry_BaseAddress + UDF_ENTRY->FileEntry_LengthofExtendedAttributes);
+				p = (unsigned int *)(&UDF_ENTRY->FileEntry_BaseAddress + UDF_ENTRY->FileEntry_LengthofExtendedAttributes);
 			else	//10a
-				p = (unsigned long *)(&UDF_ENTRY->ExtFileEntry_BaseAddress + UDF_ENTRY->ExtFileEntry_LengthofExtendedAttributes);
+				p = (unsigned int *)(&UDF_ENTRY->ExtFileEntry_BaseAddress + UDF_ENTRY->ExtFileEntry_LengthofExtendedAttributes);
 			
 			while (filepos >= sum)
 			{
@@ -796,6 +713,7 @@ iso9660_read (unsigned long long buf, unsigned long long len, unsigned long writ
   return ret;
 }
 
+int big_to_little (char *filename, unsigned int n);
 int
 big_to_little (char *filename, unsigned int n)	//unicode16  Tai Mei turn a small tail
 {

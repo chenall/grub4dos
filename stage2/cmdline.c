@@ -21,6 +21,15 @@
 #include <shared.h>
 
 //grub_jmp_buf restart_cmdline_env;
+char *wee_skip_to (char *cmdline, int flags);
+char *skip_to (int flags, char *cmdline);
+void print_cmdline_message (int forever);
+int expand_var(const char *str,char *out,const unsigned int len_max);
+int run_line (char *heap,int flags);
+void enter_cmdline (char *heap, int forever);
+int count_lines;
+int use_pager;
+int errorcheck;
 
 char *
 wee_skip_to (char *cmdline, int flags)
@@ -97,21 +106,22 @@ extern int command_func (char *arg, int flags);
 extern int commandline_func (char *arg, int flags);
 extern int errnum_func (char *arg, int flags);
 extern int checkrange_func (char *arg, int flags);
+extern int else_disabled;  //else禁止
+extern int brace_nesting;  //大括弧嵌套数
 
 /* Find the builtin whose command name is COMMAND and return the
    pointer. If not found, return 0.  */
+struct builtin *find_command (char *command);
 struct builtin *
 find_command (char *command)
 {
   char *ptr;
   char c;
   struct builtin **builtin;
-
   if (! command)
 	return 0;
 
   while (*command == ' ' || *command == '\t')command++;
-
   if (! *command)
 	return 0;
 
@@ -122,7 +132,6 @@ find_command (char *command)
 
   c = *ptr;
   *ptr = 0;
-
   /* Seek out the builtin whose command name is COMMAND.  */
   for (builtin = builtin_table; *builtin != 0; builtin++)
     {
@@ -139,13 +148,11 @@ find_command (char *command)
     }
 
   *ptr = c;
-
   /* Cannot find builtin COMMAND. Check if it is an executable file.  */
   if (command_func (command, 0))
     {
 	return (struct builtin *)(char *)(-1);
     }
-
   /* Cannot find COMMAND.  */
   errnum = ERR_UNRECOGNIZED;
   return 0;
@@ -156,7 +163,9 @@ find_command (char *command)
 #define OPT_MULTI_CMD_AND	(1<<5)
 #define OPT_MULTI_CMD_OR_FLAG  	0x3B7C
 #define OPT_MULTI_CMD_OR	(1<<6)
-static char *get_next_arg(char *arg)
+
+char *get_next_arg(char *arg);
+char *get_next_arg(char *arg)  //获得下一参数
 {
 	while(*arg && !isspace(*arg))
 	{
@@ -168,6 +177,7 @@ static char *get_next_arg(char *arg)
 	return arg;
 }
 
+static char *skip_to_next_cmd (char *cmd,int *status,int flags);
 static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 {
 //	*status = 0;
@@ -206,29 +216,34 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 			case OPT_MULTI_CMD_OR_FLAG:// |;
 				*status = OPT_MULTI_CMD_OR;
 				break;
+      case 0x207b:  //  '{'
+      case 0x007b:
+      case 0x207d:  //  '}'
+      case 0x007d:
+        *(cmd - 1) = '\0';
+        *(cmd + 1) = '\0';
+        return cmd;
 			default:
 				continue;
 		}
 
 		char *p = cmd + 1;
-
 		if ((flags == 0 || (*status & flags)) && (!*p || *p == ' ' || p[1] == ' '))
 		{
 			*(cmd - 1) = '\0';
 			cmd = get_next_arg(cmd);
 			break;
 		}
-//		*status = 0;
 	}
-
 	if (*cmd == '\0')
 		*status = 0;
+
 	return cmd;
 }
 
-#define PRINTF_BUFFER ((unsigned char *)SYSTEM_RESERVED_MEMORY + 0x20000)
+//#define PRINTF_BUFFER ((unsigned char *)SYSTEM_RESERVED_MEMORY + 0x20000)
 //char *pre_cmdline = (char *)0x4CB08;
-static char *cmd_buffer = ((char *)0x3A9000);
+//static char *cmd_buffer = ((char *)0x3A9000);
 
 int expand_var(const char *str,char *out,const unsigned int len_max)
 {
@@ -281,48 +296,53 @@ int expand_var(const char *str,char *out,const unsigned int len_max)
   }
 	return out - out_start;
 }
+
 static int run_cmd_line (char *heap,int flags);
-int run_line (char *heap,int flags)
+int run_line (char *heap,int flags)							//原始 cmd_buffer:  101df7b0
 {
+  char *cmdline_buf = cmd_buffer;							//cmd_buffer: /grldr\0
+  char *cmdBuff = NULL;
+  char *arg;
+  int status = 0;
+  int ret = 0;
+  int arg_len = strlen(heap) + 1;
 
-   char *cmdline_buf = cmd_buffer;
-   char *arg;
-   int status = 0;
-   int ret = 0;
-   int arg_len = strlen(heap) + 1;
-   cmd_buffer += (arg_len + 0xf) & -0x10;
-   memmove(cmdline_buf,heap,arg_len);
-   heap = cmdline_buf;
+  cmd_buffer += (arg_len + 0xf) & -0x10;		//cmd_buffer: 0
+  cmdBuff = grub_malloc(0x1000);
+	if (cmdBuff == NULL)
+	{
+		cmd_buffer = cmdline_buf;
+		return 0;
+	}
+  memmove(cmdBuff,heap,arg_len);
+	heap = cmdBuff;
    __asm__ __volatile__ ("movl %%esp,%0" ::"m"(arg_len):"memory");
-   if (arg_len < 0x3000)
-   {
-     errnum = ERR_BAD_ARGUMENT;
-     printf("\nFAULT: <<<<<<<<<<SYSTETM STATCK RUNOUT>>>>>>>>>\n");
-     return 0;
-   }
 
-   if (debug > 10) printf("SP:0x%X\n[%s]\n",arg_len,heap);
+  if (debug > 10) printf("SP:0x%X\n[%s]\n",arg_len,heap);
+  
+  while(*heap && (arg = heap))
+  {
+    heap = skip_to_next_cmd(heap,&status,OPT_MULTI_CMD_AND | OPT_MULTI_CMD_OR | OPT_MULTI_CMD);//next cmd  
+    ret = run_cmd_line(arg,flags);
+    if (errnum > 1000) break;
+    if (errnum == ERR_BAT_BRACE_END) break; //如果是批处理大括弧结束, 则退出
+    if (((status & OPT_MULTI_CMD_AND) && !ret) || ((status & OPT_MULTI_CMD_OR) && ret))
+    {
+      errnum = ERR_NONE;
+      heap = skip_to_next_cmd(heap,&status,OPT_MULTI_CMD);//next cmd
+    }
+  }
 
-   while(*heap && (arg = heap))
-   {
-      heap = skip_to_next_cmd(heap,&status,OPT_MULTI_CMD_AND | OPT_MULTI_CMD_OR | OPT_MULTI_CMD);//next cmd
-      ret = run_cmd_line(arg,flags);
-      if (errnum > 1000) break;
-      if (((status & OPT_MULTI_CMD_AND) && !ret) || ((status & OPT_MULTI_CMD_OR) && ret))
-      {
-	 errnum = ERR_NONE;
-	 heap = skip_to_next_cmd(heap,&status,OPT_MULTI_CMD);//next cmd
-      }
-   }
-   cmd_buffer = cmdline_buf;
-   return ret;
+  if (cmdBuff)
+    grub_free(cmdBuff);
+  cmd_buffer = cmdline_buf;
+  return ret;
 }
 
 static int run_cmd_line (char *heap,int flags)
 {
 	char *arg = heap;
-#define ret *(int*)0x4CB00
-//	int ret = 0;
+#define ret return_value
 	int status = 0;
 	struct builtin *builtin;
 	int status_t = 0;
@@ -338,10 +358,12 @@ static int run_cmd_line (char *heap,int flags)
 		++heap;
 	if (*heap == 0 || *(unsigned short *)heap == 0x2023 || *(unsigned short *)heap == 0x3A3A)
 		return 1;
+  
 	/* Invalidate the cache, because the user may exchange removable disks.  */
 	buf_drive = -1;
+
 	while (*heap && (arg = heap))
-	{
+	{  
 		heap = skip_to_next_cmd(heap,&status,0);//next cmd
 		switch(status_t)
 		{
@@ -376,7 +398,7 @@ static int run_cmd_line (char *heap,int flags)
 				{
 					char *f_buf = cmd_buffer;
 					int t_read,t_len;
-					while ((t_read = grub_read ((unsigned long long)(int)f_buf,0x400,GRUB_READ)))
+					while ((t_read = grub_read ((unsigned long long)(grub_size_t)f_buf,0x400,GRUB_READ)))
 					{
 						f_buf[t_read] = 0;
 						t_len = grub_strlen(f_buf);
@@ -393,7 +415,7 @@ static int run_cmd_line (char *heap,int flags)
 					hook_buff = PRINTF_BUFFER + filemax;
 				}
 
-				grub_read ((unsigned long long)(int)PRINTF_BUFFER,hook_buff - PRINTF_BUFFER,GRUB_WRITE);
+				grub_read ((unsigned long long)(grub_size_t)PRINTF_BUFFER,hook_buff - PRINTF_BUFFER,GRUB_WRITE);
 				grub_close();
 
 				restart_st:
@@ -413,10 +435,27 @@ static int run_cmd_line (char *heap,int flags)
 			else
 				hook_buff = set_putchar_hook(PRINTF_BUFFER);
 		}
-
+    
 		builtin = find_command (arg);
+    
+    if (*arg == '{') //左大括弧
+    {
+      if (!ret)
+        return !(errnum = ERR_BAT_BRACE_END);
+      
+      errnum = ERR_NONE;  //消除错误号 
+      brace_nesting++;    //大括弧嵌套数+1
+      return 1;
+    }
 
-		if ((int)builtin != -1)
+    if (*arg == '}') //右大括弧
+    {
+      errnum = ERR_NONE;  //消除错误号 
+      brace_nesting--;    //大括弧嵌套数-1
+      else_disabled |= 1 << brace_nesting;  //设置else禁止位
+      return 1;
+    }
+		if ((grub_size_t)builtin != (grub_size_t)-1)
 		{
 			if (! builtin || ! (builtin->flags & flags))
 			{
@@ -440,7 +479,9 @@ static int run_cmd_line (char *heap,int flags)
 			}
 		}
 		else
+    {    
 			ret = command_func (arg,flags);
+    }
 
 		errnum_old = errnum;
 		if (arg == cmdBuff)
@@ -484,7 +525,7 @@ static int run_cmd_line (char *heap,int flags)
 	return (errnum > 0 && errnum<MAX_ERR_NUM)?0:ret;
 #undef ret
 }
-#undef PRINTF_BUFFER 
+//#undef PRINTF_BUFFER 
 
 
 /* Enter the command-line interface. HEAP is used for the command-line
@@ -495,10 +536,8 @@ enter_cmdline (char *heap, int forever)
 {
   int debug_old = debug;
   debug = 1;
-
   /* show cursor and disable splashimage. */
   setcursor (1);
-
   /* Initialize the data and print a message.  */
   current_drive = GRUB_INVALID_DRIVE;
   count_lines = -1;
@@ -542,7 +581,7 @@ enter_cmdline (char *heap, int forever)
 
 	errnum = errnum_old;
 	if (memcmp(heap,"clear",5))
-	    putchar('\n',255);
+	    putchar('\n',255); 
 	run_line (heap , BUILTIN_CMDLINE);
       /* Finish the line count.  */
       count_lines = -1;

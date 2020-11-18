@@ -27,8 +27,6 @@
 
 #ifndef NO_DECOMPRESSION
 
-//#define makeUInt32(b0,b1,b2,b3) (((unsigned long)(unsigned char)b0) + ((unsigned long)(unsigned char)b1<<8) + ((unsigned long)(unsigned char)b2<<16) + ((unsigned long)(unsigned char)b3<<24))
-//#define makeUInt64(b0,b1,b2,b3,b4,b5,b6,b7) (((unsigned long long)makeUInt32(b0,b1,b2,b3)) + ((unsigned long long)makeUInt32(b4,b5,b6,b7)<<32))
 #define LZ4_MAGIC_NUMBER 0x184D2204
 
 /* initial dic pos 64K */
@@ -42,43 +40,19 @@ struct {
 	unsigned char flg, bd, hc;
 	unsigned char flg_version, flg_bindep, flg_bchecksum, flg_csize, flg_cchecksum, flg_reserved;
 	unsigned char bd_blockmaxsize, bd_reserved;
-	unsigned long blockMaxSize;    /* max uncompressed size for one block can be 64K,256K,1M,4M */
-	unsigned long headerSize;
-	unsigned long nextBlockSize;   /* compressed size */
+	unsigned int blockMaxSize;    /* max uncompressed size for one block can be 64K,256K,1M,4M */
+	unsigned int headerSize;
+	unsigned int nextBlockSize;   /* compressed size */
 	unsigned long long content_size;
 	unsigned long long cfilemax, cfilepos, ufilemax, ufilepos;
 	unsigned long long dicFilePos; /* uncompress file pos for data at (dic + LZ4_DICPOSSTART) */
 	unsigned long long inpFilePos;
-	unsigned long dicPos, dicSize, inpPos, inpSize;
+	unsigned int dicPos, dicSize, inpPos, inpSize;
 	unsigned char *inp;
 	unsigned char *dic;
 } lz4dec;
-/*
-typedef struct {
-  unsigned long Magic;//Value : 0x184D2204
-  union{
-    unsigned char flg;
-    struct{
-      unsigned char :2;//Reserved
-      unsigned char cchecksum:1;
-      unsigned char cSize:1;
-      unsigned char bChecksum:1;
-      unsigned char Indep:1;
-      unsigned char version:2;
-    } FLG;
-  };
-  union{
-    unsigned char bd;
-    struct{
-      unsigned char :4;//Reserved
-      unsigned char blockMaxSize:3;
-      unsigned char :1;//Reserved
-    } BD;
-  };
-  unsigned long long content_size;
-  unsigned char hc;
-} __attribute__ ((packed)) lz4Frame;
-*/
+
+void dec_lz4_close(void);
 void
 dec_lz4_close(void)
 {
@@ -86,6 +60,7 @@ dec_lz4_close(void)
 	if (lz4dec.dic) { grub_free(lz4dec.dic); lz4dec.dic = 0; }
 }
 
+int dec_lz4_open(void);
 int
 dec_lz4_open(void)
 /* return 1=success or 0=failure */
@@ -98,12 +73,13 @@ dec_lz4_open(void)
 	   Make sure previously allocated memory blocks is freed. 
 	   Don't need this line if grub_close is called for every openned file before grub_open is called for next file. */
 	dec_lz4_close();
-
 	filepos = 0;
 	int bytestoread = (filemax<20) ? (int)filemax : 20;
-	int bytesread = (int)grub_read((unsigned long long)(unsigned long)(char *)header, bytestoread, GRUB_READ);
+	int bytesread = (int)grub_read((unsigned long long)(grub_size_t)(char *)header, bytestoread, GRUB_READ);
 	/* check header */
-	if (bytesread < (4+2+1+4) || *(grub_u32_t*)(int)&header != LZ4_MAGIC_NUMBER) {
+  grub_u32_t* a = (grub_u32_t*)&header;
+//	if (bytesread < (4+2+1+4) || *(grub_u32_t*)(grub_size_t)&header != LZ4_MAGIC_NUMBER) {
+  if (bytesread < (4+2+1+4) || *a != LZ4_MAGIC_NUMBER) {
 		/* file is not LZ4 frame */
 		filepos = 0;
 		return 0;
@@ -135,7 +111,7 @@ dec_lz4_open(void)
 			/* grub_printf("bytesread %d < 4+2+8+1+4\n", bytesread); */
 			goto fail;
 		}
-		lz4dec.content_size = *(grub_u64_t*)(int)&header[pos];
+		lz4dec.content_size = *(grub_u64_t*)(grub_size_t)&header[pos];
 		pos += 8;
 	}
 	else {
@@ -154,7 +130,9 @@ dec_lz4_open(void)
 	}
 	/* valid header */
 	lz4dec.headerSize = pos;
-	lz4dec.nextBlockSize = *(grub_u32_t*)(int)&header[pos];
+  grub_u32_t* b = (grub_u32_t*)&header[pos];
+//	lz4dec.nextBlockSize = *(grub_u32_t*)(grub_size_t)&header[pos];
+  lz4dec.nextBlockSize = *b;
 	pos += 4;
 	lz4dec.cfilemax = filemax;
 	lz4dec.cfilepos = pos;
@@ -165,7 +143,7 @@ dec_lz4_open(void)
 	if (lz4dec.inp == 0 || lz4dec.dic == 0) {
 		if (lz4dec.inp) { grub_free(lz4dec.inp); lz4dec.inp = 0; }
 		if (lz4dec.dic) { grub_free(lz4dec.dic); lz4dec.dic = 0; }
-		errnum = ERR_NOT_ENOUGH_MEMORY;
+		errnum = ERR_NOT_ENOUGH_MEMORY;;
 		filepos = 0;
 		return 0;
 	}
@@ -188,8 +166,9 @@ fail:
 	return 0;
 }
 
+unsigned long long dec_lz4_read(unsigned long long buf, unsigned long long len, unsigned int write);
 unsigned long long
-dec_lz4_read(unsigned long long buf, unsigned long long len, unsigned long write)
+dec_lz4_read(unsigned long long buf, unsigned long long len, unsigned int write)
 {
 	unsigned long long outTx, outSkip;
 	/* grub_printf("LZ4 read buf=%lX len=%lX dic=%X inp=%X\n",buf,len,lz4dec.dic,lz4dec.inp);
@@ -211,9 +190,7 @@ dec_lz4_read(unsigned long long buf, unsigned long long len, unsigned long write
 	/* if reading before dic, reset decompression to beginning */
 	if (lz4dec.ufilepos + LZ4_DICPOSSTART < lz4dec.dicFilePos) {
 		filepos = lz4dec.headerSize;
-		grub_read((grub_u64_t)(int)&lz4dec.nextBlockSize, 4, GRUB_READ);
-//		unsigned char *p = lz4dec.inp;
-//		lz4dec.nextBlockSize =*(grub_u32_t*)(int)lz4dec.inp;
+		grub_read((grub_u64_t)(grub_size_t)&lz4dec.nextBlockSize, 4, GRUB_READ);
 		lz4dec.inpSize = 0;
 		lz4dec.inpPos = 0;
 		lz4dec.dicPos = LZ4_DICPOSSTART;
@@ -230,11 +207,11 @@ dec_lz4_read(unsigned long long buf, unsigned long long len, unsigned long write
 		/* Copy uncompressed data from dic in range dic[0]...dic[dicPos-1] */
 		if (outSkip < lz4dec.dicPos)
 		{
-			unsigned long outTxCur = lz4dec.dicPos - (unsigned long)outSkip;
+			unsigned int outTxCur = lz4dec.dicPos - (unsigned int)outSkip;
 			if (outTxCur > len)
-				outTxCur = (unsigned long)len;
+				outTxCur = (unsigned int)len;
 			if (buf) {
-				grub_memmove64(buf, (unsigned long)(lz4dec.dic + outSkip), outTxCur);
+				grub_memmove64(buf, (grub_size_t)(lz4dec.dic + outSkip), outTxCur);
 				buf += outTxCur;
 			}
 			outSkip = lz4dec.dicPos;
@@ -248,19 +225,19 @@ dec_lz4_read(unsigned long long buf, unsigned long long len, unsigned long write
 		/*while (lz4dec.nextBlockSize && lz4dec.dicPos + lz4dec.blockMaxSize <= LZ4_DICBUFSIZE) */{
 			/* All existing wanted data from dic have been copied. We will have to decompress more data. */
 			/* Read next compressed block (with optional checksum) with next block size */
-			unsigned long blockSize = lz4dec.nextBlockSize;
+			unsigned int blockSize = lz4dec.nextBlockSize;
 			//grub_printf("blockSize %X\n",blockSize);
 			if (blockSize == 0) break;
 			int bUncompressedBlock = ((blockSize & 0x80000000) != 0);
 			blockSize &= 0x7FFFFFFF;
-			unsigned long inSizeCur = blockSize + lz4dec.flg_bchecksum * 4 + 4;
+			unsigned int inSizeCur = blockSize + lz4dec.flg_bchecksum * 4 + 4;
 			//grub_printf("read filepos %lX size %X inp %X\n", filepos, inSizeCur, lz4dec.inp);
-			inSizeCur = grub_read((grub_u64_t)(int)lz4dec.inp, inSizeCur, GRUB_READ);
+			inSizeCur = grub_read((grub_u64_t)(grub_size_t)lz4dec.inp, inSizeCur, GRUB_READ);
 			lz4dec.inpSize = inSizeCur;
 			//grub_printf("     inpSize %X filepos %lX\n", lz4dec.inpSize, filepos);
 			lz4dec.inpPos = 0;
 //			unsigned char *pNextBlockSize = lz4dec.inp + blockSize + lz4dec.flg_bchecksum * 4;
-			lz4dec.nextBlockSize = *(grub_u32_t*)(int)(lz4dec.inp + blockSize + lz4dec.flg_bchecksum * 4);
+			lz4dec.nextBlockSize = *(grub_u32_t*)(grub_size_t)(lz4dec.inp + blockSize + lz4dec.flg_bchecksum * 4);
 
 			/* If dic is full, move 64K to beginning. */
 			if (lz4dec.dicPos + lz4dec.blockMaxSize > LZ4_DICBUFSIZE)
@@ -281,8 +258,8 @@ dec_lz4_read(unsigned long long buf, unsigned long long len, unsigned long write
 				/* Decompress LZ4 Block format*/
 				unsigned char *q = lz4dec.dic + lz4dec.dicPos;
 				unsigned char *p = lz4dec.inp;
-				unsigned long outRem = LZ4_DICBUFSIZE - lz4dec.dicPos;
-				unsigned long inpRem = blockSize;
+				unsigned int outRem = LZ4_DICBUFSIZE - lz4dec.dicPos;
+				unsigned int inpRem = blockSize;
 				while (1) {
 					/* grub_printf("decompressing %X %X %X\n", q, p, inpRem); */
 					if (!inpRem) {
@@ -292,7 +269,7 @@ dec_lz4_read(unsigned long long buf, unsigned long long len, unsigned long write
 					/* read token */
 					unsigned char token = *(p++); --inpRem;
 					/* read more literal length */
-					unsigned long litlen = token >> 4;
+					unsigned int litlen = token >> 4;
 					if (litlen == 15 && inpRem) {
 						unsigned char c;
 						do {
@@ -320,9 +297,9 @@ dec_lz4_read(unsigned long long buf, unsigned long long len, unsigned long write
 						}
 					}
 					/* read match offset */
-					unsigned long matoff = (((unsigned long)p[0]) + ((unsigned long)p[1] << 8)); p += 2; inpRem -= 2;
+					unsigned int matoff = (((unsigned int)p[0]) + ((unsigned int)p[1] << 8)); p += 2; inpRem -= 2;
 					/* read more match size */
-					unsigned long matlen = (token & 15);
+					unsigned int matlen = (token & 15);
 					if (matlen == 15) {
 						unsigned char c;
 						do {

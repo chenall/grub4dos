@@ -26,7 +26,7 @@
 #ifndef IAMATH_NO_ASM
 // return bit index of most significant 1 bit, undefined if all bits are 0.
 static inline __attribute__((always_inline))
-unsigned int log2_tmp(unsigned long n)
+unsigned int log2_tmp(unsigned int n)
 {
   unsigned int i;
   asm("bsrl %1,%0":"=r"(i):"rm"(n));
@@ -34,24 +34,24 @@ unsigned int log2_tmp(unsigned long n)
 }
 
 static inline __attribute__((always_inline))
-unsigned long long divmodu64u32(unsigned long long num, unsigned long divisor, unsigned long *p_remainder)
+unsigned long long divmodu64u32(unsigned long long num, unsigned int divisor, unsigned int *p_remainder)
 {
-  unsigned long qhi,qlo,r;
+  unsigned long long qhi,qlo,r;
   asm("divl %6; xchg %eax,%ecx; divl %6; "
     :"=d"(r),"=a"(qlo),"=c"(qhi)
-    :"0"(0),"1"((unsigned long)(num>>32)),"2"((unsigned long)num),"rm"(divisor)
+    :"0"(0),"1"((unsigned int)(num>>32)),"2"((unsigned int)num),"rm"(divisor)
     );
   if (p_remainder) *p_remainder = r;
   return ((unsigned long long)qhi<<32)|qlo;
 }
 
 #else
-unsigned int log2_tmp(unsigned long n);
+unsigned int log2_tmp(unsigned int n);
 
 #ifdef IAMATH_NO_ASM_DEFINITION
-unsigned int log2_tmp(unsigned long n)
+unsigned int log2_tmp(unsigned int n)
 {
-    unsigned long a,b;
+    unsigned int a,b;
     unsigned int i;
     i=0; a=n;
     b=a>>16; if (b) { a=b; i+=16; }

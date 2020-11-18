@@ -24,14 +24,14 @@
 struct mod_list
 {
   /* the memory used goes from bytes 'mod_start' to 'mod_end-1' inclusive */
-  unsigned long mod_start;
-  unsigned long mod_end;
+  unsigned int mod_start;
+  unsigned int mod_end;
   
   /* Module command line */
-  unsigned long cmdline;
+  unsigned int cmdline;
   
   /* padding to take it to 16 bytes (must be zero) */
-  unsigned long pad;
+  unsigned int pad;
 };
 
 
@@ -44,10 +44,10 @@ struct mod_list
 
 struct AddrRangeDesc
 {
-  unsigned long size;
+  unsigned int size;
   unsigned long long BaseAddr;
   unsigned long long Length;
-  unsigned long Type;
+  unsigned int Type;
   
   /* unspecified optional padding... */
 } __attribute__ ((packed));
@@ -60,7 +60,7 @@ struct AddrRangeDesc
 struct drive_info
 {
   /* The size of this structure.  */
-  unsigned long size;
+  unsigned int size;
 
   /* The BIOS drive number.  */
   unsigned char drive_number;
@@ -87,7 +87,7 @@ struct apm_info
 {
   unsigned short version;
   unsigned short cseg;
-  unsigned long offset;
+  unsigned int offset;
   unsigned short cseg_16;
   unsigned short dseg_16;
   unsigned short cseg_len;
@@ -106,66 +106,66 @@ struct apm_info
 struct multiboot_info
 {
   /* MultiBoot info version number */
-  unsigned long flags;
+  unsigned int flags;
   
   /* Available memory from BIOS */
-  unsigned long mem_lower;
-  unsigned long mem_upper;
+  unsigned int mem_lower;
+  unsigned int mem_upper;
   
   /* "root" partition */
-  unsigned long boot_device;
+  unsigned int boot_device;
   
   /* Kernel command line */
-  unsigned long cmdline;
+  unsigned int cmdline;
   
   /* Boot-Module list */
-  unsigned long mods_count;
-  unsigned long mods_addr;
+  unsigned int mods_count;
+  unsigned int mods_addr;
   
   union
   {
     struct
     {
       /* (a.out) Kernel symbol table info */
-      unsigned long tabsize;
-      unsigned long strsize;
-      unsigned long addr;
-      unsigned long pad;
+      unsigned int tabsize;
+      unsigned int strsize;
+      unsigned int addr;
+      unsigned int pad;
     }
     a;
     
     struct
     {
       /* (ELF) Kernel section header table */
-      unsigned long num;
-      unsigned long size;
-      unsigned long addr;
-      unsigned long shndx;
+      unsigned int num;
+      unsigned int size;
+      unsigned int addr;
+      unsigned int shndx;
     }
     e;
   }
   syms;
   
   /* Memory Mapping buffer */
-  unsigned long mmap_length;
-  unsigned long mmap_addr;
+  unsigned int mmap_length;
+  unsigned int mmap_addr;
   
   /* Drive Info buffer */
-  unsigned long drives_length;
-  unsigned long drives_addr;
+  unsigned int drives_length;
+  unsigned int drives_addr;
   
   /* ROM configuration table */
-  unsigned long config_table;
+  unsigned int config_table;
   
   /* Boot Loader Name */
-  unsigned long boot_loader_name;
+  unsigned int boot_loader_name;
 
   /* APM table */
-  unsigned long apm_table;
+  unsigned int apm_table;
 
   /* Video */
-  unsigned long vbe_control_info;
-  unsigned long vbe_mode_info;
+  unsigned int vbe_control_info;
+  unsigned int vbe_mode_info;
   unsigned short vbe_mode;
   unsigned short vbe_interface_seg;
   unsigned short vbe_interface_off;

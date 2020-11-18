@@ -20,20 +20,25 @@
 
 
 #include "shared.h"
-#include <term.h>
+#include "term.h"
 #include "cpio.h"
 #include "freebsd.h"
 
+//void bsd_boot (kernel_t type, int bootdev, char *arg) __attribute__ ((noreturn));
+void bsd_boot (kernel_t type, int bootdev, char *arg);
+int load_module (char *module, char *arg);
+int load_initrd (char *initrd);
+
 struct exec
   {
-    unsigned long a_midmag;	/* htonl(flags<<26 | mid<<16 | magic) */
-    unsigned long a_text;	/* text segment size */
-    unsigned long a_data;	/* initialized data size */
-    unsigned long a_bss;	/* uninitialized data size */
-    unsigned long a_syms;	/* symbol table size */
-    unsigned long a_entry;	/* entry point */
-    unsigned long a_trsize;	/* text relocation size */
-    unsigned long a_drsize;	/* data relocation size */
+    unsigned int a_midmag;	/* htonl(flags<<26 | mid<<16 | magic) */
+    unsigned int a_text;	/* text segment size */
+    unsigned int a_data;	/* initialized data size */
+    unsigned int a_bss;	/* uninitialized data size */
+    unsigned int a_syms;	/* symbol table size */
+    unsigned int a_entry;	/* entry point */
+    unsigned int a_trsize;	/* text relocation size */
+    unsigned int a_drsize;	/* data relocation size */
   };
 #define ntohl(x) ((x << 24) | ((x & 0xFF00) << 8) | ((x >> 8) & 0xFF00) | (x >> 24))
 #define htonl(x) ntohl(x)
@@ -96,11 +101,11 @@ typedef struct
   
 #define EM_386		3	/* i386 -- obviously use this one */
   unsigned short e_machine;	/* machine types */
-  unsigned long e_version;	/* use same as "EI_VERSION" above */
-  unsigned long e_entry;	/* entry point of the program */
-  unsigned long e_phoff;	/* program header table file offset */
-  unsigned long e_shoff;	/* section header table file offset */
-  unsigned long e_flags;	/* flags */
+  unsigned int e_version;	/* use same as "EI_VERSION" above */
+  unsigned int e_entry;	/* entry point of the program */
+  unsigned int e_phoff;	/* program header table file offset */
+  unsigned int e_shoff;	/* section header table file offset */
+  unsigned int e_flags;	/* flags */
   unsigned short e_ehsize;		/* elf header size in bytes */
   unsigned short e_phentsize;	/* program header entry size */
   unsigned short e_phnum;		/* number of entries in program header */
@@ -128,29 +133,29 @@ Elf32_Ehdr;
 
 typedef struct
 {
-  unsigned long	sh_name;		/* Section name (string tbl index) */
-  unsigned long sh_type;		/* Section type */
-  unsigned long	sh_flags;		/* Section flags */
-  unsigned long	sh_addr;		/* Section virtual addr at execution */
-  unsigned long	sh_offset;		/* Section file offset */
-  unsigned long	sh_size;		/* Section size in bytes */
-  unsigned long	sh_link;		/* Link to another section */
-  unsigned long	sh_info;		/* Additional section information */
-  unsigned long	sh_addralign;		/* Section alignment */
-  unsigned long	sh_entsize;		/* Entry size if section holds table */
+  unsigned int	sh_name;		/* Section name (string tbl index) */
+  unsigned int sh_type;		/* Section type */
+  unsigned int	sh_flags;		/* Section flags */
+  unsigned int	sh_addr;		/* Section virtual addr at execution */
+  unsigned int	sh_offset;		/* Section file offset */
+  unsigned int	sh_size;		/* Section size in bytes */
+  unsigned int	sh_link;		/* Link to another section */
+  unsigned int	sh_info;		/* Additional section information */
+  unsigned int	sh_addralign;		/* Section alignment */
+  unsigned int	sh_entsize;		/* Entry size if section holds table */
 }
 Elf32_Shdr;
 
 typedef struct
 {
-  unsigned long p_type;
-  unsigned long p_offset;
-  unsigned long p_vaddr;
-  unsigned long p_paddr;
-  unsigned long p_filesz;
-  unsigned long p_memsz;
-  unsigned long p_flags;
-  unsigned long p_align;
+  unsigned int p_type;
+  unsigned int p_offset;
+  unsigned int p_vaddr;
+  unsigned int p_paddr;
+  unsigned int p_filesz;
+  unsigned int p_memsz;
+  unsigned int p_flags;
+  unsigned int p_align;
 }
 Elf32_Phdr;
 
@@ -163,7 +168,7 @@ Elf32_Phdr;
 #define PT_PHDR		6
 
 
-unsigned long cur_addr;
+unsigned int cur_addr;
 entry_func entry_addr;
 
 /*
@@ -173,22 +178,22 @@ entry_func entry_addr;
  * sizeof(mod_list) == 16. So mll[99] occupies less than 2K.
  */
 struct mod_list mll[99];
-static unsigned long long linux_mem_size;
+//static unsigned long long linux_mem_size;
 
 /*
  *  The next two functions, 'load_image' and 'load_module', are the building
  *  blocks of the multiboot loader component.  They handle essentially all
  *  of the gory details of loading in a bootable image and the modules.
  */
-
 kernel_t
 load_image (char *kernel, char *arg, kernel_t suggested_type,
-	    unsigned long load_flags)
+	    unsigned int load_flags)
 {
-  unsigned long len, i, exec_type = 0, align_4k = 1;
+#if 0
+  unsigned int len, i, exec_type = 0, align_4k = 1;
   entry_func real_entry_addr = 0;
   kernel_t type = KERNEL_TYPE_NONE;
-  unsigned long flags = 0, text_len = 0, data_len = 0, bss_len = 0;
+  unsigned int flags = 0, text_len = 0, data_len = 0, bss_len = 0;
   char *str = 0, *str2 = 0;
   struct linux_kernel_header *lh;
   union
@@ -200,13 +205,16 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
   pu;
   /* presuming that MULTIBOOT_SEARCH is large enough to encompass an
      executable header */
-  unsigned char *buffer = (unsigned char *)(FSYS_BUF - MULTIBOOT_SEARCH);
+//  unsigned char *buffer = (unsigned char *)((char *)FSYS_BUF - MULTIBOOT_SEARCH);
+   unsigned char *buffer = grub_malloc (0x2000);
+  if (!buffer)
+    return 0;
 
-  if (free_mem_start > (unsigned long)linux_bzimage_tmp_addr)
-  {
-	errnum = ERR_KERNEL_WITH_PROGRAM;
-	goto failure;
-  }
+//  if (free_mem_start > (unsigned long)linux_bzimage_tmp_addr)
+//  {
+//	errnum = ERR_KERNEL_WITH_PROGRAM;
+//	goto failure;
+//  }
     
   errnum = ERR_NONE;
   /* sets the header pointer to point to the beginning of the
@@ -252,11 +260,11 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
       else
 	entry_addr = (entry_func) (pu.elf->e_entry & 0xFFFFFF);
 
-      if (entry_addr < (entry_func) 0x100000)
-      {
-	errnum = ERR_BELOW_1MB;
-	goto failure_exec_format;
-      }
+//      if (entry_addr < (entry_func) 0x100000)
+//      {
+//	errnum = ERR_BELOW_1MB;
+//	goto failure_exec_format;
+//      }
 
       /* don't want to deal with ELF program header at some random
          place in the file -- this generally won't happen */
@@ -309,11 +317,11 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	  || (pu.mb->header_addr - pu.mb->load_addr) > i)
 	goto failure_exec_format;
 
-      if (cur_addr < 0x100000)
-      {
-	errnum = ERR_BELOW_1MB;
-	goto failure_exec_format;
-      }
+//      if (cur_addr < 0x100000)
+//      {
+//	errnum = ERR_BELOW_1MB;
+//	goto failure_exec_format;
+//      }
 
       pu.aout = (struct exec *) buffer;
       exec_type = 2;
@@ -429,12 +437,12 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 	  errnum = ERR_WONT_FIT;
 	  goto failure_exec_format;
 	}
-      if (linux_data_real_addr + LINUX_SETUP_MOVE_SIZE
-	       > RAW_ADDR ((char *) ((*(unsigned short *)0x413) << 10/*saved_mem_lower << 10*/)))
-	{
-	  errnum = ERR_WONT_FIT;
-	  goto failure_exec_format;
-	}
+//      if (linux_data_real_addr + LINUX_SETUP_MOVE_SIZE
+//	       > RAW_ADDR ((char *) ((*(unsigned short *)0x413) << 10/*saved_mem_lower << 10*/)))
+//	{
+//	  errnum = ERR_WONT_FIT;
+//	  goto failure_exec_format;
+//	}
       
 	if (debug > 0)
 	      grub_printf ("   [Linux-%s, setup=0x%x, size=0x%x]\n",
@@ -864,7 +872,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
       else 
 	symtab_err = 1;
 
-      if (mbi.syms.e.addr < (unsigned long)(RAW_ADDR(0x10000)))
+      if (mbi.syms.e.addr < (unsigned long long)(RAW_ADDR(0x10000)))
 	symtab_err = 1;
 
       if (symtab_err) 
@@ -899,6 +907,7 @@ load_image (char *kernel, char *arg, kernel_t suggested_type,
 success:
 
   grub_close ();
+  grub_free (buffer);
   return type;
 
 failure_newline:
@@ -914,14 +923,16 @@ failure_exec_format:
 	errnum = ERR_EXEC_FORMAT;
 
 failure:
-
+  grub_free (buffer);
+#endif
   return KERNEL_TYPE_NONE;
 }
 
 int
 load_module (char *module, char *arg)
 {
-  unsigned long len;
+#if 0
+  unsigned long long len;
 
   /* if we are supposed to load on 4K boundaries */
   cur_addr = (cur_addr + 0xFFF) & 0xFFFFF000;
@@ -955,14 +966,16 @@ load_module (char *module, char *arg)
   mbi.mods_count++;
 
   grub_close ();
+#endif
   return 1;
 }
 
+extern int disable_map_info;
 struct linux_kernel_header *linux_header;
-unsigned long initrd_drver_block;
-void cpio_set_field(char *field,unsigned long value);
+unsigned int initrd_drver_block;
+void cpio_set_field(char *field,unsigned int value);
 
-void cpio_set_field(char *field,unsigned long value)
+void cpio_set_field(char *field,unsigned int value)
 {
 	char buf[9];
 	sprintf(buf,"%08x",value);
@@ -972,6 +985,7 @@ void cpio_set_field(char *field,unsigned long value)
 int
 load_initrd (char *initrd)
 {
+#if 0
   unsigned long long len;
   unsigned long long moveto;
   unsigned long long tmp;
@@ -979,21 +993,20 @@ load_initrd (char *initrd)
   char *arg = initrd;
   char *name = initrd;
 
-  //linux_header = (struct linux_kernel_header *) (cur_addr - LINUX_SETUP_MOVE_SIZE);
-  /*
+  linux_header = (struct linux_kernel_header *) (cur_addr - LINUX_SETUP_MOVE_SIZE);
+
   tmp = ((linux_header->header == LINUX_MAGIC_SIGNATURE && linux_header->version >= 0x0203)
 	      ? linux_header->initrd_addr_max : LINUX_INITRD_MAX_ADDRESS);
-	*/
+
   if (linux_mem_size)
     moveto = linux_mem_size;
   else
     moveto = 0x100000000ULL;
-  /*
+
     moveto = (saved_mem_upper + 0x400) << 10;
 
   if (moveto > 0x100000000ULL)
       moveto = 0x100000000ULL;
-  */
   top_addr = moveto;
 
   /* XXX: Linux 2.3.xx has a bug in the memory range check, so avoid
@@ -1002,10 +1015,10 @@ load_initrd (char *initrd)
      worse than that of Linux 2.3.xx, so avoid the last 64kb. *sigh*  */
   moveto -= 0x10000;
 
-/*
+
   if (moveto > tmp)
       moveto = tmp;
-*/
+
   moveto &= 0xfffff000;
 
   if (debug > 2)
@@ -1062,10 +1075,10 @@ next_file:
 	    linux_header->ramdisk_size += 0xFFF;
 	    linux_header->ramdisk_size &= 0xFFFFF000;
 		tmp += initrd_drver_block;
-		sprintf (map_tmp, "--mem=-%d (md)0x%x+0x%x (0x22)", (unsigned long)tmp,linux_header->ramdisk_image>>9,linux_header->ramdisk_size>>9);	// INITRD_DRIVE
+		sprintf (map_tmp, "--mem=-%d (md)0x%x+0x%x (0x22)", (unsigned long long)tmp,linux_header->ramdisk_image>>9,linux_header->ramdisk_size>>9);	// INITRD_DRIVE
 		map_func ("(0x22) (0x22)", 0/*flags*/);
 	} else {
-		sprintf (map_tmp, "--mem=-%d (md)0x800+8 (0x22)", (unsigned long)tmp);	// INITRD_DRIVE
+		sprintf (map_tmp, "--mem=-%d (md)0x800+8 (0x22)", (unsigned long long)tmp);	// INITRD_DRIVE
 	}
 
 	initrd_drver_block = tmp;
@@ -1093,7 +1106,7 @@ next_file:
 	}
 	top_addr = moveto = initrd_start_sector << 9;
 	moveto += linux_header->ramdisk_size;
-	memset ((char *)(unsigned long)moveto, 0, (tmp << 9)-linux_header->ramdisk_size);
+	memset ((char *)(unsigned long long)moveto, 0, (tmp << 9)-linux_header->ramdisk_size);
 	initrd = arg;
 	len = linux_header->ramdisk_size;
 
@@ -1129,8 +1142,6 @@ next_file1:
 
 	if (tmp != filemax)
 	{
-		//sprintf (map_tmp, "(0x22) (0x22)");	// INITRD_DRIVE
-		//map_func (map_tmp, 0/*flags*/);
 		map_func ("(0x22) (0x22)", 0/*flags*/);
 		if (! errnum)
 			errnum = ERR_READ;
@@ -1157,7 +1168,7 @@ next_file1:
 	buf_track = -1;
   }
   if (debug > 0)
-      printf ("   [Linux-initrd @ 0x%x, 0x%x bytes]\n", (unsigned long)top_addr, (unsigned long)len);
+      printf ("   [Linux-initrd @ 0x%x, 0x%x bytes]\n", (unsigned long long)top_addr, (unsigned long long)len);
 
   /* FIXME: Should check if the kernel supports INITRD.  */
   linux_header->ramdisk_image = RAW_ADDR (top_addr);
@@ -1166,6 +1177,8 @@ next_file1:
  fail:
 
   return ! errnum;
+#endif
+  return 0;
 }
 
 
@@ -1184,7 +1197,7 @@ bsd_boot (kernel_t type, int bootdev, char *arg)
   int clval = 0, i;
 
   struct bootinfo *bi = (struct bootinfo *)mbr;	// tmp. use mbr
-  stop_floppy ();
+ // stop_floppy ();
 
   while (*(++arg) && *arg != ' ');
   str = arg;
@@ -1250,9 +1263,9 @@ bsd_boot (kernel_t type, int bootdev, char *arg)
 	  /* FIXME: If HEADS or SECTORS is greater than 255, then this will
 	     break the geometry information. That is a drawback of BSD
 	     but not of GRUB.  */
-	  bi->bi_bios_geom[i] = (((tmp_geom.cylinders - 1) << 16)
-				+ (((tmp_geom.heads - 1) & 0xff) << 8)
-				+ (tmp_geom.sectors & 0xff));
+//	  bi->bi_bios_geom[i] = (((tmp_geom.cylinders - 1) << 16)
+//				+ (((tmp_geom.heads - 1) & 0xff) << 8)
+//				+ (tmp_geom.sectors & 0xff));
 	}
 
       bi->bi_size = sizeof (struct bootinfo);
@@ -1281,7 +1294,7 @@ bsd_boot (kernel_t type, int bootdev, char *arg)
 
       /* call entry point */
       //(*entry_addr) (clval, bootdev, 0, 0, 0, ((int) bi));
-      multi_boot ((int) entry_addr, clval, bootdev, 0, 0, 0, ((int) bi));
+     // multi_boot ((int) entry_addr, clval, bootdev, 0, 0, 0, ((int) bi));
     }
   else
     {
@@ -1305,15 +1318,15 @@ bsd_boot (kernel_t type, int bootdev, char *arg)
        */
 
       /* call entry point */
-      unsigned long end_mark;
+      //unsigned long end_mark;
 
-      if (mbi.flags & MB_INFO_AOUT_SYMS)
-	end_mark = (mbi.syms.a.addr + 4 + mbi.syms.a.tabsize + mbi.syms.a.strsize);
-      else
+      //if (mbi.flags & MB_INFO_AOUT_SYMS)
+	//end_mark = (mbi.syms.a.addr + 4 + mbi.syms.a.tabsize + mbi.syms.a.strsize);
+      //else
 	/* FIXME: it should be mbi.syms.e.size.  */
-	end_mark = 0;
+	//end_mark = 0;
       
       //(*entry_addr) (clval, bootdev, 0, end_mark, extended_memory, (*(unsigned short *)0x413)/*saved_mem_lower*/);
-      multi_boot ((int) entry_addr, clval, bootdev, 0, end_mark, extended_memory, (*(unsigned short *)0x413)/*saved_mem_lower*/);
+      //multi_boot ((int) entry_addr, clval, bootdev, 0, end_mark, extended_memory, (*(unsigned short *)0x413)/*saved_mem_lower*/);
     }
 }

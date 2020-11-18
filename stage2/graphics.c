@@ -1,6 +1,6 @@
 /* graphics.c - graphics mode support for GRUB */
 /* Implemented as a terminal type by Jeremy Katz <katzj@redhat.com> based
- * on a patch by Paulo C�sar Pereira de Andrade <pcpa@conectiva.com.br>
+ * on a patch by Paulo C閟ar Pereira de Andrade <pcpa@conectiva.com.br>
  */
 /*
  *  GRUB  --  GRand Unified Bootloader
@@ -31,266 +31,71 @@
 #include <graphics.h>
 
 //static int saved_videomode = 0;
-extern unsigned char *font8x16;
+//extern unsigned char *font8x16;
 
 int outline = 0;
-extern unsigned long is_highlight;
-extern unsigned long graphics_inited;
-char splashimage[128];
+extern unsigned int is_highlight;
+extern unsigned int graphics_inited;
 
 #define VSHADOW VSHADOW1
-#if 0
-/* 8x16 dot array, total chars = 80*30. plano size = 80*30*16 = 38400 bytes */
-/* 8x16 dot array, total chars = 100*37. plano size = 800*600/8 = 60000 bytes */
-static unsigned char *VSHADOW1 = (unsigned char *)0x3A0000;	//unsigned char VSHADOW1[60000];
-static unsigned char *VSHADOW2 = (unsigned char *)0x3AEA60;	//unsigned char VSHADOW2[60000];
-static unsigned char *VSHADOW4 = (unsigned char *)0x3BD4C0;	//unsigned char VSHADOW4[60000];
-static unsigned char *VSHADOW8 = (unsigned char *)0x3CBF20;	//unsigned char VSHADOW8[60000]; end at 0x3DA980
-/* text buffer has to be kept around so that we can write things as we
- * scroll and the like */
-//static unsigned short text[80 * 30];
-static unsigned long *text = (unsigned long *)0x3FC000; // length in bytes = 100*37*4 = 0x39D0
-#endif
+
 //extern unsigned long splashimage_loaded;
 
 /* constants to define the viewable area */
-unsigned long x1 = 80;
-unsigned long y1 = 30;
-unsigned long font_w = 8;
-unsigned long font_h = 16;
+unsigned int x1 = 80;
+unsigned int y1 = 30;
+unsigned int font_w = 8;
+unsigned int font_h = 16;
 unsigned char num_wide = (16+7)/8;
-unsigned long font_spacing = 0;
-unsigned long line_spacing = 0;
-unsigned long xpixels = 640;
-unsigned long ypixels = 480;
-unsigned long plano_size = 38400;
-unsigned long graphics_mode = 3;
-unsigned long current_x_resolution;
-unsigned long current_y_resolution;
-unsigned long current_bits_per_pixel;
-unsigned long current_bytes_per_scanline;
-unsigned long current_bytes_per_pixel;
-unsigned long current_phys_base;
-unsigned long image_pal[16];
+unsigned int font_spacing = 0;
+unsigned int line_spacing = 0;
+unsigned int xpixels = 640;
+unsigned int ypixels = 480;
+unsigned int plano_size = 38400;
+unsigned int graphics_mode = 3;
+unsigned int current_x_resolution;
+unsigned int current_y_resolution;
+unsigned int current_bits_per_pixel;
+unsigned int current_bytes_per_scanline;
+unsigned int current_bytes_per_pixel;
+unsigned int current_phys_base;
+unsigned int image_pal[16];
+extern int use_phys_base;
+int use_phys_base=0;
 
 /* why do these have to be kept here? */
-unsigned long foreground = 0xFFFFFF; //(63 << 16) | (63 << 8) | (63)
-unsigned long background = 0;
+unsigned int foreground = 0xFFFFFF; //(63 << 16) | (63 << 8) | (63)
+unsigned int background = 0;
 
 /* global state so that we don't try to recursively scroll or cursor */
 //static int no_scroll = 0;
 
 /* graphics local functions */
 static void graphics_scroll (void);
-void SetPixel (unsigned long x, unsigned long y, unsigned long color);
-void XorPixel (unsigned long x, unsigned long y, unsigned long color);
+void SetPixel (unsigned int x, unsigned int y, unsigned int color);
+void XorPixel (unsigned int x, unsigned int y, unsigned int color);
 static int read_image (void);
 //static void graphics_cursor (int set);
 static void vbe_cursor (int set);
 void rectangle(int left, int top, int length, int width, int line);
 extern void (*graphics_CURSOR) (int set);
-unsigned long pixel_shift(unsigned long color);
+unsigned int pixel_shift(unsigned int color);
 /* FIXME: where do these really belong? */
 static inline void outb(unsigned short port, unsigned char val)
 {
     __asm __volatile ("outb %0,%1"::"a" (val), "d" (port));
 }
-#if 0
-static void MapMask(int value) {
-    outb(0x3c4, 2);
-    outb(0x3c5, value);
-}
 
-/* bit mask register */
-static void BitMask(int value) {
-    outb(0x3ce, 8);
-    outb(0x3cf, value);
-}
-#endif
 extern void memmove_forward_SSE (void *dst, const void *src, unsigned int len);
 
-#if 0
-#if 1
-/* memmove using SSE */
-static void _memcpy_forward (void *dst, const void *src, unsigned int len)
-{
-#if 0
-  asm ("  movl	%cr0, %eax");
-  asm ("  orb	$2, %al");			// set CR0.MP
-  asm ("  movl	%eax, %cr0");
-  asm ("  movl	%cr4, %eax");
-  asm ("  orb	$0x6, %ah");// set CR4.OSFXSR (bit 9) OSXMMEXCPT (bit 10)
-  asm ("  movl	%eax, %cr4");
-#endif
-
-#if 1
-  /* this piece of code must exist! or else gcc will fail to run the asm
-   * code that immediately follows. So do not comment out this C code! */
-  if (((int)src | (int)dst) & 0xF)
-  {
-	fontx = fonty = 0;
-	printf ("Unaligned!\n");
-	return;
-  }
-#endif
-  asm ("  pushl %esi");
-  asm ("  pushl %edi");
-  asm ("  cld");
-  asm ("  movl	%0, %%edi" : :"m"(dst));
-  asm ("  movl	%0, %%esi" : :"m"(src));
-  asm ("  movl	%0, %%ecx" : :"m"(len));
-  asm ("  shrl	$7, %ecx");	// ECX = len / (16 * 8)
-  asm ("1:");
-#if 1
-  asm ("  movdqa	(%esi), %xmm0");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntps	%xmm0, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	(%esi), %xmm1");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntps	%xmm1, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	(%esi), %xmm2");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntps	%xmm2, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	(%esi), %xmm3");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntps	%xmm3, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	(%esi), %xmm4");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntps	%xmm4, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	(%esi), %xmm5");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntps	%xmm5, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	(%esi), %xmm6");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntps	%xmm6, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	(%esi), %xmm7");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntps	%xmm7, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-#else
-#if 1
-  asm ("  movdqa	(%esi), %xmm0");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movdqa	(%esi), %xmm1");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movdqa	(%esi), %xmm2");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movdqa	(%esi), %xmm3");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movdqa	(%esi), %xmm4");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movdqa	(%esi), %xmm5");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movdqa	(%esi), %xmm6");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movdqa	(%esi), %xmm7");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-#else
-  asm ("  movntdqa	(%esi), %xmm0");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntdqa	(%esi), %xmm1");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntdqa	(%esi), %xmm2");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntdqa	(%esi), %xmm3");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntdqa	(%esi), %xmm4");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntdqa	(%esi), %xmm5");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntdqa	(%esi), %xmm6");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-  asm ("  movntdqa	(%esi), %xmm7");	// works on PIII and up
-  asm ("  addl	$16, %esi");
-#endif
-#if 0
-  asm ("  movdqa	%xmm0, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	%xmm1, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	%xmm2, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	%xmm3, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	%xmm4, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	%xmm5, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	%xmm6, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movdqa	%xmm7, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-#else
-  asm ("  movntps	%xmm0, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movntps	%xmm1, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movntps	%xmm2, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movntps	%xmm3, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movntps	%xmm4, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movntps	%xmm5, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movntps	%xmm6, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-  asm ("  movntps	%xmm7, (%edi)");	// works on PIII and up
-  asm ("  addl	$16, %edi");
-#endif
-#endif
-  asm ("  loop	1b");
-  asm ("  popl %edi");
-  asm ("  popl %esi");
-}
-
-#else
-
-static inline void * _memcpy_forward(void *dst, const void *src, unsigned int len)
-{
-    int r0, r1, r2, r3;
-    __asm__ __volatile__(
-	"movl %%ecx, %0; shrl $2, %%ecx; "	// ECX=(len / 4)
-	"rep; movsl; "
-	"movl %0, %%ecx; andl $3, %%ecx; "	// ECX=(len % 4)
-	"rep; movsb; "
-	: "=&r"(r0), "=&c"(r1), "=&D"(r2), "=&S"(r3)
-	: "1"(len), "2"((long)dst), "3"((long)src)
-	: "memory");
-    return dst;
-}
-#endif
-#endif
-#if 0
-static inline void _memset(void *dst, unsigned char data, unsigned int len)
-{
-    int r0,r1,r2,r3;
-    __asm__ __volatile__ (
-	"movb %b2, %h2; movzwl %w2, %3; shll $16, %2; orl %3, %2; "	// duplicate data into all 4-bytes of EAX
-	"movl %0, %3; shrl $2, %0; "	// ECX=(len / 4)
-	"rep; stosl;  "
-	"movl %3, %0; andl $3, %0; "	// ECX=(len % 4)
-	"rep; stosb;  "
-	:"=&c"(r1),"=&D"(r2),"=&a"(r0),"=&r"(r3)
-	:"0"(len),"1"(dst),"2"(data)
-	:"memory");
-}
-#endif
-void SetPixel (unsigned long x, unsigned long y, unsigned long color)
+void SetPixel (unsigned int x, unsigned int y, unsigned int color)
 {
 	unsigned char *lfb;
 
 	if (x < 0 || y < 0 || x >= current_x_resolution || y >= current_y_resolution)
 		return;
 
-	lfb = (unsigned char *)(current_phys_base + (y * current_bytes_per_scanline) + (x * current_bytes_per_pixel));
+	lfb = (unsigned char *)(grub_size_t)(current_phys_base + (y * current_bytes_per_scanline) + (x * current_bytes_per_pixel));
 	switch (current_bits_per_pixel)
 	{
 	case 24:
@@ -298,7 +103,7 @@ void SetPixel (unsigned long x, unsigned long y, unsigned long color)
 		lfb[2] = (unsigned char)(color >> 16);
 		break;
 	case 32:
-		*(unsigned long *)lfb = (unsigned long)color;
+		*(unsigned int *)lfb = (unsigned int)color;
 		break;
 	default:
 		*(unsigned short *)lfb = (unsigned short)color;
@@ -306,14 +111,14 @@ void SetPixel (unsigned long x, unsigned long y, unsigned long color)
 	}
 }
 
-void XorPixel (unsigned long x, unsigned long y, unsigned long color)
+void XorPixel (unsigned int x, unsigned int y, unsigned int color)
 {
 	unsigned char *lfb;
 
-	if (x < 0 || y < 0 || x >= current_x_resolution || y >= current_y_resolution)
+	if (x >= current_x_resolution || y >= current_y_resolution)
 		return;
 
-	lfb = (unsigned char *)(current_phys_base + (y * current_bytes_per_scanline) + (x * current_bytes_per_pixel));
+	lfb = (unsigned char *)(grub_size_t)(current_phys_base + (y * current_bytes_per_scanline) + (x * current_bytes_per_pixel));
 	switch (current_bits_per_pixel)
 	{
 	case 24:
@@ -321,7 +126,7 @@ void XorPixel (unsigned long x, unsigned long y, unsigned long color)
 		lfb[2] ^= (unsigned char)(color >> 16);
 		break;
 	case 32:
-		*(unsigned long *)lfb ^= (unsigned long)color;
+		*(unsigned int *)lfb ^= (unsigned int)color;
 		break;
 	default:
 		*(unsigned short *)lfb ^= (unsigned short)color;
@@ -332,172 +137,72 @@ void XorPixel (unsigned long x, unsigned long y, unsigned long color)
 /* Initialize a vga16 graphics display with the palette based off of
  * the image in splashimage.  If the image doesn't exist, leave graphics
  * mode.  */
+int graphics_init (void);
 int
 graphics_init (void)
 {
-//    if (! graphics_CURSOR)
-//	  graphics_CURSOR = (void *)&graphics_cursor;
-	
-    if (! graphics_inited)
-    {
+  if (! graphics_inited)		//如果不在图形模式
+  {
 	/* get font info before seting mode! some buggy BIOSes destroyed the
 	 * red planar of the VGA on geting font info call. So we should set
 	 * mode only after the get font info call.
 	 */
-	//if (! font8x16)
-	//    font8x16 = graphics_get_font ();
-
-	if (graphics_mode > 0xFF) /* VBE */
-	{
-	    if (graphics_mode == 0x102)
-	    {
-//		if (set_vbe_mode (graphics_mode) != 0x004F)
-//		{
-			graphics_end ();
-			return !(errnum = ERR_SET_VBE_MODE);
-//		}
-//		graphics_mode = 0x6A;
-//		goto success;
-	    }
-	    if (set_vbe_mode (graphics_mode | (1 << 14)) != 0x004F)
-	    {
-		graphics_end ();
-		return !(errnum = ERR_SET_VBE_MODE);
-	    }
-
+    if (graphics_mode > 0xFF) /* VBE */
+    {
 	    current_term->chars_per_line = x1 = current_x_resolution / (font_w + font_spacing);
 	    current_term->max_lines = y1 = current_y_resolution / (font_h + line_spacing);
 
 	    /* here should read splashimage. */
 	    graphics_CURSOR = (void *)&vbe_cursor;
-	    //graphics_inited = 1;
-	    //return 1;
-	}
-#if 0
-	else
-	{
-	    unsigned long tmp_mode;
-	    //saved_videomode = set_videomode (graphics_mode);
-	    /* the mode set could fail !! */
-	    if (graphics_mode == 0x12)
-	    {
-		if (set_videomode (graphics_mode) != graphics_mode)
-		{
-			graphics_end ();
-			return !(errnum = ERR_SET_VGA_MODE);
-		}
-		current_term->chars_per_line = x1 = 80;
-		current_term->max_lines = y1 = 30;
-		xpixels = 640;
-		ypixels = 480;
-		plano_size = (640 * 480) / 8;
-	    }
-	    else /* 800x600x4 */
-	    {
-		/* first, try VBE mode 0x102 anyway */
-		if (set_vbe_mode (0x102) == 0x004F)
-			goto success;
-		if (set_videomode (graphics_mode) != graphics_mode
-			|| (*(unsigned char *)(0x8000 + 64) != 0x1B)
-			|| (*(unsigned char *)(0x8000 + 4) != graphics_mode)
-			|| (*(unsigned short *)(0x8000 + 5) != 100)
-			/* qemu bug: byte at 0x22 should be 37, but only 36 */
-			|| (((*(unsigned char *)(0x8000 + 0x22)) & 0xFE) != 36)
-			|| (*(unsigned short *)(0x8000 + 0x23) != 16)
-			|| (*(unsigned short *)(0x8000 + 0x27) != 16)
-			/* qemu bug: byte at 0x29 should be 1, but was 8 */
-			/*|| (*(unsigned char *)(0x8000 + 0x29) != 1)*/
-			)
-		{
-		  /* probe 800x600x4 modes */
-		  for (tmp_mode = 0x15; tmp_mode < 0x78; tmp_mode++)
-		  {
-		    if (set_videomode (tmp_mode) == tmp_mode
-			&& (*(unsigned char *)(0x8000 + 64) == 0x1B)
-			&& (*(unsigned char *)(0x8000 + 4) == tmp_mode)
-			&& (*(unsigned short *)(0x8000 + 5) == 100)
-			/* qemu bug: byte at 0x22 should be 37, but only 36 */
-			&& (((*(unsigned char *)(0x8000 + 0x22)) & 0xFE) == 36)
-			&& (*(unsigned short *)(0x8000 + 0x23) == 16)
-			&& (*(unsigned short *)(0x8000 + 0x27) == 16)
-			/* qemu bug: byte at 0x29 should be 1, but was 8 */
-			/*&& (*(unsigned char *)(0x8000 + 0x29) == 1)*/
-			)
-		    {
-			/* got it! */
-			graphics_mode = tmp_mode;
-			goto success;
-		    }
-		  }
-		  graphics_end ();	/* failure, go back to console. */
-		  return !(errnum = ERR_SET_VGA_MODE);
-		}
-success:
-		current_term->chars_per_line = x1 = 100;
-		current_term->max_lines = y1 = 37;
-		xpixels = 800;
-		ypixels = 600;
-		plano_size = (800 * 600) / 8;
-	    }
-	}
-#endif
-	else
-		return !(errnum = ERR_SET_VBE_MODE);
-	menu_border.disp_ul = 0x14;
-	menu_border.disp_ur = 0x15;
-	menu_border.disp_ll = 0x16;
-	menu_border.disp_lr = 0x13;
-	menu_border.disp_horiz = 0x0F;
-	menu_border.disp_vert = 0x0E;
+			graphics_inited = 1;
     }
+  }
 
-  if (! fill_color)
+  if (fill_color)//如果是满屏单色
   {
-    if (! read_image ())
+    if (use_phys_base == 0)
+      if (!IMAGE_BUFFER)
+      {
+        IMAGE_BUFFER = grub_malloc (current_x_resolution * current_y_resolution * current_bits_per_pixel);
+        splashimage_loaded = (unsigned int)(grub_size_t)IMAGE_BUFFER;
+        splashimage_loaded |= 2;
+//        *splashimage = 1;
+      }
+
+    vbe_fill_color(fill_color);
+    fill_color = 0;
+  }
+  else if (splashimage[0] && splashimage[0] != 0xd && splashimage[0] != 0xa)
+  {
+    if (! read_image ())  //如果加载图像失败
     {
-	//set_videomode (3/*saved_videomode*/);
-//	graphics_end ();
-	return !(errnum = ERR_LOAD_SPLASHIMAGE);
+      return !(errnum = ERR_LOAD_SPLASHIMAGE);
     }
   }
-  else
-  {
-    *splashimage = 1;
-    splashimage_loaded = IMAGE_BUFFER;
-    splashimage_loaded |= 2;
-  }
-
-    fontx = fonty = 0;
-    graphics_inited = graphics_mode;
-
-    return 1;
+  
+  fontx = fonty = 0;
+  graphics_inited = graphics_mode;
+  return 1;
 }
 
 /* Leave graphics mode */
+void graphics_end (void);
 void
 graphics_end (void)
-{
-	current_term = term_table; /* set terminal to console */
-	set_videomode (3); /* set normal 80x25 text mode. */
-	set_videomode (3); /* set it once more for buggy BIOSes. */
-
-	menu_border.disp_ul = 218;
-	menu_border.disp_ur = 191;
-	menu_border.disp_ll = 192;
-	menu_border.disp_lr = 217;
-	menu_border.disp_horiz = 196;
-	menu_border.disp_vert = 179;
-
+{ 
+  current_term = term_table; /* set terminal to console */
+  current_term->startup();
 	graphics_CURSOR = 0;
 	fontx = fonty = 0;
 	graphics_inited = 0;
 }
 
-static unsigned long pending = 0;
-static unsigned long byte_SN;
-static unsigned long unicode;
-static unsigned long invalid;
+static unsigned int pending = 0;
+static unsigned int byte_SN;
+static unsigned int unicode;
+static unsigned int invalid;
 
+static void check_scroll (void);
 static void
 check_scroll (void)
 {
@@ -511,28 +216,30 @@ check_scroll (void)
 		++count_lines;
 }
 
-unsigned long ged_unifont_simp (unsigned long unicode);
-static unsigned long
-print_unicode (unsigned long max_width)
+int scroll_state = 0;
+unsigned int ged_unifont_simp (unsigned int unicode);
+static unsigned int graphics_print_unicode (unsigned int max_width);
+static unsigned int
+graphics_print_unicode (unsigned int max_width)
 {
-    unsigned long i, j/*, k*/;
-//    unsigned long pat;
-    unsigned long char_width;
-    unsigned long bgcolor;
-    unsigned long CursorX,CursorY;
+    unsigned int i, j/*, k*/;
+//    unsigned int pat;
+    unsigned int char_width;
+    unsigned int bgcolor;
+    unsigned int CursorX,CursorY;
 	unsigned char *lfb, *pat, *p;
 	unsigned char column;
-//	unsigned char tem;
 	unsigned long long dot_matrix;
-//	unsigned char buf[64*64/8];
+	unsigned long long back_color_64bit;
+	unsigned int back_color;
 	
 	CursorX = fontx * (font_w + font_spacing);
 	CursorY = fonty * (font_h + line_spacing);
-
-	//print triangle
+;
+	//print triangle	打印三角形
 	if (unicode==0x10 || unicode==0x11)
 	{
-		lfb = (unsigned char *)(current_phys_base + CursorY*current_bytes_per_scanline + CursorX*current_bytes_per_pixel);
+		lfb = (unsigned char *)(grub_size_t)(current_phys_base + CursorY*current_bytes_per_scanline + CursorX*current_bytes_per_pixel);
 		for (i=0;i<font_w;++i)
 		{
 			if (unicode==0x10)
@@ -548,9 +255,9 @@ print_unicode (unsigned long max_width)
 					*(p+2) = (unsigned char)(current_color_64bit>>16);
 				}
 				else if(current_bytes_per_pixel == 4)
-					*(unsigned long *)p = (unsigned long)current_color_64bit;
+					*(unsigned int *)p = (unsigned int)current_color_64bit;
 				else
-					*(unsigned short *)p = (unsigned short)pixel_shift((unsigned long)current_color_64bit);
+					*(unsigned short *)p = (unsigned short)pixel_shift((unsigned int)current_color_64bit);
 				
 				p += current_bytes_per_scanline;
 			}
@@ -562,50 +269,9 @@ print_unicode (unsigned long max_width)
 	if (unifont_simp_on)
 		unicode = ged_unifont_simp (unicode);
     char_width = 2;				/* wide char */
-//    pat = UNIFONT_START + (unicode << 5);
 		pat = (unsigned char *)UNIFONT_START + unicode*num_wide*font_h;
 
-//    if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
-//	{ --char_width; pat += 16; }		/* narrow char */
-#if 0
-	if (font_type==BIN && scan_mode==HORIZ)
-	{
-		p = pat;
-		//HORIZ to VERTI
-		for (i = 0; i < font_h; i++)
-		{
-			dot_matrix = 0;
-			for (j=0; j<font_h; j++)
-			{
-				unsigned long long t = 0;
-				t = p[(i>>3)+(j*num_wide)];
-				if (store_mode==H_TO_L)
-					dot_matrix |= ((t >> ((8*num_wide-1-i) & 7)) & 1) << j;
-				else	//store_mode==L_TO_H
-					dot_matrix |= ((t >> (i & 7)) & 1) << j;	
-			}
-			for (j=0; j<num_wide; j++)
-				buf[i*num_wide +j] = (dot_matrix >> j*8)&0xff;
-		}
-		pat = buf;
-	}
-
-	p = pat;
-	if (font_type)	//BIN,etc
-	{
-		p += num_wide*font_w;
-	i=0;
-	while (i<num_wide*font_w && *p==0)
-	{
-		i++;
-		p++;
-	}
-	if (i==num_wide*font_w || unicode < 0x80)
-		--char_width;
-	}
-	else if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
-#endif
-		if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
+		if (*(unsigned int *)pat == narrow_char_indicator || unicode < 0x80)
 		{
 			--char_width;
 			pat += num_wide*font_w;
@@ -614,72 +280,53 @@ print_unicode (unsigned long max_width)
     if (max_width < char_width)
 	return (1 << 31) | invalid | (byte_SN << 8); // printed width = 0
 
-    if (cursor_state & 1)
+		if (cursor_state & 1)
 	graphics_CURSOR(0);
-
+//打印字符背景色
     /* print CRLF and scroll if needed */
     if (fontx + char_width > current_term->chars_per_line)
 	{ fontx = 0; check_scroll (); }
 
-	if (!(splashimage_loaded & 2) || !(cursor_state & 2) || (is_highlight && current_color_64bit >> 32) || (current_color_64bit & 0x1000000000000000))
+	if ((cursor_state & 2) && 															//如果在菜单界面, 并且
+					(!(splashimage_loaded & 2)											//没有加载背景图像.
+					|| (is_highlight && current_color_64bit >> 32)	//或者,菜单高亮并且有背景色(无论加载图像与否)
+					|| (current_color_64bit & 0x1000000000000000)))	//或者,强制背景色(无论加载图像与否)
+		bgcolor = current_color_64bit >> 32 | 0x1000000;			//则显示字符背景色
+	else if ((cursor_state & 1) || 	scroll_state)						//如果在命令行界面
+	{
+		back_color_64bit = current_color_64bit;
+		back_color = current_color;
+		current_term->setcolorstate (COLOR_STATE_STANDARD);		//显示控制台背景色
 		bgcolor = current_color_64bit >> 32 | 0x1000000;
-	else
+		current_color_64bit = back_color_64bit;
+		current_color = back_color;
+	}
+	else																										//否则显示图像(背景透明)
 		bgcolor = 0;
 
-//	CursorX = fontx * (font_w + font_spacing);
-//	CursorY = fonty * (font_h + line_spacing);
 	for (i = 0; i<char_width * (font_w+font_spacing);++i)
 	{
-		unsigned long tmp_x = CursorX + i;
+		unsigned int tmp_x = CursorX + i;
 		for (j = 0;j<font_h+line_spacing;++j)
 		{
-//			SetPixel (tmp_x, CursorY + j,bgcolor?bgcolor : SPLASH_IMAGE[tmp_x+(CursorY+j)*SPLASH_W]);
 			lfb = (unsigned char *)SPLASH_IMAGE + tmp_x*current_bytes_per_pixel + (CursorY+j)*current_bytes_per_scanline;
-			SetPixel (tmp_x, CursorY + j,bgcolor?bgcolor : *(unsigned long *)lfb);
+			SetPixel (tmp_x, CursorY + j, bgcolor ? bgcolor : *(unsigned int *)lfb);
 		}
 	}
-
+//打印字符前景色
 	CursorX += font_spacing>>1;
 	CursorY += line_spacing>>1;
-
-#if 0
-    /* print dot matrix of the unicode char */
-    for (i = 0; i < char_width * font_w; ++i)
-    {
-	unsigned long tmp_x = CursorX + i;
-	unsigned long column = ((unsigned short *)pat)[i];
-	for (j = 0; j < font_h; ++j)
-	{
-	    /* print char using foreground and background colors. */
-	    if ((column >> j) & 1)
-			{
-				if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
-			SetPixel (tmp_x, CursorY + j,current_color_64bit);
-				else
-					SetPixel (tmp_x, CursorY + j,pixel_shift(current_color_64bit));
-			}
-	}
-    }
-#endif
 
 	/* print dot matrix of the unicode char */
 	for (i = 0; i < char_width * font_w; ++i)
 	{
-		unsigned long tmp_x = CursorX + i;
+		unsigned int tmp_x = CursorX + i;
 		dot_matrix = 0;
 		for(j = 0; j < num_wide; j++)
 		{
 			column = *(unsigned char *)pat;
 			pat++;
-#if 0
-			if (font_type==BIN && scan_mode==VERTI && store_mode==H_TO_L)
-			{
-				tem = 0;
-				for(k = 0; k < 8; k++)		//l to h
-					tem |= ((column & (0x80 >> k))?(1<< k):0);
-				column = tem;
-			}
-#endif
+
 			dot_matrix |= (((unsigned long long)column) << j*8);
 		}
 		for (j = 0; j < font_h; ++j)
@@ -694,10 +341,10 @@ print_unicode (unsigned long max_width)
 			}
 		}
 	}
-//#endif
+
 triangle:
     fontx += char_width;
-    if (cursor_state & 1)
+		if (cursor_state & 1)
     {
 	if (fontx >= current_term->chars_per_line)
 	    { fontx = 0; check_scroll (); }
@@ -706,12 +353,24 @@ triangle:
     return invalid | (byte_SN << 8) | char_width;
 }
 
-static unsigned long
-print_invalid_pending_bytes (unsigned long max_width)
+static unsigned int print_unicode (unsigned int max_width);
+static unsigned int
+print_unicode (unsigned int max_width)
 {
-    unsigned long tmpcode = unicode;
-    unsigned long ret = 0;
+	if (current_term != term_table)
+		return graphics_print_unicode (max_width);
+	else
+		console_print_unicode (unicode, max_width);
 
+	return invalid | (byte_SN << 8) | (unicode < 0x80 ? 1 : 2);
+}
+
+static unsigned int print_invalid_pending_bytes (unsigned int max_width);
+static unsigned int
+print_invalid_pending_bytes (unsigned int max_width)
+{
+    unsigned int tmpcode = unicode;
+    unsigned int ret = 0;
     /* now pending is on, so byte_SN can tell the number of bytes, and
      * unicode can tell the value of each byte.
      */
@@ -720,7 +379,7 @@ print_invalid_pending_bytes (unsigned long max_width)
     {
 	unicode = (unicode >> 6) | 0xDCE0;	/* the 1st byte */
 	ret = print_unicode (max_width);
-	if ((long)ret < 0)
+	if ((int)ret < 0)
 	    return ret;
 	max_width -= (unsigned char)ret;
 	unicode = (tmpcode & 0x3F) | 0xDC80;	/* the 2nd byte */
@@ -731,42 +390,27 @@ print_invalid_pending_bytes (unsigned long max_width)
 }
 
 /* Print ch on the screen.  Handle any needed scrolling or the like */
+unsigned int graphics_putchar (unsigned int ch, unsigned int max_width);
 unsigned int
 graphics_putchar (unsigned int ch, unsigned int max_width)
 {
-    unsigned long ret;
+	unsigned int ret;
+	invalid = 0;
 
+	if (current_term != term_table)
+	{
     if (fontx >= current_term->chars_per_line)
         { fontx = 0; check_scroll (); }
 
     if (graphics_mode <= 0xFF)
-//	goto vga;
 			return 0;
-
-    /* VBE */
-
-    invalid = 0;
-
-    if ((unsigned char)ch > 0x7F)	/* multi-byte */
-	goto multibyte;
-
-    if (pending)	/* print (byte_SN) invalid bytes */
-    {
-	ret = print_invalid_pending_bytes (max_width);
-	pending = 0;	/* end the utf8 byte sequence */
-	if ((long)ret < 0)
-	    return ret;
-	max_width -= (unsigned char)ret;
-    }
-
-    if (! max_width)
-	return (1 << 31);	/* printed width = 0 */
 
     if (cursor_state & 1)
 	graphics_CURSOR(0);
 
     if ((char)ch == '\n')
     {
+	fontx = 0;
 	check_scroll ();
 	if (cursor_state & 1)
 	    graphics_CURSOR(1);
@@ -779,11 +423,28 @@ graphics_putchar (unsigned int ch, unsigned int max_width)
 	    graphics_CURSOR(1);
 	return 1;
     }
+	}
+	
+    if ((unsigned char)ch > 0x7F)	/* multi-byte */
+	goto multibyte;
+
+    if (pending)	/* print (byte_SN) invalid bytes */
+    {
+	ret = print_invalid_pending_bytes (max_width);
+	pending = 0;	/* end the utf8 byte sequence */
+	if ((int)ret < (int)0)
+	    return ret;
+	max_width -= (unsigned char)ret;
+    }
+
+    if (! max_width)
+	return (1 << 31);	/* printed width = 0 */
+
+
     /* we know that the ASCII chars are all narrow */
     unicode = ch;
     return print_unicode (1);
 multibyte:
-
     if (! (((unsigned char)ch) & 0x40))	/* continuation byte 10xxxxxx */
     {
 	if (! pending)
@@ -797,11 +458,9 @@ multibyte:
 	{
 	    pending--; byte_SN++;
 	    unicode = ((unicode << 6) | (ch & 0x3F));
-
 	    if (pending) /* pending = 1, awaiting the last continuation byte. */
 		return (byte_SN << 8); // succeed with printed width = 0
 	}
-
 	/* pending = 0, end the sequence, print the unicode char */
 	return print_unicode (max_width);
     }
@@ -809,8 +468,8 @@ multibyte:
     {
 	if (pending)	/* print (byte_SN) invalid bytes */
 	{
-	    ret = print_invalid_pending_bytes (max_width);
-	    if ((long)ret < 0)
+	    ret = print_invalid_pending_bytes (max_width);;
+	    if ((int)ret < (int)0)
 		return ret;
 	    max_width -= (unsigned char)ret;
 	}
@@ -824,7 +483,7 @@ multibyte:
 	if (pending)	/* print (byte_SN) invalid bytes */
 	{
 	    ret = print_invalid_pending_bytes (max_width);
-	    if ((long)ret < 0)
+	    if ((int)ret < (int)0)
 		return ret;
 	    max_width -= (unsigned char)ret;
 	}
@@ -839,7 +498,7 @@ multibyte:
     if (pending)	/* print (byte_SN) invalid bytes */
     {
 	ret = print_invalid_pending_bytes (max_width);
-	if ((long)ret < 0)
+	if ((int)ret < (int)0)
 	    return ret;
 	max_width -= (unsigned char)ret;
     }
@@ -849,51 +508,17 @@ multibyte:
     pending = 0;	/* end the utf8 byte sequence */
     /* print the current invalid byte */
     return print_unicode (max_width);
-
-//////////////////////////////////////////////////////////////////////////////
-#if 0
-vga:
-    if ((char)ch == '\n')
-    {
-	if (cursor_state & 1)
-	    graphics_CURSOR(0);
-	check_scroll ();
-	if (cursor_state & 1)
-	    graphics_CURSOR(1);
-	return 1;
-    }
-    if ((char)ch == '\r')
-    {
-	if (cursor_state & 1)
-	    graphics_CURSOR(0);
-	fontx = 0;
-	if (cursor_state & 1)
-	    graphics_CURSOR(1);
-	return 1;
-    }
-
-    text[fonty * x1 + fontx] = (unsigned char)ch;
-
-    graphics_CURSOR(0);
-
-    fontx++;
-    if (cursor_state & 1)
-    {
-	if (fontx >= x1)
-	    { fontx = 0; check_scroll (); }
-	graphics_CURSOR(1);
-    }
-    return 1;
-#endif
 }
 
 /* get the current location of the cursor */
+int graphics_getxy(void);
 int
 graphics_getxy(void)
 {
     return (fonty << 8) | fontx;
 }
 
+void graphics_gotoxy (int x, int y);
 void
 graphics_gotoxy (int x, int y)
 {
@@ -907,27 +532,21 @@ graphics_gotoxy (int x, int y)
 	graphics_CURSOR(1);
 }
 
+void graphics_cls (void);
 void
 graphics_cls (void)
 {
-//    int i;
-//    unsigned char *mem, *s1, *s2, *s4, *s8;
 	unsigned char *mem,*s1;
-
     fontx = 0;
     fonty = 0;
 
     if (graphics_mode <= 0xFF)
-//	goto vga;
 			return;
 
     /* VBE */
-    #if 0
-    _memset ((char *)current_phys_base, 0, current_y_resolution * current_bytes_per_scanline);
-    #else
-	s1 = (unsigned char *)current_phys_base;
-	unsigned long color = current_color_64bit >> 32;
-	unsigned long y,x,z;
+	s1 = (unsigned char *)(grub_size_t)current_phys_base;
+	unsigned int color = current_color_64bit >> 32;
+	unsigned int y,x,z;
 	unsigned char *lfb;
 	z = current_bytes_per_pixel;
 	
@@ -938,10 +557,9 @@ graphics_cls (void)
 		{
 			if (graphics_mode > 0xff && (splashimage_loaded & 2) && (cursor_state & 2))
 			{
-//				*(unsigned long *)mem = SPLASH_IMAGE[x+y*SPLASH_W];
 				lfb = (unsigned char *)SPLASH_IMAGE + x*current_bytes_per_pixel + y*current_bytes_per_scanline;
 				if(current_bits_per_pixel == 32)
-					*(unsigned long *)mem = *(unsigned long *)lfb;
+					*(unsigned int *)mem = *(unsigned int *)lfb;
 				else if(current_bits_per_pixel == 24)
 				{
 					*(unsigned short *)mem = *(unsigned short *)lfb;
@@ -953,7 +571,7 @@ graphics_cls (void)
 			else
 			{
 				if(current_bits_per_pixel == 32)
-					*(unsigned long *)mem = color;
+					*(unsigned int *)mem = color;
 				else if(current_bits_per_pixel == 24)
 				{
 					*(unsigned short *)mem = (unsigned short)color;
@@ -966,60 +584,10 @@ graphics_cls (void)
 		}
 		s1 += current_bytes_per_scanline;
 	}
-    #endif
+
     if (cursor_state & 1)
 	    graphics_CURSOR(1);
     return;
-#if 0
-vga:
-    mem = (unsigned char*)VIDEOMEM;
-
-    for (i = 0; i < x1 * y1; i++)
-        text[i] = ' ';
-
-    if (!(cursor_state & 2))
-    {
-	if (splashimage_loaded & 1)
-	{
-		MapMask(15);
-		_memset (mem, 0, plano_size);
-	}
-	else
-	{
-		for(i=1;i<16;i<<=1)
-		{
-			MapMask(i);
-			_memset (mem,(current_color & (i<<4))?0xff:0, plano_size);
-		}
-	}
-	return;
-    }
-
-    s1 = (unsigned char*)VSHADOW1;
-    s2 = (unsigned char*)VSHADOW2;
-    s4 = (unsigned char*)VSHADOW4;
-    s8 = (unsigned char*)VSHADOW8;
-
-    BitMask(0xff);
-
-    /* plano 1 */
-    MapMask(1);
-    memmove_forward_SSE (mem, s1, plano_size);
-
-    /* plano 2 */
-    MapMask(2);
-    memmove_forward_SSE (mem, s2, plano_size);
-
-    /* plano 3 */
-    MapMask(4);
-    memmove_forward_SSE (mem, s4, plano_size);
-
-    /* plano 4 */
-    MapMask(8);
-    memmove_forward_SSE (mem, s8, plano_size);
-
-    MapMask(15);
-#endif
 }
 
 void clear_entry (int x, int y, int w, int h);
@@ -1033,17 +601,17 @@ clear_entry (int x, int y, int w, int h)
 	for (i=0;i<h;i++)
 	{
 		source = (unsigned char *)IMAGE_BUFFER + x*current_bytes_per_pixel + y*current_bytes_per_scanline + i*current_bytes_per_scanline;
-		objective = (unsigned char *)current_phys_base + x*current_bytes_per_pixel + y*current_bytes_per_scanline + i*current_bytes_per_scanline;
+		objective = (unsigned char *)(grub_size_t)current_phys_base + x*current_bytes_per_pixel + y*current_bytes_per_scanline + i*current_bytes_per_scanline;
 		grub_memmove (objective,source,w*current_bytes_per_pixel);
 	}
 }
 
-void vbe_fill_color (unsigned long color);
+void vbe_fill_color (unsigned int color);
 
 void
-vbe_fill_color (unsigned long color)
+vbe_fill_color (unsigned int color)
 {
-  int i;
+  unsigned int i;
   unsigned char *p;
   
 	for (i=0;i<(current_x_resolution*current_y_resolution);i++)
@@ -1052,7 +620,7 @@ vbe_fill_color (unsigned long color)
 		switch (current_bits_per_pixel)
 		{
 			case 32:
-				*(unsigned long *)p = color;
+				*(unsigned int *)p = color;
 				break;
 			case 24:
 				*(unsigned short *)p = (unsigned short)(color);
@@ -1067,9 +635,7 @@ vbe_fill_color (unsigned long color)
 
 
 int animated (void);
-extern int use_phys_base;
-int use_phys_base=0;
-unsigned long delay0, delay1, name_len;
+unsigned int delay0, delay1, name_len;
 char num;
 unsigned char animated_enable;
 unsigned char animated_enable_backup;
@@ -1087,7 +653,7 @@ int animated (void)
 		animated_delay=0;
     name_len=grub_strlen(animated_name);
 		if ((num=animated_type & 0x0f) || (animated_type & 0x20))
-		{
+		{		
 			if (!(splashimage_loaded & 2) || !(cursor_state & 2))
 			{
 				setcursor (2);
@@ -1112,16 +678,17 @@ int animated (void)
 
     for (i=0; i<animated_last_num; i++)
     {
-			if (((animated_type & 0x0f) && !num) || (animated_type & 0x20 && (console_checkkey () != -1) && console_getkey ()))
+			if (((animated_type & 0x0f) && !num) || (animated_type & 0x20 && (console_checkkey () != -1)/* && console_getkey ()*/))
 			{
         animated_enable = 0;
-        animated_type = 0;
+        animated_type = 0;;
         return 0x3c00;
 			}
 
       use_phys_base=1;
       sprintf(tmp,"--offset=%d=%d=%d %s",(animated_type & 0x80),animated_offset_x,animated_offset_y,animated_name);
       splashimage_func(tmp,1);
+      use_phys_base=0;
 
       p = &animated_name[name_len-5];
       while(*p>=0x30 && *p<=0x39) p--;
@@ -1159,36 +726,32 @@ int animated (void)
 unsigned char R0,G0,B0,R1,G1,B1;
 int only;
 
+static int read_image_bmp(int type);
 static int read_image_bmp(int type)
 {
-	//struct { /* bmfh */ 
-	//	unsigned short bfType;
-	//	unsigned long bfSize; 
-	//	unsigned long bfReserved1; 
-	//	unsigned long bfOffBits;
-	//	} __attribute__ ((packed)) bmfh;
 	struct { /* bmih */ 
-		unsigned long  biSize; 
-		unsigned long  biWidth; 
-		unsigned long  biHeight; 
+		unsigned int  biSize; 
+		unsigned int  biWidth; 
+		unsigned int  biHeight; 
 		unsigned short biPlanes; 
 		unsigned short biBitCount; 
-		unsigned long  biCompression; 
-		unsigned long  biSizeImage; 
-		unsigned long  biXPelsPerMeter; 
-		unsigned long  biYPelsPerMeter; 
-		unsigned long  biClrUsed; 
-		unsigned long  biClrImportant;
+		unsigned int  biCompression; 
+		unsigned int  biSizeImage; 
+		unsigned int  biXPelsPerMeter; 
+		unsigned int  biYPelsPerMeter; 
+		unsigned int  biClrUsed; 
+		unsigned int  biClrImportant;
 	} __attribute__ ((packed)) bmih;
-	unsigned long bftmp,bfbit;
+	unsigned int bftmp,bfbit;
 	int x,y;
-	unsigned long source = 0;
+	unsigned int source = 0;
 	unsigned char R,G,B;
 	only = 0;
 	if (type == 0)
 		return 0;
 	filepos = 10;
-	if (!grub_read((unsigned long long)(unsigned int)(char*)&bftmp,4, GRUB_READ) || ! grub_read((unsigned long long)(unsigned int)&bmih,sizeof(bmih),GRUB_READ) || bmih.biBitCount < 24)
+
+	if (!grub_read((unsigned long long)(char*)&bftmp,4, GRUB_READ) || ! grub_read((unsigned long long)&bmih,sizeof(bmih),GRUB_READ) || bmih.biBitCount < 24)
 	{
 		//return !printf("Error:Read BMP Head\n");
 		return !(errnum = ERR_EXEC_FORMAT);
@@ -1197,18 +760,22 @@ static int read_image_bmp(int type)
 	bfbit = bmih.biBitCount>>3;
 	bftmp = 0;
 	//bftmp = (bmih.biWidth*(bmih.biBitCount>>3)+3)&~3;
-//	SPLASH_W = bmih.biWidth;
-//	SPLASH_H = bmih.biHeight;
-//	unsigned long *bmp = SPLASH_IMAGE;
+	SPLASH_W = bmih.biWidth;
+	SPLASH_H = bmih.biHeight;
 	unsigned char *bmp;
-//	if (debug > 0)
-//		printf("Loading splashimage...\n");
+ 
+  if (use_phys_base == 0)
+  {
+    if (!IMAGE_BUFFER)
+      IMAGE_BUFFER = grub_malloc (SPLASH_W * SPLASH_H * current_bytes_per_pixel);
+    splashimage_loaded = (grub_size_t)IMAGE_BUFFER;
+  }
+
 	for(y=bmih.biHeight-1;y>=0;--y)
 	{
-//		bmp = SPLASH_IMAGE+y*SPLASH_W;
-		for(x=0;x<bmih.biWidth;++x)
+		for(x=0;x<(int)bmih.biWidth;++x)
 		{
-			grub_read((unsigned long long)(unsigned int)(char*)&bftmp,bfbit, GRUB_READ);
+			grub_read((unsigned long long)(char*)&bftmp,bfbit, GRUB_READ);
       if (only==0)
       {
         only=1;
@@ -1245,13 +812,13 @@ static int read_image_bmp(int type)
         else
           R0 = 0;
       }
-			if(y < bmih.biHeight && x < bmih.biWidth)
+			if(y < (int)bmih.biHeight && x < (int)bmih.biWidth)
 				if((y+Y_offset) < current_y_resolution && (x+X_offset) < current_x_resolution)
 				{
 					if (use_phys_base == 0)
 						bmp = (unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline;
 					else
-						bmp = (unsigned char *)current_phys_base+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline;
+						bmp = (unsigned char *)(grub_size_t)current_phys_base+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline;
 					
           B = (bftmp & 0xff0000)>>16;
           G = (bftmp & 0xff00)>>8;
@@ -1259,7 +826,7 @@ static int read_image_bmp(int type)
 					if ((R>=R0) && (R<=R1) && (G>=G0) && (G<=G1) && (B>=B0) && (B<=B1))
 					{
 						if (background_transparent || (graphic_enable && (graphic_type & 0x80) && !(is_highlight && (graphic_type & 8))))
-							source = *(unsigned long *)((unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline);
+							source = *(unsigned int *)((unsigned char *)SPLASH_IMAGE+(x+X_offset)*current_bytes_per_pixel+(y+Y_offset)*current_bytes_per_scanline);
 						else if (graphic_enable && is_highlight && (graphic_type & 8))
 							source = current_color_64bit & 0xffffffff;
 						else if (!graphic_enable || (graphic_enable && !(graphic_type & 0x80) && !(is_highlight && (graphic_type & 8))))
@@ -1277,7 +844,7 @@ static int read_image_bmp(int type)
 				
 					if(current_bits_per_pixel == 32)
 //				bmp[x] = bftmp;		//
-						*(unsigned long *)bmp = source;
+						*(unsigned int *)bmp = source;
 					else if(current_bits_per_pixel == 24)
 					{
 						*(unsigned short *)bmp = (unsigned short)source;
@@ -1290,7 +857,7 @@ static int read_image_bmp(int type)
 		filepos += ((bmih.biWidth*bfbit&3)?(4-(bmih.biWidth*bfbit&3)):0);
 	}
 	background_transparent=0;
-	use_phys_base=0;
+//	use_phys_base=0;
 	return 2;
 }
 
@@ -1343,10 +910,10 @@ short ycoef,ucoef,vcoef;
 int IntervalFlag;
 short interval;
 int Y[4*64],U[4*64],V[4*64];
-unsigned long sizei,sizej;
+unsigned int sizei,sizej;
 short restart;
-static long iclip[1024];
-static long	*iclp;
+static int iclip[1024];
+static int	*iclp;
 unsigned long long size;
 ///////////////////////////////////////////////
 static void GetYUV(short flag)
@@ -1384,8 +951,8 @@ static void StoreBuffer()
 	unsigned char *lfb;
 	unsigned char R,G,B;
 	int y,u,v,rr,gg,bb;
-	unsigned long color;
-	unsigned long source = 0;
+	unsigned int color;
+	unsigned int source = 0;
 
 	for(i=0;i<SampRate_Y_V*8;i++)
 	{
@@ -1463,14 +1030,14 @@ static void StoreBuffer()
 					if (use_phys_base == 0)
 						lfb = (unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel;
 					else
-						lfb = (unsigned char *)current_phys_base + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel;
+						lfb = (unsigned char *)(grub_size_t)current_phys_base + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel;
 					
-					color = (((unsigned long)R)<<16) | (((unsigned long)G)<<8) | (unsigned long)B;
+					color = (((unsigned int)R)<<16) | (((unsigned int)G)<<8) | (unsigned int)B;
 					
 					if ((R>=R0) && (R<=R1) && (G>=G0) && (G<=G1) && (B>=B0) && (B<=B1))
 					{
 						if (background_transparent || (graphic_enable && (graphic_type & 0x80) && !(is_highlight && (graphic_type & 8))))
-							source = *(unsigned long *)((unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel);
+							source = *(unsigned int *)((unsigned char *)SPLASH_IMAGE + (sizei+i+Y_offset)*current_bytes_per_scanline + (sizej+j+X_offset)*current_bytes_per_pixel);
 						else if (graphic_enable && is_highlight && (graphic_type & 8))
 							source = current_color_64bit & 0xffffffff;
 						else if (!graphic_enable || (graphic_enable && !(graphic_type & 0x80) && !(is_highlight && (graphic_type & 8))))
@@ -1487,7 +1054,7 @@ static void StoreBuffer()
 					}
 				
 					if(current_bits_per_pixel == 32)
-						*(unsigned long *)lfb = source;
+						*(unsigned int *)lfb = source;
 					else if(current_bits_per_pixel == 24)
 					{
 						*(unsigned short *)lfb = (unsigned short)source;
@@ -1515,6 +1082,7 @@ static int DecodeMCUBlock()
 		BitPos=0;
 		CurByte=0;
 	}
+
 	switch(comp_num)
 	{
 	case 3:
@@ -1565,6 +1133,7 @@ static int DecodeMCUBlock()
 	default:
 		return 0;
 	}
+
 	return 1;
 }
 
@@ -1585,8 +1154,8 @@ static unsigned char ReadByte()
 	
 	if(size <= 16)
 	{
-		grub_memmove64((unsigned long long)(int)JPG_FILE,(unsigned long long)(int)lp,(unsigned long long)size);
-		len=grub_read((unsigned long long)(unsigned int)(char*)JPG_FILE+size, 0x7e00, GRUB_READ);
+		grub_memmove64((unsigned long long)(char*)JPG_FILE,(unsigned long long)(char*)lp,size);
+		len=grub_read((unsigned long long)(char*)JPG_FILE+size, 0x7e00, GRUB_READ);
 		size+=len;
 		lp=(unsigned char*)JPG_FILE;
 	}
@@ -1787,9 +1356,12 @@ static void Fast_IDCT(int * block)
 
 	for (i=0; i<8; i++)
 		idctrow(block+8*i);
+  
+  efi_call_1 (grub_efi_system_table->boot_services->stall, 1);  //微妙    不加延时,莫名其妙的卡住了!
 
 	for (i=0; i<8; i++)
 		idctcol(block+i);
+ 
 }
 ///////////////////////////////////////////////////////////////////////
 static void Initialize_Fast_IDCT()
@@ -1897,7 +1469,7 @@ static void idctcol(int * blk)
 static int Decode()
 {
 	int funcret;
-	size -= ((unsigned long)lp - (unsigned long)JPG_FILE);
+	size -= (grub_size_t)(lp - JPG_FILE);
 
 	Y_in_MCU=SampRate_Y_H*SampRate_Y_V;		//2*2=4		2*1=2		1*1=1
 	U_in_MCU=SampRate_U_H*SampRate_U_V;		//1:1=1
@@ -1927,6 +1499,7 @@ static int Decode()
 			sizej=0;
 			sizei+=SampRate_Y_V*8;
 		}
+
 		if ((sizej==0)&&(sizei>=SPLASH_H))
 			break;
 	}
@@ -2038,6 +1611,12 @@ static int InitTag()
 	 		llength=MAKEWORD(*(lp+1),*lp);
 	 		SPLASH_H=MAKEWORD(*(lp+4),*(lp+3));
 	 		SPLASH_W=MAKEWORD(*(lp+6),*(lp+5));
+      if (use_phys_base == 0)
+      {
+        if (!IMAGE_BUFFER)
+          IMAGE_BUFFER = grub_malloc (SPLASH_W * SPLASH_H * current_bytes_per_pixel);
+        splashimage_loaded = (grub_size_t)IMAGE_BUFFER;
+      }
 			comp_num=*(lp+7);
 			if((comp_num!=1)&&(comp_num!=3))
 				return 0;
@@ -2175,178 +1754,30 @@ static int InitTag()
 /////////////////////////////////////////////////////////////////
 static int
 read_image_jpg(int type)
-{
+{;
 	filepos = 0;
+	JPG_FILE = grub_malloc (0x8000);
 	lp = (unsigned char*)JPG_FILE;
-	if (!(size=grub_read((unsigned long long)(unsigned int)(char*)lp, 0x8000, GRUB_READ)))
+
+	if (!(size=grub_read((unsigned long long)(char*)lp, 0x8000, GRUB_READ)))
 		return !printf("Error:Read JPG File\n");
+
 	InitTable();
 	if (!(InitTag()))
 		return 1;
+
 	Decode();
 	background_transparent=0;
-	use_phys_base=0;
+//	use_phys_base=0;
+	grub_free(JPG_FILE);
 	return 2;
 }
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-#if 0
-/* Read in the splashscreen image and set the palette up appropriately.
- * Format of splashscreen is an xpm (can be gzipped) with 16 colors and
- * 640x480. */
-static int
-read_image_xpm (int type)
-{
-    char buf[32], pal[16];
-    unsigned char c, base, mask;
-    unsigned i, len, idx, colors, x, y, width, height;
-    unsigned char *s1;
-    unsigned char *s2;
-    unsigned char *s4;
-    unsigned char *s8;
-	unsigned char *lfb;
-
-    s1 = (unsigned char*)VSHADOW1;
-    s2 = (unsigned char*)VSHADOW2;
-    s4 = (unsigned char*)VSHADOW4;
-    s8 = (unsigned char*)VSHADOW8;
-
-    /* parse info */
-    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
-        if (c == '"')
-            break;
-    }
-
-    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && (c == ' ' || c == '\t'))
-        ;
-
-    i = 0;
-    width = c - '0';
-    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
-        if (c >= '0' && c <= '9')
-            width = width * 10 + c - '0';
-        else
-            break;
-    }
-    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && (c == ' ' || c == '\t'))
-        ;
-
-    height = c - '0';
-    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
-        if (c >= '0' && c <= '9')
-            height = height * 10 + c - '0';
-        else
-            break;
-    }
-    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && (c == ' ' || c == '\t'))
-        ;
-
-    colors = c - '0';
-    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
-        if (c >= '0' && c <= '9')
-            colors = colors * 10 + c - '0';
-        else
-            break;
-    }
-
-    base = 0;
-    while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && c != '"')
-        ;
-
-    /* palette */
-    for (i = 0, idx = 1; i < colors; i++) {
-        len = 0;
-
-        while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && c != '"')
-            ;
-        grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90);       /* char */
-        base = c;
-        grub_read((unsigned long long)(unsigned int)buf, 4, 0xedde0d90);      /* \t c # */
-
-        while (grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && c != '"') {
-            if (len < sizeof(buf))
-                buf[len++] = c;
-        }
-
-        if (len == 6 && idx < 15) {
-            int r = (hex(buf[0]) << 4) | hex(buf[1]);
-            int g = (hex(buf[2]) << 4) | hex(buf[3]);
-            int b = (hex(buf[4]) << 4) | hex(buf[5]);
-
-            pal[idx] = base;
-	    image_pal[idx] = (r<<16) | (g<<8) | b;
-            ++idx;
-        }
-    }
-
-    for (i = 0; i < plano_size / 4; i++)
-	((long *)s1)[i] = ((long *)s2)[i] = ((long *)s4)[i] = ((long *)s8)[i] = 0;
-
-    /* parse xpm data */
-    for (y = len = 0; y < height && y < ypixels; ++y, len += x1) {
-        while (1) {
-            if (!grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90)) {
-//                grub_close();
-                return 0;
-            }
-            if (c == '"')
-                break;
-        }
-
-        for (x = 0; grub_read((unsigned long long)(unsigned int)(char *)&c, 1, 0xedde0d90) && c != '"'; ++x)
-	{
-            if (x < width && x < xpixels)
-            {
-              for (i = 1; i < 15; i++)
-                if (pal[i] == c) {
-                    c = i;
-                    break;
-                }
-              if (type == 0)
-              {
-              mask = 0x80 >> (x & 7);
-              if (c & 1) s1[len + (x >> 3)] |= mask;
-              if (c & 2) s2[len + (x >> 3)] |= mask;
-              if (c & 4) s4[len + (x >> 3)] |= mask;
-              if (c & 8) s8[len + (x >> 3)] |= mask;
-              }
-              else
-              {
-								lfb = (unsigned char *)SPLASH_IMAGE + x*current_bytes_per_pixel + y*width*current_bytes_per_scanline;
-								if(current_bits_per_pixel == 24 || current_bits_per_pixel == 32)
-//									SPLASH_IMAGE[y*width+x] = image_pal[c];
-									*(unsigned long *)lfb = image_pal[c];
-								else
-									*(unsigned short *)lfb = (unsigned short)pixel_shift(image_pal[c]);
-              }
-            }
-        }
-    }
-
-//    grub_close();
-    if (type == 1)
-    {
-	SPLASH_W = width;
-	SPLASH_H = height;
-	return 2;
-    }
-
-//set_palette:
-    image_pal[0] = background;
-    image_pal[15] = foreground;
-    for (i=0; i < 16;++i)
-	graphics_set_palette(i,image_pal[i]);
-
-    return 1;
-}
-#endif
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-unsigned long rr, gg, bb;
-unsigned long pixel_shift(unsigned long color)
+unsigned int rr, gg, bb;
+unsigned int pixel_shift(unsigned int color)
 {
-	unsigned long r,g,b;
+	unsigned int r,g,b;
 
 	b = color & 0xff;
 	g = (color >> 8) & 0xff;
@@ -2368,83 +1799,50 @@ unsigned long pixel_shift(unsigned long color)
 	return color;
 }
 
-
+static int read_image();
 static int read_image()
 {
 	char buf[16];
+#if 0
 	if (*splashimage == 1)
-	{
-		if (splashimage_loaded & 1)
-		{
-			int i=0;
-			for (i=1 ;i<15;++i)
-				graphics_set_palette(i,image_pal[i]);
-		}
 		return 1;
-	}
+
 	if (!*splashimage)
 	{
 		splashimage_loaded = 0;
 		*splashimage = 1;
-		if (graphics_mode < 0xFF)
-		{
-			return 0;
-#if 0
-			unsigned char *s1;
-			unsigned char *s2;
-			unsigned char *s4;
-			unsigned char *s8;
-			unsigned i;
-			s1 = (unsigned char*)VSHADOW1;
-			s2 = (unsigned char*)VSHADOW2;
-			s4 = (unsigned char*)VSHADOW4;
-			s8 = (unsigned char*)VSHADOW8;
-			for (i = 0; i < plano_size / 4; i++)
-				((long *)s1)[i] = ((long *)s2)[i] = ((long *)s4)[i] = ((long *)s8)[i] = 0;
-			graphics_set_palette( 0, background);
-			graphics_set_palette(15, foreground);
-#endif
-		}
 		return 1;
 	}
+#endif
 	if (! grub_open(splashimage))
 	{
 		return 0;
 	}
+
 	/* read header */
-	grub_read((unsigned long long)(unsigned int)(char*)&buf, 10, 0xedde0d90);
-	splashimage_loaded = IMAGE_BUFFER;
-	if (*(unsigned short*)buf == 0x4d42) /*BMP */
+	grub_read((unsigned long long)(char*)&buf, 10, 0xedde0d90);
+  unsigned short* a = (unsigned short*)buf;
+//	if (*(unsigned short*)buf == 0x4d42) /*BMP */
+	if (*a == 0x4d42) /*BMP */
 	{
 		splashimage_loaded |= read_image_bmp(graphics_mode > 0xFF);
 	}
-#if 0
-	else if (grub_memcmp(buf, "/* XPM */\n", 10) == 0) /* XPM */
-	{
-		splashimage_loaded |= read_image_xpm(graphics_mode > 0xFF);
-	}
-#endif
-	else if (*(unsigned short*)buf == 0xD8FF)
+//	else if (*(unsigned short*)buf == 0xD8FF)
+	else if (*a == 0xD8FF)
 	{
 		splashimage_loaded |= read_image_jpg(graphics_mode > 0xFF);
 	}
 
-	*splashimage = 1;
+//	*splashimage = 1;
 	grub_close();
 	return splashimage_loaded & 0xf;
 }
 
 /* Convert a character which is a hex digit to the appropriate integer */
+int hex (int v);
 int
 hex (int v)
 {
-#if 0
-    if (v >= 'A' && v <= 'F')
-        return (v - 'A' + 10);
-    if (v >= 'a' && v <= 'f')
-        return (v - 'a' + 10);
-    return (v - '0');
-#else
 /*
    by chenall 2011-12-01.
    '0' & 0xf = 0 ... '9' & 0xf = 9;
@@ -2454,37 +1852,27 @@ hex (int v)
 	if (v >= 'A')
 		v += 9;
 	return v & 0xf;
-#endif
 }
 
 
 /* scroll the screen */
-void bios_scroll_up();
+//void bios_scroll_up();
 static void
 graphics_scroll (void)
 {
-    unsigned long i;
-    unsigned long old_state = cursor_state;
+    unsigned int i;
+    unsigned int old_state = cursor_state;
     cursor_state &= ~1;
-    if (graphics_mode <= 0xFF)
-    {/* VGA */
-	bios_scroll_up ();
-    }
-    else
-    {/* VBE */
-#if 0
-	memmove_forward_SSE ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline * (font_h + line_spacing)),
-		    (y1 - 1) * current_bytes_per_scanline * (font_h + line_spacing));
-#else
-  grub_memcpy ((char *)current_phys_base, (char *)current_phys_base + (current_bytes_per_scanline * (font_h + line_spacing)),
-		    (y1 - 1) * current_bytes_per_scanline * (font_h + line_spacing));
-#endif
-    }
 
+  grub_memcpy ((char *)(grub_size_t)current_phys_base, (char *)(grub_size_t)current_phys_base + (current_bytes_per_scanline * (font_h + line_spacing)),
+		    (current_term->max_lines - 1) * current_bytes_per_scanline * (font_h + line_spacing));
+	if (old_state & 1)
+		scroll_state = 1;		//避免空格背景杂乱无章
     for (i=0;i<current_term->chars_per_line;++i)
-	graphics_putchar(' ',1);
+	graphics_putchar(' ',1);	
     gotoxy(0,fonty);
     cursor_state = old_state;
+	scroll_state = 0;
     return;
 }
 
@@ -2500,7 +1888,7 @@ void rectangle(int left, int top, int length, int width, int line)
 	else
 		y = 0;
 	z = current_bytes_per_pixel;
-	lfb = (unsigned char *)(current_phys_base + top * current_bytes_per_scanline + left * z);
+	lfb = (unsigned char *)(grub_size_t)(current_phys_base + top * current_bytes_per_scanline + left * z);
 
 	if (!length)
 		goto vert;	
@@ -2517,10 +1905,10 @@ void rectangle(int left, int top, int length, int width, int line)
 			}
 			else if(z == 4)
 			{
-				*(unsigned long *)(p+y) = *(unsigned long *)p = (unsigned long)current_color_64bit;
+				*(unsigned int *)(p+y) = *(unsigned int *)p = (unsigned int)current_color_64bit;
 			}
 			else
-				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)pixel_shift((unsigned long)current_color_64bit);
+				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)pixel_shift((unsigned int)current_color_64bit);
 			p += z;
 		}
 	}
@@ -2548,10 +1936,10 @@ vert:
 			}
 			else if(z == 4)
 			{
-				*(unsigned long *)(p+y) = *(unsigned long *)p = (unsigned long)current_color_64bit;
+				*(unsigned int *)(p+y) = *(unsigned int *)p = (unsigned int)current_color_64bit;
 			}
 			else
-				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)pixel_shift((unsigned long)current_color_64bit);
+				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)pixel_shift((unsigned int)current_color_64bit);
 			p += current_bytes_per_scanline;
 		}
 	}
@@ -2559,11 +1947,10 @@ vert:
 }
 
 static void
-vbe_cursor (int set)
+vbe_cursor (int set)		//VBE的光标
 {
-    unsigned long x, y,j;
+    unsigned int x, y,j;
 
-#if 1
 	x = fontx * (font_w+font_spacing);
 	y = fonty * (font_h+line_spacing);
 	y += line_spacing>>1;
@@ -2572,122 +1959,6 @@ vbe_cursor (int set)
 	{
 	    XorPixel (x, y + j, -1);
 	}
-#else
-    /* invert the beginning 2 vertical lines of the char */
-    for (i = 0; i < 2; ++i)
-    {
-	for (j = 0; j < 16; ++j)
-	{
-	    XorPixel (fontx * 8 + i, fonty * 16 + j, -1);
-	}
-    }
-#endif
 }
 
-#if 0
-static unsigned char chr[16 << 2];
-static unsigned char mask[16];
-
-static void
-graphics_cursor (int set)
-{
-    unsigned char *pat, *mem, *ptr;
-    int i, ch, offset;
-
-    offset = (fonty << 4) * x1 + fontx;
-
-    ch = text[fonty * x1 + fontx];
-
-    pat = font8x16 + (((unsigned long)((unsigned char)ch)) << 4);
-
-    mem = (unsigned char*)VIDEOMEM + offset;
-
-    if (set)
-    {
-	MapMask(15);
-	ptr = mem;
-	for (i = 0; i < 16; i++, ptr += x1)
-	{
-		*ptr = ~pat[i];
-	}
-	return;
-    }
-
-    if (outline)
-      for (i = 0; i < 16; i++)
-      {
-        mask[i] = pat[i];
-	if (i < 15)
-		mask[i] |= pat[i+1];
-	if (i > 0)
-		mask[i] |= pat[i-1];
-        mask[i] |= (mask[i] << 1) | (mask[i] >> 1);
-	mask[i] = ~(mask[i]);
-      }
-
-    for (i = 0; i < 16; i++, offset += x1)
-    {
-	unsigned char m, p, c1, c2, c4, c8;
-
-	p = pat[i];
-
-	if (!(cursor_state & 2) || !(splashimage_loaded & 1))
-		goto put_pattern;
-	if (is_highlight)
-	{
-		p = ~p;
-put_pattern:
-		if (splashimage_loaded & 1)
-		{
-			chr[i]=chr[i+16]=chr[i+32]=chr[i+48]= p;
-		}
-		else
-		{
-			chr[i     ] = (current_color & 1)?p:0;
-			chr[16 + i] = (current_color & 2)?p:0;
-			chr[32 + i] = (current_color & 4)?p:0;
-			chr[48 + i] = (current_color & 8)?p:0;
-			p = ~p;
-			chr[i     ] |= (current_color & 0x10)?p:0;
-			chr[16 + i] |= (current_color & 0x20)?p:0;
-			chr[32 + i] |= (current_color & 0x40)?p:0;
-			chr[48 + i] |= (current_color & 0x80)?p:0;
-		}
-		continue;
-	}
-
-	c1 = ((unsigned char*)VSHADOW1)[offset];
-	c2 = ((unsigned char*)VSHADOW2)[offset];
-	c4 = ((unsigned char*)VSHADOW4)[offset];
-	c8 = ((unsigned char*)VSHADOW8)[offset];
-
-	if (outline)
-	{
-		m = mask[i];
-
-		c1 &= m;
-		c2 &= m;
-		c4 &= m;
-		c8 &= m;
-	}
-	
-	chr[i     ] = c1 | p;
-	chr[16 + i] = c2 | p;
-	chr[32 + i] = c4 | p;
-	chr[48 + i] = c8 | p;
-    }
-
-    offset = 0;
-    for (i = 1; i < 16; i <<= 1, offset += 16)
-    {
-        int j;
-        MapMask(i);
-        ptr = mem;
-        for (j = 0; j < 16; j++, ptr += x1)
-            *ptr = chr[j + offset];
-    }
-
-    MapMask(15);
-}
-#endif
 #endif /* SUPPORT_GRAPHICS */

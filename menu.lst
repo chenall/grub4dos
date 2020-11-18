@@ -1,151 +1,82 @@
-# This is a sample menu.lst file. You should make some changes to it.
-# The old install method of booting via the stage-files has been removed.
-# Please install GRLDR boot strap code to MBR with the bootlace.com
-# utility under DOS/Win9x or Linux.
-#
-# It must be UTF-8 encoding for multi-lingual support. Font lines can be
-# appended to the file. The font lines should be in the unifont.hex format.
+﻿# 这是一个样品 menu.lst 文件。你应该对它做些改动。
+# 它必须是 UTF-8 编码，以支持多种语言。
+# 字体应该是 unifont.hex 格式。
 
-color blue/green yellow/red white/magenta white/magenta
+
+
+#设置倒计时(秒)
 timeout 30
-## menu border color
-color border=0xEEFFEE
-## set vbe mode
-graphicsmode -1 640:800 480:600 24:32 || graphicsmode -1 -1 -1 24:32
-## loading splashimage
-splashimage /boot/grub/splashimage.xpm || splashimage /boot/grub/splashimage.bmp
-default /default
-## Menu AutoNumber
-write 0x8274 0x2001
 
-title find and load NTLDR of Windows NT/2K/XP\n find and load NTLDR of Windows NT/2K/XP
-fallback +1
-find --set-root --ignore-floppies --ignore-cd /ntldr
-map () (hd0)
-map (hd0) ()
-map --rehook
-find --set-root --ignore-floppies --ignore-cd /ntldr
-chainloader /ntldr
-savedefault --wait=2
+#设置第一项为默认值
+default 1
 
-#iftitle only show when command in [] returns true
-# set a variable named bootmgr where /bootmgr is found.
-iftitle [find --set-root --devices=h /bootmgr && call set bootmgr=%@root^%] load BOOTMGR of Windows VISTA/WIN7/WIN2008 on %bootmgr%
-fallback +1
-chainloader %bootmgr%/bootmgr
-savedefault --wait=2
+#设置字符颜色(高32位是背景色，低32位是前景色)
+color normal=0xff9933 highlight=0xffff00 helptext=0xff00ff heading=0x66ff00
 
-title find and load CMLDR, the Recovery Console of Windows NT/2K/XP
-fallback +1
-find --set-root --ignore-floppies --ignore-cd /cmldr
-map () (hd0)
-map (hd0) ()
-map --rehook
-find --set-root --ignore-floppies --ignore-cd /cmldr
-chainloader /cmldr
-#####################################################################
-# write string "cmdcons" to memory 0000:7C03 in 2 steps:
-#####################################################################
-# step 1. Write 4 chars "cmdc" at 0000:7C03
-#write 0x7C03 0x63646D63
-# step 2. Write 3 chars "ons" and an ending null at 0000:7C07
-#write 0x7C07 0x00736E6F
+#设置图形模式(可使用 graphicsmode 探测系统支持的图形模式)
+graphicsmode -1 800
 
-#	or.
-#write --offset=3 (md)0x3e+1 cmdcons\0
-#	or
-calc *0x7c03=0x00736E6F63646D63
+#加载背景图
+splashimage /efi/grub/splashimage.jpg || splashimage /boot/grub/splashimage.bmp
 
-savedefault --wait=2
+#加载字体(如果不是 16*16 字体，需增加参数，如 --font-high=24)
+font /efi/grub/unifont.hex.gz
 
-title Chainload IO.SYS for booting MS-DOS/Windows 9x/Me
-fallback +1
-find --set-root --ignore-floppies --ignore-cd /io.sys
-chainloader /io.sys
-savedefault --wait=2
-#
-# Or in this way:
-#
-# find --set-root --ignore-floppies --ignore-cd chainloader /io.sys
-# boot
-#
-# The above boot command is needed in this case.
-# See "Delimitors or comments between titles" in grub4dos_readme.txt.
+#设置菜单举例
+setmenu --box x=4 w=60 y=6 h=9 l=2
+setmenu --keyhelp=1 --lang=zh
+setmenu --auto-num-on 
+setmenu --keyhelp=1=0x66ff00
+setmenu --string=m=2=0x0000000000ffff="G4D 维  护  菜  单"
+setmenu --string=s=1=0x8800000000ffff="date&time=yyyy-MM-dd  HH:mm:ss"
+setmenu --timeout=90=2=0x88000000ffff
+setmenu --hotkey -A [F4] commandline
 
-title find /boot/grub/menu.lst for booting Linux (Mageia, Mandriva, etc)
-fallback +1
-find --set-root --ignore-floppies --ignore-cd /boot/grub/menu.lst
-configfile /boot/grub/menu.lst
+title 启动 efi 文件
+chainloader /efi/boot/grub2x64.efi
 
-title Switch to GRUB2 core.img for booting Linux (Ubuntu, etc)
-fallback +1
-find --set-root --ignore-floppies --ignore-cd /boot/grub/i386-pc/core.img
-kernel /boot/grub/i386-pc/core.img
+title 启动虚拟光盘
+find --set-root /cdrom.iso
+map /cdrom.iso (0xff)
+chainloader (0xff)
 
-title commandline
+title 启动虚拟光盘(加载到内存)
+find --set-root /cdrom.iso
+map --mem /cdrom.iso (0xff)
+chainloader (0xff)
+
+title 启动存在的光盘(cd0)
+chainloader (cd0)
+
+title 启动虚拟硬盘
+find --set-root /boot/hdd.img
+map /boot/hdd.img (hd)
+chainloader (hd-1)
+
+title 启动虚拟硬盘(加载到内存)
+find --set-root /boot/hdd.img
+map --mem /boot/hdd.img (hd)
+chainloader (hd-1)
+
+title 启动存在的硬盘(hd0)
+chainloader (hd0)
+
+title 启动其他菜单
+configfile /efi/grub/menu2.lst
+
+title 命令行
 commandline
 
-title 0PE LiveISO
-find --set-root --ignore-floppies --ignore-cd /0PE.ISO
-map /0PE.ISO (0xff)
-map --hook
-chainloader (0xff)
-savedefault --wait=2
+title 退出grub4dos
+exit_g4d
 
-title MicroPE LiveISO
-find --set-root --ignore-floppies --ignore-cd /boot/MicroPE.ISO
-map /boot/MicroPE.ISO (0xff)
-map --hook
-chainloader (0xff)
-savedefault --wait=2
-
-title Parted Magic LiveISO
-find --set-root --ignore-floppies --ignore-cd /pmagic.iso
-map /pmagic.iso (0xff)
-map --hook
-chainloader (0xff)
-savedefault --wait=2
-
-title Ultimate Boot CD LiveISO
-find --set-root --ignore-floppies --ignore-cd /ubcd.iso
-map /ubcd.iso (0xff)
-map --hook
-chainloader (0xff)
-savedefault --wait=2
-
-title SliTaz LiveISO
-find --set-root --ignore-floppies --ignore-cd /slitaz.iso
-map /slitaz.iso (0xff)
-map --hook
-chainloader (0xff)
-
-title Mageia Installation ISO
-find --set-root --ignore-floppies --ignore-cd /Mageia-2-x86_64-DVD.iso
-map /Mageia-2-x86_64-DVD.iso (0xff)
-map --hook
-chainloader (0xff)
-
-title reboot (重启)
+title 重启
 reboot
 
-title halt (关机)
+title 关机
 halt
 
-title MAXDOS.IMG
-find --set-root --ignore-floppies --ignore-cd /boot/MAXDOS.IMG
-map --mem /boot/MAXDOS.IMG (fd0)
-map --hook
-chainloader (fd0)+1
-rootnoverify (fd0)
 
-# In the end, font lines for unicode chars in unifont.hex format.
-# It should include all unicode chars used in the above menu code.
-# Surely normal ASCII chars are not necessary to be included here.
-
-5173:10100810082000003FF8010001000100FFFE010002800280044008203018C006
-542F:010000801FFC1004100410041FFC10001000100017FC24042404440487FC0404
-673A:100011F011101110FD10111031103910551055109110111211121212120E1400
-91CD:001000F83F000100FFFE01001FF011101FF011101FF001003FF80100FFFE0000
 
 
 

@@ -80,33 +80,35 @@ struct VHDFileControl {
 	unsigned long long volumeSize;
 	unsigned long long tableOffset;
 	unsigned int  diskType;
-	unsigned long blockSize;
+	unsigned int blockSize;
 	unsigned int  blockSizeLog2;
-	unsigned long batEntries;
-	unsigned long blockBitmapSize;
+	unsigned int batEntries;
+	unsigned int blockBitmapSize;
 	unsigned char *blockAllocationTable;
 	unsigned char *blockBitmapAndData;
 	unsigned char *blockData;
-	unsigned long currentBlockOffset;
+	unsigned int currentBlockOffset;
 	struct VHDFileControl *parentVHDFC;
 };
 
-extern unsigned long map_image_HPC;
-extern unsigned long map_image_SPT;
+extern unsigned int map_image_HPC;
+extern unsigned int map_image_SPT;
 
 VHDFileControl *vhdfc;
 
-unsigned int log2pot32(unsigned long x);
+unsigned int log2pot32(unsigned int x);
 grub_u32_t bswap_32(grub_u32_t *x);
 void bswap_64(grub_u64_t *x);
 void vhd_footer_in(VHDFooter *footer);
 void vhd_header_in(VHDDynamicDiskHeader *header);
 
-unsigned int log2pot32(unsigned long x) {
+unsigned int log2pot32(unsigned int x);
+unsigned int log2pot32(unsigned int x) {
 	// x must be power of two
 	return ((x & 0xFFFF0000) ? 16 : 0) | ((x & 0xFF00FF00) ? 8 : 0) | ((x & 0xF0F0F0F0) ? 4 : 0) | ((x & 0xCCCCCCCC) ? 2 : 0) | ((x & 0xAAAAAAAA) ? 1 : 0);
 }
 
+grub_u32_t bswap_32(grub_u32_t *x);
 grub_u32_t bswap_32(grub_u32_t *x)
 {
   grub_u32_t i = *x;
@@ -117,6 +119,7 @@ grub_u32_t bswap_32(grub_u32_t *x)
    return *x;
 }
 
+void bswap_64(grub_u64_t *x);
 void bswap_64(grub_u64_t *x)
 {
   grub_u32_t hi = (grub_u32_t)*x;
@@ -124,6 +127,7 @@ void bswap_64(grub_u64_t *x)
   *x = ((grub_u64_t)bswap_32(&hi)<<32)|bswap_32(&lo);
 }
 
+void vhd_footer_in(VHDFooter *footer);
 void vhd_footer_in(VHDFooter *footer)
 {
 //	bswap_32(&footer->features);
@@ -138,6 +142,7 @@ void vhd_footer_in(VHDFooter *footer)
 //	bswap_32(&footer->checksum);
 }
 
+void vhd_header_in(VHDDynamicDiskHeader *header);
 void vhd_header_in(VHDDynamicDiskHeader *header)
 {
 //	bswap_64(&header->dataOffset);
@@ -149,7 +154,7 @@ void vhd_header_in(VHDDynamicDiskHeader *header)
 //	bswap_32(&header->parentTimeStamp);
 }
 
-
+void dec_vhd_close(void);
 void
 dec_vhd_close(void)
 {
@@ -166,6 +171,7 @@ dec_vhd_close(void)
 	}
 }
 
+int dec_vhd_open(void);
 int
 dec_vhd_open(void)
 /* return 1=success or 0=failure */
@@ -182,13 +188,15 @@ dec_vhd_open(void)
 	memset(&footer, 0, sizeof(footer));
 	memset(&dynaheader, 0, sizeof(dynaheader));
 
-	int bytesread = (int)grub_read((unsigned long)&footer, 0x200, 0xedde0d90);
+	int bytesread = (int)grub_read((grub_size_t)&footer, 0x200, 0xedde0d90);
 	bytesread = bytesread;
 	//if (bytesread < 511) {
 		// grub_printf("bytesread %d < 511\n",bytesread);
 	//	goto quit;
 	//}
-	if (*(grub_u64_t*)&footer.cookie!=VHD_FOOTER_COOKIE) {
+  grub_u64_t* a = (grub_u64_t*)&footer.cookie;
+//	if (*(grub_u64_t*)&footer.cookie!=VHD_FOOTER_COOKIE) {
+  if (*a!=VHD_FOOTER_COOKIE) {
 		// grub_printf("cookie %lX != %lX\n", footer.cookie, VHD_FOOTER_COOKIE);
 		goto quit;
 	}
@@ -206,7 +214,7 @@ dec_vhd_open(void)
 			goto quit;
 		}
 		filepos = footer.dataOffset;
-		bytesread = (int)grub_read((unsigned long)&dynaheader, sizeof(dynaheader), 0xedde0d90);
+		bytesread = (int)grub_read((grub_size_t)&dynaheader, sizeof(dynaheader), 0xedde0d90);
 //	}
 
 	vhdfc = (VHDFileControl*) grub_malloc(sizeof(VHDFileControl));
@@ -225,13 +233,13 @@ dec_vhd_open(void)
 		vhdfc->blockSize = dynaheader.blockSize;
 		vhdfc->blockSizeLog2 = log2pot32(vhdfc->blockSize);
 		vhdfc->batEntries = dynaheader.maxTableEntries;
-		unsigned long batSize = (vhdfc->batEntries * 4 + 511)&(-512LL);
+		unsigned int batSize = (vhdfc->batEntries * 4 + 511)&(-512LL);
 		vhdfc->blockAllocationTable = grub_malloc(batSize);
 		vhdfc->blockBitmapSize = vhdfc->blockSize / (512 * 8);
 		vhdfc->blockBitmapAndData = grub_malloc(vhdfc->blockBitmapSize + vhdfc->blockSize);
 		vhdfc->blockData = vhdfc->blockBitmapAndData + vhdfc->blockBitmapSize;
 		filepos = vhdfc->tableOffset;
-		grub_read((grub_u64_t)(int)vhdfc->blockAllocationTable, batSize, GRUB_READ);
+		grub_read((grub_u64_t)(grub_size_t)vhdfc->blockAllocationTable, batSize, GRUB_READ);
 		vhdfc->currentBlockOffset = -1LL;
 	//}
 	map_image_HPC = footer.diskGeometry.heads;
@@ -246,8 +254,9 @@ quit:
 	return compressed_file;
 }
 
+unsigned long long dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write);
 unsigned long long
-dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned long write)
+dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write)
 {
 	unsigned long long ret = 0;
 	compressed_file = 0;
@@ -268,10 +277,10 @@ dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned long write
 		errnum = ERR_NONE;
 		unsigned long long rem = len;
 		while (rem) {
-			unsigned long blockNumber = (unsigned long)(uFilePos >> vhdfc->blockSizeLog2);
+			unsigned int blockNumber = (unsigned int)(uFilePos >> vhdfc->blockSizeLog2);
 			unsigned long long blockOffset = (unsigned long long)blockNumber << vhdfc->blockSizeLog2;
-			unsigned long offsetInBlock = (unsigned long)(uFilePos - blockOffset);
-			unsigned long txLen = (rem < vhdfc->blockSize - offsetInBlock) ? rem : vhdfc->blockSize - offsetInBlock;
+			unsigned int offsetInBlock = (unsigned int)(uFilePos - blockOffset);
+			unsigned int txLen = (rem < vhdfc->blockSize - offsetInBlock) ? rem : vhdfc->blockSize - offsetInBlock;
 			grub_u32_t blockLBA = *(grub_u32_t*)(vhdfc->blockAllocationTable + blockNumber * 4);
 			bswap_32(&blockLBA);
 			// grub_printf("read bn %x of %x txlen %x lba %x\n", blockNumber, offsetInBlock, txLen, blockLBA);
@@ -283,12 +292,12 @@ dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned long write
 				if (blockOffset != vhdfc->currentBlockOffset) {
 					filepos = blockLBA * 512;
 					// grub_printf("read vhd lba %x filepos %lx\n", blockLBA, filepos);
-					unsigned long long nread = grub_read((unsigned long)vhdfc->blockBitmapAndData, vhdfc->blockBitmapSize + vhdfc->blockSize, GRUB_READ);
+					unsigned long long nread = grub_read((grub_size_t)vhdfc->blockBitmapAndData, vhdfc->blockBitmapSize + vhdfc->blockSize, GRUB_READ);
 					if (nread < vhdfc->blockBitmapSize + vhdfc->blockSize)
 						break;
 					vhdfc->currentBlockOffset = blockOffset;
 				}
-				grub_memmove64(buf, (unsigned long)(vhdfc->blockData + offsetInBlock), txLen);
+				grub_memmove64(buf, (grub_size_t)(vhdfc->blockData + offsetInBlock), txLen);
 			}
 			buf += txLen;
 			uFilePos += txLen;

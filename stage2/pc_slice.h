@@ -38,68 +38,68 @@
  */
 
 #define PC_MBR_CHECK_SIG(mbr_ptr) \
-  ( *( (unsigned short *) (((int) mbr_ptr) + PC_MBR_SIG_OFFSET) ) \
+  ( *( (unsigned short *) (((grub_size_t) mbr_ptr) + PC_MBR_SIG_OFFSET) ) \
    == PC_MBR_SIGNATURE )
 
 #define PC_MBR_SIG(mbr_ptr) \
-  ( *( (unsigned short *) (((int) mbr_ptr) + PC_MBR_SIG_OFFSET) ) )
+  ( *( (unsigned short *) (((grub_size_t) mbr_ptr) + PC_MBR_SIG_OFFSET) ) )
 
 #define PC_SLICE_FLAG(mbr_ptr, part) \
-  ( *( (unsigned char *) (((int) mbr_ptr) + PC_SLICE_OFFSET \
+  ( *( (unsigned char *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET \
 			  + (part << 4)) ) )
 
 #define PC_SLICE_HEAD(mbr_ptr, part) \
-  ( *( (unsigned char *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 1 \
+  ( *( (unsigned char *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 1 \
 			  + (part << 4)) ) )
 
 #define PC_SLICE_SEC(mbr_ptr, part) \
-  ( *( (unsigned char *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 2 \
+  ( *( (unsigned char *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 2 \
 			  + (part << 4)) ) )
 
 #define PC_SLICE_CYL(mbr_ptr, part) \
-  ( *( (unsigned char *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 3 \
+  ( *( (unsigned char *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 3 \
 			  + (part << 4)) ) )
 
 #define PC_SLICE_TYPE(mbr_ptr, part) \
-  ( *( (unsigned char *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 4 \
+  ( *( (unsigned char *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 4 \
 			  + (part << 4)) ) )
 
 #define PC_SLICE_EHEAD(mbr_ptr, part) \
-  ( *( (unsigned char *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 5 \
+  ( *( (unsigned char *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 5 \
 			  + (part << 4)) ) )
 
 #define PC_SLICE_ESEC(mbr_ptr, part) \
-  ( *( (unsigned char *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 6 \
+  ( *( (unsigned char *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 6 \
 			  + (part << 4)) ) )
 
 #define PC_SLICE_ECYL(mbr_ptr, part) \
-  ( *( (unsigned char *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 7 \
+  ( *( (unsigned char *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 7 \
 			  + (part << 4)) ) )
 
 #define PC_SLICE_START(mbr_ptr, part) \
-  ( *( (unsigned long *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 8 \
+  ( *( (unsigned int *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 8 \
 			  + (part << 4)) ) )
 
 #define PC_SLICE_LENGTH(mbr_ptr, part) \
-  ( *( (unsigned long *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 12 \
+  ( *( (unsigned int *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 12 \
 			  + (part << 4)) ) )
 
 #define PC_SLICE_ENTRY_IS_EMPTY(mbr_ptr, part) \
-  ( ( ( *( (unsigned char *) (((int) mbr_ptr) + PC_SLICE_OFFSET \
+  ( ( ( *( (unsigned char *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET \
 			  + (part << 4)) ) ) == \
-  ( *( (unsigned char *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 1 \
+  ( *( (unsigned char *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 1 \
 			  + (part << 4)) ) ) ) && \
-  ( ( *( (unsigned short *) (((int) mbr_ptr) + PC_SLICE_OFFSET \
+  ( ( *( (unsigned short *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET \
 			  + (part << 4)) ) ) == \
-  ( *( (unsigned short *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 2 \
+  ( *( (unsigned short *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 2 \
 			  + (part << 4)) ) ) ) && \
-  ( ( *( (unsigned long *) (((int) mbr_ptr) + PC_SLICE_OFFSET \
+  ( ( *( (unsigned int *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET \
 			  + (part << 4)) ) ) == \
-  ( *( (unsigned long *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 4 \
+  ( *( (unsigned int *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 4 \
 			  + (part << 4)) ) ) ) && \
-  ( ( *( (unsigned long long *) (((int) mbr_ptr) + PC_SLICE_OFFSET \
+  ( ( *( (unsigned long long *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET \
 			  + (part << 4)) ) ) == \
-  ( *( (unsigned long long *) (((int) mbr_ptr) + PC_SLICE_OFFSET + 8 \
+  ( *( (unsigned long long *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 8 \
 			  + (part << 4)) ) ) ) )
 
 
@@ -211,40 +211,40 @@
  */
 
 #define BSD_LABEL_CHECK_MAG(l_ptr) \
-  ( *( (unsigned long *) (((int) l_ptr) + BSD_LABEL_MAG_OFFSET) ) \
-   == ( (unsigned long) BSD_LABEL_MAGIC ) )
+  ( *( (unsigned int *) (((grub_size_t) l_ptr) + BSD_LABEL_MAG_OFFSET) ) \
+   == ( (unsigned int) BSD_LABEL_MAGIC ) )
 
 #define BSD_LABEL_MAG(l_ptr) \
-  ( *( (unsigned long *) (((int) l_ptr) + BSD_LABEL_MAG_OFFSET) ) )
+  ( *( (unsigned int *) (((grub_size_t) l_ptr) + BSD_LABEL_MAG_OFFSET) ) )
 
 #define BSD_LABEL_DTYPE(l_ptr) \
-  ( *( (unsigned short *) (((int) l_ptr) + BSD_LABEL_MAG_OFFSET + 4) ) )
+  ( *( (unsigned short *) (((grub_size_t) l_ptr) + BSD_LABEL_MAG_OFFSET + 4) ) )
 
 #define BSD_LABEL_NPARTS(l_ptr) \
-  ( *( (unsigned short *) (((int) l_ptr) + BSD_LABEL_NPARTS_OFFSET) ) )
+  ( *( (unsigned short *) (((grub_size_t) l_ptr) + BSD_LABEL_NPARTS_OFFSET) ) )
 
 #define BSD_PART_LENGTH(l_ptr, part) \
-  ( *( (unsigned long *) (((int) l_ptr) + BSD_PART_OFFSET \
+  ( *( (unsigned int *) (((grub_size_t) l_ptr) + BSD_PART_OFFSET \
 			  + (part << 4)) ) )
 
 #define BSD_PART_START(l_ptr, part) \
-  ( *( (unsigned long *) (((int) l_ptr) + BSD_PART_OFFSET + 4 \
+  ( *( (unsigned int *) (((grub_size_t) l_ptr) + BSD_PART_OFFSET + 4 \
 			  + (part << 4)) ) )
 
 #define BSD_PART_FRAG_SIZE(l_ptr, part) \
-  ( *( (unsigned long *) (((int) l_ptr) + BSD_PART_OFFSET + 8 \
+  ( *( (unsigned int *) (((grub_size_t) l_ptr) + BSD_PART_OFFSET + 8 \
 			  + (part << 4)) ) )
 
 #define BSD_PART_TYPE(l_ptr, part) \
-  ( *( (unsigned char *) (((int) l_ptr) + BSD_PART_OFFSET + 12 \
+  ( *( (unsigned char *) (((grub_size_t) l_ptr) + BSD_PART_OFFSET + 12 \
 			  + (part << 4)) ) )
 
 #define BSD_PART_FRAGS_PER_BLOCK(l_ptr, part) \
-  ( *( (unsigned char *) (((int) l_ptr) + BSD_PART_OFFSET + 13 \
+  ( *( (unsigned char *) (((grub_size_t) l_ptr) + BSD_PART_OFFSET + 13 \
 			  + (part << 4)) ) )
 
 #define BSD_PART_EXTRA(l_ptr, part) \
-  ( *( (unsigned short *) (((int) l_ptr) + BSD_PART_OFFSET + 14 \
+  ( *( (unsigned short *) (((grub_size_t) l_ptr) + BSD_PART_OFFSET + 14 \
 			  + (part << 4)) ) )
 
 

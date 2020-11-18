@@ -144,10 +144,10 @@
 
 #define PACKED		__attribute__ ((packed))
 
-#define SEGMENT(x)	((x) >> 4)
-#define OFFSET(x)	((x) & 0xF)
-#define SEGOFS(x)	((SEGMENT(x)<<16)+OFFSET(x))
-#define LINEAR(x)	(void*)(((x >> 16) <<4)+(x & 0xFFFF))
+#define SEGMENT(x)	((x) >> 4)													//分割		123456	->	12345
+#define OFFSET(x)	((x) & 0xF)														//偏移		123456	->	6
+#define SEGOFS(x)	((SEGMENT(x)<<16)+OFFSET(x))					//段偏移	123450000 + 6 = 123450006
+#define LINEAR(x)	(void*)(((x >> 16) <<4)+(x & 0xFFFF))	//线性		123450006	-> 123450 + 6 = 123456
 
 //#define PXE_ERR_LEN	0xFFFFFFFF
 #define PXE_ERR_LEN	0
@@ -157,28 +157,28 @@ typedef grub_u32_t		SEGOFS16;
 typedef grub_u32_t		IP4;
 typedef grub_u16_t		UDP_PORT;
 
-#define MAC_ADDR_LEN	16
-typedef grub_u8_t		MAC_ADDR[MAC_ADDR_LEN];
+#define MAC_ADDR_LEN	16										//MAC地址尺寸
+typedef grub_u8_t		MAC_ADDR[MAC_ADDR_LEN];	//MAC地址
 
-#define PXENV_PACKET_TYPE_DHCP_DISCOVER	1
-#define PXENV_PACKET_TYPE_DHCP_ACK	2
-#define PXENV_PACKET_TYPE_CACHED_REPLY	3
+#define PXENV_PACKET_TYPE_DHCP_DISCOVER	1		//包类型  DHCP发现
+#define PXENV_PACKET_TYPE_DHCP_ACK			2		//包类型  DHCP确认
+#define PXENV_PACKET_TYPE_CACHED_REPLY	3		//包类型  回复
 
 typedef struct {
-  PXENV_STATUS	Status;
-  grub_u16_t	PacketType;
-  grub_u16_t	BufferSize;
-  SEGOFS16	Buffer;
-  grub_u16_t	BufferLimit;
-} PACKED PXENV_GET_CACHED_INFO_t;
+  PXENV_STATUS	Status;			//状态					grub_uint32_t state
+  grub_u16_t	PacketType;		//数据包类型 
+  grub_u16_t	BufferSize;		//缓存尺寸			grub_uint32_t nvram_size
+  SEGOFS16	Buffer;					//缓存			
+  grub_u16_t	BufferLimit;	//缓冲限制			grub_uint32_t nvram_access_size
+} PACKED PXENV_GET_CACHED_INFO_t;		//获取信息	pppp
 
-#define BOOTP_REQ	1
-#define BOOTP_REP	2
+#define BOOTP_REQ	1					//引导TP需求
+#define BOOTP_REP	2					//引导TP
 
-#define BOOTP_BCAST	0x8000
+#define BOOTP_BCAST	0x8000	//引导
 
 #if 1
-#define BOOTP_DHCPVEND  1024    /* DHCP extended vendor field size */
+#define BOOTP_DHCPVEND  1024    /* DHCP extended vendor field size DHCP扩展供应商字段大小*/
 #else
 #define BOOTP_DHCPVEND  312	/* DHCP standard vendor field size */
 #endif
@@ -187,105 +187,204 @@ typedef struct {
 #define	VM_RFC1048	0x63825363L
 #endif
 
-typedef struct {
-  grub_u8_t		opcode;
-  grub_u8_t		Hardware;	/* hardware type */
-  grub_u8_t		Hardlen;	/* hardware addr len */
-  grub_u8_t		Gatehops;	/* zero it */
-  grub_u32_t	ident;		/* random number chosen by client */
-  grub_u16_t	seconds;	/* seconds since did initial bootstrap */
-  grub_u16_t	Flags;		/* seconds since did initial bootstrap */
-  IP4		cip;		/* Client IP */
-  IP4		yip;		/* Your IP */
-  IP4		sip;		/* IP to use for next boot stage */
-  IP4		gip;		/* Relay IP ? */
-  MAC_ADDR	CAddr;		/* Client hardware address */
-  grub_u8_t		Sname[64];	/* Server's hostname (Optional) */
-  grub_u8_t		bootfile[128];	/* boot filename */
-  union {
-    grub_u8_t	d[BOOTP_DHCPVEND];	/* raw array of vendor/dhcp options */
+
+
+
+typedef enum grub_network_level_protocol_id 
+{
+  GRUB_NET_NETWORK_LEVEL_PROTOCOL_DHCP_RECV,
+  GRUB_NET_NETWORK_LEVEL_PROTOCOL_IPV4,
+  GRUB_NET_NETWORK_LEVEL_PROTOCOL_IPV6
+} grub_network_level_protocol_id_t;
+
+typedef struct grub_net_network_level_netaddress
+{
+  grub_network_level_protocol_id_t type;
+  union
+  {
     struct {
-      grub_u8_t	magic[4];	/* DHCP magic cookie */
-      grub_u32_t	flags;		/* bootp flags/opcodes */
+      grub_uint32_t base;
+      int masksize; 
+    } ipv4;
+    struct {
+      grub_uint64_t base[2];
+      int masksize; 
+    } ipv6;
+  };
+} grub_net_network_level_netaddress_t;
+
+typedef struct {
+  grub_u8_t		opcode;		//操作码																												00
+  grub_u8_t		Hardware;	/* hardware type 硬件类型*/																		//00
+  grub_u8_t		Hardlen;	/* hardware addr len 硬件地址长度*/														//00
+  grub_u8_t		Gatehops;	/* zero it 归零*/																							//00
+  grub_u32_t	ident;		/* random number chosen by client 客户选择的随机数*/					//00 00 00 00
+  grub_u16_t	seconds;	/* seconds since did initial bootstrap 自初始引导以来的秒数*/	//00 00
+  grub_u16_t	Flags;		/* seconds since did initial bootstrap */											//00 00
+  IP4		cip;		/* Client IP 客户IP*/																									//00 00 00 00
+  IP4		yip;		/* Your IP 你的IP*/																										//02 01 06 00
+  IP4		sip;		/* IP to use for next boot stage 服务器IP*/														//f3 da 2f 8d
+  IP4		gip;		/* Relay IP ? 网关IP*/																								//00 00 80 00
+  MAC_ADDR	CAddr;		/* Client hardware address 客户端硬件地址*/											//00 00 00 00 c0 a8 38 02 c0 a8 38 01 00 00 00 00
+//	grub_u32_t CAddr[4];
+  grub_u8_t		Sname[64];	/* Server's hostname (Optional) 服务器的主机名（可选）*/		//00 0c 29 8d cc d9 00 00 00 00 00 00 00 00 00 00
+//	grub_u32_t Sname[8];																																						//PC-201311212111
+  grub_u8_t		bootfile[128];	/* boot filename 引导文件名*/														//00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+//	grub_u32_t bootfile[16];																																										//bootia.EFI
+  union {
+    grub_u8_t	d[BOOTP_DHCPVEND];	/* raw array of vendor/dhcp options 供应商/ dhcp选项的原始数组*/
+    struct {
+      grub_u8_t	magic[4];	/* DHCP magic cookie DHCP魔术曲奇*/
+      grub_u32_t	flags;		/* bootp flags/opcodes bootp标志/操作码*/
       grub_u8_t	pad[56];
     } v;
-  } vendor;
-} PACKED BOOTPLAYER;
+  } vendor;		//供应商
+} PACKED BOOTPLAYER;		//引导播放器
+
+
+#define GRUB_NET_BOOTP_MAC_ADDR_LEN	16
+
+typedef grub_uint8_t grub_net_bootp_mac_addr_t[GRUB_NET_BOOTP_MAC_ADDR_LEN];
+
+#define	GRUB_NET_BOOTP_RFC1048_MAGIC_0	0x63
+#define	GRUB_NET_BOOTP_RFC1048_MAGIC_1	0x82
+#define	GRUB_NET_BOOTP_RFC1048_MAGIC_2	0x53
+#define	GRUB_NET_BOOTP_RFC1048_MAGIC_3	0x63
+
+enum
+  {
+    GRUB_NET_BOOTP_PAD = 0x00,
+    GRUB_NET_BOOTP_NETMASK = 0x01,
+    GRUB_NET_BOOTP_ROUTER = 0x03,
+    GRUB_NET_BOOTP_DNS = 0x06,
+    GRUB_NET_BOOTP_HOSTNAME = 0x0c,
+    GRUB_NET_BOOTP_DOMAIN = 0x0f,
+    GRUB_NET_BOOTP_ROOT_PATH = 0x11,
+    GRUB_NET_BOOTP_EXTENSIONS_PATH = 0x12,
+    GRUB_NET_BOOTP_END = 0xff
+  };
+
 
 typedef struct {
-  PXENV_STATUS	Status;
-  IP4		ServerIPAddress;
-  IP4		GatewayIPAddress;
-  grub_u8_t	FileName[128];
-  UDP_PORT	TFTPPort;
-  grub_u16_t	PacketSize;
-} PACKED PXENV_TFTP_OPEN_t;
+  PXENV_STATUS	Status;			//状态
+  IP4		ServerIPAddress;		//服务器的IP地址
+  IP4		GatewayIPAddress;		//网关IP地址
+  grub_u8_t	FileName[128];	//文件名
+  UDP_PORT	TFTPPort;				//TFTP端口
+  grub_u16_t	PacketSize;		//包尺寸
+} PACKED PXENV_TFTP_OPEN_t;	//TFTP打开
 
 typedef struct {
-  PXENV_STATUS	Status;
-} PACKED PXENV_TFTP_CLOSE_t;
+  PXENV_STATUS	Status;			//状态
+} PACKED PXENV_TFTP_CLOSE_t;//TFTP关闭
 
 typedef struct {
-  PXENV_STATUS	Status;
-  grub_u16_t	PacketNumber;
-  grub_u16_t	BufferSize;
-  SEGOFS16	Buffer;
-} PACKED PXENV_TFTP_READ_t;
+  PXENV_STATUS	Status;			//状态
+  grub_u16_t	PacketNumber;	//包号
+  grub_u16_t	BufferSize;		//缓存尺寸
+  SEGOFS16	Buffer;					//缓存地址
+} PACKED PXENV_TFTP_READ_t; //TFTP读
 
 typedef struct {
-  PXENV_STATUS	Status;
-  IP4		ServerIPAddress;
-  IP4		GatewayIPAddress;
-  grub_u8_t	FileName[128];
-  grub_u32_t	FileSize;
-} PACKED PXENV_TFTP_GET_FSIZE_t;
+  PXENV_STATUS	Status;			//状态
+  IP4		ServerIPAddress;		//服务器的IP地址
+  IP4		GatewayIPAddress;		//网关IP地址
+  grub_u8_t	FileName[128];	//文件名
+  grub_u32_t	FileSize;			//文件尺寸
+} PACKED PXENV_TFTP_GET_FSIZE_t; //TFTP获得文件尺寸
 
 typedef struct {
-  PXENV_STATUS	Status;
-  IP4		src_ip;
-} PACKED PXENV_UDP_OPEN_t;
+  PXENV_STATUS	Status;			//状态
+  IP4		src_ip;							//源ip
+} PACKED PXENV_UDP_OPEN_t;	//UDP 打开
 
 typedef struct {
-  PXENV_STATUS	Status;
-} PACKED PXENV_UDP_CLOSE_t;
+  PXENV_STATUS	Status;			//状态
+} PACKED PXENV_UDP_CLOSE_t;	//UDP 关闭
 
 typedef struct {
-  PXENV_STATUS	Status;
-  IP4		ip;
-  IP4		gw;
-  UDP_PORT	src_port;
-  UDP_PORT	dst_port;
-  grub_u16_t	buffer_size;
-  SEGOFS16	buffer;
-} PACKED PXENV_UDP_WRITE_t;
+  PXENV_STATUS	Status;			//状态
+  IP4		ip;									//IP4		ip
+  IP4		gw;									//IP4		gw
+  UDP_PORT	src_port;				//源端口
+  UDP_PORT	dst_port;				//目的端口
+  grub_u16_t	buffer_size;	//缓存尺寸
+  SEGOFS16	buffer;					//缓存地址
+} PACKED PXENV_UDP_WRITE_t;	 //UDP 写
 
 typedef struct {
-  PXENV_STATUS	Status;
-  IP4		src_ip;
-  IP4		dst_ip;
-  UDP_PORT	src_port;
-  UDP_PORT	dst_port;
-  grub_u16_t	buffer_size;
-  SEGOFS16	buffer;
-} PACKED PXENV_UDP_READ_t;
+  PXENV_STATUS	Status;			//状态
+  IP4		src_ip;							//源ip
+  IP4		dst_ip;							//目的ip
+  UDP_PORT	src_port;				//源端口
+  UDP_PORT	dst_port;				//目的端口
+  grub_u16_t	buffer_size;	//缓存尺寸
+  SEGOFS16	buffer;					//缓存地址
+} PACKED PXENV_UDP_READ_t;	//UDP 读
 
 typedef struct {
-  PXENV_STATUS	Status;
-  grub_u8_t		reserved[10];
-} PACKED PXENV_UNLOAD_STACK_t;
+  PXENV_STATUS	Status;			//状态
+  grub_u8_t		reserved[10];	//保留
+} PACKED PXENV_UNLOAD_STACK_t;		 //卸载堆栈 
 
 typedef struct {
-	int (*open)(const char *name);
-	grub_u32_t (*getsize)(void);
-	grub_u32_t (*readblk)(grub_u32_t buf,grub_u32_t num);
-	void (*close)(void);
-	void (*unload)(void);
-} s_PXE_FILE_FUNC;
+	int (*open)(const char *name);												//打开			tftp_open				ipxe_open
+	grub_u32_t (*getsize)(void);													//获得尺寸	tftp_get_size		ipxe_get_size
+	grub_u32_t (*readblk)(grub_u32_t buf,grub_u32_t num);	//读				tftp_read_blk		ipxe_read_blk
+	void (*close)(void);																	//关闭 			tftp_close			ipxe_close
+	void (*unload)(void);																	//卸载			tftp_unload			ipxe_unload
+} s_PXE_FILE_FUNC;																			//pxe文件功能
 extern s_PXE_FILE_FUNC *pxe_file_func[2];
-extern unsigned long pxe_blksize;
+extern unsigned int pxe_blksize;
 #define PXE_FILE_TYPE_TFTP 0
 #define PXE_FILE_TYPE_IPXE 1
+/////////////////////////////////////////////////////////////////////////
+extern struct grub_net_card *grub_net_cards;
+#define FOR_NET_CARDS(var) for (var = grub_net_cards; var; var = var->next)
+#define FOR_NET_CARDS_SAFE(var, next) for (var = grub_net_cards, next = (var ? var->next : 0); var; var = next, next = (var ? var->next : 0))
+#define NETBUFF_ALIGN 2048
+#define NETBUFFMINLEN 64
+#define ALIGN_UP(addr, align) \
+	((addr + (typeof (addr)) align - 1) & ~((typeof (addr)) align - 1))
+#define ALIGN_UP_OVERHEAD(addr, align) ((-(addr)) & ((typeof (addr)) (align) - 1))
+#define ALIGN_DOWN(addr, align) \
+	((addr) & ~((typeof (addr)) align - 1))
+#define ARRAY_SIZE(array) (sizeof (array) / sizeof (array[0]))
+#define COMPILE_TIME_ASSERT(cond) switch (0) { case 1: case !(cond): ; }
 
+typedef enum
+{
+  DNS_OPTION_IPV4,
+  DNS_OPTION_IPV6,
+  DNS_OPTION_PREFER_IPV4,
+  DNS_OPTION_PREFER_IPV6
+} grub_dns_option_t;
+
+typedef enum grub_net_interface_flags
+  {
+    GRUB_NET_INTERFACE_HWADDRESS_IMMUTABLE = 1,	//网络接口硬件地址不可变
+    GRUB_NET_INTERFACE_ADDRESS_IMMUTABLE = 2,		//网络接口地址不可变
+    GRUB_NET_INTERFACE_PERMANENT = 4						//网络接口常驻
+  } grub_net_interface_flags_t;		//网络接口标记
+
+struct grub_env_var;
+typedef const char *(*grub_env_read_hook_t) (struct grub_env_var *var, const char *val);
+typedef char *(*grub_env_write_hook_t) (struct grub_env_var *var, const char *val);
+
+struct grub_env_var
+{
+  char *name;
+  char *value;
+  grub_env_read_hook_t read_hook;
+  grub_env_write_hook_t write_hook;
+  struct grub_env_var *next;
+  struct grub_env_var **prevp;
+  struct grub_env_var *sorted_next;
+  int global;
+};
+
+///////////////////////////////////////////////////////
 #undef PACKED
+
 
 #endif /* __PXE_H */

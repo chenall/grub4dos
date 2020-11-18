@@ -57,7 +57,7 @@
 #define B_PARTITIONSHIFT        8
 #define B_TYPESHIFT             0
 
-#define B_DEVMAGIC      ((unsigned long)0xa0000000)
+#define B_DEVMAGIC      ((unsigned int)0xa0000000)
 
 #define MAKEBOOTDEV(type, adaptor, controller, unit, partition) \
         (((type) << B_TYPESHIFT) | ((adaptor) << B_ADAPTORSHIFT) | \
@@ -83,13 +83,13 @@ struct bootinfo
     /* End of fields that are always present. */
 //#define bi_endcommon            bi_n_bios_used
     unsigned int bi_n_bios_used;
-    unsigned long bi_bios_geom[N_BIOS_GEOM];
+    unsigned int bi_bios_geom[N_BIOS_GEOM];
     unsigned int bi_size;
     unsigned char bi_memsizes_valid;
     unsigned char bi_bios_dev;
     unsigned char bi_pad[2];
-    unsigned long bi_basemem;
-    unsigned long bi_extmem;
-    unsigned long bi_symtab;
-    unsigned long bi_esymtab;
+    unsigned int bi_basemem;
+    unsigned int bi_extmem;
+    unsigned int bi_symtab;
+    unsigned int bi_esymtab;
   };

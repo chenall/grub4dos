@@ -26,8 +26,8 @@
 /* Emm... Room between address 15M and 16M may be used by chipset.
  * Use 64K at 0x150000 instead.      -- tinybit  2012-11-07  */
 //#define FB_MENU_ADDR	0xff0000
-#define FB_MENU_ADDR	0x150000
-
+//#define FB_MENU_ADDR	0x150000
+char *FB_MENU_ADDR;
 #define FB_MAGIC	"FBBF"
 #define FB_MAGIC_LONG	0x46424246
 
@@ -38,7 +38,7 @@
 
 #define uchar	unsigned char
 #define uchar2	unsigned short
-#define uchar4	unsigned long
+#define uchar4	unsigned long long
 
 
 struct fb_mbr
@@ -92,22 +92,23 @@ struct fbm_file
 */
 char ver_min;
 static int fb_inited = FB_DRIVE;
-static unsigned long fb_drive;
+static unsigned int fb_drive;
 static uchar4 fb_ofs;
 static uchar4 fb_pri_size;
 static struct fbm_file *cur_file;
 static uchar *fbm_buff = NULL;
 static uchar4 ud_ofs;
 static uchar4 ud_pri_size;
-static unsigned long ud_inited = 0;
+static unsigned int ud_inited = 0;
 
-extern unsigned long ROM_int13;
-extern unsigned long ROM_int15;
-static unsigned long is_virtual (unsigned long drive)
+//extern unsigned long ROM_int13;
+//extern unsigned long ROM_int15;
+static unsigned int is_virtual (unsigned int drive);
+static unsigned int is_virtual (unsigned int drive)
 {
-	unsigned long i;
-	unsigned long addr;
-	unsigned long low_mem;
+	unsigned int i;
+	unsigned int addr;
+	unsigned int low_mem;
 	struct drive_map_slot *drive_map;
 
 	low_mem = (*(unsigned short *)0x413);
@@ -116,21 +117,21 @@ static unsigned long is_virtual (unsigned long drive)
 	low_mem <<= (16 + 6);
 	low_mem |= 0x100;
 	addr = low_mem;
-	if (low_mem != (*(unsigned long *)0x4C))
+	if (low_mem != (*(unsigned int *)0x4C))
 		return 0;
 	low_mem >>= 12;		/* int13_handler base address */
-	if (grub_memcmp ((char *)(low_mem + 0x103), "$INT13SFGRUB4DOS", 16))
+	if (grub_memcmp ((char *)(grub_size_t)(low_mem + 0x103), "$INT13SFGRUB4DOS", 16))
 		return 0;
-	if (*(unsigned long *)(low_mem + 0x1C) < 0x5A000000) // old int13
+	if (*(unsigned int *)(grub_size_t)(low_mem + 0x1C) < 0x5A000000) // old int13
 		return 0;
-	if (*(unsigned long *)(low_mem + 0x0C) < 0x5A000000) // old int15
+	if (*(unsigned int *)(grub_size_t)(low_mem + 0x0C) < 0x5A000000) // old int15
 		return 0;
-	if (*(unsigned long *)(low_mem + 0x1C) != ROM_int13) // old int13
-		return 0;
-	if (*(unsigned long *)(low_mem + 0x0C) != ROM_int15) // old int15
-		return 0;
+	//if (*(unsigned long *)(low_mem + 0x1C) != ROM_int13) // old int13
+		//return 0;
+	//if (*(unsigned long *)(low_mem + 0x0C) != ROM_int15) // old int15
+		//return 0;
 	/* Yes, hooked. The drive map slots begins at (low_mem + 0x20). */
-	drive_map = (struct drive_map_slot *)(low_mem + 0x20);
+	drive_map = (struct drive_map_slot *)(grub_size_t)(low_mem + 0x20);
 	for (i = 0; i < DRIVE_MAP_SIZE; i++)
 	{
 		if (drive_map_slot_empty (drive_map[i]))
@@ -141,9 +142,10 @@ static unsigned long is_virtual (unsigned long drive)
 	return 0;
 }
 
-static unsigned long quick_hook (unsigned long addr)
+static unsigned int quick_hook (unsigned int addr);
+static unsigned int quick_hook (unsigned int addr)
 {
-	unsigned long low_mem;
+	unsigned int low_mem;
 
 	if (addr)
 		goto hook;
@@ -153,33 +155,34 @@ static unsigned long quick_hook (unsigned long addr)
 	low_mem <<= (16 + 6);
 	low_mem |= 0x100;
 	addr = low_mem;
-	if (low_mem != (*(unsigned long *)0x4C))
+	if (low_mem != (*(unsigned int *)0x4C))
 		return 0;
 	low_mem >>= 12;		/* int13_handler base address */
-	if (grub_memcmp ((char *)(low_mem + 0x103), "$INT13SFGRUB4DOS", 16))
+	if (grub_memcmp ((char *)(grub_size_t)(low_mem + 0x103), "$INT13SFGRUB4DOS", 16))
 		return 0;
-	if (*(unsigned long *)(low_mem + 0x1C) < 0x5A000000) // old int13
+	if (*(unsigned int *)(grub_size_t)(low_mem + 0x1C) < 0x5A000000) // old int13
 		return 0;
-	if (*(unsigned long *)(low_mem + 0x0C) < 0x5A000000) // old int15
+	if (*(unsigned int *)(grub_size_t)(low_mem + 0x0C) < 0x5A000000) // old int15
 		return 0;
-	if (*(unsigned long *)(low_mem + 0x1C) != ROM_int13) // old int13
-		return 0;
-	if (*(unsigned long *)(low_mem + 0x0C) != ROM_int15) // old int15
-		return 0;
+	//if (*(unsigned long *)(low_mem + 0x1C) != ROM_int13) // old int13
+		//return 0;
+	//if (*(unsigned long *)(low_mem + 0x0C) != ROM_int15) // old int15
+		//return 0;
 	/* Yes, hooked. The drive map slots begins at (low_mem + 0x20). */
 
-	(*(unsigned long *)0x4C) = ROM_int13;
+	//(*(unsigned long *)0x4C) = ROM_int13;
 	buf_drive = -1;
 	buf_track = -1;
 	return addr;
 
 hook:
-	(*(unsigned long *)0x4C) = addr;
+	(*(unsigned int *)0x4C) = addr;
 	buf_drive = -1;
 	buf_track = -1;
 	return addr;
 }
 
+static int fb_init (void);
 static int fb_init (void)
 {
   struct fb_mbr m;
@@ -188,15 +191,16 @@ static int fb_init (void)
   uchar *fb_list, *p1, *p2;
   uchar4 t_fb_ofs = 0;
   uchar4 t_fb_pri_size = 0;
-  unsigned long ret;
-  unsigned long fb_drive_virtual;
+  unsigned int ret;
+  unsigned int fb_drive_virtual;
 
+	FB_MENU_ADDR = grub_malloc (0x10000);
 	fb_drive_virtual = is_virtual(fb_drive);
 
 	if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
 		quick_hook (0);
 
-	ret = rawread (fb_drive, 0, 0, 512, (unsigned long long)(unsigned int)&m, 0xedde0d90);
+	ret = rawread (fb_drive, 0, 0, 512, (unsigned long long)(grub_size_t)&m, 0xedde0d90);
 	if (! ret)
 		goto init_end;
 
@@ -206,13 +210,13 @@ static int fb_init (void)
 		boot_base = m.boot_base;
 		t_fb_ofs = m.lba;
 		ret = rawread (fb_drive, boot_base + 1 - t_fb_ofs, 0, 512,
-		 (unsigned long long)(unsigned int)(char *)data, 0xedde0d90);
+		 (unsigned long long)(grub_size_t)(char *)data, 0xedde0d90);
 		if (! ret)
 			goto init_end;
 		boot_size = data->boot_size;
 		t_fb_pri_size = data->pri_size;
 	}
-	else if (*(unsigned long *)&m != FB_AR_MAGIC_LONG)
+	else if (*(unsigned int *)&m != FB_AR_MAGIC_LONG)
 	{
 		ret = 0;
 		goto init_end;
@@ -254,7 +258,7 @@ static int fb_init (void)
 	}
 
 	ret = rawread (fb_drive, boot_base + 1 + boot_size - t_fb_ofs, 0,
-		 (unsigned long long)list_used << 9, (unsigned long long)(unsigned int)fb_list, 0xedde0d90);
+		 (unsigned long long)list_used << 9, (unsigned long long)(grub_size_t)fb_list, 0xedde0d90);
 	if (! ret)
 		goto init_end;
 
@@ -280,6 +284,7 @@ init_end:
 	return ret;
 }
 
+int fb_mount (void);
 int fb_mount (void)
 {
 	int ret;
@@ -306,7 +311,7 @@ int fb_mount (void)
 	if (current_partition != 0xFFFFFF)
 		return 0;
 	fb_drive = current_drive;
-	if (fb_inited  == current_drive)
+	if ((unsigned int)fb_inited  == current_drive)
 		goto return_true;
 
 	ret = fb_init();
@@ -321,12 +326,13 @@ return_true:
   
 }
 
+unsigned long long fb_read (unsigned long long buf, unsigned long long len, unsigned int write);
 unsigned long long
-fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
+fb_read (unsigned long long buf, unsigned long long len, unsigned int write)
 {
   unsigned long long ret;
-  unsigned long sector, ofs, saved_len;
-  unsigned long fb_drive_virtual;
+  unsigned int sector, ofs, saved_len;
+  unsigned int fb_drive_virtual;
 
   if (! cur_file->size)
     return 0;
@@ -362,8 +368,8 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
       return len;
     }
 
-  sector = cur_file->data_start + ((unsigned long) filepos / 510) - fb_ofs;
-  ofs = (unsigned long) filepos % 510;
+  sector = cur_file->data_start + ((unsigned int) filepos / 510) - fb_ofs;
+  ofs = (unsigned int) filepos % 510;
   saved_len = len;
 
   if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
@@ -371,7 +377,7 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
 
   while (len)
     {
-      unsigned long n;
+      unsigned int n;
 
       n = 510 - ofs;
       if (n > len)
@@ -399,10 +405,11 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned long write)
   return saved_len;
 }
 
+int fb_dir (char *dirname);
 int fb_dir (char *dirname)
 {
-  unsigned long found = 0;
-  unsigned long i;
+  unsigned int found = 0;
+  unsigned int i;
   char *dirpath;
 
   while (*dirname == '/')
@@ -415,17 +422,17 @@ int fb_dir (char *dirname)
   if (*dirpath == '/')
 	i++;
 
-  cur_file = (struct fbm_file *)((current_drive == FB_DRIVE)?FB_MENU_ADDR:(int)fbm_buff);
+  cur_file = (struct fbm_file *)(grub_size_t)((current_drive == FB_DRIVE)?(grub_size_t)FB_MENU_ADDR:(grub_size_t)fbm_buff);
 
   while (cur_file->size)
     {
       char tmp_name[512];/* max name len=255, so 512 byte buffer is needed. */
-      unsigned long j, k;
+      unsigned int j, k;
       char ch1;
 
       /* copy cur_file->name to tmp_name, and quote spaces with '\\' */
 //      for (j = 0, k = 0; j < cur_file->size - 12; j++)
-		for (j = 0, k = 0; j < cur_file->size - ((ver_min==6)?12:16); j++)
+		for (j = 0, k = 0; j < (unsigned int)cur_file->size - ((ver_min==6)?12:16); j++)
 	{
 //	  if (! (ch1 = cur_file->name[j]))
 		if (! (ch1 = cur_file->name[j+((ver_min==6)?0:4)]))
@@ -451,7 +458,9 @@ int fb_dir (char *dirname)
 	  {
 	    found = 1;
 //			filemax = cur_file->data_size;
-	    filemax = (ver_min==6)?cur_file->data_size:(*(unsigned long long *)(&cur_file->data_size));
+      unsigned long long *a = (unsigned long long *)&cur_file->data_size;
+	    filemax = (ver_min==6)?cur_file->data_size:(*a);
+//	    filemax = (ver_min==6)?cur_file->data_size:(*(unsigned long long *)(&cur_file->data_size));
 	    break;
 	  }
 

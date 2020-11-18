@@ -1,24 +1,32 @@
 #! /bin/sh
 #
-# Script to build binary
+# Script to build binary    生成二进制文件的脚本 
 #
 # Usage:
 #	sh build
 # or
 #	./build
-SOURCE_DIR=`pwd`
-VER=`cat grub4dos_version`
-DATE=`date -u +%Y-%m-%d`
-RELEASE=grub4dos-${VER}-${DATE}
-COPY_FILES="COPYING README_GRUB4DOS*.txt ChangeLog_*.txt \
-	config.sys default menu.lst grub.pif \
-	stage2/grldr stage2/grub.exe stage2/badgrub.exe stage2/grldr.mbr stage2/bootlace.com \
-	stage2/hmload.com stage2/grldr.pbr stage2/grldr_cd.bin"
+#此时在根目录 /home/dev/grub4efi
 
-rm -rf *.zip *.7z *~ || exit $?
+#源目录
+SOURCE_DIR=`pwd`
+#版本
+VER=`cat grub4dos_version`
+#日期
+DATE=`date -u +%Y-%m-%d`
+#发布日期
+RELEASE=grub4dos-${VER}-${DATE}
+#定义复制文件集
+#COPY_FILES="COPYING README_GRUB4DOS*.txt ChangeLog_*.txt \
+#	config.sys default menu.lst grub.pif config.h\
+#	stage2/pre_stage2.exec"
+
+#删除*.zip *.7z *~
+#rm -rf *.zip *.7z *~ || exit $?
+#定义临时编译目录 GRUB4DOS_TEMP
 [ -z "$GRUB4DOS_TEMP" ] && GRUB4DOS_TEMP=/tmp/grub4dos-temp
 if svn export . ${GRUB4DOS_TEMP} --force 2>/dev/null ; then
-# check for svn version
+# check for svn version   检查svn版本
 	export LC_ALL=C
 	svninfo=$(svn info)
 	if [ "$svninfo" ]; then
@@ -38,19 +46,20 @@ EOF
 	[ "$SVN_URL" = "" ] && SVN_URL="https://github.com/chenall/grub4dos"
 	[ "$CURR_REVISION" = "" ] && CURR_REVISION=rHEAD
 	Get_source="\tsvn co -$CURR_REVISION $SVN_URL grub4dos\r\n\tcd grub4dos\r\n\r\n"
-	# Generate patch file
+# Generate patch file   生成修补程序文件
 	svn diff . > ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff 2>/dev/null
-
+#核实索引
 elif git checkout-index -a -f --prefix=${GRUB4DOS_TEMP}/ 2>/dev/null ; then
-# check for git version
+# check for git version   检查git版本 
 	CURR_REVISION=$(git log -1 --pretty=format:%h)
 	Get_source="\tgit clone git://github.com/chenall/grub4dos.git\r\n\tcd grub4dos\r\n\tgit checkout $CURR_REVISION -b build\r\n\r\n"
-	# Generate patch file
+# Generate patch file   生成修补程序文件
 	git diff --no-prefix > ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff 2> /dev/null
 	if [ -s ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff ]; then
 		cd ${GRUB4DOS_TEMP} || exit $?
 		patch -p0 < grub4dos_${CURR_REVISION}.diff
 	fi
+#此时在 /tmp/grub4dos-temp/
 else
 	files=$(echo *)
 	if ! [ -d ${GRUB4DOS_TEMP} ] ; then
@@ -58,9 +67,11 @@ else
 	fi
 	cp -a $files ${GRUB4DOS_TEMP} || exit $?
 fi
-
+#此时在 /tmp/grub4dos-temp/
+#转到 GRUB4DOS_TEMP 目录
 cd ${GRUB4DOS_TEMP} || exit $?
 
+#生成 Get_Source_of_This_Build.txt 文件
 if [ "$Get_source" ]; then
 	echo -n -e "Get the source code of this build in this way:\r\n\r\n${Get_source}" > Get_Source_of_This_Build.txt
 	if [ -s grub4dos_${CURR_REVISION}.diff ]; then
@@ -71,63 +82,107 @@ if [ "$Get_source" ]; then
 fi
 
 #############################################
-#	Build english version
+#	Build english version   生成英文版本 
 #############################################
-
-./configure --enable-preset-menu=preset_menu.lst || exit $?
+#配置
+#./configure --enable-preset-menu=preset_menu.lst || exit $?
+./configure || exit $?
+#清洁
 make clean
+#编译
 make || exit $?
-rm -rf grub4dos-${VER}
-mkdir grub4dos-${VER} || exit $?
-[ -f stage2/eltorito.sys ] && cp stage2/eltorito.sys grub4dos-${VER}
-cp $COPY_FILES grub4dos-${VER} || exit $?
-cd grub4dos-${VER}
+
+#建立 grub4dos-${VER} 目录
+#rm -rf grub4dos-${VER}
+#mkdir grub4dos-${VER} || exit $?
+
+#复制 stage2/eltorito.sys 到 grub4dos-${VER}
+#[ -f stage2/eltorito.sys ] && cp stage2/eltorito.sys grub4dos-${VER}
+
+#复制 $COPY_FILES 到 grub4dos-${VER}
+#cp $COPY_FILES grub4dos-${VER} || exit $?
+
+#转到 grub4dos-${VER} 目录
+#cd grub4dos-${VER}
+
+#生成 bootlace64.com
 # generate bootlace64.com
-if [ -f bootlace.com ]; then
-	Seek=$((0x`objdump -s bootlace.com|awk '/7f45/{print $1|"sed s/4/0/"}'`))
-	dd if=bootlace.com of=bootlace.head bs=1 count=64 skip=$Seek
-	dd if=bootlace.com of=bootlace.body bs=1 skip=64
-	cat bootlace.head bootlace.body > bootlace64.com
-	chmod a+x bootlace64.com
-	rm -f bootlace.body bootlace.head
-fi
-mkdir docs && mv *.txt docs/
-mkdir sample && mv menu.lst default config.sys sample/
-cd ..
-if [ -f Get_Source_of_This_Build.txt ]; then
-	cp Get_Source_of_This_Build.txt grub4dos-${VER}
-	if [ -s grub4dos_${CURR_REVISION}.diff ]; then
-		cp grub4dos_${CURR_REVISION}.diff grub4dos-${VER}
-	fi
-fi
+
+#建立 docs 目录，并且移动 *.txt 到本目录
+#mkdir docs && mv *.txt docs/
+
+#建立 sample 目录，并且移动 menu.lst default config.sys 到本目录
+#mkdir sample && mv menu.lst default config.sys sample/
+
+#返回上一级 GRUB4DOS_TEMP 目录
+#cd ..
+
+#如果存在，则复制 Get_Source_of_This_Build.txt 及 grub4dos_${CURR_REVISION}.diff 到 grub4dos-${VER}
+#if [ -f Get_Source_of_This_Build.txt ]; then
+#	cp Get_Source_of_This_Build.txt grub4dos-${VER}
+#	if [ -s grub4dos_${CURR_REVISION}.diff ]; then
+#		cp grub4dos_${CURR_REVISION}.diff grub4dos-${VER}
+#	fi
+#fi
 
 #############################################
-#	Build chinese version
+#	Build chinese version   建立中文版
 #############################################
-
+#如果补丁 -p1 < patch-chinese.diff，编译
 #patch -p1 < patch-chinese.diff || exit $?
 #make || exit $?
 
+#建立 grub4dos-${VER}/chinese 目录
 #mkdir grub4dos-${VER}/chinese || exit $?
-#cp README_GRUB4DOS_CN.txt stage2/grldr stage2/grub.exe stage2/badgrub.exe grub4dos-${VER}/chinese || exit $?
+#复制 README_GRUB4DOS_CN.txt 及 stage2/grldr 到 grub4dos-${VER}/chinese
+#cp README_GRUB4DOS_CN.txt stage2/grldr grub4dos-${VER}/chinese || exit $?
 
 #############################################
-#	Create ZIP ball or TAR ball
+#	Create ZIP ball or TAR ball   创建 ZIP 或 TAR
 #############################################
+#转到 $SOURCE_DIR
+#cd $SOURCE_DIR
 
+#如果存在 ipxe，则转到 ipxe/src 目录，编译并推送...，然后返回 $SOURCE_DIR 目录
+#if [ -d ipxe ] ; then
+#	cd ipxe/src
+#	[ -d .git ] && git pull
+#	make bin/undionly.kpxe EMBED=$SOURCE_DIR/ipxegrldr.ipxe,${GRUB4DOS_TEMP}/grub4dos-${VER}/grldr && cp -af bin/undionly.kpxe ${GRUB4DOS_TEMP}/grub4dos-${VER}/ipxegrldr
+#	cd $SOURCE_DIR
+#fi
+
+#此时在 /tmp/grub4dos-temp/
+#复制pre_stage2.exec
+cp stage2/pre_stage2.exec $GRUB4DOS_TEMP/kernel.img
+cp $SOURCE_DIR/moddep.lst $GRUB4DOS_TEMP/moddep.lst
+$SOURCE_DIR/grub-mkimage -d $GRUB4DOS_TEMP -p /GRUB2 -o BOOTX64.EFI -O x86_64-efi
+#转到源目录
 cd $SOURCE_DIR
-if [ -d ipxe ] ; then
-	cd ipxe/src
-	[ -d .git ] && git pull
-	make bin/undionly.kpxe EMBED=$SOURCE_DIR/ipxegrldr.ipxe,${GRUB4DOS_TEMP}/grub4dos-${VER}/grldr && cp -af bin/undionly.kpxe ${GRUB4DOS_TEMP}/grub4dos-${VER}/ipxegrldr
-	cd $SOURCE_DIR
-fi
+#$SOURCE_DIR/grub-mkimage -d $SOURCE_DIR -p /GRUB2 -o BOOTX64.EFI -O x86_64-efi
+#此时在 /tmp/grub4dos-temp/
+#cd /
+#此时在 /home/ 的上一级目录，但不是 /g4d_dev/
+
+#产生 grub4dos-0.4.6a-xxxx-xx-xx.7z 文件
+#rm -f ${RELEASE}.zip ${RELEASE}.rar ${RELEASE}.tar.gz || exit $?
+#if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/grub4dos-${VER} ; then
+#	echo 7z failed. Continue with zip or tar...
+#	if ! zip -r -q ${RELEASE}.zip ${GRUB4DOS_TEMP}/grub4dos-${VER} ; then
+#		tar -czf ${RELEASE}.tar.gz ${GRUB4DOS_TEMP}/grub4dos-${VER}
+#	fi
+#fi
+
 rm -f ${RELEASE}.zip ${RELEASE}.rar ${RELEASE}.tar.gz || exit $?
-if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/grub4dos-${VER} ; then
+if ! 7za a ${RELEASE}.7z ${GRUB4DOS_TEMP}/BOOTX64.EFI $SOURCE_DIR/ChangeLog_UEFI.txt $SOURCE_DIR/menu.lst \
+    ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff; then
 	echo 7z failed. Continue with zip or tar...
-	if ! zip -r -q ${RELEASE}.zip ${GRUB4DOS_TEMP}/grub4dos-${VER} ; then
-		tar -czf ${RELEASE}.tar.gz ${GRUB4DOS_TEMP}/grub4dos-${VER}
-	fi
 fi
 
-# Do not remove grub4dos-temp as we can check and re-use it later.
+
+#删除*.zip *.7z *~
+#rm -rf *.zip *.7z *~ || exit $?
+#产生 grub4dos_for_UEFI-0.4.6a-xxxx-xx-xx.7z 文件
+#if ! 7z a ${RELEASE}.7z $SOURCE_DIR/BOOTX64.EFI $SOURCE_DIR/ChangeLog_UEFI.txt; then
+#	echo 7z failed. Continue with zip or tar...
+#fi
+# Do not remove grub4dos-temp as we can check and re-use it later.  不要删除grub4dos temp，因为我们可以稍后检查并重新使用它。

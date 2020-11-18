@@ -90,6 +90,7 @@ static UINT4 state[4];
 static unsigned int length;
 static unsigned char buffer[64];
 
+static void md5_transform (const unsigned char block[64]);
 static void
 md5_transform (const unsigned char block[64])
 {
@@ -141,6 +142,7 @@ md5_transform (const unsigned char block[64])
   state[3] += d;
 }
 
+static void md5_init(void);
 static void
 md5_init(void)
 {
@@ -148,6 +150,7 @@ md5_init(void)
   length = 0;
 }
 
+static void md5_update (const char *input, int inputlen);
 static void
 md5_update (const char *input, int inputlen)
 {
@@ -174,6 +177,7 @@ md5_update (const char *input, int inputlen)
   buflen = inputlen;
 }
 
+static unsigned char *md5_final();
 static unsigned char *
 md5_final()
 {
@@ -203,6 +207,7 @@ md5_final()
    to strcmp.
    If CHECK is false, crypt KEY and save the result in CRYPTED.
    CRYPTED must have a salt.  */
+int md5_password (const char *key, char *crypted, int check);
 int
 md5_password (const char *key, char *crypted, int check)
 {
@@ -323,6 +328,7 @@ md5_password (const char *key, char *crypted, int check)
 #endif
 
 #ifdef TEST
+static char *md5 (const char *input);
 static char *
 md5 (const char *input) 
 {
@@ -332,6 +338,7 @@ md5 (const char *input)
   return md5_final ();
 }
 
+static void test (char *buffer, char *expected);
 static void
 test (char *buffer, char *expected) 
 {
@@ -348,6 +355,7 @@ test (char *buffer, char *expected)
     printf ("MD5(%s) OK\n", buffer);
 }
 
+int main (void);
 int
 main (void)
 {

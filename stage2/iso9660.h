@@ -32,6 +32,20 @@
 #define ISO_SECTOR_BITS              (11)
 #define ISO_SECTOR_SIZE              (1<<ISO_SECTOR_BITS)
 
+#define CDVOL_TYPE_STANDARD 0x0
+#define CDVOL_TYPE_CODED    0x1
+#define CDVOL_TYPE_END      0xFF
+
+//Indicator types
+#define ELTORITO_ID_CATALOG               0x01
+#define ELTORITO_ID_SECTION_BOOTABLE      0x88
+#define ELTORITO_ID_SECTION_NOT_BOOTABLE  0x00
+#define ELTORITO_ID_SECTION_HEADER        0x90
+#define ELTORITO_ID_SECTION_HEADER_FINAL  0x91
+
+#define CDVOL_ID  "CD001"
+#define CDVOL_ELTORITO_ID "EL TORITO SPECIFICATION"
+
 #define	ISO_REGULAR	1	/* regular file	*/
 #define	ISO_DIRECTORY	2	/* directory	*/
 #define	ISO_OTHER	0	/* other file (with Rock Ridge) */
@@ -91,6 +105,53 @@ typedef	struct __iso_32bit {
 } iso_32bit_t;
 
 typedef u_int8_t		iso_date_t[7];
+
+struct boot_record_volume {
+	grub_uint8_t type;          // Must be 0
+	grub_uint8_t id[5];         // "CD001"
+	grub_uint8_t version;       // Must be 1
+	grub_uint8_t system_id[32]; // "EL TORITO SPECIFICATION"
+	grub_uint8_t unused[32];    // Must be 0
+	grub_uint8_t elt_catalog[4];// Absolute pointer to first sector of Boot Catalog
+	grub_uint8_t unused2[13];   // Must be 0
+} __attribute__ ((packed));
+
+typedef union
+{
+  struct
+  {
+    grub_uint8_t reserved[0x20];
+  } unknown;  //未知		结构0x20字节
+  // Catalog validation entry (Catalog header) 目录验证条目(目录标题) 
+  struct
+  {
+    grub_uint8_t  indicator;     // Must be 01
+    grub_uint8_t  platform_id;
+    grub_uint16_t reserved;
+    grub_uint8_t  manufac_id[24];
+    grub_uint16_t checksum;
+    grub_uint16_t id55AA;
+  } catalog;  //目录		结构0x20字节
+  // Initial/Default Entry or Section Entry 初始/默认条目或节条目 
+  struct
+  {
+    grub_uint8_t  indicator;     	// 88 = Bootable, 00 = Not Bootable
+    grub_uint8_t  media_type;
+    grub_uint16_t load_offset; 		// Must be 0
+    grub_uint16_t load_segment;
+    grub_uint16_t sector_count;
+    grub_uint32_t lba;
+		grub_uint8_t 	reserved[20];
+  } boot;	//引导  结构0x20字节
+  // Section Header Entry  节标题条目
+  struct
+  {
+    grub_uint8_t  indicator; 			// 90 - Header, more header follw, 91 - Final Header  		页眉，更多页眉跟随，91-最终页眉
+    grub_uint8_t  platform_id;		//ef
+    grub_uint16_t section_entries;// Number of section entries following this header				此标题后面的节条目数 
+    grub_uint8_t  id[28];
+  } section; //扇区  结构0x20字节
+} eltorito_catalog_t;
 
 struct iso_directory_record {
   iso_8bit_t	length;

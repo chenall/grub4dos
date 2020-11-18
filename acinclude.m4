@@ -91,7 +91,7 @@ dnl stage1/stage1.S.
 AC_DEFUN([grub_ASM_ADDR32],
 [AC_REQUIRE([AC_PROG_CC])
 AC_REQUIRE([grub_ASM_PREFIX_REQUIREMENT])
-AC_MSG_CHECKING([for .code16 addr32 assembler support])
+AC_MSG_CHECKING([for .code16 addr64 assembler support])
 AC_CACHE_VAL(grub_cv_asm_addr32,
 [cat > conftest.s.in <<\EOF
 	.code16
@@ -99,9 +99,9 @@ l1:	@ADDR32@	movb	%al, l1
 EOF
 
 if test "x$grub_cv_asm_prefix_requirement" = xyes; then
-  sed -e s/@ADDR32@/addr32/ < conftest.s.in > conftest.s
+  sed -e s/@ADDR32@/addr64/ < conftest.s.in > conftest.s
 else
-  sed -e s/@ADDR32@/addr32\;/ < conftest.s.in > conftest.s
+  sed -e s/@ADDR32@/addr64\;/ < conftest.s.in > conftest.s
 fi
 
 if AC_TRY_COMMAND([${CC-cc} ${CFLAGS} -c conftest.s]) && test -s conftest.o; then
@@ -137,17 +137,17 @@ fi
 rm -f conftest*])
 
 if test "x$grub_cv_asm_prefix_requirement" = xyes; then
-  grub_tmp_addr32="addr32"
-  grub_tmp_data32="data32"
+  grub_tmp_addr32="addr64"
+  grub_tmp_data32="data64"
 else
-  grub_tmp_addr32="addr32;"
-  grub_tmp_data32="data32;"
+  grub_tmp_addr32="addr64;"
+  grub_tmp_data32="data64;"
 fi
 
 AC_DEFINE_UNQUOTED([ADDR32], $grub_tmp_addr32,
-  [Define it to \"addr32\" or \"addr32;\" to make GAS happy])
-AC_DEFINE_UNQUOTED([DATA32], $grub_tmp_data32,
-  [Define it to \"data32\" or \"data32;\" to make GAS happy])
+  [Define it to \"addr64\" or \"addr64;\" to make GAS happy])
+AC_DEFINE_UNQUOTED([DATA64], $grub_tmp_data32,
+  [Define it to \"data64\" or \"data64;\" to make GAS happy])
 
 AC_MSG_RESULT([$grub_cv_asm_prefix_requirement])])
 

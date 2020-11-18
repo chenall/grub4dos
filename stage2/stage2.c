@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  GRUB  --  GRand Unified Bootloader
  *  Copyright (C) 2000,2001,2002,2004,2005  Free Software Foundation, Inc.
  *
@@ -21,55 +21,10 @@
 #include <term.h>
 
 /* indicates whether or not the next char printed will be highlighted */
-unsigned long is_highlight = 0;
-
-/* preset_menu is defined in asm.S */
-#define	preset_menu *(const char **)0x307FFC
-
-static unsigned long preset_menu_offset;
-
-static int
-open_preset_menu (void)
-{
-  if (! use_preset_menu)
-    return 0;
-
-  if (preset_menu != (const char *)0x800)
-	  goto lzma;
-  
-  preset_menu_offset = 0;
-  return 1;//preset_menu != 0;
-
-lzma:
-  return grub_open ("(md)0x880+0x200");
-}
-
-static int
-read_from_preset_menu (char *buf, int max_len)
-{
-  int len;
-
-  if (! use_preset_menu)	//if (preset_menu == 0)
-	return 0;
-
-  if (preset_menu != (const char *)0x800)
-	  goto lzma;
-  len = grub_strlen (preset_menu + preset_menu_offset);
-
-  if (len > max_len)
-    len = max_len;
-
-  grub_memmove (buf, preset_menu + preset_menu_offset, len);
-  preset_menu_offset += len;
-
-  return len;
-
-lzma:
-  return grub_read ((unsigned long long)(unsigned int)buf, max_len, 0xedde0d90);
-}
+unsigned int is_highlight = 0;
 
 #define MENU_BOX_X	((menu_border.menu_box_x > 2) ? menu_border.menu_box_x : 2)
-#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X - 1))
+#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X * 2 - 1))
 #define MENU_BOX_Y	(menu_border.menu_box_y)
 #define MENU_KEYHELP_Y_OFFSET  ((menu_border.menu_keyhelp_y_offset < 5) ? menu_border.menu_keyhelp_y_offset : 0)
 /* window height */
@@ -83,33 +38,15 @@ lzma:
 #define MENU_HELP_E (menu_border.menu_help_x ? (menu_border.menu_help_w ? (menu_border.menu_help_x + menu_border.menu_help_w) : (current_term->chars_per_line - MENU_HELP_X)) : (MENU_BOX_E + 1))
 #define NUM_LINE_ENTRYHELP ((MENU_KEYHELP_Y_OFFSET == 0) ? 4 : MENU_KEYHELP_Y_OFFSET)	//
 
-static long temp_entryno;
+static int temp_entryno;
 static short temp_num;
-static char * *titles;	/* title array, point to 256 strings. */
-extern int (*hotkey_func)(char *titles,int flags,int flags1);
+static char * *titles;	/* title array, point to 256 strings. 标题数组，指向256个字符串*/
 static unsigned short *title_boot;
 static int default_help_message_destoyed = 1;
 extern int num_text_char(char *p);
-/*
-	unsigned char disp_ul;
-	unsigned char disp_ur;
-	unsigned char disp_ll;
-	unsigned char disp_lr;
-	unsigned char disp_horiz;
-	unsigned char disp_vert;
-	unsigned char menu_box_x; // line start 
-	unsigned char menu_box_w; // line width 
-	unsigned char menu_box_y; // first line number 
-	unsigned char menu_box_h;
-	unsigned char menu_box_b;
-	unsigned char border_w;
-	unsigned char menu_help_x;
-	unsigned char menu_help_w;
-	unsigned char menu_keyhelp_y_offset;
-*/
 struct border menu_border = {218,191,192,217,196,179,2,0,2,0,0,2,0,0,0}; /* console */
-//struct border menu_border = {20,21,22,19,15,14,2,0,2,0,0}; /* graphics */
 
+static void print_help_message (const char *message,int flags);
 static void print_help_message (const char *message,int flags)
 {
 	grub_u32_t j,x,k;
@@ -123,7 +60,7 @@ static void print_help_message (const char *message,int flags)
 			if (MENU_BOX_B + 1 + j > current_term->max_lines)
 				return;
 			gotoxy (MENU_HELP_X, MENU_BOX_B + 1 + j);
-			for (x = MENU_HELP_X; x < MENU_HELP_E; x++)
+			for (x = MENU_HELP_X; x < (grub_u32_t)MENU_HELP_E; x++)
 				grub_putchar (' ', 255);
 		}
 	}
@@ -158,17 +95,16 @@ static void print_help_message (const char *message,int flags)
           start_offcet = MENU_HELP_X + ((MENU_HELP_E - MENU_HELP_X - num_text_char((char *)message))>>1);
 				else if((menu_tab & 0x40) && flags==1)
 				{
-//					start_offcet = current_term->chars_per_line - MENU_HELP_X - num_text_char((char *)message);
 					start_offcet = MENU_HELP_E - num_text_char((char *)message);
 					if(start_offcet<MENU_HELP_X)
 						start_offcet=MENU_HELP_X;
 				}
 
-				for (; fontx < MENU_HELP_E;)
+				for (; fontx < (grub_u32_t)MENU_HELP_E;)
 				{
-					if (c && c != '\n' && fontx >= start_offcet)
+					if (c && c != '\n' && fontx >= (grub_u32_t)start_offcet)
 					{
-						if (fontx == MENU_HELP_E - 1)
+						if (fontx == (grub_u32_t)MENU_HELP_E - (grub_u32_t)1)
 							if (c > 0x7F && !(menu_tab & 0x40))
 							{
 								grub_putchar (' ', 255);
@@ -180,13 +116,14 @@ static void print_help_message (const char *message,int flags)
 					else
 						grub_putchar (' ', 255);
 				}
-				for (x = fontx; x < MENU_HELP_E; x++)
+				for (x = fontx; x < (grub_u32_t)MENU_HELP_E; x++)
 					grub_putchar (' ', 255);
 			}
 		}
 	}
 }
 
+static void print_default_help_message (char *config_entries);
 static void
 print_default_help_message (char *config_entries)
 {
@@ -196,9 +133,7 @@ print_default_help_message (char *config_entries)
 if (menu_tab & 0x20)
 		i = grub_sprintf (buff,"\n按↑和↓选择菜单。");
 	else
-		i = grub_sprintf (buff,"\nUse the %c and %c keys to highlight an entry.",
-		(unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
-
+		i = grub_sprintf (buff,"\nUse the \xe2\x86\x91 and \xe2\x86\x93 keys to highlight an entry.");
       if (! auth && password_buf)
 	{
 		if (menu_tab & 0x20)
@@ -225,21 +160,30 @@ if (menu_tab & 0x20)
 			"or ESC to go back to the main menu.")));
 	}
 	if(keyhelp_color)
-		current_color_64bit = keyhelp_color;
+	{
+		if (!(splashimage_loaded & 2))
+		{
+			current_color_64bit = keyhelp_color | (console_color_64bit[COLOR_STATE_NORMAL] & 0x00ffffff00000000);
+		}
+		else
+			current_color_64bit = keyhelp_color;
+		current_term->setcolorstate (color_64_to_8 (current_color_64bit) | 0x100);
+	}
 	print_help_message(buff,0);
 	default_help_message_destoyed = 0;
 }
 
-
 // ADDED By STEVE6375
-static unsigned int num_entries;
+static int num_entries;
+
+static char *get_entry (char *list, int num);
 static char *
 get_entry (char *list, int num)
 {
   int i;
 
   if (list == (char *)titles)
-	return num < num_entries ? titles[num] : 0;
+	return num < num_entries ? titles[num] : (int)0;
 
   for (i = 0; i < num && *list; i++)
     {
@@ -251,6 +195,7 @@ get_entry (char *list, int num)
 
 static char ntext[256];
 
+static void clean_entry (char *text);
 static void
 clean_entry (char *text)
 {
@@ -258,7 +203,9 @@ clean_entry (char *text)
   //(void) strcpy (ntext, text);
   for (i = 0; i < 255 && text[i]; ++i)
   {
-	if (text[i] < 32 || text[i] > 127)
+    int a = (int)(char)text[i];
+//	if (text[i] < (char)32 || text[i] > (char)127)
+  if (a < (int)32 || a > (int)127)
 		ntext[i] = 32;
 	else
 		ntext[i] = text[i];
@@ -267,6 +214,7 @@ clean_entry (char *text)
   return;
 }
 
+static int checkvalue (void);
 static int
 checkvalue (void)
 {
@@ -286,7 +234,7 @@ checkvalue (void)
   return value;
 }
 
-
+static int myatoi (void);
 static int
 myatoi (void)
 {
@@ -306,17 +254,16 @@ myatoi (void)
 		return value;
      }
   }
-  //  printf ("Mv%dMv",value);
   return value;
 }
 
 // END OF STEVE6375 ADDED CODE
-
+int num_text_char(char *p);
 int
 num_text_char(char *p)
 {
 	int i=0;
-	unsigned long un16=0;
+	unsigned int un16=0;
 
 	for(;*p && *p != '\n' && *p != '\r';)
 	{
@@ -332,7 +279,7 @@ num_text_char(char *p)
 			continue;
 		}else if((*p & 0xf0) == 0xe0)
 		{
-			un16=(long)(*p & 0xf)<<12 | (long)(*(p+1) & 0x3f)<<6 | (long)(*(p+2) & 0x3f);
+			un16=(int)(*p & 0xf)<<12 | (int)(*(p+1) & 0x3f)<<6 | (int)(*(p+2) & 0x3f);
 			if(un16 >= 0x4e00 && un16 <= 0x9fff)
 				i+=2;
 			else
@@ -345,11 +292,12 @@ num_text_char(char *p)
 }
 
 /* Print an entry in a line of the menu box.  */
-extern char menu_cfg[];
-extern unsigned char menu_num_ctrl[];
+char menu_cfg[2];
+unsigned char menu_num_ctrl[4];
 int use_phys_base;
 char graphic_file_shift[32];
 
+static void print_entry (int y, int highlight,int entryno, char *config_entries);
 static void
 print_entry (int y, int highlight,int entryno, char *config_entries)
 {
@@ -410,17 +358,23 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
     end_offcet = 1;
   if (highlight)
 		menu_num_ctrl[2] = entryno;
-  if (*(unsigned short *)0x8308)
+  if (*(unsigned short *)IMG(0x8308))
   {
   if(!(menu_tab & 0x40))
 	{
 		gotoxy (MENU_BOX_X - 1, y);
-		grub_putchar(highlight ? menu_cfg[0] : ' ', 255);
+		if (graphics_inited && graphics_mode > 0xff)	//在图像模式
+			grub_putchar(highlight ? (menu_num_ctrl[2] = entryno, menu_cfg[0]) : ' ', 255);
+		else
+			grub_putstr(highlight ? (menu_num_ctrl[2] = entryno, "\xe2\x96\xba") : "\x20");
 	}
 	else
 	{
 		gotoxy (MENU_BOX_E - 1, y);
-		grub_putchar(highlight ? menu_cfg[1] : ' ', 255);
+		if (graphics_inited && graphics_mode > 0xff)	//在图像模式
+			grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[1]) : ' ', 255);
+		else
+			grub_putstr(highlight ? (menu_num_ctrl[2] = entryno, "\xe2\x97\x84") : "\x20");
 	}
   }
 graphic_mixing:
@@ -475,7 +429,7 @@ graphic_mixing:
 
   for (x = fontx; x < MENU_BOX_E - end_offcet; x = fontx)
     {
-      unsigned int ret;
+      int ret;
 
       ret = MENU_BOX_E - x - end_offcet;
       if (c && c != '\n' /* && x <= MENU_BOX_W*/ && x >= start_offcet)
@@ -483,7 +437,7 @@ graphic_mixing:
 		
 		ret = grub_putchar ((unsigned char)c, ret);
 		//is_highlight = 0;
-		if ((long)ret < 0)
+		if (ret < (int)0)
 		{
 			c = 0;
 			continue;
@@ -502,8 +456,6 @@ graphic_mixing:
 				current_term->setcolorstate (COLOR_STATE_NORMAL);
 		ret = grub_putchar (' ', ret);
 		current_color_64bit = clo;
-//		if ((long)ret < 0)
-//			break;
 		}
 		else
 			grub_putchar (' ', ret);
@@ -525,13 +477,10 @@ graphic_end:
 		default_help_message_destoyed = 1;
 		print_help_message(entry,1);
 	}
-//	else if (default_help_message_destoyed)
 	else
 	{
 		if(!(menu_border.menu_keyhelp_y_offset) && !(menu_tab & 4))
 		{
-//			if (current_term->setcolorstate)
-//				current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 			if (default_help_message_destoyed)
 				print_default_help_message (config_entries);
 		}
@@ -544,11 +493,11 @@ graphic_end:
 }
 
 /* Print entries in the menu box.  */
+static void print_entries (int first, int entryno, char *menu_entries);
 static void
 print_entries (int first, int entryno, char *menu_entries)
 {
   int i;
-  //int main_menu = (menu_entries == (char *)titles);
 
   gotoxy (MENU_BOX_E, MENU_BOX_Y);
 
@@ -559,31 +508,15 @@ print_entries (int first, int entryno, char *menu_entries)
     if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_BORDER);
   if (first)
-    grub_putchar (DISP_UP, 255);
+		grub_putstr ("\xe2\x86\x91");
   else
-    grub_putchar (DISP_VERT, 255);
+		grub_putstr ("\xe2\x94\x82");
   }
-  //if (main_menu || *menu_entries)
-  //  menu_entries = get_entry (menu_entries, first);
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_NORMAL);
   for (i = 0; i < MENU_BOX_H/*size*/; i++)
     {
       print_entry (MENU_BOX_Y + i, entryno == i, first + i, menu_entries);
-
-   //   if (main_menu)
-   //   {
-	//if (menu_entries)
-	//{
-	//    if ((++first) < 256)
-	//	menu_entries = titles[first];
-	//    else
-	//	menu_entries = 0;
-	//}
-	//continue;
-   //   }
-   //   if (*menu_entries)
-	//while (*(menu_entries++));
     }
 
 #ifdef SUPPORT_GRAPHICS
@@ -596,15 +529,16 @@ print_entries (int first, int entryno, char *menu_entries)
     current_term->setcolorstate (COLOR_STATE_BORDER);
   char *last_entry = get_entry(menu_entries,first+MENU_BOX_H);
   if (last_entry && *last_entry)
-    grub_putchar (DISP_DOWN, 255);
+		grub_putstr ("\xe2\x86\x93");
   else
-    grub_putchar (DISP_VERT, 255);
+		grub_putstr ("\xe2\x94\x82");
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
 }
   gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);	/* XXX: Why? */
 }
 
+static void print_entries_raw (int size, int first, char *menu_entries);
 static void
 print_entries_raw (int size, int first, char *menu_entries)
 {
@@ -636,6 +570,7 @@ extern int checkrange_func (char *arg1, int flags);
 /* Run an entry from the script SCRIPT. HEAP is used for the
    command-line buffer. If an error occurs, return non-zero, otherwise
    return zero.  */
+static int run_script (char *script, char *heap);
 static int
 run_script (char *script, char *heap)
 {
@@ -645,12 +580,8 @@ run_script (char *script, char *heap)
 	char cmd_add[16];
 	char *menu_bat;
 	char *p;
-//  char *arg;
-//  grub_error_t errnum_old;//2010-12-16
 
   /* Initialize the data.  */
-  //saved_drive = boot_drive;
-  //saved_partition = install_partition;
   current_drive = GRUB_INVALID_DRIVE;
   count_lines = -1;
   
@@ -658,106 +589,79 @@ run_script (char *script, char *heap)
   kernel_type = KERNEL_TYPE_NONE;
   errnum = 0;
   errorcheck = 1;	/* errorcheck on */
-
   if (grub_memcmp (cur_entry, "!BAT", 4) == 0)
   {
-	while (1)
-	{
-		while (*cur_entry++);
-		if (! *cur_entry)
-			break;
-		*(cur_entry - 1) = 0x0a;
-	}
-	menu_bat = (char *)grub_malloc(cur_entry - script + 10 + 512);
-	if (menu_bat == NULL)
-		return 0;
-	p = (char *)(((int)menu_bat + 511) & ~511);
-	grub_memmove (p, script, cur_entry - script);
-	grub_sprintf (cmd_add, "(md)%d+%d", (int)p >> 9, ((cur_entry - script + 10 + 511) & ~511) >> 9);
-	command_func (cmd_add, BUILTIN_SCRIPT);
-	grub_free(menu_bat);
+    while (1)
+    {
+      while (*cur_entry++);
+      if (! *cur_entry)
+        break;
+      *(cur_entry - 1) = 0x0a;
+    }
+    menu_bat = (char *)grub_malloc(cur_entry - script + 10 + 512);
+    if (menu_bat == NULL)
+      return 0;
+    p = (char *)(((grub_size_t)menu_bat + 511) & ~511);
+    grub_memmove (p, script, cur_entry - script);
+    grub_sprintf (cmd_add, "(md)%d+%d", (grub_size_t)p >> 9, ((cur_entry - script + 10 + 511) & ~511) >> 9);
+    command_func (cmd_add, BUILTIN_SCRIPT);
+    grub_free(menu_bat);
+    if (errnum >= 1000)
+    {
+      errnum=ERR_NONE;
+      return 0;
+    }
+    if (errnum && errorcheck)
+    goto ppp;
 	
-	if (errnum >= 1000)
-	{
-		errnum=ERR_NONE;
-		return 0;
-	}
-	if (errnum && errorcheck)
-		goto ppp;
-	
-	/* If any kernel is not loaded, just exit successfully.  */
-	if (kernel_type == KERNEL_TYPE_NONE)
-		return 0;	/* return to main menu. */
-	/* Otherwise, the command boot is run implicitly.  */
-	grub_sprintf (cmd_add, "boot", 5);
-	run_line (cmd_add , BUILTIN_SCRIPT);
-  goto ppp;
+    /* If any kernel is not loaded, just exit successfully.  */
+    if (kernel_type == KERNEL_TYPE_NONE)
+      return 0;	/* return to main menu. */
+    /* Otherwise, the command boot is run implicitly.  */
+    grub_sprintf (cmd_add, "boot", 5);
+    run_line (cmd_add , BUILTIN_SCRIPT);
+
+    goto ppp;
   }
 
   while (1)
-    {
-		if (errnum == MAX_ERR_NUM)
+  {
+    if (errnum == MAX_ERR_NUM)
 		{
 			errnum=ERR_NONE;
 			return 0;
 		}
-      if (errnum && errorcheck)
-	break;
+    if (errnum && errorcheck)
+      break;
 
-//      errnum_old = errnum; //2010-12-16
-      /* Copy the first string in CUR_ENTRY to HEAP.  */
-//      errnum = ERR_NONE;//2010-12-16
-      old_entry = cur_entry;
-      while (*cur_entry++)
-	;
+    old_entry = cur_entry;
+    while (*cur_entry++)
+    ;
 
-      grub_memmove (heap, old_entry, (int) cur_entry - (int) old_entry);
-      if (! *heap)
-	{
-	  /* If there is no more command in SCRIPT...  */
+    grub_memmove (heap, old_entry, (grub_size_t) cur_entry - (grub_size_t) old_entry);
+    if (! *heap)
+    {
+      /* If there is no more command in SCRIPT...  */
+      /* If any kernel is not loaded, just exit successfully.  */
+      if (kernel_type == KERNEL_TYPE_NONE)
+        return 0;	/* return to main menu. */
 
-	  /* If any kernel is not loaded, just exit successfully.  */
-	  if (kernel_type == KERNEL_TYPE_NONE)
-	    return 0;	/* return to main menu. */
+      /* Otherwise, the command boot is run implicitly.  */
+      grub_memmove (heap, "boot", 5);
+    }
 
-	  /* Otherwise, the command boot is run implicitly.  */
-	  grub_memmove (heap, "boot", 5);
-	}
+    /* Find a builtin.  */
+    builtin = find_command (heap);
+    if (! builtin)
+    {
+      grub_printf ("%s\n", old_entry);
+      continue;
+    }
+    run_line (heap , BUILTIN_SCRIPT);
 
-      /* Find a builtin.  */
-      builtin = find_command (heap);
-      if (! builtin)
-	{
-	  grub_printf ("%s\n", old_entry);
-	  continue;
-	}
-/* now command echoing is considered no use for a successful command. */
-//      if (! (builtin->flags & BUILTIN_NO_ECHO))
-//	grub_printf ("%s\n", old_entry);
-
-/*comment by chenall on 2010-12-16,will do it in run_line*/
-#if 0
-      /* If BUILTIN cannot be run in the command-line, skip it.  */
-      if ((int)builtin != -1 && ! (builtin->flags & BUILTIN_CMDLINE))
-	{
-	  errnum = ERR_UNRECOGNIZED;
-	  continue;
-	}
-
-      /* Invalidate the cache, because the user may exchange removable
-	 disks.  */
-      buf_drive = -1;
-
-      if ((int)builtin != -1)
-      if ((builtin->func) == errnum_func || (builtin->func) == checkrange_func)
-	errnum = errnum_old;
-
-      /* find && and || */
-#endif
-	run_line (heap , BUILTIN_SCRIPT);
-      if (! *old_entry)	/* HEAP holds the implicit BOOT command */
-	break;
-    } /* while (1) */
+    if (! *old_entry)	/* HEAP holds the implicit BOOT command */
+      break;
+  } /* while (1) */
 
 ppp:
   kernel_type = KERNEL_TYPE_NONE;
@@ -765,16 +669,12 @@ ppp:
   /* If a fallback entry is defined, don't prompt a user's intervention.  */
   
   if (fallback_entryno < 0)
-    {
-#if 0
-      if (! (builtin->flags & BUILTIN_NO_ECHO))
-	grub_printf ("%s\n", heap);
-#endif
-      print_error ();
+  {
+    print_error ();
 
-      grub_printf ("\nPress any key to continue...");
-      (void) getkey ();
-    }
+    grub_printf ("\nPress any key to continue...");
+    (void) getkey ();
+  }
 	  
   errnum = ERR_NONE;
   return 1;	/* use fallback. */
@@ -782,30 +682,32 @@ ppp:
 
 unsigned short beep_buf[256];
 int new_menu;
+int new_hotkey;
 int color_counting;
 int password_x;
 static int fallbacked_entries;
 static int old_c;
 static int old_c_count;
 static int old_c_count_end;
+
+static void run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *heap, int entryno);
 static void
 run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *heap, int entryno)
 {
-  int c = 0, time1, time2 = -1, first_entry = 0;
+  int i, time1, time2 = -1, first_entry = 0;
+	unsigned short c;
   char *cur_entry = 0;
   char *pass_config = 0;
 	color_counting = 0;
-//  struct term_entry *prev_term = NULL;
 		  
-
   /*
    *  Main loop for menu UI.
    */
-   if (password_buf)//Make sure that PASSWORD is NUL-terminated.
-		pass_config = wee_skip_to(password_buf,SKIP_WITH_TERMINATE);
+  if (password_buf)//Make sure that PASSWORD is NUL-terminated.
+    pass_config = wee_skip_to(password_buf,SKIP_WITH_TERMINATE);
 		
 	/* clear keyboard buffer before boot */
-  while (console_checkkey () == 0x1c0d) console_getkey ();
+	while ((unsigned short)console_checkkey () == 0x000d);
 
 restart1:
   //clear temp_num when restart menu
@@ -815,13 +717,13 @@ restart1:
   /* Dumb terminal always use all entries for display 
      invariant for TERM_DUMB: first_entry == 0  */
   if (! (current_term->flags & TERM_DUMB))
+  {
+    if (entryno > MENU_BOX_H - 1)
     {
-      if (entryno > MENU_BOX_H - 1)
-	{
-	  first_entry += entryno - (MENU_BOX_H - 1);
-	  entryno = MENU_BOX_H - 1;
-	}
+      first_entry += entryno - (MENU_BOX_H - 1);
+      entryno = MENU_BOX_H - 1;
     }
+  }
 
   /* If the timeout was expired or wasn't set, force to show the menu
      interface. */
@@ -831,36 +733,36 @@ restart1:
 	cls();
   /* If SHOW_MENU is false, don't display the menu until a key-press.  */
   if (! show_menu)
+  {
+    /* Get current time.  */
+    while ((time1 = getrtsecs ()) == 0xFF)
+    ;
+  
+    while (1)
     {
-      /* Get current time.  */
-      while ((time1 = getrtsecs ()) == 0xFF)
-	;
-
-      while (1)
-	{
-	  /* Unhide the menu on any keypress.  */
-	  if (checkkey () != -1 /*&& ASCII_CHAR (getkey ()) == '\e'*/)
+      /* Unhide the menu on any keypress.  */
+      if ((i = checkkey ()) != -1 /*&& ASCII_CHAR (getkey ()) == '\e'*/)
 	    {
-	    	c = getkey();/* eat the key */
+        c = i;
 	      if (silent_hiddenmenu > 1)
 	      {
-	         if (c != silent_hiddenmenu)
-	            goto boot_entry;
-	         if (password_buf)
+          if (c != silent_hiddenmenu)
+            goto boot_entry;
+          if (password_buf)
 	      	{
-					if (check_password (password_buf, password_type))
-					{
-						grub_printf ("auth failed!\n");
-						grub_timeout = 5;
-						continue;
-					}
-					if (*pass_config)
-					{
-						strcpy(config_file,pass_config);
-						auth = 0;
-						return;
-					}
-					auth = 1;
+            if (check_password (password_buf, password_type))
+            {
+              grub_printf ("auth failed!\n");
+              grub_timeout = 5;
+              continue;
+            }
+            if (*pass_config)
+            {
+              strcpy(config_file,pass_config);
+              auth = 0;
+              return;
+            }
+            auth = 1;
 	      	}
 	      }
 	      grub_timeout = -1;
@@ -868,16 +770,16 @@ restart1:
 	      break;
 	    }
 
-	  /* If GRUB_TIMEOUT is expired, boot the default entry.  */
-	  if (grub_timeout >=0
-	      && (time1 = getrtsecs ()) != time2
+      /* If GRUB_TIMEOUT is expired, boot the default entry.  */
+      if (grub_timeout >=0
+          && (time1 = getrtsecs ()) != time2
 	      /* && time1 != 0xFF */)
 	    {
 	      if (grub_timeout <= 0)
-		{
-		  grub_timeout = -1;
-		  goto boot_entry;
-		}
+        {
+          grub_timeout = -1;
+          goto boot_entry;
+        }
 	      
 	      time2 = time1;
 	      grub_timeout--;
@@ -885,12 +787,12 @@ restart1:
 	      /* Print a message.  */
 	      if (! silent_hiddenmenu)
 	      {
-		grub_printf ("\rPress any key to enter the menu... %d   ",
-				grub_timeout);
+          grub_printf ("\rPress any key to enter the menu... %d   ",
+          grub_timeout);
 	      }
 	    }
-	}
     }
+  }
 
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_NORMAL);
@@ -902,16 +804,12 @@ restart1:
 
   /* Only display the menu if the user wants to see it. */
   if (show_menu)
-    {
-			cls ();
-			if (!(menu_tab & 0x80))
-				init_page ();
-      //setcursor (0);
-			
+  {
+    cls ();
+    if (!(menu_tab & 0x80))
+      init_page ();
 		if (graphics_inited && graphics_mode > 0xff)/*vbe mode call rectangle_func*/
 		{
-			int i,j;
-			char y;
 			unsigned long long col = current_color_64bit;
 			for (i=0; i<16; i++)
 			{
@@ -920,103 +818,109 @@ restart1:
 				current_color_64bit = DrawBox[i].color;
 				rectangle(DrawBox[i].start_x, DrawBox[i].start_y, DrawBox[i].horiz, DrawBox[i].vert, DrawBox[i].linewidth);
 			}
-			
-			if (num_string)
-			{
-				for (j=0; j<16; j++)
-				{
-					if (strings[j].enable == 0)
-						continue;	
-					if (strings[j].start_y < 0)
-						y = strings[j].start_y + current_term->max_lines;
-					else
-						y = strings[j].start_y;
-					gotoxy (strings[j].start_x, y);
-					current_term->setcolorstate (COLOR_STATE_NORMAL);
-					if ((strings[j].color & 0xffffffff00000000) == 0)
-						current_color_64bit = strings[j].color | (current_color_64bit & 0xffffffff00000000);
-					else
-						current_color_64bit = strings[j].color | 0x1000000000000000;
-					grub_printf("%s",strings[j].string);
-				}
-			}
 			current_color_64bit = col;
 		}
+	
+    if (num_string)
+    {
+      int j;
+      char y;
+      for (j=0; j<16; j++)
+      {
+        if (strings[j].enable == 0)
+          continue;	
+        if (strings[j].start_y < 0)
+          y = strings[j].start_y + current_term->max_lines;
+        else
+          y = strings[j].start_y;
+        gotoxy (strings[j].start_x, y);
+
+        if (!(strings[j].color & 0xffffffff00000000))
+        {
+          if (!(splashimage_loaded & 2))
+              current_color_64bit = strings[j].color | (console_color_64bit[COLOR_STATE_NORMAL] & 0xffffffff00000000);
+        }
+        else
+          current_color_64bit = strings[j].color | 0x1000000000000000;
+        
+        current_term->setcolorstate (color_64_to_8 (current_color_64bit & 0x00ffffffffffffff) | 0x100);
+        grub_printf("%s",strings[j].string);
+        current_term->setcolorstate (COLOR_STATE_NORMAL);
+      }
+    }
 			
-      if (current_term->flags & TERM_DUMB)
-	print_entries_raw (num_entries, first_entry, menu_entries);
-      else /* print border */
-      #ifdef SUPPORT_GRAPHICS
-	if (graphics_inited && graphics_mode > 0xff)/*vbe mode call rectangle_func*/
-	{
-		if (current_term->setcolorstate)
-			current_term->setcolorstate (COLOR_STATE_BORDER);
-		unsigned long x,y,w,h,i,j;
-		i = font_w + font_spacing;
-		j = font_h + line_spacing;
-		x = (MENU_BOX_X - 2) * i + (i>>1);
-		y = (MENU_BOX_Y)*j-(j>>1);
-		w = (MENU_BOX_W + 2) * i;
-		if (graphic_type)
-			h = (graphic_high+row_space) * graphic_row;
-		else
-		h = (MENU_BOX_H + 1) * j;
-		rectangle(x,y,w,h,menu_border.border_w);
-	}
-	else
-	#endif
-	{
-	  int i;
-
-	if (current_term->setcolorstate)
-		current_term->setcolorstate (COLOR_STATE_BORDER);
+    if (current_term->flags & TERM_DUMB)
+      print_entries_raw (num_entries, first_entry, menu_entries);
+    else /* print border */
+#ifdef SUPPORT_GRAPHICS
+    if (graphics_inited && graphics_mode > 0xff)/*vbe mode call rectangle_func*/
+    {
+      if (current_term->setcolorstate)
+        current_term->setcolorstate (COLOR_STATE_BORDER);
+      unsigned int x,y,w,h,j;
+      i = font_w + font_spacing;
+      j = font_h + line_spacing;
+      x = (MENU_BOX_X - 2) * i + (i>>1);
+      y = (MENU_BOX_Y)*j-(j>>1);
+      w = (MENU_BOX_W + 2) * i;
+      if (graphic_type)
+        h = (graphic_high+row_space) * graphic_row;
+      else
+      h = (MENU_BOX_H + 1) * j;
+      rectangle(x,y,w,h,menu_border.border_w);
+    }
+    else
+#endif
+    {
+      if (current_term->setcolorstate)
+        current_term->setcolorstate (COLOR_STATE_BORDER);
   
-	  /* upper-left corner */
-	  gotoxy (MENU_BOX_X - 2, MENU_BOX_Y - 1);
-	  grub_putchar (DISP_UL, 255);
+        /* upper-left corner */
+      gotoxy (MENU_BOX_X - 2, MENU_BOX_Y - 1);
+      grub_putstr("\xe2\x94\x8c");	
 
-	  /* top horizontal line */
-	  for (i = 0; i < MENU_BOX_W + 1; i++)
-	    grub_putchar (DISP_HORIZ, 255);
+      /* top horizontal line */
+      for (i = 0; i < MENU_BOX_W + 1; i++)
+        grub_putstr ("\xe2\x94\x80");
 
-	  /* upper-right corner */
-	  grub_putchar (DISP_UR, 255);
+      /* upper-right corner */
+      grub_putstr ("\xe2\x94\x90");
 
-	  for (i = 0; i < MENU_BOX_H; i++)
+      for (i = 0; i < MENU_BOX_H; i++)
 	    {
 	      /* left vertical line */
 	      gotoxy (MENU_BOX_X - 2, MENU_BOX_Y + i);
-	      grub_putchar (DISP_VERT, 255);
+				grub_putstr ("\xe2\x94\x82");
 	      /* right vertical line */
 	      gotoxy (MENU_BOX_E, MENU_BOX_Y + i);
-	      grub_putchar (DISP_VERT, 255);
+				grub_putstr ("\xe2\x94\x82");
 	    }
 
-	  /* lower-left corner */
-	  gotoxy (MENU_BOX_X - 2, MENU_BOX_Y + MENU_BOX_H);
-	  grub_putchar (DISP_LL, 255);
+      /* lower-left corner */
+      gotoxy (MENU_BOX_X - 2, MENU_BOX_Y + MENU_BOX_H);
+      grub_putstr ("\xe2\x94\x94");
 
-	  /* bottom horizontal line */
-	  for (i = 0; i < MENU_BOX_W + 1; i++)
-	    grub_putchar (DISP_HORIZ, 255);
+      /* bottom horizontal line */
+      for (i = 0; i < MENU_BOX_W + 1; i++)
+        grub_putstr ("\xe2\x94\x80");
 
-	  /* lower-right corner */
-	  grub_putchar (DISP_LR, 255);
-	}
+      /* lower-right corner */
+      grub_putstr ("\xe2\x94\x98");
+    }
 
-      if (current_term->setcolorstate)
-	  current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+    if (current_term->setcolorstate)
+      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 
 		if (!(menu_tab & 4))
       print_default_help_message (config_entries);
 
-      if (current_term->flags & TERM_DUMB)
-	grub_printf ("\n\nThe selected entry is %d ", entryno);
-      else
-	print_entries (first_entry, entryno, menu_entries);
-    }
-   if (menu_init_script_file[0] != 0 )	
-	 command_func(menu_init_script_file,BUILTIN_MENU);
+    if (current_term->flags & TERM_DUMB)
+      grub_printf ("\n\nThe selected entry is %d ", entryno);
+    else
+      print_entries (first_entry, entryno, menu_entries);
+  }
+  if (menu_init_script_file[0] != 0 )	
+    command_func(menu_init_script_file,BUILTIN_MENU);
   /* XX using RT clock now, need to initialize value */
   while ((time1 = getrtsecs()) == 0xFF);
 
@@ -1026,1303 +930,695 @@ restart1:
   temp_entryno = 0;
   /* Initialize to NULL just in case...  */
   cur_entry = NULL;
-  while (1)
-    {
-      /* Initialize to NULL just in case...  */
-      //cur_entry = NULL;
-	//cur_entry = menu_entries; /* for modified menu */
 
-      if (grub_timeout >= 0 && (time1 = getrtsecs()) != time2 /* && time1 != 0xFF */)
-	{
-	  if (grub_timeout <= 0)
+  while (1)
+  {
+    /* Initialize to NULL just in case...  */
+    if (grub_timeout >= 0 && (time1 = getrtsecs()) != time2 /* && time1 != 0xFF */)
+    {
+      if (grub_timeout <= 0)
 	    {
 	      grub_timeout = -1;
 	      break;
 	    }
 
-	  /* else not booting yet! */
-	  time2 = time1;
+      /* else not booting yet! */
+      time2 = time1;
 
-	  if (current_term->setcolorstate)
+      if (current_term->setcolorstate)
 	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 
-	  if (current_term->flags & TERM_DUMB)
-	      grub_printf ("\r    Entry %d will be booted automatically in %d seconds.   ", 
-			   entryno, grub_timeout);
-	  else
+      if (current_term->flags & TERM_DUMB)
+	      grub_printf ("\r    Entry %d will be booted automatically in %d seconds.   ", entryno, grub_timeout);
+      else
 	    {
-//	      unsigned long x;
-//	      unsigned long ret;
-//	      unsigned char tmp_buf[512];
-//	      unsigned char *p;
-//	      unsigned char ch = ' ';
+        if(timeout_x || timeout_y)
+          gotoxy (timeout_x,timeout_y);
+        else
+        {
+          if(!(menu_tab & 0x40))
+            gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + entryno);
+          else
+            gotoxy (MENU_BOX_X - 1, MENU_BOX_Y + entryno);	
+        }
 
-//	      grub_sprintf ((char*)tmp_buf, " The highlighted entry will be booted automatically in %d seconds.", grub_timeout);
-//	      gotoxy (0, MENU_BOX_B + 5);
-//	      p = tmp_buf;
-//	      for (x = 0; x < current_term->chars_per_line; x = fontx)
-//	      {
-//		if (ch >= ' ')
-//			ch = *p++;
-//		ret = current_term->chars_per_line - x;
-//		ret = grub_putchar ((ch >= ' ' ? ch : ' '), ret);
-//		if ((long)ret < 0)
-//			break;
-//	      }
-		if(timeout_x || timeout_y)
-			gotoxy (timeout_x,timeout_y);
-		else
-		{
-				if(!(menu_tab & 0x40))
-					gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + entryno);
-				else
-					gotoxy (MENU_BOX_X - 1, MENU_BOX_Y + entryno);	
-		}
+        if(timeout_color)
+        {
+          if (!(timeout_color & 0xffffffff00000000))
+          {
+            if (!(splashimage_loaded & 2))
+              current_color_64bit = timeout_color | (console_color_64bit[COLOR_STATE_NORMAL] & 0xffffffff00000000);
+            else
+              current_color_64bit = timeout_color;
+          }
+          else
+            current_color_64bit = timeout_color | 0x1000000000000000;
 
-		if(timeout_color)
-		{
-			current_term->setcolorstate (COLOR_STATE_NORMAL);
-			if ((timeout_color & 0xffffffff00000000) == 0)
-				current_color_64bit = timeout_color | (current_color_64bit & 0xffffffff00000000);
-			else
-				current_color_64bit = timeout_color;
-		}
-		else
+          current_term->setcolorstate (color_64_to_8 (current_color_64bit & 0x00ffffffffffffff) | 0x100);
+        }
+        else
 				if (current_term->setcolorstate)
 					current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
 
 				grub_printf("%2d",grub_timeout);
+
 				if (current_term->setcolorstate)
 	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 				
 	      gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
 	    }
 	  
-	  grub_timeout--;
-	}
-
-	if (grub_timeout >= 0)
-	{
-		defer(1);
-		if (animated_enable)
-			animated();
-		if (beep_enable)
-			beep_func((char *)beep_buf,1);
-		if (DateTime_enable)
-			DateTime_refresh();
-	}
-      /* Check for a keypress, however if TIMEOUT has been expired
-	 (GRUB_TIMEOUT == -1) relax in GETKEY even if no key has been
-	 pressed.  
-	 This avoids polling (relevant in the grub-shell and later on
-	 in grub if interrupt driven I/O is done).  */
-      if (checkkey () >= 0 || grub_timeout < 0)
-	{
-	  /* Key was pressed, show which entry is selected before GETKEY,
-	     since we're comming in here also on GRUB_TIMEOUT == -1 and
-	     hang in GETKEY */
-	  if (current_term->flags & TERM_DUMB)
-	    grub_printf ("\r    Highlighted entry is %d: ", entryno);
-	  if (config_entries && hotkey_func)
-	  {
-			putchar_hooked = (unsigned char*)0x800;
-			//0x4b40 flags HK,
-			c = hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno);
-			putchar_hooked = 0;
-      
-      if (beep_enable)
-      {
-        beep_enable = 0;
-        beep_play = 0;
-        beep_frequency = 0;
-        console_beep();
-      }
-      
-			if (c == -1)
-			    goto restart1;
-			if (c>>16)
-			{
-				temp_entryno = (long)(unsigned char)(c>>16);
-				if (c & 1<<30)
-					goto check_update;
-				entryno = temp_entryno;
-				first_entry = 0;
-				goto boot_entry;
-			}
-	  }
-	  else
-		c = /*ASCII_CHAR*/ (getkey ());
-
-    if (beep_enable)
-    {
-      beep_enable = 0;
-      beep_play = 0;
-      beep_frequency = 0;
-      console_beep();
+      grub_timeout--;
     }
 
-	  if (! old_c_count_end)
-	  {
-	    if (old_c == 0)
-		old_c = c;
-	    if (c == old_c && old_c_count < 0x7FFFFFFF)
-		old_c_count++;
-	    if (c != old_c)
-	    {
-		old_c_count_end = 1;
-	    }
-	  }
+    if (grub_timeout >= 0)
+    {
+      defer(1);
+      if (animated_enable)
+        animated();
+      if (DateTime_enable)
+        DateTime_refresh();
+    }
+    /* Check for a keypress, however if TIMEOUT has been expired
+      (GRUB_TIMEOUT == -1) relax in GETKEY even if no key has been pressed.  
+      This avoids polling (relevant in the grub-shell and later on
+      in grub if interrupt driven I/O is done).  */
+    if ((i = checkkey ()) >= 0 || grub_timeout < 0)
+    {
+      /* Key was pressed, show which entry is selected before GETKEY,
+	     since we're comming in here also on GRUB_TIMEOUT == -1 and
+	     hang in GETKEY */
+      if (current_term->flags & TERM_DUMB)
+        grub_printf ("\r    Highlighted entry is %d: ", entryno);
+		
+      if (i < 0)
+        i = getkey ();
+      c = i;
+#if !HOTKEY		//外置热键
+      if (config_entries && hotkey_func)
+#else
+      if (config_entries && hotkey_func_enable)
+#endif
+      {
+        //0x4b40 flags HK,
+        i = hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
+//        putchar_hooked = 0;
+        c = i;  
+        if (i == -1)
+			    goto restart1;
+        if (i>>16)
+        {
+          temp_entryno = (int)(unsigned char)(i>>16);
+          if (i & 1<<30)
+            goto check_update;
+          entryno = temp_entryno;
+          first_entry = 0;
+          goto boot_entry;
+        }
+      }
+      if (! old_c_count_end)
+      {
+        if (old_c == 0)
+          old_c = c;
+        if (c == old_c && old_c_count < 0x7FFFFFFF)
+          old_c_count++;
+        if (c != old_c)
+          old_c_count_end = 1;
+      }
 
-	  if (grub_timeout >= 0)
+      if (grub_timeout >= 0)
 	    {
-//	      unsigned long x;
-
 	      if (current_term->setcolorstate)
-		  current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+          current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 
 	      if (current_term->flags & TERM_DUMB)
-		grub_putchar ('\r', 255);
-//	      else
-//		gotoxy (0, MENU_BOX_B + 5);
-//	      for (x = 0; x < current_term->chars_per_line; x++)
-//	      {
-//		grub_putchar (' ', 255);
-//	      }
-		if(timeout_x || timeout_y)
-			gotoxy (timeout_x,timeout_y);
-		else
-		{
-				if(!(menu_tab & 0x40))
-					gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + entryno);
-				else
-					gotoxy (MENU_BOX_X - 1, MENU_BOX_Y + entryno);
-		}
+          grub_putchar ('\r', 255);
+        if(timeout_x || timeout_y)
+          gotoxy (timeout_x,timeout_y);
+        else
+        {
+          if(!(menu_tab & 0x40))
+            gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + entryno);
+          else
+            gotoxy (MENU_BOX_X - 1, MENU_BOX_Y + entryno);
+        }
+        current_term->setcolorstate (COLOR_STATE_NORMAL);
+        grub_printf("  ");
+        if (current_term->setcolorstate)
+          current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+		
+        grub_timeout = -1;
+        fallback_entryno = -1;
+        if (! (current_term->flags & TERM_DUMB))
+          gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
+      }
 
-		if(timeout_color)
-		{
-			current_term->setcolorstate (COLOR_STATE_NORMAL);
-			if ((timeout_color & 0xffffffff00000000) == 0)
-				current_color_64bit = timeout_color | (current_color_64bit & 0xffffffff00000000);
-			else
-				current_color_64bit = timeout_color;
-		}
-		else
-			if (current_term->setcolorstate)
-				current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
-	
-				grub_printf("  ");
-				if (current_term->setcolorstate)
-	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
-				
-	      grub_timeout = -1;
-	      fallback_entryno = -1;
-	      if (! (current_term->flags & TERM_DUMB))
-		gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
-	    }
-
-	  if (num_entries == 0)
-	    {
-		first_entry = entryno = 0;
-		goto done_key_handling;
-	    }
+      if (num_entries == 0)
+      {
+        first_entry = entryno = 0;
+        goto done_key_handling;
+      }
 			
-		if (c==0x3c00)
-		{
-			if (animated_type)
-        animated_enable ^= 1;
-			animated_enable_backup = animated_enable;
-			goto restart1;
-		}
+      if (c==0x3c00)
+      {
+        if (animated_type)
+          animated_enable ^= 1;
+        animated_enable_backup = animated_enable;
+        goto restart1;
+      }
 
-	  /* We told them above (at least in SUPPORT_SERIAL) to use
-	     '^' or 'v' so accept these keys.  */
-	  if (c == KEY_UP/*16*/ || c == KEY_LEFT || ((char)c) == '^')
-	    {
-	      temp_entryno = 0;
-	      if (current_term->flags & TERM_DUMB)
-		{
-		  if (entryno > 0)
-		      entryno--;
-		}
-	      else
-		{
-		  if (c == KEY_UP)
-		  {
-		      temp_entryno = first_entry + entryno;
-		      for (;;)
-		      {
-		          temp_entryno = (temp_entryno + num_entries - 1) % num_entries;
-		          if (temp_entryno == first_entry + entryno)
-			      goto done_key_handling;
-		          cur_entry = get_entry (menu_entries, temp_entryno);
-		          if (*cur_entry != 0x08)
-		              goto check_update;
-		      }
-		  }
+      /* We told them above (at least in SUPPORT_SERIAL) to use
+        '^' or 'v' so accept these keys.  */
+      if (c == KEY_UP/*16*/ || c == KEY_LEFT || ((char)c) == '^')
+      {
+        temp_entryno = 0;
+        if (current_term->flags & TERM_DUMB)
+        {
+          if (entryno > 0)
+            entryno--;
+        }
+        else
+        {
+          if (c == KEY_UP)
+          {
+            temp_entryno = first_entry + entryno;
+            for (;;)
+            {
+              temp_entryno = (temp_entryno + num_entries - 1) % num_entries;
+              if (temp_entryno == first_entry + entryno)
+                goto done_key_handling;
+              cur_entry = get_entry (menu_entries, temp_entryno);
+              if (*cur_entry != 0x08)
+                goto check_update;
+            }
+          }
 
-		  if (entryno > 0)
-		    {
-		      //cur_entry = get_entry (menu_entries, first_entry + entryno);
-		      /* un-highlight the current entry */
-		      print_entry (MENU_BOX_Y + entryno, 0, first_entry + entryno, menu_entries);
-		      --entryno;
-		      //cur_entry = get_entry (menu_entries, first_entry + entryno);
-		      /* highlight the previous entry */
-		      print_entry (MENU_BOX_Y + entryno, 1, first_entry + entryno, menu_entries);
-		    }
-		  else if (first_entry > 0)
-		    {
-		      first_entry--;
-		      print_entries (first_entry, entryno, menu_entries);
-		    }
-		  else	/* loop forward to END */
-		    {
-		      temp_entryno = num_entries - 1;
-		      goto check_update;
-		    }
-		}
-	    }
-	  else if ((c == KEY_DOWN/*14*/ || c == KEY_RIGHT || ((char)c) == 'v' || (!old_c_count_end && c == old_c && old_c_count >= 8))
-		   /* && first_entry + entryno + 1 < num_entries */)
-	    {
-	      temp_entryno = 0;
-	      if (current_term->flags & TERM_DUMB)
-		{
-		  if (first_entry + entryno + 1 < num_entries)
-		      entryno++;
-		}
-	      else
-		{
-		  if (c == KEY_DOWN)
-		  {
-		      temp_entryno = first_entry + entryno;
-		      for (;;)
-		      {
-		          temp_entryno = (temp_entryno + 1) % num_entries;
-		          if (temp_entryno == first_entry + entryno)
-			      goto done_key_handling;
-		          cur_entry = get_entry (menu_entries, temp_entryno);
-		          if (*cur_entry != 0x08)
-		              goto check_update;
-		      }
-		  }
+          if (entryno > 0)
+          {
+            //cur_entry = get_entry (menu_entries, first_entry + entryno);
+            /* un-highlight the current entry */
+            print_entry (MENU_BOX_Y + entryno, 0, first_entry + entryno, menu_entries);
+            --entryno;
+            //cur_entry = get_entry (menu_entries, first_entry + entryno);
+            /* highlight the previous entry */
+            print_entry (MENU_BOX_Y + entryno, 1, first_entry + entryno, menu_entries);
+          }
+          else if (first_entry > 0)
+          {
+            first_entry--;
+            print_entries (first_entry, entryno, menu_entries);
+          }
+          else	/* loop forward to END */
+          {
+            temp_entryno = num_entries - 1;
+            goto check_update;
+          }
+        }
+      }
+      else if ((c == KEY_DOWN/*14*/ || c == KEY_RIGHT || ((char)c) == 'v' || (!old_c_count_end && c == old_c && old_c_count >= 8))
+        /* && first_entry + entryno + 1 < num_entries */)
+      {
+        temp_entryno = 0;
+        if (current_term->flags & TERM_DUMB)
+        {
+          if (first_entry + entryno + 1 < num_entries)
+          entryno++;
+        }
+        else
+        {
+          if (c == KEY_DOWN)
+          {
+            temp_entryno = first_entry + entryno;
+            for (;;)
+            {
+              temp_entryno = (temp_entryno + 1) % num_entries;
+              if (temp_entryno == first_entry + entryno)
+                goto done_key_handling;
+              cur_entry = get_entry (menu_entries, temp_entryno);
+              if (*cur_entry != 0x08)
+                goto check_update;
+            }
+          }
 
-		  if (first_entry + entryno + 1 >= num_entries)
-		    {
-		      temp_entryno = 0;	/* loop backward to HOME */
-		      goto check_update;
-		    }
-		  if (entryno < MENU_BOX_H - 1)
-		    {
-		      //cur_entry = get_entry (menu_entries, first_entry + entryno);
-		      /* un-highlight the current entry */
-		      print_entry (MENU_BOX_Y + entryno, 0, first_entry + entryno, menu_entries);
-		      //entryno++;
-		      //cur_entry = get_entry (menu_entries, first_entry + entryno);
-		      /* highlight the next entry */
-		      ++entryno;
-		      print_entry (MENU_BOX_Y + entryno, 1, first_entry + entryno, menu_entries);
-		    }
-		  else if (num_entries > MENU_BOX_H + first_entry)
-		    {
-		      first_entry++;
-		      print_entries (first_entry, entryno, menu_entries);
-		    }
-		}
-	    }
-	  else if (c == KEY_PPAGE/*7*/)
-	    {
-	      /* Page Up */
-	      temp_entryno = 0;
-	      first_entry -= MENU_BOX_H;
-	      if (first_entry < 0)
-		{
-		  entryno += first_entry;
-		  first_entry = 0;
-		  if (entryno < 0)
-		    entryno = 0;
-		}
-	      print_entries (first_entry, entryno, menu_entries);
-	    }
-	  else if (c == KEY_NPAGE/*3*/)
-	    {
-	      /* Page Down */
-	      temp_entryno = 0;
-	      first_entry += MENU_BOX_H;
-	      if (first_entry + entryno + 1 >= num_entries)
-		{
-		  first_entry = num_entries - MENU_BOX_H;
-		  if (first_entry < 0)
-		    first_entry = 0;
-		  entryno = num_entries - first_entry - 1;
-		}
-	      print_entries (first_entry, entryno, menu_entries);
-	    }
-	  else if ( ((char)c) >= '0' && ((char)c) <= '9')
-	    {
-	      temp_num *= 10;
-	      temp_num += ((char)c) - '0';
-//	      if (temp_entryno >= num_entries)
-//		  temp_entryno = num_entries - 1;
-	      if (temp_num >= num_entries)	/* too big an entryno */
-	      {
-		     temp_num = ((char)c - '0'>= num_entries)?0:(char)c - '0';
-	      }
-	      temp_entryno = temp_num;
-	      if (temp_entryno != 0 || (char)c == '0')
-	      {
-	      
-	      
-
+          if (first_entry + entryno + 1 >= num_entries)
+          {
+            temp_entryno = 0;	/* loop backward to HOME */
+            goto check_update;
+          }
+          if (entryno < MENU_BOX_H - 1)
+          {
+            //cur_entry = get_entry (menu_entries, first_entry + entryno);
+            /* un-highlight the current entry */
+            print_entry (MENU_BOX_Y + entryno, 0, first_entry + entryno, menu_entries);
+            /* highlight the next entry */
+            ++entryno;
+            print_entry (MENU_BOX_Y + entryno, 1, first_entry + entryno, menu_entries);
+          }
+          else if ((int)num_entries > MENU_BOX_H + first_entry)
+          {
+            first_entry++;
+            print_entries (first_entry, entryno, menu_entries);
+          }
+        }
+      }
+      else if (c == KEY_PPAGE/*7*/)
+      {
+        /* Page Up */
+        temp_entryno = 0;
+        first_entry -= MENU_BOX_H;
+        if (first_entry < 0)
+        {
+          entryno += first_entry;
+          first_entry = 0;
+          if (entryno < 0)
+            entryno = 0;
+        }
+        print_entries (first_entry, entryno, menu_entries);
+      }
+      else if (c == KEY_NPAGE/*3*/)
+      {
+        /* Page Down */
+        temp_entryno = 0;
+        first_entry += MENU_BOX_H;
+        if (first_entry + entryno + 1 >= num_entries)
+        {
+          first_entry = num_entries - MENU_BOX_H;
+          if (first_entry < 0)
+            first_entry = 0;
+          entryno = num_entries - first_entry - 1;
+        }
+        print_entries (first_entry, entryno, menu_entries);
+      }
+      else if ( ((char)c) >= '0' && ((char)c) <= '9')
+      {
+        temp_num *= 10;
+        temp_num += ((char)c) - '0';
+        if (temp_num >= num_entries)	/* too big an entryno */
+          temp_num = ((char)c - '0'>= num_entries)?0:(char)c - '0';
+        temp_entryno = temp_num;
+        if (temp_entryno != 0 || (char)c == '0')
+        {
 // temp_entryno has users number - check if it matches a title number
 // If menu items are numbered then there must be no unnumbered items in the first few entries
 // e.g. if you have 35 menu items, then menu entries 0 - 3 must all numbered - otherwise double-digit user entry will not work - e.g. 34 will not work
-			int j;
-			if (menu_num_ctrl[0])
-			{
-				if (menu_num_ctrl[0] == 1)
-				{
-					j = temp_num;
-					while(title_boot[j+1]<=temp_num)
-					{
-						++j;
-					}
-					if (title_boot[j] == temp_num)
-						temp_entryno = j;
-				}
-			}
-			else
-			{
-				for (j = 0; j < num_entries; ++j)
-				{
-				//  grub_printf("TE%d C%dC A%dATE%s ",temp_entryno,checkvalue (get_entry (menu_entries,j) ),myatoi (get_entry (menu_entries,j)),get_entry(menu_entries,j));
-				 clean_entry (get_entry (menu_entries, j));
-				 if (checkvalue () > 0 && myatoi () == temp_entryno)
-				 {
-				temp_entryno = j;
-				j = num_entries;
-				 }
-				}
-			}
+          int j;
+          if (menu_num_ctrl[0])
+          {
+            if (menu_num_ctrl[0] == 1)
+            {
+              j = temp_num;
+              while(title_boot[j+1]<=temp_num)
+                ++j;
+              if (title_boot[j] == temp_num)
+                temp_entryno = j;
+            }
+          }
+          else
+          {
+            for (j = 0; j < num_entries; ++j)
+            {
+              clean_entry (get_entry (menu_entries, j));
+              if (checkvalue () > 0 && myatoi () == temp_entryno)
+              {
+                temp_entryno = j;
+                j = num_entries;
+              }
+            }
+          }
 
 check_update:
-		  if (temp_entryno != first_entry + entryno)
-		  {
-		      /* check if entry temp_entryno is out of the screen */
-		      if (temp_entryno < first_entry || temp_entryno >= first_entry + MENU_BOX_H)
-		      {
-			  first_entry = (temp_entryno / MENU_BOX_H) * MENU_BOX_H;
-			  entryno = temp_entryno % MENU_BOX_H;
-			  print_entries (first_entry, entryno, menu_entries);
-		      } else {
-			  /* entry temp_entryno is on the screen, its relative entry number is
- 			   * (temp_entryno - first_entry) */
-			  //cur_entry = get_entry (menu_entries, first_entry + entryno);
-			  /* un-highlight the current entry */
-			  print_entry (MENU_BOX_Y + entryno, 0, first_entry + entryno, menu_entries);
-			  entryno = temp_entryno - first_entry;
-			  //cur_entry = get_entry (menu_entries, temp_entryno);
-			  /* highlight entry temp_entryno */
-			  print_entry (MENU_BOX_Y + entryno, 1, temp_entryno, menu_entries);
-		      }
-		  }
-	      }
-	      if (temp_entryno >= num_entries)
-		  temp_entryno = 0;
-	    }
-	  else if (c == KEY_HOME/*1*/)
-	    {
-	      temp_entryno = 0;
-	      goto check_update;
-	    }
-	  else if (c == KEY_END/*5*/)
-	    {
-	      temp_entryno = num_entries - 1;
-	      goto check_update;
-	    }
-		else
-	      temp_entryno = 0;
+          if (temp_entryno != first_entry + entryno)
+          {
+            /* check if entry temp_entryno is out of the screen */
+            if (temp_entryno < first_entry || temp_entryno >= first_entry + MENU_BOX_H)
+            {
+              first_entry = (temp_entryno / MENU_BOX_H) * MENU_BOX_H;
+              entryno = temp_entryno % MENU_BOX_H;
+              print_entries (first_entry, entryno, menu_entries);
+            } else {
+              /* entry temp_entryno is on the screen, its relative entry number is
+              * (temp_entryno - first_entry) */
+              print_entry (MENU_BOX_Y + entryno, 0, first_entry + entryno, menu_entries);
+              entryno = temp_entryno - first_entry;
+              /* highlight entry temp_entryno */
+              print_entry (MENU_BOX_Y + entryno, 1, temp_entryno, menu_entries);
+            }
+          }
+        }
+        if (temp_entryno >= num_entries)
+          temp_entryno = 0;
+      }
+      else if (c == KEY_HOME/*1*/)
+      {
+        temp_entryno = 0;
+        goto check_update;
+      }
+      else if (c == KEY_END/*5*/)
+      {
+        temp_entryno = num_entries - 1;
+        goto check_update;
+      }
+      else
+        temp_entryno = 0;
 
 done_key_handling:
 
+      if (current_term->setcolorstate)
+        current_term->setcolorstate (COLOR_STATE_HEADING);
 
-	  if (current_term->setcolorstate)
-	      current_term->setcolorstate (COLOR_STATE_HEADING);
+      gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
 
-//	  if (debug > 0)
-//	  {
-//		gotoxy (MENU_BOX_E - 4, MENU_BOX_Y - 2);
-//		grub_printf ("%3d ", (first_entry + entryno));
-//	  }
-	  gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
+      if (current_term->setcolorstate)
+        current_term->setcolorstate (COLOR_STATE_STANDARD);
 
-	  if (current_term->setcolorstate)
-	      current_term->setcolorstate (COLOR_STATE_STANDARD);
+      if (!old_c_count_end && c == old_c && (old_c_count >= 30 || (old_c_count >= 8 && c != KEY_DOWN /*&& c != KEY_RIGHT*/ && c != KEY_UP /*&& c != KEY_LEFT*/)))
+        grub_timeout = 5;
 
-	  if (!old_c_count_end && c == old_c && (old_c_count >= 30 || (old_c_count >= 8 && c != KEY_DOWN /*&& c != KEY_RIGHT*/ && c != KEY_UP /*&& c != KEY_LEFT*/)))
-		grub_timeout = 5;
+      cur_entry = NULL;
 
-	  cur_entry = NULL;
+      if (config_entries)
+      {
+        if ((((char)c) == '\n') || (((char)c) == '\r') || (((char)c) == 'b') || (((char)c) == '#') || (((char)c) == '*'))
+          break;
+      }
+      else
+      {
+        if ((((char)c) == 'd') || (((char)c) == 'o') || (((char)c) == 'O'))
+        {
+          if (! (current_term->flags & TERM_DUMB))
+            print_entry (MENU_BOX_Y + entryno, 0,first_entry + entryno, menu_entries);
 
-	  if (config_entries)
-	    {
-	      if ((((char)c) == '\n') || (((char)c) == '\r') || (((char)c) == 'b') || (((char)c) == '#') || (((char)c) == '*'))
-		break;
-	    }
-	  else
-	    {
-	      if ((((char)c) == 'd') || (((char)c) == 'o') || (((char)c) == 'O'))
-		{
-		  if (! (current_term->flags & TERM_DUMB))
-		    print_entry (MENU_BOX_Y + entryno, 0,first_entry + entryno, menu_entries);
+          /* insert after is almost exactly like insert before */
+          if (((char)c) == 'o')
+          {
+            /* But `o' differs from `O', since it may causes
+            the menu screen to scroll up.  */
+            if (num_entries > 0)
+            {
+              if (entryno < MENU_BOX_H - 1 || (current_term->flags & TERM_DUMB))
+                entryno++;
+              else
+                first_entry++;
+            }
+            c = 'O';
+          }
 
-		  /* insert after is almost exactly like insert before */
-		  if (((char)c) == 'o')
-		    {
-		      /* But `o' differs from `O', since it may causes
-			 the menu screen to scroll up.  */
-		      if (num_entries > 0)
-		      {
-			if (entryno < MENU_BOX_H - 1 || (current_term->flags & TERM_DUMB))
-			  entryno++;
-			else
-			  first_entry++;
-		      }
-		      
-		      c = 'O';
-		    }
+          cur_entry = get_entry (menu_entries, first_entry + entryno);
 
-		  cur_entry = get_entry (menu_entries, first_entry + entryno);
+          if (((char)c) == 'O')
+          {
+            grub_memmove (cur_entry + 2, cur_entry, ((grub_size_t) heap) - ((grub_size_t) cur_entry));
+            cur_entry[0] = ' ';
+            cur_entry[1] = 0;
+            heap += 2;
+            num_entries++;
+          }
+          else if (num_entries > 0)
+          {
+            char *ptr = get_entry (menu_entries, first_entry + entryno + 1);
 
-		  if (((char)c) == 'O')
-		    {
-		      grub_memmove (cur_entry + 2, cur_entry, ((int) heap) - ((int) cur_entry));
+            grub_memmove (cur_entry, ptr, ((grub_size_t) heap) - ((grub_size_t) ptr));
+            heap -= (((grub_size_t) ptr) - ((grub_size_t) cur_entry));
 
-		      cur_entry[0] = ' ';
-		      cur_entry[1] = 0;
+            num_entries--;
 
-		      heap += 2;
+            if (/*entryno >= num_entries && */entryno > 0)
+              entryno--;
+            else if (first_entry/* && num_entries < MENU_BOX_H + first_entry*/)
+              first_entry--;
+          }
 
-		      /*if (first_entry + entryno == num_entries - 1)
-		      {
-			cur_entry[2] = 0;
-			heap++;
-		      }*/
+          if (current_term->flags & TERM_DUMB)
+          {
+            grub_putchar ('\n', 255);
+            grub_putchar ('\n', 255);
+            print_entries_raw (num_entries, first_entry, menu_entries);
+          }
+          else if (num_entries > 0)
+            print_entries (first_entry, entryno, menu_entries);
+          else
+          print_entry (MENU_BOX_Y, 0, first_entry + entryno, menu_entries);
+        }
 
-		      num_entries++;
-		    }
-		  else if (num_entries > 0)
-		    {
-		      char *ptr = get_entry (menu_entries, first_entry + entryno + 1);
+        cur_entry = menu_entries;
+        if (((char)c) == 27)
+          return;
+        if (((char)c) == 'b')
+          break;
+      }
 
-		      grub_memmove (cur_entry, ptr, ((int) heap) - ((int) ptr));
-		      heap -= (((int) ptr) - ((int) cur_entry));
+      if (! auth && password_buf)
+      {
+        if (((char)c) == 'p')
+        {
+          /* Do password check here! */
+          if (current_term->flags & TERM_DUMB)
+            grub_printf ("\r                                    ");
+          else
+          {
+            if (MENU_BOX_B + 1 > current_term->max_lines)
+              gotoxy (MENU_HELP_X, MENU_BOX_H);
+            else
+            gotoxy (MENU_HELP_X, (MENU_HELP_X ? MENU_BOX_B : (MENU_BOX_B + 1)));
+          }
 
-		      num_entries--;
+          password_x = MENU_HELP_X;
+          if (current_term->setcolorstate)
+            current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 
-		      if (/*entryno >= num_entries && */entryno > 0)
-			entryno--;
-		      else if (first_entry/* && num_entries < MENU_BOX_H + first_entry*/)
-			first_entry--;
-		    }
+          if (! check_password (password_buf, password_type))
+          {
+            /* If *pass_config is NUL, then allow the user to use
+              privileged instructions, otherwise, load
+              another configuration file.  */
+            if (*pass_config)
+            {
+              strcpy(config_file,pass_config);
+              /* Make sure that the user will not have
+                authority in the next configuration.  */
+              auth = 0;
+              return;
+            }
+            else
+            {
+              /* Now the user is superhuman.  */
+              auth = 1;
+              goto restart1;
+            }
+          }
+          else
+          {
+            grub_printf ("Failed! Press any key to continue...");
+            getkey ();
+            goto restart1;
+          }
+        }
+      }
+      else
+      {
+        if (((char)c) == 'e' && c != 0xE065) /* repulse GigaByte Key-E attack */
+          //if ( c == 0x1265) /* repulse GigaByte Key-E attack */
+        {
+          int new_num_entries = 0;
+          i = 0;
+          char *new_heap;
+          font_spacing = 0;
+          line_spacing = 0;
 
-		  if (current_term->flags & TERM_DUMB)
-		    {
-		      grub_putchar ('\n', 255);
-		      grub_putchar ('\n', 255);
-		      print_entries_raw (num_entries, first_entry, menu_entries);
-		    }
-		  else if (num_entries > 0)
-		    print_entries (first_entry, entryno, menu_entries);
-		  else
-		    print_entry (MENU_BOX_Y, 0, first_entry + entryno, menu_entries);
-		}
+          if (num_entries == 0)
+          {
+            first_entry = entryno = 0;
+            cur_entry = get_entry (menu_entries, 0);
+            grub_memmove (cur_entry + 2, cur_entry, ((grub_size_t) heap) - ((grub_size_t) cur_entry));
 
-	      cur_entry = menu_entries;
-	      if (((char)c) == 27)
-		return;
-	      if (((char)c) == 'b')
-		break;
-	    }
+            cur_entry[0] = ' ';
+            cur_entry[1] = 0;
+            heap += 2;
+            num_entries++;
+          }
 
-	  if (! auth && password_buf)
-	    {
-	      if (((char)c) == 'p')
-		{
-		  /* Do password check here! */
-		  if (current_term->flags & TERM_DUMB)
-		    grub_printf ("\r                                    ");
-		  else
-			{
-				if (MENU_BOX_B + 1 > current_term->max_lines)
-					gotoxy (MENU_HELP_X, MENU_BOX_H);
-				else
-				gotoxy (MENU_HELP_X, (MENU_HELP_X ? MENU_BOX_B : (MENU_BOX_B + 1)));
-			}
+          if (config_entries)
+          {
+            new_heap = heap;
+            cur_entry = titles[first_entry + entryno];
+            while (*cur_entry++);	/* the first entry */
+          }
+          else
+          {
+            /* safe area! */
+            new_heap = heap + NEW_HEAPSIZE + 1;
+            cur_entry = get_entry (menu_entries, first_entry + entryno);
+          }
 
-			password_x = MENU_HELP_X;
-			if (current_term->setcolorstate)
-	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+          do
+          {
+            while ((*(new_heap++) = cur_entry[i++]) != 0);
+            new_num_entries++;
+          }
+          while (config_entries && cur_entry[i]);
 
-		  if (! check_password (password_buf, password_type))
-		    {
-		      /* If *pass_config is NUL, then allow the user to use
-			 privileged instructions, otherwise, load
-			 another configuration file.  */
-		      if (*pass_config)
-			{
-				strcpy(config_file,pass_config);
-			  /* Make sure that the user will not have
-			     authority in the next configuration.  */
-			  auth = 0;
-			  return;
-			}
-		      else
-			{
-			  /* Now the user is superhuman.  */
-			  auth = 1;
-			  goto restart1;
-			}
-		    }
-		  else
-		    {
-		      grub_printf ("Failed! Press any key to continue...");
-		      getkey ();
-		      goto restart1;
-		    }
-		}
-	    }
-	  else
-	    {
-	      //if (((char)c) == 'e' && c != 0xE065) /* repulse GigaByte Key-E attack */
-	      if ( c == 0x1265) /* repulse GigaByte Key-E attack */
-		{
-		  int new_num_entries = 0, i = 0;
-		  char *new_heap;
-			font_spacing = 0;
-			line_spacing = 0;
+          /* this only needs to be done if config_entries is non-NULL,
+            but it doesn't hurt to do it always */
+          *(new_heap++) = 0;
 
-		  if (num_entries == 0)
-		    {
-		      first_entry = entryno = 0;
-		      cur_entry = get_entry (menu_entries, 0);
-		      grub_memmove (cur_entry + 2, cur_entry, ((int) heap) - ((int) cur_entry));
+          if (config_entries && new_num_entries)
+          {
+            int old_num_entries = num_entries;
+            unsigned char graphic_type_back = graphic_type;
+            graphic_type = 0;
+            num_entries = new_num_entries;
+            run_menu (heap, NULL, /*new_num_entries,*/ new_heap, 0);	/* recursive!! */
+            num_entries = old_num_entries;
+            graphic_type = graphic_type_back;
+            goto restart1;
+          }
 
-		      cur_entry[0] = ' ';
-		      cur_entry[1] = 0;
+          {
+            animated_enable_backup = animated_enable;
+            animated_enable = 0;
+            setcursor (1); /* show cursor and disable splashimage */
+            if (current_term->setcolorstate)
+              current_term->setcolorstate (COLOR_STATE_STANDARD);
+            cls ();
+            print_cmdline_message (0);
+            new_heap = heap + NEW_HEAPSIZE + 1;
+            current_drive = GRUB_INVALID_DRIVE;
+            get_cmdline_str.prompt = (unsigned char*)PACKAGE " edit> ";
+            get_cmdline_str.maxlen = NEW_HEAPSIZE + 1;
+            get_cmdline_str.echo_char = 0;
+            get_cmdline_str.readline = 1;
+            get_cmdline_str.cmdline= (unsigned char*)new_heap;
+            if (! get_cmdline ())
+            {
+              int j = 0;
 
-		      heap += 2;
+              /* get length of new command */
+              while (new_heap[j++])
+              ;
 
-		      /*if (first_entry + entryno == num_entries - 1)
-		      {
-			cur_entry[2] = 0;
-			heap++;
-		      }*/
+              if (j < 2)
+              {
+              j = 2;
+                new_heap[0] = ' ';
+                new_heap[1] = 0;
+              }
 
-		      num_entries++;
-		    }
+              /* align rest of commands properly */
+              grub_memmove (cur_entry + j, cur_entry + i, (grub_size_t) heap - ((grub_size_t) cur_entry + i));
 
-		//  while (first_entry + entryno >= num_entries)
-		//  {
-		//      if (entryno > 0)
-		//	  entryno--;
-		//      else
-		//	  first_entry--;
-		//  }
+              /* copy command to correct area */
+              grub_memmove (cur_entry, new_heap, j);
 
-		  if (config_entries)
-		    {
-		      new_heap = heap;
-		      //cur_entry = get_entry (config_entries, first_entry + entryno, 1);
-		      cur_entry = titles[first_entry + entryno];
-		      while (*cur_entry++);	/* the first entry */
-		    }
-		  else
-		    {
-		      /* safe area! */
-		      new_heap = heap + NEW_HEAPSIZE + 1;
-		      cur_entry = get_entry (menu_entries, first_entry + entryno);
-		    }
+              heap += (j - i);
+              if (first_entry + entryno == num_entries - 1)
+              {
+                cur_entry[j] = 0;
+                heap++;
+              }
+            }
+          }
 
-		  do
-		    {
-		      while ((*(new_heap++) = cur_entry[i++]) != 0);
-		      new_num_entries++;
-		    }
-		  while (config_entries && cur_entry[i]);
-
-		  /* this only needs to be done if config_entries is non-NULL,
-		     but it doesn't hurt to do it always */
-		  *(new_heap++) = 0;
-
-		  if (config_entries && new_num_entries)
-		  {
-		    int old_num_entries = num_entries;
-				unsigned char graphic_type_back = graphic_type;
-				graphic_type = 0;
-		    num_entries = new_num_entries;
-		    run_menu (heap, NULL, /*new_num_entries,*/ new_heap, 0);	/* recursive!! */
-		    num_entries = old_num_entries;
-				graphic_type = graphic_type_back;
-		    goto restart1;
-		  }
-		  //else
-		  {
-		      animated_enable_backup = animated_enable;
-		      animated_enable = 0;
-		      setcursor (1); /* show cursor and disable splashimage */
-		      cls ();
-		      print_cmdline_message (0);
-
-		      new_heap = heap + NEW_HEAPSIZE + 1;
-
-		      saved_drive = boot_drive;
-		      saved_partition = install_partition;
-		      current_drive = GRUB_INVALID_DRIVE;
-
-		      get_cmdline_str.prompt = (unsigned char*)PACKAGE " edit> ";
-		      get_cmdline_str.maxlen = NEW_HEAPSIZE + 1;
-		      get_cmdline_str.echo_char = 0;
-		      get_cmdline_str.readline = 1;
-		      get_cmdline_str.cmdline= (unsigned char*)new_heap;
-		      if (! get_cmdline ())
-			{
-			  int j = 0;
-
-			  /* get length of new command */
-			  while (new_heap[j++])
-			    ;
-
-			  if (j < 2)
-			    {
-			      j = 2;
-			      new_heap[0] = ' ';
-			      new_heap[1] = 0;
-			    }
-
-			  /* align rest of commands properly */
-			  grub_memmove (cur_entry + j, cur_entry + i, (int) heap - ((int) cur_entry + i));
-
-			  /* copy command to correct area */
-			  grub_memmove (cur_entry, new_heap, j);
-
-			  heap += (j - i);
-			  if (first_entry + entryno == num_entries - 1)
-			  {
-				cur_entry[j] = 0;
-				heap++;
-			  }
-			}
-		  }
-
-		  goto restart1;
-		}
-	      if (((char)c) == 'c')
-		{
-			font_spacing = 0;
-			line_spacing = 0;
-			animated_enable_backup = animated_enable;
-			animated_enable = 0;
-			setcursor (1);
-			cls ();
-			enter_cmdline (heap, 0);
-		  goto restart1;
-		}
-	    }
-	}
-    }
+          goto restart1;
+        }
+        if (((char)c) == 'c')
+        {
+          font_spacing = 0;
+          line_spacing = 0;
+          animated_enable_backup = animated_enable;
+          animated_enable = 0;
+          setcursor (1);
+          if (current_term->setcolorstate)
+            current_term->setcolorstate (COLOR_STATE_STANDARD);
+          cls ();
+          enter_cmdline (heap, 0);
+          goto restart1;
+        }
+      }
+    }//if ((i = checkkey ()) >= 0 || grub_timeout < 0)
+  }//while (1)
   
-  /* Attempt to boot an entry.  */
-  
- boot_entry:
-  
+  /* Attempt to boot an entry. */
+boot_entry:
+  setcursor (1); /* show cursor and disable splashimage */
   animated_enable_backup = animated_enable;
   animated_enable = 0;
-  setcursor (1); /* show cursor and disable splashimage */
+
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
   cls ();
-//  /* if our terminal needed initialization, we should shut it down
-//   * before booting the kernel, but we want to save what it was so
-//   * we can come back if needed */
-//  prev_term = current_term;
-////  if (current_term->shutdown)
-////    {
-////      (*current_term->shutdown)();
-////      current_term = term_table; /* assumption: console is first */
-////    }
 	font_spacing = 0;
 	line_spacing = 0;
   fallbacked_entries = 0;
   while (1)
+  {
+    if (debug > 0)
     {
-      if (debug > 0)
+      if (config_entries)
       {
-	if (config_entries)
-	{
-		char *p;
+        char *p;
 
-		p = get_entry (menu_entries, first_entry + entryno);
-		//printf ("  Booting \'%s\'\n\n", (((*p) & 0xF0) ? p : ++p));
-		if (! ((*p) & 0xF0))
-			p++;
-		//(for Issue 123)changed by chenall 2013-04-19 also translate variables for booting message.
-		#if 0
-		unsigned char ch;
-		grub_putstr ("  Booting ");
-		while ((*p) && (ch = *p++) && ch != '\n') grub_putchar (ch, 255);
-		grub_putchar ('\n', 255);
-		grub_putchar ('\n', 255);
-		#else
-		char *p_t = (char *)SCRATCHADDR;
-		while(*p && *p != '\n')
-			*p_t++ = *p++;
-		*p_t++ = 0;
-		expand_var ((char *)SCRATCHADDR, p_t, 0x400);
-		printf ("  Booting \'%s\'\n\n",p_t);
-		#endif
-	}
-	else
-		printf ("  Booting command-list\n\n");
+        p = get_entry (menu_entries, first_entry + entryno);
+        if (! ((*p) & 0xF0))
+          p++;
+        char *p_t = (char *)SCRATCHADDR;
+        while(*p && *p != '\n')
+          *p_t++ = *p++;
+        *p_t++ = 0;
+        expand_var ((char *)SCRATCHADDR, p_t, 0x400);
+        printf ("  Booting \'%s\'\n\n",p_t);
       }
-
-      /* Set CURRENT_ENTRYNO for the command "savedefault".  */
-      current_entryno = first_entry + entryno;
-      
-      if (! cur_entry)
-      {
-	//cur_entry = get_entry (config_entries, first_entry + entryno, 1);
-	cur_entry = titles[current_entryno];
-	while (*cur_entry++);
-      }
-
-	if (current_entryno >= num_entries)//Max entries
-		break;
-
-      if (! run_script (cur_entry, heap))
-	break;
-      if (fallback_entryno < 0)
-	break;
-      cur_entry = NULL;
-      first_entry = 0;
-      entryno = fallback_entries[fallback_entryno];
-      fallback_entryno++;
-      if (fallback_entryno >= MAX_FALLBACK_ENTRIES || fallback_entries[fallback_entryno] < 0)
-	fallback_entryno = -1;
-      fallbacked_entries++;
-      if (fallbacked_entries > num_entries * num_entries * 4)
-      {
-	printf ("\nEndless fallback loop detected(entry=%d)! Press any key to exit...", current_entryno);
-	(void) getkey ();
-	break;
-      }
+      else
+        printf ("  Booting command-list\n\n");
     }
 
-//  /* if we get back here, we should go back to what our term was before */
-//  current_term = prev_term;
-//  if (current_term->startup)
-//      /* if our terminal fails to initialize, fall back to console since
-//       * it should always work */
-//      if ((*current_term->startup)() == 0)
-//          current_term = term_table; /* we know that console is first */
+    /* Set CURRENT_ENTRYNO for the command "savedefault".  */
+    current_entryno = first_entry + entryno;   
+    if (! cur_entry)
+    {
+      cur_entry = titles[current_entryno];
+      while (*cur_entry++);
+    }
+
+    if (current_entryno >= num_entries)//Max entries
+      break; 
+    if (! run_script (cur_entry, heap))
+      break;
+    if (fallback_entryno < 0)
+      break;
+    cur_entry = NULL;
+    first_entry = 0;
+    entryno = fallback_entries[fallback_entryno];
+    fallback_entryno++;
+    if (fallback_entryno >= MAX_FALLBACK_ENTRIES || fallback_entries[fallback_entryno] < 0)
+    fallback_entryno = -1;
+    fallbacked_entries++;
+    if (fallbacked_entries > num_entries * num_entries * 4)
+    {
+      printf ("\nEndless fallback loop detected(entry=%d)! Press any key to exit...", current_entryno);
+      (void) getkey ();
+      break;
+    }
+  }
   show_menu = 1;
   goto restart1;
 }
 
-// #define GFX_DEBUG
-
-#ifdef SUPPORT_GFX
-
-/* kernel + (grub-)module options */
-#define GFX_CMD_BUF_SIZE 512
-
-/* command line separator char */
-#define GFX_CMD_SEP 1
-
-/*
- * Search cpio archive for gfx file.
- */
-static unsigned find_file (unsigned char *buf, unsigned len,
-			   unsigned *gfx_file_start, unsigned *file_len,
-			   unsigned *code_start)
-{
-  unsigned i, fname_len;
-
-  *gfx_file_start = 0;
-
-  for(i = 0; i < len;) 
-    {
-      if((len - i) >= 0x1a && (buf[i] + (buf[i + 1] << 8)) == 0x71c7)
-      {
-	fname_len = *(unsigned short *) (buf + i + 20);
-	*file_len = *(unsigned short *) (buf + i + 24) + (*(unsigned short *) (buf + i + 22) << 16);
-	i += 26 + fname_len;
-	i = ((i + 1) & ~1);
-	if (*(unsigned *) (buf + i) == 0x0b2d97f00)	/* magic id */
-	  {
-	    int v = buf[i + 4];
-
-	    *code_start = *(unsigned *) (buf + i + 8);
-	    *gfx_file_start = i;
-	    if ((v>=5) && (v <= 7))	/* version 5 - 7 */
-	      return 1;
-	    else if (v == 8)		/* version 8 */
-	      return 2;
-	  }
-	i += *file_len;
-	i = ((i + 1) & ~1);
-      }
-    else
-      break;
-  }
-
-  return 0;
-}
-
-#define MIN_GFX_FREE	0x1000
-
-#define SC_BOOTLOADER		0
-#define SC_FAILSAFE		3
-#define SC_SYSCONFIG_SIZE	4
-#define SC_BOOTLOADER_SEG	8
-#define SC_XMEM_0		24
-#define SC_XMEM_1		26
-#define SC_XMEM_2		28
-#define SC_XMEM_3		30
-#define SC_FILE			32
-#define SC_ARCHIVE_START	36
-#define SC_ARCHIVE_END		40
-#define SC_MEM0_START		44
-#define SC_MEM0_END		48
-
-unsigned long gfx_drive, gfx_partition;
-
-/*
- * Does normally not return.
- */
-static void
-run_graphics_menu (char *menu_entries, char *config_entries, /*int num_entries,*/
-	  char *heap, int entryno)
-{
-  unsigned char *buf, *buf_ext;
-  unsigned buf_size, buf_ext_size, code_start = 0, file_start;
-  char *cfg;
-  int i, j, max_len, gfx_file_size, verbose;
-  int selected_entry;
-  gfx_data_v1_t *gfx1;
-  gfx_data_v2_t *gfx2;
-  //char *cmd_buf;
-  unsigned mem0_start, mem0_end, file_len = 0;
-  int version;
-  unsigned long tmp_drive, tmp_partition;
-
-  /*
-   * check gfx_data_t struct offsets for consistency; gcc will optimize away
-   * the whole block
-   */
-
-  /* dummy function to make ld fail */
-  {
-    extern void wrong_struct_size(void);
-    #define gfx_ofs_check(a) if(gfx_ofs_v1_##a != (char *) &gfx1->a - (char *) &gfx1->ok) wrong_struct_size();
-    gfx_ofs_check(ok);
-    gfx_ofs_check(mem_start);
-    gfx_ofs_check(mem_cur);
-    gfx_ofs_check(mem_max);
-    gfx_ofs_check(code_seg);
-    gfx_ofs_check(jmp_table);
-    gfx_ofs_check(sys_cfg);
-    gfx_ofs_check(cmdline);
-    gfx_ofs_check(cmdline_len);
-    gfx_ofs_check(menu_list);
-    gfx_ofs_check(menu_default_entry);
-    gfx_ofs_check(menu_entries);
-    gfx_ofs_check(menu_entry_len);
-    gfx_ofs_check(args_list);
-    gfx_ofs_check(args_entry_len);
-    gfx_ofs_check(timeout);
-    gfx_ofs_check(mem_file);
-    gfx_ofs_check(mem_align);
-    #undef gfx_ofs_check
-
-    #define gfx_ofs_check(a) if(gfx_ofs_v2_##a != (char *) &gfx2->a - (char *) &gfx2->ok) wrong_struct_size();
-    gfx_ofs_check(ok);
-    gfx_ofs_check(code_seg);
-    gfx_ofs_check(jmp_table);
-    gfx_ofs_check(sys_cfg);
-    gfx_ofs_check(cmdline);
-    gfx_ofs_check(cmdline_len);
-    gfx_ofs_check(menu_list);
-    gfx_ofs_check(menu_default_entry);
-    gfx_ofs_check(menu_entries);
-    gfx_ofs_check(menu_entry_len);
-    gfx_ofs_check(args_list);
-    gfx_ofs_check(args_entry_len);
-    gfx_ofs_check(timeout);
-    #undef gfx_ofs_check
-  }
-
-  if(!num_entries) return;
-
-  kernel_type = KERNEL_TYPE_NONE;
-
-  gfx1 = (gfx_data_v1_t *) (heap = (char *)0x50000);
-  heap = (char *) (((unsigned) heap + sizeof (*gfx1) + 0xF) & ~0xF);
-  gfx2 = (gfx_data_v2_t *) heap;
-  heap += sizeof *gfx2;
-  memset((char *) gfx1, 0, (char *) heap - (char *) gfx1);
-  
-  //verbose = (*(unsigned char *) 0x417) & 3 ? 1 : 0;	/* SHIFT pressed */
-  verbose = (debug > 1);
-  
-  /* setup command line edit buffer */
-
-  gfx1->cmdline_len = gfx2->cmdline_len = 256;
-  gfx1->cmdline = gfx2->cmdline = heap;
-  heap += gfx1->cmdline_len;
-  memset(gfx1->cmdline, 0, gfx1->cmdline_len);
-
-  //cmd_buf = heap;
-  heap += GFX_CMD_BUF_SIZE;
-
-  /* setup menu entries */
-
-  for (i = max_len = 0; i < num_entries; i++)
-    {
-	char ch;
-	char *str = get_entry(menu_entries, i);
-
-	j = 0;
-	/* ending at LF, the start of help message */
-	while ((ch = *str++) && ch != '\n')
-		j++;
-
-	if (max_len < j)
-	    max_len = j;
-    }
-
-  if (!max_len) return;
-
-  gfx1->menu_entry_len = gfx2->menu_entry_len = max_len;
-  gfx1->menu_entries = gfx2->menu_entries = num_entries;
-
-  gfx1->menu_list = gfx2->menu_list = heap;
-  heap += gfx1->menu_entry_len * gfx1->menu_entries;
-
-  memset(gfx1->menu_list, 0, gfx1->menu_entry_len * gfx1->menu_entries);
-
-  for(i = 0; i < (int) gfx1->menu_entries; i++)
-    {
-	char ch;
-	char *dest = gfx1->menu_list + i * gfx1->menu_entry_len;
-	char *src = get_entry(menu_entries, i);
-
-	/* Skip the leading '\t'.  */
-	src++;
-	
-	/* ending at LF, the start of help message */
-	while ((ch = *src++) && ch != '\n')
-		*dest++ = ch;
-	*dest = 0;
-    }
-
-  gfx1->menu_default_entry = gfx2->menu_default_entry = gfx1->menu_list + entryno * gfx1->menu_entry_len;
-
-  gfx1->args_entry_len = gfx2->args_entry_len = 1;
-  gfx1->args_list = gfx2->args_list = heap;
-  heap += gfx1->args_entry_len * gfx1->menu_entries;
-  memset(gfx1->args_list, 0, gfx1->args_entry_len * gfx1->menu_entries);
-
-  /* use 1MB starting at 4MB as file buffer */
-  buf_ext = (unsigned char *) (4 << 20);
-  buf_ext_size = 1 << 20;
-
-  /* must be 16-byte aligned */
-  buf = (unsigned char *) (((unsigned) heap + 0xf) & ~0xf);
-
-  buf_size = ((*((unsigned short *)0x413)) << 10) - (unsigned) buf;
-  buf_size &= ~0xf;
-
-  mem0_start = (unsigned) buf;
-  mem0_end = mem0_start + buf_size;
-
-#ifdef GFX_DEBUG
-  if (verbose)
-    {
-      printf("low memory 0x%x - 0x%x (%d bytes)\n", mem0_start, mem0_end, buf_size);
-    }
-#endif
-
-  /* read the file */
-  tmp_drive = saved_drive;
-  tmp_partition = saved_partition;
-  saved_drive = gfx_drive;
-  saved_partition = gfx_partition;
-  if (!grub_open(graphics_file)) 
-    {
-      if (verbose)
-	printf("%s: file not found\n", graphics_file);
-
-      saved_drive = tmp_drive;
-      saved_partition = tmp_partition;
-      return;
-    }
-
-  gfx_file_size = grub_read ((unsigned long long)(unsigned int)(char *)buf_ext, buf_ext_size, 0xedde0d90);
-
-  grub_close();
-
-  saved_drive = tmp_drive;
-  saved_partition = tmp_partition;
-
-  if (gfx_file_size <= 0)
-    {
-      if (verbose)
-	printf("%s: read error\n", graphics_file);
-
-      return;
-    }
-
-#ifdef GFX_DEBUG
-  if (verbose)
-    {
-      printf("%s: %d bytes (%d bytes left)\n", graphics_file, gfx_file_size, (buf_ext_size - gfx_file_size));
-    }
-#endif
-
-  /* locate file inside cpio archive */
-  if (!(version = find_file(buf_ext, gfx_file_size, &file_start, &file_len, &code_start)))
-    {
-      if (verbose)
-	printf("%s: invalid file format\n", graphics_file);
-
-      return;
-    }
-
-#ifdef GFX_DEBUG
-  if (verbose)
-    {
-      printf("init: start 0x%x, len %d; code offset 0x%x\n", file_start, file_len, code_start);
-    }
-#endif
-
-  if (version == 1)
-    {
-      unsigned u;
-
-      if (gfx_file_size + MIN_GFX_FREE + 0xf >= (int) buf_size)
-	{
-	  if (verbose)
-	    printf("not enough free memory: %d extra bytes need\n", (gfx_file_size + MIN_GFX_FREE - buf_size));
-
-	  return;
-	}
-
-      memcpy ((void *) buf, (void *) buf_ext, gfx_file_size);
-
-      gfx1->sys_cfg[0] = 2;	/* bootloader: grub */
-      gfx1->timeout = grub_timeout >= 0 ? grub_timeout : 0;
-
-      gfx1->mem_start = (unsigned) buf;
-      gfx1->mem_max = gfx1->mem_start + buf_size;
-
-      gfx1->mem_cur = gfx1->mem_start +
-	((gfx_file_size + 0x0f + 3) & ~3);	/* align it */
-
-      /* align it */
-      u = (-(code_start + gfx1->mem_start + file_start)) & 0x0f;
-      gfx1->mem_align = gfx1->mem_start + u;
-      gfx1->mem_file = gfx1->mem_align + file_start;
-      if (u)
-	{
-	  memcpy((void *) gfx1->mem_align, (void *) gfx1->mem_start, gfx_file_size);
-	}
-
-      code_start += gfx1->mem_file;
-      gfx1->code_seg = code_start >> 4;
-  
-      for (i = 0; (unsigned) i < sizeof gfx1->jmp_table / sizeof *gfx1->jmp_table; i++) 
-	{
-	  gfx1->jmp_table[i] = (gfx1->code_seg << 16) + ((unsigned short *) code_start)[i];
-	}
-      
-      if (gfx_init_v1 (gfx1))
-	{
-	  if (verbose)
-	    printf("graphics initialization failed\n");
-
-	  return;
-	}
-      
-      gfx_setup_menu_v1 (gfx1);
-      i = gfx_input_v1 (gfx1, &selected_entry);
-      gfx_done_v1 (gfx1);
-    }
-  else
-    {
-      if (file_len - code_start + MIN_GFX_FREE > buf_size)
-	{
-	  if (verbose)
-	    printf("not enough free memory: %d extra bytes need\n", (file_len - code_start + MIN_GFX_FREE - buf_size));
-
-	  return;
-	}
-
-      gfx2->sys_cfg[SC_BOOTLOADER] = 2;			/* bootloader: grub */
-      gfx2->sys_cfg[SC_SYSCONFIG_SIZE] = 52;		/* config data size */
-      *(unsigned short *) (gfx2->sys_cfg + SC_BOOTLOADER_SEG) = (unsigned) gfx2 >> 4;	/* segment */
-      gfx2->sys_cfg[SC_XMEM_0] = 0x21;			/* 1MB @ 2MB */
-      gfx2->sys_cfg[SC_XMEM_1] = 0x41;			/* 1MB @ 4MB */
-      gfx2->sys_cfg[SC_FAILSAFE] = verbose;
-      gfx2->timeout = grub_timeout >= 0 ? grub_timeout : 0;
-
-      memcpy((void *) buf, (void *) (buf_ext + file_start + code_start), file_len - code_start);
-
-      mem0_start += file_len - code_start;
-      mem0_start = (mem0_start + 3) & ~3;		/* align */
-
-      /* init interface to graphics functions */
-
-      *(unsigned *) (gfx2->sys_cfg + SC_FILE) = (unsigned) buf_ext + file_start;
-      *(unsigned *) (gfx2->sys_cfg + SC_ARCHIVE_START) = (unsigned) buf_ext;
-      *(unsigned *) (gfx2->sys_cfg + SC_ARCHIVE_END) = (unsigned) buf_ext + gfx_file_size;
-      *(unsigned *) (gfx2->sys_cfg + SC_MEM0_START) = mem0_start;
-      *(unsigned *) (gfx2->sys_cfg + SC_MEM0_END) = mem0_end;
-
-      gfx2->code_seg = (unsigned) buf >> 4;
-
-#ifdef GFX_DEBUG
-
-      if (verbose)
-	{
-	  printf("init 0x%x, archive 0x%x - 0x%x, low mem 0x%x - 0x%x\ncode seg 0x%x\n",
-		 ((unsigned) buf_ext + file_start),
-		 (unsigned) buf_ext, ((unsigned) buf_ext + gfx_file_size),
-		 mem0_start, mem0_end, gfx2->code_seg
-	  );
-	}
-#endif
-
-      for (i = 0; (unsigned) i < sizeof gfx2->jmp_table / sizeof *gfx2->jmp_table; i++)
-	{
-	  gfx2->jmp_table[i] = (gfx2->code_seg << 16) + ((unsigned short *) buf)[i];
-	}
-
-#ifdef GFX_DEBUG
-      if (verbose)
-	{
-	  for(i = 0; i < 12; i++)
-	    {
-	      printf("%d: 0x%x\n", i, gfx2->jmp_table[i]);
-	    }
-
-	  for(i = 0; i < gfx2->menu_entries; i++) 
-	    {
-	      printf("\"%s\"  --  \"%s\"\n",
-		     (gfx2->menu_list + i * gfx2->menu_entry_len),
-		     (gfx2->args_list + i * gfx2->args_entry_len)
-	      );
-	    }
-
-	  printf("default: \"%s\"\n", gfx2->menu_default_entry);
-	}
-#endif
-
-      /* switch to graphics mode */
-      if (gfx_init_v2 (gfx2))
-	{
-	  if (verbose)
-	    printf("graphics initialization failed\n");
-
-	  return;
-	}
-
-      gfx_setup_menu_v2 (gfx2);
-      i = gfx_input_v2 (gfx2, &selected_entry);
-      gfx_done_v2 (gfx2);
-    }
-
-  memset ((char *) HISTORY_BUF, 0, HISTORY_BUFLEN);
-  /* ESC -> show text menu */
-
-  if (i == 1)
-    {
-      grub_timeout = -1;
-      return;
-    }
-
-  //heap = saved_heap;	/* free most of the graphics data */
-
-  // printf("cmdline: >%s<, entry = %d\n", gfx_data->cmdline, selected_entry);
-
-  if (selected_entry < 0 || selected_entry > num_entries)
-    return;
-
-  /* for 'savedefault' */
-  current_entryno = selected_entry;
-
-  cfg = get_entry(menu_entries, selected_entry);
-  while (*(cfg++))
-    ;
-
-  run_script(cfg, heap);
-}
-
-#endif /* SUPPORT_GFX */
-
+static int get_line_from_config (char *cmdline, int max_len, int preset);
 static int
 get_line_from_config (char *cmdline, int max_len, int preset)
 {
-    unsigned long pos = 0, info = 0;//literal = 0, comment = 0;
+    unsigned int pos = 0, info = 0;//literal = 0, comment = 0;
     char c;  /* since we're loading it a byte at a time! */
-  
+ 
     while (1)
     {
-#if 0
-	/* Skip UTF-8 Byte Order Mark: EF BB BF */
-	{
-	    unsigned long menu_offset;
-
-	    menu_offset = read_from_file ? filepos : preset_menu_offset;
-	    if (menu_offset == 0)
-	    {
-		/* read 3 bytes, check UTF-8 Byte Order Mark: EF BB BF */
-		if (read_from_file)
-		{
-			if (3 != grub_read (&menu_offset, 3))
-			{
-				filepos = 0;
-				break;
-			}
-			if (menu_offset != 0xBFBBEF)
-			{
-				filepos = 0;
-			}
-		}
-		else
-		{
-			if (3 != read_from_preset_menu (&menu_offset, 3))
-			{
-				preset_menu_offset = 0;
-				break;
-			}
-			if (menu_offset != 0xBFBBEF)
-			{
-				preset_menu_offset = 0;
-			}
-		}
-	    }
-	}
-#endif
-
 	if (preset)
 	{
-	    if (! read_from_preset_menu (&c, 1))
 		break;
 	}
 	else
 	{
-	    if (! grub_read ((unsigned long long)(unsigned int)&c, 1, 0xedde0d90))
+	    if (! grub_read ((unsigned long long)(grub_size_t)&c, 1, 0xedde0d90))
 	    {
 		if (errnum)
 		{
@@ -2332,10 +1628,6 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 		break;
 	    }
 	}
-
-	///* Skip UTF-8 Byte Order Mark: EF BB BF */
-	//if ((c & 0x80) && pos < 3)
-	//    continue;
 
 	/* Replace CR with LF.  */
 	if (c == '\r')
@@ -2351,30 +1643,6 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 	    pos = 0;
 	    break;
 	}
-
-//	/* The previous is a backslash, then...  */
-//	if (info & 1)	/* bit 0 for literal */
-//	{
-//	    /* If it is a newline, replace it with a space and continue.  */
-//	    if (c == '\n')
-//	    {
-//		c = ' ';
-//
-//		/* Go back to overwrite a backslash.  */
-//		if (pos > 0)
-//		    pos--;
-//	    }
-//
-//	    info &= 0xFFFFFFFE;	//literal = 0;
-//	}
-//
-//	///* Replace semi-colon with LF.  */
-//	//if (c == ';')
-//	//    c = '\n';
-//
-//	/* translate characters first! */
-//	if (c == '\\')
-//	    info |= 1;	//literal = 1;
 
 	if (info & 2)	/* bit 1 for comment */
 	{
@@ -2420,10 +1688,7 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 			info &= ~8; // not all hex digit
 	    }
 
-	   // if (!(info & 4) && ((c & 0x80) || pos > 31))	/* bit 2 for argument */
-		//break;
-
-	    if (pos < max_len)
+	    if (pos < (unsigned long long)max_len)
 	    {
 		if (!(info & 4) && c == '=')
 		    c = ' ';
@@ -2441,6 +1706,7 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 int config_len;
 static char *config_entries, *cur_entry;
 
+static void reset (void);
 static void
 reset (void)
 {
@@ -2459,25 +1725,22 @@ reset (void)
 }
   
 extern struct builtin builtin_title;
-extern struct builtin builtin_graphicsmode;
+//extern struct builtin builtin_graphicsmode;
 extern struct builtin builtin_debug;
-static unsigned long attr = 0;
+static unsigned int attr = 0;
+char *menu_mem = 0;
 /* This is the starting function in C.  */
+void cmain (void);
 void
 cmain (void)
 {
-    debug = debug_boot + 1;
-    title_boot = (unsigned short *) init_free_mem_start;
-    titles = (char * *)(init_free_mem_start + 1024);
-    config_entries = (char*)init_free_mem_start + 1024 + 256 * sizeof (char *);
     saved_entryno = 0;
 	new_menu = 0;
+	new_hotkey = 0;
     /* Never return.  */
 restart2:
-    reset ();
-      
+    reset ();       
     /* Here load the configuration file.  */
-
     if (! use_config_file)
 	goto done_config_file;
 
@@ -2491,130 +1754,99 @@ restart_config:
 	   STATE 2: In a entry after a title command.  
 	*/
 	int state = 0, prev_config_len = 0, bt = 0;
-	unsigned long graphicsmode_in_menu_init = 0;
-	unsigned long debug_in_menu_init = 0;
-	//char *cmdline;
 	int is_preset;
 	grub_memset (graphic_file_shift, 0, 32);
 	menu_init_script_file[0] = 0;
 	{
 	    int is_opened;
-
 	    is_preset = is_opened = 0;
 	    /* Try command-line menu first if it is specified. */
-	    //if (preset_menu == (char *)0x0800/*&& ! *config_file*/)
-	    if (use_preset_menu)
-	    {
-		is_opened = is_preset = open_preset_menu ();
-	    }
-	    if (! is_opened)
-	    {
-		/* Try config_file */
 		if (*config_file)
 		{
 			is_opened = (configfile_opened || grub_open (config_file));
+      menu_mem = grub_zalloc (filemax + 0x1000);     //分配内存, 并清零  
+      title_boot = (unsigned short *)menu_mem;
+      titles = (char * *)(menu_mem + 1024);
+      config_entries = menu_mem + 1024 + 256 * sizeof (char *);
 			#ifdef FSYS_IPXE
-			if (is_opened && current_drive == PXE_DRIVE && current_partition == IPXE_PART)
-				pxe_detect(IPXE_PART,config_file);
+//			if (is_opened && current_drive == PXE_DRIVE && current_partition == IPXE_PART)
+//				pxe_detect(IPXE_PART,config_file);
 			#endif
 		}
-	    }
 	    errnum = 0;
-	    configfile_opened = 0;
+	    configfile_opened = 0;         
 	    if (! is_opened)
-	    {
+	    { 
 		if (pxe_restart_config)
 			goto original_config;
-
 		/* Try the preset menu. This will succeed at most once,
-		 * because the preset menu will be disabled(see below).  */
-		is_opened = is_preset = open_preset_menu ();
+		 * because the preset menu will be disabled(see below).  */ 
 	    }
-
 	    if (! is_opened)
 		goto done_config_file;
 	}
-	
+ 	
 	/* This is necessary, because the menu must be overrided.  */
 	reset ();
-	//cmdline = (char *) CMDLINE_BUF;
-	  
-	putchar_hooked = (unsigned char*)1;/*stop displaying on screen*/
-
+#if 1 //值1表示:  从现在开始, 不在屏幕显示任何信息
+	putchar_hooked = (unsigned char*)1;/*stop displaying on screen*/  //禁止显示
+#else
+  putchar_hooked = 0; //允许显示
+#endif
 	while (get_line_from_config ((char *) CMDLINE_BUF, NEW_HEAPSIZE, is_preset))
 	{
 	    struct builtin *builtin = 0;
-	    char *cmdline = (char *) CMDLINE_BUF;
-	  
+	    char *cmdline = (char *) CMDLINE_BUF;  
 	    /* Get the pointer to the builtin structure.  */
-			if (*cmdline == ':' || *cmdline == '!')
-				goto sss;
+    if (*cmdline == ':' || *cmdline == '!' || *cmdline == '{' || *cmdline == '}')
+    {
+      builtin->flags = 8;
+      goto sss;
+    }
 	    builtin = find_command (cmdline);
 	    errnum = 0;
 	    if (! builtin)
 		/* Unknown command. Just skip now.  */
 		continue;
-sss:	  
-	    if ((int)builtin != -1 && builtin->flags == 0)	/* title command */
+sss:
+	    if ((grub_size_t)builtin != (grub_size_t)-1 && builtin->flags == (int)0)	/* title command */
 	    {
 		if (builtin != &builtin_title)/*If title*/
 		{
-			unsigned long tmp_filpos;
-			unsigned long tmp_drive = saved_drive;
-			unsigned long tmp_partition = saved_partition;
+			unsigned int tmp_filpos;
+			unsigned int tmp_drive = saved_drive;
+			unsigned int tmp_partition = saved_partition;
 			unsigned int rp;
 			cmdline = skip_to(1, cmdline);
-
 			/* save original file position. */
-			tmp_filpos = (is_preset && preset_menu == (const char *)0x800) ?
-					preset_menu_offset : filepos;
-
+			tmp_filpos = /*(is_preset && preset_menu == (const char *)0x800) ?
+					preset_menu_offset : */filepos;
 			/* close the already opened file for safety, in case 
 			 * the builtin->func() below would call
 			 * grub_open(). */
-			if (! is_preset || preset_menu != (const char *)0x800)
 				grub_close ();
-
-			if (debug_boot)
-			{
-				putchar_hooked = 0;
-				grub_printf("IFTITLE: %s->",cmdline);
-				putchar_hooked = (unsigned char*)1;
-			}
-
 			rp = builtin->func(cmdline,BUILTIN_IFTITLE);
 			saved_drive = tmp_drive;
 			saved_partition = tmp_partition;
 			current_drive = GRUB_INVALID_DRIVE;
 			buf_drive = -1;
-
 			/* re-open the config_file which is still in use by
 			 * get_line_from_config(), and restore file position
 			 * with the saved value. */
-			if (is_preset)
-			{
-				open_preset_menu ();
-				if (preset_menu == (const char *)0x800)
-					preset_menu_offset = tmp_filpos;
-				else
-					filepos = (unsigned long long)tmp_filpos;
-			}
-			else
 			{
 				if (! grub_open (config_file))
 				{
 					printf ("  Fatal! Re-open %s failed!\n", config_file);
 					print_error ();
 				}
+        if(!menu_mem)
+        {
+          menu_mem = grub_zalloc (filemax + 0x1000);     //分配内存, 并清零 
+          title_boot = (unsigned short *)menu_mem;
+          titles = (char * *)(menu_mem + 1024);
+          config_entries = menu_mem + 1024 + 256 * sizeof (char *);
+        }
 				filepos = (unsigned long long)tmp_filpos;
-			}
-
-			if (debug_boot)
-			{
-				putchar_hooked = 0;
-				grub_printf("  rp=%d\n", rp);
-				DEBUG_SLEEP
-				putchar_hooked = (unsigned char*)1;
 			}
 
 			if (rp)
@@ -2630,8 +1862,8 @@ sss:
 				continue;
 			}
 		}
-		/* Finish the menu init commands or previous menu items.  */
 
+		/* Finish the menu init commands or previous menu items.  */
 		if (state & 2)
 		{
 		    /* The next title is found.  */
@@ -2652,7 +1884,6 @@ sss:
 		    /* The first title. So finish the menu init commands. */
 		    config_entries[config_len++] = 0;
 		}
-
 		/* Reset the state.  */
 		state = 1;
 
@@ -2678,19 +1909,17 @@ sss:
 		}
 	    }
 	    else if (state & 0x10) /*ignored menu by iftitle*/
+      {
 		continue;
+      }
 	    else if (! state)			/* menu init command */
 	    {
-		if ((int)builtin == -1 || builtin->flags & BUILTIN_MENU)
+		if ((grub_size_t)builtin == (grub_size_t)-1 || builtin->flags & BUILTIN_MENU)
 		{
 		    char *ptr = cmdline;
 		    /* Copy menu-specific commands to config area.  */
 		    while ((config_entries[config_len++] = *ptr++) != 0);
 		    prev_config_len = config_len;
-		    if (builtin == &builtin_graphicsmode)
-			graphicsmode_in_menu_init = 1;
-		    if (builtin == &builtin_debug)
-			debug_in_menu_init = 1;
 		}
 		else
 		    /* Ignored.  */
@@ -2699,77 +1928,26 @@ sss:
 	    else				/* menu item command */
 	    {
 		state = 2;
-
 		/* Copy config file data to config area.  */
 		{
 		    char *ptr = cmdline;
 		    while ((config_entries[config_len++] = *ptr++) != 0);
 		    prev_config_len = config_len;
 		}
-		if ((int)builtin != -1)
+		if ((grub_size_t)builtin != (grub_size_t)-1)
+    {
 			config_entries[attr] |= !!(builtin->flags & BUILTIN_BOOTING);
+    }
 	    }
 	} /* while (get_line_from_config()) */
-
+//从现在开始, 在屏幕显示信息
 	putchar_hooked = 0;
-
 	/* file must be closed here, because the menu-specific commands
 	 * below may also use the GRUB_OPEN command.  */
-	if (is_preset)
-	{
-#ifdef SUPPORT_GRAPHICS
-extern int font_func (char *, int);
-extern int graphicsmode_func (char *, int);
-	    //font_func (NULL, 0);	/* clear the font */
-	    /* Since ROM VGA font already loaded in init_bios_info(), we
-	     * should not load it again here. The same as below.
-	     * See issue 160. */
-	    /* Clear the narrow_char_indicator for the NULL char only. */
-//	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
-	    if (use_preset_menu/* != (const char *)0x800*/)
-	    {
-		/* load the font embedded in preset menu. */
-		char *menu = "(md)4+8";
-
-		if (preset_menu != (const char *)0x800)
-			menu = "(md)0x880+0x200";
-		if (font_func (menu, 0))
-		{
-		    /* font exists, automatically enter graphics mode. */
-		    if (! graphicsmode_in_menu_init)
-		    {
-			if (debug_boot)
-				grub_printf ("\rSwitch to graphics mode ...             \r");
-			graphicsmode_func ("-1 -1 -1 24:32", 0);
-		    }
-		}
-		//font_func (NULL, 0);	/* clear the font */
-		/* Clear the narrow_char_indicator for the NULL char only. */
-//		*(unsigned long *)UNIFONT_START = 0;//Enable next font command.
-	    }
-#endif /* SUPPORT_GRAPHICS */
-
-	    if (preset_menu != (const char *)0x800)
-		grub_close ();
-	    //use_preset_menu = 0;	/* Disable preset menu.  */
-	}
-	else
 	{
 	    grub_close ();
 	    /* before showing menu, try loading font in the tail of config_file */
-#ifdef SUPPORT_GRAPHICS
-	    extern int font_func (char *, int);
-	    //font_func (NULL, 0);	/* clear the font */
-	    /* Clear the narrow_char_indicator for the NULL char only. */
-//	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
-	    font_func (config_file, 0);
-	    //font_func (NULL, 0);	/* clear the font */
-	    /* Clear the narrow_char_indicator for the NULL char only. */
-//	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
-#endif /* SUPPORT_GRAPHICS */
 	}
-	use_preset_menu = 0;	/* Disable preset menu.  */
-
 	if (state & 2)
 	{
 	    if (num_entries < 256)
@@ -2785,7 +1963,6 @@ extern int graphicsmode_func (char *, int);
 	title_boot[num_entries] = -1;
 	if (num_entries < 256)
 		titles[num_entries] = 0;
-	
 	/* old MENU_BUF is not used any more. So MENU_BUF is a temp area,
 	 * and can be moved to elsewhere. */
 
@@ -2797,79 +1974,33 @@ extern int graphicsmode_func (char *, int);
 	/* Display this info if the debug command is not present in the
 	 * menu-init command set.
 	 */
-	if (debug_boot || ! debug_in_menu_init)
-	{
-#include "grub4dos_version.h"
-
-#ifdef GRUB4DOS_VERSION
-	    if ((unsigned long)saved_partition == 0xFFFFFF)
-		printf_debug0 ("\rGRUB4DOS " GRUB4DOS_VERSION
-			", root is (0x%X)%s\n",
-			(unsigned long)saved_drive,
-			saved_dir);
-	    else
-		printf_debug0 ("\rGRUB4DOS " GRUB4DOS_VERSION
-			", root is (0x%X,%d)%s\n",
-			(unsigned long)saved_drive,
-			(unsigned char)(saved_partition >> 16),
-			saved_dir);
-#endif
-	    if (is_preset)
-	    {
-		if (preset_menu == (const char *)0x800)
-		    printf_debug0 ("\rProcessing the preset-menu ...\n");
-		else
-		    printf_debug0 ("\rProcessing the LZMA preset-menu ...\n");
-	    }
-	    else
-		printf_debug0 ("\rProcessing menu file %s ...\n", config_file);
-	    DEBUG_SLEEP
-	}
-
 	/* Run menu-specific commands before any other menu entry commands.  */
-
+;
 	{
 	    static char *old_entry = NULL;
 	    static char *heap = NULL; heap = config_entries + config_len;
 
-	    static int old_debug = 1;
-
 	    /* Initialize the data.  */
-	    //saved_drive = boot_drive;
-	    //saved_partition = install_partition;
 	    current_drive = GRUB_INVALID_DRIVE;
 	    count_lines = -1;
 	    kernel_type = KERNEL_TYPE_NONE;
 	    errnum = 0;
-
 	    while (1)
 	    {
-//		struct builtin *builtin; //2010-12-16 commented by chenall
-//		char *arg;
-//		grub_error_t errnum_old;//2010-12-16 commented by chenall
-
 		pxe_restart_config = 0;
 
 #ifdef SUPPORT_GFX
 		*graphics_file = 0;
 #endif
-
-//		errnum_old = errnum;//2010-12-16 commented by chenall
-//		errnum = 0;//2010-12-16 commented by chenall
-
-		if (debug_boot) {
-		  grub_printf("\r%s\n", cur_entry);
-		}
 		//DEBUG_SLEEP  /* Only uncomment if you want to pause before processing every menu.lst line */
 		/* Copy the first string in CUR_ENTRY to HEAP.  */
 		old_entry = cur_entry;
 		while (*cur_entry++);
 
-		grub_memmove (heap, old_entry, (int) cur_entry - (int) old_entry);
+		grub_memmove (heap, old_entry, (grub_size_t) cur_entry - (grub_size_t) old_entry);
 		if (! *heap)
 		{
 		    /* If there is no more command in SCRIPT...  */
-
 		    /* If no kernel is loaded, just exit successfully.  */
 		    if (kernel_type == KERNEL_TYPE_NONE)
 			break;
@@ -2877,52 +2008,22 @@ extern int graphicsmode_func (char *, int);
 		    /* Otherwise, the command boot is run implicitly.  */
 		    grub_memmove (heap, "boot", 5);
 		}
-
 		run_line (heap , BUILTIN_MENU);
+
 		/* if the INSERT key was pressed at startup, debug is not allowed to be turned off. */
-		if (debug_boot)
-		    if ((unsigned int)debug < 2)	/* debug == 0 or 1 */
-		    {
-			old_debug = debug;	/* save the new debug in old_debug */
-			debug = 2;
-		    }
-
-#ifdef SUPPORT_GFX
-		if (num_entries && ! errnum && *graphics_file && !password_buf && show_menu && grub_timeout)
-		{
-		  unsigned long pxe_restart_config_bak = pxe_restart_config;
-		  pxe_restart_config = 1;	/* for configfile to work with gfxmenu. */
-
-		  run_graphics_menu((char *)titles, cur_entry, /*num_entries,*/ config_entries + config_len, default_entry);
-
-		  pxe_restart_config = pxe_restart_config_bak;	/* restore the original value. */
-
-		}
-#endif
-
 		if (pxe_restart_config)
 			goto restart_config;
-
 original_config:
-
 		if (! *old_entry)
 		    break;
 	    } /* while (1) */
 
 	    kernel_type = KERNEL_TYPE_NONE;
-
-	    if (debug_boot)
-	    {
-		debug = old_debug; /* restore user-specified debug level. */
-		printf_debug0 ("\n\nEnd of menu init commands. Press any key to enter command-line or run menu...");
-	    }
-	    DEBUG_SLEEP
 	} /* while (1) */
 
 	/* End of menu-specific commands.  */
 
 	errnum = 0;
-
 	/* Make sure that all fallback entries are valid.  */
 	if (fallback_entryno >= 0)
 	{
@@ -2942,7 +2043,6 @@ original_config:
 	    if (fallback_entries[0] < 0)
 		fallback_entryno = -1;
 	}
-
 	/* Check if the default entry is present. Otherwise reset it to
 	   fallback if fallback is valid, or to DEFAULT_ENTRY if not.  */
 	if (default_entry >= num_entries)
@@ -2960,14 +2060,7 @@ original_config:
     }
 
 done_config_file:
-
-	use_preset_menu = 0;	/* Disable the preset menu.  */
-
 	pxe_restart_config = 1;	/* pxe_detect will use configfile to run menu */
-
-    /* go ahead and make sure the terminal is setup */
-    if (current_term->startup)
-	(*current_term->startup)();
 
     if (! num_entries)
     {
@@ -2979,9 +2072,609 @@ done_config_file:
     {
 	/* Run menu interface.  */
 	/* cur_entry point to the first menu item command. */
+#if !HOTKEY		//外置热键
 	if (hotkey_func)
-		hotkey_func(0,0,-1);
+#else
+	if (hotkey_func_enable)
+#endif
+		hotkey_func(0,0,-1,0);
 	run_menu ((char *)titles, cur_entry, /*num_entries,*/ config_entries + config_len, default_entry);
     }
     goto restart2;
 }
+
+
+//----------------------------------------------------------------------------------------------------------------------
+//hotkey   chenall
+#if HOTKEY		//内置热键
+//extern int hotkey_func(char *titles,int flags,int flags1);		标题,标记,标记1=4B400000 | 第一入口*100 | 项目号
+//hotkey_func(0,0,-1);
+//hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno);
+#define HOTKEY_MAGIC 0X79654B48						//魔术
+#define HOTKEY_FLAGS_AUTO_HOTKEY (1<<12)	//热键标志	自动热键		1000		-A参数		使用菜单首字母选择菜单
+#define HOTKEY_FLAGS_AUTO_HOTKEY1 (1<<11)	//热键标志	自动热键1		800
+#define HOTKEY_FLAGS_NOT_CONTROL (1<<13)	//热键标志	不控制			2000		-nc参数		阻止使用'c','p','e'等功能
+#define HOTKEY_FLAGS_NOT_BOOT	 (1<<14)		//热键标志	不启动			4000		-nb参数		按键热后只选择对应菜单项，不启动
+#define BUILTIN_CMDLINE		0x1	/* Run in the command-line.  	运行在命令行=1	*/
+#define BUILTIN_MENU			(1 << 1)/* Run in the menu.  			运行在菜单=2		*/
+
+typedef struct
+{
+  unsigned short code;	//键代码
+  char name[10];					//键名称
+} __attribute__ ((packed)) key_tab_t;	//键盘表
+
+typedef struct 
+{
+	unsigned short key_code;	//键代码
+	unsigned short title_num;	//标题号
+} __attribute__ ((packed)) hotkey_t;	//热键
+
+typedef struct
+{
+	int key_code;	//键代码
+	char *cmd;		//命令
+} hotkey_c;	//热键字符
+
+union
+{
+	int flags;
+	struct
+	{
+		unsigned char sel;		//选择 
+		unsigned char first;	//首先
+		unsigned short flag;	//标记
+	} k;
+} __attribute__ ((packed)) cur_menu_flag;	//当前菜单标记
+
+typedef struct
+{
+	int cmd_pos;					//命令位置
+	hotkey_c hk_cmd[64];	//热键字符数组
+	char cmd[4096];				//命令
+} hkey_data_t;	//热键数据
+
+static key_tab_t key_table[] = {						//键盘表
+  {0x0031, "1"},
+  {0x0032, "2"},
+  {0x0033, "3"},
+  {0x0034, "4"},
+  {0x0035, "5"},
+  {0x0036, "6"},
+  {0x0037, "7"},
+  {0x0038, "8"},
+  {0x0039, "9"},
+  {0x0030, "0"},
+  {0x002d, "-"},
+  {0x003d, "="},
+  {0x0071, "q"},
+  {0x0077, "w"},
+  {0x0065, "e"},
+  {0x0072, "r"},
+  {0x0074, "t"},
+  {0x0079, "y"},
+  {0x0075, "u"},
+  {0x0069, "i"},
+  {0x006f, "o"},
+  {0x0070, "p"},
+  {0x005b, "["},
+  {0x005d, "]"},
+  {0x0061, "a"},
+  {0x0073, "s"},
+  {0x0064, "d"},
+  {0x0066, "f"},
+  {0x0067, "g"},
+  {0x0068, "h"},
+  {0x006a, "j"},
+  {0x006b, "k"},
+  {0x006c, "l"},
+  {0x003b, ";"},
+  {0x0027, "'"},
+  {0x0060, "`"},
+  {0x005c, "\\"},
+  {0x007a, "z"},
+  {0x0078, "x"},
+  {0x0063, "c"},
+  {0x0076, "v"},
+  {0x0062, "b"},
+  {0x006e, "n"},
+  {0x006d, "m"},
+  {0x002c, ","},
+  {0x002e, "."},
+  {0x002f, "/"},
+  {0x3b00, "f1"},
+  {0x3c00, "f2"},
+  {0x3d00, "f3"},
+  {0x3e00, "f4"},
+  {0x3f00, "f5"},
+  {0x4000, "f6"},
+  {0x4100, "f7"},
+  {0x4200, "f8"},
+  {0x4300, "f9"},
+  {0x4400, "f10"},
+  {0x5200, "ins"},
+  {0x5300, "del"},
+  {0x8500, "f11"},
+  {0x8600, "f12"},
+  {0x0000, "\0"}
+};
+
+static unsigned short allow_key[9] = {	//方向键
+/*KEY_ENTER       */0x000D,
+/*KEY_HOME        */0x4700,
+/*KEY_UP          */0x4800,
+/*KEY_PPAGE       */0x4900,
+/*KEY_LEFT        */0x4B00,
+/*KEY_RIGHT       */0x4D00,
+/*KEY_END         */0x4F00,
+/*KEY_DOWN        */0x5000,
+/*KEY_NPAGE       */0x5100
+};
+
+static int my_app_id = 0;
+static char keyname_buf[16];
+static int get_keycode (char* key);
+static int check_hotkey(char **title,int flags);
+static char *get_keyname (int code);
+static int check_allow_key(unsigned short key);
+
+/* gcc treat the following as data only if a global initialization like the		gcc仅在发生与上述行类似的全局初始化时才将以下内容视为数据。
+ * above line occurs.
+ */
+static hkey_data_t hotkey_data = {0};	//HOTKEY 数据保留区
+//返回: -1=刷新;		2字节=热键项目号;		3字节&40=0/1=启动/检查更新
+int hotkey_func (char *arg,int flags,int flags1,int key);
+int hotkey_func (char *arg,int flags,int flags1,int key)
+{
+	int i;
+	char *base_addr;
+	static hotkey_t *hotkey;
+	unsigned short hotkey_flags;
+	unsigned short *p_hotkey_flags;
+  base_addr = menu_mem + 512;	//非压缩菜单在此
+	hotkey = (hotkey_t*)(menu_mem + 512);
+	p_hotkey_flags = (unsigned short*)(menu_mem + 512 + 508);
+	cur_menu_flag.flags = flags1;
+
+	if (flags == HOTKEY_MAGIC)	//如果标记=魔术
+	{
+		if (arg && *(int *)arg == 0x54494E49)	//INIT 初始数数据
+		{
+			hotkey_data.hk_cmd[0].cmd = hotkey_data.cmd;
+			hotkey_data.cmd_pos = 0;
+		}
+		return (int)(grub_size_t)&hotkey_data;
+	}
+
+	if (flags == -1)	//如果标记='-1'
+	{
+		int c;
+		hotkey_c *hkc = hotkey_data.hk_cmd;
+		if (my_app_id != HOTKEY_MAGIC/* || (!hotkey->key_code && !hkc->key_code)*/)
+		{
+			return key;
+		}
+		hotkey_flags = *p_hotkey_flags;
+		c = (key & 0xf00ffff);
+		if (!c || check_allow_key(c))	//检测当前的按键码是否方向键或回车键, 是则返回
+			return c;
+		for(i=0;i<64;++i)
+		{
+			if (!hkc[i].key_code)
+				break;
+			if (hkc[i].key_code == (unsigned short)c)
+			{
+				grub_error_t err_old = errnum;
+				if (hkc[i].cmd[0] == '@')		//静默方式运行(没有任何显示)
+			    builtin_cmd(NULL,hkc[i].cmd + 1,BUILTIN_CMDLINE);
+				else
+				{
+					putchar_hooked = 0;
+					setcursor (1); /* show cursor and disable splashimage */
+					if (current_term->setcolorstate)
+				    current_term->setcolorstate(COLOR_STATE_STANDARD);
+					cls();
+					if (debug > 0)
+				    printf(" Hotkey Boot: %s\n",hkc[i].cmd);
+			    builtin_cmd(NULL,hkc[i].cmd,BUILTIN_CMDLINE);
+				}
+				if (putchar_hooked == 0 && errnum > ERR_NONE && errnum < MAX_ERR_NUM)
+				{
+			    printf("\nError %u\n",errnum);
+			    getkey();
+				}
+				errnum = err_old;
+				return -1;
+			}
+		}
+		for (;hotkey->key_code;++hotkey)
+		{
+			if (hotkey->key_code == (unsigned short)c)
+				return (hotkey_flags|hotkey->title_num)<<16;
+		}
+		if ((hotkey_flags & HOTKEY_FLAGS_AUTO_HOTKEY) && (char)c > 0x20)
+		{
+			char h = tolower(c&0xff);	//小写
+			char *old_c_hotkey = (char*)(p_hotkey_flags+1);
+			char *old_t = old_c_hotkey + 1;
+			int find = -1,n = *old_t;
+			int cur_sel = -1;
+			char **titles1;
+			if (c >= 'A' && c <= 'Z')	//按下Shift键
+				return h;
+			if ((c & 0xf000000))	//如果按下Ctrl或Alt键
+			{
+				goto chk_control;
+			}
+			if (cur_menu_flag.k.flag == 0x4B40)
+				cur_sel = cur_menu_flag.k.sel + cur_menu_flag.k.first;
+			titles1 = (char **)(base_addr + 512);
+			if (*old_c_hotkey != h)
+			{//不同按键清除记录
+				*old_c_hotkey = h;
+				n = *old_t = 0;
+			}
+			for(i=0;i<256;++i)
+			{
+				if (!*titles1)
+					break;
+				if (check_hotkey(titles1,h))	//从菜单标题中提取热键代码
+				{//第几次按键跳到第几个匹配的菜单(无匹配转第一个)
+					if (cur_sel != -1)
+					{
+						if (cur_sel < i)
+						{
+							find = i;
+							break;
+						}
+					}
+					else if (n-- == 0)
+					{
+						find = i;
+						break;
+					}
+					if (find == -1) find = i;
+				}
+				++titles1;
+			}
+			if (find != -1)
+			{
+				if (find != i) *old_t = 1;
+				else (*old_t)++;
+				return (hotkey_flags|HOTKEY_FLAGS_NOT_BOOT|find)<<16;	//不启动
+			}
+			if (h > '9')
+				return 0;
+		}
+		chk_control:
+		if ((hotkey_flags & HOTKEY_FLAGS_NOT_CONTROL) || (c & 0xf000000))	//不控制, 或者按了控制键/上档键/替换键又没有查到
+			return 0;
+		return c;
+	}
+	else if (flags == 0)	//在菜单main中执行						//从菜单标题中提取热键代码
+	{
+		char **titles1;
+		titles1 = (char **)(base_addr + 512);	//标题
+
+		for(i=0;i<126;++i)
+		{
+			if (!*titles1)	//没有标题,退出
+				break;
+			if ((hotkey->key_code = check_hotkey(titles1,0)))	//如果键代码=从菜单标题中提取热键代码
+			{
+				hotkey->title_num = i;	//标题号
+				++hotkey;								//下一热键数组
+			}
+			++titles1;									//下一标题
+		}
+		hotkey->key_code = 0;				//结束符
+		return 1;
+	}
+	
+	if (debug > 0)
+		printf("Hotkey for grub4dos by chenall,%s\n",__DATE__);
+	if ((flags & BUILTIN_CMDLINE) && (!arg || !*arg))
+	{
+		printf("Usage:\n\thotkey -nb\tonly selected menu when press menu hotkey\n\thotkey -nc\tdisable control key\n\thotkey -A\tSelect the menu item with the first letter of the menu\n\thotkey [HOTKEY] \"COMMAND\"\tregister new hotkey\n\te.g.\n\t\t hotkey [F9] \"reboot\"\n\thotkey [HOTKEY]\tDisable Registered hotkey HOTKEY\n\n\tCommand keys such as p, b, c and e will only work if SHIFT is pressed when hotkey -A\n\n");
+	}
+	hotkey_flags = 1<<15;	//8000
+	while (*arg == '-')
+	{
+		++arg;
+		if (*(unsigned short*)arg == 0x626E) //nb not boot
+			hotkey_flags |= HOTKEY_FLAGS_NOT_BOOT;		//4000		不启动
+		else if (*(unsigned short*)arg == 0x636E) //nc not control
+			hotkey_flags |= HOTKEY_FLAGS_NOT_CONTROL;	//2000		不控制
+		else if (*arg == 'A')
+		{
+			hotkey_flags |= HOTKEY_FLAGS_AUTO_HOTKEY;	//1000
+		}
+		else if (*arg == 'u')
+		{
+			hotkey_func_enable = (int)0;
+			return builtin_cmd((char *)"delmod",(char *)"hotkey",flags);
+		}
+		arg = wee_skip_to(arg,0);
+	}
+	if (!hotkey_func_enable)	//原来在菜单加载热键时执行
+	{
+		*p_hotkey_flags = hotkey_flags;
+		//HOTKEY程序驻留内存，直接复制自身代码到指定位置。
+		my_app_id = HOTKEY_MAGIC;
+		//开启HOTKEY支持，即设置hotkey_func函数地址。
+		hotkey_func_enable = (int)1;
+		//获取程序执行时的路径的文件名。
+		i = hotkey_func((char *)"INIT",HOTKEY_MAGIC,0,0);//获取HOTKEY数据位置并作一些初使化????
+		if (debug > 0)
+		{
+			printf("Hotkey Installed!\n");
+		}
+	}
+	else
+		*p_hotkey_flags |= hotkey_flags;
+	if (arg)
+	{
+		hkey_data_t *hkd = (hkey_data_t *)(grub_size_t)hotkey_func(NULL,HOTKEY_MAGIC,0,0); //????
+		hotkey_c *hkc = hkd->hk_cmd;
+
+		while (*arg && *arg <= ' ')
+			++arg;
+		int key_code,cmd_len;
+		int exist_key = -1;
+		int disabled_key = -1;
+		if (*arg != '[')//显示当前已注册热键
+		{
+			if (!(flags & BUILTIN_CMDLINE) || debug < 1)//必须在命令行下并且DEBUG 非 OFF 模式才会显示
+		    return 1;
+			if (debug > 1)
+		    printf("hotkey_data_addr: 0x%X\n",hkd);
+			if (hkc->key_code)
+		    printf("Current registered hotkey:\n");
+			while(hkc->key_code)
+			{
+		    if (hkc->key_code != -1)
+		    {
+					if (debug > 1)
+						printf("0x%X ",hkc->cmd);
+					printf("%s=>%s\n",get_keyname(hkc->key_code),hkc->cmd);
+		    }
+		    ++hkc;
+			}
+			return -1;
+		}
+		key_code = check_hotkey(&arg,0);	//从菜单标题中提取热键代码
+
+		if (!key_code)
+			return 0;
+		while(*arg)
+		{
+			if (*arg++ == ']')
+		    break;
+		}
+		while (*arg && *arg <= ' ')
+			++arg;
+
+		if (*arg == '"')
+		{
+			cmd_len = strlen(arg);
+			++arg;
+			--cmd_len;
+			while(cmd_len--)
+			{
+		    if (arg[cmd_len] == '"')
+		    {
+    			arg[cmd_len] = 0;
+					break;
+		    }
+			}
+		}
+		cmd_len = strlen(arg) + 1;	
+		for(i=0;i<64;++i)
+		{
+			if (!hkc[i].key_code)
+		    break;
+			if (hkc[i].key_code == key_code)
+		    exist_key = i;
+			else if (hkc[i].key_code == -1)
+		    disabled_key = i;
+		}
+
+		if (disabled_key != -1 && exist_key == -1)
+		{//有禁用的热键,直接使用该位置
+			exist_key = disabled_key;
+			hkc[exist_key].key_code = key_code;
+		}
+
+		if (i==64 && exist_key == -1)
+		{
+			printf("Max 64 hotkey cmds limit!");
+			return 0;
+		}
+
+		if (exist_key != -1)//已经存在
+		{
+			if (strlen(hkc[exist_key].cmd) >= cmd_len)//新的命令长度没有超过旧命令长度
+				i = -1;
+		}
+		else//新增热键
+		{
+			exist_key = i;
+			hkc[i].key_code = key_code;
+		}
+  
+		if (cmd_len <= 1)//禁用热键
+		{
+			hkc[exist_key].key_code = -1;
+			return 1;
+		}
+
+		if (hkd->cmd_pos + cmd_len >= (int)sizeof(hkd->cmd))
+		{
+			printf("error: not enough space!\n");
+			return 0;
+		}
+	    
+		if (i >= 0)//需要更新地址
+		{
+			hkc[exist_key].cmd = hkd->cmd + hkd->cmd_pos;
+			hkd->cmd_pos += cmd_len;//命令数据区
+		}
+
+		memmove(hkc[exist_key].cmd,arg,cmd_len );
+		if (debug > 0)
+			printf("%d [%s] registered!\n",exist_key,get_keyname(key_code));
+		return 1;
+	}
+	return 0;
+}
+
+/*
+	检测当前的按键码是否方向键或回车键
+*/
+static int check_allow_key(unsigned short key);
+static int check_allow_key(unsigned short key)
+{
+	int i;
+	for (i=0;i<9;++i)
+	{
+		if (key == allow_key[i])
+			return key;
+	}
+	return 0;
+}
+
+
+/*
+	从菜单标题中提取热键代码
+	返回热键对应的按键码。
+	flags 非0 时判断菜单的首字母.-A参数.
+*/
+static int check_hotkey(char **title,int flags);
+static int check_hotkey(char **title,int flags)
+{
+	char *arg = *title;
+	unsigned short code;
+	while (*arg && *arg <= ' ')
+		++arg;
+
+	if (flags)	//如果标记非0
+		return tolower(*arg) == flags;
+	if (*arg == '^')
+	{
+		++arg;
+		sprintf(keyname_buf,"%.15s",arg);//最多复制15个字符
+		nul_terminate(keyname_buf);//在空格处截断
+		if ((code = (unsigned short)get_keycode(keyname_buf)))
+		{
+			//设置新的菜单标题位置
+			arg+=strlen(keyname_buf);
+			if (*arg == 0)
+				--arg;
+			*arg = *(*title);
+			*title = arg;
+			return code;
+		}
+	}
+	else if (*arg == '[')
+	{
+		int i;
+		++arg;
+		while (*arg == ' ' || *arg == '\t')
+			++arg;
+		for(i = 0;i<15;++arg)
+		{
+			if (!*arg || *arg == ' ' || *arg == ']' )
+			{
+				break;
+			}
+			keyname_buf[i++] = *arg;
+		}
+		while (*arg == ' ')
+			++arg;
+		if (*arg != ']')
+			return 0;
+		keyname_buf[i] = 0;
+		code = (unsigned short)get_keycode(keyname_buf);
+		return code;
+	}
+	return 0;
+}
+
+static int get_keycode (char *key);
+static int
+get_keycode (char *key)	//获得键代码
+{
+  int idx, i;
+  char *str;
+
+  if (*(unsigned short*)key == 0x7830)/* == 0x*/
+	{
+		unsigned long long code;
+		if (!safe_parse_maxint(&key,&code))
+			return 0;
+		return (((long long)code <= 0) || ((long long)code >= 0xFFFF)) ? 0 : (int)code;
+	}
+  str = key;
+  idx = 0;
+  if (!strnicmp (str, "shift", 5))
+	{
+		idx = 1;
+		str += 6;
+	}
+  else if (!strnicmp (str, "ctrl", 4))
+	{
+		idx = 2;
+		str += 5;
+	}
+  else if (!strnicmp (str, "alt", 3))
+	{
+		idx = 4;
+		str += 4;
+	}
+  for (i = 0; key_table[i].name[0]; i++)
+	{
+		if (!strncmpx(str,key_table[i].name,0,1))
+		{
+			return (int)key_table[i].code | idx << 24; 
+		}
+	}
+  return 0;
+}
+
+
+static char *get_keyname (int code);
+static char *
+get_keyname (int code)	//获得键名称
+{
+  int i;
+
+  for (i = 0; key_table[i].name; i++)
+	{
+		int j;
+
+			j = code & 0xf000000;
+	      char *p = 0;
+	      
+	      switch (j)
+				{
+					case 0:
+						p = (char *)"";
+						break;
+					case 1:
+						p = (char *)"Shift-";
+						break;
+					case 2:
+						p = (char *)"Ctrl-";
+						break;
+					case 4:
+						p = (char *)"Alt-";
+						break;
+				}
+	      sprintf (keyname_buf, "%s%s", p, key_table[i].name);
+	      return (char *)keyname_buf;
+	}
+
+  sprintf (keyname_buf, "0x%x", code);
+  return (char *)keyname_buf;
+}
+#endif

@@ -443,7 +443,7 @@ Out:
     = kMatchSpecLenStart + 1 : Flush marker
     = kMatchSpecLenStart + 2 : State Init Marker
 */
-
+static int MY_FAST_CALL LzmaDec_DecodeReal(CLzmaDec *p, SizeT limit, const Byte *bufLimit);
 static int MY_FAST_CALL LzmaDec_DecodeReal(CLzmaDec *p, SizeT limit, const Byte *bufLimit)
 {
   UIntLzmaProb *probs = p->probs;
@@ -741,6 +741,7 @@ static int MY_FAST_CALL LzmaDec_DecodeReal(CLzmaDec *p, SizeT limit, const Byte 
   return SZ_OK;
 }
 
+static void MY_FAST_CALL LzmaDec_WriteRem(CLzmaDec *p, SizeT limit);
 static void MY_FAST_CALL LzmaDec_WriteRem(CLzmaDec *p, SizeT limit)
 {
   if (p->remainLen != 0 && p->remainLen < kMatchSpecLenStart)
@@ -767,6 +768,7 @@ static void MY_FAST_CALL LzmaDec_WriteRem(CLzmaDec *p, SizeT limit)
   }
 }
 
+static int MY_FAST_CALL LzmaDec_DecodeReal2(CLzmaDec *p, SizeT limit, const Byte *bufLimit);
 static int MY_FAST_CALL LzmaDec_DecodeReal2(CLzmaDec *p, SizeT limit, const Byte *bufLimit)
 {
   do
@@ -800,6 +802,7 @@ typedef enum
   DUMMY_REP
 } ELzmaDummy;
 
+static ELzmaDummy LzmaDec_TryDummy(const CLzmaDec *p, const Byte *buf, SizeT inSize);
 static ELzmaDummy LzmaDec_TryDummy(const CLzmaDec *p, const Byte *buf, SizeT inSize)
 {
   UInt32 range = p->range;
@@ -990,7 +993,7 @@ static ELzmaDummy LzmaDec_TryDummy(const CLzmaDec *p, const Byte *buf, SizeT inS
   return res;
 }
 
-
+static void LzmaDec_InitRc(CLzmaDec *p, const Byte *data);
 static void LzmaDec_InitRc(CLzmaDec *p, const Byte *data)
 {
   p->code = ((UInt32)data[1] << 24) | ((UInt32)data[2] << 16) | ((UInt32)data[3] << 8) | ((UInt32)data[4]);
@@ -998,6 +1001,7 @@ static void LzmaDec_InitRc(CLzmaDec *p, const Byte *data)
   p->needFlush = 0;
 }
 
+void LzmaDec_Init(CLzmaDec *p);
 void LzmaDec_Init(CLzmaDec *p)
 {
   p->dicFilePos = 0;
@@ -1011,6 +1015,7 @@ void LzmaDec_Init(CLzmaDec *p)
   p->needInitState = 1;
 }
 
+static void LzmaDec_InitStateReal(CLzmaDec *p);
 static void LzmaDec_InitStateReal(CLzmaDec *p)
 {
   UInt32 numProbs = Literal + ((UInt32)LZMA_LIT_SIZE << (p->prop.lc + p->prop.lp));
@@ -1023,6 +1028,7 @@ static void LzmaDec_InitStateReal(CLzmaDec *p)
   p->needInitState = 0;
 }
 
+SRes LzmaDec_DecodeToDic(CLzmaDec *p, SizeT dicLimit, const Byte *src, SizeT *srcLen, ELzmaFinishMode finishMode, ELzmaStatus *status);
 SRes LzmaDec_DecodeToDic(CLzmaDec *p, SizeT dicLimit, const Byte *src, SizeT *srcLen,
     ELzmaFinishMode finishMode, ELzmaStatus *status)
 {
@@ -1158,22 +1164,21 @@ SRes LzmaDec_DecodeToDic(CLzmaDec *p, SizeT dicLimit, const Byte *src, SizeT *sr
 
 CLzmaDec lzmadec;
 
+int dec_lzma_open (void);
 int
 dec_lzma_open (void)
 // return 1=success or 0=failure
 {
     unsigned char header[13];
     unsigned char d;
-
     if (no_decompression) return 0;
 
     // Now it does not support openning more than 1 file at a time. 
     // Make sure previously allocated memory blocks is freed. 
     // Don't need this line if grub_close is called for every openned file before grub_open is called for next file.
     dec_lzma_close();
-
     filepos = 0;
-    if (grub_read ((unsigned long long)(unsigned long)(char *)header, 13, 0xedde0d90) == 13) 
+    if (grub_read ((unsigned long long)(grub_size_t)(char *)header, 13, 0xedde0d90) == 13) 
     {
 	// check header
 	lzmadec.prop.dicSize = ReadUnalignedUInt32 (header + 1);
@@ -1197,13 +1202,11 @@ dec_lzma_open (void)
 	    ufm = ReadUnalignedUInt64 (header + 5);
 	    if (ufm == -1ULL)
 	    {
-		//grub_printf("Uncompressed Size should not be unknown.\n");
 		goto fail;
 	    }
 	    ufp = 0;
 	    dBS = lzmadec.prop.dicSize;
-	    lzmadec.dic = (Byte*) grub_malloc (dBS);
-	    //grub_printf("LZMA allocate memory\n");
+	    lzmadec.dic = (Byte*) grub_malloc (dBS);;
 	    if (lzmadec.dic)
 	    {
 		lzmadec.numProbs = LzmaProps_GetNumProbs(&lzmadec.prop);
@@ -1223,8 +1226,6 @@ dec_lzma_open (void)
 			cfm = filemax; filemax = ufm;
 			cfp = filepos; filepos = ufp;
 			gzip_filemax = cfm;
-			// success
-			//grub_printf("LZMA open success\n");
 			errnum = 0;
 			return 1;
 		    }
@@ -1254,14 +1255,13 @@ dec_lzma_open (void)
     else
     {
 fail:
-	//grub_printf("LZMA error reading header\n");
 	errnum = ERR_BAD_GZIP_HEADER;
     }
-    //grub_printf("LZMA open fail\n");
     filepos = 0;
     return 0;
 }
 
+void dec_lzma_close (void);
 void
 dec_lzma_close (void)
 {
@@ -1270,13 +1270,12 @@ dec_lzma_close (void)
     if (lzmadec.probs) { grub_free(lzmadec.probs); lzmadec.probs = 0; }
 }
 
+unsigned long long dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned int write);
 unsigned long long
-dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long write)
+dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned int write)
 {
     UInt64 outTx, outSkip;
     UInt64 in_len = len, step_len = 0x800000ULL;
-    //grub_printf("LZMA read buf=%lX len=%lX dic=%X inp=%X\n",buf,len,lzmadec.dic,lzmadec.inp);
-    //getkey();
 
     compressed_file = 0;
 
@@ -1310,8 +1309,6 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
     outSkip = ufp - dFP;
     if (len > 0x800000ULL)
       grub_printf("\r [0M/%ldM]",len>>20);
-    //grub_printf ("ufp=%lX dFP=%lX\n", ufp, dFP);
-    //getkey();
 
     /* Copy uncompressed data from upper part of dic. dic[dicPos]...dic[dBS-1] */
     if (dFP > ufp)
@@ -1321,7 +1318,7 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 	    outTxCur = len;
 	if (buf)
 	{
-	    grub_memmove64 (buf, (UInt32)(lzmadec.dic + outSkip + dBS), outTxCur);
+	    grub_memmove64 (buf, (grub_size_t)(lzmadec.dic + outSkip + dBS), outTxCur);
 	    buf += outTxCur; 
 	}
 	outSkip = 0;
@@ -1335,22 +1332,16 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 	SizeT inSizeCur, dicLimit;
 	UInt32 dicPos;
 	ELzmaStatus status;
-	//SRes res;
 
 	/* Copy uncompressed data from lower part of dic. dic[0]...dic[dicPos-1] */
-	//grub_printf ("Loop len=%lX outSkip=%lX dicPos=%X\n",
-	//		len, outSkip, lzmadec.dicPos);
-	//getkey();
 	if (outSkip < lzmadec.dicPos)
 	{
 	    UInt32 outTxCur = lzmadec.dicPos - outSkip; 
 	    if (outTxCur > len)
 		outTxCur = len;
-	    //grub_printf ("Copy %X byte ", outTxCur);
-	    //getkey();
 	    if (buf)
 	    {
-		grub_memmove64 (buf, (UInt32)(lzmadec.dic + outSkip), outTxCur);
+		grub_memmove64 (buf, (grub_size_t)(lzmadec.dic + outSkip), outTxCur);
 		buf += outTxCur;
 	    }
 	    outSkip = lzmadec.dicPos;
@@ -1362,8 +1353,6 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 				grub_printf("\r [%ldM/%ldM]",step_len>>20,in_len>>20);
 				step_len += 0x800000ULL;
 			}
-	    //grub_printf (" remaining size %lX\n", len);
-	    //getkey();
 	    if (len == 0)
 		break;
 	}
@@ -1374,11 +1363,7 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 	    UInt32 inTxCur = (filemax-filepos<lzmadec.inpBufSize)?filemax-filepos:lzmadec.inpBufSize;
 	    lzmadec.inpFilePos = filepos;
 	    lzmadec.inpPos = 0;
-	    //grub_printf("read inp %X ",inTxCur);
-	    //getkey();
-	    lzmadec.inpSize = grub_read((UInt32)(lzmadec.inp), inTxCur, 0xedde0d90);
-	    //grub_printf("->%X\n",lzmadec.inpSize);
-	    //getkey();
+	    lzmadec.inpSize = grub_read((grub_size_t)(lzmadec.inp), inTxCur, 0xedde0d90);
 	}
 	inSizeCur = lzmadec.inpSize - lzmadec.inpPos;
 
@@ -1386,8 +1371,6 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 	if (lzmadec.dicPos == dBS)
 	{
 	    lzmadec.dicPos = 0;
-	//    if (outSkip < dBS)
-	//	grub_printf ("\noutSkip(=%X) < dBS(=%X)\n", outSkip, dBS);
 	    outSkip -= dBS;
 	}
 	dicPos = lzmadec.dicPos;
@@ -1395,15 +1378,10 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
 		    dBS : dicPos + len;
 
 	/* Do decompression. */
-	//grub_printf ("DecodeToDic dicPos=%X limit=%X inPos=%X inSize=%X ",
-	//		dicPos, dicLimit, lzmadec.inpPos, inSizeCur);
-	//getkey();
 	status = LZMA_STATUS_NOT_SPECIFIED;
 	/*res =*/ LzmaDec_DecodeToDic (&lzmadec, dicLimit,
 			lzmadec.inp + lzmadec.inpPos,
 			&inSizeCur, LZMA_FINISH_ANY, &status);
-	//grub_printf ("->%X\n", inSizeCur);
-	//getkey();
 	lzmadec.inpPos += inSizeCur;
 	if (inSizeCur == 0 && lzmadec.dicPos == dicPos)
 	{
@@ -1425,8 +1403,6 @@ dec_lzma_read (unsigned long long buf, unsigned long long len, unsigned long wri
      * fileu is not used
      */
 
-    //grub_printf ("LZMA read end %lX\n", outTx);
-    //getkey();
 		if (in_len > 0x800000ULL)
     grub_printf("\r                        \r");
     return outTx;

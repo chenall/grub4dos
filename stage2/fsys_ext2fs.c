@@ -276,7 +276,7 @@ struct ext2_inode
 #define NAME_MAX         255	/* # chars in a file name */
 
 /* linux/posix_type.h */
-typedef long linux_off_t;
+typedef int linux_off_t;
 
 /* linux/ext2fs.h */
 #define EXT2_NAME_LEN 255
@@ -360,8 +360,10 @@ struct ext4_extent_header
 #define PATH_MAX                1024	/* include/linux/limits.h */
 #define MAX_LINK_COUNT             5	/* number of symbolic links to follow */
 
+
 /* made up, these are pointers into FSYS_BUF */
 /* read once, always stays there: */
+#if 0
 #define NAME_BUF ((char *)(FSYS_BUF))	/* 512 bytes */
 #define SUPERBLOCK \
     ((struct ext2_super_block *)((FSYS_BUF)+512))	/* 1024 bytes */
@@ -374,6 +376,7 @@ struct ext4_extent_header
     ((int)((int)INODE + sizeof(struct ext2_inode)))
 #define DATABLOCK2 \
     ((int)((int)DATABLOCK1 + EXT2_BLOCK_SIZE(SUPERBLOCK)))
+#endif
 
 /* linux/ext2_fs.h */
 #define EXT2_ADDR_PER_BLOCK(s)          (EXT2_BLOCK_SIZE(s) / sizeof (__u32))
@@ -420,37 +423,39 @@ struct ext4_extent_header
 #define S_ISREG(m)      (((m) & S_IFMT) == S_IFREG)
 #define S_ISDIR(m)      (((m) & S_IFMT) == S_IFDIR)
 
-static char *linkbuf = (char *)(FSYS_BUF - PATH_MAX);	/* buffer for following symbolic links */
+//	static char *linkbuf = (char *)(FSYS_BUF - PATH_MAX);	/* buffer for following symbolic links */
+
+char *NAME_BUF;
+struct ext2_super_block *SUPERBLOCK;
+struct ext2_group_desc *GROUP_DESC;
+struct ext2_inode *INODE;
+int DATABLOCK1;
+int DATABLOCK2;
+char *linkbuf;
 
 /* include/asm-i386/bitops.h */
 /*
  * ffz = Find First Zero in word. Undefined if no zero exists,
  * so code should check against ~0UL first..
  */
-//static __inline__ unsigned long
-//ffz (unsigned long word)
-//{
-//  __asm__ ("bsfl %1,%0"
-//:	   "=r" (word)
-//:	   "r" (~word));
-//  return word;
-//}
 
 /* check filesystem types and read superblock into memory buffer */
+int ext2fs_mount (void);
 int
 ext2fs_mount (void)
 {
-//  if (((current_drive & 0x80) || (current_slice != 0))
-//       && (current_slice != PC_SLICE_TYPE_EXT2FS)
-//       && (current_slice != PC_SLICE_TYPE_LINUX_RAID)
-//       && (! IS_PC_SLICE_TYPE_BSD_WITH_FS (current_slice, FS_EXT2FS))
-//       && (! IS_PC_SLICE_TYPE_BSD_WITH_FS (current_slice, FS_OTHER)))
-//      return 0;
+	NAME_BUF = (char *)FSYS_BUF;
+	SUPERBLOCK = (struct ext2_super_block *)((char *)FSYS_BUF+512);
+	GROUP_DESC = (struct ext2_group_desc *)((char *)SUPERBLOCK + sizeof(struct ext2_super_block));
+	INODE = (struct ext2_inode *)((grub_size_t)GROUP_DESC + EXT2_BLOCK_SIZE(SUPERBLOCK));
+	DATABLOCK1 = (grub_size_t)INODE + sizeof(struct ext2_inode);
+	DATABLOCK2 = (grub_size_t)DATABLOCK1 + EXT2_BLOCK_SIZE(SUPERBLOCK);
+	linkbuf = (char *)(grub_size_t)DATABLOCK2 + 1024;
       
-  if ((unsigned long)part_length < (SBLOCK + (sizeof(struct ext2_super_block) / DEV_BSIZE)))
+  if ((unsigned int)part_length < (SBLOCK + (sizeof(struct ext2_super_block) / DEV_BSIZE)))
       return 0;
 
-  if (!devread(SBLOCK, 0, sizeof(struct ext2_super_block), (unsigned long long)(unsigned int) (char *)SUPERBLOCK, 0xedde0d90))
+  if (!devread(SBLOCK, 0, sizeof(struct ext2_super_block), (unsigned long long)(grub_size_t) (char *)SUPERBLOCK, 0xedde0d90))
       return 0;
 
   if (SUPERBLOCK->s_magic != EXT2_SUPER_MAGIC)
@@ -459,7 +464,6 @@ ext2fs_mount (void)
   if (SUPERBLOCK->s_inodes_count == 0)
       return 0;
 
-//  if (SUPERBLOCK->s_blocks_count == 0)
 	if ((SUPERBLOCK->s_blocks_count_lo | SUPERBLOCK->s_blocks_count_hi) == 0)
       return 0;
 
@@ -496,15 +500,15 @@ ext2fs_mount (void)
 }
 
 /* Takes a file system block number and reads it into BUFFER. */
+static int ext2_rdfsb (unsigned long long fsblock, int buffer);
 static int
-//ext2_rdfsb (int fsblock, int buffer)
 ext2_rdfsb (unsigned long long fsblock, int buffer)
 {
 #ifdef E2DEBUG
   printf ("fsblock %d buffer %d\n", fsblock, buffer);
 #endif /* E2DEBUG */
   return devread (fsblock * (EXT2_BLOCK_SIZE (SUPERBLOCK) / DEV_BSIZE), 0,
-		  EXT2_BLOCK_SIZE (SUPERBLOCK), (unsigned long long)(unsigned int)(char *) buffer, 0xedde0d90);
+		  EXT2_BLOCK_SIZE (SUPERBLOCK), (unsigned long long)(grub_size_t)(char *)(grub_size_t) buffer, 0xedde0d90);
 }
 
 /* from
@@ -512,8 +516,9 @@ ext2_rdfsb (unsigned long long fsblock, int buffer)
 */
 /* Maps LOGICAL_BLOCK (the file offset divided by the blocksize) into
    a physical block (the location in the file system) via an inode. */
+static int ext2fs_block_map (unsigned int logical_block);
 static int
-ext2fs_block_map (unsigned long logical_block)
+ext2fs_block_map (unsigned int logical_block)
 {
 
 #ifdef E2DEBUG
@@ -557,12 +562,12 @@ ext2fs_block_map (unsigned long logical_block)
 	  return -1;
 	}
       mapblock1 = 1;
-      return ((__u32 *) DATABLOCK1)[logical_block];
+      return ((__u32 *)(grub_size_t) DATABLOCK1)[logical_block];
     }
   /* else */
   logical_block -= EXT2_ADDR_PER_BLOCK (SUPERBLOCK);
   /* now try the double indirect block */
-  if (logical_block < (1 << (EXT2_ADDR_PER_BLOCK_BITS (SUPERBLOCK) * 2)))
+  if (logical_block < (unsigned int)(1 << (EXT2_ADDR_PER_BLOCK_BITS (SUPERBLOCK) * 2)))
     {
       int bnum;
       if (mapblock1 != 2
@@ -572,7 +577,7 @@ ext2fs_block_map (unsigned long logical_block)
 	  return -1;
 	}
       mapblock1 = 2;
-      if ((bnum = (((__u32 *) DATABLOCK1)
+      if ((bnum = (((__u32 *)(grub_size_t) DATABLOCK1)
 		   [logical_block >> EXT2_ADDR_PER_BLOCK_BITS (SUPERBLOCK)]))
 	  != mapblock2
 	  && !ext2_rdfsb (bnum, DATABLOCK2))
@@ -581,7 +586,7 @@ ext2fs_block_map (unsigned long logical_block)
 	  return -1;
 	}
       mapblock2 = bnum;
-      return ((__u32 *) DATABLOCK2)
+      return ((__u32 *)(grub_size_t) DATABLOCK2)
 	[logical_block & (EXT2_ADDR_PER_BLOCK (SUPERBLOCK) - 1)];
     }
   /* else */
@@ -597,7 +602,7 @@ ext2fs_block_map (unsigned long logical_block)
   
   mapblock1 = 3;
   
-  if (!ext2_rdfsb (((__u32 *) DATABLOCK1)
+  if (!ext2_rdfsb (((__u32 *)(grub_size_t) DATABLOCK1)
 		   [logical_block >> (EXT2_ADDR_PER_BLOCK_BITS (SUPERBLOCK)
 				      * 2)],
 		   DATABLOCK2))
@@ -606,7 +611,7 @@ ext2fs_block_map (unsigned long logical_block)
       return -1;
     }
   
-  if (! ext2_rdfsb (((__u32 *) DATABLOCK2)
+  if (! ext2_rdfsb (((__u32 *)(grub_size_t) DATABLOCK2)
 		   [(logical_block >> EXT2_ADDR_PER_BLOCK_BITS (SUPERBLOCK))
 		    & (EXT2_ADDR_PER_BLOCK (SUPERBLOCK) - 1)],
 		   DATABLOCK2))
@@ -615,13 +620,14 @@ ext2fs_block_map (unsigned long logical_block)
       return -1;
     }
   
-  return ((__u32 *) DATABLOCK2)[logical_block & (EXT2_ADDR_PER_BLOCK (SUPERBLOCK) - 1)];
+  return ((__u32 *)(grub_size_t) DATABLOCK2)[logical_block & (EXT2_ADDR_PER_BLOCK (SUPERBLOCK) - 1)];
 }
 
 /* extent binary search index
  * find closest index in the current level extent tree
  * kind of from ext4_ext_binsearch_idx in ext4/extents.c
  */
+static struct ext4_extent_idx* ext4_ext_binsearch_idx(struct ext4_extent_header* eh, int logical_block);
 static struct ext4_extent_idx*
 ext4_ext_binsearch_idx(struct ext4_extent_header* eh, int logical_block)
 {
@@ -631,7 +637,7 @@ ext4_ext_binsearch_idx(struct ext4_extent_header* eh, int logical_block)
   while (l <= r) 
     {
 	  m = l + (r - l) / 2;
-	  if (logical_block < m->ei_block)
+	  if (logical_block < (int)m->ei_block)
 		  r = m - 1;
 	  else
 		  l = m + 1;
@@ -643,6 +649,7 @@ ext4_ext_binsearch_idx(struct ext4_extent_header* eh, int logical_block)
  * find closest extent in the leaf level 
  * kind of from ext4_ext_binsearch in ext4/extents.c
  */
+static struct ext4_extent* ext4_ext_binsearch(struct ext4_extent_header* eh, int logical_block);
 static struct ext4_extent*
 ext4_ext_binsearch(struct ext4_extent_header* eh, int logical_block)
 {
@@ -652,7 +659,7 @@ ext4_ext_binsearch(struct ext4_extent_header* eh, int logical_block)
   while (l <= r) 
     {
 	  m = l + (r - l) / 2;
-	  if (logical_block < m->ee_block)
+	  if (logical_block < (int)m->ee_block)
 		  r = m - 1;
 	  else
 		  l = m + 1;
@@ -664,6 +671,7 @@ ext4_ext_binsearch(struct ext4_extent_header* eh, int logical_block)
  * EXT4_HUGE_FILE_FL should be checked before calling this.
  */
 //static int
+static unsigned long long ext4fs_block_map (int logical_block);
 static unsigned long long
 ext4fs_block_map (int logical_block)
 {
@@ -671,7 +679,6 @@ ext4fs_block_map (int logical_block)
   struct ext4_extent *ex;//, *extent;
   struct ext4_extent_idx *ei;//, *index;
   int depth;
-  //int i;
 
 #ifdef E2DEBUG
   unsigned char *i;
@@ -706,18 +713,12 @@ ext4fs_block_map (int logical_block)
 		  return -1;
 	  }
 	  ei = ext4_ext_binsearch_idx(eh, logical_block);
-//	  if (ei->ei_leaf_hi)
-//	{/* 64bit physical block number not supported */
-//	  errnum = ERR_FILELENGTH;
-//	  return -1;
-//	}
-//	  if (!ext2_rdfsb(ei->ei_leaf_lo, DATABLOCK1))
 		if (!ext2_rdfsb(((unsigned long long)ei->ei_leaf_hi<<32) + ei->ei_leaf_lo, DATABLOCK1))
 	{
 	  errnum = ERR_FSYS_CORRUPT;
 	  return -1;
 	}
-	  eh = (struct ext4_extent_header*)DATABLOCK1;
+	  eh = (struct ext4_extent_header*)(grub_size_t)DATABLOCK1;
   	}
 
   /* depth==0, we come to the leaf */
@@ -727,7 +728,7 @@ ext4fs_block_map (int logical_block)
 //	  errnum = ERR_FILELENGTH;
 //	  return -1;
 //	}
-  if ((ex->ee_block + ex->ee_len) < logical_block)
+  if ((int)(ex->ee_block + ex->ee_len) < logical_block)
 	{
 	  errnum = ERR_FSYS_CORRUPT;
 	  return -1;
@@ -737,14 +738,14 @@ ext4fs_block_map (int logical_block)
 }
 
 /* preconditions: all preconds of ext2fs_block_map */
+unsigned long long ext2fs_read (unsigned long long buf, unsigned long long len, unsigned int write);
 unsigned long long
-ext2fs_read (unsigned long long buf, unsigned long long len, unsigned long write)
+ext2fs_read (unsigned long long buf, unsigned long long len, unsigned int write)
 {
-  unsigned long logical_block;
-  unsigned long offset;
-  unsigned long ret = 0;
-  unsigned long size = 0;
-//  int map;
+  unsigned int logical_block;
+  unsigned int offset;
+  unsigned int ret = 0;
+  unsigned int size = 0;
 	unsigned long long map;
 
 #ifdef E2DEBUG
@@ -785,7 +786,7 @@ ext2fs_read (unsigned long long buf, unsigned long long len, unsigned long write
       printf ("map=%d\n", map);
 #endif /* E2DEBUG */
       
-      if (map < 0)
+      if ((long long)map < 0)
 	  break;
 
       size = EXT2_BLOCK_SIZE (SUPERBLOCK);
@@ -820,36 +821,13 @@ ext2fs_read (unsigned long long buf, unsigned long long len, unsigned long write
   return ret;
 }
 
-
-/* Based on:
-   def_blk_fops points to
-   blkdev_open, which calls (I think):
-   sys_open()
-   do_open()
-   open_namei()
-   dir_namei() which accesses current->fs->root
-     fs->root was set during original mount:
-     (something)... which calls (I think):
-     ext2_read_super()
-     iget()
-     __iget()
-     read_inode()
-     ext2_read_inode()
-       uses desc_per_block_bits, which is set in ext2_read_super()
-       also uses group descriptors loaded during ext2_read_super()
-   lookup()
-   ext2_lookup()
-   ext2_find_entry()
-   ext2_getblk()
-
-*/
-
+static inline int ext2_is_fast_symlink (void);
 static inline
 int ext2_is_fast_symlink (void)
 {
   int ea_blocks;
   ea_blocks = INODE->i_file_acl_lo ? EXT2_BLOCK_SIZE (SUPERBLOCK) / DEV_BSIZE : 0;
-  return INODE->i_blocks_lo == ea_blocks;
+  return (int)INODE->i_blocks_lo == ea_blocks;
 }
 
 /* preconditions: ext2fs_mount already executed, therefore supblk in buffer
@@ -859,16 +837,15 @@ int ext2_is_fast_symlink (void)
  *   inode of the file we were trying to look up
  * side effects: messes up GROUP_DESC buffer area
  */
+int ext2fs_dir (char *dirname);
 int
 ext2fs_dir (char *dirname)
 {
   int current_ino = EXT2_ROOT_INO;	/* start at the root */
   int updir_ino = current_ino;	/* the parent of the current directory */
   int group_id,tem;			/* which group the inode is in */
-//  int group_desc;		/* fs pointer to that group */
 	unsigned long long group_desc;		/* fs pointer to that group */
   int desc;			/* index within that group */
-//  int ino_blk;			/* fs pointer of the inode's information */
 	unsigned long long ino_blk;			/* fs pointer of the inode's information */
   int str_chk = 0;		/* used to hold the results of a string compare */
   struct ext4_group_desc *ext4_gdp;
@@ -881,10 +858,9 @@ ext2fs_dir (char *dirname)
   char ch;			/* temp char holder */
 
   int off;			/* offset within block of directory entry (off mod blocksize) */
-//  int loc;			/* location within a directory */
 	unsigned long long loc;			/* location within a directory */
   int blk;			/* which data blk within dir entry (off div blocksize) */
-  long map;			/* fs pointer of a particular block from dir entry */
+  int map;			/* fs pointer of a particular block from dir entry */
   struct ext2_dir_entry *dp;	/* pointer to directory entry */
 #ifdef E2DEBUG
   unsigned char *i;
@@ -907,7 +883,7 @@ ext2fs_dir (char *dirname)
       /* look up an inode */
       group_id = tem = (current_ino - 1) / SUPERBLOCK->s_inodes_per_group;
 			if ((EXT4_HAS_INCOMPAT_FEATURE(SUPERBLOCK,EXT4_FEATURE_INCOMPAT_META))
-				&& (group_id >= SUPERBLOCK->s_first_meta_bg))
+				&& (group_id >= (int)SUPERBLOCK->s_first_meta_bg))
 			{
 				group_id = (group_id - SUPERBLOCK->s_first_meta_bg)
 					% EXT4_META_GROUP_SIZE(SUPERBLOCK);
@@ -921,28 +897,19 @@ ext2fs_dir (char *dirname)
 				group_desc = (group_id >> log2_tmp (EXT2_DESC_PER_BLOCK (SUPERBLOCK)))
 					+ WHICH_SUPER + SUPERBLOCK->s_first_data_block;
 			}
-//      group_desc = group_id >> log2_tmp (EXT2_DESC_PER_BLOCK (SUPERBLOCK));
       desc = group_id & (EXT2_DESC_PER_BLOCK (SUPERBLOCK) - 1);
 #ifdef E2DEBUG
       printf ("ipg=%d, dpb=%d\n", SUPERBLOCK->s_inodes_per_group,
 	      EXT2_DESC_PER_BLOCK (SUPERBLOCK));
       printf ("group_id=%d group_desc=%d desc=%d\n", group_id, group_desc, desc);
 #endif /* E2DEBUG */
-//      if (!ext2_rdfsb ((WHICH_SUPER + group_desc + SUPERBLOCK->s_first_data_block),
-//			(int) GROUP_DESC))
-			if (!ext2_rdfsb (group_desc,(int) GROUP_DESC))	
+			if (!ext2_rdfsb (group_desc,(grub_size_t) GROUP_DESC))	
 	{
 	  return 0;
 	}
 	  ext4_gdp = (struct ext4_group_desc *)( (__u8*)GROUP_DESC + 
 			  		desc * EXT2_DESC_SIZE(SUPERBLOCK));
-//	  if (EXT4_HAS_INCOMPAT_FEATURE(SUPERBLOCK, EXT4_FEATURE_INCOMPAT_64BIT)
-//		&& (! ext4_gdp->bg_inode_table_hi))
-//	{/* 64bit itable not supported */
-//	  errnum = ERR_FILELENGTH;
-//	  return -1;
-//	}
-//      ino_blk = ext4_gdp->bg_inode_table + 
+
 		ino_blk = (EXT4_HAS_INCOMPAT_FEATURE(SUPERBLOCK,EXT4_FEATURE_INCOMPAT_64BIT) ?
 			((unsigned long long)ext4_gdp->bg_inode_table_hi<<32) : 0) + ext4_gdp->bg_inode_table_lo +
 	(((current_ino - 1) % (SUPERBLOCK->s_inodes_per_group))
@@ -950,7 +917,7 @@ ext2fs_dir (char *dirname)
 #ifdef E2DEBUG
       printf ("inode table fsblock=%d\n", ino_blk);
 #endif /* E2DEBUG */
-      if (!ext2_rdfsb (ino_blk, (int) INODE))
+      if (!ext2_rdfsb (ino_blk, (grub_size_t) INODE))
 	{
 	  return 0;
 	}
@@ -965,7 +932,7 @@ ext2fs_dir (char *dirname)
       printf ("ipb=%d, sizeof(inode)=%d\n",
 	     EXT2_INODES_PER_BLOCK (SUPERBLOCK), EXT2_INODE_SIZE (SUPERBLOCK));
       printf ("inode=%x, raw_inode=%x\n", INODE, raw_inode);
-      printf ("offset into inode table block=%d\n", ((int) raw_inode - (int) INODE));
+      printf ("offset into inode table block=%d\n", ((grub_size_t) raw_inode - (grub_size_t) INODE));
       for (i = (unsigned char *) INODE; i <= (unsigned char *) raw_inode;
 	   i++)
 	{
@@ -1001,23 +968,11 @@ ext2fs_dir (char *dirname)
 	    }
 
 	  /* Find out how long our remaining name is. */
-	  //len = 0;
-	  //while (dirname[len] && !isspace (dirname[len]))
-	  //  len++;
 	  for (len = 0; (ch = dirname[len]) /*&& !isspace (ch)*/; len++)
 	  {
-#if 0
-		if (ch == '\\')
-		{
-			len++;
-			if (! (ch = dirname[len]))
-				break;
-		}
-#endif
 	  }
 
 	  /* Get the symlink size. */
-//	  filemax = (INODE->i_size);
 		filemax = (INODE->i_size_lo);
 	  if (filemax + len > PATH_MAX - 2)
 	    {
@@ -1040,7 +995,7 @@ ext2fs_dir (char *dirname)
 	  if (! ext2_is_fast_symlink ())
 	    {
 	      /* Read the necessary blocks, and reset the file pointer. */
-	      len = grub_read ((unsigned long long)(unsigned int)linkbuf, filemax, 0xedde0d90);
+	      len = grub_read ((unsigned long long)(grub_size_t)linkbuf, filemax, 0xedde0d90);
 	      filepos = 0;
 	      if (!len)
 		return 0;
@@ -1084,14 +1039,6 @@ ext2fs_dir (char *dirname)
 	      return 0;
 	    }
 	  /* if file is too large, just stop and report an error*/
-//	  if ( (INODE->i_flags & EXT4_HUGE_FILE_FL) && !(INODE->i_size_high))
-//	    {
-//		  /* file too large, stop reading */
-//		  errnum = ERR_FILELENGTH;
-//		  return 0;
-//	    }
-
-//	  filemax = (INODE->i_size);
 		filemax = ((unsigned long long)INODE->i_size_high<<32) + INODE->i_size_lo;
 	  return 1;
 	}
@@ -1104,7 +1051,6 @@ ext2fs_dir (char *dirname)
 	dirname++;
 
       /* if this isn't a directory of sufficient size to hold our file, abort */
-//      if (!(INODE->i_size) || !S_ISDIR (INODE->i_mode))
 	if (!(((unsigned long long)INODE->i_size_high<<32) + INODE->i_size_lo) || !S_ISDIR (INODE->i_mode))
 	{
 	  errnum = ERR_BAD_FILETYPE;
@@ -1112,18 +1058,9 @@ ext2fs_dir (char *dirname)
 	}
 
       /* skip to next slash or end of filename (space) */
-//      for (rest = dirname; (ch = *rest) && !isspace (ch) && ch != '/';
-//	   rest++);
       for (rest = dirname; (ch = *rest) /*&& !isspace (ch)*/ && ch != '/'; rest++)
       {
-#if 0
-	if (ch == '\\')
-	{
-		rest++;
-		if (! (ch = *rest))
-			break;
-	}
-#endif
+
       }
 
       /* look through this directory and find the next filename component */
@@ -1140,7 +1077,6 @@ ext2fs_dir (char *dirname)
 
 	  /* if our location/byte offset into the directory exceeds the size,
 	     give up */
-//	  if (loc >= INODE->i_size)
 	  if (loc >= (((unsigned long long)INODE->i_size_high<<32) + INODE->i_size_lo))
 	    {
 	      if (print_possibilities < 0)
@@ -1185,7 +1121,7 @@ ext2fs_dir (char *dirname)
 	      return 0;
 	    }
 	  off = loc & (EXT2_BLOCK_SIZE (SUPERBLOCK) - 1);
-	  dp = (struct ext2_dir_entry *) (DATABLOCK2 + off);
+	  dp = (struct ext2_dir_entry *)(grub_size_t) (DATABLOCK2 + off);
 	  /* advance loc prematurely to next on-disk directory entry  */
 	  loc += dp->rec_len;
 
@@ -1209,15 +1145,11 @@ ext2fs_dir (char *dirname)
 	      {
 		if (! (ch1 = dp->name[j]))
 			break;
-#if 0
-		if (ch1 == ' ')
-			tmp_name[k++] = '\\';
-#endif
+
 		tmp_name[k++] = ch1;
 	      }
 	      tmp_name[k] = 0;
 
-	      //dp->name[dp->name_len] = 0;
 	      str_chk = substring (dirname, tmp_name, 0);
 
 	      if (print_possibilities && ch != '/'
@@ -1226,7 +1158,7 @@ ext2fs_dir (char *dirname)
 		  if (print_possibilities > 0)
 		    print_possibilities = -print_possibilities;
 			unsigned long long clo64 = current_color_64bit;
-			unsigned long clo = current_color;	
+			unsigned int clo = current_color;	
 			if (dp->file_type == 2)
 			{
 				if (current_term->setcolorstate)
@@ -1235,13 +1167,13 @@ ext2fs_dir (char *dirname)
 				current_color = (current_color & 0x0f) | (clo & 0xf0);
 			}
 		  print_a_completion (tmp_name, 0);
-			current_color_64bit = clo64;
-			current_color = clo;
+			if (cursor_state & 1)
+				current_term->setcolorstate (COLOR_STATE_STANDARD);
+			else
+				current_term->setcolorstate (COLOR_STATE_NORMAL);
 			if (*tmp_name != 0x2e)
 				empty = 1;
 		}
-
-	      //dp->name[dp->name_len] = saved_c;
 	    }
 
 	}

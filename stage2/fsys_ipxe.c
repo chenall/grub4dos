@@ -25,6 +25,7 @@
 #include "ipxe.h"
 #include "fsys_ipxe.h"
 
+#if 0
 grub_u32_t has_ipxe = 0;
 static grub_u32_t ipxe_funcs;
 static grub_u32_t ipxe_file_opened;
@@ -39,7 +40,7 @@ static inline SEGOFF16_t FAR_PTR(void *ptr)
 	return _fptr;
 }
 /*
- * See if we have iPXE
+ * See if we have iPXE 看看我们有没有iPXE 
  */
 void ipxe_init(void)
 {
@@ -47,18 +48,18 @@ void ipxe_init(void)
 
 	pxenv.file_api_check.Size = sizeof(struct s_PXENV_FILE_API_CHECK);
 	pxenv.file_api_check.Magic = 0x91d447b2;
-	err = pxe_call(PXENV_FILE_API_CHECK, &pxenv.file_api_check);
+//	err = pxe_call(PXENV_FILE_API_CHECK, &pxenv.file_api_check);	//文件API检查
 	if (!err && pxenv.file_api_check.Magic == 0xe9c17b20)
 		ipxe_funcs = pxenv.file_api_check.APIMask;
 
-	/* Necessary functions for us to use the iPXE file API */
+	/* Necessary functions for us to use the iPXE file API 使用iPXE文件API所需的功能*/
 	has_ipxe = (~ipxe_funcs & 0x4b) == 0;
 
 }
 
 static void ipxe_unload(void)
 {
-//	pxe_call(PXENV_FILE_EXIT_HOOK,&pxenv.file_exit_hook);
+//	pxe_call(PXENV_FILE_EXIT_HOOK,&pxenv.file_exit_hook);	//文件退出挂钩
 	ipxe_funcs = 0;
 	has_ipxe = 0;
 }
@@ -79,12 +80,12 @@ static int ipxe_open(const char *dirname)
 
 	while (*filename == '/' || *filename == ' ') ++filename;
 
-	if ((unsigned long)debug >= 0x7FFFFFFF) printf("O:%s\n",filename);
+	if ((unsigned int)debug >= 0x7FFFFFFF) printf("O:%s\n",filename);
 
 	pxenv.file_open.FileName = FAR_PTR(filename);
 
-	if (PXENV_EXIT_SUCCESS != pxe_call(PXENV_FILE_OPEN, &pxenv.file_open))
-		return 0;
+//	if (PXENV_EXIT_SUCCESS != pxe_call(PXENV_FILE_OPEN, &pxenv.file_open))	//文件打开
+//		return 0;
 
 	ipxe_file_opened = pxenv.file_open.FileHandle;
 
@@ -100,8 +101,8 @@ static grub_u32_t ipxe_get_size(void)
 
 	pxenv.file_open.FileHandle = ipxe_file_opened;
 
-	if (pxe_call(PXENV_GET_FILE_SIZE, &pxenv.get_file_size) != PXENV_EXIT_SUCCESS)
-		return 0;
+//	if (pxe_call(PXENV_GET_FILE_SIZE, &pxenv.get_file_size) != PXENV_EXIT_SUCCESS)	//获得文件尺寸
+//		return 0;
 	filemax = pxenv.get_file_size.FileSize;
 	return pxenv.get_file_size.FileSize;
 }
@@ -124,7 +125,7 @@ static grub_u32_t ipxe_read_blk (grub_u32_t buf, grub_u32_t num)
 	{
 		pxenv.file_read.Buffer      = FAR_PTR((void*)(buf + read_len));
 		pxenv.file_read.BufferSize  = max_len - read_len;
-		status = pxe_call(PXENV_FILE_READ, &pxenv.file_read);
+//		status = pxe_call(PXENV_FILE_READ, &pxenv.file_read);	//读
 		if (status !=  PXENV_EXIT_SUCCESS)
 		{
 			if (pxenv.file_read.Status == PXENV_STATUS_TFTP_OPEN)
@@ -135,16 +136,16 @@ static grub_u32_t ipxe_read_blk (grub_u32_t buf, grub_u32_t num)
 			break;
 		read_len += pxenv.file_read.BufferSize;
 	}
-	if ((unsigned long)debug >= 0x7FFFFFFF) printf("R[%d]: %d,%d,%d\n",ipxe_file_opened,num,pxe_blksize,read_len);
+	if ((unsigned int)debug >= 0x7FFFFFFF) printf("R[%d]: %d,%d,%d\n",ipxe_file_opened,num,pxe_blksize,read_len);
 	return read_len;
 }
 
-static void ipxe_close (void)
+static void ipxe_close (void)	//关闭
 {
-	if (!ipxe_file_opened) return;
-	pxenv.file_close.FileHandle = ipxe_file_opened;
-	if (pxe_call(PXENV_FILE_CLOSE, &pxenv.file_close) == PXENV_EXIT_SUCCESS)
-		ipxe_file_opened = 0;
+	if (!ipxe_file_opened) return;	//如果文件没有打开
+	pxenv.file_close.FileHandle = ipxe_file_opened;	//结构.文件关闭,文件句柄=
+//	if (pxe_call(PXENV_FILE_CLOSE, &pxenv.file_close) == PXENV_EXIT_SUCCESS)	//关闭(关闭指令, 结构.文件关闭)
+//		ipxe_file_opened = 0;
 }
 
 int ipxe_func(char* arg,int flags)
@@ -152,6 +153,8 @@ int ipxe_func(char* arg,int flags)
 	if (!(ipxe_funcs & (1<<(PXENV_FILE_EXEC - PXENV_FILE_MIN)))) return !(errnum = ERR_FUNC_CALL);
 	memmove((void*)IPXE_BUF,arg,strlen(arg)+1);
 	pxenv.file_exec.Command=FAR_PTR((void*)IPXE_BUF);
-	return pxe_call(PXENV_FILE_EXEC, &pxenv.file_exec) == PXENV_EXIT_SUCCESS;
+//	return pxe_call(PXENV_FILE_EXEC, &pxenv.file_exec) == PXENV_EXIT_SUCCESS;	//文件执行
 }
+#endif
+
 #endif /* FSYS_IPXE */

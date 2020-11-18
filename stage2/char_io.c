@@ -21,13 +21,35 @@
 #include <shared.h>
 #include <term.h>
 
-#ifdef SUPPORT_HERCULES
-# include <hercules.h>
-#endif
+int grub_sprintf (char *buffer, const char *format, ...);
+int get_cmdline (void);
+int safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, int unitshift);
+int grub_tolower (int c);
+int grub_isspace (int c);
+unsigned short grub_crc16(unsigned char *data, int size);
+int grub_crc32(char *data,grub_u32_t size);
+int grub_memcmp (const char *s1, const char *s2, grub_size_t n);
+int grub_strncat (char *s1, const char *s2, int n);
+int grub_strcmp (const char *s1, const char *s2);
+int getkey (void);
+int checkkey (void);
+//inline void debug_sleep(int debug_boot, int line, char *file);
+void gotoxy (int x, int y);
+int getxy (void);
+int strncmpx(const char *s1,const char *s2, unsigned int n, int case_insensitive);
+int substring (const char *s1, const char *s2, int case_insensitive);
+int nul_terminate (char *str);
+int grub_strlen (const char *str);
+int memcheck (unsigned long long addr, unsigned long long len);
+void *grub_memmove (void *to, const void *from, grub_size_t len);
+void *grub_memset (void *start, int c, grub_size_t len);
+char *grub_strstr (const char *s1, const char *s2);
+char *grub_strtok (char *s, const char *delim);
+void *grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len);
+unsigned long long grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long len);
+int grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned long long len);
 
-#ifdef SUPPORT_SERIAL
-# include <serial.h>
-#endif
+
 
 struct term_entry term_table[] =
   {
@@ -36,7 +58,7 @@ struct term_entry term_table[] =
       0,
       80,
       25,
-      console_putchar,
+      graphics_putchar,
       console_checkkey,
       console_getkey,
       console_getxy,
@@ -45,8 +67,8 @@ struct term_entry term_table[] =
       console_setcolorstate,
       console_setcolor,
       console_setcursor,
-      0,
-      0
+      console_startup,
+      console_shutdown
     },
 #ifdef SUPPORT_GRAPHICS
     { "graphics",
@@ -61,12 +83,13 @@ struct term_entry term_table[] =
       graphics_cls, /* cls */
       console_setcolorstate, // graphics_setcolorstate, /* setcolorstate */
       console_setcolor, // graphics_setcolor, /* setcolor */
-      0/*graphics_setcursor*/, /* nocursor */
+      0,/*graphics_setcursor*/ /* nocursor */
       graphics_init, /* initialize */
       graphics_end /* shutdown */
     },
 #endif /* SUPPORT_GRAPHICS */
-#ifdef SUPPORT_SERIAL
+#if 0
+//#ifdef SUPPORT_SERIAL
     {
       "serial",
       /* A serial device must be initialized.  */
@@ -85,8 +108,8 @@ struct term_entry term_table[] =
       0,
       0
     },
-#endif /* SUPPORT_SERIAL */
-#ifdef SUPPORT_HERCULES
+//#endif /* SUPPORT_SERIAL */
+//#ifdef SUPPORT_HERCULES
     {
       "hercules",
       0,
@@ -104,13 +127,15 @@ struct term_entry term_table[] =
       0,
       0
     },      
-#endif /* SUPPORT_HERCULES */
+//#endif /* SUPPORT_HERCULES */
+#endif
     /* This must be the last entry.  */
-    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
   };
 
 int count_lines = -1;
 int use_pager = 1;
+void print_error (void);
 void
 print_error (void)
 {
@@ -118,14 +143,32 @@ print_error (void)
     grub_printf ("\nError %u:(http://grub4dos.chenall.net/e/%u)\n\t %s\n", errnum, errnum, err_list[errnum]);
 }
 
+void grub_putstr (char *str);
+void
+grub_putstr (char *str)
+{
+  while (*str)
+    grub_putchar ((unsigned char)*str++, 255);
+}
+
+void grub_putstr_utf16(unsigned short *str);
+void
+grub_putstr_utf16(unsigned short *str)  //打印unicode16字符串
+{
+  while (*str)
+    grub_putchar ((unsigned char)*str++, 255);
+}
+
+#if i386
+char * convert_to_ascii (char *buf, int c,...);
 char *
 convert_to_ascii (char *buf, int c,...)
 {
   union {
     unsigned long long ll;
     struct {
-	unsigned long lo;
-	unsigned long hi;
+	unsigned int lo;
+	unsigned int hi;
     };
     struct {
 	unsigned char l1;
@@ -140,8 +183,8 @@ convert_to_ascii (char *buf, int c,...)
   } num;
   char *ptr = buf;
 
-  num.hi = *(unsigned long *)((&c) + 2);
-  num.lo = *(unsigned long *)((&c) + 1);
+  num.hi = *(unsigned int *)((&c) + 2);
+  num.lo = *(unsigned int *)((&c) + 1);
 
   if (c == 'x' || c == 'X')	/* hex */
   {
@@ -161,14 +204,14 @@ convert_to_ascii (char *buf, int c,...)
     }
 
     do {
-	unsigned long H0, H1, L0, L1;
+	unsigned int H0, H1, L0, L1;
 
 	/* 0x100000000 == 4294967296 */
 	/* num.ll == (H1 * 10 + H0) * 0x100000000 + L1 * 10 + L0 */
-	H0 = num.hi % 10;
+	H0 = num.hi % 10;   //num.hi/10 = H1......H0
 	H1 = num.hi / 10;
 	L0 = num.lo % 10;
-	L1 = num.lo / 10;
+	L1 = num.lo / 10;   //num.lo/10 = L1......L0
 	/* num.ll == H1 * 10 * 0x100000000 + H0 * 0x100000000 + L1 * 10 + L0 */
 	/* num.ll == H1 * 10 * 0x100000000 + H0 * 4294967290 + H0 * 6 + L1 * 10 + L0 */
 	L0 += H0 * 6;
@@ -185,7 +228,7 @@ convert_to_ascii (char *buf, int c,...)
 	*(ptr++) = '0' + L0;
     } while (num.ll);
   }
-  /* reorder to correct direction!! */
+  /* reorder to correct direction!! 重新排序到正确的方向*/
   {
     char *ptr1 = ptr - 1;
     char *ptr2 = buf;
@@ -201,68 +244,92 @@ convert_to_ascii (char *buf, int c,...)
 
   return ptr;
 }
-
-void
-grub_putstr (const char *str)
+#else
+char *convert_to_ascii (char *buf, int c, unsigned long long lo);
+char *
+convert_to_ascii (char *buf, int c, unsigned long long lo)
 {
-  while (*str)
-    grub_putchar ((unsigned char)*str++, 255);
-}
+  union
+  {
+    unsigned long long ll;
+    unsigned long long lo;  
+    struct
+    {
+      unsigned char l1;
+      unsigned char l2;
+      unsigned char l3;
+      unsigned char l4;
+      unsigned char l5;
+      unsigned char l6;
+      unsigned char l7;
+      unsigned char l8;
+    };
+  } num;
+  char *ptr = buf;
 
-#if 0
-/* (Patch from Jamey Sharp, 26 Jan 2009)
- * Replace grub_printf calls with grub_sprintf by #define, not asm magic.
- * define in shared.h:
- * 	#define grub_printf(...) grub_sprintf(NULL, __VA_ARGS__)
- */
-//static int grub_printf_return_address;
-//void
-//grub_printf (const char *format, ...)
-//{
-//	/* sorry! this does not work :-( */
-//	//return grub_sprintf (NULL, format,...);
-//#if 1
-//  asm volatile ("popl %ebp");	/* restore EBP */
-//  //asm volatile ("ret");
-//  asm volatile ("popl %0" : "=m"(grub_printf_return_address));
-//  asm volatile ("pushl $0");	/* buffer = 0 for grub_sprintf */
-//#ifdef HAVE_ASM_USCORE
-//  asm volatile ("call _grub_sprintf");
-//#else
-//  asm volatile ("call grub_sprintf");
-//#endif
-//  asm volatile ("popl %eax");
-//  asm volatile ("pushl %0" : : "m"(grub_printf_return_address));
-//  asm volatile ("ret");
-//#else
-//  int *dataptr = (int *)(void *) &format;
-//
-//  dataptr--;	/* (*dataptr) is return address */
-//  grub_printf_return_address = (*dataptr);	/* save return address */
-//
-//  asm volatile ("leave");	/* restore ESP and EBP */
-//  //asm volatile ("ret");
-//  asm volatile ("popl %eax");	/* discard return address */
-//  asm volatile ("pushl $0");	/* buffer = 0 for grub_sprintf */
-//  asm volatile ("call grub_sprintf");
-//  asm volatile ("popl %eax");
-//  asm volatile ("pushl %0" : : "m"(grub_printf_return_address));
-//  asm volatile ("ret");
-//#endif
-//}
+//  num.lo = *(unsigned long long *)((&c) + 1);
+  num.lo = lo;
+
+  if (c == 'x' || c == 'X')	/* hex */
+  {
+    do {
+	int dig = num.l1 & 0xF;
+	*(ptr++) = ((dig > 9) ? dig + c - 33 : '0' + dig);
+    } while (num.ll >>= 4);
+  }
+  else				/* decimal */
+  {
+    if ((num.l8 & 0x80) && c == 'd')
+    {
+      num.ll = - num.ll;
+      *(ptr++) = '-';
+      buf++;
+    } 
+
+    do
+    {
+      unsigned long long L0, L1;
+
+      /* 0x100000000 == 4294967296 */
+      L0 = num.lo % 10;
+      L1 = num.lo / 10;   //num.lo/10 = L1......L0   19999999......6
+
+      num.ll = L1;
+      *(ptr++) = '0' + L0;
+    } while (num.ll);
+  }
+
+  /* reorder to correct direction!! 重新排序到正确的方向*/
+  {
+    char *ptr1 = ptr - 1;
+    char *ptr2 = buf;
+    while (ptr1 > ptr2)
+    {
+      long long tmp = *ptr1;
+      *ptr1 = *ptr2;
+      *ptr2 = tmp;
+      ptr1--;
+      ptr2++;
+    }
+  }
+
+  return ptr;
+}
 #endif
 
+int grub_sprintf (char *buffer, const char *format, ...);
 int
 grub_sprintf (char *buffer, const char *format, ...)
 {
-
   /* Call with buffer==NULL, and it will just printf().  */
-
   /* XXX hohmuth
      ugly hack -- should unify with printf() */
-  unsigned long *dataptr = (unsigned long *)(((int *)(void *) &format) + 1);
-  //unsigned long *dataptr = (unsigned long *)(((unsigned int *)(void *) &buffer));
-//  char c, *ptr, str[32];
+
+//  unsigned int *dataptr = (unsigned int *)(((int *)(void *) &format) + 1);
+
+  va_list ap ;				  //定义一个va_list变量ap 
+  va_start(ap,format);  //ap指向参数format之后的那个参数的地址，即指向第一个可变参数在堆栈的地址
+
   unsigned char str[32];
   unsigned char pad;
   const unsigned char *ptr;
@@ -273,318 +340,189 @@ grub_sprintf (char *buffer, const char *format, ...)
   unsigned int accuracy;
   unsigned char *putchar_hook_back=NULL;
   int stdout = 1;
-  if (buffer && (grub_u32_t)buffer <= 3)
+  unsigned char c;
+  
+  if (buffer && (grub_size_t)buffer <= (grub_size_t)3)
   {
-     if (!debug_msg) return 1;
-     if ((grub_u32_t)buffer != 3 && debug < (int)buffer)
-        return 1;
+    if (!debug_msg) return 1;
+    if ((grub_size_t)buffer != (grub_size_t)3 && (grub_size_t)debug < (grub_size_t)buffer)
+      return 1;
 
-     bp=NULL,buffer=NULL;//reset buffer and bp to NULL
+    bp=NULL,buffer=NULL;//reset buffer and bp to NULL
 
-     if (debug_msg < (grub_u32_t)buffer)
-     {
-       stdout = 0;
-       putchar_hook_back = set_putchar_hook((grub_u8_t*)0);
-     }
-  }
-  //dataptr++;
-  //dataptr++;
-#if 1
-  while (*format)
-  {
-    if (*format == '%')
+    if (debug_msg < (grub_size_t)buffer)
     {
-	pad = ' ';
-	width = 0;
-	length = 0;
-	accuracy = -1;
-	align = 0;
-	ptr = (const unsigned char *)format++;
-	if (*format == '-')
-	{
-		++align,++format;
-	}
-	if (*format == '0')
-	{
-		pad = *format++;
-	}
-	if (*format == '*')
-	{
-		++format;
-		width=*(dataptr++);
-	}
-	else
-	{
-		while (*format >= '0' && *format <= '9')
-			width = width * 10 + *(format++) - '0';
-	}
-	if (*format == '.')
-	{
-		++format;
-		if (*format == '*')
-		{
-			++format;
-			accuracy = *(dataptr++);
-		}
-		else
-		{
-			accuracy = 0;
-			while (*format >= '0' && *format <= '9')
-				accuracy = accuracy * 10 + *(format++) - '0';
-		}
-	}
-
-	if (*format == 'l')
-	{
-		++length,++format;
-	}
-
-	switch(*format)
-	{
-		case '%':
-			ptr = (const unsigned char *)format;
-			accuracy = 1;
-			--width;
-			break;
-		case 'c':
-			accuracy = 1;
-			--width;
-			ptr = (unsigned char *)dataptr++;
-			break;
-		case 's':
-			ptr = (unsigned char *)(unsigned int) (*(dataptr++));
-			if (ptr)
-			{
-				length = grub_strlen((char *)ptr);
-				width -= (length > accuracy)?accuracy:length;
-			}
-			else
-				accuracy = 0;
-			break;
-		case 'd': case 'x':	case 'X':  case 'u':
-			{
-				int lo, hi;
-
-				lo = *(dataptr++);
-				hi = (length ? (*(dataptr++)) : ((*format == 'd' && lo<0)?-1:0));
-				*convert_to_ascii ((char *)str, *format, lo, hi) = 0;
-			}
-			accuracy = grub_strlen ((char *)str);
-			width -= accuracy;
-			ptr = str;
-			break;
-		default:
-			format = (char *)ptr;
-			goto next_c;
-	}
-	if (align == 0)
-	{
-		for(;width>0;--width)
-		{
-			if (buffer)
-				*bp = pad; /* putchar(pad); */
-			else
-				grub_putchar (pad, 255);
-			++bp;
-		}
-	}
-	while (*ptr && accuracy)
-	{
-		if (buffer)
-			*bp = *ptr;
-		else
-			grub_putchar (*ptr, accuracy);
-		++bp,++ptr;
-		--accuracy;
-	}
-	if (align)
-	{
-		for(;width>0;--width)
-		{
-			if (buffer)
-				*bp = pad; /* putchar(pad); */
-			else
-				grub_putchar (pad, 255);
-			++bp;
-		}
-	}
+      stdout = 0;
+      putchar_hook_back = set_putchar_hook((grub_u8_t*)0);
     }
-    else
+  }
+
+  while (*format)     //grub_printf("%02x%c",q,' ');    首次:%02x%c   第二次:%c
+  {
+    if (*format == '%')   //%02x%c;          %c
     {
-    next_c:
-	if (buffer)
-		*bp = *format;
-	else
-		grub_putchar((unsigned char)*format, 255);
-	++bp;
-    } /* if */
-    ++format;
-  } /* while */
-#else
-  while ((c = *(format++)) != 0)
-    {
-      if (c != '%')
+      pad = ' ';
+      width = 0;
+      length = 0;
+      accuracy = -1;
+      align = 0;
+      ptr = (const unsigned char *)format++;    //&(%02x%c)   改变为 02x%c;    &(%c)   改变为c
+      if (*format == '-')
+        ++align,++format;
+      if (*format == '0')
+        pad = *format++; //0      改变为 2%c;
+      
+      if (*format == '*')
       {
-	if (buffer)
-	  *bp++ = c; /* putchar(c); */
-	else
-	{
-	  grub_putchar (c, 255);
-	  bp++;
-	}
+        ++format;
+//		width=*(dataptr++);
+        width = va_arg(ap, int);
       }
       else
       {
-	pad = ' ';
-	width = 0;
-	length = 0;
-	accuracy = -1;
+        while (*format >= '0' && *format <= '9')
+          width = width * 10 + *(format++) - '0';   //2     改变为 x%c;      0
+      }
+      
+      if (*format == '.')
+      {
+        ++format;
+        if (*format == '*')
+        {
+          ++format;
+//			accuracy = *(dataptr++);
+          accuracy = va_arg(ap, unsigned int);
+        }
+        else
+        {
+          accuracy = 0;
+          while (*format >= '0' && *format <= '9')
+            accuracy = accuracy * 10 + *(format++) - '0';
+        }
+      }
 
-get_next_c:
-	c = *(format++);
+      if (*format == 'l')
+      {
+#if i386
+        ++length,++format;
+#else
+        ++format;
+#endif  
+      }
 
-find_specifier:
-	switch (c)
-	{
-		case '%':
-			if (buffer)
-				*bp = c;
-			else
-				grub_putchar(c, 255);
-			bp++;
-			break;
-		case '.':
-			accuracy = 0;
-			while ((c = *(format++)) >= '0' && c <= '9')
-				accuracy = accuracy * 10 + c - '0';
-			goto find_specifier;
-	  case 'd': case 'x':	case 'X':  case 'u':
-	    {
-		unsigned int lo, hi;
-
-		lo = *(dataptr++);
-		hi = (length ? (*(dataptr++)) : 0);
-		*convert_to_ascii (str, c, lo, hi) = 0;
-	    }
-	    //dataptr++;
-	    width -= grub_strlen (str);
-	    if (width > 0)
-	      {
-		while(width--)
-		    if (buffer)
-			*bp++ = pad; /* putchar(pad); */
-		    else
-		    {
-			grub_putchar (pad, 255);
-			bp++;
-		    }
-	      }
-	    ptr = str;
-	    if (buffer)
-	    {
-		while (*ptr)
-			*bp++ = *(ptr++); /* putchar(*(ptr++)); */
-	    } else {
-		while (*ptr)
-		{
-			grub_putchar (*(ptr++), 255);
-			bp++;
-		}
-	    }
-	    break;
-
-	  case 'c':
-	    if (length)
-		break;		/* invalid */
-	    if (width > 0)
-	      {
-		while(--width)
-		    if (buffer)
-			*bp++ = pad; /* putchar(pad); */
-		    else
-		    {
-			grub_putchar (pad, 255);
-			bp++;
-		    }
-	      }
-	    if (buffer)
-	    {
-		*bp++ = (*(char *)(dataptr++)) /*& 0xff*/;
-	    } else {
-		grub_putchar ((*(char *)(dataptr++)) /*& 0xff*/, 255);
-		bp++;
-	    }
-	    //dataptr++;
-	    break;
-
-	  case 's':
-	    if (length)
-		break;		/* invalid */
-	    width -= grub_strlen ((char *) (unsigned int) *(dataptr));
-	    if (width > 0)
-	      {
-		while(width--)
-		    if (buffer)
-			*bp++ = pad; /* putchar(pad); */
-		    else
-		    {
-			grub_putchar (pad, 255);
-			bp++;
-		    }
-	      }
-	    ptr = (char *)(unsigned int) (*(dataptr++));
-	    //dataptr++;
-	    while ((c = *(ptr++)) && accuracy--)
-	    {
-	    	if (buffer)
-	    		*bp = c;
-	    	else
-	    		grub_putchar (c, 255);
-	    	bp++;
-	    }
-	    break;
-	  case 'l':
-	    if (length)
-		break;		/* invalid */
-	    length++;
-	    //c = *(format++);	/* should be one of d, x, X, u */
-	    goto get_next_c;
-	  case '0':
-	    if (length)
-		break;		/* invalid */
-	    pad = '0';
-	  case '1' ... '9':
-	    if (length)
-		break;		/* invalid */
-	    width = c - '0';
-	    while ((c = *(format++)) >= '0' && c <= '9')
-		width = width * 10 + c - '0';
-	    goto find_specifier;
-	  } /* switch */
-       } /* if */
-    } /* while */
+      switch(*format)   //x%c;      c
+      {
+        case '%':
+          ptr = (const unsigned char *)format;
+          accuracy = 1;
+          --width;
+          break;
+        case 'c':
+          accuracy = 1;
+          --width;  //-1
+//			  ptr = (unsigned char *)dataptr++;
+          c = va_arg(ap, long);  // ;    ' '
+          ptr = &c;
+//          *ptr = va_arg(ap, long);  //va_arg不能给指针(以及数组)赋值，只能给变量赋值。比如此例，如果强迫赋值给*ptr(=' ')，则会使grub_printf("%02x%c",q,' ')
+                                      //变为grub_printf("%02x c",q,' ')。如果循环调用的话，第二次会出错误。
+          break;
+        case 's':
+//			  ptr = (unsigned char *)(grub_size_t) (*(dataptr++));
+          ptr = va_arg(ap, unsigned char *);
+          if (ptr)
+          {
+            length = grub_strlen((char *)ptr);
+            width -= (length > accuracy)?accuracy:length;
+          }
+          else
+            accuracy = 0;
+            break;
+        case 'd': case 'x':	case 'X':  case 'u':
+        {
+#if i386
+          int lo, hi;
+          lo = *(dataptr++);
+          hi = (length ? (*(dataptr++)) : ((*format == 'd' && lo<(int)0)?(int)-1:(int)0));
+          *convert_to_ascii ((char *)str, *format, lo, hi) = 0;
+#else
+          unsigned long long lo;
+          lo = va_arg(ap, unsigned long long);
+          *convert_to_ascii ((char *)str, *format, lo) = 0;
 #endif
-  if (buffer)
-	*bp = 0;
-  if (stdout == 0)
-	set_putchar_hook(putchar_hook_back);
+        }
+          accuracy = grub_strlen ((char *)str); //1
+          width -= accuracy;  //1
+          ptr = str;
+          break;
+        default:
+          format = (char *)ptr;
+          goto next_c;
+      }
+      
+      if (align == 0)   //0
+      {
+        for(;width>(int)0;--width)  //第二次是 -1
+        {
+          if (buffer)
+            *bp = pad; /* putchar(pad); */
+          else
+            grub_putchar (pad, 255);  //0 补空
+          ++bp;
+        }
+      }
 
+      while (*ptr && accuracy)  //2 && 1;   ' ' && 1
+      {
+        if (buffer)
+          *bp = *ptr;
+        else
+          grub_putchar (*ptr, accuracy);  //2 实际数据;  ' ';  1
+        ++bp,++ptr;
+        --accuracy; //0
+      }
+      
+      if (align)
+      {
+        for(;width>(int)0;--width)
+        {
+          if (buffer)
+            *bp = pad; /* putchar(pad); */
+          else
+            grub_putchar (pad, 255);
+          ++bp;
+        }
+      }
+    }
+    else
+    {
+      next_c:
+      if (buffer)
+        *bp = *format;
+      else
+        grub_putchar((unsigned char)*format, 255);
+      ++bp;
+    } /* if */
+    ++format;   //%c
+  } /* while */
+
+  if (buffer)
+    *bp = 0;
+  if (stdout == 0)
+    set_putchar_hook(putchar_hook_back);
+
+  va_end(ap); 				  //清空va_list，即结束变参的获取
   return bp - (unsigned char *)buffer;
 }
 
 
 #include "grub4dos_version.h"
-
+void init_page (void);
 #ifdef GRUB4DOS_VERSION
 
 void
 init_page (void)
 {
-  //int i;
   unsigned char tmp_buf[128];
-  //unsigned char ch = ' ';
-
-//  cls ();
 
 	if(cursor_state==2)
 	{
@@ -597,11 +535,7 @@ init_page (void)
 	}
 
   grub_sprintf ((char *)tmp_buf,
-		" GRUB4DOS " GRUB4DOS_VERSION ", Mem: %dK/%dM/%ldM, End: %X",
-		(unsigned long)saved_mem_lower,
-		(unsigned long)(saved_mem_upper >> 10),
-		(unsigned long long)(saved_mem_higher >> 10),
-		(unsigned int)(((char *) init_free_mem_start) + 1024 + 256 * sizeof (char *) + config_len));
+		" GRUB4DOS " GRUB4DOS_VERSION " ");
 	grub_printf("%-*.*s",current_term->chars_per_line,current_term->chars_per_line,tmp_buf);
   if (current_term->setcolorstate)
       current_term->setcolorstate (COLOR_STATE_STANDARD);
@@ -612,8 +546,6 @@ init_page (void)
 void
 init_page (void)
 {
-//  cls ();
-
   grub_printf ("GNU GRUB  version %s  (%dK lower / %dK upper memory)\n",
 	  version_string, saved_mem_lower, saved_mem_upper);
 }
@@ -625,46 +557,48 @@ static int num_history = 0;
 
 /* Get the NOth history. If NO is less than zero or greater than or
    equal to NUM_HISTORY, return NULL. Otherwise return a valid string.  */
+static char *get_history (int no);
 static char *
 get_history (int no)
 {
   int j;
-  char *p = (char *) HISTORY_BUF;
+  unsigned char *p = (unsigned char *) HISTORY_BUF;
   if (no < 0 || no >= num_history)
 	return 0;
   /* get history NO */
   for (j = 0; j < no; j++)
   {
 	p += *(unsigned short *)p;
-	if (p > (char *) HISTORY_BUF + MAX_CMDLINE * HISTORY_SIZE)
+	if (p > (unsigned char *) HISTORY_BUF + MAX_CMDLINE * HISTORY_SIZE)
 	{
 		num_history = j;
 		return 0;
 	}
   }
 
-  return p + 2;
+  return (char *)p + 2;
 }
 
 /* Add CMDLINE to the history buffer.  */
+static void add_history (const char *cmdline, int no);
 static void
 add_history (const char *cmdline, int no)
 {
   int j, len;
-  char *p = (char *) HISTORY_BUF;
+  unsigned char *p = (unsigned char *) HISTORY_BUF;
   /* get history NO */
   for (j = 0; j < no; j++)
   {
 	p += *(unsigned short *)p;
-	if (p > (char *) HISTORY_BUF + MAX_CMDLINE * HISTORY_SIZE)
+	if (p > (unsigned char *) HISTORY_BUF + MAX_CMDLINE * HISTORY_SIZE)
 		return;
   }
   /* get cmdline length */
   len = grub_strlen (cmdline) + 3;
-  if (((char *) HISTORY_BUF + MAX_CMDLINE * HISTORY_SIZE) > (p + len))
-	grub_memmove (p + len, p, ((char *) HISTORY_BUF + MAX_CMDLINE * HISTORY_SIZE) - (p + len));
+  if (((unsigned char *) HISTORY_BUF + MAX_CMDLINE * HISTORY_SIZE) > (p + len))
+	grub_memmove (p + len, p, ((unsigned char *) HISTORY_BUF + MAX_CMDLINE * HISTORY_SIZE) - (p + len));
   *(unsigned short *)p = len;
-  grub_strcpy (p + 2, cmdline);
+  grub_strcpy ((char *)p + 2, cmdline);
   if (num_history < 0x7FFFFFFF)
 	num_history++;
 }
@@ -693,10 +627,9 @@ static void cl_delete (int count);
 /* Move the cursor backward.  */
 static void cl_backward (int count)
 {
-	unsigned long unicode = 0;
+	unsigned int unicode = 0;
 	unsigned char b = *(buf + lpos - 1);
 	unsigned char a = *(buf + lpos - 2);
-	//unsigned long count = 1;
 
 	/* get the length of the current sequence */
 	#ifdef SUPPORT_GRAPHICS
@@ -758,7 +691,7 @@ do_backward:
 	      {
 		/* get char width */
 		count = 2;	/* initalize as wide char */
-		if (*(unsigned long *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
+		if (*(unsigned int *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
 			count--;	// count = 1;
 	      }
 	      xpos -= count;
@@ -770,9 +703,8 @@ do_backward:
 /* Move the cursor forward.  */
 static void cl_forward (int count)
 {
-	unsigned long unicode = 0;
+	unsigned int unicode = 0;
 	unsigned char b = *(buf + lpos);
-	//unsigned long count = 1;
 
 	/* get the length of the current sequence */
 	#ifdef SUPPORT_GRAPHICS
@@ -838,7 +770,7 @@ do_forward:
 	      {
 		/* get char width */
 		count = 2;	/* initalize as wide char */
-		if (*(unsigned long *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
+		if (*(unsigned int *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
 			count--;	// count = 1;
 	      }
 	      xpos += count;
@@ -851,11 +783,11 @@ do_forward:
    only LEN characters from LPOS.  */
 static void cl_refresh (int full, int len)
 {
-      unsigned long i;
-      unsigned long start;
-      unsigned long pos = xpos;
-      unsigned long offset = 0;
-      unsigned long lpos_fontx;
+      unsigned int i;
+      unsigned int start;
+      unsigned int pos = xpos;
+      unsigned int offset = 0;
+      unsigned int lpos_fontx;
       
       if (full)
 	{
@@ -925,9 +857,9 @@ static void cl_refresh (int full, int len)
       lpos_fontx = 0;
 
       /* Print BUF. If ECHO_CHAR is not zero, put it instead.  */
-      for (i = start; i < start + len && i < llen; i++)
+      for (i = start; i < start + (unsigned int)len && i < (unsigned int)llen; i++)
 	{
-	  if (i == lpos)
+	  if (i == (unsigned int)lpos)
 		lpos_fontx = fontx;
 	  if (! get_cmdline_str.echo_char)
 	  {
@@ -945,14 +877,14 @@ static void cl_refresh (int full, int len)
 	grub_putchar (' ', 0);	/* width = 0 means no actual print */
 #endif
 
-      if (i == lpos)
+      if (i == (unsigned int)lpos)
 		lpos_fontx = fontx;
 
       if (len && lpos_fontx == 0)
 	printf_warning ("\nReport bug! lpos=%d, start=%d, len=%d, llen=%d, plen=%d, section=%d\n", lpos, start, len, llen, plen, section);
 
       /* Fill up the rest of the line with spaces.  */
-      for (; i < start + len; i++)
+      for (; i < start + (unsigned int)len; i++)
 	{
 	  grub_putchar (' ', 255);
 	  pos++;
@@ -960,9 +892,9 @@ static void cl_refresh (int full, int len)
       
       /* If the cursor is at the last position, put `>' or a space,
 	 depending on if there are more characters in BUF.  */
-      if (pos == CMDLINE_WIDTH)
+      if (pos == (unsigned int)CMDLINE_WIDTH)
 	{
-	  if (start + len < llen)
+	  if (start + (unsigned int)len < (unsigned int)llen)
 	    grub_putchar ('>', 255);
 	  else
 	    grub_putchar (' ', 255);
@@ -985,7 +917,7 @@ static void cl_insert (const char *str)
 {
       int l = grub_strlen (str);
 
-      if (llen + l < get_cmdline_str.maxlen)
+      if (llen + l < (int)get_cmdline_str.maxlen)
 	{
 	  if (lpos == llen)
 	    grub_memmove (buf + lpos, str, l + 1);
@@ -1013,7 +945,6 @@ static void cl_insert (const char *str)
 static void cl_delete (int count)
 {
 	unsigned char b = *(buf + lpos);
-	//unsigned long count = 1;
 
 	/* get the length of the current sequence */
 	#ifdef SUPPORT_GRAPHICS
@@ -1047,6 +978,7 @@ do_delete:
 #endif
 }
 
+static int real_get_cmdline (void);
 static int
 real_get_cmdline (void)
 {
@@ -1081,7 +1013,8 @@ real_get_cmdline (void)
      section is switched to another section, only if the cursor is put
      outside that section.  */
 
-  int c;
+//  int c;
+	unsigned short c;
   int history = -1;	/* The index for the history.  */
 
   buf = (unsigned char *) CMDLINE_BUF;
@@ -1257,7 +1190,7 @@ real_get_cmdline (void)
 		if (history < 0)
 		  /* Save the working buffer.  */
 		  grub_strcpy ((char *)get_cmdline_str.cmdline, (const char *)buf);
-		else if (grub_strcmp (get_history (history), (const char *)buf) != 0)
+		else if (grub_strcmp ((const char *)get_history (history), (const char *)buf) != 0)
 		  /* If BUF is modified, add it into the history list.  */
 		  add_history ((const char *)buf, history);
 
@@ -1362,6 +1295,7 @@ real_get_cmdline (void)
 
 int get_cmdline_obsolete (struct get_cmdline_arg cmdline);
 
+int get_cmdline_obsolete (struct get_cmdline_arg cmdline);
 int
 get_cmdline_obsolete (struct get_cmdline_arg cmdline)
 {
@@ -1380,7 +1314,7 @@ get_cmdline_obsolete (struct get_cmdline_arg cmdline)
 int
 get_cmdline (void)
 {
-  unsigned long old_cursor = cursor_state;
+  unsigned int old_cursor = cursor_state;
   int ret;
 
   /* Because it is hard to deal with different conditions simultaneously,
@@ -1448,7 +1382,6 @@ int
 safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, int unitshift)
 {
   unsigned long long myint = 0;
-  //unsigned long long mult = 10;
   char *ptr = *str_ptr;
   char found = 0;
   char negative = 0;
@@ -1458,13 +1391,6 @@ safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, in
    *  0x8000000000000000(the minimal long long) to 0x7fffffffffffffff(the maximal long long).
    *  The hex numbers are not checked.
    */
-#if 0
-  if (*ptr == '-') /* check whether or not the negative sign exists */
-    {
-      ptr++;
-      negative = 1;
-    }
-#else
   switch(*ptr)
   {
     case '-':
@@ -1474,7 +1400,7 @@ safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, in
     default:
       break;
   }
-#endif
+
   /*
    *  Is this a hex number?
    */
@@ -1487,7 +1413,7 @@ safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, in
       /* A bit tricky. This below makes use of the equivalence:
 	 (A <= B && A <= C) <=> ((A - B) <= (C - B))
 	 when C > B and A is unsigned.  */
-#if 1
+
         unsigned char digit;
 	digit = (unsigned char)(*ptr-'0'); 
 	// '0'...'9' become 0...9, 'A'...'F' become 17...22, 'a'...'f' become 49...54
@@ -1499,18 +1425,7 @@ safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, in
 	        break; // end of hexadecimal number
 	    digit +=10;
 	} // don't have to call tolower function
-#else
-	unsigned int digit;
 
-	digit = tolower (*ptr) - '0';
-	if (digit > 9)
-	  {
-	    digit -= 'a' - '0';
-	    if (mult == 10 || digit > 5)
-	      break;
-	    digit += 10;
-	  }
-#endif
 	found = 16;
 	if ( myint>>(64-4) ) 
 	{ // highest digit has already been filled with non-zero, another left shift will overflow
@@ -1530,7 +1445,7 @@ safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, in
 	if (digit>9) 
 	    break;
 	found = 10;
-#if 1
+
 	if ( myint > ((-1ULL>>1)/10) // multiply with 10 will overflow (result > max signed long long)
 	  || (myint = myint*10 + digit,
 	      // numbers less than (1ULL<<63) are valid (positive or negative).
@@ -1545,20 +1460,7 @@ safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, in
 	    errnum = ERR_NUMBER_OVERFLOW;
 	    return 0;
 	}
-#else
-	/* we do not check for hex or negative */
-	if (mult == 10 && ! negative)
-	  /* 0xFFFFFFFFFFFFFFFF == 18446744073709551615ULL */
-  //	if ((unsigned)myint > (((unsigned)(MAXINT - digit)) / (unsigned)mult))
-	  if (myint > 1844674407370955161ULL ||
-	     (myint == 1844674407370955161ULL && digit > 5))
-	    {
-	      errnum = ERR_NUMBER_OVERFLOW;
-	      return 0;
-	    }
-	myint *= mult;
-	myint += digit;
-#endif
+
 	  ptr++;
       }
   }
@@ -1610,92 +1512,12 @@ safe_parse_maxint_with_suffix (char **str_ptr, unsigned long long *myint_ptr, in
     return 1;
   }
 }
-#if 0
-int
-safe_parse_maxint (char **str_ptr, unsigned long long *myint_ptr)
-{
-  char *ptr = *str_ptr;
-  unsigned long long myint = 0;
-  unsigned long long mult = 10;
-  int found = 0;
-  int negative = 0;
-
-  /*
-   *  The decimal numbers can be positive or negative, ranging from
-   *  0x80000000(the minimal int) to 0x7fffffff(the maximal int).
-   *  The hex numbers are not checked.
-   */
-
-  if (*ptr == '-') /* check whether or not the negative sign exists */
-    {
-      ptr++;
-      negative = 1;
-    }
-
-  /*
-   *  Is this a hex number?
-   */
-  if (*ptr == '0' && tolower (*(ptr + 1)) == 'x')
-    {
-      ptr += 2;
-      mult = 16;
-    }
-
-  while (1)
-    {
-      /* A bit tricky. This below makes use of the equivalence:
-	 (A >= B && A <= C) <=> ((A - B) <= (C - B))
-	 when C > B and A is unsigned.  */
-      unsigned int digit;
-
-      digit = tolower (*ptr) - '0';
-      if (digit > 9)
-	{
-	  digit -= 'a' - '0';
-	  if (mult == 10 || digit > 5)
-	    break;
-	  digit += 10;
-	}
-
-      found = 1;
-      /* we do not check for hex or negative */
-      if (mult == 10 && ! negative)
-	/* 0xFFFFFFFFFFFFFFFF == 18446744073709551615ULL */
-//	if ((unsigned)myint > (((unsigned)(MAXINT - digit)) / (unsigned)mult))
-	if (myint > 1844674407370955161ULL ||
-	   (myint == 1844674407370955161ULL && digit > 5))
-	  {
-	    errnum = ERR_NUMBER_OVERFLOW;
-	    return 0;
-	  }
-      myint *= mult;
-      myint += digit;
-      ptr++;
-    }
-
-  if (!found)
-    {
-      errnum = ERR_NUMBER_PARSING;
-      return 0;
-    }
-
-  *str_ptr = ptr;
-  *myint_ptr = negative ? -myint : myint;
-
-  return 1;
-}
-#endif
 
 int
 grub_tolower (int c)
 {
-#if 0
-  if (c >= 'A' && c <= 'Z')
-    return (c + ('a' - 'A'));
-#else
   if ((unsigned int)(c - 'A') < 26)
     return c|0x20;
-#endif
 
   return c;
 }
@@ -1804,6 +1626,7 @@ static grub_u32_t crc32_tab[256] = {
 	0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
+static grub_u32_t calc_crc32(grub_u32_t crc, const void *data, grub_u32_t size);
 static grub_u32_t calc_crc32(grub_u32_t crc, const void *data, grub_u32_t size)
 {
   const grub_u8_t *p;
@@ -1816,6 +1639,7 @@ static grub_u32_t calc_crc32(grub_u32_t crc, const void *data, grub_u32_t size)
   return crc^~0U;
 }
 
+int grub_crc32(char *data,grub_u32_t size);
 int grub_crc32(char *data,grub_u32_t size)
 {
   int crc = 0;
@@ -1823,21 +1647,21 @@ int grub_crc32(char *data,grub_u32_t size)
 
   if ((*data == '(' || * data== '/') && grub_open(data))
   {
-    while((len = grub_read ((unsigned long long)(unsigned long)mbr, SECTOR_SIZE, GRUB_READ)))
+    while((len = grub_read ((unsigned long long)(grub_size_t)mbr, SECTOR_SIZE, GRUB_READ)))
       crc = calc_crc32(crc,mbr,len);
     grub_close();
   }
   else
   {
     errnum = 0;
-    crc = calc_crc32(crc,data,size?size:strlen(data));
+    crc = calc_crc32(crc,data,size?size:(grub_u32_t)strlen(data));
   }
 
   return crc;
 }
 
 int
-grub_memcmp (const char *s1, const char *s2, int n)
+grub_memcmp (const char *s1, const char *s2, grub_size_t n)
 {
   while (n)
     {
@@ -1893,6 +1717,19 @@ grub_strcmp (const char *s1, const char *s2)
 
   return 0;
 }
+#if 0
+unsigned int
+grub_putchar (unsigned int c, unsigned int max_width)
+{
+  return current_term->putchar (c, max_width);
+}
+#endif
+/* Check if a key code is available.  */
+int
+checkkey (void)
+{
+  return current_term->checkkey ();
+}
 
 /* Wait for a keypress and return its code.  */
 int
@@ -1903,30 +1740,67 @@ getkey (void)
 
 /* Check if a key code is available.  */
 int
-checkkey (void)
+getxy (void)
 {
-  return current_term->checkkey ();
+  return current_term->getxy ();
 }
 
-unsigned char *set_putchar_hook(unsigned char *hooked)
+void
+gotoxy (int x, int y)
 {
-	unsigned char *re = putchar_hooked;
-	putchar_hooked = hooked;
-	return re;
+  current_term->gotoxy (x, y);
+}
+
+void cls (void);
+void
+cls (void)
+{
+  /* If the terminal is dumb, there is no way to clean the terminal.  */
+  if (current_term->flags & TERM_DUMB)
+    grub_putchar ('\n', 255);
+  else
+    current_term->cls ();
+}
+
+void setcolorstate (color_state state);
+void
+setcolorstate (color_state state)
+{
+	current_term->setcolorstate (state);
+}
+
+void setcolor (unsigned int state,unsigned long long *color);
+void
+setcolor (unsigned int state,unsigned long long *color)
+{
+	current_term->setcolor (state, color);
+}
+
+unsigned char *set_putchar_hook(unsigned char *hooked);
+unsigned char *set_putchar_hook(unsigned char *hooked)  //设置打印字符钩子
+{
+	unsigned char *re = putchar_hooked; //保存旧钩子
+	putchar_hooked = hooked;  //设置新钩子
+	return re;                //返回旧钩子
 }
 
 /* FIXME: this is problematic! it could cause memory conflicts! */
 /* Display an ASCII character.  */
+unsigned int grub_putchar (unsigned int c, unsigned int max_width);
 unsigned int
-_putchar (unsigned int c, unsigned int max_width)
+//_putchar (unsigned int c, unsigned int max_width)
+grub_putchar (unsigned int c, unsigned int max_width)
 {
+
   /* if it is a Line Feed, we insert a Carriage Return. */
 	if (putchar_hooked)
 	{
-		if ((unsigned int)putchar_hooked > 0x800)
-			*(unsigned long*)putchar_hooked++ = (unsigned char)c;
+		if ((grub_size_t)putchar_hooked > 0x800)
+			*(unsigned int*)putchar_hooked++ = (unsigned char)c;
 		return 1;
 	}
+
+	//return current_term->putchar (c, max_width);
 
 	if (c == '\t'/* && current_term->getxy*/)
 	{
@@ -1978,9 +1852,12 @@ _putchar (unsigned int c, unsigned int max_width)
 			count_lines = 0;
 		}
 	}
+
 	return i;
 }
 
+#if 0
+inline void debug_sleep(int l_debug_boot, int line, char *file);
 inline void
 debug_sleep(int l_debug_boot, int line, char *file)
 {
@@ -1991,43 +1868,30 @@ debug_sleep(int l_debug_boot, int line, char *file)
     //grub_printf("\r%*s\r", CMDLINE_WIDTH, " ");
   }
 }
+#endif
 
 #ifdef DEBUG_TIME
+inline void debug_time(const int line,const char*file);
 inline void debug_time(const int line,const char*file)
 {
-	unsigned long date, time;
-	get_datetime(&date, &time);
+	unsigned int date, time;
+	//get_datetime(&date, &time);
 	printf("%s[%d]:%02X:%02X:%02X\n",file,line,(char)(time >> 24),(char)(time >> 16),(char)(time>>8));
 }
 #endif
-void
-gotoxy (int x, int y)
-{
-  current_term->gotoxy (x, y);
-}
 
-int
-getxy (void)
-{
-  return current_term->getxy ();
-}
 
-void
-cls (void)
-{
-  /* If the terminal is dumb, there is no way to clean the terminal.  */
-  if (current_term->flags & TERM_DUMB)
-    grub_putchar ('\n', 255);
-  else
-    current_term->cls ();
-}
 
-unsigned long
-setcursor (unsigned long on)
+
+
+unsigned int cursor_state_put;
+unsigned int setcursor (unsigned int on);
+unsigned int
+setcursor (unsigned int on)	//设置鼠标指针  0/1=关闭/打开
 {
-  unsigned long old_state = cursor_state;
-  cursor_state = on;
-  
+  unsigned int old_state = cursor_state;
+  cursor_state = on;					//鼠标状态=0/1=关闭/打开
+  cursor_state_put = on;
   if (current_term->setcursor)
       current_term->setcursor (on & 1);
 
@@ -2047,7 +1911,7 @@ setcursor (unsigned long on)
 	return 1 s1 isn't a substring of S2
 	return -1 s1 is a substring of S2.
 */
-int strncmpx(const char *s1,const char *s2, unsigned long n, int case_insensitive)
+int strncmpx(const char *s1,const char *s2, unsigned int n, int case_insensitive)
 {
 	int x = (n?0:--n);
 	while (n)
@@ -2093,18 +1957,15 @@ substring (const char *s1, const char *s2, int case_insensitive)
     }
 }
 
-/* Terminate the string STR with NUL.  */
+/* Terminate the string STR with NUL.  用NUL终止字符串STR*/
 int
-nul_terminate (char *str)
+nul_terminate (char *str)		//用"0"替换"\0"
 {
   int ch;
-  
-//  while (*str && ! grub_isspace (*str))
-//    str++;
 
   while ((ch = *str) && ! grub_isspace (ch))
   {
-		if (ch == '"')
+		if (ch == '"')	//跳过"...."
 		{
 			str++;
 			while (*str != '"')
@@ -2113,14 +1974,14 @@ nul_terminate (char *str)
 	if (ch == '\\')
 	{
 		str++;
-		if (! (ch = *str))
+		if (! (ch = *str))	//遇到\0退出
 			break;
 	}
-	str++;
+	str++;	//跳过"\"或者"""
   }
 
 //  ch = *str;
-  *str = 0;
+  *str = 0;	
   return ch;
 }
 
@@ -2167,49 +2028,6 @@ memcheck (unsigned long long addr, unsigned long long len)
   return ! errnum;
 }
 
-#if 0
-void
-grub_memcpy(void *dest, const void *src, int len)
-{
-  int i;
-  register char *d = (char*)dest, *s = (char*)src;
-
-  for (i = 0; i < len; i++)
-    d[i] = s[i];
-}
-#endif
-
-#if 0
-static inline void * _memcpy_forward(void *dst, const void *src, unsigned int len)
-{
-    int r0, r1, r2, r3;
-    __asm__ __volatile__(
-	"movl %%ecx, %0; shrl $2, %%ecx; "	// ECX=(len / 4)
-	"rep; movsl; "
-	"movl %0, %%ecx; andl $3, %%ecx; "	// ECX=(len % 4)
-	"rep; movsb; "
-	: "=&r"(r0), "=&c"(r1), "=&D"(r2), "=&S"(r3)
-	: "1"(len), "2"((long)dst), "3"((long)src)
-	: "memory");
-    return dst;
-}
-static inline void * _memcpy_backward(void *dst, const void *src, unsigned int len)
-{
-    int r0, r1, r2, r3;
-    __asm__ __volatile__(
-	"std; \n\t"
-	"movl %%ecx, %0; andl $3, %%ecx; "	// now ESI,EDI point to end-1, ECX=(len % 4)
-	"rep; movsb; "
-	"subl $3, %%edi; subl $3, %%esi; "
-	"movl %0, %%ecx; shrl $2, %%ecx; "	// now ESI,EDI point to end-4, ECX=(len / 4)
-	"rep; movsl; \n\t"
-	"cld; \n\t"
-	: "=&r"(r0),"=&c"(r1), "=&D"(r2), "=&S"(r3)
-	: "1"(len), "2"((long)dst+len-1), "3"((long)src+len-1)
-	: "memory");
-    return dst;
-}
-#endif
 static inline int _memcmp(const void *str1, const void *str2, unsigned int len)
 {
     int a, r1, r2, r3;
@@ -2245,114 +2063,32 @@ static inline void _memset(void *dst, unsigned char data, unsigned int len)
 	:"memory");
 }
 
-
-/* struct copy needs the memcpy function */
-/* #undef memcpy */
-#if 1
-void * grub_memcpy(void * to, const void * from, unsigned int n)
-{
-       /* This assembly code is stolen from
-	* linux-2.4.22/include/asm-i386/string.h
-	* It assumes ds=es=data space, this should be normal.
-	*/
-	int d0, d1, d2;
-	__asm__ __volatile__(
-		"rep ; movsl\n\t"
-		"testb $2,%b4\n\t"
-		"je 1f\n\t"
-		"movsw\n"
-		"1:\ttestb $1,%b4\n\t"
-		"je 2f\n\t"
-		"movsb\n"
-		"2:"
-		: "=&c" (d0), "=&D" (d1), "=&S" (d2)
-		:"0" (n/4), "q" (n),"1" ((long) to),"2" ((long) from)
-		: "memory");
-	return to;
-}
-#else
-/* just in case the assembly version of grub_memcpy does not work. */
-void * grub_memcpy(void * to, const void * from, unsigned int n)
-{
-	char *d = (char *)to, *s = (char *)from;
-
-	while (n--)
-		*d++ = *s++;
-
-	return to;
-}
-#endif
-
 void *
-grub_memmove (void *to, const void *from, int len)
+grub_memmove (void *to, const void *from, grub_size_t len)
 {
-#if 0
-   if (memcheck ((int) to, len))
-     {
-       /* This assembly code is stolen from
-	  linux-2.2.2/include/asm-i386/string.h. This is not very fast
-	  but compact.  */
-       int d0, d1, d2;
-
-       if (to < from)
-	 {
-	   asm volatile ("cld\n\t"
-			 "rep\n\t"
-			 "movsb"
-			 : "=&c" (d0), "=&S" (d1), "=&D" (d2)
-			 : "0" (len),"1" (from),"2" (to)
-			 : "memory");
-	 }
-       else
-	 {
-	   asm volatile ("std\n\t"
-			 "rep\n\t"
-			 "movsb\n\t"
-			 "cld"
-			 : "=&c" (d0), "=&S" (d1), "=&D" (d2)
-			 : "0" (len),
-			 "1" (len - 1 + (const char *) from),
-			 "2" (len - 1 + (char *) to)
-			 : "memory");
-	 }
-     }
-#else  
-  int r0, r1, r2, r3;
+  char *t = (char*)to, *f = (char*)from;
+  
   if (to < from)
   {
-    __asm__ __volatile__(
-    "movl %%ecx, %0; shrl $2, %%ecx; "
-    "rep; movsl; "
-    "movl %0, %%ecx; andl $3, %%ecx; "
-    "rep; movsb; "
-    : "=&r"(r0), "=&c"(r1), "=&D"(r2), "=&S"(r3)
-    : "1"(len), "2"((long)to), "3"((long)from)
-    : "memory");
+    while (len--)
+      *t++ = *f++;
   }
   else
   {
-    __asm__ __volatile__(
-    "std; \n\t"
-    "movl %%ecx, %0; andl $3, %%ecx; "
-    "rep; movsb; "
-    "subl $3, %%edi; subl $3, %%esi; "
-    "movl %0, %%ecx; shrl $2, %%ecx; "
-    "rep; movsl; \n\t"
-    "cld; \n\t"
-    : "=&r"(r0),"=&c"(r1), "=&D"(r2), "=&S"(r3)
-    : "1"(len), "2"((long)to+len-1), "3"((long)from+len-1)
-    : "memory");
+    t += len - 1;
+    f += len - 1;
+    while (len--)
+      *t-- = *f--;
   }
-#endif
-   return errnum ? NULL : to;
+  return errnum ? NULL : to;
 }
 
 void *
-grub_memset (void *start, int c, int len)
+grub_memset (void *start, int c, grub_size_t len)
 {
   char *p = start;
 
-  if (memcheck ((unsigned int)start, len))
+  if (memcheck ((grub_size_t)start, len))
     {
       while (len -- > 0)
 	*p ++ = c;
@@ -2361,6 +2097,7 @@ grub_memset (void *start, int c, int len)
   return errnum ? NULL : start;
 }
 
+char *grub_strcpy (char *dest, const char *src);
 char *
 grub_strcpy (char *dest, const char *src)
 {
@@ -2371,6 +2108,7 @@ grub_strcpy (char *dest, const char *src)
 /* The strtok.c comes from reactos. It follows GPLv2. */
 
 /* Copyright (C) 1994 DJ Delorie, see COPYING.DJ for details */
+char* grub_strtok(char *s, const char *delim);
 char*
 grub_strtok(char *s, const char *delim)
 {
@@ -2423,58 +2161,25 @@ grub_strtok(char *s, const char *delim)
 /* GCC emits references to memcpy() for struct copies etc.  */
 void *memcpy (void *dest, const void *src, int n)  __attribute__ ((alias ("grub_memmove")));
 
-#if 0
-int
-grub_memcmp64_lm (const unsigned long long s1, const unsigned long long s2, unsigned long long n)
-{
-	if (((unsigned long *)&s1)[1] || ((unsigned long *)&s2)[1] || ((unsigned long *)&n)[1] || (s1 + n) > 0x100000000ULL || (s2 + n) > 0x100000000ULL)
-	{
-		return mem64 (2, s1, s2, n);	/* 2 for CMP */
-	}
+#define PAGINGTXSTEP 0x800000
 
-	return grub_memcmp ((char *)(unsigned int)s1, (char *)(unsigned int)s2, n);
-}
-
-void
-grub_memmove64 (unsigned long long to, const unsigned long long from, unsigned long long len)
-{
-	if (((unsigned long *)&to)[1] || ((unsigned long *)&from)[1] || ((unsigned long *)&len)[1] || (to + len) > 0x100000000ULL || (from + len) > 0x100000000ULL)
-	{
-	}
-
-	grub_memmove ((void *)(unsigned int)to, (void *)(unsigned int)from, len);
-}
-
-void
-grub_memset64 (unsigned long long start, unsigned long long c, unsigned long long len)
-{
-	if (((unsigned long *)&start)[1] || ((unsigned long *)&len)[1] || (start + len) > 0x100000000ULL)
-	{
-		mem64 (3, start, c, len);	/* 3 for SET */
-		return;
-	}
-
-	grub_memset ((void *)(unsigned int)start, c, len);
-}
-
-#endif
-
-#define PAGING_PML4_ADDR (PAGING_TABLES_BUF+0x0000)
-#define PAGING_PDPT_ADDR (PAGING_TABLES_BUF+0x1000)
-#define PAGING_PD_ADDR   (PAGING_TABLES_BUF+0x2000)
+#if i386
+//#define PAGING_PML4_ADDR (PAGING_TABLES_BUF+0x0000)
+//#define PAGING_PDPT_ADDR (PAGING_TABLES_BUF+0x1000)
+//#define PAGING_PD_ADDR   (PAGING_TABLES_BUF+0x2000)
 
 // If this value is changed, memory_paging_map_for_transfer must also be modified.
-#define PAGINGTXSTEP 0x800000
+//#define PAGINGTXSTEP 0x800000
 
 #define DST_VIRTUAL_BASE  0x1000000UL
 #define SRC_VIRTUAL_BASE  0x2000000UL
-#define DST_VIRTUAL_ADDR(addr) (((unsigned long)(addr) & 0x1FFFFFUL)+DST_VIRTUAL_BASE)
-#define SRC_VIRTUAL_ADDR(addr) (((unsigned long)(addr) & 0x1FFFFFUL)+SRC_VIRTUAL_BASE)
+#define DST_VIRTUAL_ADDR(addr) (((unsigned int)(addr) & 0x1FFFFFUL)+DST_VIRTUAL_BASE)
+#define SRC_VIRTUAL_ADDR(addr) (((unsigned int)(addr) & 0x1FFFFFUL)+SRC_VIRTUAL_BASE)
 #define DST_VIRTUAL_PTR(addr) ((void*)DST_VIRTUAL_ADDR(addr))
 #define SRC_VIRTUAL_PTR(addr) ((void*)SRC_VIRTUAL_ADDR(addr))
 
 // Set to 0 to test mem64 function
-#define DISABLE_AMD64 0
+//#define DISABLE_AMD64 0
 
 extern void memory_paging_init(void);
 extern void memory_paging_enable(void);
@@ -2486,15 +2191,17 @@ unsigned char memory_paging_initialized = 0;
 void memory_paging_init()
 {
     // prepare PDP, PDT
-    unsigned long long *paging_PML4 = (unsigned long long *)PAGING_PML4_ADDR;
-    unsigned long long *paging_PDPT = (unsigned long long *)PAGING_PDPT_ADDR;
-    unsigned long long *paging_PD   = (unsigned long long *)PAGING_PD_ADDR;
+    unsigned long long *paging_PML4 = (unsigned long long *)(PAGING_TABLES_BUF);
+    unsigned long long *paging_PDPT = (unsigned long long *)(PAGING_TABLES_BUF+0x1000);
+    unsigned long long *paging_PD   = (unsigned long long *)(PAGING_TABLES_BUF+0x2000);
     unsigned long long a;
-    
-    paging_PML4[0] = PAGING_PDPT_ADDR | PML4E_P;
+		
+//		paging_PML4[0] = PAGING_PDPT_ADDR | PML4E_P;
+    paging_PML4[0] = (unsigned long long)(grub_size_t)paging_PDPT | PML4E_P;
     _memset(paging_PML4+1,0,4096-8*1);
     
-    paging_PDPT[0] = PAGING_PD_ADDR | PDPTE_P;
+//    paging_PDPT[0] = PAGING_PD_ADDR | PDPTE_P;
+		paging_PDPT[0] = (unsigned long long)(grub_size_t)paging_PD | PDPTE_P;
     _memset(paging_PDPT+1,0,4096-8*1);
     
     // virtual address 0-16MB = physical address 0-16MB
@@ -2510,9 +2217,10 @@ void memory_paging_init()
     
     memory_paging_initialized = 1;
 }
+
 void memory_paging_map_for_transfer(unsigned long long dst_addr, unsigned long long src_addr)
 {
-    unsigned long long *paging_PD = (unsigned long long *)PAGING_PD_ADDR;
+		unsigned long long *paging_PD = (unsigned long long *)(PAGING_TABLES_BUF+0x2000);
     unsigned long long a;
     if (!memory_paging_initialized) 
 	memory_paging_init();
@@ -2534,6 +2242,7 @@ void memory_paging_map_for_transfer(unsigned long long dst_addr, unsigned long l
       asm volatile ("movl %%cr3,%0; movl %0,%%cr3" : "=&q"(r0) : : "memory");
     }
 }
+
 void memory_paging_enable()
 {
     if (!memory_paging_initialized) 
@@ -2553,12 +2262,14 @@ void memory_paging_enable()
 	"btsl $7, %1;    \n\t"  // CR4.PGE(bit7)
 	"movl %1, %%cr4; \n\t"  // set PGE
 	:"=&r"(r0),"=&r"(r1)
-	:"r"(PAGING_PDPT_ADDR),
+//	:"r"(PAGING_PDPT_ADDR),
+	:"r"(PAGING_TABLES_BUF+0x1000),
 	 "i"(PROT_MODE_CSEG),
 	 "i"(PROT_MODE_DSEG)
 	:"memory");
     }
 }
+
 void memory_paging_disable()
 {
     int r0;
@@ -2573,45 +2284,54 @@ void memory_paging_disable()
 	 "i"(PROT_MODE_CSEG)
 	:"memory");
 }
+#endif
 
 /*
 Transfer data in memory.
 Limitation:
 code must be below 16MB as mapped by memory_paging_init function
 */
-unsigned long long
+void *
 grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len)
 {
+#if !i386
+
+	return grub_memmove ((void *)dst_addr, (void *)src_addr, len);
+#if 0
+	if (dst_addr < src_addr)
+	{
+		char *d = (char *)dst_addr, *s = (char *)src_addr;
+		while (len--)
+			*d++ = *s++;
+	}
+	else
+	{
+		char *d = (char *)dst_addr + len;
+    char *s = (char *)src_addr + len;
+		while (len--)
+			*d-- = *s--;
+	}
+	return ;
+#endif
+	
+#else
     if (!len)      { errnum = 0; return dst_addr; }
     if (!dst_addr) { errnum = ERR_WONT_FIT; return 0; }
 
     // forward copy should be faster than backward copy
     // If src_addr < dst_addr < src_addr+len, forward copy is not safe, so we do backward copy in that case. 
-#if 0
-    unsigned char backward = ((src_addr < dst_addr) && (dst_addr < src_addr+len));  
-#endif
-    unsigned long highaddr = (unsigned long)( dst_addr       >>32)
-			   | (unsigned long)((dst_addr+len-1)>>32)
-			   | (unsigned long)( src_addr       >>32)
-			   | (unsigned long)((src_addr+len-1)>>32);
+
+    unsigned int highaddr = (unsigned int)( dst_addr >>32)
+			   | (unsigned int)((dst_addr+len-1)>>32)
+			   | (unsigned int)( src_addr       >>32)
+			   | (unsigned int)((src_addr+len-1)>>32);
     if ( highaddr==0 )
     { // below 4GB just copy it normally
-	void *pdst = (void*)(unsigned long)dst_addr; 
-	void *psrc = (void*)(unsigned long)src_addr; 
-#if 0
-	if (backward)
-	    _memcpy_backward(pdst, psrc, len);
-	else
-	    _memcpy_forward(pdst, psrc, len);
-#else
+	void *pdst = (void*)(unsigned int)dst_addr; 
+	void *psrc = (void*)(unsigned int)src_addr; 
+
   grub_memmove(pdst, psrc, len);
-#endif
 	errnum = 0; return dst_addr;
-    }
-    else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_AMD64) && !DISABLE_AMD64)
-    { // AMD64/IA32-e paging
-	mem64 (1, dst_addr, src_addr, len);	/* 1 for MOVE */
-	return dst_addr;
     }
     else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_PAE))
     { // PAE paging
@@ -2624,16 +2344,9 @@ grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigne
 	unsigned long long nr = len; // number of bytes remaining
 	while (1)
 	{
-	    unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (8MB)
+	    unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned int)nr;  // number of bytes per round (8MB)
 	    // Copy
-#if 0
-	    if (backward)
-		_memcpy_backward(pdst, psrc, n1);
-	    else
-		_memcpy_forward(pdst, psrc, n1);
-#else
 		grub_memmove(pdst, psrc, n1);
-#endif
 	    // update loop variables
 	    if ((nr -= n1)==0) break;
 	    memory_paging_map_for_transfer((dsta+=n1), (srca+=n1));
@@ -2645,23 +2358,32 @@ grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigne
     {
 	errnum = ERR_WONT_FIT; return 0;
     }
+#endif
 }
+
 unsigned long long 
 grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long len)
 {
+#if !i386
+
+	char *p = (char *)dst_addr;
+	if (!len)      { return dst_addr; }
+	if (!dst_addr) { return dst_addr; }
+	while (len-- > 0)
+		*p++ = data;
+
+  return dst_addr;
+	
+	
+#else
     if (!len)      { errnum=0; return dst_addr; }
     if (!dst_addr) { errnum = ERR_WONT_FIT; return 0; }
-    unsigned long highaddr = (unsigned long)( dst_addr       >>32)
-			   | (unsigned long)((dst_addr+len-1)>>32);
+    unsigned int highaddr = (unsigned int)( dst_addr       >>32)
+			   | (unsigned int)((dst_addr+len-1)>>32);
     if ( highaddr==0 )
     { // below 4GB
-	_memset((void*)(unsigned long)dst_addr, data, len);
+	_memset((void*)(unsigned int)dst_addr, data, len);
 	errnum = 0; return dst_addr;
-    }
-    else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_AMD64) && !DISABLE_AMD64)
-    { // AMD64/IA32-e paging
-	mem64 (3, dst_addr, data, len);	/* 3 for SET */
-	return dst_addr;
     }
     else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_PAE))
     { // PAE paging
@@ -2673,7 +2395,7 @@ grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long
 	unsigned long long nr = len; // number of bytes remaining
 	while (1)
 	{
-	    unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (8MB)
+	    unsigned int n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned int)nr;  // number of bytes per round (8MB)
 	    // Copy
 	    _memset(pdst, data, n1);
 	    // update loop variables
@@ -2688,23 +2410,42 @@ grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long
     {
 	errnum = ERR_WONT_FIT; return 0;
     }
+#endif
 }
+
 int 
 grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned long long len)
 {
+#if !i386
+  
+  return grub_memcmp((const char *)str1addr, (const char *)str2addr, len);
+
+#if 0
+  char *s1 = (char *)str1addr;
+  char *s2 = (char *)str2addr;
+  while (len)
+    {
+      if (*s1 < *s2)
+	return -1;
+      else if (*s1 > *s2)
+	return 1;
+      s1++;
+      s2++;
+      len--;
+    }
+
+  return 0;
+#endif
+#else
     if (!len)      { errnum=0; return 0; }
-    unsigned long highaddr = (unsigned long)( str1addr       >>32)
-			   | (unsigned long)((str1addr+len-1)>>32)
-			   | (unsigned long)( str2addr       >>32)
-			   | (unsigned long)((str2addr+len-1)>>32);
+    unsigned int highaddr = (unsigned int)( str1addr       >>32)
+			   | (unsigned int)((str1addr+len-1)>>32)
+			   | (unsigned int)( str2addr       >>32)
+			   | (unsigned int)((str2addr+len-1)>>32);
     if ( highaddr==0 )
     { // below 4GB
-	return _memcmp((const char*)(unsigned long)str1addr,
-	    (const char*)(unsigned long)str2addr, (unsigned long)len);
-    }
-    else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_AMD64) && !DISABLE_AMD64)
-    { // AMD64/IA32-e paging
-	return mem64 (2, str1addr, str2addr, len);	/* 2 for CMP */
+	return _memcmp((const char*)(unsigned int)str1addr,
+	    (const char*)(unsigned int)str2addr, (unsigned int)len);
     }
     else if ( (highaddr>>(52-32))==0 && (is64bit & IS64BIT_PAE))
     { // PAE paging
@@ -2718,7 +2459,7 @@ grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned
 	{
 	    while (1)
 	    {
-		unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned long)nr;  // number of bytes per round (8MB)
+		unsigned int n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned int)nr;  // number of bytes per round (8MB)
 		// Compare
 		r = _memcmp(p1, p2, n1);
 		if (r) break;
@@ -2734,4 +2475,35 @@ grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned
     {
 	errnum = ERR_WONT_FIT; return 0;
     }
+#endif
+}
+
+char * grub_strchr (const char *s, int c);	//在字符串中查找字符   查到,返回第一个匹配的字符串位置;否则返回0
+char *
+grub_strchr (const char *s, int c)
+{
+  do
+	{
+		if (*s == c)					//查到,返回字符串位置
+			return (char *) s;
+	}
+  while (*s++);
+
+  return 0;
+}
+
+char * grub_strrchr (const char *s, int c);
+char *
+grub_strrchr (const char *s, int c)	//在字符串中查找字符   查到,返回最后一个匹配的字符串位置;否则返回0
+{
+  char *p = NULL;
+
+  do
+	{
+		if (*s == c)				//查到,记录字符在字符串中的位置
+			p = (char *) s;
+	}
+  while (*s++);
+
+  return p;
 }

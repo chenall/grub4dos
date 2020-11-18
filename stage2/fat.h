@@ -113,14 +113,11 @@ struct fat_bpb {
     && !(FAT_DIRENTRY_ATTRIB(entry) & FAT_ATTRIB_NOT_OK_MASK) )
 #define FAT_DIRENTRY_FIRST_CLUSTER(entry) \
   ((*(unsigned short *)(entry+26))+((*(unsigned short *)(entry+20)) << 16))
-#define FAT_DIRENTRY_FILELENGTH(entry)	(*(unsigned long *)(entry+28))
+#define FAT_DIRENTRY_FILELENGTH(entry)	(*(unsigned int *)(entry+28))
 
 #define FAT_LONGDIR_ID(entry)	(*(unsigned char *)(entry))
 #define FAT_LONGDIR_ALIASCHECKSUM(entry)	(*(unsigned char *)(entry+13))
 
-//#define EXFAT_FIRST_DATA_CLUSTER 2
-//#define EXFAT_CLUSTER_FREE         0 /* free cluster */
-//#define EXFAT_CLUSTER_BAD 0xfffffff7 /* cluster contains bad sector */
 #define EXFAT_CLUSTER_END 0xffffffff /* final cluster of file or directory */
 
 

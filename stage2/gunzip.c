@@ -148,13 +148,13 @@ static unsigned long long gzip_data_offset;
 static unsigned long long gzip_filepos;
 static unsigned long long gzip_fsmax;
 static unsigned long long saved_filepos;
-static unsigned long gzip_crc;
+static unsigned int gzip_crc;
 
 /* internal extra variables for use of inflate code */
-static unsigned long block_type;
-static unsigned long block_len;
-static unsigned long last_block;
-static unsigned long code_state;
+static unsigned int block_type;
+static unsigned int block_len;
+static unsigned int last_block;
+static unsigned int code_state;
 
 
 /* Function prototypes */
@@ -164,8 +164,8 @@ static void initialize_tables (void);
  *  Linear allocator.
  */
 
-static unsigned long linalloc_topaddr;
-
+static unsigned int linalloc_topaddr;
+unsigned char * linalloc_buf;
 //static void *
 //linalloc (unsigned long size)
 //{
@@ -176,11 +176,13 @@ static unsigned long linalloc_topaddr;
 static void
 reset_linalloc (void)
 {
-  linalloc_topaddr = RAW_ADDR ((saved_mem_upper << 10) + 0x100000);
+//  linalloc_topaddr = RAW_ADDR ((saved_mem_upper << 10) + 0x100000);
+	linalloc_topaddr = (grub_size_t)linalloc_buf + 0x100000;
 }
 
 
 /* internal variable swap function */
+static void gunzip_swap_values (void);
 static void
 gunzip_swap_values (void)
 {
@@ -204,24 +206,25 @@ gunzip_swap_values (void)
 
 
 /* internal function for eating variable-length header fields */
-static unsigned long
-bad_field (unsigned long len)
+static unsigned int bad_field (unsigned int len);
+static unsigned int
+bad_field (unsigned int len)
 {
   char ch = 1;
-  unsigned long not_retval = 1;
+  unsigned int not_retval = 1;
 
   do
     {
       if (len == 0)
 	break;
-      if (len == -1)
+      if (len == (unsigned int)-1)
       {
 	if (ch == 0)
 	  break;
       }	else
 	  len--;
       
-      not_retval = grub_read ((unsigned long long)(unsigned int)&ch, 1, 0xedde0d90);
+      not_retval = grub_read ((unsigned long long)(grub_size_t)&ch, 1, 0xedde0d90);
     }
   while (not_retval);
 
@@ -270,12 +273,12 @@ bad_field (unsigned long len)
 
 #define WSIZE 0x8000UL
 
-
+int gunzip_test_header (void);
 int
 gunzip_test_header (void)
 {
   unsigned char buf[10];
-  
+
   /* check lz4 */
   if (dec_lz4_open ())
 	goto test_dec;
@@ -284,7 +287,6 @@ gunzip_test_header (void)
 	goto test_dec;
   if (dec_vhd_open())
 	goto test_dec;
-
   /* "compressed_file" is already reset to zero by this point */
 
   /*
@@ -293,10 +295,11 @@ gunzip_test_header (void)
    *  is a compressed file, and simply mark it as such.
    */
   gzip_filemax = filemax;
+  unsigned short *a = (unsigned short *) buf;
   if (no_decompression
-      || grub_read ((unsigned long long)(unsigned int)(char *)buf, 10, 0xedde0d90) != 10
-      || ((*((unsigned short *) buf) != GZIP_HDR_LE)
-	  && (*((unsigned short *) buf) != OLD_GZIP_HDR_LE)))
+      || grub_read ((unsigned long long)(grub_size_t)(char *)buf, 10, 0xedde0d90) != 10
+      || ((*a != GZIP_HDR_LE)
+	  && (*a != OLD_GZIP_HDR_LE)))
     {
       filepos = 0;
       return ! errnum;
@@ -310,31 +313,30 @@ gunzip_test_header (void)
   if (buf[2] != DEFLATED
       || (buf[3] & UNSUPP_FLAGS)
       || ((buf[3] & EXTRA_FIELD)
-	  && (grub_read ((unsigned long long)(unsigned int)(char *)buf, 2, 0xedde0d90) != 2
-	      || bad_field (*((unsigned short *) buf))))
+	  && (grub_read ((unsigned long long)(grub_size_t)(char *)buf, 2, 0xedde0d90) != 2
+	      || bad_field (*a)))
       || ((buf[3] & ORIG_NAME) && bad_field (-1))
       || ((buf[3] & COMMENT) && bad_field (-1)))
     {
       if (! errnum)
 	errnum = ERR_BAD_GZIP_HEADER;
-      
       return 0;
     }
 
   gzip_data_offset = filepos;
-  
   filepos = filemax - 8;
   
-  if (grub_read ((unsigned long long)(unsigned int)(char *)buf, 8, 0xedde0d90) != 8)
+  if (grub_read ((unsigned long long)(grub_size_t)(char *)buf, 8, 0xedde0d90) != 8)
     {
       if (! errnum)
 	errnum = ERR_BAD_GZIP_HEADER;
-      
       return 0;
     }
 
-  gzip_crc = *((unsigned long *) buf);
-  gzip_fsmax = gzip_filemax = *((unsigned long *) (buf + 4));
+  gzip_crc = *a;
+  unsigned int *b = (unsigned int *) (buf + 4);
+  gzip_fsmax = gzip_filemax = *b;
+  linalloc_buf = grub_malloc (0x100000);
 
   initialize_tables ();
 
@@ -344,11 +346,10 @@ gunzip_test_header (void)
   /*
    *  Now "gzip_*" values refer to the compressed data.
    */
-
   filepos = 0;
 
 test_dec:
-  if (grub_read((unsigned long long)(unsigned int)(char *)buf, 1,GRUB_READ) != 1LL)
+  if (grub_read((unsigned long long)(grub_size_t)(char *)buf, 1,GRUB_READ) != 1LL)
   {
     if (debug)
       printf("\nWarning:%s Compressed data detected but failed to decompress - using raw data!\n",decomp_table[decomp_type].name);
@@ -360,9 +361,11 @@ test_dec:
   return 1;
 }
 
+void  gunzip_close (void);
 void 
 gunzip_close (void)
 {
+	grub_free(linalloc_buf);
 }
 
 
@@ -400,7 +403,7 @@ struct huft
 static unsigned char slide[WSIZE];
 
 /* current position in slide */
-static unsigned long wp;
+static unsigned int wp;
 
 
 /* Tables for deflate from PKZIP's appnote.txt. */
@@ -461,8 +464,8 @@ static unsigned short cpdext[] =
  */
 
 
-static unsigned long lbits = 9;	/* bits in base literal/length lookup table */
-static unsigned long dbits = 6;	/* bits in base distance lookup table */
+static unsigned int lbits = 9;	/* bits in base literal/length lookup table */
+static unsigned int dbits = 6;	/* bits in base distance lookup table */
 
 
 /* If BMAX needs to be larger than 16, then h and x[] should be ulg. */
@@ -470,7 +473,7 @@ static unsigned long dbits = 6;	/* bits in base distance lookup table */
 #define N_MAX 288	/* maximum number of codes in any set */
 
 
-static unsigned long hufts;	/* track memory usage */
+static unsigned int hufts;	/* track memory usage */
 
 
 /* Macros for inflate() bit peeking and grabbing.
@@ -503,8 +506,8 @@ static unsigned long hufts;	/* track memory usage */
    the stream.
  */
 
-static unsigned long bb;	/* bit buffer */
-static unsigned long bk;	/* bits in bit buffer */
+static unsigned int bb;	/* bit buffer */
+static unsigned int bk;	/* bits in bit buffer */
 
 static unsigned short mask_bits[] =
 {
@@ -519,15 +522,16 @@ static unsigned short mask_bits[] =
 #define INBUFSIZ  0x2000
 
 static unsigned char inbuf[INBUFSIZ];
-static unsigned long bufloc = 0;
+static unsigned int bufloc = 0;
 
-static unsigned long
+static unsigned int get_byte (void);
+static unsigned int
 get_byte (void)
 {
   if (filepos == gzip_data_offset || bufloc == INBUFSIZ)
     {
       bufloc = 0;
-      grub_read ((unsigned long long)(unsigned int)(char *)inbuf, INBUFSIZ, 0xedde0d90);
+      grub_read ((unsigned long long)(grub_size_t)(char *)inbuf, INBUFSIZ, 0xedde0d90);
     }
 
   return inbuf[bufloc++];
@@ -536,19 +540,19 @@ get_byte (void)
 /* decompression global pointers */
 static struct huft *tl;		/* literal/length code table */
 static struct huft *td;		/* distance code table */
-static unsigned long bl;			/* lookup bits for tl */
-static unsigned long bd;			/* lookup bits for td */
+static unsigned int bl;			/* lookup bits for tl */
+static unsigned int bd;			/* lookup bits for td */
 
-static unsigned long c[BMAX + 1];	/* bit length count table */
+static unsigned int c[BMAX + 1];	/* bit length count table */
 static struct huft *u[BMAX];		/* table stack */
-static unsigned long v[N_MAX];	/* values in order of bit length */
-static unsigned long x[BMAX + 1];	/* bit offsets, then code stack */
-static unsigned long lh[288];		/* length list for huft_build */
-static unsigned long ll[286 + 30];	/* literal/length and distance code lengths */
+static unsigned int v[N_MAX];	/* values in order of bit length */
+static unsigned int x[BMAX + 1];	/* bit offsets, then code stack */
+static unsigned int lh[288];		/* length list for huft_build */
+static unsigned int ll[286 + 30];	/* literal/length and distance code lengths */
 
 /* more function prototypes */
-static unsigned long huft_build (unsigned long *, unsigned long, unsigned long, unsigned short *, unsigned short *,
-		       struct huft **, unsigned long *);
+static unsigned int huft_build (unsigned int *, unsigned int, unsigned int, unsigned short *, unsigned short *,
+		       struct huft **, unsigned int *);
 static int inflate_codes_in_window (void);
 
 
@@ -557,35 +561,36 @@ static int inflate_codes_in_window (void);
    the given code set is incomplete (the tables are still built in this
    case), two if the input is invalid (all zero length codes or an
    oversubscribed set of lengths), and three if not enough memory. */
-
-static unsigned long
-huft_build (unsigned long *b,	/* code lengths in bits (all assumed <= BMAX) */
-	    unsigned long n,	/* number of codes (assumed <= N_MAX) */
-	    unsigned long s,	/* number of simple-valued codes (0..s-1) */
+static unsigned int huft_build (unsigned int *b, unsigned int n, unsigned int s, unsigned short * d,
+	    unsigned short * e,	struct huft **t, unsigned int *m);
+static unsigned int
+huft_build (unsigned int *b,	/* code lengths in bits (all assumed <= BMAX) */
+	    unsigned int n,	/* number of codes (assumed <= N_MAX) */
+	    unsigned int s,	/* number of simple-valued codes (0..s-1) */
 	    unsigned short * d,	/* list of base values for non-simple codes */
 	    unsigned short * e,	/* list of extra bits for non-simple codes */
 	    struct huft **t,	/* result: starting table */
-	    unsigned long *m)	/* maximum lookup bits, returns actual */
+	    unsigned int *m)	/* maximum lookup bits, returns actual */
 {
-  unsigned long a;		/* counter for codes of length k */
-//unsigned long c[BMAX + 1];	/* bit length count table */
-  unsigned long f;		/* i repeats in table every f entries */
+  unsigned int a;		/* counter for codes of length k */
+//unsigned int c[BMAX + 1];	/* bit length count table */
+  unsigned int f;		/* i repeats in table every f entries */
   int g;			/* maximum code length */
   int h;			/* table level */
-  register unsigned long i;	/* counter, current code */
-  register unsigned long j;	/* counter */
+  register unsigned int i;	/* counter, current code */
+  register unsigned int j;	/* counter */
   register int k;		/* number of bits in current code */
-  unsigned long l;		/* bits per table (returned in m) */
-  register unsigned long *p;	/* pointer into c[], b[], or v[] */
+  unsigned int l;		/* bits per table (returned in m) */
+  register unsigned int *p;	/* pointer into c[], b[], or v[] */
   register struct huft *q;	/* points to current table */
   struct huft r;		/* table entry for structure assignment */
 //struct huft *u[BMAX];		/* table stack */
-//unsigned long v[N_MAX];	/* values in order of bit length */
+//unsigned int v[N_MAX];	/* values in order of bit length */
   register int w;		/* bits before this table == (l * h) */
 //unsigned long x[BMAX + 1];	/* bit offsets, then code stack */
-  unsigned long *xp;		/* pointer into x */
+  unsigned int *xp;		/* pointer into x */
   int y;			/* number of dummy codes added */
-  unsigned long z;		/* number of entries in current table */
+  unsigned int z;		/* number of entries in current table */
 
   /* Generate counts for each bit length */
   memset ((char *) c, 0, sizeof (c));
@@ -664,7 +669,7 @@ huft_build (unsigned long *b,	/* code lengths in bits (all assumed <= BMAX) */
 	{
 	  /* here i is the Huffman code of length k bits for value *p */
 	  /* make tables up to required level */
-	  while (k > w + l)
+	  while (k > w + (int)l)
 	    {
 	      h++;
 	      w += l;		/* previous table always l bits */
@@ -687,7 +692,7 @@ huft_build (unsigned long *b,	/* code lengths in bits (all assumed <= BMAX) */
 	      /* allocate and link in new table */
 	      linalloc_topaddr -= (z + 1) * sizeof (struct huft);
 	      linalloc_topaddr &= ~3;
-	      q = (struct huft *) linalloc_topaddr;
+	      q = (struct huft *)(grub_size_t) linalloc_topaddr;
 
 	      hufts += z + 1;	/* track memory usage */
 	      *t = q + 1;	/* link to list for huft_free() */
@@ -751,18 +756,19 @@ huft_build (unsigned long *b,	/* code lengths in bits (all assumed <= BMAX) */
  *  Return an error code or zero if it all goes ok.
  */
 
-static unsigned long inflate_n, inflate_d;
+static unsigned int inflate_n, inflate_d;
 
+static int inflate_codes_in_window (void);
 static int
 inflate_codes_in_window (void)
 {
-  register unsigned long e;	/* table entry flag/number of extra bits */
-  unsigned long n, d;		/* length and index for copy */
-  unsigned long w;		/* current window position */
+  register unsigned int e;	/* table entry flag/number of extra bits */
+  unsigned int n, d;		/* length and index for copy */
+  unsigned int w;		/* current window position */
   struct huft *t;		/* pointer to table entry */
-  unsigned long ml, md;		/* masks for bl and bd bits */
-  register unsigned long b;	/* bit buffer */
-  register unsigned long k;	/* number of bits in bit buffer */
+  unsigned int ml, md;		/* masks for bl and bd bits */
+  register unsigned int b;	/* bit buffer */
+  register unsigned int k;	/* number of bits in bit buffer */
 
   /* make local copies of globals */
   d = inflate_d;
@@ -884,12 +890,12 @@ inflate_codes_in_window (void)
 
 
 /* get header for an inflated type 0 (stored) block. */
-
+static void init_stored_block (void);
 static void
 init_stored_block (void)
 {
-  register unsigned long b;	/* bit buffer */
-  register unsigned long k;		/* number of bits in bit buffer */
+  register unsigned int b;	/* bit buffer */
+  register unsigned int k;		/* number of bits in bit buffer */
 
   /* make local copies of globals */
   b = bb;			/* initialize bit buffer */
@@ -916,12 +922,12 @@ init_stored_block (void)
 /* get header for an inflated type 1 (fixed Huffman codes) block.  We should
    either replace this with a custom decoder, or at least precompute the
    Huffman tables. */
-
+static void init_fixed_block ();
 static void
 init_fixed_block ()
 {
-  unsigned long i;		/* temporary variable */
-//unsigned long lh[288];	/* length list for huft_build */
+  unsigned int i;		/* temporary variable */
+//unsigned int lh[288];	/* length list for huft_build */
 
   /* set up literal table */
   for (i = 0; i < 144; i++)
@@ -956,21 +962,21 @@ init_fixed_block ()
 
 
 /* get header for an inflated type 2 (dynamic Huffman codes) block. */
-
+static void init_dynamic_block (void);
 static void
 init_dynamic_block (void)
 {
-  unsigned long i;		/* temporary variables */
-  unsigned long j;
-  unsigned long l;		/* last length */
-  unsigned long m;		/* mask for bit lengths table */
-  unsigned long n;		/* number of lengths to get */
-  unsigned long nb;		/* number of bit length codes */
-  unsigned long na;		/* number of literal/length codes */
-  unsigned long nd;		/* number of distance codes */
-//unsigned long ll[286 + 30];	/* literal/length and distance code lengths */
-  register unsigned long b;	/* bit buffer */
-  register unsigned long k;	/* number of bits in bit buffer */
+  unsigned int i;		/* temporary variables */
+  unsigned int j;
+  unsigned int l;		/* last length */
+  unsigned int m;		/* mask for bit lengths table */
+  unsigned int n;		/* number of lengths to get */
+  unsigned int nb;		/* number of bit length codes */
+  unsigned int na;		/* number of literal/length codes */
+  unsigned int nd;		/* number of distance codes */
+//unsigned int ll[286 + 30];	/* literal/length and distance code lengths */
+  register unsigned int b;	/* bit buffer */
+  register unsigned int k;	/* number of bits in bit buffer */
 
   /* make local bit buffer */
   b = bb;
@@ -1092,12 +1098,12 @@ init_dynamic_block (void)
   block_len++;
 }
 
-
+static void get_new_block (void);
 static void
 get_new_block (void)
 {
-  register unsigned long b;	/* bit buffer */
-  register unsigned long k;	/* number of bits in bit buffer */
+  register unsigned int b;	/* bit buffer */
+  register unsigned int k;	/* number of bits in bit buffer */
 
   hufts = 0;
 
@@ -1127,7 +1133,7 @@ get_new_block (void)
     init_dynamic_block ();
 }
 
-
+static void inflate_window (void);
 static void
 inflate_window (void)
 {
@@ -1159,7 +1165,7 @@ inflate_window (void)
        */
       if (block_type == INFLATE_STORED)
 	{
-	  unsigned long w = wp;
+	  unsigned int w = wp;
 
 	  /*
 	   *  This is basically a glorified pass-through
@@ -1189,7 +1195,7 @@ inflate_window (void)
   /* XXX do CRC calculation here! */
 }
 
-
+static void initialize_tables (void);
 static void
 initialize_tables (void)
 {
@@ -1209,9 +1215,9 @@ initialize_tables (void)
   reset_linalloc ();
 }
 
-
+unsigned long long gunzip_read (unsigned long long buf, unsigned long long len, unsigned int write);
 unsigned long long
-gunzip_read (unsigned long long buf, unsigned long long len, unsigned long write)
+gunzip_read (unsigned long long buf, unsigned long long len, unsigned int write)
 {
   unsigned long long ret = 0;
 
@@ -1246,7 +1252,7 @@ gunzip_read (unsigned long long buf, unsigned long long len, unsigned long write
 
       if (buf)
       {
-	grub_memmove64 (buf, (unsigned long long)(unsigned int)srcaddr, size);
+	grub_memmove64 (buf, (unsigned long long)(grub_size_t)srcaddr, size);
 	buf += size;
       }
       len -= size;

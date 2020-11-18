@@ -53,7 +53,7 @@ if test "x$ac_env_CFLAGS_set" = x; then
 fi
 
 if test "x$host_cpu" = xx86_64; then
-  CFLAGS="-m32 -mno-sse $CFLAGS"
+  CFLAGS="-m64 -mno-sse $CFLAGS"
 fi
 
 AC_SUBST(default_CFLAGS)
@@ -100,9 +100,9 @@ if test "x$ac_cv_c_compiler_gnu" = xyes; then
       CFLAGS=$saved_CFLAGS
     ])
     if test "x$grub_cv_cc_Os" = xyes; then
-      STAGE2_CFLAGS="-Os -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -fno-strict-aliasing -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
+      STAGE2_CFLAGS="-Os -mpreferred-stack-boundary=8 -momit-leaf-frame-pointer -fno-strict-aliasing -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
     else
-      STAGE2_CFLAGS="-O2 -fno-strength-reduce -fno-unroll-loops -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -fno-strict-aliasing -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
+      STAGE2_CFLAGS="-O2 -fno-strength-reduce -fno-unroll-loops -mpreferred-stack-boundary=8 -momit-leaf-frame-pointer -fno-strict-aliasing -fno-exceptions -fno-asynchronous-unwind-tables -fno-unwind-tables"
     fi
     # OpenBSD has a GCC extension for protecting applications from
     # stack smashing attacks, but GRUB doesn't want this feature.
