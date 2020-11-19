@@ -353,8 +353,6 @@ grub_efi_stall (grub_efi_uintn_t microseconds)  //efi失速
   efi_call_1 (grub_efi_system_table->boot_services->stall, microseconds);
 }
 
-#if 0
-grub_efi_loaded_image_t *grub_efi_get_loaded_image (grub_efi_handle_t image_handle);
 grub_efi_loaded_image_t *
 grub_efi_get_loaded_image (grub_efi_handle_t image_handle)  //获得加载映像
 {
@@ -362,7 +360,6 @@ grub_efi_get_loaded_image (grub_efi_handle_t image_handle)  //获得加载映像
 				 &loaded_image_guid,
 				 GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);  //打开协议(映像句柄,guid,获得协议)
 }
-#endif
 
 void grub_reboot (void);
 void
