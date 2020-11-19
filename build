@@ -155,7 +155,13 @@ make || exit $?
 #复制pre_stage2.exec
 cp stage2/pre_stage2.exec $GRUB4DOS_TEMP/kernel.img
 cp $SOURCE_DIR/moddep.lst $GRUB4DOS_TEMP/moddep.lst
-$SOURCE_DIR/grub-mkimage -d $GRUB4DOS_TEMP -p /GRUB2 -o BOOTX64.EFI -O x86_64-efi
+platform=`uname -m`
+if [ $platform='x86_64' ]
+then
+    $SOURCE_DIR/grub-mkimage64 -d $GRUB4DOS_TEMP -p /GRUB2 -o BOOTX64.EFI -O x86_64-efi
+else
+    $SOURCE_DIR/grub-mkimage -d $GRUB4DOS_TEMP -p /GRUB2 -o BOOTX64.EFI -O x86_64-efi
+fi
 #转到源目录
 cd $SOURCE_DIR
 #$SOURCE_DIR/grub-mkimage -d $SOURCE_DIR -p /GRUB2 -o BOOTX64.EFI -O x86_64-efi
