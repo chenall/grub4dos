@@ -908,21 +908,75 @@ get_efi_hd_device_boot_path (int drive)  //获得光盘驱动器引导路径
   return 0; 
 }
 
+static void *linuxefi_mem;
+static unsigned long long linuxefi_size;
+static unsigned char *initrdefi_mem;
+static unsigned int linuxefi_handover_offset;
+struct linux_kernel_params *linuxefi_params;
+static char *linuxefi_cmdline;
+
+#define BYTES_TO_PAGES(bytes)   (((bytes) + 0xfff) >> 12)
+
+typedef void (*handover_func) (void *, grub_efi_system_table_t *, void *);
+
+static void
+linuxefi_boot (void *kernel_addr, grub_off_t offset,
+		             void *kernel_params)
+{
+  grub_efi_loaded_image_t *loaded_image = NULL;
+  handover_func hf;
+  /*
+   * Since the EFI loader is not calling the LoadImage() and StartImage()
+   * services for loading the kernel and booting respectively, it has to
+   * set the Loaded Image base address.
+   */
+  loaded_image = grub_efi_get_loaded_image (grub_efi_image_handle);
+  if (loaded_image)
+    loaded_image->image_base = kernel_addr;
+
+  hf = (handover_func)((char *)kernel_addr + offset);
+  hf (grub_efi_image_handle, grub_efi_system_table, kernel_params);
+}
+
 /* boot */
 static int boot_func (char *arg, int flags);
 static int
 boot_func (char *arg, int flags)
 {
-	grub_efi_boot_services_t *b;
+  grub_efi_boot_services_t *b;
   grub_efi_status_t status;
   b = grub_efi_system_table->boot_services;	//引导服务
 
-  map_to_svbus(grub4dos_self_address); //为svbus复制插槽
+  if (kernel_type == KERNEL_TYPE_LINUX)
+  {
+    int offset = 0;
+    /* x86_64-efi only */
+    offset = 512;
+
+    __asm__ volatile ("cli");
+
+    linuxefi_boot (linuxefi_mem, linuxefi_handover_offset + offset,
+				   linuxefi_params);
+    /* should not return */
+    if (initrdefi_mem)
+      efi_call_2 (b->free_pages, initrdefi_mem,
+                  BYTES_TO_PAGES(linuxefi_params->ramdisk_size));
+    if (linuxefi_cmdline)
+	  efi_call_2 (b->free_pages, linuxefi_cmdline,
+            BYTES_TO_PAGES(linuxefi_params->cmdline_size + 1));
+    if (linuxefi_mem)
+      efi_call_2 (b->free_pages, linuxefi_mem, BYTES_TO_PAGES(linuxefi_size));
+    if (linuxefi_params)
+      efi_call_2 (b->free_pages, linuxefi_params, BYTES_TO_PAGES(16384));
+  }
+  else
+  {
+	map_to_svbus(grub4dos_self_address); //为svbus复制插槽
 	printf_debug ("StartImage: %x\n", image_handle);				//开始映射
 	status = efi_call_3 (b->start_image, image_handle, 0, NULL);			//启动映像
 	printf_debug ("StartImage returned 0x%lx\n", (grub_size_t) status);	//开始映射返回
 	status = efi_call_1 (b->unload_image, image_handle);		//卸载映射
-
+  }
 	return 1;
 }
 
@@ -5153,26 +5207,100 @@ static struct builtin builtin_hiddenmenu =
   BUILTIN_MENU,
 };
 
+static void *
+allocate_pages_max (grub_efi_physical_address_t max,
+                    grub_efi_uintn_t pages)
+{
+  grub_efi_status_t status;
+  grub_efi_boot_services_t *b;
+  grub_efi_physical_address_t address = max;
+  if (max > 0xffffffff)
+    return 0;
+  b = grub_efi_system_table->boot_services;
+  status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_MAX_ADDRESS,
+                       GRUB_EFI_LOADER_DATA, pages, &address);
+
+  if (status != GRUB_EFI_SUCCESS)
+    return 0;
+  if (address == 0)
+  {
+    /* Uggh, the address 0 was allocated... This is too annoying,
+     * so reallocate another one.  */
+    address = max;
+    status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_MAX_ADDRESS,
+                         GRUB_EFI_LOADER_DATA, pages, &address);
+    grub_efi_free_pages (0, pages);
+    if (status != GRUB_EFI_SUCCESS)
+	  return 0;
+  }
+  return (void *) ((grub_addr_t) address);
+}
+
+static void *
+allocate_pages_fixed (grub_efi_physical_address_t address,
+                      grub_efi_uintn_t pages)
+{
+  grub_efi_status_t status;
+  grub_efi_boot_services_t *b;
+
+  /* Limit the memory access to less than 4GB for 32-bit platforms.  */
+  if (address >  0xffffffff)
+    return NULL;
+
+  b = grub_efi_system_table->boot_services;
+  status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ADDRESS, 
+                       GRUB_EFI_LOADER_DATA, pages, &address);
+  if (status != GRUB_EFI_SUCCESS)
+    return NULL;
+
+  return (void *) ((grub_addr_t) address);
+}
+
 /* initrd */
 static int initrd_func (char *arg, int flags);
 static int
 initrd_func (char *arg, int flags)
 {
   errnum = 0;
-  switch (kernel_type)
-    {
-    case KERNEL_TYPE_LINUX:
-    case KERNEL_TYPE_BIG_LINUX:
-      if (! load_initrd (arg))
-	return 0;
-      break;
+  grub_size_t size = 0;
+  grub_efi_boot_services_t *b;
+  b = grub_efi_system_table->boot_services;
+  /* TODO: add support for multiple initrd files */
+  if (kernel_type != KERNEL_TYPE_LINUX)
+  {
+    errnum = ERR_NEED_LX_KERNEL;
+    return 0;
+  }
 
-    default:
-      errnum = ERR_NEED_LX_KERNEL;
-      return 0;
-    }
-
+  grub_open (arg);
+  if (errnum)
+  {
+    printf_errinfo ("Failed to open %s\n", arg);
+    goto fail;
+  }
+  size = ALIGN_UP (filemax, 4096);
+  initrdefi_mem = allocate_pages_max (0x3fffffff, BYTES_TO_PAGES(size));
+  if (!initrdefi_mem)
+  {
+    printf_errinfo ("Failed to allocate initrd memory\n");
+    goto fail;
+  }
+  if (grub_read ((unsigned long long)(grub_size_t)initrdefi_mem,
+                  filemax, 0xedde0d90) != filemax)
+  {
+    printf_errinfo ("premature end of file %s", arg);
+    goto fail;
+  }
+  linuxefi_params->ramdisk_size = size;
+  linuxefi_params->ramdisk_image = (grub_uint32_t)(grub_addr_t) initrdefi_mem;
+  grub_close ();
   return 1;
+
+fail:
+  if (initrdefi_mem)
+    efi_call_2 (b->free_pages, initrdefi_mem, BYTES_TO_PAGES(size));
+  grub_close ();
+  return 0;
 }
 
 static struct builtin builtin_initrd =
@@ -5210,96 +5338,124 @@ static int kernel_func (char *arg, int flags);
 static int
 kernel_func (char *arg, int flags)
 {
-#if 0
-  int len;
-  char *cmd;
-  kernel_t suggested_type = KERNEL_TYPE_NONE;
-  unsigned int load_flags = 0;
+  void *kernel = NULL;
+  grub_efi_status_t status;
+  grub_efi_boot_services_t *b;
+  struct linux_kernel_header lh;
+  grub_ssize_t len, start;
+  b = grub_efi_system_table->boot_services;
+  linuxefi_params = NULL;
+  linuxefi_cmdline = NULL;
+  linuxefi_mem = NULL;
+  linuxefi_size = 0;
+  linuxefi_handover_offset = 0;
+  initrdefi_mem = NULL;
+  grub_open (arg);
+  if (errnum)
+  {
+    printf_errinfo ("Failed to open %s\n", arg);
+    goto failure_linuxefi;
+  }
+  status = efi_call_3 (b->allocate_pool, GRUB_EFI_LOADER_CODE,
+                       filemax, (void **)&kernel);
+  if (status != GRUB_EFI_SUCCESS)
+  {
+    printf_errinfo ("Failed to allocate kernel memory\n");
+    goto failure_linuxefi;
+  }
+  if (grub_read ((unsigned long long)(grub_size_t)kernel,
+                    filemax, 0xedde0d90) != filemax)
+  {
+    printf_errinfo ("premature end of file %s", arg);
+    goto failure_linuxefi;
+  }
+  linuxefi_params = allocate_pages_max (0x3fffffff, BYTES_TO_PAGES(16384));
+  if (!linuxefi_params)
+  {
+    printf_errinfo ("Failed to allocate kernel params\n");
+    goto failure_linuxefi;
+  }
+  memset (linuxefi_params, 0, 16384);
+  memcpy (&lh, kernel, sizeof (lh));
+  if (lh.boot_flag != 0xaa55)
+  {
+    printf_errinfo ("Invalid magic number\n");
+    goto failure_linuxefi;
+  }
+  if (lh.setup_sects > GRUB_LINUX_MAX_SETUP_SECTS)
+  {
+    printf_errinfo ("too many setup sectors\n");
+    goto failure_linuxefi;
+  }
+  if (lh.version < 0x020b)
+  {
+    printf_errinfo ("kernel too old\n");
+    goto failure_linuxefi;
+  }
+  if (!lh.handover_offset)
+  {
+    printf_errinfo ("kernel doesn't support EFI handover\n");
+    goto failure_linuxefi;
+  }
+  /* TODO: check flag for i386 efi */
+  if (!(lh.xloadflags & LINUX_XLF_KERNEL_64))
+  {
+    printf_errinfo ("kernel doesn't support 64-bit CPUs, xloadflags=0x%x\n",
+	                lh.xloadflags);
+    goto failure_linuxefi;
+  }
 
-  errnum = 0;
-#ifndef AUTO_LINUX_MEM_OPT
-  load_flags |= KERNEL_LOAD_NO_MEM_OPTION;
-#endif
+  linuxefi_cmdline = allocate_pages_max (0x3fffffff,
+                      BYTES_TO_PAGES(lh.cmdline_size + 1));
+  if (!linuxefi_cmdline)
+  {
+    printf_errinfo ("Failed to allocate kernel cmdline\n");
+    goto failure_linuxefi;
+  }
+  memcpy (linuxefi_cmdline, LINUX_IMAGE, sizeof (LINUX_IMAGE));
+  char *p = NULL;
+  p = grub_strchr (arg, '/');
+  grub_sprintf (linuxefi_cmdline, "%s%s", LINUX_IMAGE, p? p : "/vmlinuz");
+  lh.cmd_line_ptr = (grub_uint32_t)(grub_addr_t)linuxefi_cmdline;
+  printf ("cmdline: %s @0x%x\n", linuxefi_cmdline, lh.cmd_line_ptr);
 
-  /* Deal with GNU-style long options.  */
-  while (1)
-    {
-      /* If the option `--type=TYPE' is specified, convert the string to
-	 a kernel type.  */
-      if (grub_memcmp (arg, "--type=", 7) == 0)
-	{
-	  arg += 7;
-	  
-	  if (grub_memcmp (arg, "netbsd", 6) == 0)
-	    suggested_type = KERNEL_TYPE_NETBSD;
-	  else if (grub_memcmp (arg, "freebsd", 7) == 0)
-	    suggested_type = KERNEL_TYPE_FREEBSD;
-	  else if (grub_memcmp (arg, "openbsd", 7) == 0)
-	    /* XXX: For now, OpenBSD is identical to NetBSD, from GRUB's
-	       point of view.  */
-	    suggested_type = KERNEL_TYPE_NETBSD;
-	  else if (grub_memcmp (arg, "linux", 5) == 0)
-	    suggested_type = KERNEL_TYPE_LINUX;
-	  else if (grub_memcmp (arg, "biglinux", 8) == 0)
-	    suggested_type = KERNEL_TYPE_BIG_LINUX;
-	  else if (grub_memcmp (arg, "multiboot", 9) == 0)
-	    suggested_type = KERNEL_TYPE_MULTIBOOT;
-	  else
-	    {
-	      errnum = ERR_BAD_ARGUMENT;
-	      return 0;
-	    }
-	}
-      /* If the `--no-mem-option' is specified, don't pass a Linux's mem
-	 option automatically. If the kernel is another type, this flag
-	 has no effect.  */
-      else if (grub_memcmp (arg, "--no-mem-option", 15) == 0)
-	load_flags |= KERNEL_LOAD_NO_MEM_OPTION;
-      else
-	break;
+  linuxefi_handover_offset = lh.handover_offset;
+  start =  (lh.setup_sects + 1) * 512;
+  len = filemax - start;
 
-      /* Try the next.  */
-      arg = skip_to (0, arg);
-    }
-  cmd = skip_to (0, arg);
-  len = parse_string(cmd);
-  cmd[len] = 0;
-  len += grub_strlen (kernel_option_video) + 1;
+  linuxefi_size = lh.init_size;
+  linuxefi_mem = allocate_pages_fixed (lh.pref_address, 
+                                       BYTES_TO_PAGES(linuxefi_size));
+  if (!linuxefi_mem)
+    linuxefi_mem = allocate_pages_max (0x3fffffff,
+                                       BYTES_TO_PAGES(linuxefi_size));
+  if (!linuxefi_mem)
+  {
+    printf_errinfo ("Failed to allocate kernel\n");
+    goto failure_linuxefi;
+  }
+  memcpy (linuxefi_mem, (char *)kernel + start, len);
+  /* loader_set */
+  lh.code32_start = (grub_uint32_t)(grub_addr_t) linuxefi_mem;
+  memcpy (linuxefi_params, &lh, 2 * 512);
+  linuxefi_params->type_of_loader = 0x21;
 
-  /* Reset MB_CMDLINE.  */
-  char *MB_CMDLINE_BUF = grub_malloc (0x1000);
-  if (!MB_CMDLINE_BUF)
-    return 0;
-  mb_cmdline = (char *) MB_CMDLINE_BUF;
-  if (len  > MB_CMDLINE_BUFLEN)
-    {
-      errnum = ERR_WONT_FIT;
-      return 0;
-    }
-
-  /* Copy the command-line to MB_CMDLINE and append the kernel_option_video
-   * which might have been set by `setvbe'.
-   */
-  
-  grub_sprintf (mb_cmdline, "%s%s", cmd, kernel_option_video);
-
-  char *LINUX_TMP_MEMORY = grub_efi_allocate_any_pages (BYTES_TO_PAGES (LINUX_TMP_MEMORY_LEN));  //分配最大地址页(请求页数)  (字节转页  向上舍入)
-  if (!LINUX_TMP_MEMORY)
-    return 0;
-  linux_bzimage_tmp_addr = LINUX_TMP_MEMORY;
-  suggested_type = load_image (arg, mb_cmdline, suggested_type, load_flags);
-  grub_free (MB_CMDLINE_BUF);
-  if (suggested_type == KERNEL_TYPE_NONE)
-    return 0;
-
-  kernel_type = suggested_type;
-  mb_cmdline += len;
-  linux_header = (struct linux_kernel_header *) (cur_addr - LINUX_SETUP_MOVE_SIZE);
-  initrd_addr_max = (linux_header->header == LINUX_MAGIC_SIGNATURE && linux_header->version >= 0x0203)
-	      	? linux_header->initrd_addr_max : LINUX_INITRD_MAX_ADDRESS;
+  grub_close ();
+  efi_call_1 (b->free_pool, kernel);
+  kernel_type = KERNEL_TYPE_LINUX;
   return 1;
-#endif
-return 0;
+failure_linuxefi:
+  grub_close ();
+  if (kernel)
+    efi_call_1 (b->free_pool, kernel);
+  if (linuxefi_cmdline)
+    efi_call_2 (b->free_pages, linuxefi_cmdline,
+     BYTES_TO_PAGES(lh.cmdline_size + 1));
+  if (linuxefi_params)
+    efi_call_2 (b->free_pages, linuxefi_params, BYTES_TO_PAGES(16384));
+  if (linuxefi_mem)
+    efi_call_2 (b->free_pages, linuxefi_mem, BYTES_TO_PAGES(linuxefi_size));
+  return 0;
 }
 
 static struct builtin builtin_kernel =

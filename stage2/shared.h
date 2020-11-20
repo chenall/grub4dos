@@ -898,8 +898,229 @@ struct linux_kernel_header
   unsigned int bootsect_kludge;	/* obsolete */
   unsigned short heap_end_ptr;		/* Free memory after setup end */
   unsigned short pad1;			/* Unused */
-  char *cmd_line_ptr;			/* Points to the kernel command line */
+  unsigned int cmd_line_ptr;			/* Points to the kernel command line */
   unsigned int initrd_addr_max;	/* The highest address of initrd */
+  unsigned int kernel_alignment;
+  unsigned char relocatable;
+  unsigned char min_alignment;
+#define LINUX_XLF_KERNEL_64                   (1<<0)
+#define LINUX_XLF_CAN_BE_LOADED_ABOVE_4G      (1<<1)
+#define LINUX_XLF_EFI_HANDOVER_32             (1<<2)
+#define LINUX_XLF_EFI_HANDOVER_64             (1<<3)
+#define LINUX_XLF_EFI_KEXEC                   (1<<4)
+  unsigned short xloadflags;
+  unsigned int cmdline_size;
+  unsigned int hardware_subarch;
+  unsigned long long hardware_subarch_data;
+  unsigned int payload_offset;
+  unsigned int payload_length;
+  unsigned long long setup_data;
+  unsigned long long pref_address;
+  unsigned int init_size;
+  unsigned int handover_offset;
+} __attribute__ ((packed));
+
+#define GRUB_E820_RAM        1
+#define GRUB_E820_RESERVED   2
+#define GRUB_E820_ACPI       3
+#define GRUB_E820_NVS        4
+#define GRUB_E820_BADRAM     5
+
+struct grub_e820_mmap
+{
+  unsigned long long addr;
+  unsigned long long size;
+  unsigned int type;
+} __attribute__ ((unused));
+
+#define LINUX_IMAGE "BOOT_IMAGE="
+
+/* Maximum number of MBR signatures to store. */
+#define EDD_MBR_SIG_MAX			16
+
+#define GRUB_LINUX_I386_MAGIC_SIGNATURE	0x53726448      /* "HdrS" */
+#define GRUB_LINUX_DEFAULT_SETUP_SECTS	4
+#define GRUB_LINUX_INITRD_MAX_ADDRESS	0x37FFFFFF
+#define GRUB_LINUX_MAX_SETUP_SECTS	64
+#define GRUB_LINUX_BOOT_LOADER_TYPE	0x72
+#define GRUB_LINUX_HEAP_END_OFFSET	(0x9000 - 0x200)
+
+/* Boot parameters for Linux based on 2.6.12. This is used by the setup
+   sectors of Linux, and must be simulated by GRUB on EFI, because
+   the setup sectors depend on BIOS.  */
+struct linux_kernel_params
+{
+  unsigned char video_cursor_x;		/* 0 */
+  unsigned char video_cursor_y;
+
+  unsigned short ext_mem;		/* 2 */
+
+  unsigned short video_page;		/* 4 */
+  unsigned char video_mode;		/* 6 */
+  unsigned char video_width;		/* 7 */
+
+  unsigned char padding1[0xa - 0x8];
+
+  unsigned short video_ega_bx;		/* a */
+
+  unsigned char padding2[0xe - 0xc];
+
+  unsigned char video_height;		/* e */
+  unsigned char have_vga;		/* f */
+  unsigned short font_size;		/* 10 */
+
+  unsigned short lfb_width;		/* 12 */
+  unsigned short lfb_height;		/* 14 */
+  unsigned short lfb_depth;		/* 16 */
+  unsigned int lfb_base;		/* 18 */
+  unsigned int lfb_size;		/* 1c */
+
+  unsigned short cl_magic;		/* 20 */
+  unsigned short cl_offset;
+
+  unsigned short lfb_line_len;		/* 24 */
+  unsigned char red_mask_size;		/* 26 */
+  unsigned char red_field_pos;
+  unsigned char green_mask_size;
+  unsigned char green_field_pos;
+  unsigned char blue_mask_size;
+  unsigned char blue_field_pos;
+  unsigned char reserved_mask_size;
+  unsigned char reserved_field_pos;
+  unsigned short vesapm_segment;		/* 2e */
+  unsigned short vesapm_offset;		/* 30 */
+  unsigned short lfb_pages;		/* 32 */
+  unsigned short vesa_attrib;		/* 34 */
+  unsigned int capabilities;		/* 36 */
+  unsigned int ext_lfb_base;		/* 3a */
+
+  unsigned char padding3[0x40 - 0x3e];
+
+  unsigned short apm_version;		/* 40 */
+  unsigned short apm_code_segment;	/* 42 */
+  unsigned int apm_entry;		/* 44 */
+  unsigned short apm_16bit_code_segment;	/* 48 */
+  unsigned short apm_data_segment;	/* 4a */
+  unsigned short apm_flags;		/* 4c */
+  unsigned int apm_code_len;		/* 4e */
+  unsigned short apm_data_len;		/* 52 */
+
+  unsigned char padding4[0x60 - 0x54];
+
+  unsigned int ist_signature;		/* 60 */
+  unsigned int ist_command;		/* 64 */
+  unsigned int ist_event;		/* 68 */
+  unsigned int ist_perf_level;		/* 6c */
+  unsigned long long acpi_rsdp_addr;		/* 70 */
+
+  unsigned char padding5[0x80 - 0x78];
+
+  unsigned char hd0_drive_info[0x10];	/* 80 */
+  unsigned char hd1_drive_info[0x10];	/* 90 */
+  unsigned short rom_config_len;		/* a0 */
+
+  unsigned char padding6[0xb0 - 0xa2];
+
+  unsigned int ofw_signature;		/* b0 */
+  unsigned int ofw_num_items;		/* b4 */
+  unsigned int ofw_cif_handler;	/* b8 */
+  unsigned int ofw_idt;		/* bc */
+
+  unsigned char padding7[0x1b8 - 0xc0];
+
+  union
+    {
+      struct
+        {
+          unsigned int efi_system_table;	/* 1b8 */
+          unsigned int padding7_1;		/* 1bc */
+          unsigned int efi_signature;		/* 1c0 */
+          unsigned int efi_mem_desc_size;	/* 1c4 */
+          unsigned int efi_mem_desc_version;	/* 1c8 */
+          unsigned int efi_mmap_size;		/* 1cc */
+          unsigned int efi_mmap;		/* 1d0 */
+        } v0204;
+      struct
+        {
+          unsigned int padding7_1;		/* 1b8 */
+          unsigned int padding7_2;		/* 1bc */
+          unsigned int efi_signature;		/* 1c0 */
+          unsigned int efi_system_table;	/* 1c4 */
+          unsigned int efi_mem_desc_size;	/* 1c8 */
+          unsigned int efi_mem_desc_version;	/* 1cc */
+          unsigned int efi_mmap;		/* 1d0 */
+          unsigned int efi_mmap_size;		/* 1d4 */
+	} v0206;
+      struct
+        {
+          unsigned int padding7_1;		/* 1b8 */
+          unsigned int padding7_2;		/* 1bc */
+          unsigned int efi_signature;		/* 1c0 */
+          unsigned int efi_system_table;	/* 1c4 */
+          unsigned int efi_mem_desc_size;	/* 1c8 */
+          unsigned int efi_mem_desc_version;	/* 1cc */
+          unsigned int efi_mmap;		/* 1d0 */
+          unsigned int efi_mmap_size;		/* 1d4 */
+          unsigned int efi_system_table_hi;	/* 1d8 */
+          unsigned int efi_mmap_hi;		/* 1dc */
+        } v0208;
+    };
+
+  unsigned int alt_mem;		/* 1e0 */
+
+  unsigned char padding8[0x1e8 - 0x1e4];
+
+  unsigned char mmap_size;		/* 1e8 */
+
+  unsigned char padding9[0x1f1 - 0x1e9];
+
+  /* Linux setup header copy - BEGIN. */
+  unsigned char setup_sects;		/* The size of the setup in sectors */
+  unsigned short root_flags;		/* If the root is mounted readonly */
+  unsigned short syssize;		/* obsolete */
+  unsigned short swap_dev;		/* obsolete */
+  unsigned short ram_size;		/* obsolete */
+  unsigned short vid_mode;		/* Video mode control */
+  unsigned short root_dev;		/* Default root device number */
+
+  unsigned char padding10;		/* 1fe */
+  unsigned char ps_mouse;		/* 1ff */
+
+  unsigned short jump;			/* Jump instruction */
+  unsigned int header;			/* Magic signature "HdrS" */
+  unsigned short version;		/* Boot protocol version supported */
+  unsigned int realmode_swtch;		/* Boot loader hook */
+  unsigned short start_sys;		/* The load-low segment (obsolete) */
+  unsigned short kernel_version;		/* Points to kernel version string */
+  unsigned char type_of_loader;		/* Boot loader identifier */
+  unsigned char loadflags;		/* Boot protocol option flags */
+  unsigned short setup_move_size;	/* Move to high memory size */
+  unsigned int code32_start;		/* Boot loader hook */
+  unsigned int ramdisk_image;		/* initrd load address */
+  unsigned int ramdisk_size;		/* initrd size */
+  unsigned int bootsect_kludge;	/* obsolete */
+  unsigned short heap_end_ptr;		/* Free memory after setup end */
+  unsigned char ext_loader_ver;		/* Extended loader version */
+  unsigned char ext_loader_type;		/* Extended loader type */  
+  unsigned int cmd_line_ptr;		/* Points to the kernel command line */
+  unsigned int initrd_addr_max;	/* Maximum initrd address */
+  unsigned int kernel_alignment;	/* Alignment of the kernel */
+  unsigned char relocatable_kernel;	/* Is the kernel relocatable */
+  unsigned char pad1[3];
+  unsigned int cmdline_size;		/* Size of the kernel command line */
+  unsigned int hardware_subarch;
+  unsigned long long hardware_subarch_data;
+  unsigned int payload_offset;
+  unsigned int payload_length;
+  unsigned long long setup_data;
+  unsigned long long pref_address;
+  unsigned int init_size;
+  unsigned int handover_offset;
+  /* Linux setup header copy - END. */
+
+  unsigned char _pad7[40];
+  unsigned int edd_mbr_sig_buffer[EDD_MBR_SIG_MAX];	/* 290 */
+  struct grub_e820_mmap e820_map[(0x400 - 0x2d0) / 20];	/* 2d0 */
 } __attribute__ ((packed));
 
 /* Memory map address range descriptor used by GET_MMAP_ENTRY. */
