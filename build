@@ -1,32 +1,32 @@
 #! /bin/sh
 #
-# Script to build binary    Éú³É¶ş½øÖÆÎÄ¼şµÄ½Å±¾ 
+# Script to build binary    ç”ŸæˆäºŒè¿›åˆ¶æ–‡ä»¶çš„è„šæœ¬ 
 #
 # Usage:
 #	sh build
 # or
 #	./build
-#´ËÊ±ÔÚ¸ùÄ¿Â¼ /home/dev/grub4efi
+#æ­¤æ—¶åœ¨æ ¹ç›®å½• /home/dev/grub4efi
 
-#Ô´Ä¿Â¼
+#æºç›®å½•
 SOURCE_DIR=`pwd`
-#°æ±¾
+#ç‰ˆæœ¬
 VER=`cat grub4dos_version`
-#ÈÕÆÚ
+#æ—¥æœŸ
 DATE=`date -u +%Y-%m-%d`
-#·¢²¼ÈÕÆÚ
+#å‘å¸ƒæ—¥æœŸ
 RELEASE=grub4dos-${VER}-${DATE}
-#¶¨Òå¸´ÖÆÎÄ¼ş¼¯
+#å®šä¹‰å¤åˆ¶æ–‡ä»¶é›†
 #COPY_FILES="COPYING README_GRUB4DOS*.txt ChangeLog_*.txt \
 #	config.sys default menu.lst grub.pif config.h\
 #	stage2/pre_stage2.exec"
 
-#É¾³ı*.zip *.7z *~
+#åˆ é™¤*.zip *.7z *~
 #rm -rf *.zip *.7z *~ || exit $?
-#¶¨ÒåÁÙÊ±±àÒëÄ¿Â¼ GRUB4DOS_TEMP
+#å®šä¹‰ä¸´æ—¶ç¼–è¯‘ç›®å½• GRUB4DOS_TEMP
 [ -z "$GRUB4DOS_TEMP" ] && GRUB4DOS_TEMP=/tmp/grub4dos-temp
 if svn export . ${GRUB4DOS_TEMP} --force 2>/dev/null ; then
-# check for svn version   ¼ì²ésvn°æ±¾
+# check for svn version   æ£€æŸ¥svnç‰ˆæœ¬
 	export LC_ALL=C
 	svninfo=$(svn info)
 	if [ "$svninfo" ]; then
@@ -46,20 +46,20 @@ EOF
 	[ "$SVN_URL" = "" ] && SVN_URL="https://github.com/chenall/grub4dos"
 	[ "$CURR_REVISION" = "" ] && CURR_REVISION=rHEAD
 	Get_source="\tsvn co -$CURR_REVISION $SVN_URL grub4dos\r\n\tcd grub4dos\r\n\r\n"
-# Generate patch file   Éú³ÉĞŞ²¹³ÌĞòÎÄ¼ş
+# Generate patch file   ç”Ÿæˆä¿®è¡¥ç¨‹åºæ–‡ä»¶
 	svn diff . > ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff 2>/dev/null
-#ºËÊµË÷Òı
+#æ ¸å®ç´¢å¼•
 elif git checkout-index -a -f --prefix=${GRUB4DOS_TEMP}/ 2>/dev/null ; then
-# check for git version   ¼ì²égit°æ±¾ 
+# check for git version   æ£€æŸ¥gitç‰ˆæœ¬ 
 	CURR_REVISION=$(git log -1 --pretty=format:%h)
 	Get_source="\tgit clone git://github.com/chenall/grub4dos.git\r\n\tcd grub4dos\r\n\tgit checkout $CURR_REVISION -b build\r\n\r\n"
-# Generate patch file   Éú³ÉĞŞ²¹³ÌĞòÎÄ¼ş
+# Generate patch file   ç”Ÿæˆä¿®è¡¥ç¨‹åºæ–‡ä»¶
 	git diff --no-prefix > ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff 2> /dev/null
 	if [ -s ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff ]; then
 		cd ${GRUB4DOS_TEMP} || exit $?
 		patch -p0 < grub4dos_${CURR_REVISION}.diff
 	fi
-#´ËÊ±ÔÚ /tmp/grub4dos-temp/
+#æ­¤æ—¶åœ¨ /tmp/grub4dos-temp/
 else
 	files=$(echo *)
 	if ! [ -d ${GRUB4DOS_TEMP} ] ; then
@@ -67,11 +67,11 @@ else
 	fi
 	cp -a $files ${GRUB4DOS_TEMP} || exit $?
 fi
-#´ËÊ±ÔÚ /tmp/grub4dos-temp/
-#×ªµ½ GRUB4DOS_TEMP Ä¿Â¼
+#æ­¤æ—¶åœ¨ /tmp/grub4dos-temp/
+#è½¬åˆ° GRUB4DOS_TEMP ç›®å½•
 cd ${GRUB4DOS_TEMP} || exit $?
 
-#Éú³É Get_Source_of_This_Build.txt ÎÄ¼ş
+#ç”Ÿæˆ Get_Source_of_This_Build.txt æ–‡ä»¶
 if [ "$Get_source" ]; then
 	echo -n -e "Get the source code of this build in this way:\r\n\r\n${Get_source}" > Get_Source_of_This_Build.txt
 	if [ -s grub4dos_${CURR_REVISION}.diff ]; then
@@ -82,42 +82,42 @@ if [ "$Get_source" ]; then
 fi
 
 #############################################
-#	Build english version   Éú³ÉÓ¢ÎÄ°æ±¾ 
+#	Build english version   ç”Ÿæˆè‹±æ–‡ç‰ˆæœ¬ 
 #############################################
-#ÅäÖÃ
+#é…ç½®
 #./configure --enable-preset-menu=preset_menu.lst || exit $?
 ./configure || exit $?
-#Çå½à
+#æ¸…æ´
 make clean
-#±àÒë
+#ç¼–è¯‘
 make || exit $?
 
-#½¨Á¢ grub4dos-${VER} Ä¿Â¼
+#å»ºç«‹ grub4dos-${VER} ç›®å½•
 #rm -rf grub4dos-${VER}
 #mkdir grub4dos-${VER} || exit $?
 
-#¸´ÖÆ stage2/eltorito.sys µ½ grub4dos-${VER}
+#å¤åˆ¶ stage2/eltorito.sys åˆ° grub4dos-${VER}
 #[ -f stage2/eltorito.sys ] && cp stage2/eltorito.sys grub4dos-${VER}
 
-#¸´ÖÆ $COPY_FILES µ½ grub4dos-${VER}
+#å¤åˆ¶ $COPY_FILES åˆ° grub4dos-${VER}
 #cp $COPY_FILES grub4dos-${VER} || exit $?
 
-#×ªµ½ grub4dos-${VER} Ä¿Â¼
+#è½¬åˆ° grub4dos-${VER} ç›®å½•
 #cd grub4dos-${VER}
 
-#Éú³É bootlace64.com
+#ç”Ÿæˆ bootlace64.com
 # generate bootlace64.com
 
-#½¨Á¢ docs Ä¿Â¼£¬²¢ÇÒÒÆ¶¯ *.txt µ½±¾Ä¿Â¼
+#å»ºç«‹ docs ç›®å½•ï¼Œå¹¶ä¸”ç§»åŠ¨ *.txt åˆ°æœ¬ç›®å½•
 #mkdir docs && mv *.txt docs/
 
-#½¨Á¢ sample Ä¿Â¼£¬²¢ÇÒÒÆ¶¯ menu.lst default config.sys µ½±¾Ä¿Â¼
+#å»ºç«‹ sample ç›®å½•ï¼Œå¹¶ä¸”ç§»åŠ¨ menu.lst default config.sys åˆ°æœ¬ç›®å½•
 #mkdir sample && mv menu.lst default config.sys sample/
 
-#·µ»ØÉÏÒ»¼¶ GRUB4DOS_TEMP Ä¿Â¼
+#è¿”å›ä¸Šä¸€çº§ GRUB4DOS_TEMP ç›®å½•
 #cd ..
 
-#Èç¹û´æÔÚ£¬Ôò¸´ÖÆ Get_Source_of_This_Build.txt ¼° grub4dos_${CURR_REVISION}.diff µ½ grub4dos-${VER}
+#å¦‚æœå­˜åœ¨ï¼Œåˆ™å¤åˆ¶ Get_Source_of_This_Build.txt åŠ grub4dos_${CURR_REVISION}.diff åˆ° grub4dos-${VER}
 #if [ -f Get_Source_of_This_Build.txt ]; then
 #	cp Get_Source_of_This_Build.txt grub4dos-${VER}
 #	if [ -s grub4dos_${CURR_REVISION}.diff ]; then
@@ -126,24 +126,24 @@ make || exit $?
 #fi
 
 #############################################
-#	Build chinese version   ½¨Á¢ÖĞÎÄ°æ
+#	Build chinese version   å»ºç«‹ä¸­æ–‡ç‰ˆ
 #############################################
-#Èç¹û²¹¶¡ -p1 < patch-chinese.diff£¬±àÒë
+#å¦‚æœè¡¥ä¸ -p1 < patch-chinese.diffï¼Œç¼–è¯‘
 #patch -p1 < patch-chinese.diff || exit $?
 #make || exit $?
 
-#½¨Á¢ grub4dos-${VER}/chinese Ä¿Â¼
+#å»ºç«‹ grub4dos-${VER}/chinese ç›®å½•
 #mkdir grub4dos-${VER}/chinese || exit $?
-#¸´ÖÆ README_GRUB4DOS_CN.txt ¼° stage2/grldr µ½ grub4dos-${VER}/chinese
+#å¤åˆ¶ README_GRUB4DOS_CN.txt åŠ stage2/grldr åˆ° grub4dos-${VER}/chinese
 #cp README_GRUB4DOS_CN.txt stage2/grldr grub4dos-${VER}/chinese || exit $?
 
 #############################################
-#	Create ZIP ball or TAR ball   ´´½¨ ZIP »ò TAR
+#	Create ZIP ball or TAR ball   åˆ›å»º ZIP æˆ– TAR
 #############################################
-#×ªµ½ $SOURCE_DIR
+#è½¬åˆ° $SOURCE_DIR
 #cd $SOURCE_DIR
 
-#Èç¹û´æÔÚ ipxe£¬Ôò×ªµ½ ipxe/src Ä¿Â¼£¬±àÒë²¢ÍÆËÍ...£¬È»ºó·µ»Ø $SOURCE_DIR Ä¿Â¼
+#å¦‚æœå­˜åœ¨ ipxeï¼Œåˆ™è½¬åˆ° ipxe/src ç›®å½•ï¼Œç¼–è¯‘å¹¶æ¨é€...ï¼Œç„¶åè¿”å› $SOURCE_DIR ç›®å½•
 #if [ -d ipxe ] ; then
 #	cd ipxe/src
 #	[ -d .git ] && git pull
@@ -151,25 +151,25 @@ make || exit $?
 #	cd $SOURCE_DIR
 #fi
 
-#´ËÊ±ÔÚ /tmp/grub4dos-temp/
-#¸´ÖÆpre_stage2.exec
+#æ­¤æ—¶åœ¨ /tmp/grub4dos-temp/
+#å¤åˆ¶pre_stage2.exec
 cp stage2/pre_stage2.exec $GRUB4DOS_TEMP/kernel.img
 cp $SOURCE_DIR/moddep.lst $GRUB4DOS_TEMP/moddep.lst
 platform=`uname -m`
-if [ $platform='x86_64' ]
+if [ $platform = 'x86_64' ]
 then
     $SOURCE_DIR/grub-mkimage64 -d $GRUB4DOS_TEMP -p /GRUB2 -o BOOTX64.EFI -O x86_64-efi
 else
     $SOURCE_DIR/grub-mkimage -d $GRUB4DOS_TEMP -p /GRUB2 -o BOOTX64.EFI -O x86_64-efi
 fi
-#×ªµ½Ô´Ä¿Â¼
+#è½¬åˆ°æºç›®å½•
 cd $SOURCE_DIR
 #$SOURCE_DIR/grub-mkimage -d $SOURCE_DIR -p /GRUB2 -o BOOTX64.EFI -O x86_64-efi
-#´ËÊ±ÔÚ /tmp/grub4dos-temp/
+#æ­¤æ—¶åœ¨ /tmp/grub4dos-temp/
 #cd /
-#´ËÊ±ÔÚ /home/ µÄÉÏÒ»¼¶Ä¿Â¼£¬µ«²»ÊÇ /g4d_dev/
+#æ­¤æ—¶åœ¨ /home/ çš„ä¸Šä¸€çº§ç›®å½•ï¼Œä½†ä¸æ˜¯ /g4d_dev/
 
-#²úÉú grub4dos-0.4.6a-xxxx-xx-xx.7z ÎÄ¼ş
+#äº§ç”Ÿ grub4dos-0.4.6a-xxxx-xx-xx.7z æ–‡ä»¶
 #rm -f ${RELEASE}.zip ${RELEASE}.rar ${RELEASE}.tar.gz || exit $?
 #if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/grub4dos-${VER} ; then
 #	echo 7z failed. Continue with zip or tar...
@@ -185,10 +185,10 @@ if ! 7za a ${RELEASE}.7z ${GRUB4DOS_TEMP}/BOOTX64.EFI $SOURCE_DIR/ChangeLog_UEFI
 fi
 
 
-#É¾³ı*.zip *.7z *~
+#åˆ é™¤*.zip *.7z *~
 #rm -rf *.zip *.7z *~ || exit $?
-#²úÉú grub4dos_for_UEFI-0.4.6a-xxxx-xx-xx.7z ÎÄ¼ş
+#äº§ç”Ÿ grub4dos_for_UEFI-0.4.6a-xxxx-xx-xx.7z æ–‡ä»¶
 #if ! 7z a ${RELEASE}.7z $SOURCE_DIR/BOOTX64.EFI $SOURCE_DIR/ChangeLog_UEFI.txt; then
 #	echo 7z failed. Continue with zip or tar...
 #fi
-# Do not remove grub4dos-temp as we can check and re-use it later.  ²»ÒªÉ¾³ıgrub4dos temp£¬ÒòÎªÎÒÃÇ¿ÉÒÔÉÔºó¼ì²é²¢ÖØĞÂÊ¹ÓÃËü¡£
+# Do not remove grub4dos-temp as we can check and re-use it later.  ä¸è¦åˆ é™¤grub4dos tempï¼Œå› ä¸ºæˆ‘ä»¬å¯ä»¥ç¨åæ£€æŸ¥å¹¶é‡æ–°ä½¿ç”¨å®ƒã€‚
