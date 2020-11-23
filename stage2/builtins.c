@@ -950,9 +950,9 @@ boot_func (char *arg, int flags)
   if (kernel_type == KERNEL_TYPE_LINUX)
   {
     int offset = 0;
-    /* x86_64-efi only */
+#if !i386
     offset = 512;
-
+#endif
     __asm__ volatile ("cli");
 
     linuxefi_boot (linuxefi_mem, linuxefi_handover_offset + offset,
@@ -5397,13 +5397,22 @@ kernel_func (char *arg, int flags)
     printf_errinfo ("kernel doesn't support EFI handover\n");
     goto failure_linuxefi;
   }
-  /* TODO: check flag for i386 efi */
+#if i386
+  if ((lh.xloadflags & LINUX_XLF_KERNEL_64) &&
+      !(lh.xloadflags & LINUX_XLF_EFI_HANDOVER_32))
+  {
+    printf_errinfo ("kernel doesn't support 32-bit handover, xloadflags=0x%x\n",
+                    lh.xloadflags);
+    goto failure_linuxefi;
+  }
+#else
   if (!(lh.xloadflags & LINUX_XLF_KERNEL_64))
   {
     printf_errinfo ("kernel doesn't support 64-bit CPUs, xloadflags=0x%x\n",
 	                lh.xloadflags);
     goto failure_linuxefi;
   }
+#endif
 
   linuxefi_cmdline = allocate_pages_max (0x3fffffff,
                       BYTES_TO_PAGES(lh.cmdline_size + 1));
@@ -5412,10 +5421,7 @@ kernel_func (char *arg, int flags)
     printf_errinfo ("Failed to allocate kernel cmdline\n");
     goto failure_linuxefi;
   }
-  memcpy (linuxefi_cmdline, LINUX_IMAGE, sizeof (LINUX_IMAGE));
-  char *p = NULL;
-  p = grub_strchr (arg, '/');
-  grub_sprintf (linuxefi_cmdline, "%s%s", LINUX_IMAGE, p? p : "/vmlinuz");
+  grub_sprintf (linuxefi_cmdline, "%s%s", LINUX_IMAGE, arg);
   lh.cmd_line_ptr = (grub_uint32_t)(grub_addr_t)linuxefi_cmdline;
   printf ("cmdline: %s @0x%x\n", linuxefi_cmdline, lh.cmd_line_ptr);
 
