@@ -1015,11 +1015,18 @@ restart1:
         i = getkey ();
       c = i;
 #if !HOTKEY		//外置热键
-      if (config_entries && hotkey_func)
+//      if (config_entries && hotkey_func)
+      if (config_entries && *(int *)IMG(0x8260))
+      {
+        external_hotkey = (void *)(long long)(*(long long *)IMG(0x8260));
+//        i = ((int (*)())(*(int *)IMG(0x8260)))(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
+        i = (*external_hotkey)(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
 #else
       if (config_entries && hotkey_func_enable)
-#endif
       {
+        //0x4b40 flags HK,
+        i = hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
+#endif
         //0x4b40 flags HK,
         i = hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
 //        putchar_hooked = 0;
@@ -1764,7 +1771,7 @@ restart_config:
 		if (*config_file)
 		{
 			is_opened = (configfile_opened || grub_open (config_file));
-      menu_mem = grub_zalloc (filemax + 0x1000);     //分配内存, 并清零  
+      menu_mem = grub_zalloc (filemax + 0x40c00);     //分配内存, 并清零  
       title_boot = (unsigned short *)menu_mem;
       titles = (char * *)(menu_mem + 1024);
       config_entries = menu_mem + 1024 + 256 * sizeof (char *);
@@ -1841,7 +1848,7 @@ sss:
 				}
         if(!menu_mem)
         {
-          menu_mem = grub_zalloc (filemax + 0x1000);     //分配内存, 并清零 
+          menu_mem = grub_zalloc (filemax + 0x40c00);     //分配内存, 并清零 
           title_boot = (unsigned short *)menu_mem;
           titles = (char * *)(menu_mem + 1024);
           config_entries = menu_mem + 1024 + 256 * sizeof (char *);
@@ -2073,11 +2080,17 @@ done_config_file:
 	/* Run menu interface.  */
 	/* cur_entry point to the first menu item command. */
 #if !HOTKEY		//外置热键
-	if (hotkey_func)
+//	if (hotkey_func)
+  if (*(int *)IMG(0x8260))
+  {
+    external_hotkey = (void *)(long long)(*(long long *)IMG(0x8260));
+//    ((int (*)())(*(int *)IMG(0x8260)))(0,0,-1,0);
+    (*external_hotkey)(0,0,-1,0);
+  }
 #else
 	if (hotkey_func_enable)
-#endif
 		hotkey_func(0,0,-1,0);
+#endif
 	run_menu ((char *)titles, cur_entry, /*num_entries,*/ config_entries + config_len, default_entry);
     }
     goto restart2;

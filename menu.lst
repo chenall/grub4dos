@@ -64,6 +64,10 @@ chainloader (hd0)
 title 启动其他菜单
 configfile /efi/grub/menu2.lst
 
+title 启动 Linux Porteus 5.0 x86_64 openbox
+kernel /porteus/vmlinuz copy2ram
+initrd /porteus/initrd.xz
+
 title 命令行
 commandline
 

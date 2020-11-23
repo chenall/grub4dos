@@ -135,10 +135,13 @@ VARIABLE(config_file)																											//0x8217-0x8221		配置文件
 	.word	0x7273																														//															0x0000
 	.word	0x63																															//															0x5eebaa55
 
-	/* Utilities may use this to locate the bss starting address,
-	 * where the "bootlace" signature is placed and preset-menu
-	 * follows.
-	 */
+#if !HOTKEY
+	. = EXT_C(main) + 0x60
+
+VARIABLE(external_hotkey)  //int*                                         //0x8260	外置热键功能
+  .quad 0 
+#endif
+
 	. = EXT_C(main) + 0x68                                                  //0x826c
   
 VARIABLE(min_con_mem_start)                                               //0x8268  最低常规内存起始(字节)  int 
@@ -169,10 +172,8 @@ VARIABLE(menu_num_ctrl) //unsigned char menu_num_ctrl[4]  4字节
 #endif
 #undef GRUB4DOS_INT_VER
 
-#if 0				//外置热键
-VARIABLE(hotkey_func)																											//0x827c	热键功能
-#else				//内置热键
-VARIABLE(hotkey_func_enable)  //int 0x7c
+#if HOTKEY
+VARIABLE(hotkey_func_enable)    //int                                     0x827c    内置热键功能允许
 #endif
 	.long 0
   
@@ -681,14 +682,14 @@ VARIABLE(quit_print)                    //10  int
 	.quad	0
 VARIABLE(block_io_protocol_this)        //11
 	.quad	0
-//VARIABLE(buf_track)                   //12  reserved
-	.quad	-1				//reserved
+//VARIABLE(buf_track)
+	.quad	ABS(EXT_C(image))               //12  struct grub_efi_loaded_image
 VARIABLE(filesystem_type)               //13  int
 	.quad	0
-//VARIABLE(query_block_entries)         //14  reserved
-	.quad	0				//reserved
-//VARIABLE(map_start_sector)            //15  reserved
-	.quad	0				//reserved
+//VARIABLE(query_block_entries)
+	.quad	ABS(EXT_C(grub_efi_image_handle))   //14  void *
+//VARIABLE(map_start_sector)
+	.quad	ABS(EXT_C(grub_efi_system_table))   //15  struct grub_efi_system_table
 	.quad	ABS(EXT_C(buf_geom))            //16  geometry
 	.quad	ABS(EXT_C(tmp_geom))            //17  geometry
 	.quad	0	//ABS(EXT_C(term_table))      //18  reserved
