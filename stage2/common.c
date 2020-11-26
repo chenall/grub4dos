@@ -1541,9 +1541,9 @@ copy_grub4dos_self_address (void)
   if (status)
     return;  
   //复制特定字符串
-  grub_memmove ((void *)(grub4dos_self_address + 0xe0), "   $INT13SFGRUB4DOS", 19);  
+  grub_memmove ((void *)(grub_size_t)(grub4dos_self_address + 0xe0), "   $INT13SFGRUB4DOS", 19);  
   //复制bootx64.efi自身地址
-  *(grub_size_t*)((char *)grub4dos_self_address + 0x100) = (grub_size_t)grub_image;
+  *(grub_size_t*)((char *)(grub_size_t)grub4dos_self_address + 0x100) = (grub_size_t)grub_image;
 }
 
 char *grub_image;

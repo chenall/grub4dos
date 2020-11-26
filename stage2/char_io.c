@@ -45,7 +45,7 @@ void *grub_memmove (void *to, const void *from, grub_size_t len);
 void *grub_memset (void *start, int c, grub_size_t len);
 char *grub_strstr (const char *s1, const char *s2);
 char *grub_strtok (char *s, const char *delim);
-void *grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len);
+unsigned long long grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len);
 unsigned long long grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long len);
 int grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned long long len);
 
@@ -441,8 +441,10 @@ grub_sprintf (char *buffer, const char *format, ...)
         {
 #if i386
           int lo, hi;
-          lo = *(dataptr++);
-          hi = (length ? (*(dataptr++)) : ((*format == 'd' && lo<(int)0)?(int)-1:(int)0));
+//          lo = *(dataptr++);
+//          hi = (length ? (*(dataptr++)) : ((*format == 'd' && lo<(int)0)?(int)-1:(int)0));
+          lo = va_arg(ap, unsigned int);
+          hi = (length ? (va_arg(ap, unsigned int)) : ((*format == 'd' && lo<(int)0)?(int)-1:(int)0));
           *convert_to_ascii ((char *)str, *format, lo, hi) = 0;
 #else
           unsigned long long lo;
@@ -2291,12 +2293,12 @@ Transfer data in memory.
 Limitation:
 code must be below 16MB as mapped by memory_paging_init function
 */
-void *
+unsigned long long
 grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len)
 {
 #if !i386
 
-	return grub_memmove ((void *)dst_addr, (void *)src_addr, len);
+	return (unsigned long long)(grub_size_t)grub_memmove ((void *)(grub_size_t)dst_addr, (void *)(grub_size_t)src_addr, len);
 #if 0
 	if (dst_addr < src_addr)
 	{

@@ -42,6 +42,11 @@
 //#define	ABS(x)	((x) - EXT_C(main) + 0x8200)
 #define	ABS(x)	(x)
 
+#if i386
+  #define extent long
+#else
+  #define extent quad
+#endif
 
 	.file	"asm.S"
 
@@ -139,7 +144,7 @@ VARIABLE(config_file)																											//0x8217-0x8221		配置文件
 	. = EXT_C(main) + 0x60
 
 VARIABLE(external_hotkey)  //int*                                         //0x8260	外置热键功能
-  .quad 0 
+  .extent 0 
 #endif
 
 	. = EXT_C(main) + 0x68                                                  //0x826c
@@ -265,10 +270,14 @@ VARIABLE(linux_data_real_addr)                                            //char
 	. = EXT_C(main) + 0x100																									//0x8300
   
 VARIABLE(addr_system_functions)																						//0x8300    系统功能地址
-	.quad	ABS(EXT_C(system_functions))
+	.extent	ABS(EXT_C(system_functions))
+
+#if i386
+  .long 0                                                                 //使变量指针始终为0x8308
+#endif
 
 VARIABLE(addr_system_variables)																						//0x8308		系统变量地址(原0x8304）
-	.quad	ABS(EXT_C(system_variables))	
+	.extent	ABS(EXT_C(system_variables))	
 
   
 	. = EXT_C(main) + 0x110																									//0x8310
@@ -549,95 +558,95 @@ http://grubutils.googlecode.com/svn/trunk/src/include/grub4dos.h
  *
  */
  
-//虽然 i386 32位系统在此处可以使用 long, 但是为了简化批处理, 统一使用 quad.
+//i386 32位系统编译在此处可以使用 long, 但是不能使用 quad，为了简化批处理, 统一使用 extent.
 VARIABLE(system_functions)                            //IMG(0x8300)
-	.quad ABS(EXT_C(grub_sprintf))                      //0
-	.quad	ABS(EXT_C(grub_putstr))                       //1
+	.extent ABS(EXT_C(grub_sprintf))                      //0
+	.extent	ABS(EXT_C(grub_putstr))                       //1
 //VARIABLE(grub_putchar)
-//	.quad	ABS(EXT_C(_putchar))
-	.quad	ABS(EXT_C(grub_putchar))                      //2
-	.quad	ABS(EXT_C(get_cmdline_obsolete))              //3
-	.quad	ABS(EXT_C(getxy))                             //4
-	.quad	ABS(EXT_C(gotoxy))                            //5
-	.quad	ABS(EXT_C(cls))                               //6
-	.quad	ABS(EXT_C(wee_skip_to))	                      //7   was obsolete setcursor
-	.quad	ABS(EXT_C(nul_terminate))                     //8
-	.quad	ABS(EXT_C(safe_parse_maxint_with_suffix))     //9
-	.quad	ABS(EXT_C(substring))                         //10
-	.quad	ABS(EXT_C(grub_strstr))                       //11
-	.quad	ABS(EXT_C(grub_strlen))                       //12
-	.quad	ABS(EXT_C(grub_strtok))                       //13
-	.quad	ABS(EXT_C(grub_strncat))                      //14
-	.quad	ABS(EXT_C(grub_strcmp))                       //15
-	.quad	ABS(EXT_C(grub_strcpy))                       //16
-	.quad ABS(EXT_C(grub_efidisk_readwrite))			      //17
-  .quad ABS(EXT_C(blockio_read_write))				        //18
-	.quad	ABS(EXT_C(getkey))	                          //19
-	.quad	ABS(EXT_C(checkkey))                          //20
-	.quad	0				                                      //21  原ABS(EXT_C(pxe_call))	现在未使用
-	.quad	ABS(EXT_C(grub_memcmp))                       //22
-	.quad	ABS(EXT_C(grub_memmove))                      //23
-	.quad	ABS(EXT_C(grub_memset))                       //24
-	.quad 0				                                      //25  reserved
-	.quad	ABS(EXT_C(grub_open))                         //26
-	.quad	ABS(EXT_C(grub_read))                         //27
-	.quad	ABS(EXT_C(grub_close))                        //28
-	.quad 0				                                      //29  reserved
-	.quad 0				                                      //30  reserved
+//	.extent	ABS(EXT_C(_putchar))
+	.extent	ABS(EXT_C(grub_putchar))                      //2
+	.extent	ABS(EXT_C(get_cmdline_obsolete))              //3
+	.extent	ABS(EXT_C(getxy))                             //4
+	.extent	ABS(EXT_C(gotoxy))                            //5
+	.extent	ABS(EXT_C(cls))                               //6
+	.extent	ABS(EXT_C(wee_skip_to))	                      //7   was obsolete setcursor
+	.extent	ABS(EXT_C(nul_terminate))                     //8
+	.extent	ABS(EXT_C(safe_parse_maxint_with_suffix))     //9
+	.extent	ABS(EXT_C(substring))                         //10
+	.extent	ABS(EXT_C(grub_strstr))                       //11
+	.extent	ABS(EXT_C(grub_strlen))                       //12
+	.extent	ABS(EXT_C(grub_strtok))                       //13
+	.extent	ABS(EXT_C(grub_strncat))                      //14
+	.extent	ABS(EXT_C(grub_strcmp))                       //15
+	.extent	ABS(EXT_C(grub_strcpy))                       //16
+	.extent ABS(EXT_C(grub_efidisk_readwrite))			      //17
+  .extent ABS(EXT_C(blockio_read_write))				        //18
+	.extent	ABS(EXT_C(getkey))	                          //19
+	.extent	ABS(EXT_C(checkkey))                          //20
+	.extent	0				                                      //21  原ABS(EXT_C(pxe_call))	现在未使用
+	.extent	ABS(EXT_C(grub_memcmp))                       //22
+	.extent	ABS(EXT_C(grub_memmove))                      //23
+	.extent	ABS(EXT_C(grub_memset))                       //24
+	.extent 0				                                      //25  reserved
+	.extent	ABS(EXT_C(grub_open))                         //26
+	.extent	ABS(EXT_C(grub_read))                         //27
+	.extent	ABS(EXT_C(grub_close))                        //28
+	.extent 0				                                      //29  reserved
+	.extent 0				                                      //30  reserved
   VARIABLE(disk_read_hook)
-  .quad 0                                             //31
-	.quad	ABS(EXT_C(devread))                           //32
-	.quad	0                                             //33  原ABS(EXT_C(devwrite)) 现在未使用
-	.quad	ABS(EXT_C(next_partition))                    //34
-	.quad	ABS(EXT_C(open_device))                       //35
-	.quad	ABS(EXT_C(real_open_partition))               //36
-	.quad	ABS(EXT_C(set_device))                        //37
-	.quad 0				                                      //38  reserved
-	.quad 0				                                      //39  reserved
-	.quad 0				                                      //40  reserved
-	.quad	ABS(EXT_C(parse_string))                      //41
-	.quad	ABS(EXT_C(hexdump))                           //42
-	.quad	ABS(EXT_C(skip_to))                           //43
-	.quad	ABS(EXT_C(builtin_cmd))                       //44
-	.quad	ABS(EXT_C(get_datetime))                      //45
-	.quad	ABS(EXT_C(find_command))                      //46
-	.quad 0				                                      //47  reserved
-	.quad 0				                                      //48  reserved
-	.quad	0				                                      //49  原ABS(EXT_C(get_mmap_entry)) 现在未使用
-	.quad	ABS(EXT_C(grub_malloc))                       //50
-	.quad	ABS(EXT_C(grub_free))                         //51
-	.quad 0                                             //52  原list_partitions 现在未使用
-	.quad 0						                                  //53  原ABS(EXT_C(realmode_run)) realmode_run	reserved for wee  现在未使用
-	.quad 0                                             //54  未使用
-	.quad 0                                             //55  未使用
-	.quad 0                                             //56  未使用
-	.quad 0                                             //57  未使用
-	.quad 0                                             //58  未使用
-	.quad 0                                             //59  未使用
-	.quad 0                                             //60  未使用
+  .extent 0                                             //31
+	.extent	ABS(EXT_C(devread))                           //32
+	.extent	0                                             //33  原ABS(EXT_C(devwrite)) 现在未使用
+	.extent	ABS(EXT_C(next_partition))                    //34
+	.extent	ABS(EXT_C(open_device))                       //35
+	.extent	ABS(EXT_C(real_open_partition))               //36
+	.extent	ABS(EXT_C(set_device))                        //37
+	.extent 0				                                      //38  reserved
+	.extent 0				                                      //39  reserved
+	.extent 0				                                      //40  reserved
+	.extent	ABS(EXT_C(parse_string))                      //41
+	.extent	ABS(EXT_C(hexdump))                           //42
+	.extent	ABS(EXT_C(skip_to))                           //43
+	.extent	ABS(EXT_C(builtin_cmd))                       //44
+	.extent	ABS(EXT_C(get_datetime))                      //45
+	.extent	ABS(EXT_C(find_command))                      //46
+	.extent 0				                                      //47  reserved
+	.extent 0				                                      //48  reserved
+	.extent	0				                                      //49  原ABS(EXT_C(get_mmap_entry)) 现在未使用
+	.extent	ABS(EXT_C(grub_malloc))                       //50
+	.extent	ABS(EXT_C(grub_free))                         //51
+	.extent 0                                             //52  原list_partitions 现在未使用
+	.extent 0						                                  //53  原ABS(EXT_C(realmode_run)) realmode_run	reserved for wee  现在未使用
+	.extent 0                                             //54  未使用
+	.extent 0                                             //55  未使用
+	.extent 0                                             //56  未使用
+	.extent 0                                             //57  未使用
+	.extent 0                                             //58  未使用
+	.extent 0                                             //59  未使用
+	.extent 0                                             //60  未使用
 	////////////////////////////////////////////61
-	.quad	ABS(EXT_C(dir))                               //61
-	.quad	ABS(EXT_C(print_a_completion))                //62
-	.quad	ABS(EXT_C(print_completions))                 //63
-	.quad	0                                             //64  未使用
-	.quad	ABS(EXT_C(probe_bpb))                         //65
-	.quad	ABS(EXT_C(probe_mbr))                         //66
-	.quad	ABS(EXT_C(unicode_to_utf8))                   //67
-	.quad	ABS(EXT_C(rawread))                           //68
-	.quad	ABS(EXT_C(rawwrite))                          //69
-	.quad	ABS(EXT_C(setcursor))                         //70
-	.quad	ABS(EXT_C(grub_tolower))                      //71
-	.quad	ABS(EXT_C(grub_isspace))                      //72
-	.quad	ABS(EXT_C(grub_sleep))                        //73
-	.quad	0			                                        //74  原ABS(EXT_C(mem64)) 现在未使用
-	.quad ABS(EXT_C(envi_cmd))                          //75
-	.quad ABS(EXT_C(strncmpx))                          //76
+	.extent	ABS(EXT_C(dir))                               //61
+	.extent	ABS(EXT_C(print_a_completion))                //62
+	.extent	ABS(EXT_C(print_completions))                 //63
+	.extent	0                                             //64  未使用
+	.extent	ABS(EXT_C(probe_bpb))                         //65
+	.extent	ABS(EXT_C(probe_mbr))                         //66
+	.extent	ABS(EXT_C(unicode_to_utf8))                   //67
+	.extent	ABS(EXT_C(rawread))                           //68
+	.extent	ABS(EXT_C(rawwrite))                          //69
+	.extent	ABS(EXT_C(setcursor))                         //70
+	.extent	ABS(EXT_C(grub_tolower))                      //71
+	.extent	ABS(EXT_C(grub_isspace))                      //72
+	.extent	ABS(EXT_C(grub_sleep))                        //73
+	.extent	0			                                        //74  原ABS(EXT_C(mem64)) 现在未使用
+	.extent ABS(EXT_C(envi_cmd))                          //75
+	.extent ABS(EXT_C(strncmpx))                          //76
 #ifdef SUPPORT_GRAPHICS
-	.quad ABS(EXT_C(rectangle))                         //77
+	.extent ABS(EXT_C(rectangle))                         //77
 #else
-	.quad 0
+	.extent 0
 #endif
-	.quad ABS(EXT_C(get_cmdline))                       //78
+	.extent ABS(EXT_C(get_cmdline))                       //78
 
 /*
  * The C code for a grub4dos executable may have defines as follows:
@@ -659,86 +668,86 @@ VARIABLE(system_functions)                            //IMG(0x8300)
 
 VARIABLE(system_variables)              //IMG(0x8308)
 VARIABLE(next_partition_drive)          //0 int
-	.quad 0
+	.extent 0
 VARIABLE(next_partition_dest)           //1 int
-	.quad 0
+	.extent 0
 VARIABLE(next_partition_partition)      //2 int*
-	.quad 0
+	.extent 0
 VARIABLE(next_partition_type)           //3 int*
-	.quad 0
+	.extent 0
 VARIABLE(next_partition_start)          //4 long long *
-	.quad 0
+	.extent 0
 VARIABLE(next_partition_len)            //5 long long *
-	.quad 0
+	.extent 0
 VARIABLE(next_partition_offset)         //6 long long *
-	.quad 0
+	.extent 0
 VARIABLE(next_partition_entry)          //7 int*
-	.quad 0
+	.extent 0
 VARIABLE(next_partition_ext_offset)     //8 int*
-	.quad 0
+	.extent 0
 VARIABLE(next_partition_buf)            //9 char *
-	.quad 0
+	.extent 0
 VARIABLE(quit_print)                    //10  int
-	.quad	0
+	.extent	0
 VARIABLE(block_io_protocol_this)        //11
-	.quad	0
+	.extent	0
 //VARIABLE(buf_track)
-	.quad	ABS(EXT_C(image))               //12  struct grub_efi_loaded_image
+	.extent	ABS(EXT_C(image))               //12  struct grub_efi_loaded_image
 VARIABLE(filesystem_type)               //13  int
-	.quad	0
+	.extent	0
 //VARIABLE(query_block_entries)
-	.quad	ABS(EXT_C(grub_efi_image_handle))   //14  void *
+	.extent	ABS(EXT_C(grub_efi_image_handle))   //14  void *
 //VARIABLE(map_start_sector)
-	.quad	ABS(EXT_C(grub_efi_system_table))   //15  struct grub_efi_system_table
-	.quad	ABS(EXT_C(buf_geom))            //16  geometry
-	.quad	ABS(EXT_C(tmp_geom))            //17  geometry
-	.quad	0	//ABS(EXT_C(term_table))      //18  reserved
+	.extent	ABS(EXT_C(grub_efi_system_table))   //15  struct grub_efi_system_table
+	.extent	ABS(EXT_C(buf_geom))            //16  geometry
+	.extent	ABS(EXT_C(tmp_geom))            //17  geometry
+	.extent	0	//ABS(EXT_C(term_table))      //18  reserved
 VARIABLE(current_term)
-	.quad	ABS(EXT_C(term_table))          //19  term_entry
-	.quad	ABS(EXT_C(fsys_table))          //20  fsys_entry
+	.extent	ABS(EXT_C(term_table))          //19  term_entry
+	.extent	ABS(EXT_C(fsys_table))          //20  fsys_entry
 //VARIABLE(fsys_type)//reserved
-	.quad	fsys_type		                    //21  int
-	.quad	NUM_FSYS		                    //22  常数
+	.extent	fsys_type		                    //21  int
+	.extent	NUM_FSYS		                    //22  常数
 VARIABLE(graphics_inited)	              //23  int
-	.quad	0
-	.quad	0			                          //24  reserved
+	.extent	0
+	.extent	0			                          //24  reserved
 //VARIABLE(font8x16)                    //25  reserved
-	.quad	0
+	.extent	0
 VARIABLE(fontx)	                        //26  int
-	.quad	0
+	.extent	0
 VARIABLE(fonty)	                        //27  int
-	.quad	0
+	.extent	0
 VARIABLE(graphics_CURSOR)               //28  void *
-	.quad	0
-	.quad	(EXT_C(menu_border))            //29  border 数组
+	.extent	0
+	.extent	(EXT_C(menu_border))            //29  border 数组
 VARIABLE(gzip_filemax)                  //30  long long
-	.quad	0
-	.quad	0                               //31  reserved
+	.extent	0
+	.extent	0                               //31  reserved
 	//reserved for wee
-	.quad	0                               //32  reserved
-	.quad	0                               //33  reserved
-	.quad	0                               //34  reserved
-	.quad	0                               //35  reserved
-	.quad	0                               //36  reserved
-	.quad	0                               //37  reserved
-	.quad	0                               //38  reserved
-	.quad	0                               //39  reserved
-	.quad	0                               //40  reserved
-	.quad	0                               //41  reserved
+	.extent	0                               //32  reserved
+	.extent	0                               //33  reserved
+	.extent	0                               //34  reserved
+	.extent	0                               //35  reserved
+	.extent	0                               //36  reserved
+	.extent	0                               //37  reserved
+	.extent	0                               //38  reserved
+	.extent	0                               //39  reserved
+	.extent	0                               //40  reserved
+	.extent	0                               //41  reserved
 	//////////////////////////////
 VARIABLE(current_color)                 //42  int
-	.quad A_NORMAL
+	.extent A_NORMAL
 VARIABLE(current_color_64bit)           //43  long long
-	.quad	0xAAAAAA
-  .quad 0                               //44  i386的32位背景色，x86_64没有用。
+	.extent	0xAAAAAA
+  .extent 0                               //44  i386的32位背景色，x86_64没有用。
 VARIABLE(p_get_cmdline_str)             //45  未使用
-	.quad ABS(EXT_C(get_cmdline_str))
+	.extent ABS(EXT_C(get_cmdline_str))
 VARIABLE(splashimage_loaded)            //46  int
-	.quad 0	
+	.extent 0	
 VARIABLE(putchar_hooked)                //47  char*
-	.quad 0
+	.extent 0
 //VARIABLE(init_free_mem_start)         //48  reserved
-	.quad 0
+	.extent 0
 
 
 	.space 0x200

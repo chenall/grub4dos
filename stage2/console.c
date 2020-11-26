@@ -393,7 +393,7 @@ get_console_mode (void) //获得控制台模式信息		ok
   int i, j=3;
   for (i=0; i<j; i++)
   {
-    status = efi_call_4 (o->query_mode, o, i, &columns, &rows);
+    status = efi_call_4 (o->query_mode, o, i, (grub_efi_uintn_t *)(grub_size_t)&columns, (grub_efi_uintn_t *)(grub_size_t)&rows);
     if (status == GRUB_EFI_SUCCESS)
       j = o->mode->max_mode;
       

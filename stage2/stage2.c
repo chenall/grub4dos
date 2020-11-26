@@ -1027,8 +1027,6 @@ restart1:
         //0x4b40 flags HK,
         i = hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
 #endif
-        //0x4b40 flags HK,
-        i = hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
 //        putchar_hooked = 0;
         c = i;  
         if (i == -1)

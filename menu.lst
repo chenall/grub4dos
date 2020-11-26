@@ -22,15 +22,18 @@ splashimage /efi/grub/splashimage.jpg || splashimage /boot/grub/splashimage.bmp
 #加载字体(如果不是 16*16 字体，需增加参数，如 --font-high=24)
 font /efi/grub/unifont.hex.gz
 
-#设置菜单举例
+#设置菜单框
 setmenu --box x=4 w=60 y=6 h=9 l=2
-setmenu --keyhelp=1 --lang=zh
+#设置中文菜单按键帮助
+setmenu --lang=zh
+#设置自动菜单编号
 setmenu --auto-num-on 
-setmenu --keyhelp=1=0x66ff00
-setmenu --string=m=2=0x0000000000ffff="G4D 维  护  菜  单"
-setmenu --string=s=1=0x8800000000ffff="date&time=yyyy-MM-dd  HH:mm:ss"
+#设置字符串信息
+setmenu --string=80=2=0x0000000000ffff="G4D 维  护  菜  单"
+#设置日期时间
+#setmenu --string=s=1=0x8800000000ffff="date&time=yyyy-MM-dd  HH:mm:ss"
+#设置倒计时
 setmenu --timeout=90=2=0x88000000ffff
-setmenu --hotkey -A [F4] commandline
 
 title 启动 efi 文件
 chainloader /efi/boot/grub2x64.efi

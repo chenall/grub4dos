@@ -2822,7 +2822,7 @@ grub_efidisk_fini (void)		//efidisk结束
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //kern.misc.c
-#if 0
+
 /* Divide N by D, return the quotient, and store the remainder in *R.  将N除以D，返回商，并将余数存储在*R中*/
 grub_uint64_t grub_divmod64 (grub_uint64_t n, grub_uint64_t d, grub_uint64_t *r);
 grub_uint64_t
@@ -2874,6 +2874,23 @@ grub_divmod64 (grub_uint64_t n, grub_uint64_t d, grub_uint64_t *r)    //没有�
   return q;
 }
 
+grub_uint64_t __umoddi3 (grub_uint64_t a, grub_uint64_t b);
+grub_uint64_t
+__umoddi3 (grub_uint64_t a, grub_uint64_t b)
+{
+  grub_uint64_t ret;
+  grub_divmod64 (a, b, &ret);
+  return ret;
+}
+
+grub_uint64_t __udivdi3 (grub_uint64_t a, grub_uint64_t b);
+grub_uint64_t
+__udivdi3 (grub_uint64_t a, grub_uint64_t b)
+{
+  return grub_divmod64 (a, b, 0);
+}
+
+#if 0
 static grub_efi_uintn_t device_path_node_length (const void *node);
 static grub_efi_uintn_t
 device_path_node_length (const void *node)  //设备路径节点长度   pppp

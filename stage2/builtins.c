@@ -782,16 +782,16 @@ map_to_svbus (grub_efi_physical_address_t address)
     if (drive_map_slot_empty (disk_drive_map[i]))   //判断驱动器映像插槽是否为空   为空,返回1
       break;
 
-    grub_memmove ((char *)((char *)address + i*24), (char *)&disk_drive_map[i], 24);
-    *(char*)((char *)address + i*24 + 2) = 0xfe;    //from最大磁头号 
+    grub_memmove ((char *)((char *)(grub_size_t)address + i*24), (char *)&disk_drive_map[i], 24);
+    *(char*)((char *)(grub_size_t)address + i*24 + 2) = 0xfe;    //from最大磁头号 
     if (disk_drive_map[i].from_drive >= 0xa0)
-      *(char*)((char *)address + i*24 + 5) = 0x20;  //from驱动器是cdrom
+      *(char*)((char *)(grub_size_t)address + i*24 + 5) = 0x20;  //from驱动器是cdrom
     else
-      *(char*)((char *)address + i*24 + 5) = 0;
+      *(char*)((char *)(grub_size_t)address + i*24 + 5) = 0;
   }
 
   //复制碎片插槽
-  grub_memmove ((char *)((char *)address + 0x110), (char *)&disk_fragment_map, 0x400);
+  grub_memmove ((char *)((char *)(grub_size_t)address + 0x110), (char *)&disk_fragment_map, 0x400);
 }
 
 static char chainloader_file[256];
@@ -959,15 +959,15 @@ boot_func (char *arg, int flags)
 				   linuxefi_params);
     /* should not return */
     if (initrdefi_mem)
-      efi_call_2 (b->free_pages, initrdefi_mem,
+      efi_call_2 (b->free_pages, (grub_size_t)initrdefi_mem,
                   BYTES_TO_PAGES(linuxefi_params->ramdisk_size));
     if (linuxefi_cmdline)
-	  efi_call_2 (b->free_pages, linuxefi_cmdline,
+	  efi_call_2 (b->free_pages, (grub_size_t)linuxefi_cmdline,
             BYTES_TO_PAGES(linuxefi_params->cmdline_size + 1));
     if (linuxefi_mem)
-      efi_call_2 (b->free_pages, linuxefi_mem, BYTES_TO_PAGES(linuxefi_size));
+      efi_call_2 (b->free_pages, (grub_size_t)linuxefi_mem, BYTES_TO_PAGES(linuxefi_size));
     if (linuxefi_params)
-      efi_call_2 (b->free_pages, linuxefi_params, BYTES_TO_PAGES(16384));
+      efi_call_2 (b->free_pages, (grub_size_t)linuxefi_params, BYTES_TO_PAGES(16384));
   }
   else
   {
@@ -1037,7 +1037,7 @@ chainloader_func (char *arg, int flags)
       no_install_vdisk = 0; 
       grub_close ();
       d = get_device_by_drive (current_drive);
-      vpart_install (k >> 8, d->device_path, (struct grub_part_data*)boot_entry);				    //安装虚拟分区
+      vpart_install (k >> 8, d->device_path, (struct grub_part_data*)(grub_size_t)boot_entry);				    //安装虚拟分区
       d = get_device_by_drive (k & 0xff);
       image_handle = vpart_load_image (d->handle);	    //虚拟磁盘启动
       if (!image_handle)
@@ -5298,7 +5298,7 @@ initrd_func (char *arg, int flags)
 
 fail:
   if (initrdefi_mem)
-    efi_call_2 (b->free_pages, initrdefi_mem, BYTES_TO_PAGES(size));
+    efi_call_2 (b->free_pages, (grub_size_t)initrdefi_mem, BYTES_TO_PAGES(size));
   grub_close ();
   return 0;
 }
@@ -5455,12 +5455,12 @@ failure_linuxefi:
   if (kernel)
     efi_call_1 (b->free_pool, kernel);
   if (linuxefi_cmdline)
-    efi_call_2 (b->free_pages, linuxefi_cmdline,
+    efi_call_2 (b->free_pages, (grub_size_t)linuxefi_cmdline,
      BYTES_TO_PAGES(lh.cmdline_size + 1));
   if (linuxefi_params)
-    efi_call_2 (b->free_pages, linuxefi_params, BYTES_TO_PAGES(16384));
+    efi_call_2 (b->free_pages, (grub_size_t)linuxefi_params, BYTES_TO_PAGES(16384));
   if (linuxefi_mem)
-    efi_call_2 (b->free_pages, linuxefi_mem, BYTES_TO_PAGES(linuxefi_size));
+    efi_call_2 (b->free_pages, (grub_size_t)linuxefi_mem, BYTES_TO_PAGES(linuxefi_size));
   return 0;
 }
 
@@ -6752,11 +6752,11 @@ get_info_ok:
     }
     else  //其他
     {
-      struct efi_allocation *alloc; //分配				动态地址,变化
+      grub_efi_physical_address_t alloc; //分配				动态地址,变化
 //      status = efi_call_3 (b->allocate_pool, GRUB_EFI_BOOT_SERVICES_DATA, //启动服务数据        4
 //          (grub_efi_uintn_t)(bytes_needed + 0x200),(void **)&alloc);	//(分配池,存储器类型->引导服务数据,分配字节,返回分配地址}		
       status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES, GRUB_EFI_LOADER_CODE,
-			      (grub_efi_uintn_t)bytes_needed >> 12, (void **)&alloc);	//调用(分配页面,分配类型->任意页面,存储类型->装载程序代码(1),分配页,地址)
+			      (grub_efi_uintn_t)bytes_needed >> 12, &alloc);	//调用(分配页面,分配类型->任意页面,存储类型->装载程序代码(1),分配页,地址)
 																		 
       if (status != GRUB_EFI_SUCCESS)	//如果失败
       {
@@ -6764,7 +6764,7 @@ get_info_ok:
         return 0;
       }
 //      disk_drive_map[i].start_sector = ((unsigned long long)(grub_size_t)(char*)alloc | 0x200) & 0xfffffffffffffe00;  //此处是内存起始字节!!!
-      disk_drive_map[i].start_sector = (unsigned long long)(grub_size_t)(char*)alloc;  //此处是内存起始字节!!!
+      disk_drive_map[i].start_sector = alloc;  //此处是内存起始字节!!!
     }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////以上插入分配内存
@@ -10052,7 +10052,7 @@ mem:
 			while (1)
 			{
 //				grub_memmove64((unsigned long long)(grub_size_t)s, (img ? (offset - 0x8200 + (unsigned long long)(grub_size_t)grub_image + 0x400) : offset), j);
-        grub_memmove((void *)(grub_size_t)s, (const void *)(img ? (offset - 0x8200 + (grub_size_t)grub_image + 0x400) : offset), j);
+        grub_memmove((void *)(grub_size_t)s, (const void *)(grub_size_t)(img ? (offset - 0x8200 + (grub_size_t)grub_image + 0x400) : offset), j);
 				hexdump(offset,(char*)&s,j);
 				if (quit_print)
 					break;
@@ -11899,7 +11899,7 @@ static int call_func(char *arg,int flags)
 	if (*(short *)arg == 0x6E46)  //Fn  Fn.[func] 参数          call Fn.26
 	{
 //    unsigned int func;
-		unsigned long long func;
+    grub_size_t func;
 		long long ull;
 		int i;
 		char *ch[10]={0};
@@ -11907,7 +11907,7 @@ static int call_func(char *arg,int flags)
 		if (! read_val(&arg,&ull))
 			return 0;
 //    func=(unsigned int)ull;
-		func = (unsigned long long)ull;
+    func = (grub_size_t)ull;
 		arg[parse_string(arg)] = 0;
 		for (i=0;i<10;++i)
 		{
@@ -11976,7 +11976,7 @@ static struct builtin builtin_exit_g4d =
 {
   "exit_g4d",
   exit_g4d_func,
-  BUILTIN_BAT_SCRIPT | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_IFTITLE | BUILTIN_MENU,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
   "exit",
   "exit GRUB4DOS_for_UEFI"
 };

@@ -751,7 +751,7 @@ static int read_image_bmp(int type)
 		return 0;
 	filepos = 10;
 
-	if (!grub_read((unsigned long long)(char*)&bftmp,4, GRUB_READ) || ! grub_read((unsigned long long)&bmih,sizeof(bmih),GRUB_READ) || bmih.biBitCount < 24)
+	if (!grub_read((unsigned long long)(grub_size_t)&bftmp,4, GRUB_READ) || ! grub_read((unsigned long long)(grub_size_t)&bmih,sizeof(bmih),GRUB_READ) || bmih.biBitCount < 24)
 	{
 		//return !printf("Error:Read BMP Head\n");
 		return !(errnum = ERR_EXEC_FORMAT);
@@ -775,7 +775,7 @@ static int read_image_bmp(int type)
 	{
 		for(x=0;x<(int)bmih.biWidth;++x)
 		{
-			grub_read((unsigned long long)(char*)&bftmp,bfbit, GRUB_READ);
+			grub_read((unsigned long long)(grub_size_t)&bftmp,bfbit, GRUB_READ);
       if (only==0)
       {
         only=1;
@@ -1154,8 +1154,8 @@ static unsigned char ReadByte()
 	
 	if(size <= 16)
 	{
-		grub_memmove64((unsigned long long)(char*)JPG_FILE,(unsigned long long)(char*)lp,size);
-		len=grub_read((unsigned long long)(char*)JPG_FILE+size, 0x7e00, GRUB_READ);
+		grub_memmove64((unsigned long long)(grub_size_t)JPG_FILE,(unsigned long long)(grub_size_t)lp,size);
+		len=grub_read((unsigned long long)(grub_size_t)JPG_FILE+size, 0x7e00, GRUB_READ);
 		size+=len;
 		lp=(unsigned char*)JPG_FILE;
 	}
@@ -1759,7 +1759,7 @@ read_image_jpg(int type)
 	JPG_FILE = grub_malloc (0x8000);
 	lp = (unsigned char*)JPG_FILE;
 
-	if (!(size=grub_read((unsigned long long)(char*)lp, 0x8000, GRUB_READ)))
+	if (!(size=grub_read((unsigned long long)(grub_size_t)lp, 0x8000, GRUB_READ)))
 		return !printf("Error:Read JPG File\n");
 
 	InitTable();
@@ -1820,7 +1820,7 @@ static int read_image()
 	}
 
 	/* read header */
-	grub_read((unsigned long long)(char*)&buf, 10, 0xedde0d90);
+	grub_read((unsigned long long)(grub_size_t)&buf, 10, 0xedde0d90);
   unsigned short* a = (unsigned short*)buf;
 //	if (*(unsigned short*)buf == 0x4d42) /*BMP */
 	if (*a == 0x4d42) /*BMP */

@@ -1907,7 +1907,7 @@ extern int strncmpx(const char *s1,const char *s2, unsigned int n, int case_inse
 extern int grub_strlen (const char *str);
 char *grub_strcpy (char *dest, const char *src);
 
-extern void *grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len);
+extern unsigned long long grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len);
 extern unsigned long long grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long len);
 extern int grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned long long len);
 int mem64 (int func, unsigned long long dest, unsigned long long src, unsigned long long len);
@@ -6822,6 +6822,10 @@ extern int get_efi_hd_device_boot_path (int drive);
 extern grub_efi_device_path_t * grub_efi_file_device_path (grub_efi_device_path_t *dp, const char *filename);
 extern int no_install_vdisk;
 extern grub_efi_physical_address_t grub4dos_self_address;
+extern grub_uint64_t grub_divmod64 (grub_uint64_t n, grub_uint64_t d, grub_uint64_t *r);
+extern grub_uint64_t EXPORT_FUNC (__umoddi3) (grub_uint64_t a, grub_uint64_t b);
+extern grub_uint64_t EXPORT_FUNC (__udivdi3) (grub_uint64_t a, grub_uint64_t b);
+
 //======================================================================================================================
 
 #endif /* ! ASM_FILE */
