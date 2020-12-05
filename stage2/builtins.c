@@ -6755,7 +6755,8 @@ get_info_ok:
       grub_efi_physical_address_t alloc; //分配				动态地址,变化
 //      status = efi_call_3 (b->allocate_pool, GRUB_EFI_BOOT_SERVICES_DATA, //启动服务数据        4
 //          (grub_efi_uintn_t)(bytes_needed + 0x200),(void **)&alloc);	//(分配池,存储器类型->引导服务数据,分配字节,返回分配地址}		
-      status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES, GRUB_EFI_LOADER_CODE,
+      status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES, 
+				  GRUB_EFI_RUNTIME_SERVICES_DATA,
 			      (grub_efi_uintn_t)bytes_needed >> 12, &alloc);	//调用(分配页面,分配类型->任意页面,存储类型->装载程序代码(1),分配页,地址)
 																		 
       if (status != GRUB_EFI_SUCCESS)	//如果失败
