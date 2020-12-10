@@ -10,10 +10,12 @@
 
 #使用“./build i386”编译BOOTIA32.EFI
 #使用“./build”或者"make"编译BOOTX64.EFI
-if [ $1 = i386 ]; then
+if [ "$1" = "i386" ]; then
   I386=1
+  ARCH="ia32"
 else
   I386=0
+  ARCH="x64"
 fi
 
 #源目录
@@ -23,7 +25,7 @@ VER=`cat grub4dos_version`
 #日期
 DATE=`date -u +%Y-%m-%d`
 #发布日期
-RELEASE=grub4dos-${VER}-${DATE}
+RELEASE=grub4dos-${VER}-${ARCH}-${DATE}
 #定义复制文件集
 #COPY_FILES="COPYING README_GRUB4DOS*.txt ChangeLog_*.txt \
 #	config.sys default menu.lst grub.pif config.h\
