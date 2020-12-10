@@ -33,7 +33,7 @@ unsigned int extended_memory;	/* extended memory in KB */
 extern int errorcheck;
 int errorcheck = 1;
 unsigned int grub_sleep (unsigned int seconds);
-#if i386
+#if defined(__i386__)
 int check_64bit_and_PAE  (void);
 #endif
 extern unsigned int prog_pid;
@@ -173,7 +173,7 @@ grub_sleep (unsigned int seconds) //暂停(秒)
 	return seconds;
 }
 
-#if i386
+#if defined(__i386__)
 int check_64bit_and_PAE ()
 {
     unsigned int has_cpuid_instruction;
@@ -786,8 +786,8 @@ grub_memalign (grub_size_t align, grub_size_t size)	//内存对齐(对齐,尺寸
   /* We currently assume at least a 32-bit grub_size_t,			我们目前假设至少有32位grub_size_t，
      so limiting allocations to <adress space size> - 1MiB	因此，以健全的名义将分配限制在"地址空间尺寸"-1MiB是有益的。 
      in name of sanity is beneficial. */
-  if ((size + align) > ~(grub_size_t) 0x100000)	//如果(尺寸+对齐) > 0x100000
-    goto fail;	//失败
+//  if ((size + align) > ~(grub_size_t) 0x100000)	//如果(尺寸+对齐) > 0x100000
+//    goto fail;	//失败
 
   align = (align >> GRUB_MM_ALIGN_LOG2);	//对齐/0x10
   if (align == 0)
@@ -814,7 +814,7 @@ again:
 	}
 
 fail:
-  printf_errinfo ("out of memory");	//内存不足
+  printf_errinfo ("out of malloc memory");	//内存不足
   return 0;
 }
 
@@ -1575,10 +1575,7 @@ grub_init (void)
 {
 	grub_console_init ();
 
-//  image = grub_efi_get_loaded_image (grub_efi_image_handle);  //通过映像句柄,获得加载映像grub_efi_loaded_image结构
-  image =  grub_efi_open_protocol (grub_efi_image_handle,
-				 &loaded_image_guid,
-				 GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);  //打开协议(映像句柄,guid,获得协议)
+  image = grub_efi_get_loaded_image (grub_efi_image_handle);  //通过映像句柄,获得加载映像grub_efi_loaded_image结构
 	grub_image = image->image_base;	//通过加载映像,获得BOOIA32.EFI映像基址 	前部是映像头		struct grub_pe32_header   //PE32 头
 																	//grub_image偏移400是grldr起始,也就是bios模式的8200处.可使用*((char *)(grub_image)+0x508))取单字节的值.
 

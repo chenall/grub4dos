@@ -28,7 +28,6 @@
 #include <config.h>
 
 //UEFI 编译开关
-#define i386 0            //系统类型  0: x86_64;  1: i386
 #define HOTKEY  1         //热键      0: 外置;    1: 内置
 
 /* Add an underscore to a C symbol in assembler code if needed. */
@@ -432,7 +431,7 @@
 
 
 
-#if i386
+#if defined(__i386__)
 # define GRUB_CPU_SIZEOF_LONG		  4
 # define GRUB_CPU_SIZEOF_VOID_P		4
 #else
@@ -777,7 +776,7 @@ static inline void grub_set_unaligned64 (void *ptr, grub_uint64_t val)
 
 //-------------------------------------------------------------------------------------------------
 //UEFI 函数调用约定
-#if !(i386)
+#if !defined(__i386__)
 #if (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)))||(defined(__clang__) && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 2)))
   #define EFIAPI __attribute__((ms_abi))
 #else
@@ -1917,7 +1916,7 @@ extern unsigned int configfile_opened;
 /* misc */
 void init_page (void);
 void print_error (void);
-#if i386
+#if defined(__i386__)
 extern char *convert_to_ascii (char *buf, int c, ...);
 #else
 extern char *convert_to_ascii (char *buf, int c, unsigned long long lo);
@@ -2176,7 +2175,7 @@ typedef GPT_ENT* P_GPT_ENT;		//gpt_分区入口
 
 
 int check_64bit (void);
-#if i386
+#if defined(__i386__)
 extern int check_64bit_and_PAE  (void);
 #endif
 extern int is64bit;
@@ -4658,7 +4657,7 @@ Other			U+XXXX			在当前光标位置打印字符并将光标向右移动一列
 #if (GRUB_TARGET_SIZEOF_VOID_P == 4) || defined (__ia64__) \
   || defined (__aarch64__) || defined (__MINGW64__) || defined (__CYGWIN__)
 */
-#if i386
+#if defined(__i386__)
 #define efi_call_0(func)		func()
 #define efi_call_1(func, a)		func(a)
 #define efi_call_2(func, a, b)		func(a, b)
@@ -5488,6 +5487,7 @@ struct grub_part_data  //efi分区数据	(硬盘)  grub定义
 
 extern struct grub_part_data *get_partition_info (int drive, int partition);
 extern struct grub_part_data *partition_info;
+extern void renew_part_data (void);
 
 struct drive_map_slot
 {
@@ -5769,7 +5769,7 @@ typedef grub_efi_file_protocol_t  grub_efi_file_t;
 #define EFI_REMOVABLE_MEDIA_FILE_NAME_ARM     "/EFI/BOOT/BOOTARM.EFI"
 #define EFI_REMOVABLE_MEDIA_FILE_NAME_AARCH64 "/EFI/BOOT/BOOTAA64.EFI"
 
-#if i386
+#if defined(__i386__)
   #define EFI_REMOVABLE_MEDIA_FILE_NAME   EFI_REMOVABLE_MEDIA_FILE_NAME_IA32
 #else
   #define EFI_REMOVABLE_MEDIA_FILE_NAME   EFI_REMOVABLE_MEDIA_FILE_NAME_X64

@@ -51,7 +51,7 @@ struct fat_superblock
   unsigned int current_cluster;
   unsigned long long vol_sector;
   unsigned int sectsize;
-};
+} __attribute__ ((packed));
 	unsigned int fats_type;
 #if 0
 /* pointer(s) into filesystem info buffer for DOS stuff */

@@ -2665,6 +2665,13 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
   grub_efi_status_t status;			//状态
   grub_size_t io_align;					//对齐
   char *aligned_buf;						//对齐缓存
+  unsigned int offset, read_len;
+  unsigned long long read_start, lba_byte;
+  unsigned long long fragment_len = 0, total = 0; 
+  struct fragment_map_slot *q;
+  struct fragment *data=0;
+  unsigned int i=0, j=0;
+  unsigned char	from_drive, to_drive;			//驱动器
 
   if (read_write != 0xedde0d90 && read_write != 0x900ddeed) //如果不是读/写, 错误
     return 1;
@@ -2693,6 +2700,142 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 		return 0;	/* success */
 	}	
 
+  from_drive = drive;
+  while (i < (unsigned int)DRIVE_MAP_SIZE && disk_drive_map[i].from_drive != from_drive)
+    i++;
+  
+  if (i == (unsigned int)DRIVE_MAP_SIZE)
+    goto not_map;
+  else
+    to_drive = disk_drive_map[i].to_drive;
+
+//假设:
+//参数           from_log2_sector=b,	from_block_size=800, to_log2_sector=9, to_block_size=200
+//from映射到to   13ae10+95940, 1dc8d0+180
+//读参数         sector=25640	size=10000
+
+	lba_byte = sector << disk_drive_map[i].from_log2_sector;	//from驱动器起始逻辑扇区lba转起始字节	12aac800
+
+  //内存驱动器	
+	if (to_drive == 0xff && disk_drive_map[i].to_log2_sector == 9)			//如果是内存驱动器, 映射盘加载到内存, 
+	{
+		lba_byte += (disk_drive_map[i].start_sector << 9);		//加映射起始(字节)
+    if (read_write == 0xedde0d90) //读
+      grub_memmove64 ((unsigned long long)(grub_size_t)buf, lba_byte, size);
+    else
+      grub_memmove64 (lba_byte, (unsigned long long)(grub_size_t)buf, size);
+		return 0;
+	}
+
+	//确定to驱动器起始相对逻辑扇区号
+	sector = lba_byte >> disk_drive_map[i].to_log2_sector;		      //95564	
+	//确定to驱动器起始偏移字节
+	offset = lba_byte & (disk_drive_map[i].to_block_size - 1);	//12aac800&fff=0
+
+  //判断有无碎片
+	if (!disk_drive_map[i].fragment)		//没有碎片    3f9+8, 641+1b30
+	{
+		sector += disk_drive_map[i].start_sector;			//加映射起始(扇区或字节)		4cc0		
+    fragment_len = size;
+	}
+  else
+//有碎片
+//			 To_count(0)			To_count(1)					To_count(2)					To_count(3)
+//		├──────────────┼───────────────────┼───────────────────┼───────────────────┤		逻辑扇区  从To_start(0)起始,扇区不连续
+//To_start(0)		To_start(1)					To_start(2)					To_start(3)
+//																									Form_len
+//	  ├---------------------------------------├----------------------┤								虚拟扇区  从0起始(相对于逻辑扇区To_start(0)),扇区连续  
+//	 0																		Form_statr
+
+//		|-----------8-----------|------4-----|----------7---------|
+//    0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18 19
+//		|-------------9------------|---------6--------|
+//	  0											    sector
+  {
+    //从碎片插槽查找Form驱动器
+    q = &disk_fragment_map;
+    q = fragment_map_slot_find (q, from_drive);
+
+    //确定Form扇区起始在哪个碎片										//4cc0+6, 6673+3b0
+    data = (struct fragment *)&q->fragment_data;
+
+    while (1)     //3f9+8,641+1b30
+    {
+      total += data[j++].sector_count;            //6
+      if (sector < total)		//确定起始位置的条件    //4<6 
+        break;
+    }
+    //确定本碎片最大访问字节
+    fragment_len = (total - sector) << disk_drive_map[i].to_log2_sector;
+    //确定Form扇区起始的确切位置(To_start(j)+偏移)
+    sector += data[j-1].start_sector + data[j-1].sector_count - total;
+  }  
+	d = get_device_by_drive (to_drive);
+  bio = d->block_io;	//块io
+
+  while (size)
+  {
+    //判断本碎片可否一次访问完毕
+    if (size > fragment_len)
+      read_len = fragment_len;  
+    else
+      read_len = size;
+
+    //首先处理偏移, 实际读写字节(disk_drive_map[i].to_block_size - offset)
+    if (offset || size < disk_drive_map[i].to_block_size)  //如果有偏移字节
+    {
+//      status = grub_efidisk_readwrite (to_drive, sector, disk_drive_map[i].to_block_size, disk_buffer, 0xedde0d90);
+      status = efi_call_5 (((read_write == 0x900ddeed) ? bio->write_blocks : bio->read_blocks), bio,
+      bio->media->media_id, sector, disk_drive_map[i].to_block_size,  disk_buffer);	//读写(读/写,本身块io,media_id,扇区,字节尺寸,缓存)
+      read_start = (unsigned long long)(grub_size_t)disk_buffer + offset;         //读写起始
+      read_len = disk_drive_map[i].to_block_size - offset;                        //读写尺寸   
+      if (read_len > size)
+        read_len = size;
+
+      if (read_write == 0xedde0d90) //读
+        grub_memmove64 ((unsigned long long)(grub_size_t)buf, read_start, read_len);
+      else              //写
+      {
+        grub_memmove64 (read_start, (unsigned long long)(grub_size_t)buf, read_len);
+//        status = grub_efidisk_readwrite (to_drive, sector, disk_drive_map[i].to_block_size, disk_buffer, 0x900ddeed);
+      status = efi_call_5 (((read_write == 0x900ddeed) ? bio->write_blocks : bio->read_blocks), bio,
+      bio->media->media_id, sector, disk_drive_map[i].to_block_size,  disk_buffer);	//读写(读/写,本身块io,media_id,扇区,字节尺寸,缓存)
+      }
+      
+      buf = (void *)((grub_size_t)buf + read_len);
+      fragment_len -= read_len;
+      size -= read_len;
+      offset = 0;
+    }
+    else
+    {
+      read_len &= ~(disk_drive_map[i].to_block_size -1);
+      size -= read_len;
+//      status = grub_efidisk_readwrite (to_drive, sector, read_len, buf, read_write);
+      status = efi_call_5 (((read_write == 0x900ddeed) ? bio->write_blocks : bio->read_blocks), bio,
+      bio->media->media_id, sector, read_len, buf);	//读写(读/写,本身块io,media_id,扇区,字节尺寸,缓存)
+      buf = (void *)((grub_size_t)buf + read_len);
+      fragment_len -= read_len;
+    }
+
+    //判断是否需要再读
+    if (!size)
+      return status;
+    //确定本碎片还可以访问扇区数
+    if (disk_drive_map[i].fragment && !fragment_len)  //肯定有碎片, 否则fragment_len=size, 既然len不为零, 则fragment_len也不会为零.
+    {
+      sector = data[j].start_sector;
+      fragment_len = data[j].sector_count << disk_drive_map[i].to_log2_sector;
+      j++;
+    }
+    else  //不能确定有无碎片
+    {
+      sector += (read_len + disk_drive_map[i].to_block_size - 1) >> disk_drive_map[i].to_log2_sector;
+    }      
+  }
+  return 1;
+
+not_map:
 	d = get_device_by_drive (drive);
 //	efi_handle = d->handle;
 //	efi_file_path = d->device_path;
@@ -3051,6 +3194,7 @@ get_mbr_info (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data
                       dp,	                          //设备路径
                       tmp_dp);                      //设备节点
   efi_call_1 (b->free_pool, tmp_dp);	              //释放数据  使用DPUP->CreateDeviceNode创建的tmp_dp只能使用b->free_pool释放
+  printf_debug ("part_map: type=mbr start=%x size=%lx\n", p->partition_start,p->partition_len);
   
   return TRUE;
 }
@@ -3082,6 +3226,7 @@ get_gpt_info (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data
                       dp,	                          //设备路径
                       tmp_dp);                      //设备节点
   efi_call_1 (b->free_pool, tmp_dp);	              //释放数据  使用DPUP->CreateDeviceNode创建的tmp_dp只能使用b->free_pool释放  
+  printf_debug ("part_map: type=gpt start=%x size=%lx\n", p->partition_start,p->partition_len);
   
   return TRUE;
 }
@@ -3110,6 +3255,7 @@ get_iso_info (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data
                       dp,	                          //设备路径
                       tmp_dp);                      //设备节点
   efi_call_1 (b->free_pool, tmp_dp);	              //释放数据  使用DPUP->CreateDeviceNode创建的tmp_dp只能使用b->free_pool释放  
+  printf_debug ("part_map: type=iso start=%x size=%lx\n", part_addr,part_size);
   
   return TRUE;
 }
@@ -3152,7 +3298,7 @@ grub_efi_file_device_path (grub_efi_device_path_t *dp, const char *filename)//�
   char *dir_start;
   grub_size_t size;
   grub_efi_device_path_t *d;
-  grub_efi_device_path_t *file_path;
+  grub_efi_device_path_t *file_path=0;
 
   dir_start = grub_strchr (filename, ')');	//在字符串中查找字符   查到,返回第一个匹配的字符串位置;否则返回0
   if (! dir_start)
@@ -3278,7 +3424,6 @@ vpart_install (int slot_number, grub_efi_device_path_t *dp, struct grub_part_dat
     grub_printf ("NOT FOUND\n");
     return GRUB_EFI_NOT_FOUND;
   }
-  printf_debug ("OK\n");
 
   grub_memcpy (&disk_drive_map[slot_number].block_io, &blockio_template, sizeof (block_io_protocol_t));
   
@@ -3293,10 +3438,9 @@ vpart_install (int slot_number, grub_efi_device_path_t *dp, struct grub_part_dat
   disk_drive_map[slot_number].media.last_block =  disk_drive_map[slot_number].sector_count - 1;
 
   /* info */
-  printf_debug ("disk_drive_map[%x] addr=%x size=%lx\n", slot_number, (unsigned long)disk_drive_map[slot_number].start_sector,
-          (unsigned long long)disk_drive_map[slot_number].sector_count);						//4cdc,4000000;	31512,2d0000;	2244,2d0000;				27b6c,168000;	4f9a3,1fffe00;
-  printf_debug ("disk_drive_map[%x] blksize=%x lastblk=%lx\n", slot_number, disk_drive_map[slot_number].media.block_size,
-          (unsigned long long)disk_drive_map[slot_number].media.last_block);//200,1ffff;		800,59f;			200,167f(800,59f);	200,b3f;			200,fffe;
+  printf_debug ("part_map: addr=%lx size=%lx blksize=%x\n", (unsigned long)disk_drive_map[slot_number].start_sector,
+          (unsigned long long)disk_drive_map[slot_number].sector_count,
+          disk_drive_map[slot_number].media.block_size);
   
   status = efi_call_6 (b->install_multiple_protocol_interfaces,	//安装多协议接口
                        &disk_drive_map[slot_number].from_handle,										//指向协议接口的指针(如果要分配新句柄，则指向NULL的指针)
@@ -3359,14 +3503,24 @@ vpart_load_image (grub_efi_handle_t *part_handle)	//虚拟分区引导
 	//加载映像	将EFI映像加载到内存中  要读磁盘
   status = efi_call_6 (b->load_image, TRUE, grub_efi_image_handle,
                        boot_file, NULL, 0, &boot_image_handle);	//(void **)
-  if (boot_file)
-    grub_free (boot_file);
+
   if (status != GRUB_EFI_SUCCESS)
   {
+    if (boot_file)
+      grub_free (boot_file);
     grub_printf ("Failed to load image\n");
 			return NULL;
   }
   return boot_image_handle;
+}
+
+void renew_part_data (void);
+void
+renew_part_data (void)
+{
+  free_part_data (partition_info);
+  partition_info = 0;
+  partition_info_init ();
 }
 
 //获得uuid; 创建设备节点; 附加设备节点; 安装多协议接口; 连接控制器; 
@@ -3431,10 +3585,9 @@ vdisk_install (int slot_number)	//安装虚拟磁盘(映射插槽号)
   disk_drive_map[slot_number].media.last_block = disk_drive_map[slot_number].sector_count - 1;//最后块
 
   /* info 打印信息*/
-  printf_debug ("disk_drive_map addr=%x size=%lx\n", (unsigned int)disk_drive_map[slot_number].start_sector,
-          (unsigned long long)disk_drive_map[slot_number].sector_count);
-  printf_debug ("disk_drive_map blksize=%x lastblk=%lx\n", disk_drive_map[slot_number].media.block_size,
-          (unsigned long long)disk_drive_map[slot_number].media.last_block);
+  printf_debug ("disk_drive_map: addr=%lx size=%lx blksize=%x\n", (unsigned int)disk_drive_map[slot_number].start_sector,
+          (unsigned long long)disk_drive_map[slot_number].sector_count,
+          disk_drive_map[slot_number].media.block_size);
           
 //填充磁盘数据
 	d->device_path = disk_drive_map[slot_number].dp;
@@ -3474,9 +3627,7 @@ vdisk_install (int slot_number)	//安装虚拟磁盘(映射插槽号)
 	}
 	if (disk_drive_map[slot_number].from_drive >= 0x80 && disk_drive_map[slot_number].from_drive <= 0x8f)
 	{
-		free_part_data (partition_info);
-		partition_info = 0;
-		partition_info_init ();
+		renew_part_data ();
 	}
 
   if (disk_drive_map[slot_number].from_drive >= 0xa0)
@@ -3705,26 +3856,13 @@ grub_efi_status_t
 blockio_read_write (block_io_protocol_t *this, grub_efi_uint32_t media_id,
               grub_efi_lba_t lba, grub_efi_uintn_t len, void *buf, int read_write)	//读(自身,媒体id,起始逻辑扇区,读字节尺寸,缓存)
 {
-  grub_efi_status_t status;			//状态
   grub_efi_uintn_t block_num;
-  unsigned int offset, read_len;
-  unsigned long long read_start, lba_byte;
-	unsigned long long fragment_len = 0, total = 0; 
-  struct fragment_map_slot *q;
-	struct fragment *data=0;
-	unsigned int i, j=0;
-	unsigned char	from_drive, to_drive;			//驱动器
   
-  if (read_write != 0xedde0d90 && read_write != 0x900ddeed) //如果不是读/写, 错误
-    return GRUB_EFI_DEVICE_ERROR;
-
   if (!buf)	//如果缓存为零
     return GRUB_EFI_INVALID_PARAMETER;
 
   if (!len)	//如果尺寸为零
     return GRUB_EFI_SUCCESS;
-
-  from_drive = media_id;
 
   //如果尺寸未对齐扇区块
   if ((len % this->media->block_size) != 0)
@@ -3735,153 +3873,12 @@ blockio_read_write (block_io_protocol_t *this, grub_efi_uint32_t media_id,
   if ((lba + block_num - 1) > this->media->last_block)
     return GRUB_EFI_INVALID_PARAMETER;//读取请求包含无效的lba，或者缓冲区未正确对齐。 
 
-#if 0
-  //由form驱动器查找to驱动器
-  //drive_map_slot_empty(disk_drive_map[i] 在这里引起数据竞争!!!
-  //现象1: 总是插槽为空.
-  //现象2: 如果增加简单的打印信息, 则插槽有效非空, disk_drive_map[i].from_drive=0x81(正确), disk_drive_map[i].to_drive应当等于0x80, 然而却是等于0!!!
-  //如果增加比较复杂的打印信息, 如: grub_printf("\nlockio_read_write-0,%x,%x,%x,%x,%x,",this,media_id,lba,len,buf); ,则全部正确.
-  //在此处增加延迟函数, 不起作用. 
-  to_drive = 0xaa;
-	for (i = 0; i < (unsigned int)DRIVE_MAP_SIZE/* && !(drive_map_slot_empty(disk_drive_map[i]))*/; i++)		//如果i<8,并且插槽有效非空
-	{
-		if (disk_drive_map[i].from_drive != from_drive)  //如果插槽from驱动器号不等于输入驱动器,继续
-			continue;
-		to_drive = disk_drive_map[i].to_drive;
-		break;
-	}
-
-	if (to_drive == 0xaa)
-		return GRUB_EFI_MEDIA_CHANGED;
-#endif
-
-  i = 0;
-  while (i < (unsigned int)DRIVE_MAP_SIZE && disk_drive_map[i].from_drive != from_drive)
-    i++;
+  int err = grub_efidisk_readwrite (media_id, lba, len, buf, read_write);
   
-  if (i == (unsigned int)DRIVE_MAP_SIZE)
-    return GRUB_EFI_MEDIA_CHANGED;
+  if (!err)
+    return GRUB_EFI_SUCCESS;
   else
-    to_drive = disk_drive_map[i].to_drive;
-
-//假设:
-//参数           from_log2_sector=b,	from_block_size=800, to_log2_sector=9, to_block_size=200
-//from映射到to   13ae10+95940, 1dc8d0+180
-//读参数         lba=25640	len=10000
-
-	lba_byte = lba << disk_drive_map[i].from_log2_sector;	//from驱动器起始逻辑扇区lba转起始字节	12aac800
-
-  //内存驱动器	
-	if (to_drive == 0xff && disk_drive_map[i].to_log2_sector == 9)			//如果是内存驱动器, 映射盘加载到内存, 
-	{
-		lba_byte += (disk_drive_map[i].start_sector << 9);		//加映射起始(字节)
-    if (read_write == 0xedde0d90) //读
-      grub_memmove64 ((unsigned long long)(grub_size_t)buf, lba_byte, len);
-    else
-      grub_memmove64 (lba_byte, (unsigned long long)(grub_size_t)buf, len);
-		return 0;
-	}
-
-	//确定to驱动器起始相对逻辑扇区号
-	lba = lba_byte >> disk_drive_map[i].to_log2_sector;		      //95564	
-	//确定to驱动器起始偏移字节
-	offset = lba_byte & (disk_drive_map[i].to_block_size - 1);	//12aac800&fff=0
-
-  //判断有无碎片
-	if (!disk_drive_map[i].fragment)		//没有碎片    3f9+8, 641+1b30
-	{
-		lba += disk_drive_map[i].start_sector;			//加映射起始(扇区或字节)		4cc0		
-    fragment_len = len;
-	}
-  else
-//有碎片
-//			 To_count(0)			To_count(1)					To_count(2)					To_count(3)
-//		├──────────────┼───────────────────┼───────────────────┼───────────────────┤		逻辑扇区  从To_start(0)起始,扇区不连续
-//To_start(0)		To_start(1)					To_start(2)					To_start(3)
-//																									Form_len
-//	  ├---------------------------------------├----------------------┤								虚拟扇区  从0起始(相对于逻辑扇区To_start(0)),扇区连续  
-//	 0																		Form_statr
-
-//		|-----------8-----------|------4-----|----------7---------|
-//    0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18 19
-//		|-------------9------------|---------6--------|
-//	  0											    lba
-  {
-    //从碎片插槽查找Form驱动器
-    q = &disk_fragment_map;
-    q = fragment_map_slot_find (q, from_drive);
-
-    //确定Form扇区起始在哪个碎片										//4cc0+6, 6673+3b0
-    data = (struct fragment *)&q->fragment_data;
-
-    while (1)     //3f9+8,641+1b30
-    {
-      total += data[j++].sector_count;            //6
-      if (lba < total)		//确定起始位置的条件    //4<6 
-        break;
-    }
-
-    //确定本碎片最大访问字节
-    fragment_len = (total - lba) << disk_drive_map[i].to_log2_sector;
-    //确定Form扇区起始的确切位置(To_start(j)+偏移)
-    lba += data[j-1].start_sector + data[j-1].sector_count - total;
-  }
-
-  while (len)
-  {
-    //判断本碎片可否一次访问完毕
-    if (len > fragment_len)
-      read_len = fragment_len;  
-    else
-      read_len = len;
-
-    //首先处理偏移, 实际读写字节(disk_drive_map[i].to_block_size - offset)
-    if (offset || len < disk_drive_map[i].to_block_size)  //如果有偏移字节
-    {
-      status = grub_efidisk_readwrite (to_drive, lba, disk_drive_map[i].to_block_size, disk_buffer, 0xedde0d90);
-      read_start = (unsigned long long)(grub_size_t)disk_buffer + offset;         //读写起始
-      read_len = disk_drive_map[i].to_block_size - offset;                         //读写尺寸   
-      if (read_len > len)
-        read_len = len;
-      
-      if (read_write == 0xedde0d90) //读
-        grub_memmove64 ((unsigned long long)(grub_size_t)buf, read_start, read_len);
-      else              //写
-      {
-        grub_memmove64 (read_start, (unsigned long long)(grub_size_t)buf, read_len);
-        status = grub_efidisk_readwrite (to_drive, lba, disk_drive_map[i].to_block_size, disk_buffer, 0x900ddeed);
-      }
-      
-      buf = (void *)((grub_size_t)buf + read_len);
-      fragment_len -= read_len;
-      len -= read_len;
-      offset = 0;
-    }
-    else
-    {
-      read_len &= ~(disk_drive_map[i].to_block_size -1);
-      len -= read_len;
-      status = grub_efidisk_readwrite (to_drive, lba, read_len, buf, read_write);
-      buf = (void *)((grub_size_t)buf + read_len);
-      fragment_len -= read_len;
-    }
-
-    //判断是否需要再读
-    if (!len)
-      return status;
-    //确定本碎片还可以访问扇区数
-    if (disk_drive_map[i].fragment && !fragment_len)  //肯定有碎片, 否则fragment_len=len, 既然len不为零, 则fragment_len也不会为零.
-    {
-      lba = data[j].start_sector;
-      fragment_len = data[j].sector_count << disk_drive_map[i].to_log2_sector;
-      j++;
-    }
-    else  //不能确定有无碎片
-    {
-      lba += (read_len + disk_drive_map[i].to_block_size - 1) >> disk_drive_map[i].to_log2_sector;
-    }      
-  }
-  return GRUB_EFI_DEVICE_ERROR;
+    return GRUB_EFI_DEVICE_ERROR;
 }
 
 /*
@@ -4009,7 +4006,7 @@ grub_efidisk_init (void)  //efidisk初始化
   enumerate_disks (); //枚举磁盘
 	partition_info_init ();
 
-#if i386
+#if defined(__i386__)
 	is64bit = check_64bit_and_PAE ();
 #endif
 

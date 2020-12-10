@@ -10,30 +10,29 @@ timeout 30
 #设置第一项为默认值
 default 1
 
-#设置字符颜色(高32位是背景色，低32位是前景色)
-color normal=0xff9933 highlight=0xffff00 helptext=0xff00ff heading=0x66ff00
+#设置字符颜色(高32位是背景色，低32位是前景色。在命令行执行：echo -rrggbb，可查看对应的颜色。)
+#color normal=0xff9933 highlight=0xffff00 helptext=0xff00ff heading=0x66ff00
 
 #设置图形模式(可使用 graphicsmode 探测系统支持的图形模式)
-graphicsmode -1 800
-
+#graphicsmode -1 800(水平像素)
 #加载背景图
-splashimage /efi/grub/splashimage.jpg || splashimage /boot/grub/splashimage.bmp
-
-#加载字体(如果不是 16*16 字体，需增加参数，如 --font-high=24)
-font /efi/grub/unifont.hex.gz
+#splashimage /efi/grub/splashimage.jpg || splashimage /boot/grub/splashimage.bmp
+#加载unifont字体(如果不是 16*16 字体，需增加参数，如 --font-high=24)
+#font /efi/grub/unifont.hex.gz
 
 #设置菜单框
-setmenu --box x=4 w=60 y=6 h=9 l=2
+#setmenu --box x=4 w=60 y=6 h=9 l=2
 #设置中文菜单按键帮助
-setmenu --lang=zh
+#setmenu --lang=zh
 #设置自动菜单编号
-setmenu --auto-num-on 
+#setmenu --auto-num-on 
 #设置字符串信息
-setmenu --string=80=2=0x0000000000ffff="G4D 维  护  菜  单"
+#setmenu --string=x=y=颜色="字符串"
 #设置日期时间
-#setmenu --string=s=1=0x8800000000ffff="date&time=yyyy-MM-dd  HH:mm:ss"
+#setmenu --string=x=y=颜色="date&time=yyyy-MM-dd  HH:mm:ss"
 #设置倒计时
-setmenu --timeout=90=2=0x88000000ffff
+#setmenu --timeout=x=y=颜色
+#更多菜单编辑功能、动画、图像菜单等等，可参考http://bbs.wuyou.net/forum.php?mod=viewthread&tid=369720&extra=page%3D3
 
 title 启动 efi 文件
 chainloader /efi/boot/grub2x64.efi

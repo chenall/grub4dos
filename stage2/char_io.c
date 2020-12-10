@@ -159,7 +159,7 @@ grub_putstr_utf16(unsigned short *str)  //打印unicode16字符串
     grub_putchar ((unsigned char)*str++, 255);
 }
 
-#if i386
+#if defined(__i386__)
 char * convert_to_ascii (char *buf, int c,...);
 char *
 convert_to_ascii (char *buf, int c,...)
@@ -403,7 +403,7 @@ grub_sprintf (char *buffer, const char *format, ...)
 
       if (*format == 'l')
       {
-#if i386
+#if defined(__i386__)
         ++length,++format;
 #else
         ++format;
@@ -439,7 +439,7 @@ grub_sprintf (char *buffer, const char *format, ...)
             break;
         case 'd': case 'x':	case 'X':  case 'u':
         {
-#if i386
+#if defined(__i386__)
           int lo, hi;
 //          lo = *(dataptr++);
 //          hi = (length ? (*(dataptr++)) : ((*format == 'd' && lo<(int)0)?(int)-1:(int)0));
@@ -2165,7 +2165,7 @@ void *memcpy (void *dest, const void *src, int n)  __attribute__ ((alias ("grub_
 
 #define PAGINGTXSTEP 0x800000
 
-#if i386
+#if defined(__i386__)
 //#define PAGING_PML4_ADDR (PAGING_TABLES_BUF+0x0000)
 //#define PAGING_PDPT_ADDR (PAGING_TABLES_BUF+0x1000)
 //#define PAGING_PD_ADDR   (PAGING_TABLES_BUF+0x2000)
@@ -2296,7 +2296,7 @@ code must be below 16MB as mapped by memory_paging_init function
 unsigned long long
 grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len)
 {
-#if !i386
+#if !defined(__i386__)
 
 	return (unsigned long long)(grub_size_t)grub_memmove ((void *)(grub_size_t)dst_addr, (void *)(grub_size_t)src_addr, len);
 #if 0
@@ -2366,7 +2366,7 @@ grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigne
 unsigned long long 
 grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long len)
 {
-#if !i386
+#if !defined(__i386__)
 
 	char *p = (char *)dst_addr;
 	if (!len)      { return dst_addr; }
@@ -2418,7 +2418,7 @@ grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long
 int 
 grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned long long len)
 {
-#if !i386
+#if !defined(__i386__)
   
   return grub_memcmp((const char *)str1addr, (const char *)str2addr, len);
 

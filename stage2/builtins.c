@@ -110,7 +110,7 @@ int parse_string (char *arg);
 int envi_cmd(const char *var,char * const env,int flags);
 extern int count_lines;
 extern int use_pager;
-#if i386
+#if defined(__i386__)
 char *convert_to_ascii (char *buf, int c, ...);
 #else
 char *convert_to_ascii (char *buf, int c, unsigned long long lo);
@@ -950,7 +950,7 @@ boot_func (char *arg, int flags)
   if (kernel_type == KERNEL_TYPE_LINUX)
   {
     int offset = 0;
-#if !i386
+#if !defined(__i386__)
     offset = 512;
 #endif
     __asm__ volatile ("cli");
@@ -1046,6 +1046,11 @@ chainloader_func (char *arg, int flags)
     else
       image_handle = vdisk_load_image (current_drive);	//虚拟磁盘启动
 
+    if (debug > 1)
+    {
+      grub_efi_loaded_image_t *image0 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
+      printf_debug ("image=0x%x image_handle=%x",image0,image_handle);
+    }
 		kernel_type = KERNEL_TYPE_CHAINLOADER;
 		return 1;
 	}
@@ -1089,7 +1094,9 @@ chainloader_func (char *arg, int flags)
 		goto failure_exec_format;
 	}
 
-  image->device_handle = d->handle;
+  grub_efi_loaded_image_t *image1 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
+  image1->device_handle = d->handle;
+  printf_debug ("image=0x%x device_handle=%x",image1,d->handle);//113b8e40,11b3d398
 
   arg = skip_to(0,arg);	//标记=0/1/100/200=跳过"空格,回车,换行,水平制表符"/跳过等号/跳到下一行/使用'0'替换
   if (*arg)	//如果有变量
@@ -1112,8 +1119,8 @@ chainloader_func (char *arg, int flags)
 		*(p16++) = ' ';
 		*(--p16) = 0;
 
-		image->load_options = cmdline;	//加载选项
-		image->load_options_size = len;//加载选项尺寸
+		image1->load_options = cmdline;	//加载选项
+		image1->load_options_size = len;//加载选项尺寸
 	}
 
   grub_close ();	//关闭文件
@@ -2675,6 +2682,8 @@ displaymem_func (char *arg, int flags)
 		mode = 1;
 	else if (grub_memcmp (arg, "-a", 2) == 0)	//以字节计, 全部显示
 		mode = 2;
+	else if (grub_memcmp (arg, "-mem", 4) == 0) //探测4GB以上满足条件的可用内存
+    	mode = 3;
 	else																			//以字节计, 简约模式(默认)
 		mode = 0;
 		
@@ -2709,6 +2718,17 @@ displaymem_func (char *arg, int flags)
 						desc->num_pages << 3,
 						(desc->physical_start >> 9) + (desc->num_pages << 3));
 				break;	
+			case 3:
+        if (desc->type == GRUB_EFI_CONVENTIONAL_MEMORY  //可用
+            && desc->physical_start >= 0x100000000      //大于等于4GB
+            && desc->num_pages >= blklst_num_sectors)   //答疑等于指定内存
+        {
+          blklst_num_sectors = desc->physical_start;    //返回内存起始地址
+          grub_free (memory_map);
+          return 1;
+        }
+        else
+          break;
 		}				
 	}
 
@@ -4406,7 +4426,7 @@ yyyyy:
 
 		saved_drive = current_drive = drive;
 		saved_partition = current_partition = 0xFFFFFF;
-		if (drive <= (unsigned int)0x8f /*&& grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) != 0*/)
+		if (drive >= (unsigned int)0x80 && drive <= (unsigned int)0x8f /*&& grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) != 0*/)
 		{
 			grub_efidisk_readwrite (drive,(unsigned long long)0,0x1000,mem_probe,0xedde0d90);
 			if (!(probe_bpb((struct master_and_dos_boot_sector *)mem_probe)) && open_device())
@@ -5397,7 +5417,7 @@ kernel_func (char *arg, int flags)
     printf_errinfo ("kernel doesn't support EFI handover\n");
     goto failure_linuxefi;
   }
-#if i386
+#if defined(__i386__)
   if ((lh.xloadflags & LINUX_XLF_KERNEL_64) &&
       !(lh.xloadflags & LINUX_XLF_EFI_HANDOVER_32))
   {
@@ -5954,6 +5974,7 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
   unsigned int extended_part_start;
   unsigned int extended_part_length;
   int err;
+  int prefer_top = 0;
 
   //struct master_and_dos_boot_sector *BS = (struct master_and_dos_boot_sector *) RAW_ADDR (0x8000);
 #define	BS	((struct master_and_dos_boot_sector *)mbr)
@@ -6187,7 +6208,8 @@ struct drive_map_slot
 		}
     else if (grub_memcmp (arg, "--top", 5) == 0)		//21. 内存映射置顶
 		{
-			return 1;
+      prefer_top = 1;
+      mem = 0;
 		}
 		else if (grub_memcmp (arg, "--read-only", 11) == 0) //22. 只读
 		{
@@ -6195,11 +6217,11 @@ struct drive_map_slot
 		}
     else if (grub_memcmp (arg, "--heads=", 8) == 0)		  //31. 磁头数
     {
-      return 1;
+//      return 1;
     }
     else if (grub_memcmp (arg, "--sectors-per-track=", 20) == 0)		//32. 每磁道扇区数
     {
-      return 1;
+//      return 1;
     }
 		else if (grub_memcmp (arg, "--add-mbt=", 10) == 0)  //33. 增加存储块  -1,0,1
 		{
@@ -6753,17 +6775,36 @@ get_info_ok:
     else  //其他
     {
       grub_efi_physical_address_t alloc; //分配				动态地址,变化
-//      status = efi_call_3 (b->allocate_pool, GRUB_EFI_BOOT_SERVICES_DATA, //启动服务数据        4
-//          (grub_efi_uintn_t)(bytes_needed + 0x200),(void **)&alloc);	//(分配池,存储器类型->引导服务数据,分配字节,返回分配地址}		
-      status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES, 
-				  GRUB_EFI_RUNTIME_SERVICES_DATA,
-			      (grub_efi_uintn_t)bytes_needed >> 12, &alloc);	//调用(分配页面,分配类型->任意页面,存储类型->装载程序代码(1),分配页,地址)
-																		 
+      if (prefer_top) //分配4GB以上内存
+      {
+        //在此借用一下 blklst_num_sectors 全局变量
+        blklst_num_sectors = (grub_efi_uintn_t)bytes_needed >> 12;  //需求页数
+        displaymem_func ((char *)"-mem", 1);  //探测4GB以上内存
+        if (blklst_num_sectors != (grub_efi_uintn_t)bytes_needed >> 12) //有满足条件的内存
+        {
+          status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ADDRESS,  
+//              GRUB_EFI_RUNTIME_SERVICES_DATA, 
+              GRUB_EFI_RESERVED_MEMORY_TYPE,          //保留内存类型        0
+              (grub_efi_uintn_t)bytes_needed >> 12, &blklst_num_sectors);	//调用(分配页面,分配类型->指定页面,存储类型->运行时服务数据(6),分配页,地址)
+          if (status == GRUB_EFI_SUCCESS)
+          {
+            alloc = blklst_num_sectors;
+            goto mem_ok;
+          }
+        }
+      }
+
+      status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,  
+//				  GRUB_EFI_RUNTIME_SERVICES_DATA, 
+          GRUB_EFI_RESERVED_MEMORY_TYPE,          //保留内存类型        0
+			      (grub_efi_uintn_t)bytes_needed >> 12, &alloc);	//调用(分配页面,分配类型->任意页面,存储类型->运行时服务数据(6),分配页,地址)
+      
       if (status != GRUB_EFI_SUCCESS)	//如果失败
       {
-        printf_errinfo ("out of memory\n");
+        printf_errinfo ("out of map memory: %x\n",status);
         return 0;
       }
+mem_ok:
 //      disk_drive_map[i].start_sector = ((unsigned long long)(grub_size_t)(char*)alloc | 0x200) & 0xfffffffffffffe00;  //此处是内存起始字节!!!
       disk_drive_map[i].start_sector = alloc;  //此处是内存起始字节!!!
     }
@@ -6872,7 +6913,7 @@ get_info_ok:
         if (form_statr < sum_to_count)
           break;
       }
-      empty_slot[0].start_sector = f[k].start_sector + (form_statr - (sum_to_count - f[k].sector_count));
+      empty_slot[0].start_sector = f[k].start_sector + (form_statr << (disk_drive_map[j].from_log2_sector - disk_drive_map[j].to_log2_sector)) - (sum_to_count - f[k].sector_count);
       //建立碎片映射
       q->from = from;
       q->to = to;
@@ -11247,7 +11288,9 @@ void DateTime_refresh(void)
 		if (!(strings[i].color & 0xffffffff00000000))
 		{
 			if (!(splashimage_loaded & 2))
-				current_color_64bit = strings[i].color | (current_color_64bit & 0xffffffff00000000);
+				current_color_64bit = strings[i].color | (console_color_64bit[COLOR_STATE_NORMAL] & 0xffffffff00000000);
+      else
+        current_color_64bit = strings[i].color | (current_color_64bit & 0xffffffff00000000);
 		}
 		else
 			current_color_64bit = strings[i].color | 0x1000000000000000;

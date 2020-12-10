@@ -158,7 +158,7 @@ struct ext2_super_block
 		__u16 s_reserved_pad;
 		__u64 s_kbytes_written;	/* nr of lifetime kilobytes written */
 		__u32 s_reserved[160];        /* Padding to the end of the block */
-  };
+  } __attribute__ ((packed));
 
 struct ext4_group_desc
   {
@@ -180,7 +180,7 @@ struct ext4_group_desc
     __u16 bg_used_dirs_count_hi;	/* Directories count MSB */
     __u16 bg_itable_unused_hi;	/* Unused inodes count MSB */
     __u32 bg_reserved2[3];
-  };
+  } __attribute__ ((packed));
 
 struct ext2_inode
   {
@@ -256,7 +256,7 @@ struct ext2_inode
 	__u32  i_crtime;       /* File Creation time */
 	__u32  i_crtime_extra; /* extra FileCreationtime (nsec << 2 | epoch) */
 	__u32  i_version_hi;	/* high 32 bits for 64-bit version */
-  };
+  } __attribute__ ((packed));
 
 #define EXT4_FEATURE_INCOMPAT_META			0x0010
 #define EXT4_FEATURE_INCOMPAT_EXTENTS		0x0040 /* extents support */
@@ -287,7 +287,7 @@ struct ext2_dir_entry
     __u8 name_len;		/* Name length */
     __u8 file_type;
     char name[EXT2_NAME_LEN];	/* File name */
-  };
+  } __attribute__ ((packed));
 
 /* linux/ext4_fs_extents.h */ 
 /* This is the extent on-disk structure.
@@ -299,7 +299,7 @@ struct ext4_extent
 	__u16  ee_len;     /* number of blocks covered by extent */
 	__u16  ee_start_hi;    /* high 16 bits of physical block */
 	__u32  ee_start_lo;    /* low 32 bits of physical block */
-  };
+  } __attribute__ ((packed));
 
 /*
  * This is index on-disk structure.
@@ -312,7 +312,7 @@ struct ext4_extent_idx
 	                     * level. leaf or next index could be there */
     __u16  ei_leaf_hi; /* high 16 bits of physical block */
     __u16  ei_unused;
-  };
+  } __attribute__ ((packed));
 
 /*
  * Each block (leaves and indexes), even inode-stored has header.
@@ -324,7 +324,7 @@ struct ext4_extent_header
     __u16  eh_max;     /* capacity of store in entries */
     __u16  eh_depth;   /* has tree real underlying blocks? */
     __u32  eh_generation;  /* generation of the tree */
-  };
+  } __attribute__ ((packed));
 
 #define EXT4_EXT_MAGIC      (0xf30a)
 #define EXT_FIRST_EXTENT(__hdr__) \

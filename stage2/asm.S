@@ -42,7 +42,7 @@
 //#define	ABS(x)	((x) - EXT_C(main) + 0x8200)
 #define	ABS(x)	(x)
 
-#if i386
+#if defined(__i386__)
   #define extent long
 #else
   #define extent quad
@@ -272,7 +272,7 @@ VARIABLE(linux_data_real_addr)                                            //char
 VARIABLE(addr_system_functions)																						//0x8300    系统功能地址
 	.extent	ABS(EXT_C(system_functions))
 
-#if i386
+#if defined(__i386__)
   .long 0                                                                 //使变量指针始终为0x8308
 #endif
 
@@ -375,7 +375,7 @@ ENTRY(disk_drive_map)	.space	[DRIVE_MAP_SIZE + 1] * DRIVE_MAP_SLOT_SIZE	//磁盘
 real_codestart:
 
 	.align	8
-#if i386
+#if defined(__i386__)
 //kern/i386/efi/startup.S
 	.code32
 

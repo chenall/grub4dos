@@ -839,6 +839,8 @@ restart1:
         {
           if (!(splashimage_loaded & 2))
               current_color_64bit = strings[j].color | (console_color_64bit[COLOR_STATE_NORMAL] & 0xffffffff00000000);
+          else
+            current_color_64bit = strings[j].color | (current_color_64bit & 0xffffffff00000000);
         }
         else
           current_color_64bit = strings[j].color | 0x1000000000000000;
