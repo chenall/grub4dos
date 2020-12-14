@@ -782,12 +782,14 @@ map_to_svbus (grub_efi_physical_address_t address)
     if (drive_map_slot_empty (disk_drive_map[i]))   //判断驱动器映像插槽是否为空   为空,返回1
       break;
 
+    //滤除软盘
+    if (disk_drive_map[i].from_drive < 0x80)
+      continue;
+    //复制映射插槽
     grub_memmove ((char *)((char *)(grub_size_t)address + i*24), (char *)&disk_drive_map[i], 24);
     *(char*)((char *)(grub_size_t)address + i*24 + 2) = 0xfe;    //from最大磁头号 
     if (disk_drive_map[i].from_drive >= 0xa0)
       *(char*)((char *)(grub_size_t)address + i*24 + 5) = 0x20;  //from驱动器是cdrom
-    else
-      *(char*)((char *)(grub_size_t)address + i*24 + 5) = 0;
   }
 
   //复制碎片插槽
@@ -1081,6 +1083,9 @@ chainloader_func (char *arg, int flags)
   
   d = get_device_by_drive (current_drive);
   file_path = grub_efi_file_device_path (d->device_path, filename);
+  if (debug > 1)
+    grub_efi_print_device_path (file_path);	//打印设备路径
+  
   status = efi_call_6 (b->load_image, 0, grub_efi_image_handle, file_path,
 		       boot_image, filemax,
 		       &image_handle);	//调用(装载镜像,0,镜像句柄,文件路径,引导镜像,尺寸,镜像句柄地址)
@@ -6793,7 +6798,13 @@ get_info_ok:
           }
         }
       }
-
+/*
+通过g4e或者grub2作为一个UEFI引导器，加载镜像到内存盘，并且做好了与svbus驱动的对接，然后启动windows,进入桌面。
+当内存类型为GRUB_EFI_RUNTIME_SERVICES_DATA时,有的系统可以成功启动,而有的windows系统报错误0xc0000225和0xc0000017.
+“c0000225”或“c0000017”错误发生在您试图在运行Windows 7或Windows Server 2008 R2的启用了UEFI的计算机上启动Windows PE RAM磁盘映像时.
+看微软的意思是“内存状态不同步，一个内存管理器使用的一些内存仍然被另一个内存管理器标记为可用.
+改用内存类型GRUB_EFI_RESERVED_MEMORY_TYPE,完美解决.
+*/
       status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,  
 //				  GRUB_EFI_RUNTIME_SERVICES_DATA, 
           GRUB_EFI_RESERVED_MEMORY_TYPE,          //保留内存类型        0

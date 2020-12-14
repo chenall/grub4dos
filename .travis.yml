@@ -27,7 +27,6 @@ before_script:
 
 script:
   - ./build
-  - ./build i386
 
 after_success:
   - eval $SUCCESS
@@ -48,9 +47,7 @@ branches:
 deploy:
     provider: releases
     api_key: $GITHUB_TOKEN
-    file:
-      - grub4dos-$(cat grub4dos_version)-x64-$(date -u +%Y-%m-%d).7z
-      - grub4dos-$(cat grub4dos_version)-ia32-$(date -u +%Y-%m-%d).7z
+    file: grub4dos-$(cat grub4dos_version)-$(date -u +%Y-%m-%d).7z
     skip_cleanup: true
     overwrite: true
     on:

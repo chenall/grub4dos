@@ -1771,6 +1771,8 @@ restart_config:
 		if (*config_file)
 		{
 			is_opened = (configfile_opened || grub_open (config_file));
+      if (! is_opened)
+        goto done_config_file;
       menu_mem = grub_zalloc (filemax + 0x40c00);     //分配内存, 并清零  
       title_boot = (unsigned short *)menu_mem;
       titles = (char * *)(menu_mem + 1024);

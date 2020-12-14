@@ -1540,6 +1540,8 @@ copy_grub4dos_self_address (void)
           GRUB_EFI_RUNTIME_SERVICES_DATA, 1, &grub4dos_self_address); //(分配页,分配类型=指定地址,存储类型=运行时数据,页数=1,返回分配地址)
   if (status)
     return;  
+  //清除残留
+  grub_memset ((void *)(grub_size_t)grub4dos_self_address, 0, 0x1000);
   //复制特定字符串
   grub_memmove ((void *)(grub_size_t)(grub4dos_self_address + 0xe0), "   $INT13SFGRUB4DOS", 19);  
   //复制bootx64.efi自身地址

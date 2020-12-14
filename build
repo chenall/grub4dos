@@ -8,16 +8,6 @@
 #	./build
 #此时在根目录 /home/dev/grub4efi
 
-#使用“./build i386”编译BOOTIA32.EFI
-#使用“./build”或者"make"编译BOOTX64.EFI
-if [ "$1" = "i386" ]; then
-  I386=1
-  ARCH="ia32"
-else
-  I386=0
-  ARCH="x64"
-fi
-
 #源目录
 SOURCE_DIR=`pwd`
 #版本
@@ -25,7 +15,7 @@ VER=`cat grub4dos_version`
 #日期
 DATE=`date -u +%Y-%m-%d`
 #发布日期
-RELEASE=grub4dos-${VER}-${ARCH}-${DATE}
+RELEASE=grub4dos-${VER}-${DATE}
 #定义复制文件集
 #COPY_FILES="COPYING README_GRUB4DOS*.txt ChangeLog_*.txt \
 #	config.sys default menu.lst grub.pif config.h\
@@ -81,13 +71,6 @@ fi
 #转到 GRUB4DOS_TEMP 目录
 cd ${GRUB4DOS_TEMP} || exit $?
 
-#编译切换
-if [ $I386 = 1 ]; then
-  mv stage2/Makefile.in stage2/Makefile.in-64
-  mv stage2/Makefile.in-i386 stage2/Makefile.in
-  echo 1
-fi
-
 #生成 Get_Source_of_This_Build.txt 文件
 if [ "$Get_source" ]; then
 	echo -n -e "Get the source code of this build in this way:\r\n\r\n${Get_source}" > Get_Source_of_This_Build.txt
@@ -98,11 +81,10 @@ if [ "$Get_source" ]; then
 	echo -n -e "and now you may do a \"make\" to compile.\r\n\r\n" >> Get_Source_of_This_Build.txt
 fi
 
-#############################################
-#	Build english version   生成英文版本 
-#############################################
+#**********************************************
+#	编译 BOOTX64.EFI
+#**********************************************
 #配置
-#./configure --enable-preset-menu=preset_menu.lst || exit $?
 ./configure || exit $?
 #清洁
 make clean
@@ -142,24 +124,6 @@ make || exit $?
 #	fi
 #fi
 
-#############################################
-#	Build chinese version   建立中文版
-#############################################
-#如果补丁 -p1 < patch-chinese.diff，编译
-#patch -p1 < patch-chinese.diff || exit $?
-#make || exit $?
-
-#建立 grub4dos-${VER}/chinese 目录
-#mkdir grub4dos-${VER}/chinese || exit $?
-#复制 README_GRUB4DOS_CN.txt 及 stage2/grldr 到 grub4dos-${VER}/chinese
-#cp README_GRUB4DOS_CN.txt stage2/grldr grub4dos-${VER}/chinese || exit $?
-
-#############################################
-#	Create ZIP ball or TAR ball   创建 ZIP 或 TAR
-#############################################
-#转到 $SOURCE_DIR
-#cd $SOURCE_DIR
-
 #如果存在 ipxe，则转到 ipxe/src 目录，编译并推送...，然后返回 $SOURCE_DIR 目录
 #if [ -d ipxe ] ; then
 #	cd ipxe/src
@@ -173,55 +137,43 @@ make || exit $?
 cp stage2/pre_stage2.exec $GRUB4DOS_TEMP/kernel.img
 cp $SOURCE_DIR/moddep.lst $GRUB4DOS_TEMP/moddep.lst
 platform=`uname -m`
-if ! [ $I386 = 1 ]; then
 if [ $platform = 'x86_64' ]
 then
     $SOURCE_DIR/grub-mkimage64 -d $GRUB4DOS_TEMP -p /GRUB2 -o BOOTX64.EFI -O x86_64-efi
 else
     $SOURCE_DIR/grub-mkimage -d $GRUB4DOS_TEMP -p /GRUB2 -o BOOTX64.EFI -O x86_64-efi
 fi
-else
-echo 3
+
+#**********************************************
+#	编译 BOOTIA32.EFI
+#**********************************************
+#编译切换
+mv stage2/Makefile.in stage2/Makefile.in-64
+mv stage2/Makefile.in-i386 stage2/Makefile.in
+#配置
+./configure || exit $?
+#清洁
+make clean
+#编译
+make || exit $?
+cp stage2/pre_stage2.exec $GRUB4DOS_TEMP/kernel.img
 if [ $platform = 'x86_64' ]
 then
     $SOURCE_DIR/grub-mkimage64 -d $GRUB4DOS_TEMP -p /GRUB2 -o BOOTIA32.EFI -O i386-efi
 else
     $SOURCE_DIR/grub-mkimage -d $GRUB4DOS_TEMP -p /GRUB2 -o BOOTIA32.EFI -O i386-efi
 fi
-fi
+
 #转到源目录
 cd $SOURCE_DIR
-#$SOURCE_DIR/grub-mkimage -d $SOURCE_DIR -p /GRUB2 -o BOOTX64.EFI -O x86_64-efi
 #此时在 /tmp/grub4dos-temp/
 #cd /
 #此时在 /home/ 的上一级目录，但不是 /g4d_dev/
 
-#产生 grub4dos-0.4.6a-xxxx-xx-xx.7z 文件
-#rm -f ${RELEASE}.zip ${RELEASE}.rar ${RELEASE}.tar.gz || exit $?
-#if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/grub4dos-${VER} ; then
-#	echo 7z failed. Continue with zip or tar...
-#	if ! zip -r -q ${RELEASE}.zip ${GRUB4DOS_TEMP}/grub4dos-${VER} ; then
-#		tar -czf ${RELEASE}.tar.gz ${GRUB4DOS_TEMP}/grub4dos-${VER}
-#	fi
-#fi
-
 rm -f ${RELEASE}.zip ${RELEASE}.rar ${RELEASE}.tar.gz || exit $?
-if ! [ $I386 = 1 ]; then
-if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/BOOTX64.EFI $SOURCE_DIR/ChangeLog_UEFI.txt $SOURCE_DIR/menu.lst \
-    ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff; then
+if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/BOOTX64.EFI ${GRUB4DOS_TEMP}/BOOTIA32.EFI $SOURCE_DIR/ChangeLog_UEFI.txt \
+    $SOURCE_DIR/menu.lst ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff; then
 	echo 7z failed. Continue with zip or tar...
-fi
-else
-if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/BOOTIA32.EFI $SOURCE_DIR/ChangeLog_UEFI.txt $SOURCE_DIR/menu.lst \
-    ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff; then
-	echo 7z failed. Continue with zip or tar...
-fi
 fi
 
-#删除*.zip *.7z *~
-#rm -rf *.zip *.7z *~ || exit $?
-#产生 grub4dos_for_UEFI-0.4.6a-xxxx-xx-xx.7z 文件
-#if ! 7z a ${RELEASE}.7z $SOURCE_DIR/BOOTX64.EFI $SOURCE_DIR/ChangeLog_UEFI.txt; then
-#	echo 7z failed. Continue with zip or tar...
-#fi
 # Do not remove grub4dos-temp as we can check and re-use it later.  不要删除grub4dos temp，因为我们可以稍后检查并重新使用它。
