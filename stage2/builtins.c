@@ -1734,6 +1734,128 @@ static struct builtin builtin_configfile =
   "Load FILE as the configuration file."
 };
 
+static grub_efi_status_t
+connect_all_efi (void)
+{
+  grub_efi_status_t status;
+  grub_efi_uintn_t handle_count;
+  grub_efi_handle_t *handle_buffer;
+  grub_efi_uintn_t index;
+  grub_efi_boot_services_t *b = grub_efi_system_table->boot_services;
+  status = efi_call_5 (b->locate_handle_buffer,
+                       GRUB_EFI_ALL_HANDLES,
+                       NULL, NULL,
+                       &handle_count, &handle_buffer);
+  if (status != GRUB_EFI_SUCCESS)
+    return status;
+  for (index = 0; index < handle_count; index++)
+    status = efi_call_4 (b->connect_controller,
+                         handle_buffer[index], NULL, NULL, TRUE);
+  if (handle_buffer)
+    efi_call_1 (b->free_pool, handle_buffer);
+  return GRUB_EFI_SUCCESS;
+}
+
+/* load */
+static int load_func (char *arg, int flags);
+static int
+load_func (char *arg, int flags)
+{
+  int connect = 1;
+  grub_efi_status_t status;
+  grub_efi_boot_services_t *b = grub_efi_system_table->boot_services;
+  grub_efi_physical_address_t address;
+  grub_efi_uintn_t pages = 0;
+  grub_size_t size;
+  void *driver_img = NULL;
+  grub_efi_handle_t driver_handle;
+  grub_efi_loaded_image_t *loaded_image;
+  grub_efi_guid_t loaded_image_protocol_guid = GRUB_EFI_LOADED_IMAGE_PROTOCOL_GUID;
+
+  if (!*arg)
+    goto load_fail;
+  if (grub_memcmp (arg, "-n", 2) == 0)
+  {
+    connect = 0;
+    arg = skip_to (0, arg);
+  }
+  grub_open (arg);
+  if (errnum)
+  {
+    printf_errinfo ("Failed to open %s\n", arg);
+    goto load_fail;
+  }
+  size = filemax;
+  pages = BYTES_TO_PAGES (size);
+  status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,
+                       GRUB_EFI_LOADER_CODE, pages, &address);
+  if (status != GRUB_EFI_SUCCESS)
+  {
+    grub_close ();
+    printf_errinfo ("Failed to allocate pages\n");
+    goto load_fail;
+  }
+  driver_img = (void *) ((grub_addr_t) address);
+  if (grub_read ((unsigned long long)(grub_size_t)driver_img,
+                  filemax, 0xedde0d90) != filemax)
+  {
+    grub_close ();
+    printf_errinfo ("premature end of file %s", arg);
+    goto load_fail;
+  }
+  grub_close ();
+
+  status = efi_call_6 (b->load_image, 0, grub_efi_image_handle, NULL,
+                       driver_img, size, &driver_handle);
+  if (status != GRUB_EFI_SUCCESS)
+  {
+    printf_errinfo ("cannot load image\n");
+    goto load_fail;
+  }
+  loaded_image = grub_efi_get_loaded_image (driver_handle);
+  if (!loaded_image)
+  {
+    printf_errinfo ("no loaded image available\n");
+    goto load_fail;
+  }
+  status = efi_call_3 (b->handle_protocol, driver_handle,
+                       &loaded_image_protocol_guid, (void **)&loaded_image);
+  if (status != GRUB_EFI_SUCCESS)
+  {
+    printf_errinfo ("Not a dirver\n");
+    goto load_fail;
+  }
+  status = efi_call_3 (b->start_image, driver_handle, NULL, NULL);
+  if (status != GRUB_EFI_SUCCESS)
+  {
+    printf_errinfo ("ERROR in StartImage\n");
+    goto load_fail;
+  }
+  if (connect)
+  {
+    status = connect_all_efi ();
+    if (status != GRUB_EFI_SUCCESS)
+    {
+      printf_errinfo ("ERROR in connect_all_efi\n");
+      goto load_fail;
+    }
+  }
+  return 1;
+
+load_fail:
+  if (driver_img)
+    efi_call_2 (b->free_pages, (grub_size_t)driver_img, pages);
+  return 0;
+}
+
+static struct builtin builtin_load =
+{
+  "load",
+  load_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
+  "load [-n] FILE",
+  "Load FILE as EFI driver."
+};
 
 /* dd if=IF of=OF */
 static int dd_func (char *arg, int flags);
@@ -12270,6 +12392,7 @@ struct builtin *builtin_table[] =
 #endif
   &builtin_is64bit,
   &builtin_kernel,
+  &builtin_load,
   &builtin_lock,
   &builtin_ls,
   &builtin_makeactive,
