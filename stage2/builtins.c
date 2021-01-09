@@ -51,7 +51,7 @@ int fallback_entries[MAX_FALLBACK_ENTRIES];
 int current_entryno;
 #ifdef SUPPORT_GFX
 /* graphics file */
-char graphics_file[64];
+//char graphics_file[64];
 #endif
 /* The address for Multiboot command-line buffer.  */
 static char *mb_cmdline;// = (char *) MB_CMDLINE_BUF;
@@ -127,6 +127,8 @@ unsigned long long *next_partition_offset;
 unsigned int *next_partition_entry;
 unsigned int *next_partition_ext_offset;
 char *next_partition_buf;
+unsigned char partition_signature[16];  //分区签名
+unsigned char partition_activity_flag;  //分区活动标志
 int fsys_type;
 extern unsigned int fats_type;
 extern unsigned int iso_type;
@@ -230,8 +232,6 @@ static unsigned long long blklst_start_sector;
 static unsigned long long blklst_num_sectors;
 static unsigned int blklst_num_entries;
 static unsigned int blklst_last_length;
-
-static void disk_read_blocklist_func (unsigned long long sector, unsigned int offset, unsigned long long length);
 
   /* Collect contiguous blocks into one entry as many as possible,
      and print the blocklist notation on the screen.  */
@@ -793,7 +793,7 @@ map_to_svbus (grub_efi_physical_address_t address)
   }
 
   //复制碎片插槽
-  grub_memmove ((char *)((char *)(grub_size_t)address + 0x110), (char *)&disk_fragment_map, 0x400);
+  grub_memmove ((char *)((char *)(grub_size_t)address + 0x120), (char *)&disk_fragment_map, 0x400);
 }
 
 static char chainloader_file[256];
@@ -852,11 +852,6 @@ get_efi_cdrom_device_boot_path (int drive)  //获得光盘驱动器引导路径
   filepos = part_addr * 0x800;	//19*800
   struct master_and_dos_boot_sector *BS = (struct master_and_dos_boot_sector *) cache;
   grub_read ((unsigned long long)(grub_size_t)BS, 0x800, 0xedde0d90);
-  if (!probe_mbr (BS, 0, 1, 0))  //如果存在mbr
-  {
-    part_size = probed_total_sectors;
-    filesystem_type = 0x100;
-  }
 
   if (!probe_bpb(BS))
     part_size = probed_total_sectors;
@@ -865,6 +860,7 @@ get_efi_cdrom_device_boot_path (int drive)  //获得光盘驱动器引导路径
   if (part_size < 0xB40)		//BLOCK_OF_1_44MB=0xB40*200=168000
     part_size = 0xB40;			//1.44Mb软盘尺寸
 
+  part_data = 0;
   grub_free (cache); 
   return 1;
   
@@ -873,13 +869,31 @@ fail_close_free:
   return 0;
 }
 
+int find_specified_file (int drive, int partition, char* file);
+int 
+find_specified_file (int drive, int partition, char* file)
+{
+  int val;
+  int tem_drive = current_drive;
+  int tem_partition = current_partition;
+
+  sprintf (chainloader_file, "(hd%d,%d)%s", drive & 0x7f, partition >> 16, file);
+  putchar_hooked = (unsigned char*)1; //不打印ls_func信息
+  val = ls_func (chainloader_file, 1);
+  putchar_hooked = 0;
+  current_partition = tem_partition;
+  current_drive = tem_drive;
+
+  return val;
+}
+
 int get_efi_hd_device_boot_path (int drive);
 int
-get_efi_hd_device_boot_path (int drive)  //获得光盘驱动器引导路径
+get_efi_hd_device_boot_path (int drive)  //获得硬盘驱动器引导路径
 {
-  int tem_drive;
   struct grub_part_data *p;
   char *cache = 0;
+  int self_locking = 0;
 
   cache = grub_zalloc (0x800);	//分配缓存
   if (!cache)
@@ -890,24 +904,30 @@ get_efi_hd_device_boot_path (int drive)  //获得光盘驱动器引导路径
     if (p->drive != drive)
       continue;
     
-    sprintf (chainloader_file, "(hd%d,%d)%s", drive, p->partition >> 16, EFI_REMOVABLE_MEDIA_FILE_NAME);
-    tem_drive = drive;	
-    putchar_hooked = (unsigned char*)1; //不打印ls_func信息
-    if (ls_func (chainloader_file, 1) == 1) //搜索文件 bootx64.efi
+    if (p->partition_type != 0xee && !self_locking)  //如果是MBR分区类型, 首先启动活动分区
     {
-      putchar_hooked = 0; //恢复打印信息
-      boot_entry = (grub_efi_uint64_t)(grub_size_t)p;
-      part_addr = p->partition_start;
-      part_size = p->partition_len;
-      grub_free (cache); 
-      return 1;  
+      struct grub_part_data *p_back = p;
+      while (p && p->drive == drive && p->partition_activity_flag == 0) //查找活动分区
+        p = p->next;
+      if (p && find_specified_file(drive, p->partition, EFI_REMOVABLE_MEDIA_FILE_NAME) == 1) //搜索文件 bootx64.efi
+        goto complete;
+      p = p_back;
+      self_locking = 1;
     }
-    putchar_hooked = 0; //恢复打印信息
-    drive = tem_drive;
+
+    if (find_specified_file(drive, p->partition, EFI_REMOVABLE_MEDIA_FILE_NAME) == 1) //搜索文件 bootx64.efi
+      goto complete;
   }
   
   grub_free (cache); 
   return 0; 
+  
+complete:
+  part_data = p;
+  part_addr = p->partition_start;
+  part_size = p->partition_len;
+  grub_free (cache); 
+  return 1;  
 }
 
 static void *linuxefi_mem;
@@ -974,6 +994,8 @@ boot_func (char *arg, int flags)
   else
   {
 	map_to_svbus(grub4dos_self_address); //为svbus复制插槽
+  //不能释放，否则无法启动
+  //grub_efi_fini ();
 	printf_debug ("StartImage: %x\n", image_handle);				//开始映射
 	status = efi_call_3 (b->start_image, image_handle, 0, NULL);			//启动映像
 	printf_debug ("StartImage returned 0x%lx\n", (grub_size_t) status);	//开始映射返回
@@ -992,6 +1014,10 @@ static struct builtin builtin_boot =
   "with option \"-1\" will boot to local via INT 18.",
 };
 
+static grub_efi_char16_t *cmdline;
+static grub_ssize_t cmdline_len;
+static grub_efi_device_path_t *file_path_public;
+static grub_efi_handle_t dev_handle;
 
 /* chainloader */
 static int chainloader_func (char *arg, int flags);
@@ -1005,10 +1031,8 @@ chainloader_func (char *arg, int flags)
 	b = grub_efi_system_table->boot_services;		//引导服务
   static grub_efi_physical_address_t address;
   static grub_efi_uintn_t pages;
-  static grub_efi_char16_t *cmdline;
   struct grub_disk_data *d;	//磁盘数据
-  grub_efi_device_path_t *file_path;
-  int k;
+  struct grub_part_data *p;
   
   set_full_path(chainloader_file,arg,sizeof(chainloader_file)); //设置完整路径(补齐驱动器号,分区号)  /efi/boot/bootx64.efi -> (hd0,0)/efi/boot/bootx64.efi
   chainloader_file[255]=0;
@@ -1027,27 +1051,30 @@ chainloader_func (char *arg, int flags)
   if (*filename == '+')
     *filename = 0;
 
-  if (! *filename) //虚拟盘类型
+  //虚拟盘类型
+  if (! *filename)
 	{
-    if (current_partition != 0xFFFFFF)  //安装分区
+    if (current_partition != 0xFFFFFF)  //如果指定启动分区
     {
-      get_efi_hd_device_boot_path (current_drive);    //获得光盘驱动器引导路径
-
-      no_install_vdisk = 1;  //0/1=安装虚拟磁盘/不安装虚拟磁盘
-      grub_sprintf (chainloader_file, "(0x%X)0x%lX+0x%lX (fd)", current_drive, part_addr, part_size);
-      k = map_func (chainloader_file, flags);
-      no_install_vdisk = 0; 
-      grub_close ();
-      d = get_device_by_drive (current_drive);
-      vpart_install (k >> 8, d->device_path, (struct grub_part_data*)(grub_size_t)boot_entry);				    //安装虚拟分区
-      d = get_device_by_drive (k & 0xff);
-      image_handle = vpart_load_image (d->handle);	    //虚拟磁盘启动
+      p = get_partition_info (current_drive, current_partition);  //获取分区信息
+      if (!p) //没有指定的分区
+      {
+        image_handle = vdisk_load_image (current_drive);	//虚拟磁盘启动
+        goto complete;
+      }
+      
+      image_handle = vpart_load_image (p->part_path);	    //虚拟磁盘启动
       if (!image_handle)
         image_handle = vdisk_load_image (current_drive);	//虚拟磁盘启动
     } 
-    else
-      image_handle = vdisk_load_image (current_drive);	//虚拟磁盘启动
+    else  //如果没有指定启动分区, 一般是刚安装了分区
+    {
+      image_handle = vpart_load_image (part_data->part_path);  //虚拟磁盘启动
+      if (!image_handle)
+        image_handle = vdisk_load_image (current_drive);    //虚拟磁盘启动
+    }
 
+complete:
     if (debug > 1)
     {
       grub_efi_loaded_image_t *image0 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
@@ -1057,10 +1084,10 @@ chainloader_func (char *arg, int flags)
 		return 1;
 	}
 
-  //打开文件
+  //文件类型
   grub_open (arg);
   if (errnum)
-		goto failure_exec_format;
+		goto failure_exec_format_0;
 
   errnum = ERR_NONE;	
 	pages = ((filemax + ((1 << 12) - 1)) >> 12);	//计算页
@@ -1080,38 +1107,30 @@ chainloader_func (char *arg, int flags)
 		printf_errinfo ("premature end of file %s",arg);
 		goto failure_exec_format;
   }
+
+  p = get_partition_info (current_drive, current_partition);
+  dev_handle = p->part_handle;
   
-  d = get_device_by_drive (current_drive);
-  file_path = grub_efi_file_device_path (d->device_path, filename);
+  if (! p->part_path)
+  {
+    d = get_device_by_drive (current_drive);
+    dev_handle = d->device_handle;
+    file_path_public = grub_efi_file_device_path (d->device_path, filename);
+  }
+  else
+    file_path_public = grub_efi_file_device_path (p->part_path, filename);
+  
   if (debug > 1)
-    grub_efi_print_device_path (file_path);	//打印设备路径
+    grub_efi_print_device_path (file_path_public);	//打印设备路径
   
-  status = efi_call_6 (b->load_image, 0, grub_efi_image_handle, file_path,
-		       boot_image, filemax,
-		       &image_handle);	//调用(装载镜像,0,镜像句柄,文件路径,引导镜像,尺寸,镜像句柄地址)
-
-  if (status != GRUB_EFI_SUCCESS)	//失败退出
-	{
-		if (status == GRUB_EFI_OUT_OF_RESOURCES)
-			printf_errinfo ("out of resources");	//"资源不足"
-		else
-			printf_errinfo ("cannot load image");	//"不能装载镜像"
-		goto failure_exec_format;
-	}
-
-  grub_efi_loaded_image_t *image1 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
-  image1->device_handle = d->handle;
-  printf_debug ("image=0x%x device_handle=%x",image1,d->handle);//113b8e40,11b3d398
-
   arg = skip_to(0,arg);	//标记=0/1/100/200=跳过"空格,回车,换行,水平制表符"/跳过等号/跳到下一行/使用'0'替换
   if (*arg)	//如果有变量
 	{
-		int len = 0;
 		grub_efi_char16_t *p16;
 
-		len += grub_strlen ((const char*)arg) + 1;
-		len *= sizeof (grub_efi_char16_t);
-		cmdline = p16 = grub_malloc (len);
+		cmdline_len = grub_strlen ((const char*)arg) + 1;
+		cmdline_len *= sizeof (grub_efi_char16_t);
+		cmdline = p16 = grub_malloc (cmdline_len);
 		if (! cmdline)
 			goto failure_exec_format;
 
@@ -1123,13 +1142,33 @@ chainloader_func (char *arg, int flags)
 
 		*(p16++) = ' ';
 		*(--p16) = 0;
-
-		image1->load_options = cmdline;	//加载选项
-		image1->load_options_size = len;//加载选项尺寸
 	}
 
-  grub_close ();	//关闭文件
+  status = efi_call_6 (b->load_image, 0, grub_efi_image_handle, file_path_public,
+		       boot_image, filemax,
+		       &image_handle);	//调用(装载镜像,0,镜像句柄,文件路径,引导镜像,尺寸,镜像句柄地址)
 
+  if (status != GRUB_EFI_SUCCESS)	//失败退出
+	{
+		if (status == GRUB_EFI_OUT_OF_RESOURCES)
+			printf_errinfo ("out of resources");	//"资源不足"
+		else
+			printf_errinfo ("cannot load image");	//"不能装载镜像"
+		goto failure_exec_format;
+	}
+  
+  grub_efi_loaded_image_t *image1 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
+  //UEFI固件已经设置了“image1->device_handle = d->handle”。他没有分区信息，启动不了某些bootmgfw.efi。必须在此填充对应分区的句柄。
+//  d = get_device_by_drive (current_drive);
+//  image1->device_handle = d->handle;
+  image1->device_handle = dev_handle;
+  if (cmdline)
+  {
+		image1->load_options = cmdline;	//加载选项
+		image1->load_options_size = cmdline_len;//加载选项尺寸
+  }
+  printf_debug ("image=0x%x device_handle=%x",image1,dev_handle);//113b8e40,11b3d398
+  grub_close ();	//关闭文件
 
 	kernel_type = KERNEL_TYPE_CHAINLOADER;
   return 1;
@@ -1137,6 +1176,8 @@ chainloader_func (char *arg, int flags)
 failure_exec_format:
 
   grub_close ();
+  
+failure_exec_format_0:
 
   if (errnum == ERR_NONE)
 	errnum = ERR_EXEC_FORMAT;
@@ -1167,7 +1208,6 @@ static struct builtin builtin_chainloader =
   " SL specifies length in bytes at the beginning of the image to be"
   " skipped when loading."
 };
-
 
 /* This function could be used to debug new filesystem code. Put a file
    in the new filesystem and the same file in a well-tested filesystem.
@@ -2803,6 +2843,10 @@ displaymem_func (char *arg, int flags)
   grub_efi_uintn_t desc_size;
 	grub_efi_memory_descriptor_t *memory_map;
 	grub_efi_memory_descriptor_t *desc;
+  grub_efi_status_t status;     //状态
+  grub_efi_boot_services_t *b;
+  b = grub_efi_system_table->boot_services; //系统表->引导服务
+  int mm_status;						    //分配内存状态=1/0/-1=成功/部分/失败
   int i, mode = 0;
 	
 	if (grub_memcmp (arg, "-s", 2) == 0)			//以扇区数计, 简约模式
@@ -2814,7 +2858,28 @@ displaymem_func (char *arg, int flags)
 	else																			//以字节计, 简约模式(默认)
 		mode = 0;
 		
-	memory_map = grub_malloc (0x3000);
+//	memory_map = grub_malloc (0x3000);
+  status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,
+			      GRUB_EFI_LOADER_CODE, mmap_size >> 11, (grub_efi_physical_address_t *)&memory_map);	//调用(分配页面,分配类型->任意页面,存储类型->装载程序代码(1),分配页,地址)
+  if (status) //如果失败
+    printf_errinfo ("cannot allocate memory\n");	//无法分配内存 
+
+  mm_status = grub_efi_get_memory_map (&mmap_size, memory_map, 0, &desc_size, 0);  //获得内存映射(映射尺寸,映射页,0,描述尺寸,0)  返回1/0/-1=成功/部分/失败
+                                                                                  //获得内存描述符尺寸desc_size, 获得可用内存描述符集地址偏移map_size
+  if (mm_status == 0) //如果是部分
+	{
+    efi_call_2 (b->free_pages, (grub_efi_physical_address_t)(grub_size_t)memory_map, mmap_size >> 11);	//(释放页,地址,页)
+		mmap_size += desc_size * 32; //增大内存尺寸
+    status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,
+            GRUB_EFI_LOADER_CODE, mmap_size >> 11, (grub_efi_physical_address_t *)&memory_map);	//调用(分配页面,分配类型->任意页面,存储类型->装载程序代码(1),分配页,地址)
+		if (! memory_map) //如果失败
+			printf_errinfo ("cannot allocate memory\n");	//无法分配内存 
+
+		mm_status = grub_efi_get_memory_map (&mmap_size, memory_map, 0,	&desc_size, 0);  //获得内存映射
+	}
+	
+  if (mm_status < 0)  //如果失败
+    printf_errinfo ("cannot get memory map\n");	//无法分配内存
 
   grub_efi_get_memory_map (&mmap_size, memory_map, 0, &desc_size, 0);
 
@@ -2851,7 +2916,8 @@ displaymem_func (char *arg, int flags)
             && desc->num_pages >= blklst_num_sectors)   //答疑等于指定内存
         {
           blklst_num_sectors = desc->physical_start;    //返回内存起始地址
-          grub_free (memory_map);
+//          grub_free (memory_map);
+          efi_call_2 (b->free_pages, (grub_efi_physical_address_t)(grub_size_t)memory_map, mmap_size >> 11);	//(释放页,地址,页)
           return 1;
         }
         else
@@ -2859,7 +2925,8 @@ displaymem_func (char *arg, int flags)
 		}				
 	}
 
-	grub_free (memory_map);
+//	grub_free (memory_map);
+  efi_call_2 (b->free_pages, (grub_efi_physical_address_t)(grub_size_t)memory_map, mmap_size >> 11);	//(释放页,地址,页)
   return 1;
 }
 
@@ -3299,10 +3366,10 @@ command_func (char *arg, int flags)
 	arg -= 6;
     }
   /* open the command file. */
-  char *filename = arg;
+  char *filename = arg; //文件名: g4e_wb abcdef
   char file_path[512];
-  unsigned int arg_len = grub_strlen(arg);/*get length for build psp */
-  char *cmd_arg = skip_to(SKIP_WITH_TERMINATE,arg);/* get argument of command */
+  unsigned int arg_len = grub_strlen(arg);/*get length for build psp */   //文件名尺寸 d
+  char *cmd_arg = skip_to(SKIP_WITH_TERMINATE,arg);/* get argument of command */    //命令参数: abcdef
   p_exec = NULL;
 
   switch(command_open(filename,0))
@@ -3350,21 +3417,21 @@ command_func (char *arg, int flags)
 	unsigned int prog_len;
 	char *program;
 	char *tmp;
-	prog_len = filemax;
-	psp_len = ((arg_len + strlen(file_path)+ 16) & ~0xF) + 0x10 + 0x20;
-	tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
+	prog_len = filemax; //程序(文件)尺寸
+	psp_len = ((arg_len + strlen(file_path)+ 16) & ~0xF) + 0x10 + 0x20; //psp尺寸
+	tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);  //缓存
 
 	if (tmp == NULL)
 	{
 		goto fail;
 	}
 
-	program = (char *)((grub_size_t)(tmp + 4095) & ~4095); /* 4K align the program */
-	psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F);
-	unsigned long long *end_signature = (unsigned long long *)(program + filemax - (unsigned long long)8);
+	program = (char *)((grub_size_t)(tmp + 4095) & ~4095); /* 4K align the program 4K对齐程序*/   //程序缓存
+	psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F); //psp地址
+	unsigned long long *end_signature = (unsigned long long *)(program + filemax - (unsigned long long)8);  //程序结束签名地址
 	if (p_exec == NULL)
 	{
-		/* read file to buff and check exec signature. */
+		/* read file to buff and check exec signature. 读取文件到程序缓存并检查exec签名*/
 		if ((grub_read ((unsigned long long)(grub_size_t)program, -1ULL, 0xedde0d90) != filemax))
 		{
 			if (! errnum)
@@ -3398,20 +3465,25 @@ command_func (char *arg, int flags)
 	}
 	if (*end_signature == 0xBCBAA7BA03051805ULL)
 	{
-		if (*(unsigned long long *)(program + prog_len - 0x20) == 0x646E655F6E69616D) /* main_end New Version*/
+		if (*(unsigned long long *)(program + prog_len - 0x20) == 0x646E655F6E69616D) //新版本标记 main_end
 		{
-			char * tmp1;
-			char * program1;
-			unsigned int *bss_end = (unsigned int *)(program + prog_len - 0x24);
-			if (prog_len != *bss_end){
+			char * tmp1;    //新缓存
+			char * program1;//新程序缓存
+			unsigned int *bss_end = (unsigned int *)(program + prog_len - 0x24);    //bss结束,即程序尾部
+			unsigned int *main_start = (unsigned int *)(program + prog_len - 0x40); //主程序起始
+//			if (prog_len != *bss_end){
+      if (prog_len != (*bss_end - *main_start))
+      {
 				grub_free(tmp);
-				prog_len = *bss_end;
-				tmp1 = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
+        tmp = 0;
+//				prog_len = *bss_end;
+        prog_len = *bss_end - *main_start;
+				tmp1 = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len); //新缓存
 				if (tmp1 == NULL)
 				{
 					goto fail;
 				}
-				program1 = (char *)((grub_size_t)(tmp1 + 4095) & ~4095); /* 4K align the program */
+				program1 = (char *)((grub_size_t)(tmp1 + 4095) & ~4095); /* 4K align the program */ //新程序缓存
 				if (tmp1 != tmp)
 				{
 					grub_memmove (program1, program, filemax);
@@ -3425,6 +3497,7 @@ command_func (char *arg, int flags)
 			printf_warning ("\nWarning! The program is outdated!\n");
 			psp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
 			grub_free(tmp);
+      tmp = 0;
 			if (psp == NULL)
 			{
 				goto fail;
@@ -3798,13 +3871,13 @@ find_func (char *arg, int flags)
 	{
 		current_drive = saved_drive;
 		current_partition = saved_partition;
-		if ((current_drive < 0x80 || current_drive >= 0xa0) && find_check(filename,builtin1,arg,flags) == 1)
+		if (((current_drive < 0x80 && floppies_orig) || (current_drive >= 0xa0 && cdrom_orig)) && find_check(filename,builtin1,arg,flags) == 1)
 		{
 			got_file = 1;
 			if (set_root)
 				goto found;
 		}
-		else if (current_drive >= 0x80 && current_drive <= 0x8f)
+		else if (current_drive >= 0x80 && current_drive <= 0x8f && harddrives_orig)
 		{
 			struct grub_part_data *dp;
 			for (dp = partition_info; dp; dp = dp->next)
@@ -3847,7 +3920,7 @@ find_func (char *arg, int flags)
 #endif
 			case 'c':/*Only search first cdrom*/
         d = cd_devices;
-        for ( ; d; d = d->next)	//从设备结构起始查; 只要设备存在,并且驱动器号不为零;
+        for ( ; d && cdrom_orig; d = d->next)	//从设备结构起始查; 只要设备存在,并且驱动器号不为零;
         {
           current_drive = d->drive;
 					if (tmp_drive == current_drive)
@@ -3876,7 +3949,7 @@ find_func (char *arg, int flags)
 				break;
 			case 'f':
         d = fd_devices;
-        for ( ; d; d = d->next)	//从设备结构起始查; 只要设备存在,并且驱动器号不为零;
+        for ( ; d && floppies_orig; d = d->next)	//从设备结构起始查; 只要设备存在,并且驱动器号不为零;
         {
           current_drive = d->drive;
 					if (tmp_drive == current_drive)
@@ -6077,13 +6150,15 @@ fragment_map_slot_find(struct fragment_map_slot *q, unsigned int from) //在碎�
   return 0;
 }
 
-grub_efi_uint64_t	signature;
 grub_efi_uint64_t	part_addr;
 grub_efi_uint64_t	part_size;
 grub_efi_uint64_t boot_entry;
+struct grub_part_data *part_data;
 unsigned int map_image_HPC, map_image_SPT;
 grub_efi_device_path_protocol_t* grub_efi_create_device_node (grub_efi_uint8_t node_type, grub_efi_uintn_t node_subtype,
                     grub_efi_uint16_t node_length);
+unsigned long long tmp;
+int pause_func (char *arg, int flags);
 
 /* map */
 /* Map FROM_DRIVE to TO_DRIVE.  映射 FROM 驱动器到 TO 驱动器*/
@@ -6098,8 +6173,8 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
   char *filename;
   char *p;
   struct fragment_map_slot *q;
-  unsigned int extended_part_start;
-  unsigned int extended_part_length;
+//  unsigned int extended_part_start;
+//  unsigned int extended_part_length;
   int err;
   int prefer_top = 0;
 
@@ -6108,15 +6183,15 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
 
   unsigned long long mem = -1ULL;					//0=加载到内存   -1=不加载到内存
   int read_only = 0;					            //只读					若read_Only=1,则同时unsafe_boot=1
-  unsigned long long sectors_per_track = -1ULL;
-  unsigned long long heads_per_cylinder = -1ULL;
-  int add_mbt = -1;
+//  unsigned long long sectors_per_track = -1ULL;
+//  unsigned long long heads_per_cylinder = -1ULL;
+//  int add_mbt = -1;
   /* prefer_top now means "enable blocks above address of 4GB".         prefere_top 意思是“启用高于4GB地址的块”。
    * By default, prefer_top = 0, meaning that only 32-bit addressable   默认情况下，prefere_top=0，这意味着指定的虚拟内存驱动器只允许32位可寻址内存。
    * memory is allowed for the specified virtual mem-drive. 
 						 -- tinybit 2017-01-24 */
   unsigned long long skip_sectors = 0;
-  unsigned long long max_sectors = -1ULL;
+//  unsigned long long max_sectors = -1ULL;
   filesystem_type = -1;
   start_sector = sector_count = 0;
   map_image_HPC = 0; map_image_SPT = 0;
@@ -6133,7 +6208,7 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
 		if (grub_memcmp (arg, "--status", 8) == 0)		//1. 状况 按扇区显示
 		{
 			int byte = 0;
-      unsigned long long tmp;
+//      unsigned long long tmp;
 			arg += 8;
 			if (grub_memcmp (arg, "-byte", 5) == 0)			//按字节显示
 				byte = 1;
@@ -6296,7 +6371,7 @@ struct drive_map_slot
     }
     else if (grub_memcmp (arg, "--ram-drive=", 12) == 0)		//8. 内存盘  设置rd驱动器号,默认0x7f,设置区间:0-0xfe
 		{
-			unsigned long long tmp;
+//			unsigned long long tmp;
 			p = arg + 12;
 			if (! safe_parse_maxint (&p, &tmp))
 				return 0;
@@ -6308,7 +6383,7 @@ struct drive_map_slot
 		}
     else if (grub_memcmp (arg, "--rd-base=", 10) == 0)   //9. rd基址
 		{
-			unsigned long long tmp;
+//			unsigned long long tmp;
 			p = arg + 10;
 			if (! safe_parse_maxint_with_suffix (&p, &tmp, 9))
 				return 0;
@@ -6318,7 +6393,7 @@ struct drive_map_slot
 		}
     else if (grub_memcmp (arg, "--rd-size=", 10) == 0)  //10. rd尺寸
 		{
-			unsigned long long tmp;
+//			unsigned long long tmp;
 			p = arg + 10;
 			if (! safe_parse_maxint_with_suffix (&p, &tmp, 9))
 				return 0;
@@ -6335,6 +6410,7 @@ struct drive_map_slot
 		}
     else if (grub_memcmp (arg, "--top", 5) == 0)		//21. 内存映射置顶
 		{
+    //有人反映：UEFI固件不会自动分配内存到4GB以上，必须强制加载到4GB以上内存。
       prefer_top = 1;
       mem = 0;
 		}
@@ -6350,6 +6426,7 @@ struct drive_map_slot
     {
 //      return 1;
     }
+#if 0
 		else if (grub_memcmp (arg, "--add-mbt=", 10) == 0)  //33. 增加存储块  -1,0,1
 		{
 			unsigned long long num;
@@ -6360,6 +6437,7 @@ struct drive_map_slot
 			if (add_mbt < -1 || add_mbt > 1)
 				return 0;
 		}
+#endif
     else if (grub_memcmp (arg, "--skip-sectors=", 15) == 0)		//34. 跳过扇区
 		{
 			p = arg + 15;
@@ -6425,10 +6503,10 @@ struct drive_map_slot
         /* when whole drive is mapped, the mem option should not be specified. 				//当映射整体驱动器时,mem选项应当没有指定.
          * but when we delete a drive map slot, the mem option means force.						//但是当我们删除驱动器映像插槽时,mem选项意味着强制.
          */
-			if (mem != -1ULL && to != from)		      //如果加载到内存,并且to不等于from       //mem=0/-1=加载到内存/不加载到内存
-				return ! (errnum = ERR_SPECIFY_MEM);	//则返回错误  不应该指定内存
-			sectors_per_track = 1;/* 1 means the specified geometry will be ignored. */	  //每磁道扇区数=1,意味着指定几何探测将被忽略。
-			heads_per_cylinder = 1;/* can be any value but ignored since #sectors==1. */	//每柱面磁头数=1,可以是任何值，但被忽略了因为每磁道扇区数=1。
+//			if (mem != -1ULL && to != from)		      //如果加载到内存,并且to不等于from       //mem=0/-1=加载到内存/不加载到内存
+//				return ! (errnum = ERR_SPECIFY_MEM);	//则返回错误  不应该指定内存
+//			sectors_per_track = 1;/* 1 means the specified geometry will be ignored. */	  //每磁道扇区数=1,意味着指定几何探测将被忽略。
+//			heads_per_cylinder = 1;/* can be any value but ignored since #sectors==1. */	//每柱面磁头数=1,可以是任何值，但被忽略了因为每磁道扇区数=1。
         /* Note: if the user do want to specify geometry for whole drive map, then
          * use a command like this:	                            //注意: 如果用户不希望指定几何探测整个驱动器映射,则使用命令行: 使每磁道扇区数>1
          * 
@@ -6441,18 +6519,22 @@ struct drive_map_slot
 		}
 	}
 
-  if (mem == -1ULL)		//如果不加载到内存  判断是否连续(填充碎片信息)
+  //判断是否连续(填充碎片信息)
+  query_block_entries = -1; /* query block list only   仅请求块列表*/
+  blocklist_func (to_drive, flags);	//请求块列表   执行成功后,将设置query_block_entries=1,设置errnum=0
+  if (errnum)
+    return 0;
+  if (query_block_entries <= 0 && mem == -1ULL) //如果是动态VHD，不加载到内存
   {
-    query_block_entries = -1; /* query block list only   仅请求块列表*/
-    blocklist_func (to_drive, flags);	//请求块列表   执行成功后,将设置query_block_entries=1,设置errnum=0
-//    blocklist_func (to, flags);
-
-    if (errnum)
-			return 0;
-
-		if (query_block_entries <= 0 || query_block_entries > DRIVE_MAP_FRAGMENT)
-			return ! (errnum = ERR_MANY_FRAGMENTS);
-
+    pause_func ("--wait=5 Dynamic VHD needs to be loaded into memory.",1);
+//    printf_errinfo("Dynamic VHD needs to be loaded into memory.\n");
+    return 0;
+  }
+  if (query_block_entries > DRIVE_MAP_FRAGMENT && mem == -1ULL) //碎片太多，不加载到内存
+    return ! (errnum = ERR_MANY_FRAGMENTS);
+#if 0
+  if (mem == -1ULL)		//如果不加载到内存
+  {
 		start_sector = map_start_sector[0];    
       //此处将扇区计数，更改为按每扇区0x200字节计的小扇区!!!
 //    sector_count = (filemax + 0x1ff) >> SECTOR_BITS; /* in small 512-byte sectors */
@@ -6462,6 +6544,7 @@ struct drive_map_slot
     if (start_sector == part_start && part_start && sector_count == 1)		//如果起始扇区=分区起始,并且分区起始不为零,并且扇区计数=1
 			sector_count = part_length;																			    //则扇区计数=分区长度
   }	
+#endif
 	cache = grub_zalloc (0x800);	//分配缓存
   if (!cache)
     return 0;
@@ -6506,7 +6589,7 @@ struct drive_map_slot
 
     if (err != SECTOR_SIZE && from != ram_drive)	//如果错误号不是0x200,并且from不是rd
     {
-      grub_close ();															//则关闭
+//      grub_close ();															//则关闭
       /* This happens, if the file size is less than 512 bytes.   如果文件尺寸小于512字节,将发生*/
       if (errnum == ERR_NONE)			//如果错误号是0
 				errnum = ERR_EXEC_FORMAT;	//则设置错误号为ram_drive
@@ -6547,14 +6630,14 @@ struct drive_map_slot
       errnum = ERR_BAD_ARGUMENT;
       goto fail_free;
     }
-    if (sector_count > max_sectors)		//如果扇区计数>最大扇区
-			sector_count = max_sectors;     //则扇区计数=最大扇区
+//    if (sector_count > max_sectors)		//如果扇区计数>最大扇区
+//			sector_count = max_sectors;     //则扇区计数=最大扇区
 	}
   
   //如果(文件最大>=跳过扇区*0x200,并且(文件最大-跳过扇区*0x200)<512),或者引导签名不是0xAA55
-  if ((filemax >= (skip_sectors << 9 ) && filemax - (skip_sectors << 9) < 512) || BS->boot_signature != 0xAA55)
-		goto geometry_probe_failed;  //转到几何探测失败
-  
+//  if ((filemax >= (skip_sectors << 9 ) && filemax - (skip_sectors << 9) < 512) || BS->boot_signature != 0xAA55)
+//		goto geometry_probe_failed;  //转到几何探测失败
+#if 0    
   /* probe the BPB */
 //首先探测to驱动器的BPB  
   if (probe_bpb(BS))        //如果没有bpb
@@ -6617,11 +6700,11 @@ struct drive_map_slot
 		sector_count = extended_part_length;	//扇区计数=扩展分区长度
 
 		/* when emulating a hard disk using a logical partition, the geometry should not be specified.   仿真硬盘使用逻辑分区时,几何不应当指定*/
-		if ((long long)heads_per_cylinder > 0 || (long long)sectors_per_track > 0)		//如果每柱面磁头>0,或者每磁道扇区>0
-		{
-			errnum = ERR_SPECIFY_GEOM;																				          //则返回错误
-      goto fail_free;
-		}
+//		if ((long long)heads_per_cylinder > 0 || (long long)sectors_per_track > 0)		//如果每柱面磁头>0,或者每磁道扇区>0
+//		{
+//			errnum = ERR_SPECIFY_GEOM;																				          //则返回错误
+//      goto fail_free;
+//		}
 
 		goto failed_probe_BPB;		//转到探测bpb失败
   }
@@ -6642,7 +6725,7 @@ geometry_probe_failed:
   
 //几何探测成功  
 geometry_probe_ok:
-  
+
 	if (mem != -1ULL && ((long long)mem) <= 0)  //如果加载到内存,并且mem<=0
 	{
     //如果-mem<探测总扇区,并且探测总扇区>1,并且扇区计数>=1
@@ -6652,7 +6735,7 @@ geometry_probe_ok:
 
 //映射整体驱动器
 map_whole_drive:
-
+#endif
   if (from != ram_drive)		//如果from不等于rd
   {
     /* Search for an empty slot in disk_drive_map.  在磁盘驱动器映射中搜索空插槽*/
@@ -6697,6 +6780,7 @@ map_whole_drive:
 			(sector_count == 1)))
 			{
 				grub_free (cache);
+        cache = 0;
 		goto delete_drive_map_slot;  //删除驱动器映像插槽
 			}
 	}
@@ -6726,7 +6810,8 @@ map_whole_drive:
 
 			{
         //如果是整体映射
-				if (start_sector == 0 && (sector_count == 0 || (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
+//				if (start_sector == 0 && (sector_count == 0 || (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
+        if (start_sector == 0 && (sector_count == 0 || sector_count == 1))
 				{
 					sector_count = disk_drive_map[j].sector_count;							//扇区计数=父扇区计数
 				}
@@ -6843,18 +6928,19 @@ get_gpt_info:
 	}
 		
 get_info_ok:
-
 	grub_free (cache);
+  cache = 0;
 //====================================================================================================================  
   /* how much memory should we use for the drive emulation? */
   if (mem != -1ULL)		  //如果加载到内存
 	{
 		unsigned long long start_byte;		//起始字节
 		unsigned long long bytes_needed;	//需要字节
-		unsigned long long base;					//基地址
-		unsigned long long top_end;				//顶端
+//		unsigned long long base;					//基地址
+//		unsigned long long top_end;				//顶端
       
-		bytes_needed = base = top_end = 0ULL;	//初始化: 需要字节=基地址=顶端=0
+//		bytes_needed = base = top_end = 0ULL;	//初始化: 需要字节=基地址=顶端=0
+    bytes_needed = 0ULL;	//初始化: 需要字节=基地址=顶端=0
 
 		if (start_sector == part_start && part_start == 0 && sector_count == 1)		//如果起始扇区=分区起始,并且分区起始=0,并且扇区计数=1
 			sector_count = part_length;  //扇区计数=分区长度
@@ -6876,12 +6962,12 @@ get_info_ok:
        * Note: An MBR device is a whole disk image that has a partition table.
        */
 
-		if (add_mbt<0)		//如果=-1,没有输入参数
-			add_mbt = (filesystem_type > 0 && (from & 0x80) && (from < 0x9F))? 1: 0; /* known filesystem without partition table */
+//		if (add_mbt<0)		//如果=-1,没有输入参数
+//			add_mbt = (filesystem_type > 0 && (from & 0x80) && (from < 0x9F))? 1: 0; /* known filesystem without partition table */
       //增加分配块=1/0=(filesystem_type>0,并且from是硬盘/否则    无分区表的已知文件系统
 
-		if (add_mbt)			//如果增加分配块=1, 需要字节+每磁道扇区数*0x200
-			bytes_needed += sectors_per_track << SECTOR_BITS;	/* build the Master Boot Track */
+//		if (add_mbt)			//如果增加分配块=1, 需要字节+每磁道扇区数*0x200
+//			bytes_needed += sectors_per_track << SECTOR_BITS;	/* build the Master Boot Track */
 
 		bytes_needed = ((bytes_needed+4095)&(-4096ULL));	/* 4KB alignment   4k对齐*/
 
@@ -6950,7 +7036,8 @@ mem_ok:
 	  if ((to == 0xffff || to == ram_drive) && !compressed_file) //如果映像在内存中，并且没有压缩，我们可以简单地移动它。
 		{
 			if (bytes_needed != start_byte)	//如果需要字节!=起始字节
-				grub_memmove64 (disk_drive_map[i].start_sector, start_byte, (max_sectors >= filemax) ? filemax : (sector_count << SECTOR_BITS));
+//				grub_memmove64 (disk_drive_map[i].start_sector, start_byte, (max_sectors >= filemax) ? filemax : (sector_count << SECTOR_BITS));
+        grub_memmove64 (disk_drive_map[i].start_sector, start_byte, filemax);
 		}
 		else	//如果映像不在内存中，或者被压缩
 		{
@@ -6968,6 +7055,7 @@ mem_ok:
 					errnum = ERR_READ;
 				return 0;
 			}				
+      blklst_num_entries = 1; //如果文件有碎片，加载到内存后就连续了。避免后续设置碎片。     
 		}
 	  grub_close ();        //关闭to驱动器
     disk_drive_map[i].start_sector >>= 9; //此处恢复内存起始扇区!!!
@@ -6980,10 +7068,12 @@ mem_ok:
        */
 		if (from == ram_drive)		//如果from是rd
 		{
-			rd_base = base;		//rd基址
-			rd_size = (max_sectors >= filemax) ? filemax : (sector_count << 9);
-			if (add_mbt)			//增加存储块=1
-				rd_size += sectors_per_track << 9;	/* build the Master Boot Track   rd长度+每磁道扇区数*0x200*/
+//			rd_base = base;		//rd基址
+      rd_base = start_sector;		//rd基址
+//			rd_size = (max_sectors >= filemax) ? filemax : (sector_count << 9);
+      rd_size = filemax;
+//			if (add_mbt)			//增加存储块=1
+//				rd_size += sectors_per_track << 9;	/* build the Master Boot Track   rd长度+每磁道扇区数*0x200*/
 			return 1;
 		}
 	}  //if (mem != -1ULL)结束  //如果加载到内存结束
@@ -7791,7 +7881,6 @@ static struct builtin builtin_password =
 
 /* pause */
 //static int
-int pause_func (char *arg, int flags);
 int
 pause_func (char *arg, int flags)
 {
@@ -9818,17 +9907,18 @@ graphicsmode_func (char *arg, int flags)
   char *x_restrict = "0:-1";
   char *y_restrict = "0:-1";
   char *z_restrict = "0:-1";
-	unsigned int x = 0; /* x_resolution */
-	unsigned int y = 0; /* y_resolution */
-	unsigned int z = 0; /* bits_per_pixel */
+	unsigned int x = 0, x0 = 0; /* x_resolution */
+	unsigned int y = 0, y0 = 0; /* y_resolution */
+	unsigned int z = 0, z0 = 0; /* bits_per_pixel */
   grub_efi_handle_t *handles;
   grub_efi_uintn_t num_handles;
-	unsigned int bytes_per_scanline=0, bits_per_pixel;
+	unsigned int bytes_per_scanline=0, bits_per_pixel, bytes_per_scanline0=0;
 	static struct grub_efi_gop *gop;
 	unsigned int red_mask_size, green_mask_size, blue_mask_size, reserved_mask_size;
   unsigned int red_field_pos, green_field_pos, blue_field_pos, reserved_field_pos;
 	int mode;
 	static grub_efi_guid_t graphics_output_guid = GRUB_EFI_GOP_GUID;
+  grub_efi_status_t status;
 
   errnum = 0;
   if (! *arg)
@@ -9843,7 +9933,7 @@ graphicsmode_func (char *arg, int flags)
 			char *tmp_arg;
 
 			tmp_arg = arg = wee_skip_to (arg, 0);
-			if (! *arg)
+			if (! *arg)   //只有 -1
 				goto xyz_done;
 			if (! safe_parse_maxint (&arg, &tmp_ll))
 				goto bad_arg;
@@ -9852,7 +9942,7 @@ graphicsmode_func (char *arg, int flags)
 
 			tmp_arg = arg = wee_skip_to (arg, 0);
 			if (! *arg)
-				goto xyz_done;
+				goto xyz_done;  //只有 -1 x
 			if (! safe_parse_maxint (&arg, &tmp_ll))
 				goto bad_arg;
 			if (tmp_ll != -1ULL || (unsigned char)*arg > ' ')
@@ -9860,11 +9950,11 @@ graphicsmode_func (char *arg, int flags)
 
 			tmp_arg = arg = wee_skip_to (arg, 0);
 			if (! *arg)
-				goto xyz_done;
+				goto xyz_done;  //只有 -1 x y
 			if (! safe_parse_maxint (&arg, &tmp_ll))
 				goto bad_arg;
 			if (tmp_ll != -1ULL || (unsigned char)*arg > ' ')
-				z_restrict = tmp_arg;
+				z_restrict = tmp_arg; //全部 -1 x y z
 		}//if ((unsigned long)tmp_graphicsmode == -1)
 	}//lse if (!safe_parse_maxint (&arg, &tmp_graphicsmode))
 	else
@@ -9888,7 +9978,6 @@ xyz_done:
 		for (mode = gop->mode->max_mode - 1; mode >= 0; mode--)
 		{
 			grub_efi_uintn_t size1;
-			grub_efi_status_t status;
 			struct grub_efi_gop_mode_info *info = NULL;
 			status = efi_call_4 (gop->query_mode, gop, mode, &size1, &info);	//gop查询模式  通过mode查询, 返回模式尺寸及信息
 
@@ -9949,9 +10038,9 @@ xyz_done:
 				y = _Y_;
 				z = _Z_;
 				bytes_per_scanline = info->pixels_per_scanline * (bits_per_pixel >> 3);
-				status = efi_call_2 (gop->set_mode, gop, mode);	//gop设置模式				
-				if (status)	//失败
-					goto bad_arg;
+//				status = efi_call_2 (gop->set_mode, gop, mode);	//gop设置模式				
+//				if (status)	//失败
+//					goto bad_arg;
 				break;
 	    }
 	    else if ((unsigned int)tmp_graphicsmode == (unsigned int)-1 /* mode auto detect */
@@ -9964,14 +10053,34 @@ xyz_done:
 				y = _Y_;
 				z = _Z_;
 				bytes_per_scanline = info->pixels_per_scanline * (bits_per_pixel >> 3);
-				status = efi_call_2 (gop->set_mode, gop, mode);	//gop设置模式
-				if (status)	//失败
-					goto bad_arg;
+//				status = efi_call_2 (gop->set_mode, gop, mode);	//gop设置模式
+//				if (status)	//失败
+//					goto bad_arg;
 				tmp_graphicsmode = 0x100 | mode;
 				break;
 	    }
+      else if (mode == 0)
+      {
+				x0 = _X_;
+				y0 = _Y_;
+        z0 = _Z_; 
+				bytes_per_scanline0 = info->pixels_per_scanline * (bits_per_pixel >> 3);
+      }
 		} //for (mode = 0; mode < gop->mode->max_mode; mode++)
 //	}//for (i = 0; i < num_handles; i
+
+#undef _X_
+#undef _Y_
+#undef _Z_
+
+  if ((unsigned int)tmp_graphicsmode == (unsigned int)-1)
+  {
+    tmp_graphicsmode = 0x100;
+    x = x0;
+    y = y0;
+    z = z0;
+    bytes_per_scanline = bytes_per_scanline0;
+  }
 
 	if (tmp_graphicsmode == 0x2ff)
 	{
@@ -9987,6 +10096,9 @@ xyz_done:
 	}
 	else if (tmp_graphicsmode > 0xff)
 	{
+    status = efi_call_2 (gop->set_mode, gop, tmp_graphicsmode & 0xff);	//gop设置模式
+    if (status)	//失败
+      goto bad_arg; 
 		current_x_resolution = x;
 		current_y_resolution = y;
 		current_bits_per_pixel = z;
@@ -9995,9 +10107,6 @@ xyz_done:
 		current_bytes_per_scanline = bytes_per_scanline;
     current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
     current_term->max_lines = current_y_resolution / (font_h + line_spacing);
-#undef _X_
-#undef _Y_
-#undef _Z_
 
 		if (graphics_mode != (unsigned int)tmp_graphicsmode            //如果当前视频模式不是探测图形模式
 				|| current_term != term_table + 1)	/* terminal graphics */ //或者当前终端不是图像终端

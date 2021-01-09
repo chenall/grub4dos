@@ -27,37 +27,37 @@
 
 #ifndef NO_DECOMPRESSION
 
-typedef struct VHDFooter {
-	unsigned char cookie[8];//string conectix
-	grub_u32_t features;
-	grub_u32_t fileFormatVersion;
-	grub_u64_t dataOffset;
-	grub_u32_t timeStamp;
-	unsigned char creatorApplication[4];
-	grub_u32_t creatorVersion;
-	grub_u32_t creatorHostOS;
-	grub_u64_t originalSize;
-	grub_u64_t currentSize;
+typedef struct VHDFooter {              //VHD结构表
+	unsigned char cookie[8];              //标记 字符串conectix
+	grub_u32_t features;                  //特征
+	grub_u32_t fileFormatVersion;         //文件格式版本
+	grub_u64_t dataOffset;                //数据偏移
+	grub_u32_t timeStamp;                 //时间戳 
+	unsigned char creatorApplication[4];  //创建者应用程序
+	grub_u32_t creatorVersion;            //创建者版本
+	grub_u32_t creatorHostOS;             //创建者主机操作系统 
+	grub_u64_t originalSize;              //原始尺寸
+	grub_u64_t currentSize;               //当前尺寸
 	struct {
-		unsigned short cylinder;
-		unsigned char heads;
-		unsigned char sectorsPerTrack;
+		unsigned short cylinder;            //柱面
+		unsigned char heads;                //磁头
+		unsigned char sectorsPerTrack;      //扇区
 	} diskGeometry;
-	grub_u32_t diskType;
-	grub_u32_t checksum;
-	unsigned char uniqueId[16];
-	unsigned char savedState;
-	unsigned char reserved[427];
+	grub_u32_t diskType;                  //磁盘类型  2固定, 3动态, 4差分
+	grub_u32_t checksum;                  //校验和
+	unsigned char uniqueId[16];           //唯一Id 
+	unsigned char savedState;             //状态数据
+	unsigned char reserved[427];          //保留
 } VHDFooter;
 
-#define VHD_FOOTER_COOKIE      0x78697463656E6F63ULL
+#define VHD_FOOTER_COOKIE      0x78697463656E6F63ULL  //VHD结构表标记
 #define VHD_DYNAMIC_COOKIE     0x6573726170737863ULL
 
-#define VHD_DISKTYPE_FIXED      2
-#define VHD_DISKTYPE_DYNAMIC    3
-#define VHD_DISKTYPE_DIFFERENCE 4
+#define VHD_DISKTYPE_FIXED      2   //固定类型
+#define VHD_DISKTYPE_DYNAMIC    3   //动态类型
+#define VHD_DISKTYPE_DIFFERENCE 4   //差分类型
 
-typedef struct VHDDynamicDiskHeader {
+typedef struct VHDDynamicDiskHeader {   //VHD动态磁盘头
 	unsigned char cookie[8];//string cxsparse
 	grub_u64_t dataOffset;
 	grub_u64_t tableOffset;
@@ -75,7 +75,7 @@ typedef struct VHDDynamicDiskHeader {
 
 typedef struct VHDFileControl VHDFileControl;
 
-struct VHDFileControl {
+struct VHDFileControl { //VHD控制文件
 	unsigned long long cFileMax;
 	unsigned long long volumeSize;
 	unsigned long long tableOffset;
@@ -161,11 +161,14 @@ dec_vhd_close(void)
 	if (vhdfc) {
 		if (vhdfc->blockAllocationTable) {
 			grub_free(vhdfc->blockAllocationTable);
+      vhdfc->blockAllocationTable = 0;
 		}
 		if (vhdfc->blockBitmapAndData) {
 			grub_free(vhdfc->blockBitmapAndData);
+      vhdfc->blockBitmapAndData = 0;
 		}
 		grub_free(vhdfc);
+    vhdfc = 0;
 		map_image_HPC = 0;
 		map_image_SPT = 0;
 	}
@@ -180,48 +183,44 @@ dec_vhd_open(void)
 	VHDDynamicDiskHeader dynaheader;
 
   if (filemax < 0x10000) return 0;//file is to small
-	/* Now it does not support openning more than 1 file at a time. 
-	   Make sure previously allocated memory blocks is freed. 
+	/* Now it does not support openning more than 1 file at a time. 现在它不支持一次打开多个文件。
+	   Make sure previously allocated memory blocks is freed.       确保先前分配的内存块已释放。
 	   Don't need this line if grub_close is called for every openned file before grub_open is called for next file. */
+     //如果在为下一个文件调用grub_open之前为每个打开的文件调用grub_close，则不需要此行。
 	dec_vhd_close();
 
 	memset(&footer, 0, sizeof(footer));
 	memset(&dynaheader, 0, sizeof(dynaheader));
 
-	int bytesread = (int)grub_read((grub_size_t)&footer, 0x200, 0xedde0d90);
+	int bytesread = (int)grub_read((grub_size_t)&footer, 0x200, 0xedde0d90); //动态及差分VHD，起始1扇区是VHD结构表。固定VHD的结构表在最后一个扇区。
 	bytesread = bytesread;
 	//if (bytesread < 511) {
 		// grub_printf("bytesread %d < 511\n",bytesread);
 	//	goto quit;
 	//}
   grub_u64_t* a = (grub_u64_t*)&footer.cookie;
-//	if (*(grub_u64_t*)&footer.cookie!=VHD_FOOTER_COOKIE) {
-  if (*a!=VHD_FOOTER_COOKIE) {
-		// grub_printf("cookie %lX != %lX\n", footer.cookie, VHD_FOOTER_COOKIE);
+  if (*a!=VHD_FOOTER_COOKIE) {    //不是VHD结构表标记,退出   (包含固定VHD)
 		goto quit;
 	}
 
   vhd_footer_in(&footer);
 
-	if (footer.diskType != VHD_DISKTYPE_DYNAMIC) {
-		/* Differencing disk and unknown diskType are not supported */
+	if (footer.diskType != VHD_DISKTYPE_DYNAMIC) {  //磁盘类型不是动态, 退出
+		/* Differencing disk and unknown diskType are not supported 不支持差异磁盘和未知磁盘类型 */
 		goto quit;
 	}
 
-//	if (footer.diskType == VHD_DISKTYPE_DYNAMIC) {
-		if (footer.dataOffset + sizeof(dynaheader) > filemax) {
-			// grub_printf("footer dataOffset %lX\n", dataOffset);
+		if (footer.dataOffset + sizeof(dynaheader) > filemax) { //数据偏移+VHD结构表 > filemax, 退出
 			goto quit;
 		}
 		filepos = footer.dataOffset;
-		bytesread = (int)grub_read((grub_size_t)&dynaheader, sizeof(dynaheader), 0xedde0d90);
-//	}
+		bytesread = (int)grub_read((grub_size_t)&dynaheader, sizeof(dynaheader), 0xedde0d90); //读VHD动态磁盘头
 
 	vhdfc = (VHDFileControl*) grub_malloc(sizeof(VHDFileControl));
 	if (!vhdfc) {
 		goto quit;
 	}
-
+  //设置VHD控制文件
 	memset(vhdfc, 0, sizeof(VHDFileControl));
 	vhd_header_in(&dynaheader);
 	vhdfc->cFileMax = filemax;
@@ -244,9 +243,9 @@ dec_vhd_open(void)
 	//}
 	map_image_HPC = footer.diskGeometry.heads;
 	map_image_SPT = footer.diskGeometry.sectorsPerTrack;
-	compressed_file = 1;
-	decomp_type = DECOMP_TYPE_VHD;
-	filemax = vhdfc->volumeSize;
+	compressed_file = 1;            //压缩文件
+	decomp_type = DECOMP_TYPE_VHD;  //解压缩类型VHD 
+	filemax = vhdfc->volumeSize;    //修改filemax
 quit:
 	filepos = 0;
 
@@ -285,7 +284,7 @@ dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write)
 			bswap_32(&blockLBA);
 			// grub_printf("read bn %x of %x txlen %x lba %x\n", blockNumber, offsetInBlock, txLen, blockLBA);
 			if (blockLBA == 0xFFFFFFFF) {
-				// unused block on dynamic VHD. read zero
+				// unused block on dynamic VHD. read zero  动态VHD上未使用的块。读取0 
 				grub_memset64(buf, 0, txLen);
 			}
 			else {

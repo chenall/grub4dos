@@ -156,8 +156,13 @@ VARIABLE(min_con_mem_size)                                                //0x82
 
 	. = EXT_C(main) + 0x70																									//0x8270  uefi未使用
  	.word	0
-	.byte 0
   
+#if defined(__i386__) 
+	.byte 32                                                                //0x8272  bootia32.efi引导
+#else
+	.byte 64                                                                //        bootx64.efi引导
+#endif
+
 	. = EXT_C(main) + 0x73
 VARIABLE(debug_msg) //byte
 	.byte 2
@@ -312,7 +317,7 @@ VARIABLE(debug)																														//调试  int
 	 * if debug == MAX_UINT or debug < 0, then filesystem debug mode is on. //如果调试=MAX_UINT或调试<0，那么文件系统调试模式开。 
 	 * (MAX_UINT is 0x7FFFFFFF)
 	 */
-	.long	0			
+	.long	1			
 
 VARIABLE(current_slice)																										//0x8334		当前片  int
 	.long	0
@@ -361,17 +366,18 @@ VARIABLE(cdrom_orig)				                                              //光盘�
 	
 	. = EXT_C(main) + 0x180																									//0x8370
 	
-ENTRY(disk_fragment_map)	.space	FRAGMENT_MAP_SLOT_SIZE                  //映射碎片插槽
+ENTRY(disk_fragment_map)	.space	FRAGMENT_MAP_SLOT_SIZE                  //映射碎片插槽  280
 
 	. = EXT_C(main) + 0x400																									//0x8670
 	
-ENTRY(disk_buffer)	.space	0x1000                                        //磁盘缓存
+//ENTRY(disk_buffer)	.space	0x1000                                        //磁盘缓存
 
-	. = EXT_C(main) + 0x1400																								//0x9600
+//	. = EXT_C(main) + 0x1400																								//0x9600
 		
 ENTRY(disk_drive_map)	.space	[DRIVE_MAP_SIZE + 1] * DRIVE_MAP_SLOT_SIZE	//磁盘驱动器映射插槽  78*8=3c0
 
-	. = EXT_C(main) + 0x1800	
+//	. = EXT_C(main) + 0x1800	
+  . = EXT_C(main) + 0x800
 real_codestart:
 
 	.align	8
@@ -612,7 +618,7 @@ VARIABLE(system_functions)                            //IMG(0x8300)
 	.extent	ABS(EXT_C(find_command))                      //46
 	.extent 0				                                      //47  reserved
 	.extent 0				                                      //48  reserved
-	.extent	0				                                      //49  原ABS(EXT_C(get_mmap_entry)) 现在未使用
+	.extent	ABS(EXT_C(grub_zalloc))			                  //49
 	.extent	ABS(EXT_C(grub_malloc))                       //50
 	.extent	ABS(EXT_C(grub_free))                         //51
 	.extent 0                                             //52  原list_partitions 现在未使用
@@ -710,7 +716,7 @@ VARIABLE(current_term)
 	.extent	NUM_FSYS		                    //22  常数
 VARIABLE(graphics_inited)	              //23  int
 	.extent	0
-	.extent	0			                          //24  reserved
+	.extent ABS(EXT_C(BASE_ADDR)) 			  //24  char *
 //VARIABLE(font8x16)                    //25  reserved
 	.extent	0
 VARIABLE(fontx)	                        //26  int

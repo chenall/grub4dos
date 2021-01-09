@@ -97,7 +97,7 @@
 #define DRIVE_MAP_SLOT_SIZE		0x70
 
 /* The fragment of the drive map.  */
-#define DRIVE_MAP_FRAGMENT		32
+#define DRIVE_MAP_FRAGMENT		0x27
 
 #define FRAGMENT_MAP_SLOT_SIZE		0x280
 
@@ -2243,6 +2243,7 @@ extern int big_to_little (char *filename, unsigned int n);
    grub_efi_ prepended.  */
 
 /* Constants. 常量 */
+//事件的类型
 #define GRUB_EFI_EVT_TIMER				0x80000000                    //计时器 
 #define GRUB_EFI_EVT_RUNTIME				0x40000000                  //运行
 #define GRUB_EFI_EVT_RUNTIME_CONTEXT			0x20000000            //运行环境
@@ -2250,7 +2251,7 @@ extern int big_to_little (char *filename, unsigned int n);
 #define GRUB_EFI_EVT_NOTIFY_SIGNAL			0x00000200              //通知信号
 #define GRUB_EFI_EVT_SIGNAL_EXIT_BOOT_SERVICES		0x00000201    //信号出口启动服务
 #define GRUB_EFI_EVT_SIGNAL_VIRTUAL_ADDRESS_CHANGE	0x60000202  //信号虚拟地址变更
-
+//事件的优先级
 #define GRUB_EFI_TPL_APPLICATION	4   //应用
 #define GRUB_EFI_TPL_CALLBACK		8     //回调
 #define GRUB_EFI_TPL_NOTIFY		16      //通知
@@ -2803,7 +2804,7 @@ typedef enum grub_efi_reset_type grub_efi_reset_type_t;
 #define GRUB_EFI_LOAD_ERROR		GRUB_EFI_ERROR_CODE (1)					//加载错误
 #define GRUB_EFI_INVALID_PARAMETER	GRUB_EFI_ERROR_CODE (2)		//无效参数
 #define GRUB_EFI_UNSUPPORTED		GRUB_EFI_ERROR_CODE (3)				//不支持
-#define GRUB_EFI_BAD_BUFFER_SIZE	GRUB_EFI_ERROR_CODE (4)			//缓冲区大小
+#define GRUB_EFI_BAD_BUFFER_SIZE	GRUB_EFI_ERROR_CODE (4)			//参数不是设备固有块大小的倍数
 #define GRUB_EFI_BUFFER_TOO_SMALL	GRUB_EFI_ERROR_CODE (5)			//缓存太小
 #define GRUB_EFI_NOT_READY		GRUB_EFI_ERROR_CODE (6)					//还没准备好
 #define GRUB_EFI_DEVICE_ERROR		GRUB_EFI_ERROR_CODE (7)				//设备错误
@@ -3511,23 +3512,25 @@ struct grub_efi_boot_services   //引导服务
   grub_efi_status_t EFIAPI
   (*free_pool) (void *buffer);  //释放池
 
+  //创建事件
   grub_efi_status_t EFIAPI
-  (*create_event) (grub_efi_uint32_t type,
-		   grub_efi_tpl_t notify_tpl,
+  (*create_event) (grub_efi_uint32_t type,  //事件的类型
+		   grub_efi_tpl_t notify_tpl,           //事件的优先级
 		   void (*notify_function) (grub_efi_event_t event,
-					    void *context),
-		   void *notify_context,
-		   grub_efi_event_t *event);  //创建事件
+					    void *context),               //事件处理函数
+		   void *notify_context,                //传递给事件处理函数的参数
+		   grub_efi_event_t *event);            //创建的事件
 
   grub_efi_status_t EFIAPI
   (*set_timer) (grub_efi_event_t event,
 		grub_efi_timer_delay_t type,
 		grub_efi_uint64_t trigger_time);  //设置时间
-
+    
+   //等待事件
    grub_efi_status_t EFIAPI
-   (*wait_for_event) (grub_efi_uintn_t num_events,
-		      grub_efi_event_t *event,
-		      grub_efi_uintn_t *index); //等待事件
+   (*wait_for_event) (grub_efi_uintn_t num_events,  //第二个参数Event中的事件数量
+		      grub_efi_event_t *event,                  //所要等待的事件数组
+		      grub_efi_uintn_t *index);                 //指向满足等待条件的事件索引的指针
 
   grub_efi_status_t EFIAPI
   (*signal_event) (grub_efi_event_t event); //信号事件
@@ -5254,6 +5257,8 @@ extern unsigned long long *next_partition_offset;
 extern unsigned int *next_partition_entry;
 extern unsigned int *next_partition_ext_offset;
 extern char *next_partition_buf;
+extern unsigned char partition_signature[16]; //分区签名
+extern unsigned char partition_activity_flag; //分区活动标志
 extern unsigned char *UNIFONT_START;
 extern char *PAGING_TABLES_BUF;
 extern unsigned char *PRINTF_BUFFER;
@@ -5460,7 +5465,7 @@ grub_decompress_lzss (grub_uint8_t *dst, grub_uint8_t *dstend,
 					
 struct grub_disk_data  //efi磁盘数据	(软盘,硬盘,光盘)  grub2定义
 {
-  grub_efi_handle_t handle;                 //句柄          11cba410		hndl
+  grub_efi_handle_t device_handle;          //句柄          11cba410		hndl
   grub_efi_device_path_t *device_path;      //设备路径      11cba890		类型,子类型,长度
   grub_efi_device_path_t *last_device_path; //最后设备路径  11cba8a2		类型,子类型,长度
   grub_efi_block_io_t *block_io;          	//块输入输出    1280d318		修订,媒体,重置,读块,写块,清除块
@@ -5473,16 +5478,20 @@ struct grub_disk_data  //efi磁盘数据	(软盘,硬盘,光盘)  grub2定义
 
 struct grub_part_data  //efi分区数据	(硬盘)  grub定义
 {
-	unsigned char	drive;									//驱动器
-	unsigned char	partition_entry;				//分区入口
-	unsigned char	partition_type;					//分区类型
-	unsigned char	filesystem_type;				//文件系统类型
-	unsigned int partition;							  //当前分区
-	unsigned int partition_ext_offset;		//扩展分区偏移
-	unsigned long long partition_start;		//分区起始扇区
-	unsigned long long partition_len;			//分区扇区尺寸
-	unsigned long long partition_offset;	//分区偏移
-	struct grub_part_data *next;  				//下一个
+	grub_efi_handle_t part_handle;          //句柄
+	grub_efi_device_path_t *part_path;      //分区路径
+	grub_efi_device_path_t *last_part_path; //最后分区路径
+	struct grub_part_data *next;  				  //下一个
+	unsigned char	drive;									  //驱动器
+	unsigned char	partition_type;					  //MBR分区ID
+	unsigned char	partition_activity_flag;  //分区活动标志
+	unsigned char partition_entry;				  //分区入口
+	unsigned int partition_ext_offset;		  //扩展分区偏移
+	unsigned int partition;							    //当前分区
+	unsigned long long partition_offset;	  //分区偏移
+	unsigned long long partition_start;		  //分区起始扇区
+	unsigned long long partition_len;			  //分区扇区尺寸
+	unsigned char partition_signature[16];  //分区签名
 } __attribute__ ((packed));							//0x28
 
 extern struct grub_part_data *get_partition_info (int drive, int partition);
@@ -5526,7 +5535,8 @@ struct fragment
 //extern struct drive_map_slot	vpart_drive_map[DRIVE_MAP_SIZE + 1];
 extern struct drive_map_slot	disk_drive_map[DRIVE_MAP_SIZE + 1];
 extern struct fragment_map_slot	disk_fragment_map;
-extern char disk_buffer[0x1000];
+//extern char disk_buffer[0x1000];
+extern char *disk_buffer;
 extern int drive_map_slot_empty (struct drive_map_slot item);
 extern struct fragment_map_slot *fragment_map_slot_find(struct fragment_map_slot *q, unsigned int from);
 
@@ -5656,16 +5666,16 @@ struct grub_packed_guid
 typedef struct grub_packed_guid grub_packed_guid_t;
 
 extern grub_packed_guid_t VDISK_GUID;
-extern grub_efi_uint64_t	signature;
 extern grub_efi_uint64_t boot_entry;
 extern grub_efi_uint64_t	part_addr;
 extern grub_efi_uint64_t	part_size;
+extern struct grub_part_data *part_data;
 void file_read (grub_efi_boolean_t disk, void *file,
                 void *buf, grub_efi_uintn_t len, grub_efi_uint64_t offset);
 grub_efi_uint64_t get_size (grub_efi_boolean_t disk, void *file);
 
 /* vboot */
-extern grub_efi_handle_t vpart_load_image (grub_efi_handle_t *part_handle);
+extern grub_efi_handle_t vpart_load_image (grub_efi_device_path_t *part_path);
 extern grub_efi_handle_t vdisk_load_image (unsigned int drive);
 /* vdisk */
 extern grub_efi_status_t vdisk_install (int slot_number);
@@ -5860,6 +5870,11 @@ extern int gopprobe (char *arg, int flags);
 
 //////////////////////////////////////////////////////////////////////////////////
 /* Based on UEFI specification.  基于UEFI规范 */
+/*
+GOP （图形输出协议）
+GOP (Graphic Output Protocol)，是用来将图形驱动程序延伸至UEFI固件的接口，借以取代传统VBIOS（视讯BIOS）在开机资源要求等初始化行为。
+GOP： 无 64 KB 的限制。32 位元保护模式。不需要 CSM。速度最佳化 (快速开机支持)。
+*/
 
 #define GRUB_EFI_GOP_GUID \
   { 0x9042a9de, 0x23dc, 0x4a38, { 0x96, 0xfb, 0x7a, 0xde, 0xd0, 0x80, 0x51, 0x6a }}
@@ -6825,7 +6840,9 @@ extern grub_efi_physical_address_t grub4dos_self_address;
 extern grub_uint64_t grub_divmod64 (grub_uint64_t n, grub_uint64_t d, grub_uint64_t *r);
 extern grub_uint64_t EXPORT_FUNC (__umoddi3) (grub_uint64_t a, grub_uint64_t b);
 extern grub_uint64_t EXPORT_FUNC (__udivdi3) (grub_uint64_t a, grub_uint64_t b);
-
+extern void start_event (void);
+extern void close_event (void);
+extern int find_specified_file (int drive, int partition, char* file);
 //======================================================================================================================
 
 #endif /* ! ASM_FILE */

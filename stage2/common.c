@@ -556,7 +556,7 @@ get_header_from_pointer (void *ptr, grub_mm_header_t *p, grub_mm_region_t *r)
       break;
 
   if (! *r)
-    printf_errinfo ("out of range pointer %x\n", ptr); //超出范围指针％x  
+    printf_errinfo ("out of range pointer %x\n", ptr); //指针超出范围 
 
   *p = (grub_mm_header_t) ptr - 1;
   if ((*p)->magic == GRUB_MM_FREE_MAGIC)	//魔术	0x2d3c2808
@@ -618,7 +618,7 @@ grub_free (void *ptr)
 
 		r->first = q;
 	}
-  ptr = 0;
+  ptr = 0;  //这个值没有传递回去,没有起作用.
 }
 
 /*
@@ -927,7 +927,7 @@ struct efi_allocation {
 	struct efi_allocation *next;          //下一个	4位		0=结束符
 };
 static struct efi_allocation *efi_allocated_memory;	//0x14位		静态,地址不变
-
+#if 0
 static void grub_efi_store_alloc (grub_efi_physical_address_t address, grub_efi_uintn_t pages);
 static void 
 grub_efi_store_alloc (grub_efi_physical_address_t address,
@@ -978,7 +978,7 @@ grub_efi_drop_alloc (grub_efi_physical_address_t address,
 		break;
 	}
 }
-
+#endif
 //第一次分配页时,会多分配一页,用于记录分配结构. 似乎每一结构占用0x80字节(实际结构每一这么大).此页不会释放.
 //分配页后,紧接分配池.并记录分配结构.
 /* Allocate pages. Return the pointer to the first of allocated pages. 分配页面。返回指向第一个分配页面的指针 */
@@ -1014,7 +1014,7 @@ grub_efi_allocate_pages_real (grub_efi_physical_address_t address,
 			return 0;
 	}
 
-  grub_efi_store_alloc (address, pages);  //分配池(地址,页)
+//  grub_efi_store_alloc (address, pages);  //分配池(地址,页)
 
   return (void *) ((grub_addr_t) address);//返回地址
 }
@@ -1050,7 +1050,7 @@ grub_efi_free_pages (grub_efi_physical_address_t address,
   b = grub_efi_system_table->boot_services;//系统表->引导服务
   efi_call_2 (b->free_pages, address, pages);	//(释放页,地址,页)
 
-  grub_efi_drop_alloc (address, pages);	//释放池 
+//  grub_efi_drop_alloc (address, pages);	//释放池 
 }
 
 grub_err_t grub_efi_finish_boot_services (grub_efi_uintn_t *outbuf_size, void *outbuf,
@@ -1519,7 +1519,6 @@ defer (unsigned short millisecond)
 	efi_call_1 (grub_efi_system_table->boot_services->stall, millisecond * 1000);
 }
 
-
 grub_efi_physical_address_t grub4dos_self_address = 0;
 void copy_grub4dos_self_address (void);
 void
@@ -1542,10 +1541,12 @@ copy_grub4dos_self_address (void)
     return;  
   //清除残留
   grub_memset ((void *)(grub_size_t)grub4dos_self_address, 0, 0x1000);
-  //复制特定字符串
+  //复制特定字符串, 为了SVBus
   grub_memmove ((void *)(grub_size_t)(grub4dos_self_address + 0xe0), "   $INT13SFGRUB4DOS", 19);  
+  //复制特定字符串, 为了G4E外部命令
+  grub_memmove ((void *)(grub_size_t)(grub4dos_self_address + 0x100), "GRUB4EFI", 8);  
   //复制bootx64.efi自身地址
-  *(grub_size_t*)((char *)(grub_size_t)grub4dos_self_address + 0x100) = (grub_size_t)grub_image;
+  *(grub_size_t*)((char *)(grub_size_t)grub4dos_self_address + 0x110) = (grub_size_t)grub_image;
 }
 
 char *grub_image;
@@ -1564,7 +1565,7 @@ char *BUFFERADDR;
 char *CMD_RUN_ON_EXIT;
 char *SCRATCHADDR;
 char *mbr;
-//char *
+char *disk_buffer;
 //char *
 
 void grub_console_init (void);
@@ -1600,6 +1601,7 @@ grub_init (void)
 	CMD_RUN_ON_EXIT = grub_malloc (256);      //
 	SCRATCHADDR = grub_malloc (0x1000);       //临时
   mbr = grub_malloc (0x1000);               //mbr
+  disk_buffer = grub_malloc (0x1000);       //磁盘缓存
 //buffer=grub_malloc (byte)  分配内存
 //buffer=grub_zalloc (byte)  分配内存, 并清零
 //grub_free (buffer)  释放内存

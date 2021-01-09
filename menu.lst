@@ -37,6 +37,9 @@ default 1
 title 启动 efi 文件
 chainloader /efi/boot/grub2x64.efi
 
+title 启动 windows
+chainloader /efi/microsoft/boot/bootmgfw.efi
+
 title 启动虚拟光盘
 find --set-root /cdrom.iso
 map /cdrom.iso (0xff)

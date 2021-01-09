@@ -1,6 +1,12 @@
 ﻿更新说明：
+2021-01-09 (yaya)
+  启动 bootmgfw.efi 。
+  修正 graphicsmode，displaymem 函数。
+  新设内部变量： 0x8272(1字节) UEFI 启动环境(32/64位)。
+
 2020-12-15 (a1ive)
   添加 load 命令以加载 EFI 驱动。
+
 2020-12-14 (yaya)
   一次编译完成32位、64位版本。
 

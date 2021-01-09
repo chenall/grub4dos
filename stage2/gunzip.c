@@ -366,6 +366,7 @@ void
 gunzip_close (void)
 {
 	grub_free(linalloc_buf);
+  linalloc_buf = 0;
 }
 
 

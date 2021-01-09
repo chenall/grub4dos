@@ -32,6 +32,8 @@
 #define PC_SLICE_OFFSET 446
 #define PC_SLICE_MAX    4
 
+#define PC_DISK_SIG_OFFSET  0x1b8
+
 
 /*
  *  Defines to guarantee structural alignment.
@@ -102,6 +104,9 @@
   ( *( (unsigned long long *) (((grub_size_t) mbr_ptr) + PC_SLICE_OFFSET + 8 \
 			  + (part << 4)) ) ) ) )
 
+//获取磁盘签名
+#define PC_DISK_SIG(mbr_ptr) \
+  ( *( (unsigned int *) (((grub_size_t) mbr_ptr) + PC_DISK_SIG_OFFSET) ) )
 
 /*
  *  PC flag types are defined here.

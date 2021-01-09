@@ -606,6 +606,7 @@ run_script (char *script, char *heap)
     grub_sprintf (cmd_add, "(md)%d+%d", (grub_size_t)p >> 9, ((cur_entry - script + 10 + 511) & ~511) >> 9);
     command_func (cmd_add, BUILTIN_SCRIPT);
     grub_free(menu_bat);
+    menu_bat = 0;
     if (errnum >= 1000)
     {
       errnum=ERR_NONE;
@@ -1999,7 +2000,7 @@ sss:
 		pxe_restart_config = 0;
 
 #ifdef SUPPORT_GFX
-		*graphics_file = 0;
+//		*graphics_file = 0;
 #endif
 		//DEBUG_SLEEP  /* Only uncomment if you want to pause before processing every menu.lst line */
 		/* Copy the first string in CUR_ENTRY to HEAP.  */
