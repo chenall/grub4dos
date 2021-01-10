@@ -796,6 +796,7 @@ map_to_svbus (grub_efi_physical_address_t address)
   grub_memmove ((char *)((char *)(grub_size_t)address + 0x120), (char *)&disk_fragment_map, 0x400);
 }
 
+//使用于get_efi_cdrom_device_boot_path，find_specified_file，chainloader_func，command_func，uuid_func
 static char chainloader_file[256];
 
 int get_efi_cdrom_device_boot_path (int drive);
@@ -3303,6 +3304,7 @@ int command_func (char *arg, int flags);
 int
 command_func (char *arg, int flags)
 {
+#define file_path chainloader_file
   errnum = 0;
   while (*arg == ' ' || *arg == '\t') arg++;
 
@@ -3367,7 +3369,7 @@ command_func (char *arg, int flags)
     }
   /* open the command file. */
   char *filename = arg; //文件名: g4e_wb abcdef
-  char file_path[512];
+//  char file_path[512];
   unsigned int arg_len = grub_strlen(arg);/*get length for build psp */   //文件名尺寸 d
   char *cmd_arg = skip_to(SKIP_WITH_TERMINATE,arg);/* get argument of command */    //命令参数: abcdef
   p_exec = NULL;
@@ -3467,12 +3469,13 @@ command_func (char *arg, int flags)
 	{
 		if (*(unsigned long long *)(program + prog_len - 0x20) == 0x646E655F6E69616D) //新版本标记 main_end
 		{
+#if 0
 			char * tmp1;    //新缓存
 			char * program1;//新程序缓存
 			unsigned int *bss_end = (unsigned int *)(program + prog_len - 0x24);    //bss结束,即程序尾部
 			unsigned int *main_start = (unsigned int *)(program + prog_len - 0x40); //主程序起始
 //			if (prog_len != *bss_end){
-      if (prog_len != (*bss_end - *main_start))
+      if (prog_len != (*bss_end - *main_start)) //prog_len应当等于(*bss_end - *main_start)
       {
 				grub_free(tmp);
         tmp = 0;
@@ -3492,6 +3495,7 @@ command_func (char *arg, int flags)
 				}
 				psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F);
 			}
+#endif
 		} else {//the old program
 			char *program1;
 			printf_warning ("\nWarning! The program is outdated!\n");
@@ -3544,6 +3548,7 @@ command_func (char *arg, int flags)
 fail:
   grub_close ();
   return 0;
+#undef file_path
 }
 
 static struct builtin builtin_command =
@@ -4488,12 +4493,13 @@ static int uuid_func (char *argument, int flags);
 static int
 uuid_func (char *argument, int flags)
 {
+#define tem chainloader_file
   unsigned int drive;
   unsigned int tmp_drive = saved_drive;
   unsigned int tmp_partition = saved_partition;
   char root_found[16] = "";
   char uuid_found[256];
-  char tem[256];
+//  char tem[256];
 	char uuid_tag[5] = {'U','U','I','D',0};
 	char vol_tag[12] = {'V','o','l','u','m','e',' ','N','a','m','e',0};
 	char *p;
@@ -4710,6 +4716,7 @@ found:
   };
   errnum = ERR_NO_PART;
   return 0;
+#undef tem
 }
 
 static struct builtin builtin_uuid =
