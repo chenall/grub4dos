@@ -1,4 +1,8 @@
 ﻿更新说明：
+2021-01-12 (yaya)
+  增加变量 @uefi。值为64/32，用于判断系统是64/32位。
+  修正外部命令。  
+
 2021-01-09 (yaya)
   启动 bootmgfw.efi 。
   修正 graphicsmode，displaymem 函数。

@@ -10726,6 +10726,8 @@ int envi_cmd(const char *var,char * const env,int flags)
 	    else if (substring(ch,"@pathext",1) == 0)
 		sprintf(p,"%s",PATHEXT);
 	    #endif
+      else if (substring(ch,"@uefi",1) == 0)
+        sprintf(p,"%d",*(char *)IMG(0x8272));
 	    else
 		return 0;
 	}

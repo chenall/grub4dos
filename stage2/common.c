@@ -1598,7 +1598,7 @@ grub_init (void)
 	BASE_ADDR = grub_zalloc (0x200);          //
 	FSYS_BUF = grub_malloc (0x9010);          //
 	BUFFERADDR = grub_malloc (0x10000);       //磁盘读写 
-	CMD_RUN_ON_EXIT = grub_malloc (256);      //
+	CMD_RUN_ON_EXIT = grub_zalloc (256);      //命令退出时运行  必须预先清零，否则在 command_func 出错
 	SCRATCHADDR = grub_malloc (0x1000);       //临时
   mbr = grub_malloc (0x1000);               //mbr
   disk_buffer = grub_malloc (0x1000);       //磁盘缓存

@@ -2012,9 +2012,9 @@ grub_strstr (const char *s1, const char *s2)
 int
 grub_strlen (const char *str)
 {
-  int len = 0;
+  int len = 0, max = 512;
 
-  while (*str++)
+  while (*str++ && max--)
     len++;
 
   return len;

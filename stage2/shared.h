@@ -775,7 +775,7 @@ static inline void grub_set_unaligned64 (void *ptr, grub_uint64_t val)
 }
 
 //-------------------------------------------------------------------------------------------------
-//UEFI 函数调用约定
+//UEFI 函数调用约定    只支持 GCC4.7及以上版本
 #if !defined(__i386__)
 #if (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)))||(defined(__clang__) && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 2)))
   #define EFIAPI __attribute__((ms_abi))
