@@ -5488,6 +5488,7 @@ static int initrd_func (char *arg, int flags);
 static int
 initrd_func (char *arg, int flags)
 {
+  char *name = arg;
   errnum = 0;
   grub_size_t size = 0;
   grub_efi_boot_services_t *b;
@@ -5498,25 +5499,49 @@ initrd_func (char *arg, int flags)
     errnum = ERR_NEED_LX_KERNEL;
     return 0;
   }
-
-  grub_open (arg);
-  if (errnum)
+  while (*name && *name != ' ' && *name != '\t')
   {
-    printf_errinfo ("Failed to open %s\n", arg);
+    grub_open (name);
+    if (errnum)
+    {
+      printf_errinfo ("Failed to open %s\n", arg);
+      goto fail;
+    }
+    size += ALIGN_UP (filemax, 4096);
+    grub_close ();
+    name = skip_to (0, name);
+  }
+  if (!size)
+  {
+    printf_errinfo ("invalid initrd size\n");
     goto fail;
   }
-  size = ALIGN_UP (filemax, 4096);
   initrdefi_mem = allocate_pages_max (0x3fffffff, BYTES_TO_PAGES(size));
   if (!initrdefi_mem)
   {
     printf_errinfo ("Failed to allocate initrd memory\n");
     goto fail;
   }
-  if (grub_read ((unsigned long long)(grub_size_t)initrdefi_mem,
-                  filemax, 0xedde0d90) != filemax)
+  grub_memset (initrdefi_mem, 0, size);
+  name = arg;
+  size = 0;
+  while (*name && *name != ' ' && *name != '\t')
   {
-    printf_errinfo ("premature end of file %s", arg);
-    goto fail;
+    grub_open (name);
+    if (errnum)
+    {
+      printf_errinfo ("Failed to open %s\n", arg);
+      goto fail;
+    }
+    if (grub_read ((unsigned long long)(grub_size_t)initrdefi_mem + size,
+                   filemax, 0xedde0d90) != filemax)
+    {
+      printf_errinfo ("premature end of file %s", arg);
+      goto fail;
+    }
+    size += ALIGN_UP (filemax, 4096);
+    grub_close ();
+    name = skip_to (0, name);
   }
   linuxefi_params->ramdisk_size = size;
   linuxefi_params->ramdisk_image = (grub_uint32_t)(grub_addr_t) initrdefi_mem;
