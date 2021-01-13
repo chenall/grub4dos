@@ -1,6 +1,6 @@
 language: c
 sudo: enabled
-compiler: gcc-4.8.0
+compiler: gcc-4.8
 os:
   - linux
 addons:
@@ -9,7 +9,7 @@ addons:
     - git.coding.net
     - git.dev.tencent.com
   apt:
-    packages: [gcc-4.8.0,gcc-4.8.0-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
+    packages: [gcc-4.8,gcc-4.8-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
     sources: 
       - ubuntu-toolchain-r-test
     

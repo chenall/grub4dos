@@ -1716,7 +1716,7 @@ configfile_func (char *arg, int flags)
 	    *saved_dir = 0;	/* clear saved_dir */
 	    arg = config_file;
 	}
-
+printf_debug ("\nconfigfile_func-0,%x,%x,%x,",grub_strlen(saved_dir),grub_strlen(arg),sizeof(chainloader_file_orig));
   if (grub_strlen(saved_dir) + grub_strlen(arg) + 20 >= (int)sizeof(chainloader_file_orig))
 	return ! (errnum = ERR_WONT_FIT);
 
@@ -1725,7 +1725,7 @@ configfile_func (char *arg, int flags)
   //chainloader_file_orig[sizeof(chainloader_file_orig) - 1] = 0;
   arg = chainloader_file_orig;
   nul_terminate (arg);
-
+printf_debug ("\nconfigfile_func-1,%x,%x,%x,",grub_strlen (arg),(char *)IMG(0x8270),new_config);
   /* check possible filename overflow */
 	if (grub_strlen (arg) >= ((char *)IMG(0x8270) - new_config))
 	return ! (errnum = ERR_WONT_FIT);
