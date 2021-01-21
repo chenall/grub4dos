@@ -1,0 +1,81 @@
+name: grub4dos-build
+
+on: 
+ push:
+   branches: [ "master","efi","0.4.6a" ]
+ pull_request:
+   types: [ opened , synchronize ]
+
+jobs:
+  build-pr:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-16.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 10
+    - uses: chenall/grub4dos-build@main
+    - name: 上传文件到1 transfer.sh
+      run: |
+        echo transfer_url=`curl -H "Max-Downloads: 100" -H "Max-Days: 5" --upload-file ./$GRUB4DOS_BIN https://transfer.sh` >> $GITHUB_ENV
+    - name: 发送本次 pr 的编译结果
+      env:
+        URL: ${{ github.event.pull_request.comments_url }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+          curl -X POST $URL -H "Content-Type: application/json" -H "Authorization: token $GITHUB_TOKEN" --data "{ \"body\": \"$transfer_url\" }"
+  build-push:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-16.04
+    environment: 
+     name: PAGES
+    env:
+      COMMIT_RANGE: "${{ github.event.before || github.event.pull_request.base.sha }}...${{ github.sha }}"
+    steps:
+    - name: 安装依赖项并进行环境变量配置
+      run: sudo apt -y install p7zip-full
+    - name: 下载源码
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 10
+    - name: 下载 ipxe 源码
+      if: ${{ contains(github.ref, '0.4.6') }}
+      uses: actions/checkout@v2
+      with:
+        repository: ipxe/ipxe
+        path: ipxe
+    - name: 调用专用编译环境进行编译
+      uses: chenall/grub4dos-build@main
+    - name: 发布到 github
+      if: ${{ github.event_name == 'push' }}
+      uses: marvinpinto/action-automatic-releases@latest
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        automatic_release_tag: "${{ env.GRUB4DOS_VER }}"
+        prerelease: false
+        title: "Release ${{ env.GRUB4DOS_BIN }}"
+        files: |
+          *.7z
+          *.zip
+    - name: 生成对应下载页源码并上传
+      run: "${{ secrets.BUILD_PAGE }}"
+      env:
+        AK: ${{ secrets.AK }}
+        SK: ${{ secrets.SK }}
+    - name: 下载发布站点代码
+      uses: actions/checkout@v2
+      with:
+       repository:  chenall/grub4dos.site
+       ref:  master
+       path:  grub4dos.site
+       ssh-key: "${{ secrets.DEPLOY_KEY }}"
+    - name: 更新发布站
+      run: |
+        cp *.md grub4dos.site/source/_posts/downloads/
+        cd grub4dos.site
+        git config --global user.name "chenall"
+        git config --global user.email "chenall.cn@gmail.com"
+        git add source/_posts/downloads/*.md
+        git commit -m "`date -u +%Y-%m-%d` $GRUB4DOS_VER build from ${GITHUB_SHA:0:8} "
+        git push
+   

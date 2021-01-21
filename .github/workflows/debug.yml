@@ -1,0 +1,62 @@
+name: grub4dos-build-debug
+
+on: 
+ push:
+   branches: [ "**debug" ]
+
+jobs:
+  build-push:
+    runs-on: ubuntu-16.04
+    environment: 
+     name: PAGES
+    env:
+      COMMIT_RANGE: "${{ github.event.before || github.event.pull_request.base.sha }}...${{ github.sha }}"
+    steps:
+    - uses: mxschmitt/action-tmate@master
+      timeout-minutes: 2
+    - name: 安装依赖项并进行环境变量配置
+      run: sudo apt -y install p7zip-full
+    - name: Dump GitHub context
+      env:
+        GITHUB_CONTEXT: "${{ toJson(github) }}"
+      run: echo "$GITHUB_CONTEXT"
+    - name: 下载源码
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 10
+    - name: 下载 ipxe 源码
+      if: ${{ contains(github.ref, '0.4.6') }}
+      uses: actions/checkout@v2
+      with:
+        repository: ipxe/ipxe
+        path: ipxe
+    - uses: mxschmitt/action-tmate@master
+      timeout-minutes: 2
+    - name: 调用专用编译环境进行编译
+      uses: chenall/grub4dos-build@main
+    - uses: mxschmitt/action-tmate@master
+      timeout-minutes: 2
+    - name: 生成对应下载页源码并上传
+      run: "${{ secrets.BUILD_PAGE }}"
+      env:
+        AK: ${{ secrets.AK }}
+        SK: ${{ secrets.SK }}
+    - name: 下载发布站点代码
+      uses: actions/checkout@v2
+      with:
+       repository:  chenall/grub4dos.site
+       ref:  debug
+       path:  grub4dos.site
+       ssh-key: "${{ secrets.DEPLOY_KEY }}"
+    - name: 更新发布站
+      run: |
+        cp *.md grub4dos.site/source/_posts/downloads/
+        cd grub4dos.site
+        git config --global user.name "chenall"
+        git config --global user.email "chenall.cn@gmail.com"
+        git add source/_posts/downloads/*.md
+        git commit -m "`date -u +%Y-%m-%d` $GRUB4DOS_VER build from ${GITHUB_SHA:0:8} "
+        git push
+    - uses: mxschmitt/action-tmate@master
+      timeout-minutes: 2
+   
