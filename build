@@ -171,8 +171,8 @@ cd $SOURCE_DIR
 #此时在 /home/ 的上一级目录，但不是 /g4d_dev/
 
 rm -f ${RELEASE}.zip ${RELEASE}.rar ${RELEASE}.tar.gz || exit $?
-if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/BOOTX64.EFI ${GRUB4DOS_TEMP}/BOOTIA32.EFI $SOURCE_DIR/ChangeLog_UEFI.txt \
-    $SOURCE_DIR/menu.lst ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff; then
+if ! 7z a ${RELEASE}.7z $(ls ${GRUB4DOS_TEMP}/BOOTX64.EFI ${GRUB4DOS_TEMP}/BOOTIA32.EFI $SOURCE_DIR/ChangeLog_UEFI.txt \
+    $SOURCE_DIR/menu.lst ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff); then
 	echo 7z failed. Continue with zip or tar...
 fi
 
