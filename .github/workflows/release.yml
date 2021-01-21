@@ -53,7 +53,7 @@ jobs:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
         automatic_release_tag: "${{ env.GRUB4DOS_VER }}"
         prerelease: false
-        title: "Release ${{ env.GRUB4DOS_BIN }}"
+        title: "${{ env.GRUB4DOS_BIN }}"
         files: |
           *.7z
           *.zip
