@@ -378,7 +378,7 @@
 #ifndef ASM_FILE
 
 
-#define	IMG(x)	((x) - 0x8200 + grub_image + 0x400)
+#define	IMG(x)	((x) - 0x8200 + g4e_data)
 //---------------------------------------------------------------------------------------------------
 //grub/term.h
 #define GRUB_TERM_NO_KEY        0
@@ -5285,6 +5285,7 @@ extern int grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 			grub_size_t size, char *buf, int read_write);
 			
 extern char *grub_image;
+extern char *g4e_data;
 extern grub_efi_loaded_image_t *image;
 extern grub_efi_device_path_t *efi_file_path;
 extern grub_efi_handle_t efi_handle;

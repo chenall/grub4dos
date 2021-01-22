@@ -786,8 +786,8 @@ grub_memalign (grub_size_t align, grub_size_t size)	//内存对齐(对齐,尺寸
   /* We currently assume at least a 32-bit grub_size_t,			我们目前假设至少有32位grub_size_t，
      so limiting allocations to <adress space size> - 1MiB	因此，以健全的名义将分配限制在"地址空间尺寸"-1MiB是有益的。 
      in name of sanity is beneficial. */
-//  if ((size + align) > ~(grub_size_t) 0x100000)	//如果(尺寸+对齐) > 0x100000
-//    goto fail;	//失败
+  if ((size + align) > ~(grub_size_t) 0x100000)	//如果(尺寸+对齐) > 0x100000
+    goto fail;	//失败
 
   align = (align >> GRUB_MM_ALIGN_LOG2);	//对齐/0x10
   if (align == 0)
@@ -1546,10 +1546,11 @@ copy_grub4dos_self_address (void)
   //复制特定字符串, 为了G4E外部命令
   grub_memmove ((void *)(grub_size_t)(grub4dos_self_address + 0x100), "GRUB4EFI", 8);  
   //复制bootx64.efi自身地址
-  *(grub_size_t*)((char *)(grub_size_t)grub4dos_self_address + 0x110) = (grub_size_t)grub_image;
+  *(grub_size_t*)((char *)(grub_size_t)grub4dos_self_address + 0x110) = (grub_size_t)g4e_data;
 }
 
 char *grub_image;
+char *g4e_data;
 char *PAGING_TABLES_BUF;
 unsigned char *PRINTF_BUFFER;
 char *MENU_TITLE;
@@ -1581,6 +1582,7 @@ grub_init (void)
   image = grub_efi_get_loaded_image (grub_efi_image_handle);  //通过映像句柄,获得加载映像grub_efi_loaded_image结构
 	grub_image = image->image_base;	//通过加载映像,获得BOOIA32.EFI映像基址 	前部是映像头		struct grub_pe32_header   //PE32 头
 																	//grub_image偏移400是grldr起始,也就是bios模式的8200处.可使用*((char *)(grub_image)+0x508))取单字节的值.
+  g4e_data = grub_image + (grub_size_t)(*(unsigned int *)(grub_image + (grub_size_t)(*(unsigned int *)(grub_image + 0x3c)) + 0x28));
 
 	grub_efi_mm_init ();  //内存管理初始化
   copy_grub4dos_self_address ();

@@ -124,21 +124,8 @@ VARIABLE(force_lba)																												//0x8211 强制LBA  uefi未使用
 VARIABLE(version_string)                                                  //0x8212
 	.string VERSION                                                         //0.97\0(hd0,0)
 
-VARIABLE(config_file)																											//0x8217-0x8221		配置文件
+VARIABLE(config_file)																											//0x8217-0x825f		配置文件
 	.string "/efi/grub/menu.lst"
-
-	. = EXT_C(main) + 0x34																									//0x8234-0x8238	!!0x8244-0x8238 0x12字节未使用
-
-	.word	0x14C	/* CPU type for i386 and compatibles */											//i386和兼容机CPU类型		0000
-	.word	1	/* there is 1 section */																				//还有1节								0000		
-
-	. = EXT_C(main) + 0x44																									//0x8244	!!0x826b-0x824e 0x30字节未使用
-
-	.word	0x00	/* size of optional header */																//可选头尺寸										0x5244
-	.word	3	/* flags: "no relocation" and "valid executable" */							//标志：“不搬迁”和“有效的执行”	0x0000
-	.word	0x722E	/* section name for resources */													//名称资源节										0x0000
-	.word	0x7273																														//															0x0000
-	.word	0x63																															//															0x5eebaa55
 
 #if !HOTKEY
 	. = EXT_C(main) + 0x60
@@ -707,7 +694,7 @@ VARIABLE(filesystem_type)               //13  int
 	.extent	ABS(EXT_C(grub_efi_system_table))   //15  struct grub_efi_system_table
 	.extent	ABS(EXT_C(buf_geom))            //16  geometry
 	.extent	ABS(EXT_C(tmp_geom))            //17  geometry
-	.extent	0	//ABS(EXT_C(term_table))      //18  reserved
+	.extent	ABS(EXT_C(g4e_data))            //18  char *
 VARIABLE(current_term)
 	.extent	ABS(EXT_C(term_table))          //19  term_entry
 	.extent	ABS(EXT_C(fsys_table))          //20  fsys_entry

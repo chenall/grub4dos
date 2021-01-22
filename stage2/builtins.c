@@ -362,7 +362,7 @@ blocklist_func (char *arg, int flags)
   rawread_ignore_memmove_overflow = 0;
 
   if (fsys_table[fsys_type].mount_func == pxe_mount)
-  {;
+  {
     map_start_sector[0] = (unsigned long long)(grub_size_t)(char*)efi_pxe_buf;
     printf("0x%lx+0x%lx", (unsigned long long)(grub_size_t)(char*)efi_pxe_buf >> 9, (filemax + 0x1ff) >> 9);
     query_block_entries = blklst_num_entries = 1;
@@ -1727,7 +1727,7 @@ printf_debug ("\nconfigfile_func-0,%x,%x,%x,",grub_strlen(saved_dir),grub_strlen
   nul_terminate (arg);
 printf_debug ("\nconfigfile_func-1,%x,%x,%x,",grub_strlen (arg),(char *)IMG(0x8270),new_config);
   /* check possible filename overflow */
-	if (grub_strlen (arg) >= ((char *)IMG(0x8270) - new_config))
+	if (grub_strlen (arg) >= 0x49)  //0x8217-0x825f
 	return ! (errnum = ERR_WONT_FIT);
 
   /* Check if the file ARG is present.  */
@@ -8056,9 +8056,9 @@ read_func (char *arg, int flags)
     return 0;
 
 	if (!bytes)
-		val = *(unsigned int *)(grub_size_t)(RAW_ADDR (img ? (addr - 0x8200 + (grub_size_t)grub_image + 0x400) : addr));
+		val = *(unsigned int *)(grub_size_t)(RAW_ADDR (img ? (addr - 0x8200 + (grub_size_t)g4e_data) : addr));
 	else
-		val = *(unsigned long long *)(grub_size_t)(RAW_ADDR (img ? (addr - 0x8200 + (grub_size_t)grub_image + 0x400) : addr));
+		val = *(unsigned long long *)(grub_size_t)(RAW_ADDR (img ? (addr - 0x8200 + (grub_size_t)g4e_data) : addr));
   printf_debug0 ("Address 0x%lx: Value 0x%lx\n", addr, val);
   return val;
 }
@@ -8399,14 +8399,14 @@ succ:
     if (! safe_parse_maxint (&p, &val))
       goto fail;
     addr += offset;
-    arg = (char*)(grub_size_t)(img ? (addr - 0x8200 + (grub_size_t)grub_image + 0x400) : addr);
+    arg = (char*)(grub_size_t)(img ? (addr - 0x8200 + (grub_size_t)g4e_data) : addr);
     p = (char*)(grub_size_t)&val;
 
     while(bytes--)
     {
       *arg++ = *p++;
     }
-    printf_debug0 ("Address 0x%lx: Value 0x%x\n", (unsigned long long)addr, (*((unsigned *)(grub_size_t) RAW_ADDR (img ? (addr - 0x8200 + (grub_size_t)grub_image + 0x400) : addr))));
+    printf_debug0 ("Address 0x%lx: Value 0x%x\n", (unsigned long long)addr, (*((unsigned *)(grub_size_t) RAW_ADDR (img ? (addr - 0x8200 + (grub_size_t)g4e_data) : addr))));
     if (addr != (grub_size_t)&saved_drive)
       saved_drive = tmp_drive;
     if (addr != (grub_size_t)&saved_partition)
@@ -10340,7 +10340,7 @@ echo_func (char *arg,int flags)
 		}
     else if (grub_memcmp(arg,"img",3) == 0)
 		{
-			printf("%x",(grub_size_t)grub_image + 0x400);
+			printf("%x",(grub_size_t)g4e_data);
       return 1;
 		}
 		else if (grub_memcmp(arg,"--img=",6) == 0)	//--img=offset=length
@@ -10367,8 +10367,7 @@ mem:
 
 			while (1)
 			{
-//				grub_memmove64((unsigned long long)(grub_size_t)s, (img ? (offset - 0x8200 + (unsigned long long)(grub_size_t)grub_image + 0x400) : offset), j);
-        grub_memmove((void *)(grub_size_t)s, (const void *)(grub_size_t)(img ? (offset - 0x8200 + (grub_size_t)grub_image + 0x400) : offset), j);
+        grub_memmove((void *)(grub_size_t)s, (const void *)(grub_size_t)(img ? (offset - 0x8200 + (grub_size_t)g4e_data) : offset), j);
 				hexdump(offset,(char*)&s,j);
 				if (quit_print)
 					break;
@@ -12255,7 +12254,7 @@ static int call_func(char *arg,int flags)
     return ((int (*)())func)(ch[0],ch[1],ch[2],ch[3],ch[4],ch[5],ch[6],ch[7],ch[8],ch[9]);
 /*
 #define	ABS(x)	((x) - EXT_C(main) + 0x8200)
-#define	IMG(x)	((x) - 0x8200 + grub_image + 0x400)
+#define	IMG(x)	((x) - 0x8200 + g4e_data)
 grub_image = 112c6000
 EXT_C(main) = IMG(0x8200) = 112c6400
 ABS(x) = x - (EXT_C(main) - 0x8200) = x - (112c6400 - 0x8200)
