@@ -177,3 +177,4 @@ if ! 7z a ${RELEASE}.7z $(ls ${GRUB4DOS_TEMP}/BOOTX64.EFI ${GRUB4DOS_TEMP}/BOOTI
 fi
 
 # Do not remove grub4dos-temp as we can check and re-use it later.  不要删除grub4dos temp，因为我们可以稍后检查并重新使用它。
+# 测试直接修改
