@@ -5181,7 +5181,7 @@ struct grub_pe32_header   //PE32 头
   char signature[GRUB_PE32_SIGNATURE_SIZE]; //[4] 签名长度
 
   /* The COFF file header. COFF文件头 */
-  struct grub_pe32_coff_header coff_header; //COFF文件头 占0x28字节
+  struct grub_pe32_coff_header coff_header; //COFF文件头 占0x14字节
 
   /* The Optional header.  */
   struct grub_pe64_optional_header optional_header; //可选头部  a0000000020b
@@ -6830,7 +6830,7 @@ void grub_efi_net_fs_fini (void);
 int grub_efi_net_boot_from_https (void);
 int grub_efi_net_boot_from_opa (void);
 
-extern grub_efi_status_t blockio_read_write (block_io_protocol_t *this, grub_efi_uint32_t media_id,
+extern grub_efi_status_t EFIAPI blockio_read_write (block_io_protocol_t *this, grub_efi_uint32_t media_id,
               grub_efi_lba_t lba, grub_efi_uintn_t len, void *buf, int read_write);
 extern grub_size_t block_io_protocol_this;
 extern int get_efi_cdrom_device_boot_path (int drive);
@@ -6844,6 +6844,10 @@ extern grub_uint64_t EXPORT_FUNC (__udivdi3) (grub_uint64_t a, grub_uint64_t b);
 extern void start_event (void);
 extern void close_event (void);
 extern int find_specified_file (int drive, int partition, char* file);
+extern char map_file_name [256];
+extern char *map_file_path;
+extern int GetParentUtf8Name (char *dest, grub_uint16_t *src);
+extern int get_ParentDisk (char* parentUtf8Name, struct fragment** Parent_Disk);
 //======================================================================================================================
 
 #endif /* ! ASM_FILE */

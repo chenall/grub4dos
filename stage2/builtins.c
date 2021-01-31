@@ -1716,7 +1716,6 @@ configfile_func (char *arg, int flags)
 	    *saved_dir = 0;	/* clear saved_dir */
 	    arg = config_file;
 	}
-printf_debug ("\nconfigfile_func-0,%x,%x,%x,",grub_strlen(saved_dir),grub_strlen(arg),sizeof(chainloader_file_orig));
   if (grub_strlen(saved_dir) + grub_strlen(arg) + 20 >= (int)sizeof(chainloader_file_orig))
 	return ! (errnum = ERR_WONT_FIT);
 
@@ -1725,7 +1724,6 @@ printf_debug ("\nconfigfile_func-0,%x,%x,%x,",grub_strlen(saved_dir),grub_strlen
   //chainloader_file_orig[sizeof(chainloader_file_orig) - 1] = 0;
   arg = chainloader_file_orig;
   nul_terminate (arg);
-printf_debug ("\nconfigfile_func-1,%x,%x,%x,",grub_strlen (arg),(char *)IMG(0x8270),new_config);
   /* check possible filename overflow */
 	if (grub_strlen (arg) >= 0x49)  //0x8217-0x825f
 	return ! (errnum = ERR_WONT_FIT);
@@ -6182,11 +6180,65 @@ fragment_map_slot_find(struct fragment_map_slot *q, unsigned int from) //在碎�
   return 0;
 }
 
+char map_file_name [256];
+char *map_file_path;
+int get_ParentDisk (char* parentUtf8Name, struct fragment** Parent_Disk);
+int
+get_ParentDisk (char* parentUtf8Name, struct fragment** Parent_Disk)  //获得父VHD文件的扇区序列
+{
+  int i = no_decompression;
+  query_block_entries = -1;           //仅请求块列表*/
+  no_decompression = 1;
+  blocklist_func (parentUtf8Name, 1);	//请求块列表   执行成功后,将设置query_block_entries=1,设置errnum=0
+  no_decompression = i;
+
+  if (errnum || query_block_entries > DRIVE_MAP_FRAGMENT || query_block_entries <= 0)
+    return 0;
+  *Parent_Disk = grub_zalloc ((blklst_num_entries + 1) << 4); 
+  struct fragment* p = *Parent_Disk;
+ 
+  if (!p)
+    return 0;
+  for (i = 0; i < blklst_num_entries; i++)
+  {
+    p[i].start_sector = map_start_sector[i];
+    p[i].sector_count = map_num_sectors[i];   
+  }
+  p[i].start_sector = 0;
+  p[i].sector_count = 0;
+
+  return blklst_num_entries;
+}
+
+int GetParentUtf8Name (char *dest, grub_uint16_t *src);
+int
+GetParentUtf8Name (char *dest, grub_uint16_t *src)  //获得utf8格式的父VHD文件名
+{
+  char *d = chainloader_file_orig;
+  grub_uint16_t *s = src;
+  int count = 0;
+
+  while (*s)
+  {
+    *d++ = (*s++ >> 8);
+    count++;
+  }
+  *d = 0;
+  
+  d = chainloader_file_orig + count;
+  while (*d-- != '\\') ;
+  d += 2;
+
+  grub_sprintf (dest, "%s%s", map_file_path, d);
+  count = grub_strlen (dest);
+
+  return count;
+}
+
 grub_efi_uint64_t	part_addr;
 grub_efi_uint64_t	part_size;
 grub_efi_uint64_t boot_entry;
 struct grub_part_data *part_data;
-unsigned int map_image_HPC, map_image_SPT;
 grub_efi_device_path_protocol_t* grub_efi_create_device_node (grub_efi_uint8_t node_type, grub_efi_uintn_t node_subtype,
                     grub_efi_uint16_t node_length);
 unsigned long long tmp;
@@ -6226,7 +6278,6 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
 //  unsigned long long max_sectors = -1ULL;
   filesystem_type = -1;
   start_sector = sector_count = 0;
-  map_image_HPC = 0; map_image_SPT = 0;
   blklst_num_entries = 0;
 	grub_efi_status_t status;				//状态
 	grub_efi_boot_services_t *b;		//引导服务
@@ -6377,30 +6428,6 @@ struct drive_map_slot
 	    }
 			return 1;
 		}
-		else if (grub_memcmp (arg, "--hook", 6) == 0)		  //2. 挂钩
-		{
-			return 1;
-		}
-    else if (grub_memcmp (arg, "--unhook", 8) == 0)		//3. 取消挂钩
-    {
-      return 1;
-    }
-		else if (grub_memcmp (arg, "--unmap=", 8) == 0)		//4. 取消映射。等号后只能是 0x00 至 0xff。可以是: map --unmap=0,0x80，或 map --unmap=0xff:0。
-		{
-			return 1;
-		}
-    else if (grub_memcmp (arg, "--rehook", 8) == 0)		//5. 重新挂钩
-    {
-      return 1;
-    }
-    else if (grub_memcmp (arg, "--floppies=", 11) == 0)		//6. 软盘  设置软盘数 0-1,即1个或2个
-		{
-      return 1;
-    }
-    else if (grub_memcmp (arg, "--harddrives=", 13) == 0)		//7. 硬盘  设置硬盘数 0-0x7f
-		{
-      return 1;
-    }
     else if (grub_memcmp (arg, "--ram-drive=", 12) == 0)		//8. 内存盘  设置rd驱动器号,默认0x7f,设置区间:0-0xfe
 		{
 //			unsigned long long tmp;
@@ -6432,10 +6459,6 @@ struct drive_map_slot
 			rd_size = tmp;
 			return 1;
 		}
-    else if (grub_memcmp (arg, "--mem=", 6) == 0)		    //19. 如果mem为正,是指定mem的位置(扇区数); 如果mem为负,是指定mem的尺寸(扇区数)
-    {
-      return 1;
-    }
 		else if (grub_memcmp (arg, "--mem", 5) == 0)		    //20. 使用内存映射
 		{
 			mem = 0;		//0=加载到内存   -1=不加载到内存
@@ -6446,18 +6469,6 @@ struct drive_map_slot
       prefer_top = 1;
       mem = 0;
 		}
-		else if (grub_memcmp (arg, "--read-only", 11) == 0) //22. 只读
-		{
-			read_only = 1;
-		}
-    else if (grub_memcmp (arg, "--heads=", 8) == 0)		  //31. 磁头数
-    {
-//      return 1;
-    }
-    else if (grub_memcmp (arg, "--sectors-per-track=", 20) == 0)		//32. 每磁道扇区数
-    {
-//      return 1;
-    }
 #if 0
 		else if (grub_memcmp (arg, "--add-mbt=", 10) == 0)  //33. 增加存储块  -1,0,1
 		{
@@ -6475,6 +6486,10 @@ struct drive_map_slot
 			p = arg + 15;
 			if (! safe_parse_maxint_with_suffix (&p, &skip_sectors, 9))
 				return 0;
+		}
+    else if (grub_memcmp (arg, "--", 2) == 0)		//35. 过期或不支持的参数
+		{
+      return 0;
 		}
     else
 			break;
@@ -6551,22 +6566,19 @@ struct drive_map_slot
 		}
 	}
 
-  //判断是否连续(填充碎片信息)
-  query_block_entries = -1; /* query block list only   仅请求块列表*/
-  blocklist_func (to_drive, flags);	//请求块列表   执行成功后,将设置query_block_entries=1,设置errnum=0
-  if (errnum)
-    return 0;
-  if (query_block_entries <= 0 && mem == -1ULL) //如果是动态VHD，不加载到内存
-  {
-    pause_func ("--wait=5 Dynamic VHD needs to be loaded into memory.",1);
-//    printf_errinfo("Dynamic VHD needs to be loaded into memory.\n");
-    return 0;
-  }
-  if (query_block_entries > DRIVE_MAP_FRAGMENT && mem == -1ULL) //碎片太多，不加载到内存
-    return ! (errnum = ERR_MANY_FRAGMENTS);
-#if 0
   if (mem == -1ULL)		//如果不加载到内存
   {
+    //判断是否连续(填充碎片信息)
+    query_block_entries = -1; /* query block list only   仅请求块列表*/
+    blocklist_func (to_drive, flags);	//请求块列表   执行成功后,将设置query_block_entries=1,设置errnum=0
+    if (errnum)
+      return 0;
+    if (query_block_entries <= 0 || query_block_entries > DRIVE_MAP_FRAGMENT) //如果是动态VHD, 或者碎片太多
+    {
+      printf_warning ("Too many fragments or Dynamic VHD needs to be loaded into memory.");
+      mem = 0;		//加载到内存
+    }
+#if 0
 		start_sector = map_start_sector[0];    
       //此处将扇区计数，更改为按每扇区0x200字节计的小扇区!!!
 //    sector_count = (filemax + 0x1ff) >> SECTOR_BITS; /* in small 512-byte sectors */
@@ -6575,8 +6587,8 @@ struct drive_map_slot
 		//此处的 sector_count 后面没有使用这个参数
     if (start_sector == part_start && part_start && sector_count == 1)		//如果起始扇区=分区起始,并且分区起始不为零,并且扇区计数=1
 			sector_count = part_length;																			    //则扇区计数=分区长度
-  }	
 #endif
+  }	
 	cache = grub_zalloc (0x800);	//分配缓存
   if (!cache)
     return 0;
@@ -6590,7 +6602,18 @@ struct drive_map_slot
 	else
 	{
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    if (! grub_open (to_drive))	//打开to驱动器
+    //保存to驱动器的路径文件名
+    p = skip_to (0, to_drive);
+    *(p - 1) = 0;
+    grub_memmove (map_file_name, to_drive, grub_strlen (to_drive) + 1);
+    //获得并保存to驱动器的路径
+    p--;
+    while (*p-- != '/') ;
+    *(p + 2) = 0; 
+    map_file_path = to_drive;
+//    if (! grub_open (to_drive))	//打开to驱动器
+//      goto  fail_free;
+    if (! grub_open (map_file_name))	//打开to驱动器
       goto  fail_free;
 //		if ((skip_sectors << SECTOR_BITS) > filemax)
     if (skip_sectors > (filemax >> 9))		//如果跳过扇区>文件最大扇区
@@ -6968,10 +6991,6 @@ get_info_ok:
 	{
 		unsigned long long start_byte;		//起始字节
 		unsigned long long bytes_needed;	//需要字节
-//		unsigned long long base;					//基地址
-//		unsigned long long top_end;				//顶端
-      
-//		bytes_needed = base = top_end = 0ULL;	//初始化: 需要字节=基地址=顶端=0
     bytes_needed = 0ULL;	//初始化: 需要字节=基地址=顶端=0
 
 		if (start_sector == part_start && part_start == 0 && sector_count == 1)		//如果起始扇区=分区起始,并且分区起始=0,并且扇区计数=1
@@ -7299,12 +7318,14 @@ delete_drive_map_slot:
   disk_drive_map[i].media.media_id = from;
 
   if (!no_install_vdisk)    //0/1=安装虚拟磁盘/不安装虚拟磁盘
+  {
     status = vdisk_install (i);							//安装虚拟磁盘
 	
   if (status != GRUB_EFI_SUCCESS)							//如果安装失败
   {
     printf_errinfo ("Failed to install vdisk.\n");	//未能安装vdisk
     goto fail;
+  }
   }
 
   return from | i << 8;

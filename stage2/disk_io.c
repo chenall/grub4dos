@@ -3955,9 +3955,9 @@ vdisk_load_image (unsigned int drive)	//虚拟磁盘引导
 
 
 
-grub_efi_status_t blockio_read_write (block_io_protocol_t *this, grub_efi_uint32_t media_id,
+grub_efi_status_t EFIAPI blockio_read_write (block_io_protocol_t *this, grub_efi_uint32_t media_id,
               grub_efi_lba_t lba, grub_efi_uintn_t len, void *buf, int read_write);
-grub_efi_status_t
+grub_efi_status_t EFIAPI
 blockio_read_write (block_io_protocol_t *this, grub_efi_uint32_t media_id,
               grub_efi_lba_t lba, grub_efi_uintn_t len, void *buf, int read_write)	//读(自身,媒体id,起始逻辑扇区,读字节尺寸,缓存)
 {

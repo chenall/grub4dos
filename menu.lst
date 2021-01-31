@@ -73,6 +73,20 @@ title 启动 Linux Porteus 5.0 x86_64 openbox
 kernel /porteus/vmlinuz copy2ram
 initrd /porteus/initrd.xz
 
+#使用外部命令ntloader
+#假设 WIM 或 VHD 位于 (hdx,y)，路径为 /path/to/winpe.wim
+title 启动 Windows WIM/VHD
+uuid (hdx,y)
+kernel /ntloader uuid=%?_UUID% file=/path/to/winpe.wim
+initrd /initrd.lz1
+
+#使用外部命令ntloader
+#假设系统文件夹位于 (hdx,y)
+title 启动 Windows 系统
+uuid (hdx,y)
+kernel /ntloader uuid=%?_UUID%
+initrd /initrd.lz1
+
 title 命令行
 commandline
 
