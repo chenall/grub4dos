@@ -6850,5 +6850,109 @@ extern int GetParentUtf8Name (char *dest, grub_uint16_t *src);
 extern int get_ParentDisk (char* parentUtf8Name, struct fragment** Parent_Disk);
 //======================================================================================================================
 
+#define GRUB_RSDP_SIGNATURE "RSD PTR "
+#define GRUB_RSDP_SIGNATURE_SIZE 8
+
+struct grub_acpi_rsdp_v10
+{
+  grub_uint8_t signature[GRUB_RSDP_SIGNATURE_SIZE];
+  grub_uint8_t checksum;
+  grub_uint8_t oemid[6];
+  grub_uint8_t revision;
+  grub_uint32_t rsdt_addr;
+} __attribute__ ((packed));
+
+struct grub_acpi_rsdp_v20
+{
+  struct grub_acpi_rsdp_v10 rsdpv1;
+  grub_uint32_t length;
+  grub_uint64_t xsdt_addr;
+  grub_uint8_t checksum;
+  grub_uint8_t reserved[3];
+} __attribute__ ((packed));
+
+struct grub_acpi_table_header
+{
+  grub_uint8_t signature[4];
+  grub_uint32_t length;
+  grub_uint8_t revision;
+  grub_uint8_t checksum;
+  grub_uint8_t oemid[6];
+  grub_uint8_t oemtable[8];
+  grub_uint32_t oemrev;
+  grub_uint8_t creator_id[4];
+  grub_uint32_t creator_rev;
+} __attribute__ ((packed));
+
+#define GRUB_ACPI_FADT_SIGNATURE "FACP"
+
+struct grub_acpi_fadt
+{
+  struct grub_acpi_table_header hdr;
+  grub_uint32_t facs_addr;
+  grub_uint32_t dsdt_addr;
+  grub_uint8_t somefields1[20];
+  grub_uint32_t pm1a;
+  grub_uint8_t somefields2[8];
+  grub_uint32_t pmtimer;
+  grub_uint8_t somefields3[32];
+  grub_uint32_t flags;
+  grub_uint8_t somefields4[16];
+  grub_uint64_t facs_xaddr;
+  grub_uint64_t dsdt_xaddr;
+  grub_uint8_t somefields5[96];
+} __attribute__ ((packed));
+
+#define GRUB_ACPI_SLP_EN (1 << 13)
+#define GRUB_ACPI_SLP_TYP_OFFSET 10
+
+enum
+{
+  GRUB_ACPI_OPCODE_ZERO = 0, GRUB_ACPI_OPCODE_ONE = 1,
+  GRUB_ACPI_OPCODE_NAME = 8, GRUB_ACPI_OPCODE_ALIAS = 0x06,
+  GRUB_ACPI_OPCODE_BYTE_CONST = 0x0a,
+  GRUB_ACPI_OPCODE_WORD_CONST = 0x0b,
+  GRUB_ACPI_OPCODE_DWORD_CONST = 0x0c,
+  GRUB_ACPI_OPCODE_STRING_CONST = 0x0d,
+  GRUB_ACPI_OPCODE_SCOPE = 0x10,
+  GRUB_ACPI_OPCODE_BUFFER = 0x11,
+  GRUB_ACPI_OPCODE_PACKAGE = 0x12,
+  GRUB_ACPI_OPCODE_METHOD = 0x14, GRUB_ACPI_OPCODE_EXTOP = 0x5b,
+  GRUB_ACPI_OPCODE_ADD = 0x72,
+  GRUB_ACPI_OPCODE_CONCAT = 0x73,
+  GRUB_ACPI_OPCODE_SUBTRACT = 0x74,
+  GRUB_ACPI_OPCODE_MULTIPLY = 0x77,
+  GRUB_ACPI_OPCODE_DIVIDE = 0x78,
+  GRUB_ACPI_OPCODE_LSHIFT = 0x79,
+  GRUB_ACPI_OPCODE_RSHIFT = 0x7a,
+  GRUB_ACPI_OPCODE_AND = 0x7b,
+  GRUB_ACPI_OPCODE_NAND = 0x7c,
+  GRUB_ACPI_OPCODE_OR = 0x7d,
+  GRUB_ACPI_OPCODE_NOR = 0x7e,
+  GRUB_ACPI_OPCODE_XOR = 0x7f,
+  GRUB_ACPI_OPCODE_CONCATRES = 0x84,
+  GRUB_ACPI_OPCODE_MOD = 0x85,
+  GRUB_ACPI_OPCODE_INDEX = 0x88,
+  GRUB_ACPI_OPCODE_CREATE_DWORD_FIELD = 0x8a,
+  GRUB_ACPI_OPCODE_CREATE_WORD_FIELD = 0x8b,
+  GRUB_ACPI_OPCODE_CREATE_BYTE_FIELD = 0x8c,
+  GRUB_ACPI_OPCODE_TOSTRING = 0x9c,
+  GRUB_ACPI_OPCODE_IF = 0xa0, GRUB_ACPI_OPCODE_ONES = 0xff
+};
+
+enum
+{
+  GRUB_ACPI_EXTOPCODE_MUTEX = 0x01,
+  GRUB_ACPI_EXTOPCODE_EVENT_OP = 0x02,
+  GRUB_ACPI_EXTOPCODE_OPERATION_REGION = 0x80,
+  GRUB_ACPI_EXTOPCODE_FIELD_OP = 0x81,
+  GRUB_ACPI_EXTOPCODE_DEVICE_OP = 0x82,
+  GRUB_ACPI_EXTOPCODE_PROCESSOR_OP = 0x83,
+  GRUB_ACPI_EXTOPCODE_POWER_RES_OP = 0x84,
+  GRUB_ACPI_EXTOPCODE_THERMAL_ZONE_OP = 0x85,
+  GRUB_ACPI_EXTOPCODE_INDEX_FIELD_OP = 0x86,
+  GRUB_ACPI_EXTOPCODE_BANK_FIELD_OP = 0x87,
+};
+
 #endif /* ! ASM_FILE */
 #endif /* ! GRUB_SHARED_HEADER */
