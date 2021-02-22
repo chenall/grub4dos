@@ -389,13 +389,13 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 	ret = pxe_dir (pxe_tftp_name);
 	if (ret && filemax)
 		goto done;
-	if (pxe_tftp_open.Status != PXENV_STATUS_TFTP_FILE_NOT_FOUND)//bad server
-		goto done;
+	//if (pxe_tftp_open.Status != PXENV_STATUS_TFTP_FILE_NOT_FOUND)//bad server
+	//	goto done;
   /* Reports from Ruymbeke: opening /menu.lst will hang if it is a dir.
    * Do NOT use /menu.lst as a dir any more!! Use /menu for it instead.
    */
 	if (!config)
-		config = "/menu.lst/";
+		config = "/menu/";
 
   grub_strcpy (pxe_tftp_name, config);
 	
