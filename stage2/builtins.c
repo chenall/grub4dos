@@ -22,6 +22,8 @@
 #include <filesys.h>
 #include <term.h>
 #include "iamath.h"
+#include "ahci.h"
+#include "nvme.h"
 
 #ifdef SUPPORT_SERIAL
 # include <serial.h>
@@ -6081,7 +6083,393 @@ static struct builtin builtin_find =
   " floppies. And --ignore-cd will skip (cd)."
 };
 
-
+static int ahci_func(char *arg,int flags)
+{
+	// return 1 on success
+	int rc = 1;
+	
+	// temporary variables
+	char *p;
+	unsigned long long int tmp;
+
+	// do this for all arguments
+	for(;;)
+	{
+		// get selected BIOS drive number
+		if(grub_memcmp(arg,"--set-drive=",12) == 0)
+		{
+			p = arg + 12;
+			if(!safe_parse_maxint(&p,&tmp))
+			{
+				rc = 0;
+				goto cleanup;
+			}
+
+			ahcig.SelectedDrive = tmp;
+		}
+		// get selected AHCI controller
+		else if(grub_memcmp(arg,"--set-controller=",17) == 0)
+		{
+			p = arg + 17;
+			if(!safe_parse_maxint(&p,&tmp))
+			{
+				rc = 0;
+				goto cleanup;
+			}
+			
+			ahcig.SelectedController = tmp;
+		}
+		// get selected AHCI port
+		else if(grub_memcmp(arg,"--set-port=",11) == 0)
+		{
+			p = arg + 11;
+			if(!safe_parse_maxint(&p,&tmp))
+			{
+				rc = 0;
+				goto cleanup;
+			}
+			
+			ahcig.SelectedPort = tmp;
+		}
+		// show all found controllers, ports and connected devices
+		else if(grub_memcmp(arg,"--showall",9) == 0)
+		{
+			ahcig.ShowAll = 1;
+		}
+		// show selected controller, port and connected device
+		else if(grub_memcmp(arg,"--showselected",14) == 0)
+		{
+			ahcig.ShowSelected = 1;
+		}
+		// uninitialize all controllers
+		else if(grub_memcmp(arg,"--uninit",8) == 0)
+		{
+			ahcig.Uninit = 1;
+		}
+		// leave for loop
+		else
+		{
+			break;	
+		}	
+
+		// go to next argument
+		arg = skip_to(0,arg);
+	}
+
+	// uninitialize all controllers
+	if(ahcig.Uninit == 1)
+	{
+		// set rc to zero to signal an error and trigger the controller uninitialization in the cleanup
+		rc = 0;
+		goto cleanup;	
+	}
+
+	// fill AHCI_HBA_EXT structure and get number of controllers present
+	if(AhciInit(&ahcig.HbaExt,&ahcig.FoundControllers) != 0)
+	{
+		rc = 0;
+		goto cleanup;
+	}
+
+	// check if at least one AHCI controller is present
+	if(ahcig.FoundControllers == 0)
+	{
+		grub_printf("Error: No AHCI controller present!\n");
+		rc = 0;
+		goto cleanup;
+	}
+
+	// no BIOS drive selected
+	if(ahcig.SelectedDrive == -1)
+	{
+		grub_printf("Error: No BIOS drive selected!\n");
+		rc = 0;
+		goto cleanup;
+	}
+
+	// no controller selected
+	if(ahcig.SelectedController == -1)
+	{
+		grub_printf("Error: No AHCI controller selected!\n");
+		rc = 0;
+		goto cleanup;
+	}
+
+	// no port selected
+	if(ahcig.SelectedPort == -1)
+	{
+		grub_printf("Error: No AHCI port selected!\n");
+		rc = 0;
+		goto cleanup;
+	}
+
+	// check if the selected controller is present
+	if(ahcig.SelectedController > ahcig.FoundControllers - 1)
+	{
+		grub_printf("Error: Max AHCI contoller number that can be used is %d!\n",ahcig.FoundControllers - 1);
+		rc = 0;
+		goto cleanup;
+	}
+
+	// check if the selected port is implemented
+	if(ahcig.HbaExt[ahcig.SelectedController].PortExt[ahcig.SelectedPort].PortImplemented != 1)
+	{
+		grub_printf("Error: The selected AHCI port is not implemented!\n");
+		rc = 0;
+		goto cleanup;
+	}
+
+	// check if a device is connected
+	if(ahcig.HbaExt[ahcig.SelectedController].PortExt[ahcig.SelectedPort].DeviceConnected != 1)
+	{
+		grub_printf("Error: There is no device connected on the selected port!\n");
+		rc = 0;
+		goto cleanup;		
+	}
+
+	// check if the device type is "Hard Disk"
+	if(strcmp(ahcig.HbaExt[ahcig.SelectedController].PortExt[ahcig.SelectedPort].DeviceType,"Hard Disk") != 0)
+	{
+		grub_printf("Error: There is no hard disk connected on the selected port!\n");
+		rc = 0;
+		goto cleanup;		
+	}
+
+	// read LBA 0 from HDD
+	// test if we can read from the specified AHCI controller and port
+	unsigned char buf[512];
+	if(AhciRead(ahcig.HbaExt[ahcig.SelectedController].ABAR_Address,ahcig.SelectedPort,0,(DWORD)buf,1) != 0)
+	{
+		printf("Error: Can't read LBA 0 in AHCI mode!\n");
+		rc = 0;
+		goto cleanup;
+	}
+
+	// show all found controllers, ports and connected devices
+	if(ahcig.ShowAll == 1)
+	{
+		AhciShowAllDevices(ahcig.HbaExt,ahcig.FoundControllers);
+	}
+	
+	// show selected controller, port and connected device
+	if(ahcig.ShowSelected == 1)
+	{
+		AhciShowSelectedDevice(ahcig.HbaExt,ahcig.SelectedController,ahcig.SelectedPort);
+	}
+
+cleanup:
+	// on error reset menu.lst globals
+	if(rc != 1)
+	{
+		// uninitialize AHCI
+		AhciUninit(&ahcig.HbaExt,&ahcig.FoundControllers);
+		ahcig.SelectedDrive = -1;
+		ahcig.SelectedController = -1;
+		ahcig.SelectedPort = -1;
+		ahcig.ShowAll = 0;
+		ahcig.ShowSelected = 0;
+		ahcig.Uninit = 0;
+		ahcig.StartSector = 0;
+		ahcig.MapActive = 0;
+	}
+
+	// return 1 on success
+	return rc;
+}
+
+
+static struct builtin builtin_ahci =
+{
+  "ahci",
+  ahci_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
+  "ahci --set-drive=DRIVE --set-controller=CONTR --set-port=PORT [--showall] [--showselected] [--uninit]",
+  "Search PCI configuration space for all present AHCI controllers and implemented"
+  " ports. After setting this option every read to DRIVE is redirected to the"
+  " selected AHCI controller and port. The CONTR and PORT arguments start at"
+  " zero, where 0 corresponds to the 1st present AHCI controller / port found."
+  " If the option --showall is used, all AHCI controllers, ports and connected"
+  " devices are displayed. If the option --showselected is used, the selected"
+  " AHCI controller, port and connected device is displayed. The argument"
+  " --uninit uninitializes all AHCI controllers. This command was implemented"
+  " to speed up transfer rates if an image file is loaded from an AHCI SSD and"
+  " mapped to RAM.\n\n"
+  "Initialization example:\n"
+  "ahci --set-drive=0x80 --set-controller=0 --set-port=0 --showselected\n\n"
+  "Unitialization example:\n"
+  "ahci --uninit"
+};
+
+static int nvme_func(char *arg,int flags)
+{
+	// return 1 on success
+	int rc = 1;
+	
+	// temporary variables
+	char *p;
+	unsigned long long int tmp;
+
+	// do this for all arguments
+	for(;;)
+	{
+		// get selected BIOS drive number
+		if(grub_memcmp(arg,"--set-drive=",12) == 0)
+		{
+			p = arg + 12;
+			if(!safe_parse_maxint(&p,&tmp))
+			{
+				rc = 0;
+				goto cleanup;
+			}
+
+			nvmeg.SelectedDrive = tmp;
+		}
+		// get selected NVMe controller
+		else if(grub_memcmp(arg,"--set-controller=",17) == 0)
+		{
+			p = arg + 17;
+			if(!safe_parse_maxint(&p,&tmp))
+			{
+				rc = 0;
+				goto cleanup;
+			}
+			
+			nvmeg.SelectedController = tmp;
+		}
+		// show all found controllers and connected devices
+		else if(grub_memcmp(arg,"--showall",9) == 0)
+		{
+			nvmeg.ShowAll = 1;
+		}
+		// show selected controller and connected device
+		else if(grub_memcmp(arg,"--showselected",14) == 0)
+		{
+			nvmeg.ShowSelected = 1;
+		}
+		// uninitialize all controllers
+		else if(grub_memcmp(arg,"--uninit",8) == 0)
+		{
+			nvmeg.Uninit = 1;
+		}
+		// leave for loop
+		else
+		{
+			break;	
+		}	
+
+		// go to next argument
+		arg = skip_to(0,arg);
+	}
+
+	// uninitialize all controllers
+	if(nvmeg.Uninit == 1)
+	{
+		// set rc to zero to signal an error and trigger the controller uninitialization in the cleanup
+		rc = 0;
+		goto cleanup;	
+	}
+
+	// fill NVME_DEVICE_EXTENSION structure and get number of controllers present
+	if(NVMeInit(&nvmeg.DevExt,&nvmeg.FoundControllers) != 0)
+	{
+		rc = 0;
+		goto cleanup;
+	}
+
+	// check if at least one NVMe controller is present
+	if(nvmeg.FoundControllers == 0)
+	{
+		grub_printf("Error: No NVMe controller present!\n");
+		rc = 0;
+		goto cleanup;
+	}
+
+	// no BIOS drive selected
+	if(nvmeg.SelectedDrive == -1)
+	{
+		grub_printf("Error: No BIOS drive selected!\n");
+		rc = 0;
+		goto cleanup;
+	}
+
+	// no controller selected
+	if(nvmeg.SelectedController == -1)
+	{
+		grub_printf("Error: No NVMe controller selected!\n");
+		rc = 0;
+		goto cleanup;
+	}
+
+	// check if the selected controller is present
+	if(nvmeg.SelectedController > nvmeg.FoundControllers - 1)
+	{
+		grub_printf("Error: Max NVMe contoller number that can be used is %d!\n",nvmeg.FoundControllers - 1);
+		rc = 0;
+		goto cleanup;
+	}
+
+	// read LBA 0
+	// test if we can read from the specified NVMe controller
+	unsigned char buf[512];
+	if(NVMeRead(&nvmeg.DevExt[nvmeg.SelectedController],0,(DWORD)buf,1) != 0)
+	{
+		printf("Error: Can't read LBA 0 in NVMe mode!\n");
+		rc = 0;
+		goto cleanup;
+	}
+
+	// show all found controllers and connected devices
+	if(nvmeg.ShowAll == 1)
+	{
+		NVMeShowAllDevices(nvmeg.DevExt,nvmeg.FoundControllers);
+	}
+	
+	// show selected controller and connected device
+	if(nvmeg.ShowSelected == 1)
+	{
+		NVMeShowSelectedDevice(nvmeg.DevExt,nvmeg.SelectedController);
+	}
+
+cleanup:
+	// on error reset menu.lst globals
+	if(rc != 1)
+	{
+		// uninitialize NVMe
+		NVMeUninit(&nvmeg.DevExt,&nvmeg.FoundControllers);
+		nvmeg.SelectedDrive = -1;
+		nvmeg.SelectedController = -1;
+		nvmeg.ShowAll = 0;
+		nvmeg.ShowSelected = 0;
+		nvmeg.Uninit = 0;
+		nvmeg.StartSector = 0;
+		nvmeg.MapActive = 0;
+	}
+
+	// return 1 on success
+	return rc;
+}
+
+static struct builtin builtin_nvme =
+{
+  "nvme",
+  nvme_func,
+  BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
+  "nvme --set-drive=DRIVE --set-controller=CONTR [--showall] [--showselected] [--uninit]",
+  "Search PCI configuration space for all present NVMe controllers. After"
+  " setting this option every read to DRIVE is redirected to the selected NVMe"
+  " controller. The CONTR argument starts at zero, where 0 corresponds to the 1st"
+  " present NVMe controller found. If the option --showall is used, all NVMe"
+  " controllers and connected devices are displayed. If the option --showselected"
+  " is used, the selected NVMe controller and connected device is displayed."
+  " The argument --uninit uninitializes all NVMe controllers. This command was"
+  " implemented to speed up transfer rates if an image file is loaded from an"
+  " NVMe SSD and mapped to RAM.\n\n"
+  "Initialization example:\n"
+  "nvme --set-drive=0x80 --set-controller=0 --showselected\n\n"
+  "Unitialization example:\n"
+  "nvme --uninit"
+};
+
 #ifdef SUPPORT_GRAPHICS
 
 /*
@@ -9544,6 +9932,11 @@ map_func (char *arg, int flags)
 	set_int13_handler (bios_drive_map);
 	buf_drive = -1;
 	buf_track = -1;
+	// enable NVMe / AHCI drive mapping
+	if(nvmeg.DevExt != NULL && nvmeg.SelectedController != -1)
+		nvmeg.MapActive = 1;
+	else if(ahcig.HbaExt != NULL && ahcig.SelectedController != -1 && ahcig.SelectedPort != -1)
+		ahcig.MapActive = 1;
 	return 1;
       }
     else if (grub_memcmp (arg, "--unhook", 8) == 0)
@@ -9577,6 +9970,11 @@ map_func (char *arg, int flags)
 	}
 	buf_drive = -1;
 	buf_track = -1;
+	// disable NVMe / AHCI drive mapping
+	if(nvmeg.DevExt != NULL && nvmeg.SelectedController != -1)
+		nvmeg.MapActive = 0;
+	else if(ahcig.HbaExt != NULL && ahcig.SelectedController != -1 && ahcig.SelectedPort != -1)
+		ahcig.MapActive = 0;
 	return 1;
       }
     else if (grub_memcmp (arg, "--rehook", 8) == 0)
@@ -10188,6 +10586,19 @@ map_func (char *arg, int flags)
 	return 0;
     if (skip_sectors > (filemax >> 9))
 	return !(errnum = ERR_EXEC_FORMAT);
+
+    // Save the start sector for AHCI and NVMe drive mapping, because our read handler does not
+    // execute the disk read hook function disk_read_start_sector_func. Therefore the mapping
+    // start sector is set to zero if we do not save and restore it here.
+    if(nvmeg.DevExt != NULL && nvmeg.SelectedController != -1)
+    {
+        nvmeg.StartSector = start_sector;
+    }
+    else if(ahcig.HbaExt != NULL && ahcig.SelectedController != -1 && ahcig.SelectedPort != -1)
+    {
+        ahcig.StartSector = start_sector;
+    }
+
     /* disk_read_start_sector_func() will set start_sector and sector_count */
     start_sector = sector_count = 0;
     rawread_ignore_memmove_overflow = 1;
@@ -10199,6 +10610,17 @@ map_func (char *arg, int flags)
 		filepos = a;
     err = grub_read ((unsigned long long)(unsigned long) BS, SECTOR_SIZE, 0xedde0d90);
     disk_read_hook = 0;
+
+    // restore the start sector from our global NVMe / AHCI variable
+    if(nvmeg.DevExt != NULL && nvmeg.SelectedController != -1)
+    {
+        start_sector = nvmeg.StartSector;
+    }
+    else if(ahcig.HbaExt != NULL && ahcig.SelectedController != -1 && ahcig.SelectedPort != -1)
+    {
+        start_sector = ahcig.StartSector;
+    }
+
     rawread_ignore_memmove_overflow = 0;
     if (err != SECTOR_SIZE && from != ram_drive)
     {
@@ -17946,6 +18368,7 @@ static struct builtin builtin_beep =
 /* The table of builtin commands. Sorted in dictionary order.  */
 struct builtin *builtin_table[] =
 {
+  &builtin_ahci,
 #ifdef SUPPORT_GRAPHICS
   &builtin_background,
 #endif
@@ -18015,6 +18438,7 @@ struct builtin *builtin_table[] =
 #endif /* USE_MD5_PASSWORDS */
   &builtin_module,
   &builtin_modulenounzip,
+  &builtin_nvme,
 #ifdef SUPPORT_GRAPHICS
   &builtin_outline,
 #endif /* SUPPORT_GRAPHICS */

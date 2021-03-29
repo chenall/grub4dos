@@ -23,6 +23,8 @@
 #include <filesys.h>
 #include <iso9660.h>
 #include "iamath.h"
+#include "ahci.h"
+#include "nvme.h"
 
 /* function declaration */
 unsigned long long
@@ -260,6 +262,21 @@ rawdisk_read (unsigned long drive, unsigned long long sector, unsigned long nsec
 int
 rawread (unsigned long drive, unsigned long long sector, unsigned long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned long write)
 {
+  // NVMe raw data read
+	// Because an NVMe SSD is faster than an AHCI SSD we place the NVMe code first.
+	if(NVMeRawRead(drive,sector,byte_offset,byte_len,buf,write) == 0)
+	{
+		// return success
+		return 1;
+	}
+
+	// AHCI raw data read
+	if(AhciRawRead(drive,sector,byte_offset,byte_len,buf,write) == 0)
+	{
+		// return success
+		return 1;
+	}
+
   unsigned long slen, sectors_per_vtrack;
   unsigned long sector_size_bits = log2_tmp (buf_geom.sector_size);
 
@@ -2271,8 +2288,8 @@ block_read_func (unsigned long long buf, unsigned long long len, unsigned long w
 }
 #endif /* NO_BLOCK_FILES */
 
-unsigned long long grub_read_loop_threshold = 0x800000ULL; // 8MB
-unsigned long long grub_read_step = 0x800000ULL; // 8MB
+unsigned long long grub_read_loop_threshold = 0x2000000ULL; // 32 MB
+unsigned long long grub_read_step = 0x2000000ULL; // 32 MB
 
 unsigned long long
 grub_read (unsigned long long buf, unsigned long long len, unsigned long write)

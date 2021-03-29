@@ -172,7 +172,8 @@ am_pre_stage2_exec_OBJECTS = pre_stage2_exec-asm.$(OBJEXT) \
 	pre_stage2_exec-stage2.$(OBJEXT) \
 	pre_stage2_exec-terminfo.$(OBJEXT) \
 	pre_stage2_exec-tparm.$(OBJEXT) \
-	pre_stage2_exec-graphics.$(OBJEXT)
+	pre_stage2_exec-graphics.$(OBJEXT) \
+	pre_stage2_exec-ahci.$(OBJEXT) pre_stage2_exec-nvme.$(OBJEXT)
 pre_stage2_exec_OBJECTS = $(am_pre_stage2_exec_OBJECTS)
 pre_stage2_exec_LDADD = $(LDADD)
 pre_stage2_exec_LINK = $(CCLD) $(pre_stage2_exec_CFLAGS) $(CFLAGS) \
@@ -579,7 +580,7 @@ AM_V_OBJCOPY = $(AM_V_OBJCOPY_$(V))
 noinst_HEADERS = fat.h filesys.h freebsd.h hercules.h \
 	iso9660.h jfs.h mb_header.h mb_info.h md5.h \
 	pc_slice.h serial.h shared.h term.h \
-    terminfo.h tparm.h ufs2.h vstafs.h xfs.h pxe.h ipxe.h graphics.h fsys_initrd.h fsys_ipxe.h cpio.h
+    terminfo.h tparm.h ufs2.h vstafs.h xfs.h pxe.h ipxe.h graphics.h fsys_initrd.h fsys_ipxe.h cpio.h ahci.h nvme.h
 
 EXTRA_DIST = $(noinst_SCRIPTS)
 
@@ -608,7 +609,7 @@ pre_stage2_exec_SOURCES = asm.S bios.c boot.c builtins.c char_io.c \
 	cmdline.c common.c console.c dec_lz4.c dec_lzma.c dec_vhd.c disk_io.c fsys_ext2fs.c \
 	fsys_fat.c fsys_ntfs.c fsys_ffs.c fsys_iso9660.c fsys_jfs.c fsys_minix.c \
     fsys_reiserfs.c fsys_ufs2.c fsys_vstafs.c fsys_xfs.c fsys_pxe.c fsys_initrd.c fsys_ipxe.c fsys_fb.c gunzip.c \
-	hercules.c md5.c serial.c stage2.c terminfo.c tparm.c graphics.c
+	hercules.c md5.c serial.c stage2.c terminfo.c tparm.c graphics.c ahci.c nvme.c
 
 pre_stage2_exec_CFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)
 pre_stage2_exec_CCASFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)
@@ -727,6 +728,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hmloadstart_exec-hmloadstart.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mbrstart_exec-mbrstart.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nbloader.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-ahci.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-asm.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-bios.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-boot.Po@am__quote@
@@ -758,6 +760,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-gunzip.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-hercules.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-md5.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-nvme.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-serial.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-stage2.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-terminfo.Po@am__quote@
@@ -1365,6 +1368,34 @@ pre_stage2_exec-graphics.obj: graphics.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='graphics.c' object='pre_stage2_exec-graphics.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-graphics.obj `if test -f 'graphics.c'; then $(CYGPATH_W) 'graphics.c'; else $(CYGPATH_W) '$(srcdir)/graphics.c'; fi`
+
+pre_stage2_exec-ahci.o: ahci.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-ahci.o -MD -MP -MF $(DEPDIR)/pre_stage2_exec-ahci.Tpo -c -o pre_stage2_exec-ahci.o `test -f 'ahci.c' || echo '$(srcdir)/'`ahci.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/pre_stage2_exec-ahci.Tpo $(DEPDIR)/pre_stage2_exec-ahci.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ahci.c' object='pre_stage2_exec-ahci.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-ahci.o `test -f 'ahci.c' || echo '$(srcdir)/'`ahci.c
+
+pre_stage2_exec-ahci.obj: ahci.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-ahci.obj -MD -MP -MF $(DEPDIR)/pre_stage2_exec-ahci.Tpo -c -o pre_stage2_exec-ahci.obj `if test -f 'ahci.c'; then $(CYGPATH_W) 'ahci.c'; else $(CYGPATH_W) '$(srcdir)/ahci.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/pre_stage2_exec-ahci.Tpo $(DEPDIR)/pre_stage2_exec-ahci.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ahci.c' object='pre_stage2_exec-ahci.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-ahci.obj `if test -f 'ahci.c'; then $(CYGPATH_W) 'ahci.c'; else $(CYGPATH_W) '$(srcdir)/ahci.c'; fi`
+
+pre_stage2_exec-nvme.o: nvme.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-nvme.o -MD -MP -MF $(DEPDIR)/pre_stage2_exec-nvme.Tpo -c -o pre_stage2_exec-nvme.o `test -f 'nvme.c' || echo '$(srcdir)/'`nvme.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/pre_stage2_exec-nvme.Tpo $(DEPDIR)/pre_stage2_exec-nvme.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='nvme.c' object='pre_stage2_exec-nvme.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-nvme.o `test -f 'nvme.c' || echo '$(srcdir)/'`nvme.c
+
+pre_stage2_exec-nvme.obj: nvme.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-nvme.obj -MD -MP -MF $(DEPDIR)/pre_stage2_exec-nvme.Tpo -c -o pre_stage2_exec-nvme.obj `if test -f 'nvme.c'; then $(CYGPATH_W) 'nvme.c'; else $(CYGPATH_W) '$(srcdir)/nvme.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/pre_stage2_exec-nvme.Tpo $(DEPDIR)/pre_stage2_exec-nvme.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='nvme.c' object='pre_stage2_exec-nvme.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -o pre_stage2_exec-nvme.obj `if test -f 'nvme.c'; then $(CYGPATH_W) 'nvme.c'; else $(CYGPATH_W) '$(srcdir)/nvme.c'; fi`
 install-datalibDATA: $(datalib_DATA)
 	@$(NORMAL_INSTALL)
 	@list='$(datalib_DATA)'; test -n "$(datalibdir)" || list=; \

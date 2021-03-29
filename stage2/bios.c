@@ -20,6 +20,8 @@
 
 #include "shared.h"
 #include "iso9660.h"
+#include "ahci.h"
+#include "nvme.h"
 
 /* These are defined in asm.S, and never be used elsewhere, so declare the
    prototypes here.  */
@@ -504,8 +506,44 @@ get_diskinfo (unsigned long drive, struct geometry *geometry, unsigned long lba1
 
 	printf_debug ("int13/02(%X), ", drive);
 
+#if 0
 	/* read the boot sector: int 13, AX=0x201, CX=1, DH=0. Use buffer 0x20000 - 0x2FFFF */
 	err = biosdisk_standard (0x02, (unsigned char)drive, 0, 0, 1, 1, 0x2F00/*SCRATCHSEG*/);
+#endif
+
+  // In some AHCI and NVMe controllers we see a system hang if we initialize the controller
+	// and after that an INT13 BIOS call is done. The problem is that the BIOS knows it has
+	// initialized the controller and we do a new initialization. This will change register
+	// values inside the controller and also the data buffers used. Therefore we redirect
+	// any BIOS INT13 reads to our AHCI / NVMe routine after we finished the adapter
+	// initialization. This way we have no more hangs and can initialize the controller
+	// immediatelly after the ahci / nvme menu.lst command. Since version 1.4 of our GRUB4DOS
+	// loader it is necessary to uninitialize the controller after the mapping inside menu.lst
+	// is done. Otherwise the mapped BIOS drive reads are also redirected to our AHCI / NVMe
+	// read routines, which would result in one of the following errors:
+	// After the 1st BIOS INT13 read it seems that our initialized AHCI controller's 
+	// CMD register (Offset 18h: PxCMD ?Port x Command and Status) has "Start (ST) bit (bit0)",
+	// "FIS Receive Enable (FRE) (bit4)", "FIS Receive Running (FR) (bit14)" and "Command List Running (CR) (bit15)"
+	// bits cleared to zero. This hangs the AHCI controller at the 1st AhciRawRead call.
+	// 1001100000000010111b CMD register after AHCI initialization
+	// 1000000000000000110b CMD register after 1st BIOS INT13 read
+	// To reproduce the error on our NVMe controller we have to use an USB stick which starts
+	// GRLDR and loads menu.lst from the stick. After we initialize the NVMe controller and
+	// issue the command "find /win.vhd" we see a NVMe controller hang. If we use the GRLDR
+	// directly from the NVMe SSD the error does not occur.
+	if(nvmeg.DevExt != NULL && nvmeg.SelectedController != -1 && nvmeg.SelectedDrive == drive)
+	{
+		err = NVMeRead(&nvmeg.DevExt[nvmeg.SelectedController],0,0x2F000,1);
+	}
+	else if(ahcig.HbaExt != NULL && ahcig.SelectedController != -1 && ahcig.SelectedPort != -1 && ahcig.SelectedDrive == drive)
+	{
+		err = AhciRead(ahcig.HbaExt[ahcig.SelectedController].ABAR_Address,ahcig.SelectedPort,0,0x2F000,1);
+	}
+	else
+	{
+		/* read the boot sector: int 13, AX=0x201, CX=1, DH=0. Use buffer 0x20000 - 0x2FFFF */
+		err = biosdisk_standard (0x02, (unsigned char)drive, 0, 0, 1, 1, 0x2F00/*SCRATCHSEG*/);
+	}
 
 	printf_debug ("err=%X\n", err);
   DEBUG_SLEEP
@@ -536,7 +574,42 @@ get_diskinfo (unsigned long drive, struct geometry *geometry, unsigned long lba1
 
 		/* set a known value */
 		grub_memset ((char *)0x2F800, 0xEC, 0x800);
+#if 0
 		version = biosdisk_int13_extensions (0x4200, (unsigned char)drive, dap, 0);
+#endif
+    // In some AHCI and NVMe controllers we see a system hang if we initialize the controller
+		// and after that an INT13 BIOS call is done. The problem is that the BIOS knows it has
+		// initialized the controller and we do a new initialization. This will change register
+		// values inside the controller and also the data buffers used. Therefore we redirect
+		// any BIOS INT13 reads to our AHCI / NVMe routine after we finished the adapter
+		// initialization. This way we have no more hangs and can initialize the controller
+		// immediatelly after the ahci / nvme menu.lst command. Since version 1.4 of our GRUB4DOS
+		// loader it is necessary to uninitialize the controller after the mapping inside menu.lst
+		// is done. Otherwise the mapped BIOS drive reads are also redirected to our AHCI / NVMe
+		// read routines, which would result in one of the following errors:
+		// After the 1st BIOS INT13 read it seems that our initialized AHCI controller's 
+		// CMD register (Offset 18h: PxCMD ?Port x Command and Status) has "Start (ST) bit (bit0)",
+		// "FIS Receive Enable (FRE) (bit4)", "FIS Receive Running (FR) (bit14)" and "Command List Running (CR) (bit15)"
+		// bits cleared to zero. This hangs the AHCI controller at the 1st AhciRawRead call.
+		// 1001100000000010111b CMD register after AHCI initialization
+		// 1000000000000000110b CMD register after 1st BIOS INT13 read
+		// To reproduce the error on our NVMe controller we have to use an USB stick which starts
+		// GRLDR and loads menu.lst from the stick. After we initialize the NVMe controller and
+		// issue the command "find /win.vhd" we see a NVMe controller hang. If we use the GRLDR
+		// directly from the NVMe SSD the error does not occur.
+		if(nvmeg.DevExt != NULL && nvmeg.SelectedController != -1 && nvmeg.SelectedDrive == drive)
+		{
+			version = NVMeRead(&nvmeg.DevExt[nvmeg.SelectedController],0,0x2F800,1);
+		}
+		else if(ahcig.HbaExt != NULL && ahcig.SelectedController != -1 && ahcig.SelectedPort != -1 && ahcig.SelectedDrive == drive)
+		{
+			version = AhciRead(ahcig.HbaExt[ahcig.SelectedController].ABAR_Address,ahcig.SelectedPort,0,0x2F800,1);
+		}
+		else
+		{		
+			version = biosdisk_int13_extensions (0x4200, (unsigned char)drive, dap, 0);
+		}
+
 		/* see if it is a big sector */
 		{
 			char *p;
