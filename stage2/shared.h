@@ -54,7 +54,7 @@
 #define LINUX_TMP_MEMORY_LEN  0x36000000
 #define LINUX_INITRD_MAX_ADDRESSLINUX	0x38000000
 
-#define narrow_char_indicator	(*(unsigned long *)(UNIFONT_START + 'A'*num_wide*font_h))   //
+//#define narrow_char_indicator	(*(unsigned int *)(UNIFONT_START + 'A'*num_wide*font_h))   //
 
 /* Maximum command line size. Before you blindly increase this value,
    see the comment in char_io.c (get_cmdline).  */
@@ -434,9 +434,11 @@
 #if defined(__i386__)
 # define GRUB_CPU_SIZEOF_LONG		  4
 # define GRUB_CPU_SIZEOF_VOID_P		4
+# define GRUB_TARGET_SIZEOF_VOID_P  4
 #else
 # define GRUB_CPU_SIZEOF_LONG		  8
 # define GRUB_CPU_SIZEOF_VOID_P		8
+# define GRUB_TARGET_SIZEOF_VOID_P  8
 #endif
 
 #define GRUB_CPU_WORDS_BIGENDIAN	0			//小端
@@ -1457,7 +1459,7 @@ typedef char VAR_VALUE[MAX_ENV_LEN];
 #define ENVI ((VAR_VALUE *)(BASE_ADDR + MAX_VARS * MAX_VAR_LEN))
 #define _WENV_ 60
 
-#define VAR_EX_TMP ((char *)(BASE_ADDR+MAX_VARS * (MAX_VAR_LEN + MAX_ENV_LEN)))
+//#define VAR_EX_TMP ((char *)(BASE_ADDR+MAX_VARS * (MAX_VAR_LEN + MAX_ENV_LEN)))
 #define set_envi(var, val)			envi_cmd(var, val, 0)
 #define get_env_all()				envi_cmd(NULL, NULL, 2)
 #define reset_env_all()				envi_cmd(NULL, NULL, 3)
@@ -1545,6 +1547,7 @@ extern char commands[];
 
 /* For `more'-like feature.  */
 extern int count_lines;
+extern int use_pager;
 
 #ifndef NO_DECOMPRESSION
 extern int no_decompression;
@@ -1557,6 +1560,7 @@ extern void (*disk_read_func) (unsigned long long, unsigned int, unsigned long l
 
 /* The flag for debug mode.  */
 extern int debug;
+extern int debug_bat;
 extern grub_u8_t debug_msg;
 
 extern unsigned int current_drive;
@@ -1923,7 +1927,7 @@ extern char *convert_to_ascii (char *buf, int c, unsigned long long lo);
 #endif
 extern char *prompt;
 extern int echo_char;
-extern int readline;
+//extern int readline;
 struct get_cmdline_arg
 {
 	unsigned char *cmdline;
@@ -5260,6 +5264,7 @@ extern char *next_partition_buf;
 extern unsigned char partition_signature[16]; //分区签名
 extern unsigned char partition_activity_flag; //分区活动标志
 extern unsigned char *UNIFONT_START;
+extern unsigned char *narrow_mem;
 extern char *PAGING_TABLES_BUF;
 extern unsigned char *PRINTF_BUFFER;
 extern char *MENU_TITLE;
@@ -5275,6 +5280,11 @@ extern char *CMD_RUN_ON_EXIT;
 extern char *SCRATCHADDR;
 extern int return_value;
 extern int QUOTE_CHAR;
+//extern char *GRUB_MOD_ADDR;
+//extern char* mod_end;
+extern char *CONFIG_ENTRIES;
+extern unsigned char *IMAGE_BUFFER;
+extern unsigned char *JPG_FILE;
 
 //#define		WENV_RANDOM	(*(unsigned long *)(WENV_ENVI+0x20))    //????
 #define		WENV_RANDOM	(*(unsigned int *)(WENV_ENVI+0x20))
@@ -5290,6 +5300,65 @@ extern grub_efi_loaded_image_t *image;
 extern grub_efi_device_path_t *efi_file_path;
 extern grub_efi_handle_t efi_handle;
 extern void grub_machine_fini (void);
+
+enum                //对象类型 
+{
+  OBJ_TYPE_ELF,     //ELF             00
+  OBJ_TYPE_MEMDISK, //内存盘          01
+  OBJ_TYPE_CONFIG,  //配置            02
+  OBJ_TYPE_PREFIX,  //前缀            03
+  OBJ_TYPE_PUBKEY,  //公共密钥        04
+  OBJ_TYPE_DTB      //数据传输总线    05
+};
+
+/* The module header.  模块标题*/
+struct grub_module_header
+{
+  /* The type of object.  对象的类型*/
+  grub_uint32_t type;
+  /* The size of object (including this header).  对象的大小（包括此标题）*/
+  grub_uint32_t size;
+};
+
+/* "gmim" (GRUB Module Info Magic).  GRUB模块信息魔法 */
+#define GRUB_MODULE_MAGIC 0x676d696d
+
+struct grub_module_info32
+{
+  /* Magic number so we know we have modules present. 神奇的数字，所以我们知道我们有模块存在  */
+  grub_uint32_t magic;
+  /* The offset of the modules.  模的偏移量*/
+  grub_uint32_t offset;
+  /* The size of all modules plus this header.  所有模块的大小加上这个标题 */
+  grub_uint32_t size;
+};
+
+struct grub_module_info64
+{
+  /* Magic number so we know we have modules present. 神奇的数字，所以我们知道我们有模块存在 */
+  grub_uint32_t magic;
+  grub_uint32_t padding;
+  /* The offset of the modules. 模的偏移量*/
+  grub_uint64_t offset;
+  /* The size of all modules plus this header.  所有模块的大小加上这个标题 */
+  grub_uint64_t size;
+};
+
+#if GRUB_TARGET_SIZEOF_VOID_P == 8
+#define grub_module_info grub_module_info64
+#else
+#define grub_module_info grub_module_info32
+#endif
+
+extern grub_addr_t EXPORT_VAR (grub_modbase);
+
+#define FOR_MODULES(var)  for (\
+  var = (grub_modbase && ((((struct grub_module_info *) grub_modbase)->magic) == GRUB_MODULE_MAGIC)) ? (struct grub_module_header *) \
+    (grub_modbase + (((struct grub_module_info *) grub_modbase)->offset)) : 0;\
+  var && (grub_addr_t) var \
+    < (grub_modbase + (((struct grub_module_info *) grub_modbase)->size));    \
+  var = (struct grub_module_header *)					\
+    (((grub_uint32_t *) var) + ((((struct grub_module_header *) var)->size + sizeof (grub_addr_t) - 1) / sizeof (grub_addr_t)) * (sizeof (grub_addr_t) / sizeof (grub_uint32_t))))
 
 //----------------------------------------------------------------------------------------------------------
 //macho.h
@@ -6848,6 +6917,8 @@ extern char map_file_name [256];
 extern char *map_file_path;
 extern int GetParentUtf8Name (char *dest, grub_uint16_t *src);
 extern int get_ParentDisk (char* parentUtf8Name, struct fragment** Parent_Disk);
+extern char *preset_menu;
+extern int use_preset_menu;
 //======================================================================================================================
 
 #define GRUB_RSDP_SIGNATURE "RSD PTR "

@@ -3,16 +3,10 @@ configfile
 default 0
 timeout 1
 
-title find /menu.lst, /boot/grub/menu.lst, /grub/menu.lst
+title find /efi/grub/menu.lst
 	errorcheck off
-	configfile /boot/grub/menu.lst
-	configfile /grub/menu.lst
-	if "%@root%"=="(ud)" && calc *0x82A0=*0x82b9&0xff
-	if "%@root:~1,1%"=="f" && find --set-root --devices=f /menu.lst && configfile /menu.lst
-	find --set-root --ignore-floppies --ignore-cd /menu.lst && configfile /menu.lst
-	find --set-root --ignore-floppies --ignore-cd /boot/grub/menu.lst && configfile /boot/grub/menu.lst
-	find --set-root --ignore-floppies --ignore-cd /grub/menu.lst && configfile /grub/menu.lst
-	configfile http://b.chenall.net/menu.lst
+	find --set-root /efi/grub/menu.lst
+	configfile /efi/grub/menu.lst
 	errorcheck on
 	commandline
 

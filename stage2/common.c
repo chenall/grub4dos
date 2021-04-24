@@ -1549,8 +1549,92 @@ copy_grub4dos_self_address (void)
   *(grub_size_t*)((char *)(grub_size_t)grub4dos_self_address + 0x110) = (grub_size_t)g4e_data;
 }
 
+/* Search the mods section from the PE32/PE32+ image.   从PE32/PE32+图像中搜索mods部分。此代码使用PE32头，但也应与PE32+一起使用。
+  This code uses a PE32 header, but should work with PE32+ as well.  */
+grub_addr_t grub_efi_modules_addr (void);
+grub_addr_t
+grub_efi_modules_addr (void)  //模块地址
+{
+  struct grub_pe32_header *header;
+  struct grub_pe32_coff_header *coff_header;
+  struct grub_pe32_section_table *sections;
+  struct grub_pe32_section_table *section;
+  struct grub_module_info *info;
+  grub_uint16_t i;
+
+  header = image->image_base;
+  coff_header = &(header->coff_header);
+  sections  = (struct grub_pe32_section_table *) ((char *) coff_header
+        + sizeof (*coff_header)
+        + coff_header->optional_header_size);
+
+  for (i = 0, section = sections;
+        i < coff_header->num_sections;
+        i++, section++)
+  {
+    if (grub_strcmp (section->name, "mods") == 0)
+      break;
+  }
+
+  if (i == coff_header->num_sections)
+  {
+    printf_debug("\nsection %d is last section; invalid.", i);    //第%d节是最后一节；无效 
+    return 0;
+  }
+
+  info = (struct grub_module_info *) ((char *) image->image_base
+          + section->virtual_address);
+  if (section->name[0] != '.' && info->magic != GRUB_MODULE_MAGIC)
+  {
+    printf_debug("\nsection %d has bad magic %08x, should be %08x",
+          i, info->magic, GRUB_MODULE_MAGIC);    //第%d节有错误的魔法%08x，应该是%08x 
+    return 0;
+  }
+
+  printf_debug("\nreturning section info for section %d: %s",
+          i, section->name); //返回第2节的节信息：模式
+  return (grub_addr_t) info;
+}
+
+char preset_menu_[32];
+grub_addr_t grub_modbase;    //模块地址
+
+static int get_preset_menu (void);
+static int
+get_preset_menu (void)		//打开预置菜单
+{
+  struct grub_module_header *header=0;
+
+  grub_modbase = grub_efi_modules_addr ();
+
+  FOR_MODULES (header)
+  {
+    /* Not an embedded config, skip.  不是嵌入式配置，跳过 */
+    if (header->type != OBJ_TYPE_CONFIG)  //配置
+      continue;
+
+    preset_menu = grub_malloc (header->size - sizeof (struct grub_module_header) + 1 + 0x1ff);
+    if (!preset_menu)
+      return 0;
+
+    preset_menu = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)preset_menu + 0x1ff) & 0xfffffffffffffe00);
+    grub_memcpy (preset_menu, (char *) header + sizeof (struct grub_module_header),
+        header->size - sizeof (struct grub_module_header));
+
+    preset_menu[header->size - sizeof (struct grub_module_header)] = 0;
+    printf_debug("\npreset_menu: %x", preset_menu);
+    grub_sprintf (preset_menu_,"(md)%d+%d",(grub_size_t)preset_menu/512, 
+        (header->size - sizeof (struct grub_module_header) + 1 + 0x1ff)/512); //预置菜单，可以使用lzma压缩，不可以使用gz压缩。
+    preset_menu = preset_menu_;
+    use_preset_menu = 1;
+    break;
+  }
+
+  return 1;
+}
+
 char *grub_image;
-char *g4e_data;
+//char *g4e_data;
 char *PAGING_TABLES_BUF;
 unsigned char *PRINTF_BUFFER;
 char *MENU_TITLE;
@@ -1579,6 +1663,12 @@ grub_init (void)
 {
 	grub_console_init ();
 
+  if (checkkey () == 0x075200) //按Insert键，进入调试模式
+  {
+    debug = 3;
+    getkey();
+  }
+
   image = grub_efi_get_loaded_image (grub_efi_image_handle);  //通过映像句柄,获得加载映像grub_efi_loaded_image结构
 	grub_image = image->image_base;	//通过加载映像,获得BOOIA32.EFI映像基址 	前部是映像头		struct grub_pe32_header   //PE32 头
 																	//grub_image偏移400是grldr起始,也就是bios模式的8200处.可使用*((char *)(grub_image)+0x508))取单字节的值.
@@ -1586,7 +1676,7 @@ grub_init (void)
 
 	grub_efi_mm_init ();  //内存管理初始化
   copy_grub4dos_self_address ();
-
+  get_preset_menu();
 
 	PAGING_TABLES_BUF = grub_malloc (0x4000); //分页表
 	PRINTF_BUFFER = grub_malloc (0x40000);    //打印
@@ -1594,11 +1684,11 @@ grub_init (void)
 	cmd_buffer = grub_malloc (0x1000);        //命令
 	CMDLINE_BUF = grub_malloc (0x640);        //命令行
 	COMPLETION_BUF = grub_malloc (0x640);     //完成
-	UNIQUE_BUF = grub_malloc (0x640);         //
+	UNIQUE_BUF = grub_zalloc (0x640);         //UNI字符串
 	HISTORY_BUF = grub_malloc (0x4000);       //网络
-	WENV_ENVI = grub_zalloc (0x200);          //
-	BASE_ADDR = grub_zalloc (0x200);          //
-	FSYS_BUF = grub_malloc (0x9010);          //
+	WENV_ENVI = grub_zalloc (0x200);          //地址返回字符串
+	BASE_ADDR = grub_zalloc (0x8200);         //变量
+	FSYS_BUF = grub_malloc (0x9010);          //文件系统
 	BUFFERADDR = grub_malloc (0x10000);       //磁盘读写 
 	CMD_RUN_ON_EXIT = grub_zalloc (256);      //命令退出时运行  必须预先清零，否则在 command_func 出错
 	SCRATCHADDR = grub_malloc (0x1000);       //临时

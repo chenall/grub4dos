@@ -27,7 +27,7 @@ unsigned int SPLASH_W;
 #endif /* GRAPHICS_H */
 
 //#define JPG_FILE						0x3A0000
-unsigned char *JPG_FILE;
+unsigned char *JPG_FILE = 0;
 #define JPG_FILE_LENGTH			0x8000
 //#define	IMAGE_BUFFER				0x1000000
 unsigned char *IMAGE_BUFFER = 0;

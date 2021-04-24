@@ -693,7 +693,8 @@ do_backward:
 	      {
 		/* get char width */
 		count = 2;	/* initalize as wide char */
-		if (*(unsigned int *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
+//		if (*(unsigned int *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)  
+    if (((*(unsigned char *)(narrow_mem + unicode/8)) & (1 << (unicode&7))) == 0)
 			count--;	// count = 1;
 	      }
 	      xpos -= count;
@@ -772,7 +773,8 @@ do_forward:
 	      {
 		/* get char width */
 		count = 2;	/* initalize as wide char */
-		if (*(unsigned int *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
+//		if (*(unsigned int *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
+    if (((*(unsigned char *)(narrow_mem + unicode/8)) & (1 << (unicode&7))) == 0)
 			count--;	// count = 1;
 	      }
 	      xpos += count;
@@ -1016,7 +1018,7 @@ real_get_cmdline (void)
      outside that section.  */
 
 //  int c;
-	unsigned short c;
+	unsigned short c = 0;
   int history = -1;	/* The index for the history.  */
 
   buf = (unsigned char *) CMDLINE_BUF;
@@ -1047,7 +1049,8 @@ real_get_cmdline (void)
 	while ((t2 = getrtsecs ()) == 0xFF);
 	while (wait_t)
 	{
-		if (checkkey () != -1)
+//		if (checkkey () != -1)
+		if ((c = checkkey ()) != (unsigned short)-1) 
 			break;
 		if ((t1 = getrtsecs ()) != t2 && t1 != 0xFF)
 		{
@@ -1060,7 +1063,8 @@ real_get_cmdline (void)
   }
   get_cmdline_str.readline &= 1;
 
-  while ((char)(c = /*ASCII_CHAR*/ (getkey ())) != '\n' && (char)c != '\r')
+//  while ((char)(c = /*ASCII_CHAR*/ (getkey ())) != '\n' && (char)c != '\r')
+  while ((char)c != '\n' && (char)c != '\r')
     {
       /* If READLINE is non-zero, handle readline-like key bindings.  */
       if (get_cmdline_str.readline)
@@ -1273,6 +1277,7 @@ real_get_cmdline (void)
 	      cl_insert (str);
 	    }
 	  }
+    c = getkey ();
     }
 
 //  if (fontx)
@@ -1798,7 +1803,7 @@ grub_putchar (unsigned int c, unsigned int max_width)
 	if (putchar_hooked)
 	{
 		if ((grub_size_t)putchar_hooked > 0x800)
-			*(unsigned int*)putchar_hooked++ = (unsigned char)c;
+			*(unsigned char*)putchar_hooked++ = (unsigned char)c;
 		return 1;
 	}
 
@@ -2012,9 +2017,9 @@ grub_strstr (const char *s1, const char *s2)
 int
 grub_strlen (const char *str)
 {
-  int len = 0, max = 512;
+  int len = 0;
 
-  while (*str++ && max--)
+  while (*str++)
     len++;
 
   return len;
@@ -2346,7 +2351,7 @@ grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigne
 	unsigned long long nr = len; // number of bytes remaining
 	while (1)
 	{
-	    unsigned long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned int)nr;  // number of bytes per round (8MB)
+	    unsigned long long n1 = (nr>=PAGINGTXSTEP)? PAGINGTXSTEP: (unsigned int)nr;  // number of bytes per round (8MB)
 	    // Copy
 		grub_memmove(pdst, psrc, n1);
 	    // update loop variables

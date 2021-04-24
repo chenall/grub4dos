@@ -117,6 +117,7 @@ am_pre_stage2_exec_OBJECTS = pre_stage2_exec-asm.$(OBJEXT) \
 	pre_stage2_exec-fsys_pxe.$(OBJEXT) \
 	pre_stage2_exec-fsys_ipxe.$(OBJEXT) \
 	pre_stage2_exec-fsys_fb.$(OBJEXT) \
+  pre_stage2_exec-fsys_initrd.$(OBJEXT) \
 	pre_stage2_exec-gunzip.$(OBJEXT) \
 	pre_stage2_exec-md5.$(OBJEXT) \
 	pre_stage2_exec-stage2.$(OBJEXT) \
@@ -533,7 +534,7 @@ AM_V_OBJCOPY = $(AM_V_OBJCOPY_$(V))
 noinst_HEADERS = fat.h filesys.h freebsd.h \
 	iso9660.h mb_header.h mb_info.h md5.h \
 	pc_slice.h shared.h term.h \
-	pxe.h ipxe.h graphics.h fsys_ipxe.h cpio.h
+	pxe.h ipxe.h graphics.h fsys_ipxe.h cpio.h fsys_initrd.h
 
 EXTRA_DIST = $(noinst_SCRIPTS)
 
@@ -559,7 +560,7 @@ pre_stage2_exec_SOURCES = asm.S boot.c builtins.c char_io.c \
 	cmdline.c common.c console.c dec_lz4.c dec_lzma.c dec_vhd.c disk_io.c fsys_ext2fs.c \
 	fsys_fat.c fsys_ntfs.c fsys_iso9660.c \
 	fsys_pxe.c fsys_ipxe.c fsys_fb.c gunzip.c \
-	md5.c stage2.c graphics.c
+	md5.c stage2.c graphics.c fsys_initrd.c
 
 pre_stage2_exec_CFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)
 pre_stage2_exec_CCASFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)
@@ -634,6 +635,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_ext2fs.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_fat.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_fb.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_initrd.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_ipxe.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_iso9660.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/pre_stage2_exec-fsys_ntfs.Po@am__quote@
@@ -923,6 +925,20 @@ pre_stage2_exec-fsys_fb.obj: fsys_fb.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='fsys_fb.c' object='pre_stage2_exec-fsys_fb.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -m32 -o pre_stage2_exec-fsys_fb.obj `if test -f 'fsys_fb.c'; then $(CYGPATH_W) 'fsys_fb.c'; else $(CYGPATH_W) '$(srcdir)/fsys_fb.c'; fi`
+
+pre_stage2_exec-fsys_initrd.o: fsys_initrd.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-fsys_initrd.o -MD -MP -MF $(DEPDIR)/pre_stage2_exec-fsys_initrd.Tpo -c -m32 -o pre_stage2_exec-fsys_initrd.o `test -f 'fsys_initrd.c' || echo '$(srcdir)/'`fsys_initrd.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/pre_stage2_exec-fsys_initrd.Tpo $(DEPDIR)/pre_stage2_exec-fsys_initrd.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='fsys_initrd.c' object='pre_stage2_exec-fsys_initrd.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -m32 -o pre_stage2_exec-fsys_initrd.o `test -f 'fsys_initrd.c' || echo '$(srcdir)/'`fsys_initrd.c
+
+pre_stage2_exec-fsys_initrd.obj: fsys_initrd.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-fsys_initrd.obj -MD -MP -MF $(DEPDIR)/pre_stage2_exec-fsys_initrd.Tpov -o pre_stage2_exec-fsys_initrd.obj `if test -f 'fsys_initrd.c'; then $(CYGPATH_W) 'fsys_initrd.c'; else $(CYGPATH_W) '$(srcdir)/fsys_initrd.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/pre_stage2_exec-fsys_initrd.Tpo $(DEPDIR)/pre_stage2_exec-fsys_initrd.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='fsys_initrd.c' object='pre_stage2_exec-fsys_initrd.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -c -m32 -o pre_stage2_exec-fsys_initrd.obj `if test -f 'fsys_initrd.c'; then $(CYGPATH_W) 'fsys_initrd.c'; else $(CYGPATH_W) '$(srcdir)/fsys_initrd.c'; fi`
 
 pre_stage2_exec-gunzip.o: gunzip.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pre_stage2_exec_CFLAGS) $(CFLAGS) -MT pre_stage2_exec-gunzip.o -MD -MP -MF $(DEPDIR)/pre_stage2_exec-gunzip.Tpo -c -m32 -o pre_stage2_exec-gunzip.o `test -f 'gunzip.c' || echo '$(srcdir)/'`gunzip.c

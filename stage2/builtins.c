@@ -69,9 +69,12 @@ int grub_timeout = -1;
 int show_menu = 1;
 /* Don't display a countdown message for the hidden menu */
 int silent_hiddenmenu = 0;
-static int debug_prog;
-static int debug_break = 0;
-static int debug_check_memory = 0;
+int debug_prog;
+int debug_bat = 0;
+int debug_ptrace = 0;
+//static int debug_break = 0;
+//static int debug_pid = 0;
+//static int debug_check_memory = 0;
 static grub_u8_t msg_password[]="Password: ";
 unsigned int pxe_restart_config = 0;
 unsigned int configfile_in_menu_init = 0;
@@ -100,16 +103,16 @@ static int chainloader_ebx_set = 0;
 static int chainloader_edx = 0;
 static int chainloader_edx_set = 0;
 static int is_io = 0;
+//使用于configfile_func, command_open, GetParentUtf8Name
 static char chainloader_file_orig[256];
 
 static const char *warning_defaultfile = "# WARNING: If you want to edit this file directly, do not remove any line";
 int probe_bpb (struct master_and_dos_boot_sector *BS);
 int probe_mbr (struct master_and_dos_boot_sector *BS, unsigned int start_sector1, unsigned int sector_count1, unsigned int part_start1);
-void set_full_path(char *dest, char *arg, grub_u32_t max_len);
 int parse_string (char *arg);
 int envi_cmd(const char *var,char * const env,int flags);
-extern int count_lines;
-extern int use_pager;
+//extern int count_lines;
+//extern int use_pager;
 #if defined(__i386__)
 char *convert_to_ascii (char *buf, int c, ...);
 #else
@@ -135,6 +138,8 @@ extern unsigned int iso_type;
 int get_mmap_entry (struct mmar_desc *desc, int cont);
 int no_install_vdisk = 0;  //0/1=安装虚拟磁盘/不安装虚拟磁盘
 static int ls_func (char *arg, int flags);
+static char *GRUB_MOD_ADDR=0;
+static char* mod_end;
 
 void set_full_path(char *dest, char *arg, grub_u32_t max_len);
 void set_full_path(char *dest, char *arg, grub_u32_t max_len)
@@ -240,8 +245,8 @@ static void
 disk_read_blocklist_func (unsigned long long sector, unsigned int offset, unsigned long long length)
 {
 	unsigned int sectorsize = buf_geom.sector_size;
-	unsigned char sector_bit = (sectorsize == 2048 ? 11 : sectorsize == 4096 ? 12 : 9);
-#if 0
+//	unsigned char sector_bit = (sectorsize == 2048 ? 11 : sectorsize == 4096 ? 12 : 9);
+  unsigned char sector_bit = buf_geom.log2_sector_size;
 #ifdef FSYS_INITRD
 	if (fsys_table[fsys_type].mount_func == initrdfs_mount)
 	{
@@ -249,7 +254,6 @@ disk_read_blocklist_func (unsigned long long sector, unsigned int offset, unsign
 			printf("(md,0x%lx,0x%lx)+1",(sector << SECTOR_BITS) + offset,length);
 		return;
 	}
-#endif
 #endif
 	if (blklst_num_sectors > 0)
 	{
@@ -327,16 +331,14 @@ blocklist_func (char *arg, int flags)
   /* Open the file.  */
   if (! grub_open (arg))
     goto fail_open;
-#if 0
 #ifdef FSYS_INITRD
   if (fsys_table[fsys_type].mount_func == initrdfs_mount)
   {
     disk_read_hook = disk_read_blocklist_func;
-    err = grub_read ((unsigned long long)(unsigned int)dummy,-1ULL, GRUB_LISTBLK);
+    err = grub_read ((unsigned long long)(grub_size_t)dummy,-1ULL, GRUB_LISTBLK);
     disk_read_hook = 0;
     goto fail_read;
   }
-#endif
 #endif
 #ifndef NO_DECOMPRESSION
   if (compressed_file)
@@ -818,7 +820,7 @@ get_efi_cdrom_device_boot_path (int drive)  //获得光盘驱动器引导路径
     errnum = ERR_NO_DISK;
     goto fail_close_free;
   }
-  grub_sprintf (chainloader_file, "(0x%X)+0x%lX", drive, (unsigned long long)tmp_geom.total_sectors);
+  grub_sprintf (chainloader_file, "(0x%X)+0x%lX\0", drive, (unsigned long long)tmp_geom.total_sectors);
   if (! grub_open (chainloader_file))
     goto fail_close_free;
   filepos = 17 * 0x800;
@@ -878,7 +880,7 @@ find_specified_file (int drive, int partition, char* file)
   int tem_drive = current_drive;
   int tem_partition = current_partition;
 
-  sprintf (chainloader_file, "(hd%d,%d)%s", drive & 0x7f, partition >> 16, file);
+  sprintf (chainloader_file, "(hd%d,%d)%s\0", drive & 0x7f, partition >> 16, file);
   putchar_hooked = (unsigned char*)1; //不打印ls_func信息
   val = ls_func (chainloader_file, 1);
   putchar_hooked = 0;
@@ -1035,8 +1037,9 @@ chainloader_func (char *arg, int flags)
   struct grub_disk_data *d;	//磁盘数据
   struct grub_part_data *p;
   
+  grub_memset(chainloader_file, 0, 256);
   set_full_path(chainloader_file,arg,sizeof(chainloader_file)); //设置完整路径(补齐驱动器号,分区号)  /efi/boot/bootx64.efi -> (hd0,0)/efi/boot/bootx64.efi
-  chainloader_file[255]=0;
+//  chainloader_file[255]=0;
   errnum = ERR_NONE;
   //
   filename = set_device (chainloader_file); //设置当前驱动器=输入驱动器号, 当前分区=输入分区号, 其余作为文件名 /efi/boot/bootx64.efi
@@ -1719,6 +1722,7 @@ configfile_func (char *arg, int flags)
   if (grub_strlen(saved_dir) + grub_strlen(arg) + 20 >= (int)sizeof(chainloader_file_orig))
 	return ! (errnum = ERR_WONT_FIT);
 
+  grub_memset(chainloader_file_orig, 0, 256);
   set_full_path(chainloader_file_orig,arg,sizeof(chainloader_file_orig));
 
   //chainloader_file_orig[sizeof(chainloader_file_orig) - 1] = 0;
@@ -2335,9 +2339,11 @@ debug_func (char *arg, int flags)
   {
     int ret;
     debug_prog = 1;
+    debug_bat = 1; 
     ret = command_func(arg,flags);
     debug_prog = 0;
-    debug_check_memory = 0;
+    debug_bat = 0;
+//    debug_check_memory = 0;
     return ret;
   }
 
@@ -2486,7 +2492,6 @@ unsigned short animated_offset_x;
 unsigned short animated_offset_y;
 char animated_name[57];
 unsigned int fill_color;
-int splashimage_func(char *arg, int flags);
 int background_transparent=0;
 
 int splashimage_func(char *arg, int flags);
@@ -2508,7 +2513,7 @@ splashimage_func(char *arg, int flags)
     {
       arg += 9;
       if (safe_parse_maxint (&arg, &val))
-        if (val & 0x80)
+        if ((val & 0x80) == 0x80)
           background_transparent=1;
       arg++;
       if (safe_parse_maxint (&arg, &val))
@@ -3061,10 +3066,11 @@ static struct builtin builtin_fallback =
 };
 
 /* command */
-static char command_path[128]="(bd)/BOOT/GRUB/";
-static int command_path_len = 15;
-//#define GRUB_MOD_ADDR (SYSTEM_RESERVED_MEMORY - 0x100000)
-#define GRUB_MOD_ADDR (0xF00000)
+//static char command_path[128]="(bd)/BOOT/GRUB/";
+//static int command_path_len = 15;
+static char command_path[128]="(bd)/efi/grub/";
+static int command_path_len = 14;
+//#define GRUB_MOD_ADDR (0xF00000)
 #define UTF8_BAT_SIGN 0x54414221BFBBEFULL
 #define LONG_MOD_NAME_FLAG 0xEb
 
@@ -3083,7 +3089,7 @@ struct exec_array
 	char data[];
 } *p_exec;
 
-unsigned int mod_end = GRUB_MOD_ADDR;
+//unsigned int mod_end = GRUB_MOD_ADDR;
 
 static struct exec_array *grub_mod_find(const char *name);
 static struct exec_array *grub_mod_find(const char *name)
@@ -3091,7 +3097,7 @@ static struct exec_array *grub_mod_find(const char *name)
     struct exec_array *p_mod = (struct exec_array *)GRUB_MOD_ADDR;
     char *pn;
     unsigned int mod_len;
-    while ((grub_size_t)p_mod < mod_end)
+    while ((grub_size_t)p_mod < (grub_size_t)mod_end)
     {
 	mod_len = p_mod->len;
 	if (p_mod->name.ln.flag == LONG_MOD_NAME_FLAG)
@@ -3159,7 +3165,7 @@ static int grub_mod_add (struct exec_array *mod)
       memmove((void *)p_mod->name.sn,(void*)mod->name.sn,sizeof(mod->name));
       if (p_mod->name.ln.flag == LONG_MOD_NAME_FLAG)
          memmove((void*)(p_mod->data + p_mod->len),(void*)(mod->data + mod->len),p_mod->name.ln.len);
-      mod_end = ((grub_size_t)mod_end + data_len + 0xf) & ~0xf;
+      mod_end = (char *)(grub_size_t)(((grub_size_t)mod_end + data_len + 0xf) & ~0xf);
       printf_debug0("%s loaded\n",name);
    }
    else
@@ -3174,7 +3180,7 @@ static int grub_mod_list(const char *name)
    char *pn;
    unsigned int mod_len;
    int ret = 0;
-   while ((grub_size_t)p_mod < mod_end)
+   while ((grub_size_t)p_mod < (grub_size_t)mod_end)
    {
 	mod_len = p_mod->len;
 	if (p_mod->name.ln.flag == LONG_MOD_NAME_FLAG)
@@ -3201,7 +3207,7 @@ static int grub_mod_del(const char *name)
    struct exec_array *p_mod;
    char *pn;
    grub_size_t mod_len;
-   for (p_mod = (struct exec_array *)GRUB_MOD_ADDR; (grub_size_t)p_mod < mod_end; p_mod = (struct exec_array *)((grub_size_t)(p_mod->data + mod_len + 0xf) & ~0xf))
+   for (p_mod = (struct exec_array *)GRUB_MOD_ADDR; (grub_size_t)p_mod < (grub_size_t)mod_end; p_mod = (struct exec_array *)((grub_size_t)(p_mod->data + mod_len + 0xf) & ~0xf))
    {
  	mod_len = p_mod->len;
 	if (p_mod->name.ln.flag == LONG_MOD_NAME_FLAG)
@@ -3214,11 +3220,11 @@ static int grub_mod_del(const char *name)
       if (substring(name,pn,1) == 0)
       {
          grub_size_t next_mod = ((grub_size_t)p_mod->data + mod_len + 0xf) & ~0xf;
-         if (next_mod == mod_end)
-            mod_end = (grub_size_t)p_mod;
+         if (next_mod == (grub_size_t)mod_end)
+            mod_end = (char *)p_mod;
          else
          {
-            memmove(p_mod,(char *)next_mod,mod_end - next_mod);
+            memmove(p_mod,(char *)next_mod,(grub_size_t)mod_end - next_mod);
             mod_end -= next_mod - (grub_size_t)p_mod;
          }
          printf_debug0("%s unloaded.\n",name);
@@ -3244,13 +3250,15 @@ static int test_open(char *path)
 static int command_open(char *arg,int flags);
 static int command_open(char *arg,int flags)
 {
+#define t_path chainloader_file_orig
    if (*arg == '(' || *arg == '/')
       return grub_open(arg);
    if ((char *)skip_to(0,arg) - arg > 120)
       return 0;
    if (flags == 0 && (p_exec = grub_mod_find(arg)))
       return 2;
-    char t_path[512];
+//    char t_path[512];
+  grub_memset(t_path, 0, 256);
 
     int len = strlen(arg) + command_path_len;
     if ((len + 1) >= (int)sizeof(t_path))
@@ -3296,6 +3304,7 @@ static int command_open(char *arg,int flags)
     }
 #endif
     return 0;
+#undef t_path
 }
 
 int command_func (char *arg, int flags);
@@ -3340,7 +3349,8 @@ command_func (char *arg, int flags)
 	    arg += 5;
 	    if (! *arg)
 	    {
-		command_path_len = 15;
+//		command_path_len = 15;
+		command_path_len = 14;
 		return grub_sprintf(command_path,"(bd)/BOOT/GRUB/");
 	    }
 
@@ -3368,6 +3378,7 @@ command_func (char *arg, int flags)
   /* open the command file. */
   char *filename = arg; //文件名: g4e_wb abcdef
 //  char file_path[512];
+  grub_memset(file_path, 0, 256);
   unsigned int arg_len = grub_strlen(arg);/*get length for build psp */   //文件名尺寸 d
   char *cmd_arg = skip_to(SKIP_WITH_TERMINATE,arg);/* get argument of command */    //命令参数: abcdef
   p_exec = NULL;
@@ -3443,6 +3454,7 @@ command_func (char *arg, int flags)
 				errnum = ERR_EXEC_FORMAT;
 			else
 			{
+				grub_free(tmp);
 				return 0;
 			}
 		}
@@ -3467,47 +3479,19 @@ command_func (char *arg, int flags)
 	{
 		if (*(unsigned long long *)(program + prog_len - 0x20) == 0x646E655F6E69616D) //新版本标记 main_end
 		{
-#if 0
-			char * tmp1;    //新缓存
-			char * program1;//新程序缓存
-			unsigned int *bss_end = (unsigned int *)(program + prog_len - 0x24);    //bss结束,即程序尾部
-			unsigned int *main_start = (unsigned int *)(program + prog_len - 0x40); //主程序起始
-//			if (prog_len != *bss_end){
-      if (prog_len != (*bss_end - *main_start)) //prog_len应当等于(*bss_end - *main_start)
-      {
-				grub_free(tmp);
-        tmp = 0;
-//				prog_len = *bss_end;
-        prog_len = *bss_end - *main_start;
-				tmp1 = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len); //新缓存
-				if (tmp1 == NULL)
-				{
-					goto fail;
-				}
-				program1 = (char *)((grub_size_t)(tmp1 + 4095) & ~4095); /* 4K align the program */ //新程序缓存
-				if (tmp1 != tmp)
-				{
-					grub_memmove (program1, program, filemax);
-					program = program1;
-					tmp = tmp1;
-				}
-				psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F);
-			}
-#endif
 		} else {//the old program
 			char *program1;
 			printf_warning ("\nWarning! The program is outdated!\n");
 			psp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
-			grub_free(tmp);
-      tmp = 0;
 			if (psp == NULL)
 			{
+				grub_free(tmp);
 				goto fail;
 			}
 			program1 = psp + psp_len;
 			grub_memmove (program1, program, prog_len);
 			program = program1;
-			tmp = psp;
+//			tmp = psp;
 		}
 	}
 
@@ -3567,6 +3551,12 @@ static int insmod_func(char *arg,int flags)
    if (arg == NULL || *arg == '\0')
       return 0;
    char *name = skip_to(1|SKIP_WITH_TERMINATE,arg);
+   
+  if (!GRUB_MOD_ADDR)
+  {        
+    GRUB_MOD_ADDR = grub_malloc (0x100000);   //模块缓存
+    mod_end = GRUB_MOD_ADDR;
+  }
    if (substring(skip_to(0,arg) - 4,".mod",1) == 0)
    {
       if (!command_open(arg,1))
@@ -3650,7 +3640,7 @@ static struct builtin builtin_insmod =
    "insmod",
    insmod_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-   "insmod MODFILE|FILE.MOD [name]",
+   "insmod MODFILE|FILE.MOD",
    "FILE.MOD is MODFILE package, it has multiple MODFILE"
 };
 
@@ -3668,6 +3658,9 @@ static int delmod_func(char *arg,int flags)
 
    if (*arg == '*')
    {
+     if (GRUB_MOD_ADDR)
+       grub_free (GRUB_MOD_ADDR);
+     GRUB_MOD_ADDR = 0;
       mod_end = GRUB_MOD_ADDR;
       return 1;
    }
@@ -3685,15 +3678,11 @@ static struct builtin builtin_delmod =
 };
 
 /* commandline */
-int commandline_func (char *arg, int flags);
 int
 commandline_func (char *arg, int flags)
 {
-  int forever = 0;
-  char *config_entries = arg;
-
   errnum = 0;
-  enter_cmdline(config_entries, forever);
+  enter_cmdline(arg, 0);
 
   return 1;
 }
@@ -4110,7 +4099,7 @@ ged_unifont_simp (unsigned int unicode)
 }
 
 //static unsigned long old_narrow_char_indicator = 0;
-#define	old_narrow_char_indicator	narrow_char_indicator
+//#define	old_narrow_char_indicator	narrow_char_indicator
 
 #if !HOTKEY		//外置热键
 int (*hotkey_func)(char *titles,int flags,int flags1,int key);
@@ -4121,6 +4110,7 @@ struct simp unifont_simp[]={{0,0xff,0},{0x2000,0x206f,0x1f00},{0x2190,0x21ff,0x2
 unsigned char unifont_simp_on;
 
 unsigned char *UNIFONT_START = 0;
+unsigned char *narrow_mem = 0;
 /* font */
 /* load unifont to UNIFONT_START */
 /*
@@ -4133,17 +4123,17 @@ font_func (char *arg, int flags)
 {
   unsigned int i, j, k;
   unsigned int len;
-  unsigned int unicode;
-  unsigned int narrow_indicator;
-	unsigned char buf[1024];	//64*64
+  unsigned int unicode=0;
+//  unsigned int narrow_indicator;
+	unsigned char buf[870];	//48*48
   unsigned int valid_lines;
-  unsigned long saved_filepos;
+  unsigned long long saved_filepos;
 	unsigned long long val;
 	unsigned char num_narrow;
 	unsigned char tag[]={'d','o','t','s','i','z','e','='};
 	unsigned int font_h_old = font_h;
 	unsigned int font_h_new = 0;
-	unsigned char *narrow_mem = 0;
+//	unsigned char *narrow_mem = 0;
   valid_lines = 0;
   errnum = 0;
 
@@ -4207,32 +4197,20 @@ font_func (char *arg, int flags)
 		font_h = font_h_new;
 		font_w = font_h_new/2;
 	}
-
-	if (font_h_old != font_h)
-	{
-		current_term->max_lines = current_y_resolution / (font_h + line_spacing);
-		current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
 	}	
-	}
 	
   if (filemax >> 32)	// file too long
 	return !(errnum = ERR_WONT_FIT);
 
-	narrow_mem = grub_zalloc(0x10000);
-	if (!narrow_mem)
-		return 0;
-
 	num_wide = (font_h+7)/8;
 	num_narrow = ((font_h/2+7)/8)<<1;
   
-  if (UNIFONT_START)
-    grub_free (UNIFONT_START);
-  
-  UNIFONT_START = grub_zalloc (num_wide * font_h * 0x10000);
- 
-  if (!UNIFONT_START)
-    return 0;
-  
+  if (font_h_old != font_h)
+  {
+    current_term->max_lines = current_y_resolution / (font_h + line_spacing);
+    current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
+  }
+
 redo:
 	while	(((saved_filepos = filepos), (len = grub_read((unsigned long long)(grub_size_t)(char*)&buf, 6+font_h*num_narrow, 0xedde0d90))))
   {
@@ -4252,6 +4230,22 @@ redo:
 	    goto close_file;
 	unicode |= (tmp << ((3 - i) << 2));
     }
+    
+  if (!UNIFONT_START || font_h_old != font_h)
+  {
+    font_h_old = font_h;
+    if (UNIFONT_START)
+      grub_free (UNIFONT_START);
+    UNIFONT_START = grub_zalloc (num_wide * font_h * 0x10000);
+    if (!UNIFONT_START)
+      return 0;
+    if (!narrow_mem)
+      narrow_mem = grub_zalloc(0x2000);  //宽窄字符指示器 0/1=窄/宽
+    else
+      grub_memset (narrow_mem, 0, 0x2000);
+    if (!narrow_mem)
+      return 0;
+  }
 
 		if (buf[5+font_h*num_narrow] == '\n' || buf[5+font_h*num_narrow] == '\r')	/* narrow char */
     {
@@ -4260,6 +4254,7 @@ redo:
 	/* simply put the 8x16 dot matrix at the right half */
 		if (unifont_simp_on)
 			unicode = ged_unifont_simp (unicode);
+			*(unsigned char *)(narrow_mem + unicode/8) &= ~(1 << (unicode&7));
 			for (j=0; j<font_w; j++)
 			{
 				unsigned long long dot_matrix = 0;
@@ -4275,7 +4270,7 @@ redo:
 					((unsigned char *)(UNIFONT_START + unicode*num_wide*font_h + num_wide*font_h/2))[j*num_wide+k] = (dot_matrix >> k*8)&0xff;
 				/* the first integer is to be checked for narrow_char_indicator */
 			}
-			*(unsigned int *)(UNIFONT_START + unicode*num_wide*font_h) = old_narrow_char_indicator; 
+//			*(unsigned int *)(UNIFONT_START + unicode*num_wide*font_h) = old_narrow_char_indicator; 
     }
     else
     {
@@ -4288,8 +4283,8 @@ redo:
 	}
 
 	/* discard if it is a normal ASCII char */
-	if (unicode <= 0x7F)
-	    continue;
+//	if (unicode <= 0x7F)
+//	    continue;
 
 	/* discard if it is internally used INVALID chars 0xDC80 - 0xDCFF */
 	if (unicode >= 0xDC80 && unicode <= 0xDCFF)
@@ -4297,7 +4292,8 @@ redo:
 	if (unifont_simp_on)
 		unicode = ged_unifont_simp (unicode);
 	/* set bit 0: this unicode char is a wide char. */
-	*(unsigned char *)(narrow_mem + unicode) |= 1;	/* bit 0 */
+//	*(unsigned char *)(narrow_mem + unicode) |= 1;	/* bit 0 */
+  *(unsigned char *)(narrow_mem + unicode/8) |= (1 << (unicode&7));
 
 	/* put the 16x16 dot matrix */
 			for (j=0; j<font_h; j++)
@@ -4313,6 +4309,7 @@ redo:
 				}
 				for (k=0; k<num_wide; k++)
 					((unsigned char *)(UNIFONT_START + unicode*num_wide*font_h))[j*num_wide+k] = (dot_matrix >> k*8)&0xff;
+#if 0
 				/* the first integer is to be checked for narrow_char_indicator */
 				if (j == 0)
 				{
@@ -4321,6 +4318,7 @@ redo:
 					*/
 					*(unsigned char *)(narrow_mem + (unsigned short)(dot_matrix & 0xffff)) |= 16;	/* bit 4 */
 				}
+#endif
 			}
     }
     valid_lines++;
@@ -4359,7 +4357,7 @@ close_file:
             font_w = val>>1;	//20
             current_term->max_lines = current_y_resolution / (font_h + line_spacing);
             current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
-            memset ((char *)UNIFONT_START, 0, 0x800000);
+//            memset ((char *)UNIFONT_START, 0, 0x800000);
             num_wide = (font_h+7)/8;					//5
             num_narrow = ((font_h/2+7)/8)<<1;	//6
             if ((p[1]|0x20)=='s' && (p[2]|0x20)=='i' && (p[3]|0x20)=='m' && (p[4]|0x20)=='p')
@@ -4371,7 +4369,7 @@ close_file:
     }
   }
   grub_close();
-
+#if 0
   if (! valid_lines)	// if no valid lines,
 	{
 		if (narrow_mem)
@@ -4427,11 +4425,10 @@ loop:
 	*(unsigned int *)(UNIFONT_START + (i*num_wide*font_h)) = narrow_indicator;
     }
   }
-
+#endif
   //old_narrow_char_indicator = narrow_indicator;
-#undef	old_narrow_char_indicator
-  if (narrow_mem)
-    grub_free (narrow_mem);
+//#undef	old_narrow_char_indicator
+
   return valid_lines;	/* success */
 }
 
@@ -4498,6 +4495,7 @@ uuid_func (char *argument, int flags)
   char root_found[16] = "";
   char uuid_found[256];
 //  char tem[256];
+  grub_memset(tem, 0, 256);
 	char uuid_tag[5] = {'U','U','I','D',0};
 	char vol_tag[12] = {'V','o','l','u','m','e',' ','N','a','m','e',0};
 	char *p;
@@ -6699,6 +6697,8 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
 			}
 
 			print_bios_total_drives();	//打印软盘数,硬盘数
+			if (rd_base != -1ULL)		//如果rd基地址被赋值
+				grub_printf ("\nram_drive=0x%X, rd_base=0x%lX, rd_size=0x%lX\n", ram_drive, rd_base, rd_size); 
 
 			if (drive_map_slot_empty (disk_drive_map[0]))   //判断驱动器映像插槽是否为空   为空,返回1
 			{
@@ -6816,6 +6816,38 @@ struct drive_map_slot
 	    }
 			return 1;
 		}
+    else if (grub_memcmp (arg, "--hook", 6) == 0)
+    {
+      buf_drive = -1;
+      buf_track = -1;
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--unhook", 8) == 0)
+    {
+      buf_drive = -1;
+      buf_track = -1;
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--unmap=", 8) == 0)
+    {
+      buf_drive = -1;
+      buf_track = -1;
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--rehook", 8) == 0)
+    {
+      buf_drive = -1;
+      buf_track = -1;
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--floppies=", 11) == 0)
+    {
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--harddrives=", 13) == 0)
+    {
+      return 1;
+    }
     else if (grub_memcmp (arg, "--ram-drive=", 12) == 0)		//8. 内存盘  设置rd驱动器号,默认0x7f,设置区间:0-0xfe
 		{
 //			unsigned long long tmp;
@@ -6847,6 +6879,44 @@ struct drive_map_slot
 			rd_size = tmp;
 			return 1;
 		}
+    else if (grub_memcmp (arg, "--e820cycles=", 13) == 0)
+    {
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--int15nolow=", 13) == 0)
+    {
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--memdisk-raw=", 14) == 0)
+    {
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--a20-keep-on=", 14) == 0)
+    {
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--safe-mbr-hook=", 16) == 0)
+    {
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--int13-scheme=", 15) == 0)
+    {
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--mem-max=", 10) == 0)
+    {
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--mem-min=", 10) == 0)
+    {
+      return 1;
+    }
+    else if (grub_memcmp (arg, "--mem=", 6) == 0)		    //19. 指定mem的位置(扇区数))
+		{
+			p = arg + 6;
+			if (! safe_parse_maxint_with_suffix (&p, &mem, 9))
+				return 0;
+		}
 		else if (grub_memcmp (arg, "--mem", 5) == 0)		    //20. 使用内存映射
 		{
 			mem = 0;		//0=加载到内存   -1=不加载到内存
@@ -6857,28 +6927,56 @@ struct drive_map_slot
       prefer_top = 1;
       mem = 0;
 		}
-#if 0
+    else if (grub_memcmp (arg, "--read-only", 11) == 0)
+    {
+      read_only = 1;
+    }
+    else if (grub_memcmp (arg, "--fake-write", 12) == 0)
+    {
+    }
+    else if (grub_memcmp (arg, "--fake-write", 12) == 0)
+    {
+    }
+    else if (grub_memcmp (arg, "--disable-chs-mode", 18) == 0)
+    {
+    }
+    else if (grub_memcmp (arg, "--disable-lba-mode", 18) == 0)
+    {
+    }
+    else if (grub_memcmp (arg, "--in-place=", 11) == 0)
+    {
+    }
+    else if (grub_memcmp (arg, "--in-situ=", 10) == 0)
+    {
+    }
+    else if (grub_memcmp (arg, "--in-place", 10) == 0)
+    {
+    }
+    else if (grub_memcmp (arg, "--in-situ", 9) == 0)
+    {
+    }
+    else if (grub_memcmp (arg, "--heads=", 8) == 0)
+    {
+    }
+    else if (grub_memcmp (arg, "--sectors-per-track=", 20) == 0)
+    {
+    }
 		else if (grub_memcmp (arg, "--add-mbt=", 10) == 0)  //33. 增加存储块  -1,0,1
 		{
-			unsigned long long num;
-			p = arg + 10;
-			if (! safe_parse_maxint (&p, &num))
-				return 0;
-			add_mbt = num;
-			if (add_mbt < -1 || add_mbt > 1)
-				return 0;
 		}
-#endif
     else if (grub_memcmp (arg, "--skip-sectors=", 15) == 0)		//34. 跳过扇区
 		{
 			p = arg + 15;
 			if (! safe_parse_maxint_with_suffix (&p, &skip_sectors, 9))
 				return 0;
 		}
-    else if (grub_memcmp (arg, "--", 2) == 0)		//35. 过期或不支持的参数
-		{
-      return 0;
-		}
+    else if (grub_memcmp (arg, "--max-sectors=", 14) == 0)
+    {
+    }
+    else if (grub_memcmp (arg, "--swap-drive=", 13) == 0)
+    {
+      return 1; 
+    }
     else
 			break;
     arg = skip_to (0, arg); //跳到空格后
@@ -7041,7 +7139,7 @@ struct drive_map_slot
 
     //此处重新设置了 sector_count, 将扇区计数更改为按每扇区0x200字节计的小扇区!!!
 //    sector_count = (filemax + 0x1ff) >> 9; /* in small 512-byte sectors */
-    sector_count = (filemax + 0x1ff) >> buf_geom.log2_sector_size;
+    sector_count = (filemax + buf_geom.sector_size) >> buf_geom.log2_sector_size;
     if (part_length		//如果分区长度不为零		此处buf_geom是to驱动器的参数
 				&& (buf_geom.sector_size == 2048 ? (start_sector - (skip_sectors >> 2)) : (start_sector - skip_sectors)) == part_start //并且(扇区起始-跳过扇区)=分区起始
 				/* && part_start */
@@ -7386,10 +7484,11 @@ get_info_ok:
       /* For GZIP disk image if uncompressed size >= 4GB,  								//如果压缩gzip磁盘图像尺寸>=4GB
          high bits of filemax is wrong, sector_count is also wrong. */		//filemax的高位是错误的，扇区计数也是错的
 		if ( (long long)mem < 0LL && sector_count < (-mem) )		//如果mem<0,并且扇区计数<(-mem)
-			bytes_needed = (-mem) << SECTOR_BITS;									//需要字节=(-mem)*0x200
+//      bytes_needed = (-mem) << SECTOR_BITS;									//需要字节=(-mem)*0x200
+			bytes_needed = (-mem) << buf_geom.log2_sector_size;
 		else
-			bytes_needed = sector_count << SECTOR_BITS;           //否则,需要字节=扇区计数*0x200
-
+//      bytes_needed = sector_count << SECTOR_BITS;           //否则,需要字节=扇区计数*0x200
+			bytes_needed = sector_count << buf_geom.log2_sector_size;
       /* filesystem_type
        *	 0		an MBR device
        *	 1		FAT12
@@ -8358,7 +8457,7 @@ pause_func (char *arg, int flags)
    while (wait != 0)
    {
       /* Check if there is a key-press.  */
-			if ((ret = checkkey ()) != -1)
+			if ((ret = checkkey ()) != (int)-1)
       {
       	if (testkey)
       	{
@@ -8440,7 +8539,7 @@ static int
 read_func (char *arg, int flags)
 {
   unsigned long long addr, val;
-	int bytes=0, img=0;
+	int bytes=0, mem=0;
 
   errnum = 0;
   if (*(int *)arg == 0x2E524156)//VAR. 
@@ -8448,26 +8547,36 @@ read_func (char *arg, int flags)
     arg += sizeof(int);
     if (! safe_parse_maxint (&arg, &addr))
 	return 0;
-    return (*(grub_size_t **)IMG(0x8304))[addr];
+    return (*(grub_size_t **)IMG(0x8308))[addr];
   }
+  
+  for (;;)
+  {
 	if (grub_memcmp (arg, "--8", 3) == 0)
 	{
 		bytes=1;
 		arg += 3;
-		arg = skip_to (0, arg);
 	}
-  if (*arg  == '*')
+  else if (grub_memcmp (arg, "--mem", 5) == 0)
 	{
-		img=1;
-		arg ++;
+		mem=1;    //强制使用普通内存，否则0x8200-0x8400特指G4E头部固定数据区。
+		arg += 5;
 	}
+  else
+    break;
+  arg = skip_to (0, arg);
+  }
+  
   if (! safe_parse_maxint (&arg, &addr))
     return 0;
 
+  if (!mem && addr >= 0x8200 && addr <= 0x8400)
+    addr += (grub_size_t)g4e_data - 0x8200;
+
 	if (!bytes)
-		val = *(unsigned int *)(grub_size_t)(RAW_ADDR (img ? (addr - 0x8200 + (grub_size_t)g4e_data) : addr));
+		val = *(unsigned int *)(grub_size_t)addr;
 	else
-		val = *(unsigned long long *)(grub_size_t)(RAW_ADDR (img ? (addr - 0x8200 + (grub_size_t)g4e_data) : addr));
+		val = *(unsigned long long *)(grub_size_t)addr;
   printf_debug0 ("Address 0x%lx: Value 0x%lx\n", addr, val);
   return val;
 }
@@ -8477,9 +8586,10 @@ static struct builtin builtin_read =
   "read",
   read_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "read [--8] [*]ADDR",
+  "read [--8] [--mem] ADDR",
   "Read a 32-bit or 64-bit value from memory at address ADDR and display it in hex format.\n"
-  "Adding the * mark is to read the internal information of UEFI."
+  "--mem  Force normal memory, \n"
+  "       otherwise, 0x8200-0x8400 specifically refers to G4e head fixed data area."
 };
 
 int parse_string (char *arg);
@@ -8621,7 +8731,7 @@ write_func (char *arg, int flags)
   unsigned long long len;
   unsigned long long bytes = 0;
   char tmp_file[16];
-	int img = 0;
+	int mem = 0;
   int block_file = 0;
 
   errnum = 0;
@@ -8642,17 +8752,11 @@ write_func (char *arg, int flags)
       if (! safe_parse_maxint (&p, &bytes))
         return 0;
     }
-		else if (grub_memcmp (arg, "--img", 5) == 0)
+		else if (grub_memcmp (arg, "--mem", 5) == 0)
     {
-			p = arg + 5;
-			img = 1;
+			mem = 1;
+			arg += 5;
 		}
-    if (*arg  == '*')
-    {
-      img = 1;
-      arg ++;
-      break;
-    }
     else
       break;
     arg = skip_to (0, arg);
@@ -8808,14 +8912,18 @@ succ:
     if (! safe_parse_maxint (&p, &val))
       goto fail;
     addr += offset;
-    arg = (char*)(grub_size_t)(img ? (addr - 0x8200 + (grub_size_t)g4e_data) : addr);
+    
+    if (!mem && addr >= 0x8200 && addr <= 0x8400)
+      addr += (grub_size_t)g4e_data - 0x8200;
+    
+    arg = (char*)(grub_size_t)addr;
     p = (char*)(grub_size_t)&val;
 
     while(bytes--)
     {
       *arg++ = *p++;
     }
-    printf_debug0 ("Address 0x%lx: Value 0x%x\n", (unsigned long long)addr, (*((unsigned *)(grub_size_t) RAW_ADDR (img ? (addr - 0x8200 + (grub_size_t)g4e_data) : addr))));
+    printf_debug0 ("Address 0x%lx: Value 0x%x\n", (unsigned long long)addr, *(unsigned *)(grub_size_t)addr);
     if (addr != (grub_size_t)&saved_drive)
       saved_drive = tmp_drive;
     if (addr != (grub_size_t)&saved_partition)
@@ -8836,12 +8944,13 @@ static struct builtin builtin_write =
   "write",
   write_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
-  "write [--offset=SKIP] [--bytes=N] [*]ADDR_OR_FILE INTEGER_OR_STRING",
+  "write [--offset=SKIP] [--bytes=N] [#]ADDR_OR_FILE INTEGER_OR_STRING",
   "Write a 32-bit INTEGER to memory ADDR or write a STRING to FILE(or device!)\n"
   "To memory ADDR: default N=4, otherwise N<=8. Use 0xnnnnnnnn form.\n"
   "To FILE(or device): default STRING size.\n"
   "  UTF-8(or hex values) use \\xnn form, UTF-16(big endian) use \\Xnnnn form."
-  "Adding the * mark is to read the internal information of UEFI."
+  "--mem  Force normal memory, \n"
+  "       otherwise, 0x8200-0x8400 specifically refers to G4e head fixed data area."
 };
 
 
@@ -9258,7 +9367,7 @@ prompt_user (void)
 	for (;;)
 	{
 	  /* Check if ESC is pressed.  */
-		if ((c1 = checkkey ()) != -1 /*&& ASCII_CHAR (getkey ()) == '\e'*/)
+		if ((c1 = checkkey ()) != (int)-1 /*&& ASCII_CHAR (getkey ()) == '\e'*/)
 	    {
 				if ((c = c1) == 0x011b)
 	      {
@@ -10119,7 +10228,6 @@ static int read_val(char **str_ptr,long long *val)  //读值
       while (*arg == ' ' || *arg == '\t') arg++;
       p = arg;
       if (*arg == '*') arg++; //后面紧随内存地址
-      
       if (! safe_parse_maxint_with_suffix (&arg,(unsigned long long *)(grub_size_t)val, 0))
       {
 	 return 0;
@@ -10127,8 +10235,10 @@ static int read_val(char **str_ptr,long long *val)  //读值
       
       if (*p == '*')  //取内存的值
       {
-//	 *val = *((unsigned long long *)(grub_size_t)*val);
-	 *val = *((unsigned long long *)(grub_size_t)IMG(*val));
+    if ((unsigned long long)*val >= 0x8200 && (unsigned long long)*val <= 0x8400)
+      *val = *((unsigned long long *)(grub_size_t)IMG((grub_size_t)*val));
+    else
+      *val = *((unsigned long long *)(grub_size_t)*val);
       }
       
       while (*arg == ' ' || *arg == '\t') arg++;
@@ -10144,8 +10254,14 @@ s_calc (char *arg, int flags)
    long long val2 = 0;
    long long *p_result = &val1;
    char O;
+   int mem=0;
    
   errnum = 0;
+  if (grub_memcmp (arg, "--mem", 5) == 0)
+  {
+    arg += 5;
+    mem=1;
+  }
    if (*arg == '*') //后面紧随内存地址
    {
       arg++;
@@ -10153,8 +10269,12 @@ s_calc (char *arg, int flags)
       {
 	 return 0;
       }
-//      p_result = (long long *)(grub_size_t)val1;
+
+    if (!mem && (unsigned long long)val1 >= 0x8200 && (unsigned long long)val1 <= 0x8400)
       p_result = (long long *)(grub_size_t)IMG((int)val1);  //取内存的值
+    else
+      p_result = (long long *)(grub_size_t)val1;
+      
       val1 = *p_result;
       while (*arg == ' ') arg++;
    }
@@ -10338,6 +10458,61 @@ grub_video_gop_get_bitmask (grub_uint32_t mask, unsigned int *mask_size,
   *mask_size = last_p - *field_pos + 1;
 }
 
+//0x20-0x7f及0x2192、0x2193(上下箭头)的16*16点阵字符。hex格式，lzma压缩。
+static char mini_font_lzma[] = {
+0x5D,0x00,0x00,0x80,0x00,0xAC,0x0E,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x19,0x0C,
+0x43,0x90,0x39,0x67,0xD5,0x47,0x76,0xE2,0x4A,0xFC,0x16,0xF6,0xCE,0x1E,0x52,0x1A,
+0x03,0x6A,0x5B,0x7B,0xE2,0x81,0x9A,0x24,0xEB,0x83,0x3C,0xB7,0xB8,0x17,0xFB,0x21,
+0x07,0xC9,0x9E,0x94,0x4F,0x3D,0x72,0x38,0x16,0x78,0xFA,0x10,0xA1,0xD2,0xD6,0x90,
+0x17,0x41,0xAE,0xBD,0x64,0x8B,0x23,0xD6,0xD0,0x09,0x00,0xEB,0x23,0x18,0x03,0x34,
+0x37,0x29,0x24,0xF7,0x38,0x0D,0x5F,0xE7,0x42,0x03,0xCA,0x49,0xE8,0x5D,0xB7,0x8D,
+0x76,0xAC,0x54,0x6D,0x3F,0x63,0x7E,0xE6,0x21,0xEA,0x9C,0x69,0x77,0xB2,0x8C,0x52,
+0xE7,0xB6,0x68,0xFD,0x2B,0xBC,0x06,0x00,0xB6,0xB1,0xE9,0x72,0xF6,0xB3,0x88,0x40,
+0xC2,0x22,0xAC,0xFF,0x50,0xFB,0x39,0xCC,0x0A,0x08,0x13,0xE0,0xE0,0x78,0xD1,0x7F,
+0xAB,0xFB,0xFF,0x9B,0x2C,0x49,0xA4,0xEF,0x71,0xE8,0xBE,0x43,0x41,0x8E,0x2B,0x6A,
+0xCA,0x7C,0x9F,0xF1,0xE0,0x11,0x91,0xE0,0xC6,0x38,0x0B,0xA4,0x9A,0xAE,0x5C,0x93,
+0x86,0xB2,0x35,0x77,0x20,0xED,0xD7,0x53,0x2B,0xE3,0xD0,0xFA,0x20,0x2E,0xE4,0x4E,
+0xF0,0x32,0xBE,0x05,0x40,0x96,0x94,0x24,0xF3,0x65,0x5F,0x73,0x07,0xF6,0x1A,0xEF,
+0xF9,0x47,0xBF,0x45,0x7B,0x21,0x6C,0x59,0xD6,0x77,0xD6,0xF5,0x8F,0x4F,0x66,0xE0,
+0x7E,0xF5,0x28,0x7F,0x73,0x88,0xD4,0xE1,0x76,0x7C,0xA3,0x54,0x09,0xF3,0x20,0xF5,
+0x63,0xFB,0x90,0x18,0xF8,0xDB,0x09,0x1A,0xE7,0x8E,0x46,0x88,0xF6,0x6C,0x75,0x47,
+0x5E,0x4A,0x79,0x02,0xFE,0x25,0x0A,0x6A,0x10,0x2B,0xB8,0x99,0x97,0x69,0x13,0x7D,
+0x1D,0x59,0x02,0x06,0x8C,0x21,0x2A,0x62,0x4C,0x34,0x8E,0x13,0xCC,0x4A,0x37,0xD3,
+0x95,0x02,0x90,0x45,0xE6,0xE6,0x35,0xA1,0x9D,0x1C,0x2C,0xAD,0xDD,0xCA,0xAA,0x5A,
+0xC5,0xC9,0xBE,0xA6,0x83,0xC6,0xB7,0xB1,0x18,0x0C,0x7F,0x3F,0x7C,0x70,0xEF,0x07,
+0x2F,0x24,0xE4,0x90,0x33,0xDF,0x29,0xDC,0x72,0x5B,0xCC,0x48,0xF6,0x7B,0x62,0x61,
+0xA9,0xB3,0x90,0x9E,0x17,0xBA,0x44,0x93,0x5F,0x29,0x5D,0x42,0xBC,0x18,0x82,0x55,
+0x9E,0xDA,0xF0,0xAC,0xA0,0xAC,0x1A,0xC0,0x82,0x16,0x3D,0x62,0x72,0xFE,0x90,0x0E,
+0x21,0x7E,0x89,0x6A,0x23,0x1D,0x89,0xE6,0x83,0x00,0x43,0x86,0xF7,0x0C,0x50,0x2D,
+0xBF,0xDC,0x70,0xB7,0xFC,0x9E,0x7C,0x8E,0x1E,0xA2,0x38,0xDF,0xCD,0x09,0x2B,0xAE,
+0x16,0x7A,0xB7,0xAC,0x9B,0xF4,0xDE,0xA1,0xE7,0xB2,0x13,0x3A,0x88,0x21,0x9E,0xBE,
+0x28,0x97,0x5B,0xAC,0x83,0xB0,0x00,0x48,0xC9,0x62,0x7F,0x07,0x21,0x2E,0x39,0xF3,
+0x67,0x8A,0x8E,0x70,0xB2,0x57,0x7B,0x34,0x1B,0xC9,0xF3,0x05,0x13,0xAB,0x43,0x4B,
+0x03,0xCB,0xC0,0x98,0xFD,0x5A,0x17,0xD4,0x7B,0xAA,0xEE,0x69,0xFC,0x94,0x52,0x4C,
+0x3A,0x5A,0x75,0x3A,0xC6,0x6B,0xB6,0x57,0x62,0xE8,0xCC,0xF1,0xC9,0xA6,0xE9,0x0A,
+0x92,0x09,0x39,0x8F,0x55,0x15,0x2C,0x87,0x41,0x4F,0xFE,0xE8,0xDF,0xDD,0x62,0x30,
+0x30,0xBA,0x0F,0x8F,0xAA,0xF9,0x44,0x0E,0xAC,0x5A,0x52,0x0D,0x3A,0x2E,0x5F,0x44,
+0x47,0xC5,0x0D,0x01,0x16,0x7D,0xA5,0x55,0xCE,0x29,0x4A,0xF2,0x27,0xE3,0x54,0x91,
+0xE8,0x1C,0x30,0x8C,0x48,0x7C,0x1D,0x78,0xB3,0x3A,0xF7,0xEB,0xB2,0xC9,0x8B,0xA1,
+0xE5,0x18,0x68,0xA3,0xCD,0x51,0x3B,0x52,0x60,0xF0,0xC6,0xD1,0x49,0xE8,0x1E,0xC7,
+0xE4,0x6C,0x36,0x71,0x14,0x07,0x9C,0xE9,0xE4,0x33,0xE4,0x44,0x1D,0xB6,0x78,0x95,
+0x6E,0x68,0x79,0xAF,0x88,0x2C,0xCC,0x56,0xC0,0x00,0x93,0xFF,0x8B,0x5B,0xB7,0x29,
+0xE4,0xEA,0x79,0x18,0xAE,0xA8,0xD1,0x9D,0x1F,0xBC,0x35,0x51,0x3F,0x05,0xB7,0x9E,
+0x05,0xE3,0x21,0xC5,0xB9,0x69,0xC3,0x24,0x9D,0x33,0x9C,0xEB,0x28,0xCF,0x0E,0x63,
+0x02,0x32,0xFE,0x80,0x53,0xB7,0x22,0x0C,0xCD,0x07,0x57,0x0F,0x5B,0x0C,0xD2,0x31,
+0xEA,0x53,0x70,0xF5,0xD5,0x2F,0x99,0x4E,0xA3,0xA6,0x36,0x6D,0x25,0x36,0x28,0x1E,
+0x49,0x74,0xC8,0x51,0xB9,0x0F,0x9B,0x22,0xF9,0xD8,0x27,0x9E,0xC6,0xC3,0x68,0x95,
+0x84,0x67,0x87,0xF2,0x95,0x0D,0x48,0xF4,0x96,0x31,0x61,0x68,0xDD,0x4A,0xEC,0x40,
+0x30,0x03,0x21,0x6D,0x58,0xC8,0x94,0x57,0x91,0x30,0x79,0x9C,0x28,0xB8,0x1E,0x04,
+0xBB,0x86,0xA8,0x3C,0x50,0xD0,0x5A,0xD7,0x38,0x15,0xC5,0x92,0xD6,0xE5,0xB6,0xE6,
+0x4D,0x8B,0xE4,0xC9,0xFB,0xA3,0xF5,0x27,0x21,0x9C,0x9B,0xBF,0x6D,0x11,0xD3,0x04,
+0x50,0x98,0xA5,0xD3,0x3F,0x95,0x5C,0x32,0x05,0xC9,0xD9,0xEA,0xED,0xF7,0x0A,0x31,
+0xD9,0x51,0xC5,0x46,0xD0,0xB8,0x67,0x58,0x80,0x06,0x8E,0x75,0x39,0x33,0x21,0x24,
+0x68,0x25,0x46,0xBE,0x09,0xCC,0x4F,0x0B,0x30,0x3C,0x04,0xD5,0x6A,0x54,0xD3,0xB8,
+0x0E,0x52,0x7D,0xD6,0x80,0x08,0xC8,0x71,0x06,0x3E,0xAF,0xC7,0xAA,0xF7,0x2D,0x76,
+0x9E,0x42,0x0F,0x43,0x63,0xBC,0x5B,0x20,0x27,0xE6,0xB7,0xBA,0xA3,0xD8,0xD4,0xF1,
+0x5A,0xE2,0x84,0xE7
+};
 /* graphicsmode */
 int graphicsmode_func (char *arg, int flags);
 int
@@ -10525,7 +10700,8 @@ xyz_done:
 
 	if (tmp_graphicsmode == 0x2ff)
 	{
-		return graphics_mode;
+//		return graphics_mode;
+    goto ok;
 	}
 	else if (tmp_graphicsmode == 3)
 	{
@@ -10533,7 +10709,8 @@ xyz_done:
     current_term->chars_per_line = 80;
     current_term->max_lines = 25;
     printf_debug0 (" Graphics mode number was already 3\n");
-		return graphics_mode;
+//		return graphics_mode;
+    goto ok;
 	}
 	else if (tmp_graphicsmode > 0xff)
 	{
@@ -10567,7 +10744,21 @@ xyz_done:
 		printf_debug0 (" Graphics mode number was already 0x%X\n", graphics_mode);
   }	//else if (safe_parse_maxint (&arg, &tmp_graphicsmode))
 #endif
-
+ok:
+  if (IMAGE_BUFFER)
+    grub_free (IMAGE_BUFFER);
+  IMAGE_BUFFER = grub_malloc (current_x_resolution * current_y_resolution * current_bytes_per_pixel);
+  if (!JPG_FILE)
+  {
+    JPG_FILE = grub_malloc (0x8000);
+  }	
+  if (!UNIFONT_START)
+  {
+    //进入图形模式，加载袖珍字库，防止黑屏。这样也可以使防止加载精简中文字库(不包含英文字符)的问题。
+    grub_memmove ((char *)0x10000, mini_font_lzma, 820);
+    font_func ("(md)0x80+2", 1);  //如果是gz压缩格式，要明确压缩文件尺寸，如：font_func ("(md)0x80+2,820", 1);
+  }
+  
   return graphics_mode;
 bad_arg:
 	errnum = ERR_BAD_ARGUMENT;
@@ -11018,13 +11209,12 @@ flags:
 2 show
 3 reset
 */
-int envi_cmd(const char *var,char * const env,int flags);
 int envi_cmd(const char *var,char * const env,int flags)
 {
 	if(flags == 3)
 	{
-	    //if (var_ex_size > 0)
-		//memset((char *)var_ex, 0, var_ex_size * sizeof(VAR_NAME));
+	    if (var_ex_size > 0)
+		memset((char *)var_ex, 0, var_ex_size * sizeof(VAR_NAME));
 	    memset( (char *)BASE_ADDR, 0, 512 );
 	    sprintf(VAR[_WENV_], "?_WENV");
 	    sprintf(VAR[_WENV_+1], "?_BOOT");
@@ -11056,7 +11246,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 			if (var == NULL || substring(var,var_ex[i],0) < 1 )
 			{
 			    ++count;
-			    //printf("%.8s=%.512s\n",var_ex[i],var_ex_value[i]);
+			    printf("%.8s=%.512s\n",var_ex[i],var_ex_value[i]);
 			}
 		    }
 		}
@@ -11118,6 +11308,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 		return 0;
 
 	    p = WENV_TMP;
+	    memset(p, 0, 512 - 0x80);
 
 			get_datetime(&datetime);
 
@@ -11131,7 +11322,8 @@ int envi_cmd(const char *var,char * const env,int flags)
 	    }
 	    else if (substring(ch,"@random",1) == 0)
 	    {
-		WENV_RANDOM   =  (WENV_RANDOM * (*(unsigned int *)&datetime) + (*(int *)0x46c)) & 0x7fff;
+//		WENV_RANDOM   =  (WENV_RANDOM * (*(unsigned int *)&datetime) + (*(int *)0x46c)) & 0x7fff;
+    		WENV_RANDOM = (datetime.minute * datetime.second) & 0x7fff;
 		sprintf(p,"%d",WENV_RANDOM);
 	    }
 	    else if (substring(ch,"@boot",1) == 0)
@@ -11394,7 +11586,11 @@ typedef struct _SETLOCAL {
 	unsigned int boot_drive;
 	unsigned int install_partition;
 	int debug;
+#if defined(__i386__)
 	char reserved[8];//预留位置，同时也是为了凑足12字节
+#else
+  char reserved[4];//预留位置，同时也是为了凑足12字节
+#endif
 	char var_str[MAX_USER_VARS<<9];//user vars only
 	char saved_dir[256];
 	char command_path[128];
@@ -11437,7 +11633,7 @@ static struct builtin builtin_setlocal =
 };
 
 
-unsigned char menu_tab = 0;
+//unsigned char menu_tab = 0;
 unsigned char num_string = 0;
 unsigned char menu_font_spacing = 0;
 unsigned char menu_line_spacing = 0;
@@ -11656,7 +11852,8 @@ setmenu_func(char *arg, int flags)
 				current_term->chars_per_line = current_x_resolution / font_w;
 			}
 			*(unsigned char *)IMG(0x8274) = 0;
-			*(unsigned short *)IMG(0x8308) = 0x1110;
+//			*(unsigned short *)IMG(0x8308) = 0x1110;
+			*(unsigned short *)IMG(0x82c8) = 0x1110;
 			memmove ((char *)&menu_border,(char *)&tmp_broder,sizeof(tmp_broder));
 			graphic_type = 0;
 			for (i=0; i<16; i++)
@@ -11705,12 +11902,14 @@ setmenu_func(char *arg, int flags)
 		}
 		else if (grub_memcmp (arg, "--triangle-on", 13) == 0)
 		{
-			*(unsigned short *)IMG(0x8308) = 0x1110;
+//			*(unsigned short *)IMG(0x8308) = 0x1110;
+			*(unsigned short *)IMG(0x82c8) = 0x1110;
 			arg += 13;
 		}
 		else if (grub_memcmp (arg, "--triangle-off", 14) == 0)
 		{
-			*(unsigned short *)IMG(0x8308) = 0;
+//			*(unsigned short *)IMG(0x8308) = 0;
+			*(unsigned short *)IMG(0x82c8) = 0;
 			arg += 14;
 		}
 		else if (grub_memcmp (arg, "--highlight-short", 17) == 0)
@@ -12065,7 +12264,7 @@ static int endlocal_func(char *arg, int flags)
 	install_partition = saved->install_partition;
 	debug = saved->debug;
 	cc = cc->prev;
-	grub_free(saved);
+//	grub_free(saved);
 	return 1;
 }
 static struct builtin builtin_endlocal =
@@ -12074,6 +12273,14 @@ static struct builtin builtin_endlocal =
    endlocal_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
 };
+
+struct _debug_break
+{
+	int pid;
+	int line;
+};
+
+struct _debug_break debug_break[10] = {{0},{0}};
 
 struct bat_label
 {
@@ -12127,7 +12334,8 @@ static int bat_find_label(char *label)
 static int bat_get_args(char *arg,char *buff,int flags);
 static int bat_get_args(char *arg,char *buff,int flags)
 {
-#define ARGS_TMP RAW_ADDR(0x100000)
+//#define ARGS_TMP RAW_ADDR(0x100000)
+  char *ARGS_TMP = grub_zalloc (0x400);
 	char *p = ((char *)ARGS_TMP);
 	char *s1 = buff;
 	int isParam0 = (flags & 0xff);
@@ -12233,8 +12441,11 @@ static int bat_get_args(char *arg,char *buff,int flags)
 	}
 
 quit:
+	grub_free (ARGS_TMP);
 	return buff-s1;
 }
+
+grub_u32_t ptrace = 0;
 /*
 bat_run_script
 run batch script.
@@ -12243,7 +12454,7 @@ if filename is NULL then is a call func.the first word of arg is a label.
 static int bat_run_script(char *filename,char *arg,int flags);
 static int bat_run_script(char *filename,char *arg,int flags)
 {
-	int debug_bat = debug_prog;
+//	int debug_bat = debug_prog;
 	if (prog_pid != (unsigned int)p_bat_prog->pid)
 	{
 		errnum = ERR_FUNC_CALL;
@@ -12264,8 +12475,15 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 	}
 
-	if (debug_prog) 
-		printf("S^:%s [%d]\n",filename,prog_pid);
+	if (debug_prog)
+  {    
+    if (debug_bat)
+      printf("S^:%s [%d]\n",filename,prog_pid);
+    ptrace++;
+    if (ptrace > 1 && debug_ptrace)
+      debug_bat = 0;
+  }
+      
 
 	char **p_entry = bat_entry + i;
 
@@ -12422,9 +12640,17 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 
 		*p_cmd = '\0';
-
-		if (p_bat_prog->debug_break && ((grub_u32_t)p_bat_prog->debug_break == (grub_u32_t)(p_entry-bat_entry))) debug_bat = debug_prog = 1;
-		if (debug_prog) printf("S[%d#%d]:[%s]\n",prog_pid,((grub_u32_t)(p_entry-bat_entry)),p_buff);
+    //批处理调试:  debug 批处理文件名  参数.     例如: debug /run --automenu
+//		if (p_bat_prog->debug_break && ((grub_u32_t)p_bat_prog->debug_break == (grub_u32_t)(p_entry-bat_entry))) debug_bat = debug_prog = 1;
+    for (i=0; i<10; i++)
+    {
+      if (debug_break[i].pid == prog_pid && debug_break[i].line == (grub_u32_t)(p_entry-bat_entry))
+      {
+        debug_bat = debug_prog = 1;
+        break;
+      }
+    }
+		if (debug_prog && debug_bat) printf("S[%d#%d]:[%s]\n",prog_pid,((grub_u32_t)(p_entry-bat_entry)),p_buff);
 		if (debug_bat)
 		{
 			Next_key:
@@ -12436,31 +12662,32 @@ static int bat_run_script(char *filename,char *arg,int flags)
       char *SYSTEM_RESERVED_MEMORY;
 			switch(i)
 			{
-				case 'Q':
+				case 'Q': //结束批处理
 					errnum = 2000;
 					break;
-				case 'C':
+				case 'C': //进入命令行  按'ESC'键返回批处理调试
           SYSTEM_RESERVED_MEMORY = grub_zalloc (512);
           if (!SYSTEM_RESERVED_MEMORY)
             return 0;
 					commandline_func(SYSTEM_RESERVED_MEMORY,0);
           grub_free (SYSTEM_RESERVED_MEMORY);
 					break;
-				case 'S':
+				case 'S': //跳过本行
 					++p_entry;
 					continue;
-				case 'N':
+				case 'N': //运行至断点
 					debug_bat = 0;
+          debug_ptrace = 0;
 					break;
-				case 'E':
+				case 'E': //退出调试模式
 					debug_bat = debug_prog = 0;
 					break;
-				case 'B':
+				case 'B': //设置断点(共10个)  批处理号(共10个),批处理行号
 				{
 					char buff[12];
 					grub_u64_t t;
 					buff[0] = 0;
-					printf("Current:\nDebug Check Memory [0x%x]=>0x%x\nDebug Break Line: %d\n",debug_check_memory,debug_break,p_bat_prog->debug_break);
+//					printf("Current:\nDebug Check Memory [0x%x]=>0x%x\nDebug Break Line: %d\n",debug_check_memory,debug_break,p_bat_prog->debug_break);
 					get_cmdline_str.prompt = &msg_password[8];
 					get_cmdline_str.maxlen = sizeof (buff) - 1;
 					get_cmdline_str.echo_char = 0;
@@ -12468,9 +12695,10 @@ static int bat_run_script(char *filename,char *arg,int flags)
 					get_cmdline_str.cmdline = (grub_u8_t*)buff;
 					get_cmdline ();
 
-					if (buff[0] == '+' || buff[0] == '-' || buff[0] == '*') p_bat = &buff[1];
+//					if (buff[0] == '+' || buff[0] == '-' || buff[0] == '*') p_bat = &buff[1];
+					if (buff[0] == 'p' || buff[0] == 'c' || buff[0] == 'l') p_bat = &buff[1];
 					else p_bat = buff;
-
+#if 0
 					if (safe_parse_maxint ((char **)(grub_size_t)&p_bat, (unsigned long long *)(grub_size_t)&t))
 					{
 						if (buff[0] == '*')
@@ -12488,8 +12716,53 @@ static int bat_run_script(char *filename,char *arg,int flags)
 							printf("\rDebug Break Line: %d\n",p_bat_prog->debug_break);
 						}
 					}
+#else
+          if (buff[0] == 'c') //清除断点   例如: c2 (清除2号断点);  c (清除全部断点)
+          {
+            t = 0;
+            safe_parse_maxint ((char **)(grub_size_t)&p_bat, (unsigned long long *)(grub_size_t)&t);
+            if (t)
+              debug_break[t-1].pid = 0;
+            else
+            {
+              for (i=0; i<10; i++)
+              {
+                debug_break[i].pid = 0;
+              }
+            }
+          }
+          else if (buff[0] == 'l') //显示断点  (断点号,批处理号,批处理行号)
+          {
+            for (i=0; i<10; i++)
+            {
+              if (debug_break[i].pid)
+                printf("\ri=%d, pid=%d, line=%d\n",i+1,debug_break[i].pid,debug_break[i].line);
+            }
+          }
+          else //设置断点(隐含当前批处理标号)  例如: 45 (当前批处理,45行)
+          {
+            i = 0;
+            while (debug_break[i].pid && i < 10) i++;
+            safe_parse_maxint ((char **)(grub_size_t)&p_bat, (unsigned long long *)(grub_size_t)&t);
+            debug_break[i].pid = prog_pid;
+            if (buff[0] == 'p') //设置断点  例如: p2,134  (2号批处理,134行)
+            {
+              debug_break[i].pid = t;
+              p_bat++;
+              safe_parse_maxint ((char **)(grub_size_t)&p_bat, (unsigned long long *)(grub_size_t)&t);
+            }
+            debug_break[i].line = t;
+            printf("\rDebug Break pid=%d, line=%d\n",debug_break[i].pid,debug_break[i].line);
+          }
+#endif
 					goto Next_key;
 				}
+        case 'P': //单步执行(跨过子程序)
+					debug_ptrace = 1;
+					break;
+        default:  //单步执行
+					debug_ptrace = 0;
+					break;
 			}
 			if (errnum == 2000) break;
 		}
@@ -12528,7 +12801,7 @@ aaa:
       }
       continue;
     }
- 
+#if 0 
 		if (debug_check_memory)
 		{
 			if (debug_break != *(int*)(grub_size_t)debug_check_memory)
@@ -12537,7 +12810,7 @@ aaa:
 				debug_bat = debug_prog = 1;
 			}
 		}
-
+#endif
 		if (checkkey() == 0x2000063)
 		{
 			unsigned char k;
@@ -12584,7 +12857,16 @@ aaa:
 	grub_free(cmd_buff);
 
 	if (debug_prog)
-		printf("S$:%s [%d]\n",filename,prog_pid); 
+  {
+    ptrace--;
+    if (ptrace == 1 && debug_ptrace)
+    {
+      debug_bat = 1;
+      debug_ptrace = 0;
+    }
+    if (debug_bat)
+      printf("S$:%s [%d]\n",filename,prog_pid); 
+  }
 
 	errnum = (i == 1000) ? 0 : i;
 	return errnum?0:(int)ret;
@@ -12639,8 +12921,16 @@ static int call_func(char *arg,int flags)
 		arg[parse_string(arg)] = 0;
 		for (i=0;i<10;++i)
 		{
-			if (read_val(&arg,&ull))
+      if (*arg == 'g' && *(arg+1) == '4' && *(arg+2) == 'e')
+      { 
+        arg += 3;
+        safe_parse_maxint (&arg, (unsigned long long *)&ull);
+        ch[i] = (char *)(grub_size_t)IMG(ull);
+      }
+      else if (read_val(&arg,&ull))
+      {
 				ch[i] = (char *)(grub_size_t)ull;
+      }
 			else
 			{
 				ch[i] = arg;
@@ -12785,7 +13075,8 @@ static int grub_exec_run(char *program, char *psp, int flags)
 		{
 			return 0;
 		}
-		struct bat_array *p_bat_array = (struct bat_array *)grub_malloc(0x2600);
+//		struct bat_array *p_bat_array = (struct bat_array *)grub_malloc(0x2600);
+		struct bat_array *p_bat_array = (struct bat_array *)grub_malloc(0x200 + sizeof(struct bat_label) * 0x80 + sizeof(char *) * 0x800);
 		if (p_bat_array == NULL)
 			return 0;
 		p_bat_array->path = psp + PI->path;
@@ -12796,22 +13087,30 @@ static int grub_exec_run(char *program, char *psp, int flags)
 		struct bat_label *label_entry =(struct bat_label *)((char *)p_bat_array + 0x200);
 		char **bat_entry = (char **)(label_entry + 0x80);//0x400/sizeof(label_entry)
 		unsigned int i_bat = 1,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
+		unsigned int type = 0; //type=0/1/2=Windows:(每行结尾是“\r\n”)/Unix:(每行结尾是“\n”)/Mac OS:(每行结尾是“\r”)
 		grub_u32_t size = grub_strlen(program);
 
 		p_bat_array->size = size++;
 		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",program + size,PI->proglen - size);
+		//判断回车换行模式
 		if (debug_prog)
 		{
 			while(*p_bat++)
 			{
-				if (*p_bat == '\r')
-					crlf = 1;
-				else if (*p_bat != '\n')
+				if (*p_bat == '\r' && *(p_bat+1) == '\n')
+          crlf = 1;
+        else if (*p_bat == '\r')
+          type = 2;
+				else if (*p_bat == '\n')
+          type = 1;
+        else
 					continue;
+
 				break;
 			}
 		}
-		program = skip_to(SKIP_LINE,program);//skip head
+//		program = skip_to(SKIP_LINE,program);//skip head
+		if (debug_prog) bat_entry[i_bat++] = (char*)-1;
 		while ((p_bat = program))//scan batch file and make label and bat entry.
 		{
 			program = skip_to(SKIP_LINE,program);
@@ -12823,7 +13122,7 @@ static int grub_exec_run(char *program, char *psp, int flags)
 				if (debug_prog) bat_entry[i_bat++] = (char*)-1;
 				i_lab++;
 			}
-			else
+			else if (*(unsigned int *)p_bat != BAT_SIGN && *(unsigned int *)p_bat != 0x21BFBBEF)
 				bat_entry[i_bat++] = p_bat;
 
 			if (debug_prog)
@@ -12832,15 +13131,25 @@ static int grub_exec_run(char *program, char *psp, int flags)
 				p += grub_strlen(p_bat) + crlf;
 				while(++p < program)
 				{
-					if (!*p || *p == '\n') bat_entry[i_bat++] = (char*)-1;
+//					if (!*p || *p == '\n') bat_entry[i_bat++] = (char*)-1;
+          if (type == 0 && *p == '\n')
+            bat_entry[i_bat++] = (char*)-1;
+          else if (type == 1 && (!*p || *p == '\n'))
+            bat_entry[i_bat++] = (char*)-1;
+          if (type == 2 && (!*p || *p == '\r'))
+            bat_entry[i_bat++] = (char*)-1;
 				}
 			}
-
+#if 0
 			if ((i_lab & 0x80) || (i_bat & 0x800))//max label 128,max script line 2048.
 			{
 				grub_free(p_bat_array);
 				return 0;
 			}
+#else
+      if ((i_lab & 0x80) || (i_bat & 0x800))
+        break;
+#endif
 		}
 
 		label_entry[i_lab].label = NULL;

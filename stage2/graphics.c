@@ -161,9 +161,7 @@ graphics_init (void)
   if (fill_color)//如果是满屏单色
   {
     if (use_phys_base == 0)
-      if (!IMAGE_BUFFER)
       {
-        IMAGE_BUFFER = grub_malloc (current_x_resolution * current_y_resolution * current_bits_per_pixel);
         splashimage_loaded = (unsigned int)(grub_size_t)IMAGE_BUFFER;
         splashimage_loaded |= 2;
 //        *splashimage = 1;
@@ -271,13 +269,15 @@ graphics_print_unicode (unsigned int max_width)
     char_width = 2;				/* wide char */
 		pat = (unsigned char *)UNIFONT_START + unicode*num_wide*font_h;
 
-		if (*(unsigned int *)pat == narrow_char_indicator || unicode < 0x80)
+//		if (*(unsigned int *)pat == narrow_char_indicator || unicode < 0x80)
+  if (((*(unsigned char *)(narrow_mem + unicode/8)) & (1 << (unicode&7))) == 0)
 		{
 			--char_width;
 			pat += num_wide*font_w;
 		}		/* narrow char */
 
-    if (max_width < char_width)
+//    if (max_width < char_width)
+  if (max_width < char_width && unicode > 0x80)
 	return (1 << 31) | invalid | (byte_SN << 8); // printed width = 0
 
 		if (cursor_state & 1)
@@ -342,6 +342,8 @@ graphics_print_unicode (unsigned int max_width)
 		}
 	}
 
+  if (unicode < 0x80)
+    char_width = 1;
 triangle:
     fontx += char_width;
 		if (cursor_state & 1)
@@ -678,7 +680,7 @@ int animated (void)
 
     for (i=0; i<animated_last_num; i++)
     {
-			if (((animated_type & 0x0f) && !num) || (animated_type & 0x20 && (console_checkkey () != -1)/* && console_getkey ()*/))
+			if (((animated_type & 0x0f) && !num) || (animated_type & 0x20 && (console_checkkey () != (int)-1)/* && console_getkey ()*/))
 			{
         animated_enable = 0;
         animated_type = 0;;
@@ -765,11 +767,7 @@ static int read_image_bmp(int type)
 	unsigned char *bmp;
  
   if (use_phys_base == 0)
-  {
-    if (!IMAGE_BUFFER)
-      IMAGE_BUFFER = grub_malloc (SPLASH_W * SPLASH_H * current_bytes_per_pixel);
     splashimage_loaded = (grub_size_t)IMAGE_BUFFER;
-  }
 
 	for(y=bmih.biHeight-1;y>=0;--y)
 	{
@@ -1612,11 +1610,7 @@ static int InitTag()
 	 		SPLASH_H=MAKEWORD(*(lp+4),*(lp+3));
 	 		SPLASH_W=MAKEWORD(*(lp+6),*(lp+5));
       if (use_phys_base == 0)
-      {
-        if (!IMAGE_BUFFER)
-          IMAGE_BUFFER = grub_malloc (SPLASH_W * SPLASH_H * current_bytes_per_pixel);
         splashimage_loaded = (grub_size_t)IMAGE_BUFFER;
-      }
 			comp_num=*(lp+7);
 			if((comp_num!=1)&&(comp_num!=3))
 				return 0;
@@ -1754,9 +1748,8 @@ static int InitTag()
 /////////////////////////////////////////////////////////////////
 static int
 read_image_jpg(int type)
-{;
+{
 	filepos = 0;
-	JPG_FILE = grub_malloc (0x8000);
 	lp = (unsigned char*)JPG_FILE;
 
 	if (!(size=grub_read((unsigned long long)(grub_size_t)lp, 0x8000, GRUB_READ)))
@@ -1769,7 +1762,6 @@ read_image_jpg(int type)
 	Decode();
 	background_transparent=0;
 //	use_phys_base=0;
-	grub_free(JPG_FILE);
 	return 2;
 }
 

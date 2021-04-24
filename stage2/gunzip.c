@@ -295,11 +295,10 @@ gunzip_test_header (void)
    *  is a compressed file, and simply mark it as such.
    */
   gzip_filemax = filemax;
-  unsigned short *a = (unsigned short *) buf;
   if (no_decompression
       || grub_read ((unsigned long long)(grub_size_t)(char *)buf, 10, 0xedde0d90) != 10
-      || ((*a != GZIP_HDR_LE)
-	  && (*a != OLD_GZIP_HDR_LE)))
+      || ((*((unsigned short *) buf) != GZIP_HDR_LE)
+	  && (*((unsigned short *) buf) != OLD_GZIP_HDR_LE)))
     {
       filepos = 0;
       return ! errnum;
@@ -314,7 +313,7 @@ gunzip_test_header (void)
       || (buf[3] & UNSUPP_FLAGS)
       || ((buf[3] & EXTRA_FIELD)
 	  && (grub_read ((unsigned long long)(grub_size_t)(char *)buf, 2, 0xedde0d90) != 2
-	      || bad_field (*a)))
+	      || bad_field (*((unsigned short *) buf))))
       || ((buf[3] & ORIG_NAME) && bad_field (-1))
       || ((buf[3] & COMMENT) && bad_field (-1)))
     {
@@ -333,10 +332,11 @@ gunzip_test_header (void)
       return 0;
     }
 
-  gzip_crc = *a;
-  unsigned int *b = (unsigned int *) (buf + 4);
-  gzip_fsmax = gzip_filemax = *b;
-  linalloc_buf = grub_malloc (0x100000);
+  gzip_crc = *((unsigned int *) buf);
+  gzip_fsmax = gzip_filemax = *((unsigned int *) (buf + 4));
+
+  if (!linalloc_buf)
+    linalloc_buf = grub_malloc (0x100000);
 
   initialize_tables ();
 

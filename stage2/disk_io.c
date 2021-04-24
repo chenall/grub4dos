@@ -157,9 +157,9 @@ struct fsys_entry fsys_table[NUM_FSYS + 1] =
 //# ifdef FSYS_FFS
 //  {"ffs", ffs_mount, ffs_read, ffs_dir, 0, ffs_embed},
 //# endif
-//# ifdef FSYS_INITRD
-//  {"initrdfs", initrdfs_mount, initrdfs_read, initrdfs_dir, initrdfs_close, 0},
-//# endif
+# ifdef FSYS_INITRD
+  {"initrdfs", initrdfs_mount, initrdfs_read, initrdfs_dir, initrdfs_close, 0},
+# endif
   {0, 0, 0, 0, 0, 0}
 };
 
@@ -230,8 +230,6 @@ int rawread (unsigned int drive, unsigned long long sector, unsigned int byte_of
 int
 rawread (unsigned int drive, unsigned long long sector, unsigned int byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned int write)
 {
-  unsigned int sector_size_bits;
-
   if (write != 0x900ddeed && write != 0xedde0d90 && write != GRUB_LISTBLK)	//如果“write”不是写/读/块列表.	则错误
 		return !(errnum = ERR_FUNC_CALL);
 
@@ -241,7 +239,7 @@ rawread (unsigned int drive, unsigned long long sector, unsigned int byte_offset
     return 1;
 
   /* Reset geometry and invalidate track buffer if the disk is wrong. */
-	//如果磁盘错误，请重置几何形状并使轨道缓冲区无效。
+	//如果磁盘错误，请重置几何并使缓冲区无效。
 	//如果缓存驱动器≠驱动器, 获得磁盘信息
   if (buf_drive != drive)
   {
@@ -250,7 +248,6 @@ rawread (unsigned int drive, unsigned long long sector, unsigned int byte_offset
 		buf_drive = drive;
 		buf_track = -1;
   }
-  sector_size_bits = log2_tmp (buf_geom.sector_size);	//9/11/12=磁盘/光盘/4k扇区磁盘
 
 	//如果是列表块, 完成它
   if (write == GRUB_LISTBLK)
@@ -288,24 +285,23 @@ rawread (unsigned int drive, unsigned long long sector, unsigned int byte_offset
   //正常读写
   while (byte_len > 0)		//如果请求字节长度>0
   {
-		unsigned int num_sect, size;
-		char *bufaddr;
+		unsigned int num_sect, size;  //缓存扇区数, 实际读写字节
+		char *bufaddr;                //实际读写位置
 
-    num_sect = (BUFFERLEN >> sector_size_bits);     //缓存扇区数
-    //如果缓存无效, 或者扇区号不在缓存范围
+    num_sect = (BUFFERLEN >> buf_geom.log2_sector_size);     //缓存扇区数  缓存字节=0x10000
+    //如果缓存无效, 或者扇区号不在缓存范围, 则更新缓存区
     if (buf_track == (unsigned long long)-1 || sector < buf_track || sector >= (buf_track + num_sect))
     {
-      if (grub_efidisk_readwrite (drive, sector, BUFFERLEN, BUFFERADDR, 0xedde0d90))
+      buf_track = sector & ~((0x1000 >> buf_geom.log2_sector_size) - 1);  //4k对齐
+      if (grub_efidisk_readwrite (buf_drive, buf_track, BUFFERLEN, BUFFERADDR, 0xedde0d90))
       {
         buf_track = -1;		/* invalidate the buffer */     
         return !(errnum = ERR_READ);
       }
-      buf_track = sector;
     }
-
-    //缓存地址
-    bufaddr = BUFFERADDR + ((sector - buf_track) << sector_size_bits) + byte_offset;
-    //缓存尺寸
+    //实际读写位置
+    bufaddr = BUFFERADDR + ((sector - buf_track) << buf_geom.log2_sector_size) + byte_offset;
+    //实际读写字节
     if (byte_len > (unsigned long long)(BUFFERLEN - (bufaddr - BUFFERADDR)))
       size = BUFFERLEN - (bufaddr - BUFFERADDR);
     else
@@ -313,12 +309,14 @@ rawread (unsigned int drive, unsigned long long sector, unsigned int byte_offset
 
 		if (write == 0x900ddeed)		//如果写
 		{
+      //如果待写数据与原数据一致, 则跳过
 			if (grub_memcmp64 (buf, (unsigned long long)(grub_size_t)bufaddr, size) == 0)
 				goto next;		/* no need to write */
-			buf_track = -1;		/* invalidate the buffer */
+      //更新缓冲区数据
 			grub_memmove64 ((unsigned long long)(grub_size_t)bufaddr, buf, size);	/* update data at bufaddr */
 			/* write it! */
-      if (grub_efidisk_readwrite (drive, sector, size, bufaddr, 0x900ddeed))
+      //更新打开的文件
+      if (grub_efidisk_readwrite (buf_drive, buf_track, BUFFERLEN, BUFFERADDR, 0x900ddeed))
 				return !(errnum = ERR_WRITE);
 			goto next;
 		}
@@ -357,7 +355,7 @@ next:
 			buf += size;
 		
 		byte_len -= size;		/* byte_len always >= size */
-    sector += size >> sector_size_bits;
+    sector += (size + byte_offset) >> buf_geom.log2_sector_size;
 		byte_offset = 0;
 	} /* while (byte_len > 0) */
 
@@ -372,7 +370,6 @@ int devread (unsigned long long sector, unsigned long long byte_offset, unsigned
 int
 devread (unsigned long long sector, unsigned long long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned int write)
 {
-  unsigned int sector_size_bits = log2_tmp(buf_geom.sector_size);
   unsigned int rw_flag = write;
 
   if (rw_flag != 0x900ddeed && rw_flag != 0xedde0d90 && rw_flag != GRUB_LISTBLK)
@@ -388,18 +385,18 @@ devread (unsigned long long sector, unsigned long long byte_offset, unsigned lon
   if (emu_iso_sector_size_2048)			//如果是读光盘
     {
       emu_iso_sector_size_2048 = 0;	//修改为每扇区0x200字节
-      sector <<= (ISO_SECTOR_BITS - sector_size_bits);	//0b-09
+      sector <<= (ISO_SECTOR_BITS - buf_geom.log2_sector_size);	//0b-09
     }
 
   /* Check partition boundaries */
 	//检查分区边界
 	//如果(扇区号+(字节偏移+字节长度-1)*扇区尺寸)>=分区长度,并且分区起始不为零
-  if (((unsigned long long)(sector + ((byte_offset + byte_len - 1) >> sector_size_bits)) >= (unsigned long long)part_length) && part_start)
+  if (((unsigned long long)(sector + ((byte_offset + byte_len - 1) >> buf_geom.log2_sector_size)) >= (unsigned long long)part_length) && part_start)
       return !(errnum = ERR_OUTSIDE_PART);
 
   /* Get the read to the beginning of a partition. */
 	//获取分区的开头。调整字节偏移,使其在1扇区内
-  sector += byte_offset >> sector_size_bits;	//扇区号+(字节偏移/扇区尺寸)
+  sector += byte_offset >> buf_geom.log2_sector_size;	//扇区号+(字节偏移/扇区尺寸)
   byte_offset &= buf_geom.sector_size - 1;		//字节偏移&(扇区尺寸-1)
 	//如果磁盘读挂钩,并且debug) >= 0x7FFFFFFF,打印"扇区号,字节偏移,字节长度"
   if (disk_read_hook && (((unsigned int)debug) >= 0x7FFFFFFF))
@@ -464,7 +461,7 @@ set_bootdev (int hdbias)
   if ((current_drive & 0x80) && cur_part_addr)
     {
 #if 0
-      if (rawread (current_drive, cur_part_offset, 0, SECTOR_SIZE, (unsigned long long)(unsigned long)SCRATCHADDR, 0xedde0d90))
+      if (rawread (current_drive, cur_part_offset, 0, SECTOR_SIZE, (unsigned long long)(grub_size_t)SCRATCHADDR, 0xedde0d90))
 	{
 	  char *dst, *src;
 
@@ -932,7 +929,7 @@ static void attempt_mount (void);
 static void
 attempt_mount (void)
 {
-	int cdrom = (current_drive >= 0xa0);
+	int cdrom = (current_drive >= 0xa0 && current_drive != 0xffff);
 
   for (fsys_type = 0; fsys_type < NUM_FSYS; fsys_type++)
   {
@@ -4263,12 +4260,12 @@ grub_efidisk_init (void)  //efidisk初始化
 //初始化变量空间	
   run_line((char *)"set ?_BOOT=%@root%",1);
   QUOTE_CHAR = '\"';	
-
+#if 0
 	run_line((char *)"errorcheck off",1);
   if (!ret || i == 0xff)
     run_line((char *)"find --set-root /efi/grub/menu.lst",1);
   run_line((char *)"configfile /efi/grub/menu.lst",1);
 	run_line((char *)"errorcheck on",1);
-
+#endif
 	cmain ();
 }

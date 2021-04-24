@@ -526,7 +526,7 @@ dddd:
 			{
 						if (iso_type == ISO_TYPE_udf)
 						{
-							size = udf_101->FileEntryLength;																		//File entry length in bytes
+							size = (udf_101->FileEntryLength) & 0x3fffffff;											//File entry length in bytes
 							extent = udf_101->FileEntryLocation + udf_partition_start;					//File entrance logical sector	
 							if (udf_BytePerSector == 0x800)			
 							emu_iso_sector_size_2048 = 1;
@@ -640,7 +640,7 @@ unsigned long long iso9660_read (unsigned long long buf, unsigned long long len,
 unsigned long long
 iso9660_read (unsigned long long buf, unsigned long long len, unsigned int write)
 {
-  unsigned long sector, size;
+  unsigned int sector, size;
   unsigned long long blkoffset = 0, ret;
 
   if (INODE->file_start == 0)

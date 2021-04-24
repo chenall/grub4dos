@@ -27,7 +27,7 @@
  * Use 64K at 0x150000 instead.      -- tinybit  2012-11-07  */
 //#define FB_MENU_ADDR	0xff0000
 //#define FB_MENU_ADDR	0x150000
-char *FB_MENU_ADDR;
+char *FB_MENU_ADDR = 0;
 #define FB_MAGIC	"FBBF"
 #define FB_MAGIC_LONG	0x46424246
 
@@ -103,6 +103,7 @@ static unsigned int ud_inited = 0;
 
 //extern unsigned long ROM_int13;
 //extern unsigned long ROM_int15;
+#if 0
 static unsigned int is_virtual (unsigned int drive);
 static unsigned int is_virtual (unsigned int drive)
 {
@@ -181,7 +182,7 @@ hook:
 	buf_track = -1;
 	return addr;
 }
-
+#endif
 static int fb_init (void);
 static int fb_init (void)
 {
@@ -192,13 +193,13 @@ static int fb_init (void)
   uchar4 t_fb_ofs = 0;
   uchar4 t_fb_pri_size = 0;
   unsigned int ret;
-  unsigned int fb_drive_virtual;
+//  unsigned int fb_drive_virtual;
+  if (!FB_MENU_ADDR)
+    FB_MENU_ADDR = grub_malloc (0x10000);
+//	fb_drive_virtual = is_virtual(fb_drive);
 
-	FB_MENU_ADDR = grub_malloc (0x10000);
-	fb_drive_virtual = is_virtual(fb_drive);
-
-	if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
-		quick_hook (0);
+//	if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
+//		quick_hook (0);
 
 	ret = rawread (fb_drive, 0, 0, 512, (unsigned long long)(grub_size_t)&m, 0xedde0d90);
 	if (! ret)
@@ -278,8 +279,8 @@ static int fb_init (void)
 
 init_end:
 
-	if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
-		quick_hook (fb_drive_virtual);
+//	if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
+//		quick_hook (fb_drive_virtual);
 
 	return ret;
 }
@@ -332,7 +333,7 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned int write)
 {
   unsigned long long ret;
   unsigned int sector, ofs, saved_len;
-  unsigned int fb_drive_virtual;
+//  unsigned int fb_drive_virtual;
 
   if (! cur_file->size)
     return 0;
@@ -340,21 +341,21 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned int write)
   if (! (ret = len))
     return 0;
 
-  fb_drive_virtual = is_virtual(fb_drive);
+//  fb_drive_virtual = is_virtual(fb_drive);
 
   if (cur_file->data_start >= fb_pri_size)
     {
       sector = cur_file->data_start + (filepos >> 9) - fb_ofs;
 
-      if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
-		quick_hook (0);
+//      if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
+//		quick_hook (0);
 
       disk_read_func = disk_read_hook;
       ret = rawread (fb_drive, sector, filepos & 0x1ff, len, buf, write);
       disk_read_func = NULL;
 
-      if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
-		quick_hook (fb_drive_virtual);
+//      if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
+//		quick_hook (fb_drive_virtual);
 
       if (ret)
 	filepos += len;
@@ -372,8 +373,8 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned int write)
   ofs = (unsigned int) filepos % 510;
   saved_len = len;
 
-  if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
-	quick_hook (0);
+//  if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
+//	quick_hook (0);
 
   while (len)
     {
@@ -394,8 +395,8 @@ fb_read (unsigned long long buf, unsigned long long len, unsigned int write)
       len -= n;
     }
 
-  if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
-	quick_hook (fb_drive_virtual);
+//  if (fb_drive_virtual  && fb_status && fb_drive == (unsigned char)(fb_status >> 8))
+//	quick_hook (fb_drive_virtual);
 
   if (! ret)
 	return 0;

@@ -23,6 +23,26 @@
 /* indicates whether or not the next char printed will be highlighted */
 unsigned int is_highlight = 0;
 
+static int open_preset_menu (void);	
+static int
+open_preset_menu (void)		
+{
+  if (! use_preset_menu)	//如果不存在预置菜单
+    return 0;							//返回0
+
+  return grub_open (preset_menu);		//打开压缩菜单 位置0x110000  最大尺寸0x40000=256k
+}
+
+static int read_from_preset_menu (char *buf, int max_len);
+static int
+read_from_preset_menu (char *buf, int max_len)
+{
+  if (! use_preset_menu)	//if (preset_menu == 0)
+    return 0;
+
+  return grub_read ((unsigned long long)(grub_size_t)buf, max_len, 0xedde0d90);
+}
+
 #define MENU_BOX_X	((menu_border.menu_box_x > 2) ? menu_border.menu_box_x : 2)
 #define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X * 2 - 1))
 #define MENU_BOX_Y	(menu_border.menu_box_y)
@@ -340,6 +360,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		graphic_enable = 1;
 		splashimage_func(tmp,1);
 		graphic_enable = 0;
+		use_phys_base=0;
 		if ((graphic_type & 4) && highlight)
 			rectangle(graphic_x_offset,graphic_y_offset,graphic_wide,graphic_high,3);
 		}
@@ -358,7 +379,8 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
     end_offcet = 1;
   if (highlight)
 		menu_num_ctrl[2] = entryno;
-  if (*(unsigned short *)IMG(0x8308))
+//  if (*(unsigned short *)IMG(0x8308))
+  if (*(unsigned short *)IMG(0x82c8))
   {
   if(!(menu_tab & 0x40))
 	{
@@ -742,7 +764,7 @@ restart1:
     while (1)
     {
       /* Unhide the menu on any keypress.  */
-      if ((i = checkkey ()) != -1 /*&& ASCII_CHAR (getkey ()) == '\e'*/)
+      if ((i = checkkey ()) != (int)-1 /*&& ASCII_CHAR (getkey ()) == '\e'*/)
 	    {
         c = i;
 	      if (silent_hiddenmenu > 1)
@@ -1622,7 +1644,8 @@ get_line_from_config (char *cmdline, int max_len, int preset)
     {
 	if (preset)
 	{
-		break;
+    if (! read_from_preset_menu (&c, 1))
+      break;
 	}
 	else
 	{
@@ -1712,7 +1735,8 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 }
 
 int config_len;
-static char *config_entries, *cur_entry;
+static char *cur_entry;
+char *CONFIG_ENTRIES;
 
 static void reset (void);
 static void
@@ -1721,7 +1745,7 @@ reset (void)
   count_lines = -1;
   config_len = 0;
   num_entries = 0;
-  cur_entry = config_entries;
+  cur_entry = CONFIG_ENTRIES;
 
   /* Initialize the data for the configuration file.  */
   default_entry = 0;
@@ -1737,11 +1761,20 @@ extern struct builtin builtin_title;
 extern struct builtin builtin_debug;
 static unsigned int attr = 0;
 char *menu_mem = 0;
+int font_func (char *arg, int flags);
 /* This is the starting function in C.  */
 void cmain (void);
 void
 cmain (void)
 {
+  if (!menu_mem)
+  {
+    menu_mem = grub_zalloc (0x40e00);     //分配内存, 并清零
+    menu_mem = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)menu_mem + 511) & 0xfffffffffffffe00);
+    title_boot = (unsigned short *)menu_mem;
+    titles = (char * *)(menu_mem + 1024);
+    CONFIG_ENTRIES = menu_mem + 1024 + 256 * sizeof (char *);
+  }
     saved_entryno = 0;
 	new_menu = 0;
 	new_hotkey = 0;
@@ -1769,20 +1802,23 @@ restart_config:
 	    int is_opened;
 	    is_preset = is_opened = 0;
 	    /* Try command-line menu first if it is specified. */
+    if (use_preset_menu)
+    {
+      is_opened = is_preset = open_preset_menu ();
+    }
+    if (! is_opened)
+    {
 		if (*config_file)
 		{
 			is_opened = (configfile_opened || grub_open (config_file));
       if (! is_opened)
         goto done_config_file;
-      menu_mem = grub_zalloc (filemax + 0x40c00);     //分配内存, 并清零  
-      title_boot = (unsigned short *)menu_mem;
-      titles = (char * *)(menu_mem + 1024);
-      config_entries = menu_mem + 1024 + 256 * sizeof (char *);
 			#ifdef FSYS_IPXE
 //			if (is_opened && current_drive == PXE_DRIVE && current_partition == IPXE_PART)
 //				pxe_detect(IPXE_PART,config_file);
 			#endif
 		}
+    }
 	    errnum = 0;
 	    configfile_opened = 0;         
 	    if (! is_opened)
@@ -1791,6 +1827,7 @@ restart_config:
 			goto original_config;
 		/* Try the preset menu. This will succeed at most once,
 		 * because the preset menu will be disabled(see below).  */ 
+      is_opened = is_preset = open_preset_menu ();
 	    }
 	    if (! is_opened)
 		goto done_config_file;
@@ -1843,19 +1880,18 @@ sss:
 			/* re-open the config_file which is still in use by
 			 * get_line_from_config(), and restore file position
 			 * with the saved value. */
+      if (is_preset)  //是预设
+      {
+        open_preset_menu ();
+        filepos = (unsigned long long)tmp_filpos;
+      }
+      else
 			{
 				if (! grub_open (config_file))
 				{
 					printf ("  Fatal! Re-open %s failed!\n", config_file);
 					print_error ();
 				}
-        if(!menu_mem)
-        {
-          menu_mem = grub_zalloc (filemax + 0x40c00);     //分配内存, 并清零 
-          title_boot = (unsigned short *)menu_mem;
-          titles = (char * *)(menu_mem + 1024);
-          config_entries = menu_mem + 1024 + 256 * sizeof (char *);
-        }
 				filepos = (unsigned long long)tmp_filpos;
 			}
 
@@ -1879,9 +1915,9 @@ sss:
 		    /* The next title is found.  */
 		    if (num_entries >= 256)
 			break;
-			bt += (config_entries[attr] & 1);
+			bt += (CONFIG_ENTRIES[attr] & 1);
 		    num_entries++;	/* an entry is completed. */
-		    config_entries[config_len++] = 0;	/* finish the entry. */
+		    CONFIG_ENTRIES[config_len++] = 0;	/* finish the entry. */
 		    prev_config_len = config_len;
 		}
 		else if (state & 1)		/* state == 1 */
@@ -1892,7 +1928,7 @@ sss:
 		else			/* state == 0 */
 		{
 		    /* The first title. So finish the menu init commands. */
-		    config_entries[config_len++] = 0;
+		    CONFIG_ENTRIES[config_len++] = 0;
 		}
 		/* Reset the state.  */
 		state = 1;
@@ -1908,14 +1944,14 @@ sss:
 		    attr = config_len;
 		    if (num_entries < 256)
 			{
-				titles[num_entries] = config_entries + config_len;
+				titles[num_entries] = CONFIG_ENTRIES + config_len;
 				title_boot[num_entries] = bt;
 			}
-		    config_entries[config_len++] = 0x08;	/* attribute byte */
+		    CONFIG_ENTRIES[config_len++] = 0x08;	/* attribute byte */
 		    
 		    len = parse_string (ptr);
 		    ptr[len] = 0;
-		    while ((config_entries[config_len++] = *(ptr++)) != 0);
+		    while ((CONFIG_ENTRIES[config_len++] = *(ptr++)) != 0);
 		}
 	    }
 	    else if (state & 0x10) /*ignored menu by iftitle*/
@@ -1928,7 +1964,7 @@ sss:
 		{
 		    char *ptr = cmdline;
 		    /* Copy menu-specific commands to config area.  */
-		    while ((config_entries[config_len++] = *ptr++) != 0);
+		    while ((CONFIG_ENTRIES[config_len++] = *ptr++) != 0);
 		    prev_config_len = config_len;
 		}
 		else
@@ -1941,12 +1977,12 @@ sss:
 		/* Copy config file data to config area.  */
 		{
 		    char *ptr = cmdline;
-		    while ((config_entries[config_len++] = *ptr++) != 0);
+		    while ((CONFIG_ENTRIES[config_len++] = *ptr++) != 0);
 		    prev_config_len = config_len;
 		}
 		if ((grub_size_t)builtin != (grub_size_t)-1)
     {
-			config_entries[attr] |= !!(builtin->flags & BUILTIN_BOOTING);
+			CONFIG_ENTRIES[attr] |= !!(builtin->flags & BUILTIN_BOOTING);
     }
 	    }
 	} /* while (get_line_from_config()) */
@@ -1954,10 +1990,29 @@ sss:
 	putchar_hooked = 0;
 	/* file must be closed here, because the menu-specific commands
 	 * below may also use the GRUB_OPEN command.  */
+  if (is_preset)
+  {
+    if (use_preset_menu/* != (const char *)0x800*/)
+    {
+      /* load the font embedded in preset menu. */			//载入预置菜单中的字体。
+      if (font_func (preset_menu, 0))  //0   如果字体加载成功
+      {
+        /* font exists, automatically enter graphics mode. */  //字体存在，自动进入图形模式。
+        if (! IMAGE_BUFFER)  //如果不在图形模式，尝试设置图形模式
+        {
+          graphicsmode_func ("-1 800", 0);
+        }
+      }
+    }
+    grub_close ();
+  }
+  else
 	{
 	    grub_close ();
+      font_func (config_file, 0);
 	    /* before showing menu, try loading font in the tail of config_file */
 	}
+  use_preset_menu = 0;	/* Disable preset menu.  */  //禁用预置菜单
 	if (state & 2)
 	{
 	    if (num_entries < 256)
@@ -1969,14 +2024,14 @@ sss:
 	}
 
 	/* Finish the last entry or the menu init commands.  */
-	config_entries[config_len++] = 0;
+	CONFIG_ENTRIES[config_len++] = 0;
 	title_boot[num_entries] = -1;
 	if (num_entries < 256)
 		titles[num_entries] = 0;
 	/* old MENU_BUF is not used any more. So MENU_BUF is a temp area,
 	 * and can be moved to elsewhere. */
 
-	/* config_entries contains these:
+	/* CONFIG_ENTRIES contains these:
 	 * 1. The array of menu init commands.
 	 * 2. The array of menu item commands with leading titles.
 	 */
@@ -1988,7 +2043,7 @@ sss:
 ;
 	{
 	    static char *old_entry = NULL;
-	    static char *heap = NULL; heap = config_entries + config_len;
+	    static char *heap = NULL; heap = CONFIG_ENTRIES + config_len;
 
 	    /* Initialize the data.  */
 	    current_drive = GRUB_INVALID_DRIVE;
@@ -2070,13 +2125,17 @@ original_config:
     }
 
 done_config_file:
+  use_preset_menu = 0;	/* Disable the preset menu.  */	//禁用预设菜单
 	pxe_restart_config = 1;	/* pxe_detect will use configfile to run menu */
+  /* go ahead and make sure the terminal is setup */	//继续前进，确保终端的安装
+	if (current_term->startup)
+		(*current_term->startup)();
 
     if (! num_entries)
     {
 	/* no config file, goto command-line, starting heap from where the
 	   config entries would have been stored if there were any.  */
-	enter_cmdline (config_entries, 1);
+	enter_cmdline (CONFIG_ENTRIES, 1);
     }
     else
     {
@@ -2094,7 +2153,7 @@ done_config_file:
 	if (hotkey_func_enable)
 		hotkey_func(0,0,-1,0);
 #endif
-	run_menu ((char *)titles, cur_entry, /*num_entries,*/ config_entries + config_len, default_entry);
+	run_menu ((char *)titles, cur_entry, /*num_entries,*/ CONFIG_ENTRIES + config_len, default_entry);
     }
     goto restart2;
 }

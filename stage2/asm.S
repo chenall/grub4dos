@@ -192,7 +192,7 @@ VARIABLE(saved_pxe_ip)      //int
 
 VARIABLE(filesize)                                                        //文件尺寸  long long
 	.long	0, 0
-//VARIABLE(console_mode)                                                  //0x8298  未使用
+VARIABLE(use_preset_menu)                                                 //0x8298  使用预置菜单 int   原0x307FF8
 	.long	0
 VARIABLE(saved_partition)																									//0x829c	int	根分区
 	.long	0
@@ -234,10 +234,10 @@ VARIABLE(ram_drive)																												//0x82cc		RAM驱动器  int
 	. = EXT_C(main) + 0xD0																									//0x82d0
 
 VARIABLE(rd_base)																													//RD基地址  long long
-	.long	0, 0
+	.long	0x70000, 0
 
 VARIABLE(rd_size)																													//0x82d8		RD尺寸  long long
-	.long	0, 1	/* default is 4G */
+	.long	0x20000, 0	/* default is 4G */
 
 	. = EXT_C(main) + 0xE0																									//0x82e0
 
@@ -274,9 +274,17 @@ VARIABLE(addr_system_variables)																						//0x8308		系统变量地�
   
 	. = EXT_C(main) + 0x110																									//0x8310
   
-VARIABLE(iso_types)                                                       //byte
+VARIABLE(iso_types)                                                       //byte    原0x830c
 	.byte 0xff
-  .byte 0 //未使用
+
+VARIABLE(menu_tab)                                                        //0x8311 菜单标签  byte
+  .byte 0
+//位2: 0/1=显示按键帮助/不显示按键帮助									04
+//位3: 0/1=侧边对齐/中心对齐														08
+//位4: 0/1=高亮项目背景短/满														10
+//位5: 0/1=英文/中文																		20
+//位6: 0/1=左对齐/右对齐																40
+//位7: 0/1=打印版本信息/不打印版本信息									80
   .byte 0 //未使用
   .byte 0 //未使用
 
@@ -349,22 +357,23 @@ VARIABLE(cdrom_orig)				                                              //光盘�
 	.byte	0	
 
 	.byte	0	                                                                //未使用
-  .long	0, 0, 0                                                           //未使用
+  .long	0                                                                 //未使用
+  
+VARIABLE(g4e_data)                                                        //0x8378 固定数据区  char *
+	.long	0, 0
 	
-	. = EXT_C(main) + 0x180																									//0x8370
+VARIABLE(preset_menu) 																									  //0x8380 预置菜单  char *   原0x307FFC
+	.long	0, 0
+  
+  . = EXT_C(main) + 0x200                                                 //0x8400   以上预留
 	
 ENTRY(disk_fragment_map)	.space	FRAGMENT_MAP_SLOT_SIZE                  //映射碎片插槽  280
 
-	. = EXT_C(main) + 0x400																									//0x8670
-	
-//ENTRY(disk_buffer)	.space	0x1000                                        //磁盘缓存
-
-//	. = EXT_C(main) + 0x1400																								//0x9600
+	. = EXT_C(main) + 0x480																									//0x8640
 		
-ENTRY(disk_drive_map)	.space	[DRIVE_MAP_SIZE + 1] * DRIVE_MAP_SLOT_SIZE	//磁盘驱动器映射插槽  78*8=3c0
+ENTRY(disk_drive_map)	.space	[DRIVE_MAP_SIZE + 1] * DRIVE_MAP_SLOT_SIZE	//磁盘驱动器映射插槽  70*9=3c0
 
-//	. = EXT_C(main) + 0x1800	
-  . = EXT_C(main) + 0x800
+  . = EXT_C(main) + 0x870
 real_codestart:
 
 	.align	8
@@ -621,7 +630,7 @@ VARIABLE(system_functions)                            //IMG(0x8300)
 	.extent	ABS(EXT_C(dir))                               //61
 	.extent	ABS(EXT_C(print_a_completion))                //62
 	.extent	ABS(EXT_C(print_completions))                 //63
-	.extent	0                                             //64  未使用
+	.extent	ABS(EXT_C(devread))                           //64
 	.extent	ABS(EXT_C(probe_bpb))                         //65
 	.extent	ABS(EXT_C(probe_mbr))                         //66
 	.extent	ABS(EXT_C(unicode_to_utf8))                   //67
@@ -694,7 +703,8 @@ VARIABLE(filesystem_type)               //13  int
 	.extent	ABS(EXT_C(grub_efi_system_table))   //15  struct grub_efi_system_table
 	.extent	ABS(EXT_C(buf_geom))            //16  geometry
 	.extent	ABS(EXT_C(tmp_geom))            //17  geometry
-	.extent	ABS(EXT_C(g4e_data))            //18  char *
+VARIABLE(CONFIG_ENTRIES)                  //18  char *
+	.extent 0
 VARIABLE(current_term)
 	.extent	ABS(EXT_C(term_table))          //19  term_entry
 	.extent	ABS(EXT_C(fsys_table))          //20  fsys_entry
@@ -742,6 +752,4 @@ VARIABLE(putchar_hooked)                //47  char*
 //VARIABLE(init_free_mem_start)         //48  reserved
 	.extent 0
 
-
-	.space 0x200
 

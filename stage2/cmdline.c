@@ -27,8 +27,8 @@ void print_cmdline_message (int forever);
 int expand_var(const char *str,char *out,const unsigned int len_max);
 int run_line (char *heap,int flags);
 void enter_cmdline (char *heap, int forever);
-int count_lines;
-int use_pager;
+//int count_lines;
+//int use_pager;
 int errorcheck;
 
 char *
@@ -55,7 +55,8 @@ skip_to (int flags, char *cmdline)
 				*cmdline++ = 0;
 				while (*cmdline == '\r' || *cmdline == '\n' || *cmdline == ' ' || *cmdline == '\t')
 					cmdline++;
-				if (*cmdline != eol && *(unsigned short *)cmdline != 0x3A3A)
+//				if (*cmdline != eol && *(unsigned short *)cmdline != 0x3A3A)
+				if (*cmdline != eol && *(unsigned short *)cmdline != 0x3A3A && *(unsigned short *)cmdline != 0x2023)
 					break;
 			}
 			cmdline++;
@@ -301,13 +302,14 @@ static int run_cmd_line (char *heap,int flags);
 int run_line (char *heap,int flags)							//原始 cmd_buffer:  101df7b0
 {
   char *cmdline_buf = cmd_buffer;							//cmd_buffer: /grldr\0
-  char *cmdBuff = NULL;
+//  char *cmdBuff = NULL;
   char *arg;
   int status = 0;
   int ret = 0;
   int arg_len = strlen(heap) + 1;
 
   cmd_buffer += (arg_len + 0xf) & -0x10;		//cmd_buffer: 0
+#if 0
   cmdBuff = grub_malloc(0x1000);
 	if (cmdBuff == NULL)
 	{
@@ -316,6 +318,10 @@ int run_line (char *heap,int flags)							//原始 cmd_buffer:  101df7b0
 	}
   memmove(cmdBuff,heap,arg_len);
 	heap = cmdBuff;
+#else
+	memmove(cmdline_buf,heap,arg_len);      //将堆移动到命令缓存头部
+	heap = cmdline_buf;  
+#endif
    __asm__ __volatile__ ("movl %%esp,%0" ::"m"(arg_len):"memory");
 
   if (debug > 10) printf("SP:0x%X\n[%s]\n",arg_len,heap);
@@ -333,8 +339,8 @@ int run_line (char *heap,int flags)							//原始 cmd_buffer:  101df7b0
     }
   }
 
-  if (cmdBuff)
-    grub_free(cmdBuff);
+//  if (cmdBuff)
+//    grub_free(cmdBuff);
   cmd_buffer = cmdline_buf;
   return ret;
 }
@@ -409,13 +415,15 @@ static int run_cmd_line (char *heap,int flags)
 						}
 					}
 				}
+#if 0
 				else if (filemax < 0x40000)
 				{
 					grub_memset(hook_buff,0,filemax);
 					hook_buff = PRINTF_BUFFER + filemax;
 				}
-
-				grub_read ((unsigned long long)(grub_size_t)PRINTF_BUFFER,hook_buff - PRINTF_BUFFER,GRUB_WRITE);
+#endif
+//				grub_read ((unsigned long long)(grub_size_t)PRINTF_BUFFER,hook_buff - PRINTF_BUFFER,GRUB_WRITE);
+        grub_read ((unsigned long long)(grub_size_t)PRINTF_BUFFER,(unsigned long long)(grub_size_t)grub_strlen((const char *)PRINTF_BUFFER),GRUB_WRITE);
 				grub_close();
 
 				restart_st:
@@ -425,7 +433,7 @@ static int run_cmd_line (char *heap,int flags)
 				break;
 		}
 
-		if (debug > 10)
+		if (debug > 10 || debug_bat)
 			printf("r0:[0x%X]:[%s]\n",arg,arg);
 
 		if (status & 8)
@@ -433,7 +441,10 @@ static int run_cmd_line (char *heap,int flags)
 			if (substring(heap,"nul",1) == 0)
 				hook_buff = set_putchar_hook((unsigned char*)0x800);
 			else
+			{
+				grub_memset(PRINTF_BUFFER,0,0x40000);
 				hook_buff = set_putchar_hook(PRINTF_BUFFER);
+			}
 		}
     
 		builtin = find_command (arg);
