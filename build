@@ -134,14 +134,15 @@ make || exit $?
 
 #此时在 /tmp/grub4dos-temp/
 #复制pre_stage2.exec
-cp stage2/pre_stage2.exec $GRUB4DOS_TEMP/kernel.img
-cp $SOURCE_DIR/moddep.lst $GRUB4DOS_TEMP/moddep.lst
+mkdir $GRUB4DOS_TEMP/x86_64-efi
+cp stage2/pre_stage2.exec $GRUB4DOS_TEMP/x86_64-efi/kernel.img
+cp $SOURCE_DIR/moddep.lst $GRUB4DOS_TEMP/x86_64-efi/moddep.lst
 platform=`uname -m`
 if [ $platform = 'x86_64' ]
 then
-    $SOURCE_DIR/grub-mkimage64 -d $GRUB4DOS_TEMP -p /efi/grub -o BOOTX64.EFI -O x86_64-efi -c preset_menu.lst
+    $SOURCE_DIR/grub-mkimage64 -d $GRUB4DOS_TEMP/x86_64-efi -p /efi/grub -o BOOTX64.EFI -O x86_64-efi -c preset_menu.lst
 else
-    $SOURCE_DIR/grub-mkimage -d $GRUB4DOS_TEMP -p /efi/grub -o BOOTX64.EFI -O x86_64-efi -c preset_menu.lst
+    $SOURCE_DIR/grub-mkimage -d $GRUB4DOS_TEMP/x86_64-efi -p /efi/grub -o BOOTX64.EFI -O x86_64-efi -c preset_menu.lst
 fi
 
 #**********************************************
@@ -156,12 +157,14 @@ mv stage2/Makefile.in-i386 stage2/Makefile.in
 make clean
 #编译
 make || exit $?
-cp stage2/pre_stage2.exec $GRUB4DOS_TEMP/kernel.img
+mkdir $GRUB4DOS_TEMP/i386-efi
+cp stage2/pre_stage2.exec $GRUB4DOS_TEMP/i386-efi/kernel.img
+cp $SOURCE_DIR/moddep.lst $GRUB4DOS_TEMP/i386-efi/moddep.lst
 if [ $platform = 'x86_64' ]
 then
-    $SOURCE_DIR/grub-mkimage64 -d $GRUB4DOS_TEMP -p /efi/grub -o BOOTIA32.EFI -O i386-efi -c preset_menu.lst
+    $SOURCE_DIR/grub-mkimage64 -d $GRUB4DOS_TEMP/i386-efi -p /efi/grub -o BOOTIA32.EFI -O i386-efi -c preset_menu.lst
 else
-    $SOURCE_DIR/grub-mkimage -d $GRUB4DOS_TEMP -p /efi/grub -o BOOTIA32.EFI -O i386-efi -c preset_menu.lst
+    $SOURCE_DIR/grub-mkimage -d $GRUB4DOS_TEMP/i386-efi -p /efi/grub -o BOOTIA32.EFI -O i386-efi -c preset_menu.lst
 fi
 
 #转到源目录
@@ -173,7 +176,7 @@ cd $SOURCE_DIR
 rm -f ${RELEASE}.zip ${RELEASE}.rar ${RELEASE}.tar.gz || exit $?
 if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/BOOTX64.EFI ${GRUB4DOS_TEMP}/BOOTIA32.EFI $SOURCE_DIR/ChangeLog_UEFI.txt \
     $SOURCE_DIR/menu.lst ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff \
-    ${GRUB4DOS_TEMP}/kernel.img; then
+    ${GRUB4DOS_TEMP}/i386-efi ${GRUB4DOS_TEMP}/x86_64-efi grub-mkimage.exe; then
 	echo 7z failed. Continue with zip or tar...
 fi
 
