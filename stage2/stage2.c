@@ -392,6 +392,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		graphic_enable = 1;
 		splashimage_func(tmp,1);
 		graphic_enable = 0;
+		use_phys_base=0;
 		if ((graphic_type & 4) && highlight)
 			rectangle(graphic_x_offset,graphic_y_offset,graphic_wide,graphic_high,3);
 		}

@@ -46,7 +46,8 @@ skip_to (int flags, char *cmdline)
 				*cmdline++ = 0;
 				while (*cmdline == '\r' || *cmdline == '\n' || *cmdline == ' ' || *cmdline == '\t')
 					cmdline++;
-				if (*cmdline != eol && *(unsigned short *)cmdline != 0x3A3A)
+//				if (*cmdline != eol && *(unsigned short *)cmdline != 0x3A3A)
+				if (*cmdline != eol && *(unsigned short *)cmdline != 0x3A3A && *(unsigned short *)cmdline != 0x2023)
 					break;
 			}
 			cmdline++;
@@ -387,13 +388,15 @@ static int run_cmd_line (char *heap,int flags)
 						}
 					}
 				}
+#if 0
 				else if (filemax < 0x40000)
 				{
 					grub_memset(hook_buff,0,filemax);
 					hook_buff = PRINTF_BUFFER + filemax;
 				}
-
-				grub_read ((unsigned long long)(int)PRINTF_BUFFER,hook_buff - PRINTF_BUFFER,GRUB_WRITE);
+#endif
+//				grub_read ((unsigned long long)(int)PRINTF_BUFFER,hook_buff - PRINTF_BUFFER,GRUB_WRITE);
+				grub_read ((unsigned long long)(int)PRINTF_BUFFER,(unsigned long long)(int)grub_strlen((const char *)PRINTF_BUFFER),GRUB_WRITE);
 				grub_close();
 
 				restart_st:
@@ -403,7 +406,7 @@ static int run_cmd_line (char *heap,int flags)
 				break;
 		}
 
-		if (debug > 10)
+		if (debug > 10 || debug_bat)
 			printf("r0:[0x%X]:[%s]\n",arg,arg);
 
 		if (status & 8)
@@ -411,7 +414,10 @@ static int run_cmd_line (char *heap,int flags)
 			if (substring(heap,"nul",1) == 0)
 				hook_buff = set_putchar_hook((unsigned char*)0x800);
 			else
+			{
+				grub_memset(PRINTF_BUFFER,0,0x40000);
 				hook_buff = set_putchar_hook(PRINTF_BUFFER);
+			}
 		}
 
 		builtin = find_command (arg);

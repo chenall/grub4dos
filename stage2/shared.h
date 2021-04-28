@@ -1002,6 +1002,7 @@ extern void (*disk_read_func) (unsigned long long, unsigned long, unsigned long 
 
 /* The flag for debug mode.  */
 extern int debug;
+extern int debug_bat;
 extern grub_u8_t debug_msg;
 
 extern unsigned long current_drive;

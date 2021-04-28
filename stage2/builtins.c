@@ -68,9 +68,12 @@ int grub_timeout = -1;
 int show_menu = 1;
 /* Don't display a countdown message for the hidden menu */
 int silent_hiddenmenu = 0;
-static int debug_prog;
-static int debug_break = 0;
-static int debug_check_memory = 0;
+int debug_prog;
+int debug_bat = 0;
+int debug_ptrace = 0;
+//static int debug_break = 0;
+//static int debug_pid = 0;
+//static int debug_check_memory = 0;
 static grub_u8_t msg_password[]="Password: ";
 unsigned long pxe_restart_config = 0;
 unsigned long configfile_in_menu_init = 0;
@@ -4017,9 +4020,11 @@ debug_func (char *arg, int flags)
   {
     int ret;
     debug_prog = 1;
+    debug_bat = 1;
     ret = command_func(arg,flags);
     debug_prog = 0;
-    debug_check_memory = 0;
+    debug_bat = 0;
+//    debug_check_memory = 0;
     return ret;
   }
 
@@ -15813,14 +15818,14 @@ echo_func (char *arg,int flags)
 				gotoxy(saved_x, saved_y);
 			return 1;
 		}
-		else if (grub_memcmp(arg,"-mem=",3) == 0)	//-mem=offset=length
+		else if (grub_memcmp(arg,"--mem=",4) == 0)	//-mem=offset=length
 		{
 			unsigned long long offset;
 			unsigned long long length;
 			unsigned char s[16];
 			unsigned long long j = 16;
 			
-			arg += 5;
+			arg += 6;
 			safe_parse_maxint (&arg, &offset);
 			arg++;
 			safe_parse_maxint (&arg, &length);
@@ -15930,7 +15935,7 @@ static struct builtin builtin_echo =
    "        \\Xnnnn show unicode characters(big endian).\n"
    "-v      show version and memory information.\n"
 	 "-rrggbb show 24 bit colors.\n"
-	 "-mem=offset=length  hexdump.\n"
+	 "--mem=offset=length  hexdump.\n"
    "$[ABCD] the color for MESSAGE.(console only, 8 bit number)\n" 
    "A=bright background, B=bright characters, C=background color, D=Character color.\n"
    "$[0xCD] 8 or 64 bit number value for MESSAGE. C=background, D=Character.\n"
@@ -17087,7 +17092,15 @@ static struct builtin builtin_endlocal =
    endlocal_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT,
 };
-
+
+struct _debug_break
+{
+	int pid;
+	int line;
+};
+
+struct _debug_break debug_break[10] = {{0},{0}};
+
 struct bat_label
 {
 	char *label;
@@ -17252,9 +17265,10 @@ run batch script.
 if filename is NULL then is a call func.the first word of arg is a label.
 */
 
+grub_u32_t ptrace = 0;
 static int bat_run_script(char *filename,char *arg,int flags)
 {
-	int debug_bat = debug_prog;
+//	int debug_bat = debug_prog;
 	if (prog_pid != p_bat_prog->pid)
 	{
 		errnum = ERR_FUNC_CALL;
@@ -17276,7 +17290,13 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	}
 
 	if (debug_prog) 
-		printf("S^:%s [%d]\n",filename,prog_pid);
+  {    
+    if (debug_bat)
+      printf("S^:%s [%d]\n",filename,prog_pid);
+    ptrace++;
+    if (ptrace > 1 && debug_ptrace)
+      debug_bat = 0;
+  }
 
 	char **p_entry = bat_entry + i;
 
@@ -17416,9 +17436,17 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 
 		*p_cmd = '\0';
-
-		if (p_bat_prog->debug_break && (p_bat_prog->debug_break == (grub_u32_t)(p_entry-bat_entry))) debug_bat = debug_prog = 1;
-		if (debug_prog) printf("S[%d#%d]:[%s]\n",prog_pid,((grub_u32_t)(p_entry-bat_entry)),p_buff);
+    //批处理调试:  debug 批处理文件名  参数.     例如: debug /run --automenu
+//		if (p_bat_prog->debug_break && (p_bat_prog->debug_break == (grub_u32_t)(p_entry-bat_entry))) debug_bat = debug_prog = 1;
+    for (i=0; i<10; i++)
+    {
+      if (debug_break[i].pid == prog_pid && debug_break[i].line == (grub_u32_t)(p_entry-bat_entry))
+      {
+        debug_bat = debug_prog = 1;
+        break;
+      }
+    }
+		if (debug_prog && debug_bat) printf("S[%d#%d]:[%s]\n",prog_pid,((grub_u32_t)(p_entry-bat_entry)),p_buff);
 		if (debug_bat)
 		{
 			Next_key:
@@ -17429,27 +17457,28 @@ static int bat_run_script(char *filename,char *arg,int flags)
 			grub_printf("\r%75s","\r");
 			switch(i)
 			{
-				case 'Q':
+				case 'Q': //结束批处理
 					errnum = 2000;
 					break;
-				case 'C':
+				case 'C': //进入命令行  按'ESC'键返回批处理调试
 					commandline_func((char *)SYSTEM_RESERVED_MEMORY,0);
 					break;
-				case 'S':
+				case 'S': //跳过本行
 					++p_entry;
 					continue;
-				case 'N':
+				case 'N': //运行至断点
 					debug_bat = 0;
+					debug_ptrace = 0;
 					break;
-				case 'E':
+				case 'E': //退出调试模式
 					debug_bat = debug_prog = 0;
 					break;
-				case 'B':
+				case 'B': //设置断点(共10个)  批处理号(共10个),批处理行号
 				{
 					char buff[12];
 					grub_u64_t t;
 					buff[0] = 0;
-					printf("Current:\nDebug Check Memory [0x%x]=>0x%x\nDebug Break Line: %d\n",debug_check_memory,debug_break,p_bat_prog->debug_break);
+//					printf("Current:\nDebug Check Memory [0x%x]=>0x%x\nDebug Break Line: %d\n",debug_check_memory,debug_break,p_bat_prog->debug_break);
 					get_cmdline_str.prompt = &msg_password[8];
 					get_cmdline_str.maxlen = sizeof (buff) - 1;
 					get_cmdline_str.echo_char = 0;
@@ -17457,9 +17486,10 @@ static int bat_run_script(char *filename,char *arg,int flags)
 					get_cmdline_str.cmdline = (grub_u8_t*)buff;
 					get_cmdline ();
 
-					if (buff[0] == '+' || buff[0] == '-' || buff[0] == '*') p_bat = &buff[1];
+//					if (buff[0] == '+' || buff[0] == '-' || buff[0] == '*') p_bat = &buff[1];
+					if (buff[0] == 'p' || buff[0] == 'c' || buff[0] == 'l') p_bat = &buff[1];
 					else p_bat = buff;
-
+#if 0
 					if (safe_parse_maxint (&p_bat, &t))
 					{
 						if (buff[0] == '*')
@@ -17477,14 +17507,59 @@ static int bat_run_script(char *filename,char *arg,int flags)
 							printf("\rDebug Break Line: %d\n",p_bat_prog->debug_break);
 						}
 					}
+#else
+          if (buff[0] == 'c') //清除断点   例如: c2 (清除2号断点);  c (清除全部断点)
+          {
+            t = 0;
+            safe_parse_maxint ((char **)(int)&p_bat, (unsigned long long *)(int)&t);
+            if (t)
+              debug_break[t-1].pid = 0;
+            else
+            {
+              for (i=0; i<10; i++)
+              {
+                debug_break[i].pid = 0;
+              }
+            }
+          }
+          else if (buff[0] == 'l') //显示断点  (断点号,批处理号,批处理行号)
+          {
+            for (i=0; i<10; i++)
+            {
+              if (debug_break[i].pid)
+                printf("\ri=%d, pid=%d, line=%d\n",i+1,debug_break[i].pid,debug_break[i].line);
+            }
+          }
+          else //设置断点(隐含当前批处理标号)  例如: 45 (当前批处理,45行)
+          {
+            i = 0;
+            while (debug_break[i].pid && i < 10) i++;
+            safe_parse_maxint ((char **)(int)&p_bat, (unsigned long long *)(int)&t);
+            debug_break[i].pid = prog_pid;
+            if (buff[0] == 'p') //设置断点  例如: p2,134  (2号批处理,134行)
+            {
+              debug_break[i].pid = t;
+              p_bat++;
+              safe_parse_maxint ((char **)(int)&p_bat, (unsigned long long *)(int)&t);
+            }
+            debug_break[i].line = t;
+            printf("\rDebug Break pid=%d, line=%d\n",debug_break[i].pid,debug_break[i].line);
+          }  
+#endif
 					goto Next_key;
 				}
+        case 'P': //单步执行(跨过子程序)
+					debug_ptrace = 1;
+					break;
+        default:  //单步执行
+					debug_ptrace = 0;
+					break;
 			}
 			if (errnum == 2000) break;
 		}
 
 		ret = run_line (p_buff,flags);
-
+#if 0
 		if (debug_check_memory)
 		{
 			if (debug_break != *(int*)debug_check_memory)
@@ -17493,7 +17568,7 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				debug_bat = debug_prog = 1;
 			}
 		}
-
+#endif
 		if ((*(short *)0x417 & 0x104) && checkkey() == 0x2E03)
 		{
 			getkey();
@@ -17541,7 +17616,16 @@ static int bat_run_script(char *filename,char *arg,int flags)
 	grub_free(cmd_buff);
 
 	if (debug_prog)
-		printf("S$:%s [%d]\n",filename,prog_pid); 
+  {
+    ptrace--;
+    if (ptrace == 1 && debug_ptrace)
+    {
+      debug_bat = 1;
+      debug_ptrace = 0;
+    }
+    if (debug_bat)
+      printf("S$:%s [%d]\n",filename,prog_pid); 
+  }
 
 	errnum = (i == 1000) ? 0 : i;
 	return errnum?0:(int)ret;
@@ -17715,6 +17799,7 @@ static int grub_exec_run(char *program, char *psp, int flags)
 		struct bat_label *label_entry =(struct bat_label *)((char *)p_bat_array + 0x200);
 		char **bat_entry = (char **)(label_entry + 0x80);//0x400/sizeof(label_entry)
 		unsigned long i_bat = 1,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
+		unsigned int type = 0; //type=0/1/2=Windows:(每行结尾是“\r\n”)/Unix:(每行结尾是“\n”)/Mac OS:(每行结尾是“\r”)
 		grub_u32_t size = grub_strlen(program);
 
 		p_bat_array->size = size++;
@@ -17724,15 +17809,21 @@ static int grub_exec_run(char *program, char *psp, int flags)
 		{
 			while(*p_bat++)
 			{
-				if (*p_bat == '\r')
-					crlf = 1;
-				else if (*p_bat != '\n')
+				if (*p_bat == '\r' && *(p_bat+1) == '\n')
+          crlf = 1;
+				else if (*p_bat == '\r')
+          type = 2;
+				else if (*p_bat == '\n')
+          type = 1;
+				else
 					continue;
+
 				break;
 			}
 		}
 
-		program = skip_to(SKIP_LINE,program);//skip head
+//		program = skip_to(SKIP_LINE,program);//skip head
+		if (debug_prog) bat_entry[i_bat++] = (char*)-1;
 
 		while ((p_bat = program))//scan batch file and make label and bat entry.
 		{
@@ -17745,7 +17836,8 @@ static int grub_exec_run(char *program, char *psp, int flags)
 				if (debug_prog) bat_entry[i_bat++] = (char*)-1;
 				i_lab++;
 			}
-			else
+//      else
+			else if (*(unsigned int *)p_bat != BAT_SIGN && *(unsigned int *)p_bat != 0x21BFBBEF)
 				bat_entry[i_bat++] = p_bat;
 
 			if (debug_prog)
@@ -17754,15 +17846,25 @@ static int grub_exec_run(char *program, char *psp, int flags)
 				p += grub_strlen(p_bat) + crlf;
 				while(++p < program)
 				{
-					if (!*p || *p == '\n') bat_entry[i_bat++] = (char*)-1;
+//					if (!*p || *p == '\n') bat_entry[i_bat++] = (char*)-1;
+          if (type == 0 && *p == '\n')
+            bat_entry[i_bat++] = (char*)-1;
+          else if (type == 1 && (!*p || *p == '\n'))
+            bat_entry[i_bat++] = (char*)-1;
+          if (type == 2 && (!*p || *p == '\r'))
+            bat_entry[i_bat++] = (char*)-1;
 				}
 			}
-
+#if 0
 			if ((i_lab & 0x80) || (i_bat & 0x800))//max label 128,max script line 2048.
 			{
 				grub_free(p_bat_array);
 				return 0;
 			}
+#else
+			if ((i_lab & 0x80) || (i_bat & 0x800))
+				break;
+#endif
 		}
 
 		label_entry[i_lab].label = NULL;
