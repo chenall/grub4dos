@@ -3977,6 +3977,12 @@ find_func (char *arg, int flags)
 
 					if (tmp_drive == current_drive)
 						continue;
+          if (drive == (unsigned char)(fb_status >> 8) && find_check(filename,builtin1,arg,flags) == 1)
+          {
+            got_file = 1;
+            if (set_root)
+              goto found;
+          }
 					for (dp = partition_info; dp; dp = dp->next)
 					{
 						if (dp->drive == drive)
@@ -4600,7 +4606,9 @@ uuid_func (char *argument, int flags)
 		int bsd_part = 0xff;
 		int pc_slice = 0xff;
     
-    if (drive >= 0x80 && drive <= 0x8f && harddrives_orig)
+    if (drive == FB_DRIVE)
+      continue;
+    else if (drive >= 0x80 && drive <= 0x8f && harddrives_orig)
       d = hd_devices;
     else if (drive >= 0xa0 && drive <= 0xff && cdrom_orig)
       d = cd_devices;
@@ -4631,7 +4639,7 @@ yyyyy:
 		if (drive >= (unsigned int)0x80 && drive <= (unsigned int)0x8f /*&& grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) != 0*/)
 		{
 			grub_efidisk_readwrite (drive,(unsigned long long)0,0x1000,mem_probe,0xedde0d90);
-			if (!(probe_bpb((struct master_and_dos_boot_sector *)mem_probe)) && open_device())
+			if (!(fb_status && drive == (unsigned char)(fb_status >> 8)) && !(probe_bpb((struct master_and_dos_boot_sector *)mem_probe)) && open_device())
 			{			
 				goto qqqqqq;
 			}
@@ -4651,8 +4659,11 @@ yyyyy:
 		}
 		saved_drive = current_drive = drive;
     struct grub_part_data *q;
-    for (i=0; i < 16 ; i++)
+    for (i=-1; i < 16 ; i++)
     {
+      if (i == -1)
+        if (open_device ())
+          goto qqqqqq;
       q = get_partition_info (drive, (i<<16 | 0xffff));
       if (!q)
         continue;		
@@ -8559,7 +8570,7 @@ read_func (char *arg, int flags)
 	}
   else if (grub_memcmp (arg, "--mem", 5) == 0)
 	{
-		mem=1;    //强制使用普通内存，否则0x8200-0x8400特指G4E头部固定数据区。
+		mem=1;    //强制使用普通内存，否则0x8200-0x8400(不含)特指G4E头部固定数据区。
 		arg += 5;
 	}
   else
@@ -8570,7 +8581,7 @@ read_func (char *arg, int flags)
   if (! safe_parse_maxint (&arg, &addr))
     return 0;
 
-  if (!mem && addr >= 0x8200 && addr <= 0x8400)
+  if (!mem && addr >= 0x8200 && addr < 0x8400)
     addr += (grub_size_t)g4e_data - 0x8200;
 
 	if (!bytes)
@@ -8589,7 +8600,7 @@ static struct builtin builtin_read =
   "read [--8] [--mem] ADDR",
   "Read a 32-bit or 64-bit value from memory at address ADDR and display it in hex format.\n"
   "--mem  Force normal memory, \n"
-  "       otherwise, 0x8200-0x8400 specifically refers to G4e head fixed data area."
+  "       otherwise, 0x8200-0x8400(not included) specifically refers to G4e head fixed data area."
 };
 
 int parse_string (char *arg);
@@ -8913,7 +8924,7 @@ succ:
       goto fail;
     addr += offset;
     
-    if (!mem && addr >= 0x8200 && addr <= 0x8400)
+    if (!mem && addr >= 0x8200 && addr < 0x8400)
       addr += (grub_size_t)g4e_data - 0x8200;
     
     arg = (char*)(grub_size_t)addr;
@@ -8950,7 +8961,7 @@ static struct builtin builtin_write =
   "To FILE(or device): default STRING size.\n"
   "  UTF-8(or hex values) use \\xnn form, UTF-16(big endian) use \\Xnnnn form."
   "--mem  Force normal memory, \n"
-  "       otherwise, 0x8200-0x8400 specifically refers to G4e head fixed data area."
+  "       otherwise, 0x8200-0x8400(not included) specifically refers to G4e head fixed data area."
 };
 
 
@@ -10235,7 +10246,7 @@ static int read_val(char **str_ptr,long long *val)  //读值
       
       if (*p == '*')  //取内存的值
       {
-    if ((unsigned long long)*val >= 0x8200 && (unsigned long long)*val <= 0x8400)
+    if ((unsigned long long)*val >= 0x8200 && (unsigned long long)*val < 0x8400)
       *val = *((unsigned long long *)(grub_size_t)IMG((grub_size_t)*val));
     else
       *val = *((unsigned long long *)(grub_size_t)*val);
@@ -10270,7 +10281,7 @@ s_calc (char *arg, int flags)
 	 return 0;
       }
 
-    if (!mem && (unsigned long long)val1 >= 0x8200 && (unsigned long long)val1 <= 0x8400)
+    if (!mem && (unsigned long long)val1 >= 0x8200 && (unsigned long long)val1 < 0x8400)
       p_result = (long long *)(grub_size_t)IMG((int)val1);  //取内存的值
     else
       p_result = (long long *)(grub_size_t)val1;

@@ -38,7 +38,7 @@ char *FB_MENU_ADDR = 0;
 
 #define uchar	unsigned char
 #define uchar2	unsigned short
-#define uchar4	unsigned long long
+#define uchar4	unsigned int
 
 
 struct fb_mbr

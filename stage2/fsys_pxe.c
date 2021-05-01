@@ -364,7 +364,7 @@ int pxe_detect (int blksize, char *config)	//pxe探测(块尺寸, 配置)
 		return 1;	//退出
 	}
 	//没有配置
-	grub_strcpy (pxe_tftp_name, "/menu.lst");	//设置名称
+	grub_strcpy (pxe_tftp_name, "/efi/grub/menu.lst");	//设置名称
 	ret = pxe_dir (pxe_tftp_name);	//目录
 	if (ret && filemax)	//如果成功,并且获得文件尺寸
 		goto done;	//完成
@@ -374,7 +374,7 @@ int pxe_detect (int blksize, char *config)	//pxe探测(块尺寸, 配置)
    * Do NOT use /menu.lst as a dir any more!! Use /menu for it instead.		不要再将/menu.lst用作目录！ 使用/menu代替。
    */
 	if (!config)	//如果配置为零
-		config = (char *)"/menu.lst/";
+		config = (char *)"/efi/grub/menu.lst/";
 
   grub_strcpy (pxe_tftp_name, config);	//设置名称
 

@@ -738,6 +738,8 @@ redo:
 		return next_gpt_slice();
 	}
 
+  if (*(unsigned int *)&next_partition_buf[0x1b4] == 0x46424246 && !fb_status)
+    fb_status = 0xff3f003f | ((unsigned char)next_partition_drive << 8);
       /* Check if it is valid.  */
       if (! PC_MBR_CHECK_SIG (next_partition_buf))
 	{
@@ -2664,6 +2666,8 @@ get_device_by_drive (unsigned int drive)	//由驱动器号获得设备(驱动器
 {
   struct grub_disk_data *d;	//磁盘数据
 	
+  if (drive == FB_DRIVE && fb_status)
+    drive = (unsigned char)(fb_status >> 8);
 	if (harddrives_orig && drive >= 0x80 && drive <= 0x8f)
 		d = hd_devices;
 	else if (cdrom_orig && drive >= 0xa0 && drive <= 0xff)
