@@ -2210,7 +2210,6 @@ dd_func (char *arg, int flags)
 		{
 			if (errnum == 0)
 				errnum = ERR_READ;
- grub_printf("\nERR_READ-3"); 
 		}
 		{
 			int err = errnum;
@@ -6036,7 +6035,7 @@ kernel_func (char *arg, int flags)
   }
   if (lh.version < 0x020b)
   {
-    printf_errinfo ("kernel too old\n");
+    printf_errinfo ("kernel too old (0x%04x < 0x020b)\n",lh.version);
     goto failure_linuxefi;
   }
   if (!lh.handover_offset)
@@ -9508,7 +9507,6 @@ savedefault_func (char *arg, int flags)
 	{
 	  /* Read file failure  */
 	  errnum = ERR_READ;
- grub_printf("\nERR_READ-5"); 
 	  goto fail;
 	}
 

@@ -2809,6 +2809,9 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
   }  
 	d = get_device_by_drive (to_drive);
   bio = d->block_io;	//块io
+  //避免出界
+  if (size > ((bio->media->last_block - sector + 1) << buf_geom.log2_sector_size))
+    size = (bio->media->last_block - sector + 1) << buf_geom.log2_sector_size;
 
   while (size)
   {
@@ -2877,6 +2880,9 @@ not_map:
 //	efi_handle = d->handle;
 //	efi_file_path = d->device_path;
   bio = d->block_io;	//块io
+  //避免出界
+  if (size > ((bio->media->last_block - sector + 1) << buf_geom.log2_sector_size))
+    size = (bio->media->last_block - sector + 1) << buf_geom.log2_sector_size;
 
   /* Set alignment to 1 if 0 specified 如果0指定，则将对齐设置为1*/
   io_align = bio->media->io_align ? bio->media->io_align : 1;	//对齐, 如果没有指定则为1
