@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  GRUB  --  GRand Unified Bootloader
  *  Copyright (C) 2000,2001,2002,2004,2005  Free Software Foundation, Inc.
  *
@@ -677,7 +677,7 @@ run_script (char *script, char *heap)
 	grub_sprintf (cmd_add, "(md)%d+%d", (int)p >> 9, ((cur_entry - script + 10 + 511) & ~511) >> 9);
 	command_func (cmd_add, BUILTIN_SCRIPT);
 	grub_free(menu_bat);
-	
+	menu_bat = 0;
 	if (errnum >= 1000)
 	{
 		errnum=ERR_NONE;
@@ -779,6 +779,49 @@ ppp:
 	  
   errnum = ERR_NONE;
   return 1;	/* use fallback. */
+}
+
+void clear_delay_display (int entryno);
+void
+clear_delay_display (int entryno)
+{
+  if (grub_timeout >= 0)
+  {
+    if (current_term->setcolorstate)
+		  current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+    if (current_term->flags & TERM_DUMB)
+      grub_putchar ('\r', 255);
+    
+		if(timeout_x || timeout_y)
+			gotoxy (timeout_x,timeout_y);
+		else
+		{
+      if(!(menu_tab & 0x40))
+        gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + entryno);
+      else
+        gotoxy (MENU_BOX_X - 1, MENU_BOX_Y + entryno);
+		}
+    
+		if(timeout_color)
+		{
+			current_term->setcolorstate (COLOR_STATE_NORMAL);
+			if ((timeout_color & 0xffffffff00000000) == 0)
+				current_color_64bit = timeout_color | (current_color_64bit & 0xffffffff00000000);
+			else
+				current_color_64bit = timeout_color;
+		}
+		else if (current_term->setcolorstate)
+      current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+	
+    grub_printf("  ");
+    if (current_term->setcolorstate)
+      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+				
+    grub_timeout = -1;
+    fallback_entryno = -1;
+    if (! (current_term->flags & TERM_DUMB))
+      gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
+  }
 }
 
 unsigned short beep_buf[256];
@@ -911,8 +954,7 @@ restart1:
 			
 		if (graphics_inited && graphics_mode > 0xff)/*vbe mode call rectangle_func*/
 		{
-			int i,j;
-			char y;
+			int i;
 			unsigned long long col = current_color_64bit;
 			for (i=0; i<16; i++)
 			{
@@ -921,9 +963,13 @@ restart1:
 				current_color_64bit = DrawBox[i].color;
 				rectangle(DrawBox[i].start_x, DrawBox[i].start_y, DrawBox[i].horiz, DrawBox[i].vert, DrawBox[i].linewidth);
 			}
+      current_color_64bit = col;
+		}
 			
 			if (num_string)
 			{
+        int j;
+        char y;
 				for (j=0; j<16; j++)
 				{
 					if (strings[j].enable == 0)
@@ -941,8 +987,6 @@ restart1:
 					grub_printf("%s",strings[j].string);
 				}
 			}
-			current_color_64bit = col;
-		}
 			
       if (current_term->flags & TERM_DUMB)
 	print_entries_raw (num_entries, first_entry, menu_entries);
@@ -1117,7 +1161,7 @@ restart1:
 	 pressed.  
 	 This avoids polling (relevant in the grub-shell and later on
 	 in grub if interrupt driven I/O is done).  */
-      if (checkkey () >= 0 || grub_timeout < 0)
+      if ((c = checkkey ()) >= 0 || grub_timeout < 0)
 	{
 	  /* Key was pressed, show which entry is selected before GETKEY,
 	     since we're comming in here also on GRUB_TIMEOUT == -1 and
@@ -1126,6 +1170,8 @@ restart1:
 	    grub_printf ("\r    Highlighted entry is %d: ", entryno);
 	  if (config_entries && hotkey_func)
 	  {
+      if (c > 0)
+        clear_delay_display (entryno);
 			putchar_hooked = (unsigned char*)0x800;
 			//0x4b40 flags HK,
 			c = hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno);
@@ -1173,7 +1219,7 @@ restart1:
 		old_c_count_end = 1;
 	    }
 	  }
-
+#if 0
 	  if (grub_timeout >= 0)
 	    {
 //	      unsigned long x;
@@ -1220,7 +1266,9 @@ restart1:
 	      if (! (current_term->flags & TERM_DUMB))
 		gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
 	    }
-
+#else
+    clear_delay_display (entryno);
+#endif
 	  if (num_entries == 0)
 	    {
 		first_entry = entryno = 0;
@@ -1598,7 +1646,8 @@ done_key_handling:
 	      //if (((char)c) == 'e' && c != 0xE065) /* repulse GigaByte Key-E attack */
 	      if ( c == 0x1265) /* repulse GigaByte Key-E attack */
 		{
-		  int new_num_entries = 0, i = 0;
+		  int new_num_entries = 0;
+		  int i = 0;
 		  char *new_heap;
 			font_spacing = 0;
 			line_spacing = 0;
@@ -2548,8 +2597,11 @@ restart_config:
 	    char *cmdline = (char *) CMDLINE_BUF;
 	  
 	    /* Get the pointer to the builtin structure.  */
-			if (*cmdline == ':' || *cmdline == '!')
-				goto sss;
+			if (*cmdline == ':' || *cmdline == '!' || *cmdline == '{' || *cmdline == '}')
+			{
+        builtin->flags = 8;
+        goto sss;
+      }
 	    builtin = find_command (cmdline);
 	    errnum = 0;
 	    if (! builtin)

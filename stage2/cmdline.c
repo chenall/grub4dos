@@ -98,6 +98,8 @@ extern int command_func (char *arg, int flags);
 extern int commandline_func (char *arg, int flags);
 extern int errnum_func (char *arg, int flags);
 extern int checkrange_func (char *arg, int flags);
+extern int else_disabled;  //else禁止
+extern int brace_nesting;  //大括弧嵌套数
 
 /* Find the builtin whose command name is COMMAND and return the
    pointer. If not found, return 0.  */
@@ -207,6 +209,13 @@ static char *skip_to_next_cmd (char *cmd,int *status,int flags)
 			case OPT_MULTI_CMD_OR_FLAG:// |;
 				*status = OPT_MULTI_CMD_OR;
 				break;
+      case 0x207b:  //  '{'
+      case 0x007b:
+      case 0x207d:  //  '}'
+      case 0x007d:
+        *(cmd - 1) = '\0';
+        *(cmd + 1) = '\0';
+        return cmd;
 			default:
 				continue;
 		}
@@ -285,7 +294,6 @@ int expand_var(const char *str,char *out,const unsigned int len_max)
 static int run_cmd_line (char *heap,int flags);
 int run_line (char *heap,int flags)
 {
-
    char *cmdline_buf = cmd_buffer;
    char *arg;
    int status = 0;
@@ -309,6 +317,7 @@ int run_line (char *heap,int flags)
       heap = skip_to_next_cmd(heap,&status,OPT_MULTI_CMD_AND | OPT_MULTI_CMD_OR | OPT_MULTI_CMD);//next cmd
       ret = run_cmd_line(arg,flags);
       if (errnum > 1000) break;
+    if (errnum == ERR_BAT_BRACE_END) break; //如果是批处理大括弧结束, 则退出
       if (((status & OPT_MULTI_CMD_AND) && !ret) || ((status & OPT_MULTI_CMD_OR) && ret))
       {
 	 errnum = ERR_NONE;
@@ -388,15 +397,12 @@ static int run_cmd_line (char *heap,int flags)
 						}
 					}
 				}
-#if 0
 				else if (filemax < 0x40000)
 				{
 					grub_memset(hook_buff,0,filemax);
 					hook_buff = PRINTF_BUFFER + filemax;
 				}
-#endif
-//				grub_read ((unsigned long long)(int)PRINTF_BUFFER,hook_buff - PRINTF_BUFFER,GRUB_WRITE);
-				grub_read ((unsigned long long)(int)PRINTF_BUFFER,(unsigned long long)(int)grub_strlen((const char *)PRINTF_BUFFER),GRUB_WRITE);
+				grub_read ((unsigned long long)(int)PRINTF_BUFFER,hook_buff - PRINTF_BUFFER,GRUB_WRITE);
 				grub_close();
 
 				restart_st:
@@ -421,7 +427,24 @@ static int run_cmd_line (char *heap,int flags)
 		}
 
 		builtin = find_command (arg);
+    
+    if (*arg == '{') //左大括弧
+    {
+      if (!ret)
+        return !(errnum = ERR_BAT_BRACE_END);
+      
+      errnum = ERR_NONE;  //消除错误号 
+      brace_nesting++;    //大括弧嵌套数+1
+      return 1;
+    }
 
+    if (*arg == '}') //右大括弧
+    {
+      errnum = ERR_NONE;  //消除错误号 
+      brace_nesting--;    //大括弧嵌套数-1
+      else_disabled |= 1 << brace_nesting;  //设置else禁止位
+      return 1;
+    }
 		if ((int)builtin != -1)
 		{
 			if (! builtin || ! (builtin->flags & flags))

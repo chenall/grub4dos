@@ -15818,7 +15818,7 @@ echo_func (char *arg,int flags)
 				gotoxy(saved_x, saved_y);
 			return 1;
 		}
-		else if (grub_memcmp(arg,"--mem=",4) == 0)	//-mem=offset=length
+		else if (grub_memcmp(arg,"--mem=",6) == 0)	//-mem=offset=length
 		{
 			unsigned long long offset;
 			unsigned long long length;
@@ -15942,12 +15942,21 @@ static struct builtin builtin_echo =
    "$[] using COLOR STATE STANDARD."	
 };
 
+int else_disabled = 0;  //else禁止
+int brace_nesting = 0;  //大括弧嵌套数
+int is_else_if;         //是else_if调用
 static int if_func(char *arg,int flags)
 {
 	char *str1,*str2;
 	int cmp_flag = 0;
 	long long ret = 0;
 	errnum = 0;
+  
+  if (is_else_if)           //如果是else_if调用, 则自身复位
+    is_else_if = 0;
+  else if (!brace_nesting)  //如果不是else_if调用, 并且大括弧嵌套数为零, 则清除else禁止
+    else_disabled = 0;
+  
 	while(*arg)
 	{
 		if (substring("/i ", arg, 1) == -1)
@@ -17317,6 +17326,8 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		return 0;
 	}
 
+  else_disabled = 0;  //else禁止
+  brace_nesting = 0;  //大括弧嵌套数
 	/*copy filename to buff*/
 	i = grub_strlen(filename);
 	grub_memmove(cmd_buff,filename,i+1);
@@ -17351,6 +17362,26 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		if (p_bat == (char*)-1)//Skip Line
 		{
 			p_entry++;
+			continue;
+		}
+    
+    if (*p_bat == '{') //左大括弧
+    {
+      if (!ret)
+        goto ddd;
+      else
+      {
+        brace_nesting++;  //大括弧嵌套数+1
+        p_entry++;        //批处理下一行
+        continue;
+      }
+    }
+
+    if (*p_bat == '}')  //如果是右大括弧
+		{ 
+      brace_nesting--;  //大括弧嵌套数-1
+      else_disabled |= 1 << brace_nesting;  //设置else禁止位
+			p_entry++;        //批处理下一行
 			continue;
 		}
 
@@ -17559,7 +17590,41 @@ static int bat_run_script(char *filename,char *arg,int flags)
 		}
 
 		ret = run_line (p_buff,flags);
-#if 0
+   
+    if (errnum == ERR_BAT_BRACE_END) //如果是批处理大括弧结束
+    {
+ddd:
+      errnum = ERR_NONE;    //消除错误号 
+      int brace_count = 0;  //大括弧计数=0
+      while (1)
+      {
+        p_bat = *(p_entry); //批处理入口
+aaa:
+        while (*p_bat && *p_bat != '{' && *p_bat != '}') p_bat++; //搜索左右大括弧,直至找到,或者结束.
+        if (*p_bat == '{')  //如果是左大括弧
+        {
+          brace_count++;    //大括弧计数+1
+          p_bat++;          //下一行批处理
+          goto aaa;          //继续搜索
+        }
+        if (*p_bat == '}')  //如果是右大括弧
+        {
+          brace_count--;    //大括弧计数-1
+          if (!brace_count) //如果大括弧计数=0
+          {
+            p_entry++;      //批处理下一入口
+            break;          //搜索结束
+          }
+          else              //否则
+            p_bat++;        //下一行批处理
+          goto aaa;          //继续搜索
+        }
+       else                 //如果没有搜索左右大括弧
+        p_entry++;          //批处理下一入口
+      }
+      continue;
+    }
+#if 0 
 		if (debug_check_memory)
 		{
 			if (debug_break != *(int*)debug_check_memory)
@@ -18044,6 +18109,31 @@ static struct builtin builtin_beep =
   "The use of [--start|--mid|--end] specifies."
 };
 
+static int else_func(char *arg, int flags)
+{
+	if (else_disabled & (1 << brace_nesting)) //如果else禁止
+  {
+    return !(errnum = ERR_BAT_BRACE_END);
+  }
+  else                                      //如果else允许
+  {
+    if (*arg == 'i')  //如果是 else if
+    {
+      is_else_if = 1; //告知 if 函数, 这是 else_if
+      return  builtin_cmd (0,arg,flags);
+    }
+    else              //如果是 else
+      return 1;
+  }
+}
+
+static struct builtin builtin_else =
+{
+  "else",
+  else_func,
+  BUILTIN_BAT_SCRIPT | BUILTIN_SCRIPT,      //使用于批处理脚本及脚本
+};
+
 
 /* The table of builtin commands. Sorted in dictionary order.  */
 struct builtin *builtin_table[] =
@@ -18076,6 +18166,7 @@ struct builtin *builtin_table[] =
   &builtin_delmod,
   &builtin_displaymem,
   &builtin_echo,
+  &builtin_else,
   &builtin_endlocal,
   &builtin_errnum,
   &builtin_errorcheck,

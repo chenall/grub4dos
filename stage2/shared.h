@@ -741,6 +741,7 @@ typedef enum
   /* these are for batch scripts and must be > MAX_ERR_NUM */
   ERR_BAT_GOTO,
   ERR_BAT_CALL,
+  ERR_BAT_BRACE_END,
 } grub_error_t;
 
 struct border {
