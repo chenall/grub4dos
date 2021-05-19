@@ -2547,7 +2547,13 @@ splashimage_func(char *arg, int flags)
       arg++;
       if (safe_parse_maxint (&arg, &val))
       {
-        animated_delay = val;
+        if (arg[0]==':' && arg[1]=='m' && arg[2]=='s')
+        {
+          animated_delay = val;
+          arg += 3;
+        }
+        else
+          animated_delay = val * 55;
       }
       arg++;
       if (safe_parse_maxint (&arg, &val))
@@ -2594,7 +2600,7 @@ static struct builtin builtin_splashimage =
   "splashimage --animated=[type]=[duration]=[last_num]=[x]=[y] START_FILE\n"
   "type: bit 0-3:times(0=repeat play)  bit 5:alone\n"
   "      bit 7:transparent background  type=00:disable\n"
-  "duration: units are milliseconds,\n"
+  "duration: [10] unit is a tick. [10:ms] units are milliseconds,\n"
   "naming rules for START_FILE: *n.???   n: 1-9 or 01-99 or 001-999\n"
   "hotkey F2,control animation:  play/stop.\n"
   "Load FILE as the background image when in graphics mode."

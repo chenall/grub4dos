@@ -130,11 +130,11 @@ VARIABLE(config_file)																											//0x8217-0x825f		配置文件
 #if !HOTKEY
 	. = EXT_C(main) + 0x60
 
-VARIABLE(external_hotkey)  //int*                                         //0x8260	外置热键功能
+VARIABLE(hotkey_func)  //int*                                             //0x8260	外置热键功能
   .extent 0 
 #endif
 
-	. = EXT_C(main) + 0x68                                                  //0x826c
+	. = EXT_C(main) + 0x68                                                  //0x8268
   
 VARIABLE(min_con_mem_start)                                               //0x8268  最低常规内存起始(字节)  int 
 	.long	0
@@ -363,6 +363,9 @@ VARIABLE(g4e_data)                                                        //0x83
 	.long	0, 0
 	
 VARIABLE(preset_menu) 																									  //0x8380 预置菜单  char *   原0x307FFC
+	.long	0, 0
+
+VARIABLE(menu_mem) 																									      //0x8388 菜单  char *
 	.long	0, 0
   
   . = EXT_C(main) + 0x200                                                 //0x8400   以上预留

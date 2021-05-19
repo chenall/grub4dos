@@ -302,27 +302,21 @@ static int run_cmd_line (char *heap,int flags);
 int run_line (char *heap,int flags)							//原始 cmd_buffer:  101df7b0
 {
   char *cmdline_buf = cmd_buffer;							//cmd_buffer: /grldr\0
-//  char *cmdBuff = NULL;
   char *arg;
   int status = 0;
   int ret = 0;
   int arg_len = strlen(heap) + 1;
 
   cmd_buffer += (arg_len + 0xf) & -0x10;		//cmd_buffer: 0
-#if 0
-  cmdBuff = grub_malloc(0x1000);
-	if (cmdBuff == NULL)
-	{
-		cmd_buffer = cmdline_buf;
-		return 0;
-	}
-  memmove(cmdBuff,heap,arg_len);
-	heap = cmdBuff;
-#else
 	memmove(cmdline_buf,heap,arg_len);      //将堆移动到命令缓存头部
 	heap = cmdline_buf;  
-#endif
    __asm__ __volatile__ ("movl %%esp,%0" ::"m"(arg_len):"memory");
+  if (arg_len < 0x3000)
+  {
+    errnum = ERR_BAD_ARGUMENT;
+    printf("\nFAULT: <<<<<<<<<<SYSTETM STATCK RUNOUT>>>>>>>>>\n");
+    return 0;
+  }
 
   if (debug > 10) printf("SP:0x%X\n[%s]\n",arg_len,heap);
   
@@ -415,15 +409,12 @@ static int run_cmd_line (char *heap,int flags)
 						}
 					}
 				}
-#if 0
 				else if (filemax < 0x40000)
 				{
 					grub_memset(hook_buff,0,filemax);
 					hook_buff = PRINTF_BUFFER + filemax;
 				}
-#endif
-//				grub_read ((unsigned long long)(grub_size_t)PRINTF_BUFFER,hook_buff - PRINTF_BUFFER,GRUB_WRITE);
-        grub_read ((unsigned long long)(grub_size_t)PRINTF_BUFFER,(unsigned long long)(grub_size_t)grub_strlen((const char *)PRINTF_BUFFER),GRUB_WRITE);
+				grub_read ((unsigned long long)(grub_size_t)PRINTF_BUFFER,hook_buff - PRINTF_BUFFER,GRUB_WRITE);
 				grub_close();
 
 				restart_st:

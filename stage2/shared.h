@@ -28,7 +28,7 @@
 #include <config.h>
 
 //UEFI 编译开关
-#define HOTKEY  1         //热键      0: 外置;    1: 内置
+#define HOTKEY  0         //热键      0: 外置;    1: 内置
 
 /* Add an underscore to a C symbol in assembler code if needed. */
 #ifdef HAVE_ASM_USCORE
@@ -1376,8 +1376,8 @@ extern char graphic_file[128];
 extern void clear_entry (int x, int y, int w, int h);
 extern void vbe_fill_color (unsigned int color);
 #if !HOTKEY		//外置热键
-//extern int (*hotkey_func)(char *titles,int flags,int flags1,int key);
-extern int (*external_hotkey)(char *titles,int flags,int flags1,int key); //外置热键
+//extern int (*hotkey_func)(char *titles,int flags,int flags1);
+extern int (*hotkey_func)(char *titles,int flags,int flags1,int key); //外置热键
 #else
 extern int hotkey_func (char *arg,int flags,int flags1,int key);
 extern int hotkey_func_enable;
@@ -5285,6 +5285,7 @@ extern int QUOTE_CHAR;
 extern char *CONFIG_ENTRIES;
 extern unsigned char *IMAGE_BUFFER;
 extern unsigned char *JPG_FILE;
+extern char *menu_mem;
 
 //#define		WENV_RANDOM	(*(unsigned long *)(WENV_ENVI+0x20))    //????
 #define		WENV_RANDOM	(*(unsigned int *)(WENV_ENVI+0x20))

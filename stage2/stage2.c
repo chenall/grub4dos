@@ -703,6 +703,49 @@ ppp:
   return 1;	/* use fallback. */
 }
 
+void clear_delay_display (int entryno);
+void
+clear_delay_display (int entryno)
+{
+  if (grub_timeout >= 0)
+  {
+    if (current_term->setcolorstate)
+		  current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+    if (current_term->flags & TERM_DUMB)
+      grub_putchar ('\r', 255);
+    
+		if(timeout_x || timeout_y)
+			gotoxy (timeout_x,timeout_y);
+		else
+		{
+      if(!(menu_tab & 0x40))
+        gotoxy (MENU_BOX_E - 2, MENU_BOX_Y + entryno);
+      else
+        gotoxy (MENU_BOX_X - 1, MENU_BOX_Y + entryno);
+		}
+    
+		if(timeout_color)
+		{
+			current_term->setcolorstate (COLOR_STATE_NORMAL);
+			if ((timeout_color & 0xffffffff00000000) == 0)
+				current_color_64bit = timeout_color | (current_color_64bit & 0xffffffff00000000);
+			else
+				current_color_64bit = timeout_color;
+		}
+		else if (current_term->setcolorstate)
+      current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+	
+    grub_printf("  ");
+    if (current_term->setcolorstate)
+      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+				
+    grub_timeout = -1;
+    fallback_entryno = -1;
+    if (! (current_term->flags & TERM_DUMB))
+      gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
+  }
+}
+
 unsigned short beep_buf[256];
 int new_menu;
 int new_hotkey;
@@ -1038,14 +1081,17 @@ restart1:
 		
       if (i < 0)
         i = getkey ();
+      else
+        clear_delay_display (entryno);
       c = i;
 #if !HOTKEY		//外置热键
 //      if (config_entries && hotkey_func)
       if (config_entries && *(int *)IMG(0x8260))
       {
-        external_hotkey = (void *)(long long)(*(long long *)IMG(0x8260));
+        hotkey_func = (void *)(grub_size_t)(*(grub_size_t *)IMG(0x8260));
+        //由于checkkey后，uefi键盘缓存已经清除，只能保存和使用其返回值i
 //        i = ((int (*)())(*(int *)IMG(0x8260)))(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
-        i = (*external_hotkey)(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
+        i = (*hotkey_func)(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
 #else
       if (config_entries && hotkey_func_enable)
       {
@@ -1075,7 +1121,7 @@ restart1:
         if (c != old_c)
           old_c_count_end = 1;
       }
-
+#if 0
       if (grub_timeout >= 0)
 	    {
 	      if (current_term->setcolorstate)
@@ -1102,7 +1148,9 @@ restart1:
         if (! (current_term->flags & TERM_DUMB))
           gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
       }
-
+#else
+      clear_delay_display (entryno);
+#endif
       if (num_entries == 0)
       {
         first_entry = entryno = 0;
@@ -1760,7 +1808,6 @@ extern struct builtin builtin_title;
 //extern struct builtin builtin_graphicsmode;
 extern struct builtin builtin_debug;
 static unsigned int attr = 0;
-char *menu_mem = 0;
 int font_func (char *arg, int flags);
 /* This is the starting function in C.  */
 void cmain (void);
@@ -2145,9 +2192,9 @@ done_config_file:
 //	if (hotkey_func)
   if (*(int *)IMG(0x8260))
   {
-    external_hotkey = (void *)(long long)(*(long long *)IMG(0x8260));
+    hotkey_func = (void *)(grub_size_t)(*(grub_size_t *)IMG(0x8260));
 //    ((int (*)())(*(int *)IMG(0x8260)))(0,0,-1,0);
-    (*external_hotkey)(0,0,-1,0);
+    (*hotkey_func)(0,0,-1,0);
   }
 #else
 	if (hotkey_func_enable)
