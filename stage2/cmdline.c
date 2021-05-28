@@ -302,6 +302,7 @@ int run_line (char *heap,int flags)
    cmd_buffer += (arg_len + 0xf) & -0x10;
    memmove(cmdline_buf,heap,arg_len);
    heap = cmdline_buf;
+#if 0
    __asm__ __volatile__ ("movl %%esp,%0" ::"m"(arg_len):"memory");
    if (arg_len < 0x3000)
    {
@@ -311,7 +312,7 @@ int run_line (char *heap,int flags)
    }
 
    if (debug > 10) printf("SP:0x%X\n[%s]\n",arg_len,heap);
-
+#endif
    while(*heap && (arg = heap))
    {
       heap = skip_to_next_cmd(heap,&status,OPT_MULTI_CMD_AND | OPT_MULTI_CMD_OR | OPT_MULTI_CMD);//next cmd

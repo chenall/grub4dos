@@ -16501,6 +16501,8 @@ struct string* strings = (struct string*) MENU_TITLE;
 extern int new_menu;
 int num_text_char(char *p);
 unsigned char DateTime_enable;
+unsigned long long hotkey_color_64bit = 0;
+unsigned int hotkey_color = 0;
 #define MENU_BOX_X	((menu_border.menu_box_x > 2) ? menu_border.menu_box_x : 2)
 #define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X - 1))
 
@@ -16899,6 +16901,13 @@ setmenu_func(char *arg, int flags)
 			menu_border.menu_box_h = graphic_row * graphic_list;
 			menu_border.border_w = 0;
 		}
+    else if (grub_memcmp (arg, "--hotkey-color=", 15) == 0)   //--hotkey-color=COLOR 64位色
+		{
+			arg += 15;
+			if (safe_parse_maxint (&arg, &val))
+				hotkey_color_64bit = val;
+      hotkey_color = color_64_to_8 (hotkey_color_64bit);
+		}
 		else
 			return 0;
 cont:		
@@ -16951,6 +16960,7 @@ static struct builtin builtin_setmenu =
 	"--draw-box=INDEX=START_X=START_y=HORIZ=VERT=LINEWIDTH=COLOR.\n"
 	"  LINEWIDTH:1-255; all dimensions in pixels. INDEX range is 0-15.\n"
 	"  --draw-box=INDEX to disable the specified index.  --draw-box= to clear all indexes.\n"
+	"--hotkey-color=COLOR set hotkey color.\n" 
 	"Note: * = default. Use only 0xRRGGBB for COLOR."
 };
 

@@ -469,8 +469,10 @@ typedef long long		grub_s64_t;
 /* function prototypes for asm functions */
 unsigned char * graphics_get_font();
 void graphics_set_palette(int idx, int color);
-unsigned long long color_8_to_64 (unsigned char color8);
-unsigned long long color_4_to_32 (unsigned char color4);
+extern unsigned long long color_8_to_64 (unsigned char color8);
+extern unsigned long long color_4_to_32 (unsigned char color4);
+extern unsigned char color_64_to_8 (unsigned long long color64);
+extern unsigned char color_32_to_4 (unsigned long color32);
 extern int console_color[6];
 extern unsigned long long console_color_64bit[6];
 extern unsigned long current_color;
@@ -806,6 +808,8 @@ extern unsigned short row_space;
 extern char graphic_file[128];
 extern void clear_entry (int x, int y, int w, int h);
 extern void vbe_fill_color (unsigned long color);
+extern unsigned long long hotkey_color_64bit;
+extern unsigned int hotkey_color;
 
 #ifdef SUPPORT_GRAPHICS
 extern unsigned long current_x_resolution;
