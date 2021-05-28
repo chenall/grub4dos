@@ -3356,7 +3356,7 @@ command_func (char *arg, int flags)
 	    {
 //		command_path_len = 15;
 		command_path_len = 14;
-		return grub_sprintf(command_path,"(bd)/BOOT/GRUB/");
+		return grub_sprintf(command_path,"(bd)/EFI/GRUB/");
 	    }
 
 	    int j = grub_strlen(arg);
@@ -3443,7 +3443,7 @@ command_func (char *arg, int flags)
 	}
 
 	program = (char *)((grub_size_t)(tmp + 4095) & ~4095); /* 4K align the program 4K对齐程序*/   //程序缓存
-	psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F); //psp地址
+	psp = (char *)((grub_size_t)(program + prog_len + 15) & ~0x0F); //psp地址
 	unsigned long long *end_signature = (unsigned long long *)(program + filemax - (unsigned long long)8);  //程序结束签名地址
 	if (p_exec == NULL)
 	{
@@ -3484,6 +3484,19 @@ command_func (char *arg, int flags)
 	{
 		if (*(unsigned long long *)(program + prog_len - 0x20) == 0x646E655F6E69616D) //新版本标记 main_end
 		{
+			unsigned int *prog_start = (unsigned int *)(program + prog_len - 0x3c); //.text
+			unsigned int *bss_end = (unsigned int *)(program + prog_len - 0x24);    //end
+
+			if (prog_len != (*bss_end - *prog_start)){  //如果bss区有数据,外部命令尺寸是filemax+bss尺寸
+				grub_free(tmp);
+        prog_len = *bss_end - *prog_start;
+        tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
+        if (tmp == NULL)
+					goto fail;
+        program = (char *)((grub_size_t)(tmp + 4095) & ~4095); /* 4K align the program */
+        psp = (char *)((grub_size_t)(program + prog_len + 15) & ~0x0F);
+        grub_read ((unsigned long long)(grub_size_t)program, -1ULL, 0xedde0d90);
+			}
 		} else {//the old program
 			char *program1;
 			printf_warning ("\nWarning! The program is outdated!\n");
@@ -11669,6 +11682,8 @@ struct string* strings;
 extern int new_menu;
 int num_text_char(char *p);
 unsigned char DateTime_enable;
+unsigned long long hotkey_color_64bit = 0;
+unsigned int hotkey_color = 0;
 #define MENU_BOX_X	((menu_border.menu_box_x > 2) ? menu_border.menu_box_x : 2)
 #define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X - 1))
 
@@ -12080,6 +12095,13 @@ setmenu_func(char *arg, int flags)
 			hotkey_func(arg,flags | 0x100,800,0);
 		}
 #endif
+    else if (grub_memcmp (arg, "--hotkey-color=", 15) == 0)   //--hotkey-color=COLOR 64位色
+		{
+			arg += 15;
+			if (safe_parse_maxint (&arg, &val))
+				hotkey_color_64bit = val;
+      hotkey_color = color_64_to_8 (hotkey_color_64bit);
+		}
 		else
 			return 0;
 cont:		
@@ -12132,6 +12154,7 @@ static struct builtin builtin_setmenu =
 	"--draw-box=INDEX=START_X=START_y=HORIZ=VERT=LINEWIDTH=COLOR.\n"
 	"  LINEWIDTH:1-255; all dimensions in pixels. INDEX range is 0-15.\n"
 	"  --draw-box=INDEX to disable the specified index.  --draw-box= to clear all indexes.\n"
+	"--hotkey-color=COLOR set hotkey color.\n" 
 	"Note: * = default. Use only 0xRRGGBB for COLOR."
 };
 

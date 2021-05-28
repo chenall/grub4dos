@@ -326,10 +326,13 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   char *entry = get_entry (config_entries, entryno);
 	int start_offcet = 0;
 	int end_offcet = 0;
+	int first_brackets = 0;
 	
   if (current_term->setcolorstate)
     current_term->setcolorstate (highlight ? COLOR_STATE_HIGHLIGHT : COLOR_STATE_NORMAL);
   
+	unsigned long long clo64 = current_color_64bit;
+	unsigned int clo = current_color;
   is_highlight = highlight;
 	if (graphic_type)
 	{
@@ -457,7 +460,36 @@ graphic_mixing:
       if (c && c != '\n' /* && x <= MENU_BOX_W*/ && x >= start_offcet)
 	{
 		
+    if (hotkey_func && hotkey_color_64bit)
+    {
+      if (c == '^')
+      {      
+        c = *(++entry);
+        goto color;
+      }
+      else if (first_brackets == 0 && c == '[')
+      {
+        first_brackets = 1;
+        goto color_no;
+      }
+      else if (first_brackets == 1 && c == ']')
+      {
+        first_brackets = 2;
+        goto color_no;
+      }
+      else if (first_brackets == 0 || first_brackets == 2)
+      {
+        first_brackets = 2;
+        goto color_no;
+      }
+color:
+      current_color_64bit = hotkey_color_64bit;
+      current_color = hotkey_color;
+    }
+color_no:
 		ret = grub_putchar ((unsigned char)c, ret);
+    current_color_64bit = clo64;
+    current_color = clo;
 		//is_highlight = 0;
 		if (ret < (int)0)
 		{
@@ -470,14 +502,14 @@ graphic_mixing:
 	{
 		if (!(menu_tab & 0x10))
 		{
-		unsigned long long clo = current_color_64bit;
+		clo64 = current_color_64bit;
 		if(splashimage_loaded & 2)
 			current_color_64bit = 0;
 		else
 			if (current_term->setcolorstate)
 				current_term->setcolorstate (COLOR_STATE_NORMAL);
 		ret = grub_putchar (' ', ret);
-		current_color_64bit = clo;
+		current_color_64bit = clo64;
 		}
 		else
 			grub_putchar (' ', ret);

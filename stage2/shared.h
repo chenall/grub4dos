@@ -1382,6 +1382,8 @@ extern int (*hotkey_func)(char *titles,int flags,int flags1,int key); //外置�
 extern int hotkey_func (char *arg,int flags,int flags1,int key);
 extern int hotkey_func_enable;
 #endif
+extern unsigned long long hotkey_color_64bit;
+extern unsigned int hotkey_color;
 
 #ifdef SUPPORT_GRAPHICS
 extern unsigned int current_x_resolution;

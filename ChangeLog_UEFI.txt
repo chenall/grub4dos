@@ -1,4 +1,13 @@
 ﻿更新说明：
+2021-05-28 (yaya)
+  改进热键。可以把菜单项中的任意英文字母作为热键。
+  增加参数：setmenu --hotkey-color=COLOR  设置热键颜色。
+  例如：
+    setmenu --hotkey-color=0xffff
+    hotkey -A [F3] "reboot" [Ctrl+d] "commandlien"
+    title [F4] Boot Win
+    title Boot ^Win 10
+
 2021-05-19 (yaya)
   热键函数外置。
   使用方法：hotkey 参数
