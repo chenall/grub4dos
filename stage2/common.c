@@ -1596,38 +1596,69 @@ grub_efi_modules_addr (void)  //模块地址
   return (grub_addr_t) info;
 }
 
-char preset_menu_[32];
 grub_addr_t grub_modbase;    //模块地址
+char embed_font_path[64] = {0};
+char preset_menu_path[64];
+char *embed_font = NULL;
 
-static int get_preset_menu (void);
+static int get_embed (void);
 static int
-get_preset_menu (void)		//打开预置菜单
+get_embed (void)		//获取嵌入数据
 {
   struct grub_module_header *header=0;
+  grub_size_t embed_menu_size;
+  char *embed_mod = NULL;
+  grub_size_t embed_mod_size = 0;
+  char embed_mod_cmd[64];
+  grub_size_t embed_font_size = 0;
 
   grub_modbase = grub_efi_modules_addr ();
 
   FOR_MODULES (header)
   {
-    /* Not an embedded config, skip.  不是嵌入式配置，跳过 */
-    if (header->type != OBJ_TYPE_CONFIG)  //配置
+    if (header->type == OBJ_TYPE_CONFIG)  //嵌入式配置
+    {
+      embed_menu_size = header->size - header->pad_size - sizeof (struct grub_module_header);
+      preset_menu = grub_malloc (embed_menu_size + 0x1ff);
+    if (!preset_menu)
       continue;
 
-    preset_menu = grub_malloc (header->size - sizeof (struct grub_module_header) + 1 + 0x1ff);
-    if (!preset_menu)
-      return 0;
-
     preset_menu = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)preset_menu + 0x1ff) & 0xfffffffffffffe00);
-    grub_memcpy (preset_menu, (char *) header + sizeof (struct grub_module_header),
-        header->size - sizeof (struct grub_module_header));
-
-    preset_menu[header->size - sizeof (struct grub_module_header)] = 0;
-    printf_debug("\npreset_menu: %x", preset_menu);
-    grub_sprintf (preset_menu_,"(md)%d+%d",(grub_size_t)preset_menu/512, 
-        (header->size - sizeof (struct grub_module_header) + 1 + 0x1ff)/512); //预置菜单，可以使用lzma压缩，不可以使用gz压缩。
-    preset_menu = preset_menu_;
+      grub_memcpy (preset_menu, (char *) header + sizeof (struct grub_module_header), embed_menu_size);
+      grub_sprintf (preset_menu_path,"(md)0x%lx+0x%lx,0x%lx", ((grub_size_t) preset_menu) >> 9, 
+          (embed_menu_size + 0x1ff) >> 9, embed_menu_size);
+      preset_menu = preset_menu_path;
     use_preset_menu = 1;
-    break;
+      continue;
+    }
+    else if (header->type == OBJ_TYPE_MEMDISK)  //嵌入式模块
+    {
+      embed_mod_size = header->size - header->pad_size - sizeof (struct grub_module_header);
+      embed_mod = grub_malloc (embed_mod_size + 0x1ff);
+      if (!embed_mod)
+        continue;
+
+      embed_mod = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)embed_mod + 0x1ff) & 0xfffffffffffffe00);
+      grub_memmove (embed_mod, (char *) header + sizeof (struct grub_module_header), embed_mod_size);
+      grub_sprintf (embed_mod_cmd, "insmod (md)0x%lx+0x%lx,0x%lx",
+            ((grub_size_t) embed_mod) >> 9, (embed_mod_size + 0x1ff) >> 9, embed_mod_size);
+      run_line (embed_mod_cmd, 101);
+      grub_free (embed_mod);
+      continue;
+    }
+    else if (header->type == OBJ_TYPE_FONT)  //嵌入式字库
+    {
+      embed_font_size = header->size - header->pad_size - sizeof (struct grub_module_header);
+      embed_font = grub_malloc (embed_font_size + 0x1ff);
+      if (!embed_font)
+        continue;
+
+      embed_font = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)embed_font + 0x1ff) & 0xfffffffffffffe00);
+      grub_memmove (embed_font, (char *) header + sizeof (struct grub_module_header), embed_font_size);
+      grub_sprintf (embed_font_path, "(md)0x%lx+0x%lx,0x%lx",
+              ((grub_size_t) embed_font) >> 9, (embed_font_size + 0x1ff) >> 9, embed_font_size);         
+      continue;
+    }
   }
 
   return 1;
@@ -1676,7 +1707,6 @@ grub_init (void)
 
 	grub_efi_mm_init ();  //内存管理初始化
   copy_grub4dos_self_address ();
-  get_preset_menu();
 
 	PAGING_TABLES_BUF = grub_malloc (0x4000); //分页表
 	PRINTF_BUFFER = grub_malloc (0x40000);    //打印
@@ -1702,4 +1732,6 @@ grub_init (void)
 	      0, 0, 0, NULL);
 				
 	grub_efidisk_init ();  //efidisk初始化
+  get_embed();
+  cmain ();
 }

@@ -3575,7 +3575,7 @@ static int insmod_func(char *arg,int flags)
     GRUB_MOD_ADDR = grub_malloc (0x100000);   //模块缓存
     mod_end = GRUB_MOD_ADDR;
   }
-   if (substring(skip_to(0,arg) - 4,".mod",1) == 0)
+   if (substring(skip_to(0,arg) - 4,".mod",1) == 0 || flags == 101)
    {
       if (!command_open(arg,1))
          return 0;
@@ -3597,6 +3597,11 @@ static int insmod_func(char *arg,int flags)
       //skip grub4dos moduld head.
       if (strcmp(p_mod->name.sn,"\x05\x18\x05\x03\xBA\xA7\xBA\xBC") == 0)
         ++p_mod;
+      else
+      {
+        grub_free(buff);
+        goto external_command;
+      }
       while ((char *)p_mod < buff_end && grub_mod_add(p_mod))
       {
          p_mod = (struct exec_array *)(p_mod->data + p_mod->len);
@@ -3604,10 +3609,12 @@ static int insmod_func(char *arg,int flags)
       grub_free(buff);
       return 1;
    }
+
+external_command:
    switch(command_open(arg,0))
    {
       case 2:
-	 printf_debug0("%s already loaded\n",arg);
+	 printf_debug("%s already loaded\n",arg);
          return 1;
       case 0:
          return 0;
@@ -10782,9 +10789,17 @@ ok:
   }	
   if (!UNIFONT_START)
   {
+    if (embed_font_path[0])
+    {
+      font_func (embed_font_path, 1);
+      grub_free (embed_font);
+    }
+    else
+    {
     //进入图形模式，加载袖珍字库，防止黑屏。这样也可以使防止加载精简中文字库(不包含英文字符)的问题。
     grub_memmove ((char *)0x10000, mini_font_lzma, 820);
     font_func ("(md)0x80+2", 1);  //如果是gz压缩格式，要明确压缩文件尺寸，如：font_func ("(md)0x80+2,820", 1);
+    }
   }
   
   return graphics_mode;

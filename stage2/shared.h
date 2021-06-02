@@ -1384,6 +1384,9 @@ extern int hotkey_func_enable;
 #endif
 extern unsigned long long hotkey_color_64bit;
 extern unsigned int hotkey_color;
+extern int font_func (char *arg, int flags);
+extern char embed_font_path[64];
+extern char *embed_font;
 
 #ifdef SUPPORT_GRAPHICS
 extern unsigned int current_x_resolution;
@@ -5304,24 +5307,22 @@ extern grub_efi_device_path_t *efi_file_path;
 extern grub_efi_handle_t efi_handle;
 extern void grub_machine_fini (void);
 
-enum                //对象类型 
-{
-  OBJ_TYPE_ELF,     //ELF             00
-  OBJ_TYPE_MEMDISK, //内存盘          01
-  OBJ_TYPE_CONFIG,  //配置            02
-  OBJ_TYPE_PREFIX,  //前缀            03
-  OBJ_TYPE_PUBKEY,  //公共密钥        04
-  OBJ_TYPE_DTB      //数据传输总线    05
-};
+#define OBJ_TYPE_ELF     0x00  // 外部命令
+#define OBJ_TYPE_MEMDISK 0x01  // MOD文件
+#define OBJ_TYPE_CONFIG  0x02  // 配置菜单
+#define OBJ_TYPE_PREFIX  0x03  // 前缀路径
+#define OBJ_TYPE_FONT    0x04  // 字体
 
-/* The module header.  模块标题*/
+/* The module header.  */
 struct grub_module_header
 {
-  /* The type of object.  对象的类型*/
-  grub_uint32_t type;
-  /* The size of object (including this header).  对象的大小（包括此标题）*/
+  /* The type of object.  */
+  grub_uint16_t type;
+  /* real_size = size - sizeof (struct grub_module_header) - pad_size */
+  grub_uint16_t pad_size;
+  /* The size of object (including this header).  */
   grub_uint32_t size;
-};
+} GRUB_PACKED;
 
 /* "gmim" (GRUB Module Info Magic).  GRUB模块信息魔法 */
 #define GRUB_MODULE_MAGIC 0x676d696d

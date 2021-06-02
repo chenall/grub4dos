@@ -4277,5 +4277,5 @@ grub_efidisk_init (void)  //efidisk初始化
   run_line((char *)"configfile /efi/grub/menu.lst",1);
 	run_line((char *)"errorcheck on",1);
 #endif
-	cmain ();
+  return;
 }

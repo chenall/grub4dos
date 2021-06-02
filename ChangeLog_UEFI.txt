@@ -1,10 +1,15 @@
 ﻿更新说明：
+2021-06-02 (a1ive)
+  支持嵌入字库、模块(.mod文件)。
+  mkimage.exe -d 目录 -p /efi/grub -o BOOTX64.EFI -O x86_64-efi -c 嵌入菜单 -f 嵌入字库 -m 嵌入模块
+  mkimage.exe -d 目录 -p /efi/grub -o BOOTIA32.EFI -O i386-efi -c 嵌入菜单 -f 嵌入字库 -m 嵌入模块
+
 2021-05-28 (yaya)
   改进热键。可以把菜单项中的任意英文字母作为热键。
   增加参数：setmenu --hotkey-color=COLOR  设置热键颜色。
   例如：
     setmenu --hotkey-color=0xffff
-    hotkey -A [F3] "reboot" [Ctrl+d] "commandlien"
+    hotkey -A [F3] "reboot" [Ctrl+d] "commandline"
     title [F4] Boot Win
     title Boot ^Win 10
 
@@ -16,9 +21,9 @@
   修复不能读写ud隐藏分区的问题。
 
 2021-04-24 (yaya)
-  1. 支持尾续菜单。把 kernel.img 与 grub-mkimage.exe 放在同一目录。
-    grub-mkimage.exe -d 目录 -p /efi/grub -o BOOTX64.EFI -O x86_64-efi -c 尾续菜单
-    grub-mkimage.exe -d 目录 -p /efi/grub -o BOOTIA32.EFI -O i386-efi -c 尾续菜单
+  1. 支持嵌入菜单。把 kernel.img 与 grub-mkimage.exe 放在同一目录。
+    grub-mkimage.exe -d 目录 -p /efi/grub -o BOOTX64.EFI -O x86_64-efi -c 嵌入菜单
+    grub-mkimage.exe -d 目录 -p /efi/grub -o BOOTIA32.EFI -O i386-efi -c 嵌入菜单
   2. 改进批处理调试，使用行号作为断点，可使用10个断点。
     debug 批处理文件名 参数
     b  设置断点（10个）。  例如: b 45  (当前批处理, 45行);   b p2,134  (2号批处理, 134行)
