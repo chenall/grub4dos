@@ -1,4 +1,7 @@
 ﻿更新说明：
+2021-06-19 (yaya)
+  增加 ADDR_RET_STR 以便外部命令使用。
+
 2021-06-02 (a1ive)
   支持嵌入字库、模块(.mod文件)。
   mkimage.exe -d 目录 -p /efi/grub -o BOOTX64.EFI -O x86_64-efi -c 嵌入菜单 -f 嵌入字库 -m 嵌入模块

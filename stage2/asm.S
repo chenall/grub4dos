@@ -728,7 +728,7 @@ VARIABLE(graphics_CURSOR)               //28  void *
 	.extent	(EXT_C(menu_border))            //29  border 数组
 VARIABLE(gzip_filemax)                  //30  long long
 	.extent	0
-	.extent	0                               //31  reserved
+	.extent	ABS(EXT_C(WENV_ENVI))           //31  char *
 	//reserved for wee
 	.extent	0                               //32  reserved
 	.extent	0                               //33  reserved
