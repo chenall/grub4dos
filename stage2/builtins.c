@@ -8385,6 +8385,189 @@ static struct builtin builtin_partnew =
   " be either 0x00 for auto or 0x10 for hidden-auto."
 };
 
+#define GPT_ATTRIBUTE_NO_DRIVE_LETTER	(0x8000000000000000LL)
+#define GPT_ATTRIBUTE_HIDDEN		(0x4000000000000000LL)
+#define GPT_ATTRIBUTE_SHADOW_COPY	(0x2000000000000000LL)
+#define GPT_ATTRIBUTE_READ_ONLY		(0x1000000000000000LL)
+#define GPT_ATTR_HIDE			(0xC000000000000001LL)
+#define GPT_HDR_SIZE 			(0x5C)
+static int gpt_set_crc(P_GPT_HDR hdr)
+{
+	char data[SECTOR_SIZE];
+	int crc;
+	int errnum_bak = errnum;
+
+	if (hdr->hdr_size != GPT_HDR_SIZE)
+		return 0;
+	errnum = 0;
+	sprintf(data,"(0x%X)0x%lx+%u,%u",current_drive,hdr->hdr_lba_table,32,hdr->hdr_entries * hdr->hdr_entsz);
+	crc = grub_crc32(data,0);
+	if (errnum)
+		return 0;
+	hdr->hdr_crc_table = crc;
+	hdr->hdr_crc_self = 0;
+	crc = grub_crc32((char*)hdr,GPT_HDR_SIZE);
+	if (errnum)
+		return 0;
+	hdr->hdr_crc_self = crc;
+	buf_track = -1;
+	if (! rawread (current_drive, hdr->hdr_lba_self ,0,GPT_HDR_SIZE, (unsigned long long)(grub_size_t)hdr, GRUB_WRITE))
+		return 0;
+	errnum = errnum_bak;
+	return hdr->hdr_crc_table;
+}
+
+static int gpt_set_attr(P_GPT_HDR hdr,grub_u32_t part,grub_u64_t attr)
+{
+	GPT_ENT ent;
+	if (! rawread (current_drive, hdr->hdr_lba_table + (part >> 2), (part & 3) * sizeof(GPT_ENT), sizeof(GPT_ENT), (unsigned long long)(grub_size_t)&ent, GRUB_READ))
+		return 0;
+
+	if (attr & 0xFF00)
+		ent.ms_attr.gpt_att = (unsigned short)attr;
+	else
+		ent.attributes = attr;
+
+	buf_track = -1;
+	if (! rawread (current_drive, hdr->hdr_lba_table + (part >> 2), (part & 3) * sizeof(GPT_ENT), sizeof(GPT_ENT), (unsigned long long)(grub_size_t)&ent, GRUB_WRITE))
+		return 0;
+	return gpt_set_crc(hdr);
+}
+
+static unsigned int gpt_slic_set_attr(grub_u32_t part,grub_u64_t attr)
+{
+	char data[SECTOR_SIZE];
+	int crc1,crc2;
+	if (! rawread (current_drive, 1, 0, sizeof(GPT_HDR), (unsigned long long)(grub_size_t)data, GRUB_READ))
+		return 0;
+	P_GPT_HDR hdr = (P_GPT_HDR)data;
+	crc1 = gpt_set_attr(hdr,part,attr);
+	if (!crc1)
+		return 0;
+	if (! rawread (current_drive, hdr->hdr_lba_alt, 0, sizeof(GPT_HDR), (unsigned long long)(grub_size_t)data, GRUB_READ))
+		return 0;
+	crc2 = gpt_set_attr(hdr,part,attr);
+	if (!crc2)
+		return 0;
+	if (debug > 1 && crc1 != crc2)
+		printf("Warning! Main partition table CRC mismatch!");
+	return 1;
+}
+
+/* parttype PART TYPE */
+static int
+parttype_func (char *arg, int flags)
+{
+  unsigned long long new_type = -1;
+  unsigned int part = 0xFFFFFF;
+  unsigned long long start, len, offset;
+  unsigned int type, entry1, ext_offset1;
+
+  /* Get the drive and the partition.  */
+
+  errnum = 0;
+  if (! *arg || *arg == ' ' || *arg == '\t')
+  {
+	current_drive = saved_drive;
+	current_partition = saved_partition;
+  }
+  else if (! set_device (arg))
+  {
+    if (! safe_parse_maxint (&arg, &new_type))
+      return 0;
+    current_drive = saved_drive;
+    current_partition = saved_partition;
+  }
+  else
+  {
+    /* Get the new partition type.  */
+    arg = skip_to (0, arg);
+    if (*arg && *arg != ' ' && *arg != '\t')
+      if (! safe_parse_maxint (&arg, &new_type))
+        return 0;
+  }
+
+  /* The partition must be a PC slice.  */
+  if ((current_partition >> 16) == 0xFF
+      || (current_partition & 0xFFFF) != 0xFFFF)
+    {
+      errnum = ERR_BAD_ARGUMENT;
+      return 0;
+    }
+
+  /* Look for the partition.  */
+  while ((	next_partition_drive		= current_drive,
+		next_partition_dest		= current_partition,
+		next_partition_partition	= &part,
+		next_partition_type		= &type,
+		next_partition_start		= &start,
+		next_partition_len		= &len,
+		next_partition_offset		= &offset,
+		next_partition_entry		= &entry1,
+		next_partition_ext_offset	= &ext_offset1,
+		next_partition_buf		= mbr,
+		next_partition ()))
+    {
+      if (part == current_partition)
+	{
+	  /* Found.  */
+
+	  errnum = 0;
+	  if (new_type == -1)	/* return the current type */
+	  {
+		new_type = (type == PC_SLICE_TYPE_GPT)?0xEE:PC_SLICE_TYPE (mbr, entry1);
+		if (debug > 0)
+			printf ("Partition type for (%cd%d,%d) is 0x%02X.\n",
+				((current_drive & 0x80) ? 'h' : 'f'),
+				(current_drive & ~0x80),
+				(unsigned long)(unsigned char)(current_partition >> 16),
+				(unsigned long)new_type);
+		return new_type;
+	  }
+
+	  if (type == PC_SLICE_TYPE_GPT) /* set gpt partition attributes*/
+	    return gpt_slic_set_attr(part>>16,new_type);
+
+	  /* The partition type is unsigned char.  */
+	  if (new_type > 0xFF)
+	  {
+	      errnum = ERR_BAD_ARGUMENT;
+	      return 0;
+	  }
+	  /* Set the type to NEW_TYPE.  */
+	  PC_SLICE_TYPE (mbr, entry1) = new_type;
+
+	  /* Write back the MBR to the disk.  */
+	  buf_track = -1;
+	  if (! rawwrite (current_drive, offset, (unsigned long long)(grub_size_t)mbr))
+	    break;	/* failure */
+
+	  if (debug > 0)
+		printf ("Partition type for (%cd%d,%d) set to 0x%02X successfully.\n",
+			((current_drive & 0x80) ? 'h' : 'f'),
+			(current_drive & ~0x80),
+			(unsigned long)(unsigned char)(current_partition >> 16),
+			(unsigned long)new_type);
+	  /* Succeed.  */
+	  errnum = 0;
+	  return 1;
+	}
+    }
+
+  /* The partition was not found.  ERRNUM was set by next_partition.  */
+  return 0;
+}
+
+static struct builtin builtin_parttype =
+{
+  "parttype",
+  parttype_func,
+  BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
+  "parttype [PART] [TYPE]",
+  "Change the type of the partition PART to TYPE. If TYPE is omitted, return "
+  "the partition type of the specified device(instead of changing it). PART "
+  "default to the current root device."
+};
 
 /* password */
 static int password_func (char *arg, int flags);
@@ -13320,6 +13503,7 @@ struct builtin *builtin_table[] =
 #endif /* SUPPORT_GRAPHICS */
   &builtin_pager,
   &builtin_partnew,
+  &builtin_parttype,
   &builtin_password,
   &builtin_pause,
 #ifdef FSYS_PXE
