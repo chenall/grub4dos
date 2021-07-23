@@ -13436,9 +13436,105 @@ static struct builtin builtin_else =
   BUILTIN_BAT_SCRIPT | BUILTIN_SCRIPT,      //使用于批处理脚本及脚本
 };
 
+static inline unsigned char inb (unsigned short p)
+{
+  unsigned char r;
+  asm ("inb %1, %0" : "=a" (r) : "dN" (p));
+  return r;
+}
+
+static inline void outb (unsigned short p, unsigned char d)
+{
+  asm ("outb %1, %0" : : "dN" (p), "a" (d));
+}
+
+static void
+speaker_play (unsigned int hz, unsigned long time)
+{
+  unsigned int div = 0;
+  unsigned long ms = 1000 * time;
+  if (hz == 0)
+  {
+    outb (0x61, inb (0x61) & 0xfc);
+    efi_call_1 (grub_efi_system_table->boot_services->stall, ms);
+    return;
+  }
+  if (hz < 20)
+    hz = 20;
+  if (hz > 20000)
+    hz = 20000;
+  div = 1193180 / hz;
+  /* speaker freq */
+  outb (0x43, 0xb6);
+  outb (0x42, (unsigned char) div);
+  outb (0x42, (unsigned char) (div >> 8));
+  /* speaker on */
+  outb (0x61, inb (0x61) | 0x3);
+  /* sleep */
+  efi_call_1 (grub_efi_system_table->boot_services->stall, ms);
+  /* speaker off */
+  outb (0x61, inb (0x61) & 0xfc);
+}
+
+static int beep_func (char *arg, int flags);
+static int beep_func (char *arg, int flags)
+{
+  unsigned int hz;
+  unsigned long time;
+  unsigned long long val;
+  while (1)
+  {
+    if (grub_memcmp(arg,"--play=",7) == 0)
+    {
+    }
+    else if (grub_memcmp(arg,"--start",7) == 0)
+    {
+    }
+    else if (grub_memcmp(arg,"--mid",5) == 0)
+    {
+    }
+    else if (grub_memcmp(arg,"--end",5) == 0)
+    {
+    }
+    else if (grub_memcmp(arg,"--nowait",8) == 0)
+    {
+    }
+    else
+      break;
+    arg = skip_to (0, arg);
+  }
+
+  while (*arg)
+  {    
+    if (safe_parse_maxint (&arg, &val))
+      hz = val;
+    else
+      break;
+    arg = skip_to (0, arg);
+    if (safe_parse_maxint (&arg, &val))
+      time = val;
+    else
+      break;
+    speaker_play (hz, time);
+    arg = skip_to (0, arg);
+  }
+  speaker_play (0, 0);
+  return 1;
+}
+
+static struct builtin builtin_beep =
+{
+  "beep",
+  beep_func,
+  BUILTIN_BAT_SCRIPT | BUILTIN_SCRIPT | BUILTIN_CMDLINE | BUILTIN_MENU | BUILTIN_HELP_LIST,
+  "beep FREQUENCY DURATION FREQUENCY DURATION ...",
+  "FREQUENCY: Hz. DURATION: ms."
+};
+
 /* The table of builtin commands. Sorted in dictionary order.  */
 struct builtin *builtin_table[] =
 {
+  &builtin_beep,
   &builtin_blocklist,
   &builtin_boot,
   &builtin_calc,

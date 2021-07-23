@@ -1432,7 +1432,7 @@ extern int use_config_file;
 /* print debug message on startup if the DEBUG_KEY is pressed. */
 //extern int debug_boot;
 extern int console_beep (void);
-extern int beep_func(char *arg, int flags);
+//extern int beep_func(char *arg, int flags);
 extern void defer(unsigned short millisecond);
 //extern unsigned short count_ms;
 //extern unsigned char beep_play;
