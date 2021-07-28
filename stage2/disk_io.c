@@ -1294,6 +1294,11 @@ set_device (char *device)
 				{
 			current_drive = (unsigned char)(floppies_orig);
 				}
+        else	if (ch == 'f' && *device == 'p')	//(fd)
+				{
+			current_drive = (unsigned char)(floppies_orig + 6);
+      device++;
+				}
 	      else if (ch == 'm')
 	      {
 		current_drive = 0xffff;
@@ -2698,7 +2703,7 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 			grub_size_t size, char *buf, int read_write)
 {
   struct grub_disk_data *d;	//磁盘数据
-  grub_efi_block_io_t *bio;			//块io
+  grub_efi_block_io_t *bio=0;			//块io
   grub_efi_status_t status;			//状态
   grub_size_t io_align;					//对齐
   char *aligned_buf;						//对齐缓存
@@ -2736,6 +2741,15 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 		
 		return 0;	/* success */
 	}	
+
+	d = get_device_by_drive (drive);
+  if (d)
+  {
+  bio = d->block_io;	//块io
+  //避免出界
+  if (size > ((bio->media->last_block - sector + 1) << buf_geom.log2_sector_size))
+		size = (bio->media->last_block - sector + 1) << buf_geom.log2_sector_size;
+  }
 
   from_drive = drive;
   while (i < (unsigned int)DRIVE_MAP_SIZE && disk_drive_map[i].from_drive != from_drive)
@@ -2808,10 +2822,9 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
     sector += data[j-1].start_sector + data[j-1].sector_count - total;
   }  
 	d = get_device_by_drive (to_drive);
+  if (!d)
+    return 0;
   bio = d->block_io;	//块io
-  //避免出界
-  if (size > ((bio->media->last_block - sector + 1) << buf_geom.log2_sector_size))
-    size = (bio->media->last_block - sector + 1) << buf_geom.log2_sector_size;
 
   while (size)
   {
@@ -2876,14 +2889,6 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
   return 1;
 
 not_map:
-	d = get_device_by_drive (drive);
-//	efi_handle = d->handle;
-//	efi_file_path = d->device_path;
-  bio = d->block_io;	//块io
-  //避免出界
-  if (size > ((bio->media->last_block - sector + 1) << buf_geom.log2_sector_size))
-    size = (bio->media->last_block - sector + 1) << buf_geom.log2_sector_size;
-
   /* Set alignment to 1 if 0 specified 如果0指定，则将对齐设置为1*/
   io_align = bio->media->io_align ? bio->media->io_align : 1;	//对齐, 如果没有指定则为1
   if ((grub_addr_t) buf & (io_align - 1))	//如果缓存未对齐
@@ -3491,9 +3496,11 @@ vpart_install (int slot_number, grub_efi_device_path_t *dp, struct grub_part_dat
   disk_drive_map[slot_number].media.logical_partition = TRUE;
   disk_drive_map[slot_number].media.write_caching = FALSE;
   disk_drive_map[slot_number].media.io_align = 0x10;
-  disk_drive_map[slot_number].media.last_block =  disk_drive_map[slot_number].sector_count - 1;
-
-  /* info */
+  //sector_count是宿主驱动器(to)的值, 需转换为自身驱动器(from)的值
+//  disk_drive_map[slot_number].media.last_block = disk_drive_map[slot_number].sector_count - 1;
+  disk_drive_map[slot_number].media.last_block = (disk_drive_map[slot_number].sector_count >>
+          (disk_drive_map[slot_number].from_log2_sector - disk_drive_map[slot_number].to_log2_sector)) - 1;
+  /* info */ 
   printf_debug ("part_map: addr=%lx size=%lx blksize=%x\n", (unsigned long)disk_drive_map[slot_number].start_sector,
           (unsigned long long)disk_drive_map[slot_number].sector_count,
           disk_drive_map[slot_number].media.block_size);
@@ -3522,7 +3529,8 @@ vpart_install (int slot_number, grub_efi_device_path_t *dp, struct grub_part_dat
 	d->block_io = (grub_efi_block_io_t *)&disk_drive_map[slot_number].block_io;
 	d->sector_size = disk_drive_map[slot_number].media.block_size;
 	d->log2_sector = disk_drive_map[slot_number].from_log2_sector;
-	d->total_sectors = disk_drive_map[slot_number].sector_count;
+//	d->total_sectors = disk_drive_map[slot_number].sector_count;
+  d->total_sectors = disk_drive_map[slot_number].media.last_block + 1;
 	d->drive = disk_drive_map[slot_number].from_drive;
 	d->next = 0;
   p->part_handle = d->device_handle;
@@ -3691,8 +3699,10 @@ vdisk_install (int slot_number)	//安装虚拟磁盘(映射插槽号)
   disk_drive_map[slot_number].media.logical_partition = FALSE;	//逻辑分区
   disk_drive_map[slot_number].media.write_caching = FALSE;			//写缓存 
   disk_drive_map[slot_number].media.io_align = 0x10;						//对齐
-  disk_drive_map[slot_number].media.last_block = disk_drive_map[slot_number].sector_count - 1;//最后块
-
+  //sector_count是宿主驱动器(to)的值, 需转换为自身驱动器(from)的值
+//  disk_drive_map[slot_number].media.last_block = disk_drive_map[slot_number].sector_count - 1;//最后块
+  disk_drive_map[slot_number].media.last_block = (disk_drive_map[slot_number].sector_count >>
+          (disk_drive_map[slot_number].from_log2_sector - disk_drive_map[slot_number].to_log2_sector)) - 1;
   /* info 打印信息*/
   printf_debug ("disk_drive_map: addr=%lx size=%lx blksize=%x\n", (unsigned int)disk_drive_map[slot_number].start_sector,
           (unsigned long long)disk_drive_map[slot_number].sector_count,
@@ -3704,7 +3714,8 @@ vdisk_install (int slot_number)	//安装虚拟磁盘(映射插槽号)
 	d->block_io = (grub_efi_block_io_t *)&disk_drive_map[slot_number].block_io;
 	d->sector_size = disk_drive_map[slot_number].media.block_size;
 	d->log2_sector = disk_drive_map[slot_number].from_log2_sector;
-	d->total_sectors = disk_drive_map[slot_number].sector_count;
+//	d->total_sectors = disk_drive_map[slot_number].sector_count;
+  d->total_sectors = disk_drive_map[slot_number].media.last_block + 1;
 	d->drive = disk_drive_map[slot_number].from_drive;
 	d->next = 0;
 	if (d->drive >= 0xa0)
@@ -3746,7 +3757,7 @@ vdisk_install (int slot_number)	//安装虚拟磁盘(映射插槽号)
     else
       get_efi_hd_device_boot_path (d->drive);
     
-    grub_sprintf (buf, "(0x%X)0x%lX+0x%lX (fd)", d->drive, part_addr, part_size);
+    grub_sprintf (buf, "(0x%X)0x%lX+0x%lX (fdp)", d->drive, part_addr, part_size);
     no_install_vdisk = 1;  //0/1=安装虚拟磁盘/不安装虚拟磁盘
     k = map_func (buf, 1);
     no_install_vdisk = 0;
@@ -4194,7 +4205,9 @@ grub_efidisk_init (void)  //efidisk初始化
 			current_partition = install_partition;
 			run_line((char *)"set ?_BOOT=%@root%",1);
 			QUOTE_CHAR = '\"';	
+			*saved_dir = 0;
 			cmain ();
+			return;
 		}
 	}
 //#endif /* FSYS_PXE */
@@ -4266,16 +4279,17 @@ grub_efidisk_init (void)  //efidisk初始化
     current_partition = install_partition;
     ret = find_specified_file (current_drive, current_partition, "/efi/grub/menu.lst");
   }
-
+  if (!ret || i == 0xff)
+    run_line((char *)"find --set-root /efi/grub/menu.lst",1);
 //初始化变量空间	
   run_line((char *)"set ?_BOOT=%@root%",1);
   QUOTE_CHAR = '\"';	
+  *saved_dir = 0;
 #if 0
 	run_line((char *)"errorcheck off",1);
-  if (!ret || i == 0xff)
-    run_line((char *)"find --set-root /efi/grub/menu.lst",1);
   run_line((char *)"configfile /efi/grub/menu.lst",1);
 	run_line((char *)"errorcheck on",1);
+  cmain ();
 #endif
   return;
 }

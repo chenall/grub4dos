@@ -1465,6 +1465,10 @@ typedef char VAR_VALUE[MAX_ENV_LEN];
 #define _WENV_ 60
 
 //#define VAR_EX_TMP ((char *)(BASE_ADDR+MAX_VARS * (MAX_VAR_LEN + MAX_ENV_LEN)))
+/* 变量 VAR (BASE_ADDR)  需0x8200字节
+ * 0x0      变量名称  8字节     64个变量
+ * 0x200    变量值    512字节   64个变量值
+ */
 #define set_envi(var, val)			envi_cmd(var, val, 0)
 #define get_env_all()				envi_cmd(NULL, NULL, 2)
 #define reset_env_all()				envi_cmd(NULL, NULL, 3)
@@ -1880,6 +1884,18 @@ extern char *WENV_ENVI;
 #define SKIP_NONE		0
 #define SKIP_WITH_TERMINATE	0x200
 #define ADDR_RET_STR WENV_ENVI
+//如果变量是字符串, 则:  ADDR_RET_STR = var;
+//如果变量是数值, 则:  sprintf (ADDR_RET_STR,"0x%lx",var);
+//#define		WENV_RANDOM	(*(unsigned long *)(WENV_ENVI+0x20))
+#define		WENV_RANDOM	(*(unsigned int *)(WENV_ENVI+0x20)) //随机数 2字节
+#define		PATHEXT		(WENV_ENVI + 0x40)  //路径扩展 
+#define		WENV_TMP	(WENV_ENVI + 0x80)  //字符串缓存
+/* 环境参数 WENV_ENVI
+ * 0x0    特殊返回值 %?_UUID% %?%
+ * 0x20   随机数 WENV_RANDOM 只使用2字节
+ * 0x40   路径扩展 PATHEXT
+ * 0x80   环境参数返回值 字符串缓存 WENV_TMP
+ */
 
 //extern char *pre_cmdline;
 extern int expand_var(const char *str,char *out,const unsigned int len_max);
@@ -5292,11 +5308,6 @@ extern unsigned char *IMAGE_BUFFER;
 extern unsigned char *JPG_FILE;
 extern char *menu_mem;
 
-//#define		WENV_RANDOM	(*(unsigned long *)(WENV_ENVI+0x20))    //????
-#define		WENV_RANDOM	(*(unsigned int *)(WENV_ENVI+0x20))
-#define		PATHEXT		(WENV_ENVI + 0x40)
-#define		WENV_TMP	(WENV_ENVI + 0x80)
-
 extern int grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 			grub_size_t size, char *buf, int read_write);
 			
@@ -5926,6 +5937,11 @@ typedef struct grub_efi_file_system_volume_label
 } grub_efi_fs_label_t;
 
 typedef __WCHAR_TYPE__ wchar_t;
+/* 宽字符，gcc在linux下，使用4个字节存储一个字符。
+ * 比如 wchar_t p[] = L"1122"，它存储为：31 00 00 00 31 00 00 00 32 00 00 00 32 00 00 00
+ * 而普通字符，使用1个字节存储一个字符。
+ * 比如 char p2[] = "1122"，它存储为：31 31 32 32
+ */
 
 extern void grub_efidisk_fini (void);
 extern void grub_efidisk_init (void);

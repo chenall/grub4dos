@@ -1,7 +1,5 @@
-pxe detect
-configfile
 default 0
-timeout 1
+timeout 0
 
 title find /efi/grub/menu.lst
 	errorcheck off

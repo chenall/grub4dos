@@ -1891,14 +1891,14 @@ inline void debug_time(const int line,const char*file)
 
 
 
-unsigned int cursor_state_put;
+//unsigned int cursor_state_put;
 unsigned int setcursor (unsigned int on);
 unsigned int
 setcursor (unsigned int on)	//设置鼠标指针  0/1=关闭/打开
 {
   unsigned int old_state = cursor_state;
   cursor_state = on;					//鼠标状态=0/1=关闭/打开
-  cursor_state_put = on;
+//  cursor_state_put = on;
   if (current_term->setcursor)
       current_term->setcursor (on & 1);
 

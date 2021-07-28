@@ -140,6 +140,10 @@ int no_install_vdisk = 0;  //0/1=安装虚拟磁盘/不安装虚拟磁盘
 static int ls_func (char *arg, int flags);
 static char *GRUB_MOD_ADDR=0;
 static char* mod_end;
+static int find_func (char *arg, int flags);
+static int insmod_func(char *arg,int flags);
+static unsigned long long start_sector, sector_count;
+unsigned long long initrd_start_sector;
 
 void set_full_path(char *dest, char *arg, grub_u32_t max_len);
 void set_full_path(char *dest, char *arg, grub_u32_t max_len)
@@ -225,7 +229,7 @@ static void disk_read_print_func (unsigned long long sector, unsigned int offset
 static void
 disk_read_print_func (unsigned long long sector, unsigned int offset, unsigned long long length)
 {
-  grub_printf ("[%ld,%d,%ld]", sector, offset, length);
+  grub_printf ("[0x%lx,0x%x,0x%lx]", sector, offset, length);
 }
 
 extern int rawread_ignore_memmove_overflow; /* defined in disk_io.c */
@@ -269,15 +273,15 @@ disk_read_blocklist_func (unsigned long long sector, unsigned int offset, unsign
 	      if (query_block_entries >= 0)
 	        {
 		  if (blklst_last_length == 0)
-		    grub_printf ("%s%lx+%lx", (blklst_num_entries ? "," : ""),
+		    grub_printf ("%s0x%lx+0x%lx", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector/* - part_start*/), blklst_num_sectors);
 		  else if (blklst_num_sectors > 1)
-		    grub_printf ("%s%lx+%lx,%lx[0-%x]", (blklst_num_entries ? "," : ""),
+		    grub_printf ("%s0x%lx+0x%lx,0x%lx[0-0x%x]", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector/* - part_start*/), (blklst_num_sectors-1),
 			     (unsigned long long)(blklst_start_sector + blklst_num_sectors-1/* - part_start*/),
 			     blklst_last_length);
 		  else
-		    grub_printf ("%s%lx[0-%x]", (blklst_num_entries ? "," : ""),
+		    grub_printf ("%s0x%lx[0-0x%x]", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector/* - part_start*/), blklst_last_length);
 	        }
 	        else if (blklst_last_length == 0 && blklst_num_entries < DRIVE_MAP_FRAGMENT)
@@ -293,7 +297,7 @@ disk_read_blocklist_func (unsigned long long sector, unsigned int offset, unsign
 	if (offset > 0)
 	{
 	  if (query_block_entries >= 0)
-			grub_printf("%s%lx[%x-%x]", (blklst_num_entries ? "," : ""),
+			grub_printf("%s0x%lx[0x%x-0x%x]", (blklst_num_entries ? "," : ""),
 				(unsigned long long)(sector/* - part_start*/), offset, (offset + length));
 	  blklst_num_entries++;
 	}
@@ -355,7 +359,7 @@ blocklist_func (char *arg, int flags)
   }
 #endif /* NO_DECOMPRESSION */
   /* Print the device name.  */
-  if (query_block_entries >= 0) print_root_device (NULL,1);
+  if (query_block_entries >= 0) print_root_device (NULL,1 | 0x100);
   rawread_ignore_memmove_overflow = 1;
   /* Read in the whole file to DUMMY.  */
   disk_read_hook = disk_read_blocklist_func;
@@ -378,7 +382,7 @@ blocklist_func (char *arg, int flags)
   if (blklst_num_sectors > 0)
   {
     if (query_block_entries >= 0)
-      grub_printf ("%s%lx+%lx", (blklst_num_entries ? "," : ""),
+      grub_printf ("%s0x%lx+0x%lx", (blklst_num_entries ? "," : ""),
           (unsigned long long)(blklst_start_sector/* - part_start*/), blklst_num_sectors);
     else if (blklst_num_entries < DRIVE_MAP_FRAGMENT)
     {
@@ -1707,6 +1711,7 @@ configfile_func (char *arg, int flags)
   char *new_config = config_file;
 	if (*arg == 0 && *config_file)
 	{
+#if 0
 	    if	(pxe_restart_config == 0)
 	    {
 		if (configfile_in_menu_init == 0)
@@ -1718,6 +1723,9 @@ configfile_func (char *arg, int flags)
 	    saved_partition = install_partition;
 	    *saved_dir = 0;	/* clear saved_dir */
 	    arg = config_file;
+#else
+    return 1;
+#endif
 	}
   if (grub_strlen(saved_dir) + grub_strlen(arg) + 20 >= (int)sizeof(chainloader_file_orig))
 	return ! (errnum = ERR_WONT_FIT);
@@ -1746,12 +1754,13 @@ configfile_func (char *arg, int flags)
   /* Force to load the configuration file.  */
   use_config_file = 1;
 //	pxe_restart_config = 1;		//pxe测试
+#if 0
 	if (pxe_restart_config == 0)	//pxe重新启动配置
 	{
 		pxe_restart_config = /* configfile_in_menu_init = */ 1;
 		return 1;
 	}
-
+#endif
   /* Make sure that the user will not be authoritative.  */
   auth = 0;
   
@@ -3158,7 +3167,7 @@ static int grub_mod_add (struct exec_array *mod)
       rd_size = rd_size_bak;
 
       unsigned long long *a = (unsigned long long *)(p_mod->data + p_mod->len - 8);
-      unsigned long *b = (unsigned long *)p_mod->data;
+      unsigned int *b = (unsigned int *)p_mod->data;
       unsigned long long *c = (unsigned long long *)p_mod->data;
       if (*a != (unsigned long long)0xBCBAA7BA03051805ULL
          && *b != BAT_SIGN
@@ -3332,7 +3341,7 @@ command_func (char *arg, int flags)
 	return 1;
     return 0;
   }
-  
+
    if (*arg <= ' ')
    {
       if (debug > 0)
@@ -3443,7 +3452,7 @@ command_func (char *arg, int flags)
 	}
 
 	program = (char *)((grub_size_t)(tmp + 4095) & ~4095); /* 4K align the program 4K对齐程序*/   //程序缓存
-	psp = (char *)((grub_size_t)(program + prog_len + 15) & ~0x0F); //psp地址
+	psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F); //psp地址  向上舍入，否则覆盖program数据
 	unsigned long long *end_signature = (unsigned long long *)(program + filemax - (unsigned long long)8);  //程序结束签名地址
 	if (p_exec == NULL)
 	{
@@ -3469,6 +3478,7 @@ command_func (char *arg, int flags)
 		{
 			errnum = ERR_EXEC_FORMAT;
 		}
+
 		grub_close ();
 		if (errnum)
 		{
@@ -3482,7 +3492,8 @@ command_func (char *arg, int flags)
 	}
 	if (*end_signature == 0xBCBAA7BA03051805ULL)
 	{
-		if (*(unsigned long long *)(program + prog_len - 0x20) == 0x646E655F6E69616D) //新版本标记 main_end
+//		if (*(unsigned long long *)(program + prog_len - 0x20) == 0x646E655F6E69616D) //bios模式：新版本标记 main_end
+    if (*(unsigned long long *)(program + prog_len - 0x20) == 0x646E655F69666575) //uefi模式：新版本标记 uefi_end
 		{
 			unsigned int *prog_start = (unsigned int *)(program + prog_len - 0x3c); //.text
 			unsigned int *bss_end = (unsigned int *)(program + prog_len - 0x24);    //end
@@ -3494,10 +3505,11 @@ command_func (char *arg, int flags)
         if (tmp == NULL)
 					goto fail;
         program = (char *)((grub_size_t)(tmp + 4095) & ~4095); /* 4K align the program */
-        psp = (char *)((grub_size_t)(program + prog_len + 15) & ~0x0F);
+        psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F);
         grub_read ((unsigned long long)(grub_size_t)program, -1ULL, 0xedde0d90);
 			}
 		} else {//the old program
+#if 0
 			char *program1;
 			printf_warning ("\nWarning! The program is outdated!\n");
 			psp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
@@ -3509,7 +3521,9 @@ command_func (char *arg, int flags)
 			program1 = psp + psp_len;
 			grub_memmove (program1, program, prog_len);
 			program = program1;
-//			tmp = psp;
+			tmp = psp;
+#endif
+      return ! (errnum = ERR_EXEC_FORMAT);
 		}
 	}
 
@@ -3562,7 +3576,14 @@ static struct builtin builtin_command =
   "--set-ext sets default extensions for executable files."
 };
 
-static int insmod_func(char *arg,int flags);
+/* 模块结构
+ * 首行：  16字节  05 18 05 03 BA A7 BA BC  00 00 00 00 00 00 00 00
+ * 正文：
+ *     外部命令名称  12字节
+ *     尺寸  4字节
+ *     外部命令
+ * 下一正文
+ */
 static int insmod_func(char *arg,int flags)
 {
    errnum = 0;
@@ -3760,7 +3781,6 @@ static int find_check(char *filename,struct builtin *builtin1,char *arg,int flag
 	return 0;
 }
 
-static int find_func (char *arg, int flags);
 static int
 find_func (char *arg, int flags)
 {
@@ -6004,7 +6024,6 @@ static struct builtin builtin_is64bit =
   "return value bit0=PAE supported bit1=AMD64/Intel64 supported"
 };
 
-unsigned long long initrd_addr_max;
 /* kernel */
 static int kernel_func (char *arg, int flags);
 static int
@@ -6335,8 +6354,8 @@ static struct builtin builtin_makeactive =
 };
 
 
-static unsigned long long start_sector, sector_count;
-unsigned long long initrd_start_sector;
+//static unsigned long long start_sector, sector_count;
+//unsigned long long initrd_start_sector;
 
   /* Get the start sector number of the file.  */
 static void disk_read_start_sector_func (unsigned long long sector, unsigned int offset, unsigned long long length);
@@ -6726,7 +6745,8 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
 				{
 					if (disk_drive_map[i].from_drive != (unsigned char)mem)  //如果from驱动器号不等于输入参数,继续
 						continue;
-					*(unsigned int *)ADDR_RET_STR = (unsigned int)disk_drive_map[i].start_sector;
+//					*(unsigned int *)ADDR_RET_STR = (unsigned int)disk_drive_map[i].start_sector;
+          sprintf(ADDR_RET_STR,"0x%lx",(unsigned int)disk_drive_map[i].start_sector);
 					return disk_drive_map[i].sector_count;  //返回起始扇区(32位)
 				}
 				return 0;  //没有查到from驱动器号
@@ -6840,9 +6860,9 @@ struct drive_map_slot
 	    {
 				if (drive_map_slot_empty (disk_drive_map[i]))   //判断驱动器映像插槽是否为空   为空,返回1
 					break;
-        if (disk_drive_map[i].to_drive == 0xff)
-          tmp = disk_drive_map[i].start_sector;
-        else
+//        if (disk_drive_map[i].to_drive == 0xff)
+//          tmp = disk_drive_map[i].start_sector;
+//        else
           tmp = disk_drive_map[i].start_sector;
 				grub_printf ("%02X %02X %02X %02X %02X %02X %016lX %016lX\n", disk_drive_map[i].from_drive, disk_drive_map[i].to_drive,
 						disk_drive_map[i].from_log2_sector, disk_drive_map[i].to_log2_sector, disk_drive_map[i].fragment, disk_drive_map[i].read_only,
@@ -7048,6 +7068,8 @@ struct drive_map_slot
 
   if ((current_partition == 0xFFFFFF || (to >= 0x80 && to <= 0xFF)) && filename && (*filename == 0x20 || *filename == 0x09))
 	{
+    return 0;
+#if 0
 		if (to == 0xffff /* || to == ram_drive */)
 		{
 			if (((long long)mem) <= 0)
@@ -7086,6 +7108,7 @@ struct drive_map_slot
 //			goto map_whole_drive; //转到映射整体驱动器
       return 0; //不允许执行类似的操作: map (4) (4);  map (0x80) (0x81);
 		}
+#endif
 	}
 
   if (mem == -1ULL)		//如果不加载到内存
@@ -7115,6 +7138,7 @@ struct drive_map_slot
   if (!cache)
     return 0;
 	
+#if 0
   if ((to == 0xffff /* || to == ram_drive */) && sector_count == 1)		//如果to=md,并且扇区计数=1
   {
     /* fixed memory mapping   安装内存映射*/
@@ -7122,6 +7146,7 @@ struct drive_map_slot
     grub_memmove64 ((unsigned long long)(grub_size_t) BS, (start_sector << 9), SECTOR_SIZE);
   }
 	else
+#endif
 	{
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     //保存to驱动器的路径文件名
@@ -7175,7 +7200,8 @@ struct drive_map_slot
 
     //此处重新设置了 sector_count, 将扇区计数更改为按每扇区0x200字节计的小扇区!!!
 //    sector_count = (filemax + 0x1ff) >> 9; /* in small 512-byte sectors */
-    sector_count = (filemax + buf_geom.sector_size) >> buf_geom.log2_sector_size;
+    sector_count = (filemax + buf_geom.sector_size - 1) >> buf_geom.log2_sector_size;
+#if 0
     if (part_length		//如果分区长度不为零		此处buf_geom是to驱动器的参数
 				&& (buf_geom.sector_size == 2048 ? (start_sector - (skip_sectors >> 2)) : (start_sector - skip_sectors)) == part_start //并且(扇区起始-跳过扇区)=分区起始
 				/* && part_start */
@@ -7197,16 +7223,19 @@ struct drive_map_slot
         filepos = (skip_sectors + 1) << 9;			//文件位置指针=(跳过扇区+1)*0x200
       }// else if (part_start)
     }
+#endif
     //此处又修改sector_count
     sector_count -= skip_sectors;  //扇区计数=扇区计数-跳过扇区
     if (mem == -1ULL)		//如果不加载到内存
       grub_close ();		//关闭to驱动器
+#if 0
     if (to == 0xffff && sector_count == 1)		//如果to=md,并且扇区计数=1
     {
       grub_printf ("For mem file in emulation, you should not specify sector_count to 1.\n");  //为了仿真内存文件,你应当不指定扇区计数为1.
       errnum = ERR_BAD_ARGUMENT;
       goto fail_free;
     }
+#endif
 //    if (sector_count > max_sectors)		//如果扇区计数>最大扇区
 //			sector_count = max_sectors;     //则扇区计数=最大扇区
 	}
@@ -7349,7 +7378,7 @@ map_whole_drive:
       errnum = ERR_WONT_FIT;
       goto fail_free;
     }
-
+#if 0
     /* If TO == FROM and whole drive is mapped, and, no map options occur, then delete the entry.  */
     //如果TO=FROM,并且是整个驱动器映射，并且没有映射选项出现，然后删除该条目。
     if (to == from && read_only == 0 && start_sector == 0 && (sector_count == 0 ||
@@ -7360,6 +7389,7 @@ map_whole_drive:
         cache = 0;
 		goto delete_drive_map_slot;  //删除驱动器映像插槽
 			}
+#endif
 	}
 
 //检查to是否存在父映射   在 disk_drive_map 查找from，是否等于当前to
@@ -7386,21 +7416,24 @@ map_whole_drive:
 			//驱动器仿真条件: (起始扇区!=0) || (to扇区计数>1) || (每磁道扇区数>1)
 
 			{
+#if 0
         //如果是整体映射
 //				if (start_sector == 0 && (sector_count == 0 || (sector_count == 1 && (long long)heads_per_cylinder <= 0 && (long long)sectors_per_track <= 1)))
         if (start_sector == 0 && (sector_count == 0 || sector_count == 1))
 				{
 					sector_count = disk_drive_map[j].sector_count;							//扇区计数=父扇区计数
 				}
+#endif
         //起始扇区=起始扇区+父起始扇区
         start_sector = (start_sector << disk_drive_map[j].from_log2_sector) >> disk_drive_map[j].to_log2_sector; 
 				start_sector += disk_drive_map[j].start_sector;
-
+        //如果to有碎片，调整各碎片起始扇区。起始扇区由blocklist_func获得。
 				for (k = 0; (k < DRIVE_MAP_FRAGMENT) && (map_start_sector[k] != 0); k++)
         {
 					map_start_sector[k] += disk_drive_map[j].start_sector;
         }
 			}
+#if 0
 			/* If TO == FROM and whole drive is mapped, and, no map options occur, then delete the entry.  */
       //如果TO=FROM,并且是整个驱动器映射，并且没有映射选项出现，则删除该条目
 			if (to == from && read_only == 0 && start_sector == 0 && (sector_count == 0 ||
@@ -7412,6 +7445,7 @@ map_whole_drive:
 				if (from != ram_drive)		      //如果from不是rd
 					goto delete_drive_map_slot;   //删除驱动器映像插槽
 			}
+#endif
 			break;
 		}
 	}
@@ -7419,7 +7453,8 @@ map_whole_drive:
 //j=from驱动器的父插槽号  也就是说,to不是原生磁盘,是映射盘
 //i=from驱动器的插槽号
 //====================================================================================================================
-
+  if (from != ram_drive && from != 0xffff)
+  {
   //获取to驱动器,虚拟分区信息
   disk_drive_map[i].start_sector = start_sector;
   disk_drive_map[i].sector_count = sector_count;
@@ -7503,6 +7538,7 @@ get_gpt_info:
 		disk_drive_map[i].media.block_size = 0x200;
 		disk_drive_map[i].from_log2_sector = 9;
 	}
+  }
 		
 get_info_ok:
 	grub_free (cache);
@@ -7514,6 +7550,7 @@ get_info_ok:
 		unsigned long long start_byte;		//起始字节
 		unsigned long long bytes_needed;	//需要字节
     bytes_needed = 0ULL;	//初始化: 需要字节=基地址=顶端=0
+    grub_efi_physical_address_t alloc; //分配				动态地址,变化
 
 		if (start_sector == part_start && part_start == 0 && sector_count == 1)		//如果起始扇区=分区起始,并且分区起始=0,并且扇区计数=1
 			sector_count = part_length;  //扇区计数=分区长度
@@ -7545,11 +7582,11 @@ get_info_ok:
 
 		bytes_needed = ((bytes_needed+4095)&(-4096ULL));	/* 4KB alignment   4k对齐*/
 
-		if ((to == 0xffff || to == ram_drive) && sector_count == 1)			//如果(to=md,或者rd),并且扇区计数=1
-			/* mem > 0 */
-			bytes_needed = 0;		//需要字节=0
+//		if ((to == 0xffff || to == ram_drive) && sector_count == 1)			//如果(to=md,或者rd),并且扇区计数=1
+//			bytes_needed = 0;		//需要字节=0
 
-		start_byte = start_sector << SECTOR_BITS;		//起始字节=起始扇区*0x200
+//		start_byte = start_sector << SECTOR_BITS;		//起始字节=起始扇区*0x200
+    start_byte = start_sector << buf_geom.log2_sector_size;		//起始字节
 		if (to == ram_drive)		  //如果to=rd
 			start_byte += rd_base;  //起始字节+rd基址
 /////////////////////////////////////////////////////////////////////////////////////////////////////以下插入分配内存
@@ -7561,7 +7598,6 @@ get_info_ok:
     }
     else  //其他
     {
-      grub_efi_physical_address_t alloc; //分配				动态地址,变化
       if (prefer_top) //分配4GB以上内存
       {
         //在此借用一下 blklst_num_sectors 全局变量
@@ -7597,31 +7633,28 @@ get_info_ok:
         printf_errinfo ("out of map memory: %x\n",status);
         return 0;
       }
-mem_ok:
-//      disk_drive_map[i].start_sector = ((unsigned long long)(grub_size_t)(char*)alloc | 0x200) & 0xfffffffffffffe00;  //此处是内存起始字节!!!
-      disk_drive_map[i].start_sector = alloc;  //此处是内存起始字节!!!
     }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////以上插入分配内存
-
-		sector_count = bytes_needed >> SECTOR_BITS;			//扇区计数=需要扇区
+mem_ok:
+//		sector_count = bytes_needed >> SECTOR_BITS;			//扇区计数=需要扇区
+    sector_count = bytes_needed >> buf_geom.log2_sector_size;			//扇区计数=需要扇区 
 		//向内存移动映像 第一扇区已经读到了BS
 	  /* if image is in memory and not compressed, we can simply move it. */
 	  if ((to == 0xffff || to == ram_drive) && !compressed_file) //如果映像在内存中，并且没有压缩，我们可以简单地移动它。
 		{
-			if (bytes_needed != start_byte)	//如果需要字节!=起始字节
-//				grub_memmove64 (disk_drive_map[i].start_sector, start_byte, (max_sectors >= filemax) ? filemax : (sector_count << SECTOR_BITS));
-        grub_memmove64 (disk_drive_map[i].start_sector, start_byte, filemax);
+//			if (bytes_needed != start_byte)	//如果需要字节!=起始字节
+        grub_memmove64 (alloc, start_byte, filemax);
 		}
 		else	//如果映像不在内存中，或者被压缩
 		{
 	    unsigned long long read_result;	//读结果
-			unsigned long long read_size = sector_count << 9;	//读尺寸=(扇区计数-1)*200	
+	    unsigned long long read_size = bytes_needed;        //读尺寸
       //修正读尺寸
 			if (read_size > filemax - (skip_sectors << 9))
 				read_size = filemax - (skip_sectors << 9);
 			filepos = skip_sectors << 9;
-			read_result = grub_read (disk_drive_map[i].start_sector, read_size, 0xedde0d90);	//读结果=返回读尺寸       
+			read_result = grub_read (alloc, read_size, 0xedde0d90);	//读结果=返回读尺寸
 			if (read_result != read_size)	//如果读结果!=读尺寸
 			{
 				grub_close ();     //关闭to驱动器
@@ -7632,8 +7665,7 @@ mem_ok:
       blklst_num_entries = 1; //如果文件有碎片，加载到内存后就连续了。避免后续设置碎片。     
 		}
 	  grub_close ();        //关闭to驱动器
-    disk_drive_map[i].start_sector >>= 9; //此处恢复内存起始扇区!!!
-		start_sector = disk_drive_map[i].start_sector;
+    start_sector = alloc >> 9;
 		to = 0xFFFF/*GRUB_INVALID_DRIVE*/;
       /* if FROM is (rd), no mapping is established. but the image will be  //如果FROM是rd,没有建立映射
        * loaded into memory, and (rd) will point to it. Note that Master		//但是映像将装载到内存,并且rd指向它.
@@ -7642,8 +7674,7 @@ mem_ok:
        */
 		if (from == ram_drive)		//如果from是rd
 		{
-//			rd_base = base;		//rd基址
-      rd_base = start_sector;		//rd基址
+      rd_base = alloc;		//rd基址
 //			rd_size = (max_sectors >= filemax) ? filemax : (sector_count << 9);
       rd_size = filemax;
 //			if (add_mbt)			//增加存储块=1
@@ -7653,13 +7684,14 @@ mem_ok:
 	}  //if (mem != -1ULL)结束  //如果加载到内存结束
 	//加载到内存结束
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#if 0
 	/* if TO_DRIVE is whole floppy, skip the geometry lookup. 如果TO是软盘,跳过几何检查*/
 	if (start_sector == 0 && sector_count == 0 && to < 0x04)
 	{
 		disk_drive_map[i].media.block_size = 0x200;
 		disk_drive_map[i].from_log2_sector = 9;
 	}
-
+#endif
 //          j_count(0)       j_count(1)          j_count(2)         j_count(3)
 //  		├──────────────┼───────────────────┼───────────────────┼───────────────────┤
 //  j_start(0)     j_start(1)          j_start(2)          j_start(3)
@@ -7711,6 +7743,7 @@ mem_ok:
           break;
       }
       empty_slot[0].start_sector = f[k].start_sector + (form_statr << (disk_drive_map[j].from_log2_sector - disk_drive_map[j].to_log2_sector)) - (sum_to_count - f[k].sector_count);
+      start_sector = empty_slot[0].start_sector;
       //建立碎片映射
       q->from = from;
       q->to = to;
@@ -7824,7 +7857,7 @@ no_fragment:
   disk_drive_map[i].sector_count = sector_count;
 
 //删除驱动器映像插槽  带入i=插槽位置  i=0-7
-delete_drive_map_slot:
+//delete_drive_map_slot:
  
   if (mem != -1ULL)   //如果加载到内存
 	  grub_close ();    //关闭to驱动器
@@ -9203,6 +9236,12 @@ void print_root_device (char *buffer,int flag);
 void
 print_root_device (char *buffer,int flag)
 {
+  unsigned int no_partition = 0;
+  if (flag & 0x100)
+  {
+    no_partition = 1;
+    flag &= 0xff;
+  }
 	unsigned int tmp_drive = flag?current_drive:saved_drive;
 	unsigned int tmp_partition = flag?current_partition:saved_partition;
 	unsigned char *tmp_hooked = NULL;
@@ -9257,7 +9296,7 @@ print_root_device (char *buffer,int flag)
 				grub_printf("(fd%d", tmp_drive);
 			}
 
-			if ((tmp_partition & 0xFF0000) != 0xFF0000)
+			if ((tmp_partition & 0xFF0000) != 0xFF0000 && !no_partition)
 				grub_printf(",%d", (unsigned int)(unsigned char)(tmp_partition >> 16));
 
 			if ((tmp_partition & 0x00FF00) != 0x00FF00)
@@ -9843,14 +9882,15 @@ static struct builtin builtin_savedefault =
 struct keysym
 {
   char *name;			/* the name in unshifted state */
-  unsigned short code;		/* lo=ascii code, hi=scan code */
+//  unsigned short code;		/* lo=ascii code, hi=scan code */
+  unsigned int code;		/* lo=ascii code, hi=scan code */
 };
 
 /* The table for key symbols. If the "shifted" member of an entry is
    NULL, the entry does not have shifted state.  */
 static struct keysym keysym_table[] =
 {
-  {"escape",		0x011B},	// ESC	17011b
+  {"escape",		0x17011B},	// ESC	17011b
   {"1",					0x0031},	// 1
   {"exclam",		0x0021},	// !
   {"2",					0x0032},	// 2
@@ -9871,12 +9911,12 @@ static struct keysym keysym_table[] =
   {"parenleft",	0x0028},	// (
   {"0",					0x0030},	// 0
   {"parenright",0x0029},	// )
-  {"minus",			0x0C2D},	// -
+  {"minus",			0x002D},	// -
   {"underscore",0x005F},	// _
   {"equal",			0x003D},	// =
   {"plus",			0x002B},	// +
   {"backspace",	0x0008},	// BS
-  {"ctrlbackspace",	0x0008},	// 	(DEL)  2000008
+  {"ctrlbackspace",	0x2000008},	// 	(DEL)  2000008
   {"tab",				0x0009},	// Tab
   {"q",					0x0071},	// q
   {"Q",					0x0051},	// Q
@@ -9924,7 +9964,7 @@ static struct keysym keysym_table[] =
   {"semicolon",	0x003B},	// ;
   {"colon",			0x003A},	// :
   {"quote",			0x0027},	// '
-  {"doublequote",	0x2822},	// "
+  {"doublequote",	0x0022},	// "
   {"backquote",	0x0060},	// `
   {"tilde",			0x007E},	// ~
   {"backslash",	0x005C},	// "\"
@@ -9950,27 +9990,99 @@ static struct keysym keysym_table[] =
   {"slash",			0x002F},	// /
   {"question",	0x003F},	// ?
   {"space",			0x0020},	// Space
-  {"F1",				0x3B00},	//b3b00
-  {"F2",				0x3C00},	//c3c00
-  {"F3",				0x3D00},	//d3d00
-  {"F4",				0x3E00},	//e3e00
-  {"F5",				0x3F00},	//f3f00
-  {"F6",				0x4000},	//104000
-  {"F7",				0x4100},	//114100
-  {"F8",				0x4200},	//124200
-  {"F9",				0x4300},	//134300
-  {"F10",				0x4400},	//144400
+  {"F1",				0xB3B00},	//b3b00
+  {"F2",				0xC3C00},	//c3c00
+  {"F3",				0xD3D00},	//d3d00
+  {"F4",				0xE3E00},	//e3e00
+  {"F5",				0xF3F00},	//f3f00
+  {"F6",				0x104000},	//104000
+  {"F7",				0x114100},	//114100
+  {"F8",				0x124200},	//124200
+  {"F9",				0x134300},	//134300
+  {"F10",				0x144400},	//144400
   /* Caution: do not add NumLock here! we cannot deal with it properly.  */
-  {"home",			0x4700},	//54700
-  {"uparrow",		0x4800},	//上箭头  14800
-  {"pageup",		0x4900},	// PgUp		94900
-  {"leftarrow",	0x4B00},	//左箭头 	44b00
-  {"rightarrow",0x4D00},	//右箭头  34d00
-  {"end",				0x4F00},	//64f00
-  {"downarrow",	0x5000},	//下箭头 	25000
-  {"pagedown",	0x5100},	// PgDn		a5100
-  {"insert",		0x5200},	// Insert	75200
-  {"delete",		0x5300},	// Delete	85300
+  {"home",			0x54700},	//54700
+  {"uparrow",		0x14800},	//上箭头  14800
+  {"pageup",		0x94900},	// PgUp		94900
+  {"leftarrow",	0x44B00},	//左箭头 	44b00
+  {"rightarrow",0x34D00},	//右箭头  34d00
+  {"end",				0x46F00},	//64f00
+  {"downarrow",	0x25000},	//下箭头 	25000
+  {"pagedown",	0xA5100},	// PgDn		a5100
+  {"insert",		0x75200},	// Insert	75200
+  {"delete",		0x85300},	// Delete	85300
+
+//  {"shiftF1",		0x5400},
+//  {"shiftF2",		0x5500},
+//  {"shiftF3",		0x5600},
+//  {"shiftF4",		0x5700},
+//  {"shiftF5",		0x5800},
+//  {"shiftF6",		0x5900},
+//  {"shiftF7",		0x5A00},
+//  {"shiftF8",		0x5B00},
+//  {"shiftF9",		0x5C00},
+//  {"shiftF10",		0x5D00},
+  {"ctrlF1",		0x20B3B00},
+  {"ctrlF2",		0x20C3C00},
+  {"ctrlF3",		0x20D3D00},
+  {"ctrlF4",		0x20E3E00},
+  {"ctrlF5",		0x20F3F00},
+  {"ctrlF6",		0x2104000},
+  {"ctrlF7",		0x2114100},
+  {"ctrlF8",		0x2124200},
+  {"ctrlF9",		0x2134300},
+  {"ctrlF10",		0x2144400},
+  
+  {"Aq",        0x4000071},	// A=Alt or AltGr.	Provided by steve.
+  {"Aw",        0x4000077},
+  {"Ae",        0x4000065},
+  {"Ar",        0x2000072},
+  {"At",        0x2000074},
+  {"Ay",        0x2000079},
+  {"Au",        0x2000075},
+  {"Ai",        0x2000069},
+  {"Ao",        0x200006f},
+  {"Ap",        0x2000070},
+  {"Aa",        0x2000061},
+  {"As",        0x2000073},
+  {"Ad",        0x2000064},
+  {"Af",        0x200066},
+  {"Ag",        0x2000067},
+  {"Ah",        0x2000068},
+  {"Aj",        0x20006A},
+  {"Ak",        0x20006B},
+  {"Al",        0x20006C},
+  {"Az",        0x20007C},
+  {"Ax",        0x200078},
+  {"Ac",        0x200063},
+  {"Av",        0x200067},
+  {"Ab",        0x200062},
+  {"An",        0x20006E},
+  {"Am",        0x20006D},
+  {"A1",        0x200031},
+  {"A2",        0x200032},
+  {"A3",        0x200033},
+  {"A4",        0x200034},
+  {"A5",        0x200035},
+  {"A6",        0x200036},
+  {"A7",        0x200037},
+  {"A8",        0x200038},
+  {"A9",        0x200039},
+  {"A0",        0x200030},
+//  {"oem102",    0x565c},
+//  {"shiftoem102",   0x567c},
+  {"Aminus",        0x20002D},  //-
+  {"Aequal",				0x20003D},  //=
+  {"Abracketleft",  0x200028},  //(
+  {"Abracketright", 0x200029},  //)
+  {"Asemicolon",    0x20003B},  //;
+  {"Aquote",        0x200027},  //'
+  {"Abackquote",    0x200022}, // 2a00 is alt+shift  反引号?
+  {"Abackslash",    0x20005C},  //'\'
+//  {"Asemicolon",    0x2700},  //重复
+//  {"Acomma",        0x3300},  //段落?
+//  {"Aperiod",       0x20002E},  //.
+//  {"Aslash",        0x3500},
 };
 
 //static int find_key_code (char *key);
@@ -10583,7 +10695,8 @@ s_calc (char *arg, int flags)
    }
    
 //   printf_debug0(" %ld (HEX:0x%lX)\n",val1,val1);
-   printf_debug0(" %d (HEX:0x%X)\n",(int)val1,(int)val1);
+//   printf_debug0(" %d (HEX:0x%X)\n",(int)val1,(int)val1);
+  printf_debug0(" %d (HEX:0x%X)\n",val1,val1);
 	if (p_result != &val1)
 	   *p_result = val1;
    return val1;
@@ -11463,6 +11576,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 				printf("%.8s=%.512s\n",VAR[i],ENVI[i]);
 			}
 		}
+
 		if (var_ex_size > 0)
 		{
 		    for(i=0; i < (int)var_ex_size && var_ex[i][0]; ++i)
@@ -11480,8 +11594,6 @@ int envi_cmd(const char *var,char * const env,int flags)
 	}
 
 	char ch[MAX_VAR_LEN +2] = "\0\0\0\0\0\0\0\0\0\0";
-  short *a = (short *)ch;
-  grub_u64_t *b = (grub_u64_t *)ch;
 	char *p = (char *)var;
 	char *p_name = NULL;
 	int ou_start = 0;
@@ -11549,7 +11661,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 	    else if (substring(ch,"@random",1) == 0)
 	    {
 //		WENV_RANDOM   =  (WENV_RANDOM * (*(unsigned int *)&datetime) + (*(int *)0x46c)) & 0x7fff;
-    		WENV_RANDOM = (datetime.minute * datetime.second) & 0x7fff;
+    		WENV_RANDOM = (((datetime.minute << 8) + WENV_RANDOM + 1) * (datetime.second + 1)) & 0x7fff;
 		sprintf(p,"%d",WENV_RANDOM);
 	    }
 	    else if (substring(ch,"@boot",1) == 0)
@@ -11582,8 +11694,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 	    else
 		return 0;
 	}
-//	else if (*(short *)ch == 0x3f || *(grub_u64_t*)ch == 0x564e45575f3fLL || *(grub_u64_t*)ch == 0x444955555f3fLL)//?_UUID ?_WENV
-  else if (*a == 0x3f || *b == 0x564e45575f3fLL || *b == 0x444955555f3fLL)//?_UUID ?_WENV
+	else if (*(short *)ch == 0x3f || *(grub_u64_t*)ch == 0x564e45575f3fLL || *(grub_u64_t*)ch == 0x444955555f3fLL)//?_UUID ?_WENV
 	{
 		p = WENV_ENVI;
 		p_name = VAR[_WENV_];
@@ -11883,7 +11994,7 @@ unsigned char DateTime_enable;
 unsigned long long hotkey_color_64bit = 0;
 unsigned int hotkey_color = 0;
 #define MENU_BOX_X	((menu_border.menu_box_x > 2) ? menu_border.menu_box_x : 2)
-#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X - 1))
+#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X * 2 - 1))
 
 static int setmenu_func(char *arg, int flags);
 static int

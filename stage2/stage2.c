@@ -339,13 +339,14 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		char tmp[128];
 		int file_len=grub_strlen(graphic_file);
 		int www = (font_w * MENU_BOX_W) / graphic_list;
-		int graphic_x_offset, graphic_y_offset;
-		int text_y_offset = MENU_BOX_Y+((y-MENU_BOX_Y)*((graphic_high+row_space+font_h+line_spacing-1)/(font_h+line_spacing))/graphic_list);
+		int graphic_x_offset, graphic_y_offset, text_x_offset;
 	
+    int text_y_offset = MENU_BOX_Y +
+        (((y-MENU_BOX_Y)/graphic_list) * (graphic_high+row_space) + (graphic_high-font_h)/2) / (font_h+line_spacing);
 		graphic_x_offset = font_w*MENU_BOX_X+((y-MENU_BOX_Y)%graphic_list)*(www);
 
 		if (graphic_type & 0x10)
-			graphic_y_offset = (font_h+line_spacing)*text_y_offset-(graphic_high/2-(font_h+line_spacing)/2);
+      graphic_y_offset = (font_h+line_spacing)*text_y_offset - (graphic_high-font_h)/2;
 		else
 			graphic_y_offset = font_h*MENU_BOX_Y+((y-MENU_BOX_Y)/graphic_list)*(graphic_high+row_space);
 
@@ -370,7 +371,9 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		c = *entry;
 		if (graphic_type & 0x10)
 		{
-			gotoxy ((graphic_x_offset + graphic_wide + font_w -1)/font_w, text_y_offset);
+			text_x_offset = (graphic_x_offset + graphic_wide + font_w -1) / (font_w + font_spacing);
+			end_offcet = MENU_BOX_E - ((www - graphic_wide) / (font_w + font_spacing)) - text_x_offset;
+			gotoxy (text_x_offset, text_y_offset);
 			goto graphic_mixing;
 		}	
 		else
@@ -1854,9 +1857,13 @@ cmain (void)
     titles = (char * *)(menu_mem + 1024);
     CONFIG_ENTRIES = menu_mem + 1024 + 256 * sizeof (char *);
   }
+  else
+    grub_memset (menu_mem, 0, 0x40e00 - 0x200);
+
     saved_entryno = 0;
 	new_menu = 0;
 	new_hotkey = 0;
+	setcursor (0);  //避免由预置菜单加载主菜单时，图形菜单出现一个奇怪的光标
     /* Never return.  */
 restart2:
     reset ();       
@@ -2205,7 +2212,7 @@ original_config:
 
 done_config_file:
   use_preset_menu = 0;	/* Disable the preset menu.  */	//禁用预设菜单
-	pxe_restart_config = 1;	/* pxe_detect will use configfile to run menu */
+//	pxe_restart_config = 1;	/* pxe_detect will use configfile to run menu */
   /* go ahead and make sure the terminal is setup */	//继续前进，确保终端的安装
 	if (current_term->startup)
 		(*current_term->startup)();

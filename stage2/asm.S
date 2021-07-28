@@ -234,10 +234,10 @@ VARIABLE(ram_drive)																												//0x82cc		RAM驱动器  int
 	. = EXT_C(main) + 0xD0																									//0x82d0
 
 VARIABLE(rd_base)																													//RD基地址  long long
-	.long	0x70000, 0
+	.long	0x10000, 0
 
 VARIABLE(rd_size)																													//0x82d8		RD尺寸  long long
-	.long	0x20000, 0	/* default is 4G */
+	.long	0x80000, 0	/* default is 4G */
 
 	. = EXT_C(main) + 0xE0																									//0x82e0
 
@@ -592,7 +592,7 @@ VARIABLE(system_functions)                            //IMG(0x8300)
 	.extent	ABS(EXT_C(grub_memcmp))                       //22
 	.extent	ABS(EXT_C(grub_memmove))                      //23
 	.extent	ABS(EXT_C(grub_memset))                       //24
-	.extent 0				                                      //25  reserved
+	.extent ABS(EXT_C(get_partition_info))				        //25  grub_part_data *
 	.extent	ABS(EXT_C(grub_open))                         //26
 	.extent	ABS(EXT_C(grub_read))                         //27
 	.extent	ABS(EXT_C(grub_close))                        //28
@@ -709,7 +709,8 @@ VARIABLE(filesystem_type)               //13  int
 VARIABLE(CONFIG_ENTRIES)                  //18  char *
 	.extent 0
 VARIABLE(current_term)
-	.extent	ABS(EXT_C(term_table))          //19  term_entry
+	.extent 0                               //19  term_entry
+//	.extent	ABS(EXT_C(term_table))          //19  term_entry
 	.extent	ABS(EXT_C(fsys_table))          //20  fsys_entry
 //VARIABLE(fsys_type)//reserved
 	.extent	fsys_type		                    //21  int
@@ -750,7 +751,7 @@ VARIABLE(p_get_cmdline_str)             //45  未使用
 	.extent ABS(EXT_C(get_cmdline_str))
 VARIABLE(splashimage_loaded)            //46  int
 	.extent 0	
-VARIABLE(putchar_hooked)                //47  char*
+VARIABLE(putchar_hooked)                //47  unsigned char *
 	.extent 0
 //VARIABLE(init_free_mem_start)         //48  reserved
 	.extent 0
