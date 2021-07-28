@@ -270,7 +270,7 @@ check_password (char* expected, password_t type)
 static void
 disk_read_print_func (unsigned long long sector, unsigned long offset, unsigned long long length)
 {
-  grub_printf ("[%ld,%d,%ld]", sector, offset, length);
+  grub_printf ("[0x%lx,0x%x,0x%lx]", sector, offset, length);
 }
 
 extern int rawread_ignore_memmove_overflow; /* defined in disk_io.c */
@@ -317,15 +317,15 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	      if (query_block_entries >= 0)
 	        {
 		  if (blklst_last_length == 0)
-		    grub_printf ("%s%ld+%ld", (blklst_num_entries ? "," : ""),
+		    grub_printf ("%s0x%lx+0x%lx", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
 		  else if (blklst_num_sectors > 1)
-		    grub_printf ("%s%ld+%ld,%ld[0-%d]", (blklst_num_entries ? "," : ""),
+		    grub_printf ("%s0x%lx+0x%lx,0x%lx[0-0x%x]", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector - part_start), (blklst_num_sectors-1),
 			     (unsigned long long)(blklst_start_sector + blklst_num_sectors-1 - part_start),
 			     blklst_last_length);
 		  else
-		    grub_printf ("%s%ld[0-%d]", (blklst_num_entries ? "," : ""),
+		    grub_printf ("%s0x%lx[0-0x%x]", (blklst_num_entries ? "," : ""),
 			     (unsigned long long)(blklst_start_sector - part_start), blklst_last_length);
 	        }
 	        else if (blklst_last_length == 0 && blklst_num_entries < DRIVE_MAP_FRAGMENT)
@@ -341,7 +341,7 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	if (offset > 0)
 	{
 	  if (query_block_entries >= 0)
-			grub_printf("%s%ld[%d-%d]", (blklst_num_entries ? "," : ""),
+			grub_printf("%s0x%lx[0x%x-0x%x]", (blklst_num_entries ? "," : ""),
 				(unsigned long long)(sector - part_start), offset, (offset + length));
 	  blklst_num_entries++;
 	}
@@ -408,7 +408,7 @@ blocklist_func (char *arg, int flags)
 #endif /* NO_DECOMPRESSION */
 
   /* Print the device name.  */
-  if (query_block_entries >= 0) print_root_device (NULL,1);
+  if (query_block_entries >= 0) print_root_device (NULL,1 | 0x100);
 
   rawread_ignore_memmove_overflow = 1;
   /* Read in the whole file to DUMMY.  */
@@ -425,7 +425,7 @@ blocklist_func (char *arg, int flags)
   if (blklst_num_sectors > 0)
     {
       if (query_block_entries >= 0)
-        grub_printf ("%s%ld+%ld", (blklst_num_entries ? "," : ""),
+        grub_printf ("%s0x%lx+0x%lx", (blklst_num_entries ? "," : ""),
 		 (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
       else if (blklst_num_entries < DRIVE_MAP_FRAGMENT)
 	{
@@ -5318,6 +5318,7 @@ command_func (char *arg, int flags)
 				psp = (char *)((int)(program + prog_len + 16) & ~0x0F);
 			}
 		} else {//the old program
+#if 0
 			char *program1;
 			printf_warning ("\nWarning! The program is outdated!\n");
 			psp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
@@ -5330,6 +5331,8 @@ command_func (char *arg, int flags)
 			grub_memmove (program1, program, prog_len);
 			program = program1;
 			tmp = psp;
+#endif
+      return ! (errnum = ERR_EXEC_FORMAT);
 		}
 	}
 
@@ -9407,7 +9410,8 @@ map_func (char *arg, int flags)
 				if (hooked_drive_map[i].from_drive != (unsigned char)mem)
 					continue;
 //				sprintf(tmp,"0x%lX",(unsigned long long)hooked_drive_map[i].start_sector);
-				*(unsigned long *)ADDR_RET_STR = (unsigned long)hooked_drive_map[i].start_sector;
+//				*(unsigned long *)ADDR_RET_STR = (unsigned long)hooked_drive_map[i].start_sector;
+        sprintf(ADDR_RET_STR,"0x%lx",(unsigned int)hooked_drive_map[i].start_sector);
 				return hooked_drive_map[i].sector_count;
 			}
 			return 0;
@@ -12976,6 +12980,12 @@ static struct builtin builtin_reboot =
 void
 print_root_device (char *buffer,int flag)
 {
+  unsigned int no_partition = 0;
+  if (flag & 0x100)
+  {
+    no_partition = 1;
+    flag &= 0xff;
+  }
 	unsigned long tmp_drive = flag?current_drive:saved_drive;
 	unsigned long tmp_partition = flag?current_partition:saved_partition;
 	unsigned char *tmp_hooked = NULL;
@@ -13032,7 +13042,7 @@ print_root_device (char *buffer,int flag)
 				grub_printf("(fd%d", tmp_drive);
 			}
 
-			if ((tmp_partition & 0xFF0000) != 0xFF0000)
+			if ((tmp_partition & 0xFF0000) != 0xFF0000 && !no_partition)
 				grub_printf(",%d", (unsigned long)(unsigned char)(tmp_partition >> 16));
 
 			if ((tmp_partition & 0x00FF00) != 0x00FF00)
@@ -13809,91 +13819,6 @@ static struct builtin builtin_serial =
 
 
 /* setkey */
-#if 0
-struct keysym
-{
-  char *unshifted_name;			/* the name in unshifted state */
-  char *shifted_name;			/* the name in shifted state */
-  unsigned char unshifted_ascii;	/* the ascii code in unshifted state */
-  unsigned char shifted_ascii;		/* the ascii code in shifted state */
-  unsigned char keycode;		/* keyboard scancode */
-};
-
-/* The table for key symbols. If the "shifted" member of an entry is
-   NULL, the entry does not have shifted state.  */
-static struct keysym keysym_table[] =
-{
-  {"escape",		0,		0x1b,	0,	0x01},
-  {"1",			"exclam",	'1',	'!',	0x02},
-  {"2",			"at",		'2',	'@',	0x03},
-  {"3",			"numbersign",	'3',	'#',	0x04},
-  {"4",			"dollar",	'4',	'$',	0x05},
-  {"5",			"percent",	'5',	'%',	0x06},
-  {"6",			"caret",	'6',	'^',	0x07},
-  {"7",			"ampersand",	'7',	'&',	0x08},
-  {"8",			"asterisk",	'8',	'*',	0x09},
-  {"9",			"parenleft",	'9',	'(',	0x0a},
-  {"0",			"parenright",	'0',	')',	0x0b},
-  {"minus",		"underscore",	'-',	'_',	0x0c},
-  {"equal",		"plus",		'=',	'+',	0x0d},
-  {"backspace",		0,		'\b',	0,	0x0e},
-  {"tab",		0,		'\t',	0,	0x0f},
-  {"q",			"Q",		'q',	'Q',	0x10},
-  {"w",			"W",		'w',	'W',	0x11},
-  {"e",			"E",		'e',	'E',	0x12},
-  {"r",			"R",		'r',	'R',	0x13},
-  {"t",			"T",		't',	'T',	0x14},
-  {"y",			"Y",		'y',	'Y',	0x15},
-  {"u",			"U",		'u',	'U',	0x16},
-  {"i",			"I",		'i',	'I',	0x17},
-  {"o",			"O",		'o',	'O',	0x18},
-  {"p",			"P",		'p',	'P',	0x19},
-  {"bracketleft",	"braceleft",	'[',	'{',	0x1a},
-  {"bracketright",	"braceright",	']',	'}',	0x1b},
-  {"enter",		0,		'\n',	0,	0x1c},
-  {"control",		0,		0,	0,	0x1d},
-  {"a",			"A",		'a',	'A',	0x1e},
-  {"s",			"S",		's',	'S',	0x1f},
-  {"d",			"D",		'd',	'D',	0x20},
-  {"f",			"F",		'f',	'F',	0x21},
-  {"g",			"G",		'g',	'G',	0x22},
-  {"h",			"H",		'h',	'H',	0x23},
-  {"j",			"J",		'j',	'J',	0x24},
-  {"k",			"K",		'k',	'K',	0x25},
-  {"l",			"L",		'l',	'L',	0x26},
-  {"semicolon",		"colon",	';',	':',	0x27},
-  {"quote",		"doublequote",	'\'',	'"',	0x28},
-  {"backquote",		"tilde",	'`',	'~',	0x29},
-  {"shift",		0,		0,	0,	0x2a},
-  {"backslash",		"bar",		'\\',	'|',	0x2b},
-  {"z",			"Z",		'z',	'Z',	0x2c},
-  {"x",			"X",		'x',	'X',	0x2d},
-  {"c",			"C",		'c',	'C',	0x2e},
-  {"v",			"V",		'v',	'V',	0x2f},
-  {"b",			"B",		'b',	'B',	0x30},
-  {"n",			"N",		'n',	'N',	0x31},
-  {"m",			"M",		'm',	'M',	0x32},
-  {"comma",		"less",		',',	'<',	0x33},
-  {"period",		"greater",	'.',	'>',	0x34},
-  {"slash",		"question",	'/',	'?',	0x35},
-  {"alt",		0,		0,	0,	0x38},
-  {"space",		0,		' ',	0,	0x39},
-  {"capslock",		0,		0,	0,	0x3a},
-  {"F1",		0,		0,	0,	0x3b},
-  {"F2",		0,		0,	0,	0x3c},
-  {"F3",		0,		0,	0,	0x3d},
-  {"F4",		0,		0,	0,	0x3e},
-  {"F5",		0,		0,	0,	0x3f},
-  {"F6",		0,		0,	0,	0x40},
-  {"F7",		0,		0,	0,	0x41},
-  {"F8",		0,		0,	0,	0x42},
-  {"F9",		0,		0,	0,	0x43},
-  {"F10",		0,		0,	0,	0x44},
-  /* Caution: do not add NumLock here! we cannot deal with it properly.  */
-  {"delete",		0,		0x7f,	0,	0x53}
-};
-#endif
-
 struct keysym
 {
   char *name;			/* the name in unshifted state */
@@ -14104,29 +14029,7 @@ static struct keysym keysym_table[] =
   
 };
 
-//static int find_key_code (char *key);
 static unsigned long find_ascii_code (char *key);
-
-#if 0  
-static int
-find_key_code (char *key)
-{
-      int i;
-
-      for (i = 0; i < sizeof (keysym_table) / sizeof (keysym_table[0]); i++)
-	{
-	  if (keysym_table[i].unshifted_name &&
-	      grub_strcmp (key, keysym_table[i].unshifted_name) == 0)
-	    return keysym_table[i].keycode;
-	  else if (keysym_table[i].shifted_name &&
-		   grub_strcmp (key, keysym_table[i].shifted_name) == 0)
-	    return keysym_table[i].keycode;
-	}
-      
-      return 0;
-}
-#endif
-  
 static unsigned long
 find_ascii_code (char *key)
 {
@@ -14146,7 +14049,6 @@ setkey_func (char *arg, int flags)
 {
   char *to_key, *from_key;
   unsigned long to_code, from_code;
-//  int map_in_interrupt = 0;
   
   errnum = 0;
   to_key = arg;
@@ -14174,14 +14076,8 @@ setkey_func (char *arg, int flags)
   from_code = find_ascii_code (from_key);
   if (! to_code || ! from_code)
     {
-      //map_in_interrupt = 1;
-      //to_code = find_key_code (to_key);
-      //from_code = find_key_code (from_key);
-      //if (! to_code || ! from_code)
-	//{
 	  errnum = ERR_BAD_ARGUMENT;
 	  return 0;
-	//}
     }
   
     {

@@ -371,8 +371,9 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		char tmp[128];
 		int file_len=grub_strlen(graphic_file);
 		int www = (font_w * MENU_BOX_W) / graphic_list;
-		int graphic_x_offset, graphic_y_offset;
-		int text_y_offset = MENU_BOX_Y+((y-MENU_BOX_Y)*((graphic_high+row_space+font_h+line_spacing-1)/(font_h+line_spacing))/graphic_list);
+		int graphic_x_offset, graphic_y_offset, text_x_offset;
+		int text_y_offset = MENU_BOX_Y +
+        (((y-MENU_BOX_Y)/graphic_list) * (graphic_high+row_space) + (graphic_high-font_h)/2) / (font_h+line_spacing);
 	
 		graphic_x_offset = font_w*MENU_BOX_X+((y-MENU_BOX_Y)%graphic_list)*(www);
 
@@ -402,7 +403,9 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		c = *entry;
 		if (graphic_type & 0x10)
 		{
-			gotoxy ((graphic_x_offset + graphic_wide + font_w -1)/font_w, text_y_offset);
+			text_x_offset = (graphic_x_offset + graphic_wide + font_w -1) / (font_w + font_spacing);
+			end_offcet = MENU_BOX_E - ((www - graphic_wide) / (font_w + font_spacing)) - text_x_offset;
+			gotoxy (text_x_offset, text_y_offset);
 			goto graphic_mixing;
 		}	
 		else
