@@ -1105,7 +1105,10 @@ real_open_partition (int flags)
 											(bsd_part_no + 'a'));
 							check_and_print_mount ();
 						}
-
+            if ((flags && j == 16) || (!flags && j == 1))
+            {
+              return !(errnum = ERR_NO_PART);
+            }
 						if (! got_part)
 							grub_printf (" No BSD sub-partition found, partition type 0x%x\n",
 								saved_slice);
@@ -1153,6 +1156,10 @@ real_open_partition (int flags)
 				return 1;
 		}//if (current_slice)
 	}// while (next_part ())
+	if ((flags && i == 16) || (!flags && i == 1))
+	{
+		return !(errnum = ERR_NO_PART);
+	}
 
   if (flags)
 	{

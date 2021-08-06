@@ -1704,8 +1704,8 @@ void grub_halt (void); //__attribute__ ((noreturn));
 /* The key map.  */
 struct key_map
 {
-	unsigned short from_code;
-	unsigned short to_code;
+	unsigned int from_code;
+	unsigned int to_code;
 };
 extern struct key_map ascii_key_map[];
 extern int remap_ascii_char (int key);

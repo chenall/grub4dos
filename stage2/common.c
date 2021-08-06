@@ -1530,7 +1530,7 @@ copy_grub4dos_self_address (void)
   
   if (min_con_mem_start > 0x9F000)
     return;
-  if (min_con_mem_start + min_con_mem_size < 0x9F000)
+  if (min_con_mem_start + min_con_mem_size <= 0x9F000)
     grub4dos_self_address = min_con_mem_start + min_con_mem_size - 0x1000;
   else
     grub4dos_self_address = 0x9F000;
@@ -1697,7 +1697,7 @@ grub_init (void)
   if (checkkey () == 0x075200) //按Insert键，进入调试模式
   {
     debug = 3;
-    getkey();
+//    getkey();
   }
 
   image = grub_efi_get_loaded_image (grub_efi_image_handle);  //通过映像句柄,获得加载映像grub_efi_loaded_image结构

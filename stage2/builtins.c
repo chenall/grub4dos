@@ -1313,7 +1313,7 @@ cmp_func (char *arg, int flags)
     filepos = cur_pos;
 
 	addr1 = grub_malloc (0x10000);
-	if (addr1)
+	if (!addr1)
 		return 0;
   addr2 = addr1 + CMP_BUF_SIZE;
   while ((size1 = grub_read ((unsigned long long)(grub_size_t)addr1, CMP_BUF_SIZE, 0xedde0d90)))
@@ -1771,6 +1771,8 @@ configfile_func (char *arg, int flags)
     boot_drive = current_drive;
     install_partition = current_partition;
   }
+  if (animated_type)
+    splashimage_func("\0",1); //切换菜单时.避免动画背景残留
 
   cmain ();
   /* Never reach here.  */
@@ -3501,12 +3503,16 @@ command_func (char *arg, int flags)
 			if (prog_len != (*bss_end - *prog_start)){  //如果bss区有数据,外部命令尺寸是filemax+bss尺寸
 				grub_free(tmp);
         prog_len = *bss_end - *prog_start;
+        char *tmp1 = tmp;
+        char *program1 = program;
         tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
         if (tmp == NULL)
 					goto fail;
         program = (char *)((grub_size_t)(tmp + 4095) & ~4095); /* 4K align the program */
+        if (tmp1 != tmp)
+					grub_memmove (program, program1, (unsigned long)filemax);
         psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F);
-        grub_read ((unsigned long long)(grub_size_t)program, -1ULL, 0xedde0d90);
+//        grub_read ((unsigned long long)(grub_size_t)program, -1ULL, 0xedde0d90);
 			}
 		} else {//the old program
 #if 0
@@ -4783,7 +4789,8 @@ static struct builtin builtin_uuid =
   " on all devices (if UUID is not specified). If DEVICE is specified," 
   " return true or false according to whether or not the DEVICE matches"
   " the specified UUID (if UUID is specified), or just list the uuid of"
-  " DEVICE (if UUID is not specified)."
+  " DEVICE (if UUID is not specified).\n"
+  "uuid of DEVICE is returned in temporary variables '?'."
 };
 
 static void
@@ -4917,7 +4924,8 @@ static struct builtin builtin_vol =
   " return true or false according to whether or not the DEVICE matches"
   " the specified Volume (if VOLUME is specified), or just list the volume of"
   " DEVICE (if VOLUME is not specified)."
-  " Use --primary for ISO Primary Volume Descriptor (as used by linux)."
+  " Use --primary for ISO Primary Volume Descriptor (as used by linux).\n"
+  "vol of DEVICE is returned in temporary variables '?'."
 };
 
 int read_mft(char* buf,unsigned int mftno);
@@ -8716,7 +8724,7 @@ pause_func (char *arg, int flags)
       		printf_debug0("%04x",ret);
       		return ret;
       	}
-         ret &= 0xFF;
+//         ret &= 0xFF;
          /* Check the special ESC key  */
          if ((unsigned short)ret == 0x011b)
             return 0;	/* abort this entry */
@@ -9901,7 +9909,7 @@ static struct keysym keysym_table[] =
   {"dollar",		0x0024},	// $
   {"5",					0x0035},	// 5
   {"percent",		0x0025},	// %
-  {"6",					0x0736},	// 6
+  {"6",					0x0036},	// 6
   {"caret",			0x005E},	// ^
   {"7",					0x0037},	// 7
   {"ampersand",	0x0026},	// &
@@ -10011,17 +10019,16 @@ static struct keysym keysym_table[] =
   {"pagedown",	0xA5100},	// PgDn		a5100
   {"insert",		0x75200},	// Insert	75200
   {"delete",		0x85300},	// Delete	85300
-
-//  {"shiftF1",		0x5400},
-//  {"shiftF2",		0x5500},
-//  {"shiftF3",		0x5600},
-//  {"shiftF4",		0x5700},
-//  {"shiftF5",		0x5800},
-//  {"shiftF6",		0x5900},
-//  {"shiftF7",		0x5A00},
-//  {"shiftF8",		0x5B00},
-//  {"shiftF9",		0x5C00},
-//  {"shiftF10",		0x5D00},
+  {"shiftF1",   0x10B3B00},
+  {"shiftF2",   0x10C3C00},
+  {"shiftF3",   0x10D3D00},
+  {"shiftF4",   0x10E3E00},
+  {"shiftF5",   0x10F3F00},
+  {"shiftF6",   0x1104000},
+  {"shiftF7",   0x1114100},
+  {"shiftF8",   0x1124200},
+  {"shiftF9",   0x1134300},
+  {"shiftF10",  0x1144400},
   {"ctrlF1",		0x20B3B00},
   {"ctrlF2",		0x20C3C00},
   {"ctrlF3",		0x20D3D00},
@@ -10036,53 +10043,52 @@ static struct keysym keysym_table[] =
   {"Aq",        0x4000071},	// A=Alt or AltGr.	Provided by steve.
   {"Aw",        0x4000077},
   {"Ae",        0x4000065},
-  {"Ar",        0x2000072},
-  {"At",        0x2000074},
-  {"Ay",        0x2000079},
-  {"Au",        0x2000075},
-  {"Ai",        0x2000069},
-  {"Ao",        0x200006f},
-  {"Ap",        0x2000070},
-  {"Aa",        0x2000061},
-  {"As",        0x2000073},
-  {"Ad",        0x2000064},
-  {"Af",        0x200066},
-  {"Ag",        0x2000067},
-  {"Ah",        0x2000068},
-  {"Aj",        0x20006A},
-  {"Ak",        0x20006B},
-  {"Al",        0x20006C},
-  {"Az",        0x20007C},
-  {"Ax",        0x200078},
-  {"Ac",        0x200063},
-  {"Av",        0x200067},
-  {"Ab",        0x200062},
-  {"An",        0x20006E},
-  {"Am",        0x20006D},
-  {"A1",        0x200031},
-  {"A2",        0x200032},
-  {"A3",        0x200033},
-  {"A4",        0x200034},
-  {"A5",        0x200035},
-  {"A6",        0x200036},
-  {"A7",        0x200037},
-  {"A8",        0x200038},
-  {"A9",        0x200039},
-  {"A0",        0x200030},
+  {"Ar",        0x4000072},
+  {"At",        0x4000074},
+  {"Ay",        0x4000079},
+  {"Au",        0x4000075},
+  {"Ai",        0x4000069},
+  {"Ao",        0x400006f},
+  {"Ap",        0x4000070},
+  {"Aa",        0x4000061},
+  {"As",        0x4000073},
+  {"Ad",        0x4000064},
+  {"Af",        0x4000066},
+  {"Ag",        0x4000067},
+  {"Ah",        0x4000068},
+  {"Aj",        0x400006A},
+  {"Ak",        0x400006B},
+  {"Al",        0x400006C},
+  {"Az",        0x400007A},
+  {"Ax",        0x4000078},
+  {"Ac",        0x4000063},
+  {"Av",        0x4000066},
+  {"Ab",        0x4000062},
+  {"An",        0x400006E},
+  {"Am",        0x400006D},
+  {"A1",        0x4000031},
+  {"A2",        0x4000032},
+  {"A3",        0x4000033},
+  {"A4",        0x4000034},
+  {"A5",        0x4000035},
+  {"A6",        0x4000036},
+  {"A7",        0x4000037},
+  {"A8",        0x4000038},
+  {"A9",        0x4000039},
+  {"A0",        0x4000030},
 //  {"oem102",    0x565c},
 //  {"shiftoem102",   0x567c},
-  {"Aminus",        0x20002D},  //-
-  {"Aequal",				0x20003D},  //=
-  {"Abracketleft",  0x200028},  //(
-  {"Abracketright", 0x200029},  //)
-  {"Asemicolon",    0x20003B},  //;
-  {"Aquote",        0x200027},  //'
-  {"Abackquote",    0x200022}, // 2a00 is alt+shift  反引号?
-  {"Abackslash",    0x20005C},  //'\'
-//  {"Asemicolon",    0x2700},  //重复
-//  {"Acomma",        0x3300},  //段落?
-//  {"Aperiod",       0x20002E},  //.
-//  {"Aslash",        0x3500},
+  {"Aminus",        0x400002D},  //-
+  {"Aequal",		0x400003D},  //=
+  {"Abracketleft",  0x400005B},  //[
+  {"Abracketright", 0x400005D},  //]
+  {"Asemicolon",    0x400003B},  //;
+  {"Aquote",        0x4000027},  //'
+  {"Abackquote",    0x4000060},  //`
+  {"Abackslash",    0x400005C},  //'\'
+  {"Acomma",        0x400002C},  //,
+  {"Aperiod",       0x400002E},  //.
+  {"Aslash",        0x400002F},  //'/'
 };
 
 //static int find_key_code (char *key);
@@ -10095,8 +10101,8 @@ remap_ascii_char (int key)
 	int i;
 	for (i=0; ascii_key_map[i].from_code; i++)
 	{
-		if (ascii_key_map[i].from_code == (unsigned short)key)
-			return ((key & 0xffff0000) | ascii_key_map[i].to_code);
+		if (ascii_key_map[i].from_code == key)
+			return (ascii_key_map[i].to_code);
 	}
 	return key;
 }
@@ -10196,7 +10202,7 @@ static struct builtin builtin_setkey =
   " underscore, equal, plus, backspace, tab, bracketleft, braceleft,"
   " bracketright, braceright, enter, semicolon, colon, quote, doublequote,"
   " backquote, tilde, backslash, bar, comma, less, period, greater,"
-  " slash, question, alt, space, delete, oem102, shiftoem102,"
+  " slash, question, space, delete"
   " [ctrl|shift]F1-10. For Alt+ prefix with A, e.g. 'setkey at Aequal'."
   " Use 'setkey at at' to reset one key, 'setkey' to reset all keys."
 };

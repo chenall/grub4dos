@@ -81,10 +81,6 @@ void rectangle(int left, int top, int length, int width, int line);
 extern void (*graphics_CURSOR) (int set);
 unsigned int pixel_shift(unsigned int color);
 /* FIXME: where do these really belong? */
-static inline void outb(unsigned short port, unsigned char val)
-{
-    __asm __volatile ("outb %0,%1"::"a" (val), "d" (port));
-}
 
 extern void memmove_forward_SSE (void *dst, const void *src, unsigned int len);
 

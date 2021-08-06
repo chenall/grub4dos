@@ -301,7 +301,7 @@ grub_console_getkey_ex(void) //控制台获得键扩展		ok
 	{
 		if ((kss & GRUB_EFI_LEFT_SHIFT_PRESSED			//如果按下左移位键	0x00000002	//左SHIFT
 				|| kss & GRUB_EFI_RIGHT_SHIFT_PRESSED)	//或者按下右移位键	0x00000001	//右SHIFT
-				&& (key & GRUB_TERM_EXTENDED))					//并且有扩展标记		0x00800000  //扩展
+				/*&& (key & GRUB_TERM_EXTENDED)*/)			//并且有扩展标记		0x00800000  //扩展
 			key |= GRUB_TERM_SHIFT;										//则增加SHIFT标记		0x01000000
 		if (kss & GRUB_EFI_LEFT_ALT_PRESSED					//如果按下左更改键	0x00000020	//左ALT
 				|| kss & GRUB_EFI_RIGHT_ALT_PRESSED)		//或者按下右更改键	0x00000010	//右ALT
