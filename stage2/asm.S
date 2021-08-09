@@ -598,7 +598,7 @@ VARIABLE(system_functions)                            //IMG(0x8300)
 	.extent	ABS(EXT_C(grub_open))                         //26
 	.extent	ABS(EXT_C(grub_read))                         //27
 	.extent	ABS(EXT_C(grub_close))                        //28
-	.extent 0				                                      //29  reserved
+	.extent ABS(EXT_C(get_device_by_drive)) 				      //29  grub_disk_data *
 	.extent 0				                                      //30  reserved
   VARIABLE(disk_read_hook)
   .extent 0                                             //31

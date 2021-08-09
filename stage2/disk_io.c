@@ -2748,16 +2748,16 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 		
 		return 0;	/* success */
 	}	
-
+#if 0
 	d = get_device_by_drive (drive);
   if (d)
   {
-  bio = d->block_io;	//块io
-  //避免出界
-  if (size > ((bio->media->last_block - sector + 1) << buf_geom.log2_sector_size))
-		size = (bio->media->last_block - sector + 1) << buf_geom.log2_sector_size;
+    bio = d->block_io;	//块io
+    //避免出界
+    if (size > ((bio->media->last_block - sector + 1) << buf_geom.log2_sector_size))
+      size = (bio->media->last_block - sector + 1) << buf_geom.log2_sector_size;
   }
-
+#endif
   from_drive = drive;
   while (i < (unsigned int)DRIVE_MAP_SIZE && disk_drive_map[i].from_drive != from_drive)
     i++;
@@ -2832,7 +2832,11 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
   if (!d)
     return 0;
   bio = d->block_io;	//块io
-
+#if 1
+  //避免出界
+  if (size > ((bio->media->last_block - sector + 1) << buf_geom.log2_sector_size))
+    size = (bio->media->last_block - sector + 1) << buf_geom.log2_sector_size;
+#endif
   while (size)
   {
     //判断本碎片可否一次访问完毕
@@ -2896,6 +2900,13 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
   return 1;
 
 not_map:
+#if 1
+	d = get_device_by_drive (drive);
+  bio = d->block_io;	//块io
+  //避免出界
+  if (size > ((bio->media->last_block - sector + 1) << buf_geom.log2_sector_size))
+    size = (bio->media->last_block - sector + 1) << buf_geom.log2_sector_size;
+#endif
   /* Set alignment to 1 if 0 specified 如果0指定，则将对齐设置为1*/
   io_align = bio->media->io_align ? bio->media->io_align : 1;	//对齐, 如果没有指定则为1
   if ((grub_addr_t) buf & (io_align - 1))	//如果缓存未对齐
@@ -3504,9 +3515,12 @@ vpart_install (int slot_number, grub_efi_device_path_t *dp, struct grub_part_dat
   disk_drive_map[slot_number].media.write_caching = FALSE;
   disk_drive_map[slot_number].media.io_align = 0x10;
   //sector_count是宿主驱动器(to)的值, 需转换为自身驱动器(from)的值
-//  disk_drive_map[slot_number].media.last_block = disk_drive_map[slot_number].sector_count - 1;
+#if 0
+  disk_drive_map[slot_number].media.last_block =  disk_drive_map[slot_number].sector_count - 1;
+#else
   disk_drive_map[slot_number].media.last_block = (disk_drive_map[slot_number].sector_count >>
           (disk_drive_map[slot_number].from_log2_sector - disk_drive_map[slot_number].to_log2_sector)) - 1;
+#endif
   /* info */ 
   printf_debug ("part_map: addr=%lx size=%lx blksize=%x\n", (unsigned long)disk_drive_map[slot_number].start_sector,
           (unsigned long long)disk_drive_map[slot_number].sector_count,
@@ -3707,9 +3721,12 @@ vdisk_install (int slot_number)	//安装虚拟磁盘(映射插槽号)
   disk_drive_map[slot_number].media.write_caching = FALSE;			//写缓存 
   disk_drive_map[slot_number].media.io_align = 0x10;						//对齐
   //sector_count是宿主驱动器(to)的值, 需转换为自身驱动器(from)的值
-//  disk_drive_map[slot_number].media.last_block = disk_drive_map[slot_number].sector_count - 1;//最后块
+#if 0
+  disk_drive_map[slot_number].media.last_block = disk_drive_map[slot_number].sector_count - 1;//最后块
+#else
   disk_drive_map[slot_number].media.last_block = (disk_drive_map[slot_number].sector_count >>
           (disk_drive_map[slot_number].from_log2_sector - disk_drive_map[slot_number].to_log2_sector)) - 1;
+#endif
   /* info 打印信息*/
   printf_debug ("disk_drive_map: addr=%lx size=%lx blksize=%x\n", (unsigned int)disk_drive_map[slot_number].start_sector,
           (unsigned long long)disk_drive_map[slot_number].sector_count,
