@@ -2146,7 +2146,7 @@ dd_func (char *arg, int flags)
   /* (*p == '/') indicates out_file is not a block file */
   /* (*p != '/') indicates out_file is a block file */
 
-
+#if 0
   if (out_drive != ram_drive && out_drive != 0xFFFF && *p != '/')
   {
 	unsigned int j;
@@ -2165,9 +2165,10 @@ dd_func (char *arg, int flags)
 			break;			/* memdrive */
 	    }
 
-	if (j == DRIVE_MAP_SIZE)	/* real drive */
+	if (j == DRIVE_MAP_SIZE)	/* real drive 如果不是映射驱动器)*/
 	{
 	    /* this command is intended for running in command line and inhibited from running in menu.lst */
+      //此函数只允许在命令行运行, 禁止在菜单
 	    if (flags & (BUILTIN_MENU | BUILTIN_SCRIPT))
 	    {
 		errnum = ERR_WRITE_TO_NON_MEM_DRIVE;
@@ -2175,7 +2176,7 @@ dd_func (char *arg, int flags)
 	    }
 	}
   }
-
+#endif
   {
     unsigned long long in_pos = in_filepos;
     unsigned long long out_pos = out_filepos;
@@ -2302,7 +2303,7 @@ static struct builtin builtin_dd =
   "dd",
   dd_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "dd if=IF of=OF [bs=BS] [count=C] [skip=IN] [seek=OUT] [buf=ADDR] [buflen=SIZE]",
+  "dd if=IF of=OF [bs=BS] [count=C] [skip=IN] [seek=OUT]",
   "Copy file IF to OF. BS is blocksize, default to 512. C is blocks to copy,"
   " default is total blocks in IF. IN specifies number of blocks to skip when"
   " read, default is 0. OUT specifies number of blocks to skip when write,"
@@ -2311,12 +2312,12 @@ static struct builtin builtin_dd =
   " of IF will be discarded. OF cannot be a gzipped file. If IF is a gzipped"
   " file, it will be decompressed automatically when copying. dd is dangerous,"
   " use at your own risk. To be on the safe side, you should only use dd to"
-  " write a file in memory. ADDR and SIZE are used for user-defined buffer."
-  " ADDR default at 1M, and SIZE default to 64K."
+  " write a file in memory."
 };
 
 
 /* debug */
+unsigned int ctrl_c_trap = 1;
 static int debug_func (char *arg, int flags);
 static int
 debug_func (char *arg, int flags)
@@ -2340,6 +2341,12 @@ debug_func (char *arg, int flags)
   else if (grub_memcmp (arg ,"msg=", 4) == 0)
   {
     debug_msg = arg[4] & 7;
+  }
+  else if (grub_memcmp (arg, "ctrl-c-trap=", 12) == 0)
+  {
+    arg += 12;
+    if (safe_parse_maxint (&arg, &tmp_debug))
+      ctrl_c_trap = tmp_debug;
   }
   else if (safe_parse_maxint (&arg, &tmp_debug))
   {
@@ -2365,11 +2372,12 @@ struct builtin builtin_debug =
   "debug",
   debug_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "debug [on | off | normal | status | INTEGER]"
+  "debug [on | off | normal | status | ctrl-c-trap= | INTEGER]"
   "\ndebug Batch [ARGS]"
   "\ndebug msg=N",
   "Turn on/off or display/set the debug level or Single-step Debug for batch script"
   "\nmsg=N,sets the message level: 0:off,1-3:on."
+  "\nctrl-c-trap=0 (do not check); ctrl-c-trap=1 *(check for ctrl+c)."
 };
 
 
@@ -8992,7 +9000,7 @@ write_func (char *arg, int flags)
   unsigned long long bytes = 0;
   char tmp_file[16];
 	int mem = 0;
-  int block_file = 0;
+//  int block_file = 0;
 
   errnum = 0;
   tmp_drive = saved_drive;
@@ -9038,8 +9046,8 @@ write_func (char *arg, int flags)
           errnum = ERR_BAD_ARGUMENT;
         goto fail;
       }
-      if (*p != '/')
-        block_file = 1;
+//      if (*p != '/')
+//        block_file = 1;
       saved_drive = current_drive;
       saved_partition = current_partition;
       /* if only the device portion is specified */
@@ -9066,7 +9074,7 @@ write_func (char *arg, int flags)
     current_partition = saved_partition;
     if (errnum)
       goto fail;
-
+#if 0
     if (current_drive != ram_drive && current_drive != 0xFFFF && block_file)
     {
       unsigned int j;
@@ -9096,7 +9104,7 @@ write_func (char *arg, int flags)
 		    }
       }
     }
-
+#endif
     filepos = offset;
   }
   else
@@ -13164,7 +13172,7 @@ aaa:
 			}
 		}
 #endif
-		if (checkkey() == 0x2000063)
+		if (ctrl_c_trap && checkkey() == 0x2000063)
 		{
 			unsigned char k;
 			loop_yn:

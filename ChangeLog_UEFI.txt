@@ -1,4 +1,9 @@
 ﻿更新说明：
+2021-08-17 (a1ive)
+  在 debug 函数增加 ctrl-c-trap= 参数。为零时，不检测批处理的 ctrl+c 按键。
+  解除 dd 与 write 函数的安全限制。
+  修正 errnum 序号错位。
+
 2021-07-23 (a1ive)
   添加 beep 命令。
 
