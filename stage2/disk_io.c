@@ -676,7 +676,7 @@ redo:
 	*next_partition_len = (unsigned long long)(PI->ending_lba - PI->starting_lba + 1);
 	*next_partition_partition = (pc_slice_no << 16) | 0xFFFF;
 	*next_partition_type = PC_SLICE_TYPE_GPT;
-  grub_memmove(&partition_signature, &PI->uid, 16);
+  grub_memmove(&partition_signature, &PI->uid, 16); //GPT
 	return 1;
 }
 
@@ -824,7 +824,7 @@ next_entry:
 	*next_partition_type = PC_SLICE_TYPE (next_partition_buf, *next_partition_entry);
 	*next_partition_len = PC_SLICE_LENGTH (next_partition_buf, *next_partition_entry);
   grub_memset (&partition_signature, 0, 16);
-  *(unsigned int *)partition_signature = PC_DISK_SIG (next_partition_buf);
+  *(unsigned int *)partition_signature = PC_DISK_SIG (next_partition_buf);  //MBR
   partition_activity_flag = PC_SLICE_FLAG(next_partition_buf, *next_partition_entry);
 	/* if overflow ... */
 
@@ -1300,11 +1300,6 @@ set_device (char *device)
 				else	if (ch == 'f' && *device == ')')	//(fd)
 				{
 			current_drive = (unsigned char)(floppies_orig);
-				}
-        else	if (ch == 'f' && *device == 'p')	//(fd)
-				{
-			current_drive = (unsigned char)(floppies_orig + 6);
-      device++;
 				}
 	      else if (ch == 'm')
 	      {
@@ -2229,9 +2224,9 @@ get_diskinfo (unsigned int drive, struct geometry *geometry, unsigned int partit
 	p = get_device_by_drive (drive);
 	if (p)
 	{
-		geometry->sector_size = p->sector_size;
-		geometry->total_sectors = p->total_sectors;
-		geometry->log2_sector_size = log2_tmp(p->sector_size);
+		geometry->sector_size = 1 << p->from_log2_sector;
+		geometry->total_sectors = p->sector_count;
+		geometry->log2_sector_size = p->from_log2_sector;
 		return 0; //成功
 	}
 
@@ -2289,6 +2284,7 @@ make_devices (void) //制作设备
 			continue;
     if (debug > 1)
     {
+      grub_printf ("\nTYPE=%x, SUBTYPE=%x\n",GRUB_EFI_DEVICE_PATH_TYPE (ldp),GRUB_EFI_DEVICE_PATH_SUBTYPE (ldp));
       grub_efi_print_device_path(ldp);
       getkey();
     }
@@ -2307,7 +2303,7 @@ make_devices (void) //制作设备
          bio->media->block_size == 1)
 			continue;
 
-		d = grub_malloc (sizeof (*d));  //分配内存
+		d = grub_zalloc (sizeof (*d));  //分配内存
 		if (! d)  //如果分配内存失败
 		{
 			/* Uggh.  */
@@ -2326,23 +2322,33 @@ make_devices (void) //制作设备
 		d->device_path = dp;
 		d->last_device_path = ldp;
 		d->block_io = bio;
-		d->sector_size = bio->media->block_size;
-		d->log2_sector = log2_tmp(bio->media->block_size);
-		d->total_sectors = bio->media->last_block + 1;
+		d->from_log2_sector = log2_tmp(bio->media->block_size);
+		d->sector_count = bio->media->last_block + 1;
 		d->next = devices;
 		devices = d;
   
     //填充分区数据结构
     if (GRUB_EFI_DEVICE_PATH_TYPE (ldp) == GRUB_EFI_MEDIA_DEVICE_PATH_TYPE
-        && GRUB_EFI_DEVICE_PATH_SUBTYPE (ldp) == GRUB_EFI_HARD_DRIVE_DEVICE_PATH_SUBTYPE) //如果是媒体类型，硬盘子类型
+        && (GRUB_EFI_DEVICE_PATH_SUBTYPE (ldp) == GRUB_EFI_HARD_DRIVE_DEVICE_PATH_SUBTYPE
+            || GRUB_EFI_DEVICE_PATH_SUBTYPE (ldp) == GRUB_EFI_CDROM_DEVICE_PATH_SUBTYPE)) //如果是媒体类型，硬盘子类型或者光盘子类型
     {
       p = grub_malloc (sizeof (*p));  //分配内存
       p->part_handle = *handle;
       p->part_path = dp;
       p->last_part_path = ldp;
-      p->partition_start = ((grub_efi_hard_drive_device_path_t *)ldp)->partition_start;
-      p->partition_len = ((grub_efi_hard_drive_device_path_t *)ldp)->partition_size;
-      grub_memcpy (&p->partition_signature, &((grub_efi_hard_drive_device_path_t *)ldp)->partition_signature, 16);
+      if (GRUB_EFI_DEVICE_PATH_SUBTYPE (ldp) == GRUB_EFI_HARD_DRIVE_DEVICE_PATH_SUBTYPE)
+      {
+        p->partition_number = ((grub_efi_hard_drive_device_path_t *)ldp)->partition_number;
+        p->partition_start = ((grub_efi_hard_drive_device_path_t *)ldp)->partition_start;
+        p->partition_len = ((grub_efi_hard_drive_device_path_t *)ldp)->partition_size;
+        grub_memcpy (&p->partition_signature, &((grub_efi_hard_drive_device_path_t *)ldp)->partition_signature, 16);
+      }
+      else
+      {
+        p->partition_number = ((grub_efi_cdrom_device_path_t *)ldp)->boot_entry;
+        p->partition_start = ((grub_efi_cdrom_device_path_t *)ldp)->partition_start;
+        p->partition_len = ((grub_efi_cdrom_device_path_t *)ldp)->partition_size;
+      }
       p->next = partition_info_tmp;
       partition_info_tmp = p;
     }
@@ -2410,7 +2416,7 @@ add_device (struct grub_disk_data **devices, struct grub_disk_data *d)  //增加
 			break;
 	}
 
-  n = grub_malloc (sizeof (*n));  //分配内存cdrom_orig
+  n = grub_zalloc (sizeof (*n));  //分配内存cdrom_orig
   if (! n)
     return;
 
@@ -2710,21 +2716,36 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 			grub_size_t size, char *buf, int read_write)
 {
   struct grub_disk_data *d;	//磁盘数据
+  struct grub_part_data *dp;
   grub_efi_block_io_t *bio=0;			//块io
   grub_efi_status_t status;			//状态
   grub_size_t io_align;					//对齐
   char *aligned_buf;						//对齐缓存
   unsigned int offset, read_len;
-  unsigned long long read_start, lba_byte;
+  unsigned long long read_start, lba_byte = 0;
   unsigned long long fragment_len = 0, total = 0; 
   struct fragment_map_slot *q;
   struct fragment *data=0;
   unsigned int i=0, j=0;
   unsigned char	from_drive, to_drive;			//驱动器
+  unsigned int partition;
 
   if (read_write != 0xedde0d90 && read_write != 0x900ddeed) //如果不是读/写, 错误
     return 1;
 
+  //虚拟分区
+  if ((drive & 0xffff00) == 0xffff00)
+  {
+    partition = drive >> 8;
+    drive &= 0xff;
+    d = get_device_by_drive (drive);
+    dp = get_partition_info (drive, partition);
+    if (drive >= 0xa0)
+      lba_byte = (sector << 9) + (dp->partition_start << 11);
+    else
+      lba_byte = (sector + dp->partition_start) << d->from_log2_sector;
+  }
+  //md或者rd
 	if (drive == 0xffff || (drive == (int)ram_drive && rd_base != -1ULL))
 	{
 		unsigned long long disk_sector;
@@ -2748,32 +2769,27 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 		
 		return 0;	/* success */
 	}	
-#if 0
-	d = get_device_by_drive (drive);
-  if (d)
-  {
-    bio = d->block_io;	//块io
-    //避免出界
-    if (size > ((bio->media->last_block - sector + 1) << buf_geom.log2_sector_size))
-      size = (bio->media->last_block - sector + 1) << buf_geom.log2_sector_size;
-  }
-#endif
+  //判断是原生磁盘还是映射磁盘
   from_drive = drive;
   while (i < (unsigned int)DRIVE_MAP_SIZE && disk_drive_map[i].from_drive != from_drive)
     i++;
   
-  if (i == (unsigned int)DRIVE_MAP_SIZE)
+  if (i == (unsigned int)DRIVE_MAP_SIZE) //原生磁盘
     goto not_map;
-  else
+  else    //映射磁盘
     to_drive = disk_drive_map[i].to_drive;
 
-//假设:
-//参数           from_log2_sector=b,	from_block_size=800, to_log2_sector=9, to_block_size=200
-//from映射到to   13ae10+95940, 1dc8d0+180
-//读参数         sector=25640	size=10000
+//启动hdd_cs.img, 驱动器号 80
+//map /boot/imgs/z.iso (0xa0)     插槽:  a0 80 0b 09 01 00 508 1c00
+//a0(from)映射到80(to)            (hd0)508+20,fc8+20,b2828+20,b2968+a0,b2e88+20,b4588+180,b6a68+1960
+//z.iso的引导镜像efi.img          驱动器号 ffffa0, 起始2b, 尺寸b40
+//参数           from_log2_sector=b, to_log2_sector=9
+//读efi.img      drive=ffffa0 sector=0	size=200;  drive=ffffa0 sector=13	size=2000
+//0+(2b<<b)=15800 15800>>9=ac  从b2968+4c读1扇区
+//(13<<9)+(2b<<b)=17e00 17e00>>9=bf  从b2968+5f读10扇区
 
-	lba_byte = sector << disk_drive_map[i].from_log2_sector;	//from驱动器起始逻辑扇区lba转起始字节	12aac800
-
+  if (!lba_byte) //如果不是虚拟分区 
+    lba_byte = (sector << disk_drive_map[i].from_log2_sector);        //from驱动器起始逻辑扇区lba转起始字节
   //内存驱动器	
 	if (to_drive == 0xff && disk_drive_map[i].to_log2_sector == 9)			//如果是内存驱动器, 映射盘加载到内存, 
 	{
@@ -2832,11 +2848,9 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
   if (!d)
     return 0;
   bio = d->block_io;	//块io
-#if 1
   //避免出界
   if (size > ((bio->media->last_block - sector + 1) << buf_geom.log2_sector_size))
     size = (bio->media->last_block - sector + 1) << buf_geom.log2_sector_size;
-#endif
   while (size)
   {
     //判断本碎片可否一次访问完毕
@@ -2900,13 +2914,11 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
   return 1;
 
 not_map:
-#if 1
 	d = get_device_by_drive (drive);
   bio = d->block_io;	//块io
   //避免出界
   if (size > ((bio->media->last_block - sector + 1) << buf_geom.log2_sector_size))
     size = (bio->media->last_block - sector + 1) << buf_geom.log2_sector_size;
-#endif
   /* Set alignment to 1 if 0 specified 如果0指定，则将对齐设置为1*/
   io_align = bio->media->io_align ? bio->media->io_align : 1;	//对齐, 如果没有指定则为1
   if ((grub_addr_t) buf & (io_align - 1))	//如果缓存未对齐
@@ -2946,8 +2958,8 @@ void partition_info_init (void);
 void
 partition_info_init (void)
 {
-	struct grub_part_data *d;	//efi分区数据
-	struct grub_part_data *p;
+	struct grub_disk_data *d;	//efi分区数据
+	struct grub_part_data *p, *p1, *dp;
 	int drive;
 	unsigned int back_saved_drive = saved_drive;
 	unsigned int back_current_drive	=	current_drive;
@@ -2977,42 +2989,84 @@ partition_info_init (void)
 				next_partition_buf = mbr,                 //缓存
 				next_partition ()))
 		{
-			d = grub_malloc (sizeof (*d));  //分配内存	
-			if(! d)  //如果分配内存失败
+			p = grub_zalloc (sizeof (*p));  //分配内存	
+			if(! p)  //如果分配内存失败
 				return;
 			if (*next_partition_type == 0 || *next_partition_type == 5 || *next_partition_type == 0xf)
 				continue;
 
 			//填充设备结构																				//(hd0,0)	(hd0,2)	(hd0,3)	(hd0,4)	(hd1,0)	(hd1,1)		(hd1,2)	(hd1,4)	 	(hd1,5)		(hd1,6)
-			d->drive = drive;																			//80			80			80			80			81			81				81			81			 	81				81
-			d->partition = *next_partition_partition;							//ffff		2ffff		3ffff		4ffff		ffff		1ffff			2ffff		4ffff		 	5ffff			6ffff
-			d->partition_type = *next_partition_type;							//ee			ee			ee			ee			07			0f				0				07			 	07				07
-			d->partition_start = *next_partition_start;						//800			50800		b4800		118800	3f			a0029cc		0				a002a0b	 	1a207094	2a40b71d
-			d->partition_len = *next_partition_len;								//40000		64000		64000		cbddf		a00298d	30382275	0				1020464a 	1020464a	ff79524
-			d->partition_offset = *next_partition_offset;					//0				0				0				0				0				0					0      	a0029cc 	1a207055	2a40b6de
-			d->partition_entry = *next_partition_entry;						//2				2				2				2				0				1					2				0					0					0
-			d->partition_ext_offset = *next_partition_ext_offset;	//0				0				0				0				0				0					0				a0029cc		a0029cc		a0029cc
-			d->next = partition_info;															//0				dfb0110	dfb00e0	dfb00b0	dfb0080										dfb0050		dfaff90		dfaff60
-      grub_memcpy (&d->partition_signature, &partition_signature, 16);
+			p->drive = drive;																			//80			80			80			80			81			81				81			81			 	81				81
+			p->partition = *next_partition_partition;							//ffff		2ffff		3ffff		4ffff		ffff		1ffff			2ffff		4ffff		 	5ffff			6ffff
+			p->partition_type = *next_partition_type;							//ee			ee			ee			ee			07			0f				0				07			 	07				07
+			p->partition_start = *next_partition_start;						//800			50800		b4800		118800	3f			a0029cc		0				a002a0b	 	1a207094	2a40b71d
+			p->partition_len = *next_partition_len;								//40000		64000		64000		cbddf		a00298d	30382275	0				1020464a 	1020464a	ff79524
+			p->partition_offset = *next_partition_offset;					//0				0				0				0				0				0					0      	a0029cc 	1a207055	2a40b6de
+			p->partition_entry = *next_partition_entry;						//2				2				2				2				0				1					2				0					0					0
+			p->partition_ext_offset = *next_partition_ext_offset;	//0				0				0				0				0				0					0				a0029cc		a0029cc		a0029cc
+      p->partition_activity_flag = partition_activity_flag;
+			p->next = partition_info;															//0				dfb0110	dfb00e0	dfb00b0	dfb0080										dfb0050		dfaff90		dfaff60
+      grub_memcpy (&p->partition_signature, &partition_signature, 16);
       
       //从partition_info_tmp中查找有关信息
-      for (p = partition_info_tmp; p; p = p->next)
+      for (p1 = partition_info_tmp; p1; p1 = p1->next)
       {
-        if (p->partition_start == d->partition_start && p->partition_len == d->partition_len)
+        if (p1->partition_start == p->partition_start && p1->partition_len == p->partition_len)
         {
-          d->part_handle = p->part_handle;
-          d->part_path = p->part_path;
-          d->last_part_path = p->last_part_path;
+          p->part_handle = p1->part_handle;
+          p->part_path = p1->part_path;
+          p->last_part_path = p1->last_part_path;
+          p->partition_number = p1->partition_number;
         }
       }
       
-			partition_info = d;																		//dfb0110	dfb00e0 dfb00b0	dfb0080	dfb0050										dfaff90		dfaff60		dfaff30
+			partition_info = p;																		//dfb0110	dfb00e0 dfb00b0	dfb0080	dfb0050										dfaff90		dfaff60		dfaff30
 		}
 	}
 	saved_drive = back_saved_drive;
 	current_drive = back_current_drive;
 	saved_partition = back_saved_partition;
 	current_partition = back_current_partition;
+
+  dp = partition_info;
+  while (dp->next)
+    dp = dp->next;
+  d = cd_devices;
+  for ( ; d && cdrom_orig; d = d->next)	//从设备结构起始查; 只要设备存在,并且驱动器号不为零;
+  {
+    for (p1 = partition_info_tmp; p1; p1 = p1->next)
+    {
+      p = grub_zalloc (sizeof (*p));  //分配内存	
+      if(! p)  //如果分配内存失败
+        return;
+      get_efi_device_boot_path(d->drive);
+//grub_efi_print_device_path(p1->part_path);
+//grub_printf ("partition_info_init,%x,%x,%x,%x,%x,%x,%x,\n",d->drive,p1->partition_number,p1->partition_start,p1->partition_len,
+//               boot_entry,part_addr,part_size);
+//getkey();
+//PciRoot(0)/Pci(1,1)/Ata(Primary,Master,0)/HD(1,MBR,88776655,20,100000)
+//PciRoot(0)/Pci(1,1)/Ata(Secondary,Master,0)/CDROM(0,35,1680)/HD(1,MBR,0,0,1680)       a0,1,0,1680,1,35,1680;  ok  fb形态的MBR,有分区表
+//PciRoot(0)/Pci(1,1)/Ata(Secondary,Master,0)/CDROM(0,35,1680)                          a0,0,35,1680,1,35,1680; err 这个不能启动
+//PciRoot(0)/Pci(1,1)/Ata(Secondary,Master,0)/CDROM(1,2b,5ea)                           a0,1,2b,5ea,91,2b,5ea;  ok  正常的MBR, bios/uefi双启动
+//PciRoot(0)/Pci(1,1)/Ata(Secondary,Master,0)/CDROM(0,1a5,4)                            a0,0,1a5,4,91,2b,5ea;       这是bios启动入口
+//      if (p1->partition_start == part_addr)
+      if (p1->partition_len == part_size)
+      {
+        p->part_handle = p1->part_handle;
+        p->part_path = p1->part_path;
+        p->last_part_path = p1->last_part_path;
+        p->drive = d->drive | 0xffff00;
+        p->partition = 0xffff;
+        p->partition_number = p1->partition_number;
+        p->partition_start = p1->partition_start;
+        p->partition_len = p1->partition_len;
+        p->next = 0;
+        dp->next = p;
+        dp = dp->next;
+        break;
+      }
+    }
+  }
 	free_part_data (partition_info_tmp); //释放
 }
 
@@ -3022,7 +3076,7 @@ get_partition_info (int drive, int partition)
 {
 	struct grub_part_data *dp;
 	
-	if (drive < 0x80 || drive > 0x8f)
+	if (drive < 0x80/* || drive > 0x8f*/)
 		return 0;
 	for (dp = partition_info; dp; dp = dp->next)
 	{
@@ -3247,10 +3301,11 @@ grub_efi_append_device_node (const grub_efi_device_path_protocol_t *device_path,
 #endif
 
 //========================================================================================================================================
-
-static grub_efi_boolean_t get_mbr_info (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data *p);
+grub_efivdisk_t vdisk;
+grub_efivdisk_t vpart;
+static grub_efi_boolean_t get_mbr_info (grub_efi_device_path_t *dp, struct grub_part_data *p);
 static grub_efi_boolean_t
-get_mbr_info (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data *p)	//获得mbr磁盘信息
+get_mbr_info (grub_efi_device_path_t *dp, struct grub_part_data *p)	//获得mbr磁盘信息
 {
   grub_efi_boot_services_t *b;		//引导服务
   b = grub_efi_system_table->boot_services;	//系统表->引导服务
@@ -3270,18 +3325,19 @@ get_mbr_info (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data
   ((grub_efi_hard_drive_device_path_t*)tmp_dp)->partmap_type = 1;							                //分区格式类型
   ((grub_efi_hard_drive_device_path_t*)tmp_dp)->signature_type = 1;						                //签名类型
   //附加设备节点
-  disk_drive_map[slot_number].dp = (grub_efi_device_path_t *)efi_call_2 (DPUP->AppendDeviceNode,
+  vpart.dp = (grub_efi_device_path_t *)efi_call_2 (DPUP->AppendDeviceNode,
                       dp,	                          //设备路径
                       tmp_dp);                      //设备节点
   efi_call_1 (b->free_pool, tmp_dp);	              //释放数据  使用DPUP->CreateDeviceNode创建的tmp_dp只能使用b->free_pool释放
   printf_debug ("part_map: type=mbr start=%x size=%lx\n", p->partition_start,p->partition_len);
+  vpart.media.block_size = vdisk.media.block_size;
   
   return TRUE;
 }
 
-static grub_efi_boolean_t get_gpt_info (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data *p);
+static grub_efi_boolean_t get_gpt_info (grub_efi_device_path_t *dp, struct grub_part_data *p);
 static grub_efi_boolean_t
-get_gpt_info (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data *p)	//获得gpt磁盘信息
+get_gpt_info (grub_efi_device_path_t *dp, struct grub_part_data *p)	//获得gpt磁盘信息
 {
   grub_efi_boot_services_t *b;		//引导服务
   b = grub_efi_system_table->boot_services;	//系统表->引导服务
@@ -3301,18 +3357,19 @@ get_gpt_info (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data
   ((grub_efi_hard_drive_device_path_t*)tmp_dp)->partmap_type = 2;							                //分区格式类型
   ((grub_efi_hard_drive_device_path_t*)tmp_dp)->signature_type = 2;						                //签名类型
   //附加设备节点
-  disk_drive_map[slot_number].dp = (grub_efi_device_path_t *)efi_call_2 (DPUP->AppendDeviceNode,
+  vpart.dp = (grub_efi_device_path_t *)efi_call_2 (DPUP->AppendDeviceNode,
                       dp,	                          //设备路径
                       tmp_dp);                      //设备节点
   efi_call_1 (b->free_pool, tmp_dp);	              //释放数据  使用DPUP->CreateDeviceNode创建的tmp_dp只能使用b->free_pool释放  
   printf_debug ("part_map: type=gpt start=%x size=%lx\n", p->partition_start,p->partition_len);
+  vpart.media.block_size = vdisk.media.block_size;
   
   return TRUE;
 }
 
-static grub_efi_boolean_t get_iso_info (int slot_number , grub_efi_device_path_t *dp, struct grub_part_data *p);
+static grub_efi_boolean_t get_iso_info (grub_efi_device_path_t *dp, struct grub_part_data *p);
 static grub_efi_boolean_t
-get_iso_info (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data *p)
+get_iso_info (grub_efi_device_path_t *dp, struct grub_part_data *p)
 {
   grub_efi_boot_services_t *b;		//引导服务
   b = grub_efi_system_table->boot_services;	//系统表->引导服务
@@ -3330,11 +3387,12 @@ get_iso_info (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data
   ((grub_efi_cdrom_device_path_t *)tmp_dp)->partition_start =	part_addr;	//引导起始 扇区
   ((grub_efi_cdrom_device_path_t *)tmp_dp)->partition_size = part_size;		//引导尺寸 扇区
   //附加设备节点
-  disk_drive_map[slot_number].dp = (grub_efi_device_path_t *)efi_call_2 (DPUP->AppendDeviceNode,
+  vpart.dp = (grub_efi_device_path_t *)efi_call_2 (DPUP->AppendDeviceNode,
                       dp,	                          //设备路径
                       tmp_dp);                      //设备节点
   efi_call_1 (b->free_pool, tmp_dp);	              //释放数据  使用DPUP->CreateDeviceNode创建的tmp_dp只能使用b->free_pool释放  
   printf_debug ("part_map: type=iso start=%x size=%lx\n", part_addr,part_size);
+  vpart.media.block_size = 0x200;
   
   return TRUE;
 }
@@ -3477,26 +3535,25 @@ gen_uuid (void)	//获得uuid
 //vpart.c
 //创建设备节点; 附加设备节点; 安装多协议接口; 连接控制器;
 //不安装虚拟分区，一般情况可以正常启动。但是对于4k磁盘，则必须安装。（可能使UEFI对4k磁盘正常不充分）
-grub_efi_status_t vpart_install (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data *p); //安装虚拟分区
+grub_efi_status_t vpart_install (int drive, struct grub_part_data *part); //安装虚拟分区
 grub_efi_status_t
-vpart_install (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data *p) //安装虚拟分区
+vpart_install (int drive, struct grub_part_data *part) //安装虚拟分区
 {
   grub_efi_status_t status;
   grub_efi_boot_services_t *b;
   b = grub_efi_system_table->boot_services;
-  struct grub_disk_data *d;	//磁盘数据
   int present;
+  struct grub_disk_data	*d = get_device_by_drive(drive);
 
   /* guid */
   grub_efi_guid_t dp_guid = GRUB_EFI_DEVICE_PATH_GUID;			//设备路径GUID 
   grub_efi_guid_t blk_io_guid = GRUB_EFI_BLOCK_IO_GUID;			//块IO_GUID
-
   if (current_drive >= 0xa0)
-    present = get_iso_info (slot_number, dp, p);
-	else if (p->partition_type == 0xee)
-    present = get_gpt_info (slot_number, dp, p);
+    present = get_iso_info (d->device_path, part);
+	else if (part->partition_type == 0xee)
+    present = get_gpt_info (d->device_path, part);
 	else
-    present = get_mbr_info (slot_number, dp, p);
+    present = get_mbr_info (d->device_path, part);
 
   if (!present)
   {
@@ -3504,68 +3561,44 @@ vpart_install (int slot_number, grub_efi_device_path_t *dp, struct grub_part_dat
     return GRUB_EFI_NOT_FOUND;
   }
 
-  grub_memcpy (&disk_drive_map[slot_number].block_io, &blockio_template, sizeof (block_io_protocol_t));
+  grub_memcpy (&vpart.block_io, &blockio_template, sizeof (block_io_protocol_t));
   
-  disk_drive_map[slot_number].from_handle = NULL;
-  disk_drive_map[slot_number].block_io.media = &disk_drive_map[slot_number].media;
-	disk_drive_map[slot_number].media.media_id = disk_drive_map[slot_number].from_drive;
-  disk_drive_map[slot_number].media.removable_media = FALSE;
-  disk_drive_map[slot_number].media.media_present = TRUE;
-  disk_drive_map[slot_number].media.logical_partition = TRUE;
-  disk_drive_map[slot_number].media.write_caching = FALSE;
-  disk_drive_map[slot_number].media.io_align = 0x10;
+  vpart.from_handle = NULL;
+  vpart.block_io.media = &vpart.media;
+  vpart.media.media_id = d->drive | (part->partition << 8);
+  vpart.media.removable_media = FALSE;
+  vpart.media.media_present = TRUE;
+  vpart.media.logical_partition = TRUE;
+  vpart.media.write_caching = FALSE;
+  vpart.media.io_align = 0x10;
+  vpart.media.read_only = vdisk.media.read_only;
   //sector_count是宿主驱动器(to)的值, 需转换为自身驱动器(from)的值
 #if 0
-  disk_drive_map[slot_number].media.last_block =  disk_drive_map[slot_number].sector_count - 1;
+  vpart.media.last_block =  d->sector_count - 1;
 #else
-  disk_drive_map[slot_number].media.last_block = (disk_drive_map[slot_number].sector_count >>
-          (disk_drive_map[slot_number].from_log2_sector - disk_drive_map[slot_number].to_log2_sector)) - 1;
+  vpart.media.last_block = (d->sector_count >>
+          (d->from_log2_sector - d->to_log2_sector)) - 1;
 #endif
-  /* info */ 
-  printf_debug ("part_map: addr=%lx size=%lx blksize=%x\n", (unsigned long)disk_drive_map[slot_number].start_sector,
-          (unsigned long long)disk_drive_map[slot_number].sector_count,
-          disk_drive_map[slot_number].media.block_size);
-  
   status = efi_call_6 (b->install_multiple_protocol_interfaces,	//安装多协议接口
-                       &disk_drive_map[slot_number].from_handle,										//指向协议接口的指针(如果要分配新句柄，则指向NULL的指针)
-                       &dp_guid, disk_drive_map[slot_number].dp,										//指向协议GUID的指针,指向设备路径的指针
-                       &blk_io_guid, &disk_drive_map[slot_number].block_io, NULL);	//指向io设备接口的指针,指向block_io设备接口的指针,NULL 
-
+                       &vpart.from_handle,										//指向协议接口的指针(如果要分配新句柄，则指向NULL的指针)
+                       &dp_guid, vpart.dp,										//指向协议GUID的指针,指向设备路径的指针
+                       &blk_io_guid, &vpart.block_io, NULL);	//指向io设备接口的指针,指向block_io设备接口的指针,NULL 
   if(status != GRUB_EFI_SUCCESS)
   {
-    printf_errinfo ("failed to install virtual partition\n");	//无法安装虚拟分区
+    printf_errinfo ("failed to install virtual partition: install_multiple_protocol_interfaces.(%x)\n",status);	//无法安装虚拟分区
     return GRUB_EFI_NOT_FOUND;
   }
 	//此函数要读磁盘
-  status = efi_call_4 (b->connect_controller, disk_drive_map[slot_number].from_handle, NULL, NULL, TRUE);	//引导服务->连接控制器,要连接驱动程序的控制器的句柄,驱动程序绑定协议的有序列表句柄的指针,指向设备路径的指针,如果为true则递归调用ConnectController（），
+  status = efi_call_4 (b->connect_controller, vpart.from_handle, NULL, NULL, TRUE);	//引导服务->连接控制器,要连接驱动程序的控制器的句柄,驱动程序绑定协议的有序列表句柄的指针,指向设备路径的指针,如果为true则递归调用ConnectController（），
+  if(status != GRUB_EFI_SUCCESS)
+  {
+    printf_errinfo ("failed to install virtual partition: connect_controller.(%x)\n",status);	//无法安装虚拟分区
+    return GRUB_EFI_NOT_FOUND;
+  }
 
-//填充磁盘数据
-  floppies_orig++;
-	d = grub_zalloc (sizeof (*d));  //分配内存, 并清零
-	struct grub_disk_data	*d1;
+  part->part_handle = vpart.from_handle;
+  part->part_path = vpart.dp;
 
-	d->device_handle = disk_drive_map[slot_number].from_handle;
-	d->device_path = disk_drive_map[slot_number].dp;
-	d->last_device_path = 0;
-	d->block_io = (grub_efi_block_io_t *)&disk_drive_map[slot_number].block_io;
-	d->sector_size = disk_drive_map[slot_number].media.block_size;
-	d->log2_sector = disk_drive_map[slot_number].from_log2_sector;
-//	d->total_sectors = disk_drive_map[slot_number].sector_count;
-  d->total_sectors = disk_drive_map[slot_number].media.last_block + 1;
-	d->drive = disk_drive_map[slot_number].from_drive;
-	d->next = 0;
-  p->part_handle = d->device_handle;
-  p->part_path = d->device_path;
-
-  if (!fd_devices)
-    fd_devices = d;
-  d1 = fd_devices;
-
-	if (d1 != d)
-	{
-		for (; d1->next; d1 = d1->next);
-		d1->next = d;
-	}
   return GRUB_EFI_SUCCESS;
 }
 
@@ -3594,91 +3627,26 @@ vpart_load_image (grub_efi_device_path_t *part_path)	//虚拟分区引导
   {
     if (boot_file)
       grub_free (boot_file);
-    printf_errinfo ("Failed to load virtual partition image.\n");
+    printf_errinfo ("Failed to load virtual partition image.(%x)\n",status);
 			return NULL;
   }
   return boot_image_handle;
 }
 
-void add_part_data (int drive);
-void
-add_part_data (int drive)
-{
-	struct grub_part_data *p;	//efi分区数据
-  struct grub_part_data *dp;	//efi分区数据
-	unsigned int back_saved_drive = saved_drive;
-	unsigned int back_current_drive	=	current_drive;
-	unsigned int back_saved_partition	=	saved_partition;
-	unsigned int back_current_partition	=	current_partition;
-  
-  //查找分区数据结束
-  dp = partition_info;
-  while (dp->next)
-    dp = dp->next;
-  
-
-  unsigned int part = 0xFFFFFF;
-  unsigned long long start, len, offset;
-  unsigned int type, entry1, ext_offset1;
-  saved_drive = current_drive = drive;
-  saved_partition = current_partition = part;
-  while ((	next_partition_drive = drive,
-				next_partition_dest = 0xFFFFFF,
-				next_partition_partition = &part,
-				next_partition_type = &type,
-				next_partition_start = &start,
-				next_partition_len = &len,
-				next_partition_offset = &offset,
-				next_partition_entry = &entry1,
-				next_partition_ext_offset	= &ext_offset1,
-				next_partition_buf = mbr,
-				next_partition ()))
-  {
-    p = grub_malloc (sizeof (*p));  //分配内存	
-    if(! p)  //如果分配内存失败
-      return;
-    if (*next_partition_type == 0 || *next_partition_type == 5 || *next_partition_type == 0xf)
-      continue;
-
-    //填充设备结构
-    p->drive = drive;
-    p->partition = *next_partition_partition;
-    p->partition_type = *next_partition_type;
-    p->partition_start = *next_partition_start;
-    p->partition_len = *next_partition_len;
-    p->partition_offset = *next_partition_offset;
-    p->partition_entry = *next_partition_entry;
-    p->partition_ext_offset = *next_partition_ext_offset;
-    grub_memcpy (&p->partition_signature, &partition_signature, 16);
-    p->next = 0;
-    dp->next = p;
-    dp = p;
-  }
-
-	saved_drive = back_saved_drive;
-	current_drive = back_current_drive;
-	saved_partition = back_saved_partition;
-	current_partition = back_current_partition;
-}
-
 //获得uuid; 创建设备节点; 附加设备节点; 安装多协议接口; 连接控制器; 
-grub_efi_status_t vdisk_install (int slot_number);
+grub_efi_status_t vdisk_install (int drive, int partition);
 grub_efi_status_t
-vdisk_install (int slot_number)	//安装虚拟磁盘(映射插槽号)
+vdisk_install (int drive, int partition)	//安装虚拟磁盘(驱动器号)
 {
   grub_efi_status_t status;				//状态
   grub_efi_device_path_t *tmp_dp = 0;	//路径
   grub_efi_boot_services_t *b;		//引导服务
   b = grub_efi_system_table->boot_services;	//系统表->引导服务
-  struct grub_disk_data	*d = grub_zalloc (sizeof (*d));  //分配内存, 并清零
-  struct grub_disk_data	*p;
-  char buf[256];
-  int k;
+  struct grub_disk_data	*d = get_device_by_drive(drive);  //由驱动器号获得设备
   grub_efi_guid_t dp_guid = GRUB_EFI_DEVICE_PATH_GUID;	//设备路径GUID 
   grub_efi_guid_t blk_io_guid = GRUB_EFI_BLOCK_IO_GUID;	//块IO_GUID
   
   gen_uuid ();		//获得uuid
- 
 #if 1  
   grub_efi_device_pate_utilities_protocol_t *DPUP;  //设备路径实用程序协议
   grub_efi_guid_t dpup_guid = GRUB_EFI_DEVICE_PATH_UTILITIES_PROTOCOL_GUID;
@@ -3691,7 +3659,7 @@ vdisk_install (int slot_number)	//安装虚拟磁盘(映射插槽号)
 
   guidcpy ((grub_packed_guid_t *)&((grub_efi_vendor_device_path_t *)tmp_dp)->vendor_guid, (grub_packed_guid_t *)&VDISK_GUID);	//复制guid
   //附加设备节点
-  disk_drive_map[slot_number].dp = (grub_efi_device_path_t *)efi_call_2 (DPUP->AppendDeviceNode,
+  vdisk.dp = (grub_efi_device_path_t *)efi_call_2 (DPUP->AppendDeviceNode,
                       NULL,	                                //设备路径
                       tmp_dp);                              //设备节点
 
@@ -3701,109 +3669,67 @@ vdisk_install (int slot_number)	//安装虚拟磁盘(映射插槽号)
                                         sizeof(grub_efi_vendor_device_path_t));		//创建设备节点
                                      
   guidcpy ((grub_packed_guid_t *)&((grub_efi_vendor_device_path_t *)tmp_dp)->vendor_guid, (grub_packed_guid_t *)&VDISK_GUID);	//复制guid
-  disk_drive_map[slot_number].dp = grub_efi_append_device_node (NULL, tmp_dp);	//附加设备节点
+  vdisk.dp = grub_efi_append_device_node (NULL, tmp_dp);	//附加设备节点
  
   if (tmp_dp)	            //如果存在    使用grub_efi_create_device_node创建的tmp_dp可以释放; 使用DPUP->CreateDeviceNode创建的tmp_dp,可能被DPUP->AppendDeviceNode释放,
     grub_free (tmp_dp);   //因此再释放报错!!!
 #endif
 
   /* vdisk 虚拟磁盘*/
-  disk_drive_map[slot_number].from_handle = NULL;	//句柄
+  vdisk.from_handle = NULL;	//句柄
   /* block_io 块io*/
-  grub_memcpy (&disk_drive_map[slot_number].block_io, &blockio_template, sizeof (block_io_protocol_t));
-  block_io_protocol_this = (grub_size_t)&disk_drive_map[slot_number].block_io;
+  grub_memcpy (&vdisk.block_io, &blockio_template, sizeof (block_io_protocol_t));
+  block_io_protocol_this = (grub_size_t)&vdisk.block_io;
   /* media 媒体*/
-  disk_drive_map[slot_number].block_io.media = &disk_drive_map[slot_number].media;		//媒体地址
-	disk_drive_map[slot_number].media.media_id = disk_drive_map[slot_number].from_drive;
-  disk_drive_map[slot_number].media.removable_media = FALSE;		//可移动媒体
-  disk_drive_map[slot_number].media.media_present = TRUE;				//媒体展示 
-  disk_drive_map[slot_number].media.logical_partition = FALSE;	//逻辑分区
-  disk_drive_map[slot_number].media.write_caching = FALSE;			//写缓存 
-  disk_drive_map[slot_number].media.io_align = 0x10;						//对齐
+  vdisk.block_io.media = &vdisk.media;		//媒体地址
+  vdisk.media.media_id = d->drive;        //驱动器号
+  vdisk.media.removable_media = FALSE;		//可移动媒体
+  vdisk.media.media_present = TRUE;				//媒体展示 
+  vdisk.media.logical_partition = FALSE;	//逻辑分区
+  vdisk.media.write_caching = FALSE;			//写缓存 
+  vdisk.media.io_align = 0x10;						//对齐
+  vdisk.media.read_only = 0;	            //只读
+  vdisk.media.block_size = 1 << d->from_log2_sector;
+  d->device_path = vdisk.dp;
+  d->block_io = (grub_efi_block_io_t *)&vdisk.block_io;
+  d->last_device_path = 0;
   //sector_count是宿主驱动器(to)的值, 需转换为自身驱动器(from)的值
 #if 0
-  disk_drive_map[slot_number].media.last_block = disk_drive_map[slot_number].sector_count - 1;//最后块
+  vdisk.media.last_block = d->sector_count - 1;//最后块
 #else
-  disk_drive_map[slot_number].media.last_block = (disk_drive_map[slot_number].sector_count >>
-          (disk_drive_map[slot_number].from_log2_sector - disk_drive_map[slot_number].to_log2_sector)) - 1;
+  vdisk.media.last_block = (d->sector_count >>
+          (d->from_log2_sector - d->to_log2_sector)) - 1;
 #endif
   /* info 打印信息*/
-  printf_debug ("disk_drive_map: addr=%lx size=%lx blksize=%x\n", (unsigned int)disk_drive_map[slot_number].start_sector,
-          (unsigned long long)disk_drive_map[slot_number].sector_count,
-          disk_drive_map[slot_number].media.block_size);
-          
-//填充磁盘数据
-	d->device_path = disk_drive_map[slot_number].dp;
-	d->last_device_path = 0;
-	d->block_io = (grub_efi_block_io_t *)&disk_drive_map[slot_number].block_io;
-	d->sector_size = disk_drive_map[slot_number].media.block_size;
-	d->log2_sector = disk_drive_map[slot_number].from_log2_sector;
-//	d->total_sectors = disk_drive_map[slot_number].sector_count;
-  d->total_sectors = disk_drive_map[slot_number].media.last_block + 1;
-	d->drive = disk_drive_map[slot_number].from_drive;
-	d->next = 0;
-	if (d->drive >= 0xa0)
-	{
-		cdrom_orig++;
-		if (!cd_devices)
-			cd_devices = d;
-		p = cd_devices;
-	}
-	else if (d->drive >= 0x80)
-	{
-		harddrives_orig++;
-		if (!hd_devices)
-			hd_devices = d;
-		p = hd_devices;
-	}
-	else
-	{
-		floppies_orig++;
-		if (!fd_devices)
-			fd_devices = d;
-		p = fd_devices;
-	}
-	
-	if (p != d)
-	{
-		for (; p->next; p = p->next);
-		p->next = d;
-	}
-	if (d->drive >= 0x80 && d->drive <= 0x8f)
-	{
-		add_part_data (d->drive);
-	}
+  printf_debug ("disk_map: addr=%lx size=%lx blksize=%x\n", d->start_sector, d->sector_count, 1 << d->from_log2_sector);//508,1c00,800
 
   if (d->drive >= 0x80)
   {
-    if (d->drive >= 0xa0)
-      get_efi_cdrom_device_boot_path(d->drive);
+    if (d->drive >= 0xa0 || partition == 0xffffff)
+      get_efi_device_boot_path(d->drive);
     else
-      get_efi_hd_device_boot_path (d->drive);
-    
-    grub_sprintf (buf, "(0x%X)0x%lX+0x%lX (fdp)", d->drive, part_addr, part_size);
-    no_install_vdisk = 1;  //0/1=安装虚拟磁盘/不安装虚拟磁盘
-    k = map_func (buf, 1);
-    no_install_vdisk = 0;
-    struct grub_disk_data	*d1 = get_device_by_drive (d->drive);
-    vpart_install (k >> 8, d1->device_path, part_data);				    //安装虚拟分区
+      part_data = get_partition_info (drive, partition);
+    vpart_install (drive, part_data);				    //安装虚拟分区
   }
 
   status = efi_call_6 (b->install_multiple_protocol_interfaces,	//安装多协议接口
-                          &disk_drive_map[slot_number].from_handle,										//指向协议接口的指针(如果要分配新句柄，则指向NULL的指针)
-                          &dp_guid, disk_drive_map[slot_number].dp,										//指向协议GUID的指针,指向设备路径的指针
-                          &blk_io_guid, &disk_drive_map[slot_number].block_io, NULL);	//指向io设备接口的指针,指向block_io设备接口的指针,NULL                         
+                          &vdisk.from_handle,										//指向协议接口的指针(如果要分配新句柄，则指向NULL的指针)
+                          &dp_guid, vdisk.dp,										//指向协议GUID的指针,指向设备路径的指针
+                          &blk_io_guid, &vdisk.block_io, NULL);	//指向io设备接口的指针,指向block_io设备接口的指针,NULL                         
   //刚刚获得from_handle
-	d->device_handle = disk_drive_map[slot_number].from_handle;
+	d->device_handle = vdisk.from_handle;
   if (status != GRUB_EFI_SUCCESS)	//安装失败
   {
-    printf_errinfo ("failed to install virtual disk\n");	//无法安装虚拟磁盘 
+    printf_errinfo ("failed to install virtual disk: install_multiple_protocol_interfaces.(%x)\n",status);	//无法安装虚拟磁盘 
     return status;
   }
-
 	//此函数要读磁盘
-  status = efi_call_4 (b->connect_controller, disk_drive_map[slot_number].from_handle, NULL, NULL, TRUE);	//引导服务->连接控制器,要连接驱动程序的控制器的句柄,驱动程序绑定协议的有序列表句柄的指针,指向设备路径的指针,如果为true则递归调用ConnectController（），
-
+  status = efi_call_4 (b->connect_controller, vdisk.from_handle, NULL, NULL, TRUE);	//引导服务->连接控制器,要连接驱动程序的控制器的句柄,驱动程序绑定协议的有序列表句柄的指针,指向设备路径的指针,如果为true则递归调用ConnectController（），
+  if (status != GRUB_EFI_SUCCESS)	//安装失败
+  {
+    printf_errinfo ("failed to install virtual disk: connect_controller.(%x)\n",status);	//无法安装虚拟磁盘 
+    return status;
+  }
 	return GRUB_EFI_SUCCESS;
 }
 
@@ -3897,16 +3823,15 @@ vdisk_load_image (unsigned int drive)	//虚拟磁盘引导
     }
     type = GRUB_EFI_MEDIA_DEVICE_PATH_TYPE;         //4
     subtype = GRUB_EFI_CDROM_DEVICE_PATH_SUBTYPE;   //2
-    get_efi_cdrom_device_boot_path (drive);
     device_type = 1;
   }
   else if (drive >= 0x80 && drive <= 0x8f)
   {
     type = GRUB_EFI_MEDIA_DEVICE_PATH_TYPE;             //4
     subtype = GRUB_EFI_HARD_DRIVE_DEVICE_PATH_SUBTYPE;  //1
-    get_efi_hd_device_boot_path (drive);
     device_type = 2;
   }
+  get_efi_device_boot_path (drive);
 
 #if 1
   int i;
@@ -3987,7 +3912,7 @@ vdisk_load_image (unsigned int drive)	//虚拟磁盘引导
 
   if (!boot_image_handle)
   {
-    printf_errinfo ("Failed to load virtual disk image.\n");
+    printf_errinfo ("Failed to load virtual disk image.(%x)\n",status);
     return NULL;
   }
 
@@ -4149,6 +4074,7 @@ void grub_efidisk_init (void);
 void
 grub_efidisk_init (void)  //efidisk初始化		
 {
+//  debug = 3;  //启动调试
 	grub_efidisk_fini();
   enumerate_disks (); //枚举磁盘
 	partition_info_init ();

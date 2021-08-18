@@ -802,79 +802,8 @@ map_to_svbus (grub_efi_physical_address_t address)
   grub_memmove ((char *)((char *)(grub_size_t)address + 0x120), (char *)&disk_fragment_map, 0x400);
 }
 
-//使用于get_efi_cdrom_device_boot_path，find_specified_file，chainloader_func，command_func，uuid_func
+//使用于get_efi_device_boot_path，find_specified_file，chainloader_func，command_func，uuid_func
 static char chainloader_file[256];
-
-int get_efi_cdrom_device_boot_path (int drive);
-int
-get_efi_cdrom_device_boot_path (int drive)  //获得光盘驱动器引导路径
-{
-  char *cache = 0;
-  int k = 0;
-  
-  cache = grub_zalloc (0x800);	//分配缓存
-  if (!cache)
-    return 0;
-
-  cdrom_volume_descriptor_t *vol = (cdrom_volume_descriptor_t *)cache;
-  eltorito_catalog0_t *catalog = NULL;
-
-  if (get_diskinfo (drive, &tmp_geom, 0))	//获得当前驱动器的磁盘信息
-  {
-    errnum = ERR_NO_DISK;
-    goto fail_close_free;
-  }
-  grub_sprintf (chainloader_file, "(0x%X)+0x%lX\0", drive, (unsigned long long)tmp_geom.total_sectors);
-  if (! grub_open (chainloader_file))
-    goto fail_close_free;
-  filepos = 17 * 0x800;
-  grub_read ((unsigned long long)(grub_size_t) vol, 0x800, 0xedde0d90);	//读引导扇区(17,规定值,不变),0x800字节
-  if (vol->unknown.type != CDVOL_TYPE_STANDARD ||					//启动记录卷,类型 				CDVOL_TYPE_STANDARD=0
-      grub_memcmp ((const char *)vol->boot_record_volume.system_id, (const char *)CDVOL_ELTORITO_ID,	//启动记录卷,系统id       CDVOL_ELTORITO_ID="EL TORITO SPECIFICATION"
-      sizeof (CDVOL_ELTORITO_ID) - 1) != 0)
-    goto fail_close_free;
-
-  catalog = (eltorito_catalog0_t *) cache;
-  filepos = *((grub_efi_uint32_t*) vol->boot_record_volume.elt_catalog) * 0x800;	//13*800
-  grub_read ((unsigned long long)(grub_size_t) catalog, 0x800, 0xedde0d90);      
-  if (catalog[0].indicator1 != ELTORITO_ID_CATALOG)
-    goto fail_close_free;
-
-  for (k = 0; k < 5; k++)
-  {
-    if ((catalog[k].indicator1 == ELTORITO_ID_SECTION_HEADER_FINAL &&  //ELTORITO_ID_SECTION_HEADER_FINAL=0x91
-        catalog[k].platform_id == EFI_PARTITION &&		//EFI_PARTITION=0xef
-        catalog[k].indicator88 == ELTORITO_ID_SECTION_BOOTABLE)	//ELTORITO_ID_SECTION_BOOTABLE=0x88
-        || k == 4)
-    {
-      if (k == 4) //如果没有 '91 EF 01',不是双启动(bioe-uefi),有可能是bios,也可能是uefi.不放过任何机会!
-        k = 0;
-      boot_entry = catalog[k].indicator1;               //91
-      part_addr = catalog[k].lba;												//19*800=c800
-      part_size = catalog[k].sector_count;						  //1*200=200	
-      break;
-    }
-  }
-
-  filepos = part_addr * 0x800;	//19*800
-  struct master_and_dos_boot_sector *BS = (struct master_and_dos_boot_sector *) cache;
-  grub_read ((unsigned long long)(grub_size_t)BS, 0x800, 0xedde0d90);
-
-  if (!probe_bpb(BS))
-    part_size = probed_total_sectors;
-
-
-  if (part_size < 0xB40)		//BLOCK_OF_1_44MB=0xB40*200=168000
-    part_size = 0xB40;			//1.44Mb软盘尺寸
-
-  part_data = 0;
-  grub_free (cache); 
-  return 1;
-  
-fail_close_free:
-  grub_free (cache); 
-  return 0;
-}
 
 int find_specified_file (int drive, int partition, char* file);
 int 
@@ -894,18 +823,21 @@ find_specified_file (int drive, int partition, char* file)
   return val;
 }
 
-int get_efi_hd_device_boot_path (int drive);
+int get_efi_device_boot_path (int drive);
 int
-get_efi_hd_device_boot_path (int drive)  //获得硬盘驱动器引导路径
+get_efi_device_boot_path (int drive)  //获得硬盘驱动器引导路径
 {
   struct grub_part_data *p;
   char *cache = 0;
   int self_locking = 0;
+  int k = 0;
 
   cache = grub_zalloc (0x800);	//分配缓存
   if (!cache)
     return 0;
 
+  if (drive >= 0x80 && drive <= 0x8f)
+  {
   for (p = partition_info; p; p = p->next)
   {
     if (p->drive != drive)
@@ -914,12 +846,15 @@ get_efi_hd_device_boot_path (int drive)  //获得硬盘驱动器引导路径
     if (p->partition_type != 0xee && !self_locking)  //如果是MBR分区类型, 首先启动活动分区
     {
       struct grub_part_data *p_back = p;
-      while (p && p->drive == drive && p->partition_activity_flag == 0) //查找活动分区
-        p = p->next;
-      if (p && find_specified_file(drive, p->partition, EFI_REMOVABLE_MEDIA_FILE_NAME) == 1) //搜索文件 bootx64.efi
-        goto complete;
-      p = p_back;
       self_locking = 1;
+
+      while (p && p->drive == drive && p->partition_activity_flag == 0) //查找活动分区
+      {
+        if (find_specified_file(drive, p->partition, EFI_REMOVABLE_MEDIA_FILE_NAME) == 1)
+          goto complete;
+        p = p->next;
+      }
+      p = p_back;
     }
 
     if (find_specified_file(drive, p->partition, EFI_REMOVABLE_MEDIA_FILE_NAME) == 1) //搜索文件 bootx64.efi
@@ -935,6 +870,67 @@ complete:
   part_size = p->partition_len;
   grub_free (cache); 
   return 1;  
+  }
+  else
+  {
+    cdrom_volume_descriptor_t *vol = (cdrom_volume_descriptor_t *)cache;
+    eltorito_catalog0_t *catalog = NULL;
+
+    if (get_diskinfo (drive, &tmp_geom, 0))	//获得当前驱动器的磁盘信息
+    {
+      errnum = ERR_NO_DISK;
+      goto fail_close_free;
+    }
+    grub_sprintf (chainloader_file, "(0x%X)+0x%lX\0", drive, (unsigned long long)tmp_geom.total_sectors);
+    if (! grub_open (chainloader_file))
+      goto fail_close_free;
+    filepos = 17 * 0x800;
+    grub_read ((unsigned long long)(grub_size_t) vol, 0x800, 0xedde0d90);	//读引导扇区(17,规定值,不变),0x800字节
+    if (vol->unknown.type != CDVOL_TYPE_STANDARD ||					//启动记录卷,类型 				CDVOL_TYPE_STANDARD=0
+        grub_memcmp ((const char *)vol->boot_record_volume.system_id, (const char *)CDVOL_ELTORITO_ID,	//启动记录卷,系统id       CDVOL_ELTORITO_ID="EL TORITO SPECIFICATION"
+        sizeof (CDVOL_ELTORITO_ID) - 1) != 0)
+      goto fail_close_free;
+
+    catalog = (eltorito_catalog0_t *) cache;
+    filepos = *((grub_efi_uint32_t*) vol->boot_record_volume.elt_catalog) * 0x800;	//13*800
+    grub_read ((unsigned long long)(grub_size_t) catalog, 0x800, 0xedde0d90);      
+    if (catalog[0].indicator1 != ELTORITO_ID_CATALOG)
+      goto fail_close_free;
+
+    for (k = 0; k < 5; k++)
+    {
+      if ((catalog[k].indicator1 == ELTORITO_ID_SECTION_HEADER_FINAL &&  //ELTORITO_ID_SECTION_HEADER_FINAL=0x91
+          catalog[k].platform_id == EFI_PARTITION &&		//EFI_PARTITION=0xef
+          catalog[k].indicator88 == ELTORITO_ID_SECTION_BOOTABLE)	//ELTORITO_ID_SECTION_BOOTABLE=0x88
+          || k == 4)
+      {
+        if (k == 4) //如果没有 '91 EF 01',不是双启动(bioe-uefi),有可能是bios,也可能是uefi.不放过任何机会!
+          k = 0;
+        boot_entry = catalog[k].indicator1;               //91
+        part_addr = catalog[k].lba;												//19*800=c800
+        part_size = catalog[k].sector_count;						  //1*200=200	
+        break;
+      }
+    }
+
+    filepos = part_addr * 0x800;	//19*800
+    struct master_and_dos_boot_sector *BS = (struct master_and_dos_boot_sector *) cache;
+    grub_read ((unsigned long long)(grub_size_t)BS, 0x800, 0xedde0d90);
+
+//    if (!probe_bpb(BS))
+//      part_size = probed_total_sectors;
+//    if (part_size < 0xB40)		//BLOCK_OF_1_44MB=0xB40*200=168000
+//      part_size = 0xB40;			//1.44Mb软盘尺寸
+      
+    part_data = get_partition_info (drive, 0xffff);
+
+    grub_free (cache); 
+    return 1;
+  
+fail_close_free:
+    grub_free (cache); 
+    return 0;    
+  }
 }
 
 static void *linuxefi_mem;
@@ -1062,6 +1058,22 @@ chainloader_func (char *arg, int flags)
   //虚拟盘类型
   if (! *filename)
 	{
+    unsigned int j;
+    for (j = 0; j < DRIVE_MAP_SIZE; j++)
+    {
+      if (disk_drive_map[j].from_drive == current_drive)
+        break;
+    }
+    if (j != DRIVE_MAP_SIZE)	//映射驱动器
+    {
+      status = vdisk_install (current_drive, current_partition);  //安装虚拟磁盘
+      if (status != GRUB_EFI_SUCCESS)							//如果安装失败
+      {
+        printf_errinfo ("Failed to install vdisk.(%x)\n",status);	//未能安装vdisk
+        return 0;
+      }
+    }
+
     if (current_partition != 0xFFFFFF)  //如果指定启动分区
     {
       p = get_partition_info (current_drive, current_partition);  //获取分区信息
@@ -1077,6 +1089,10 @@ chainloader_func (char *arg, int flags)
     } 
     else  //如果没有指定启动分区, 一般是刚安装了分区
     {
+      if (j == DRIVE_MAP_SIZE && current_drive >= 0xa0)	//原生光盘驱动器
+        part_data = get_partition_info (current_drive, 0xffff);
+      else if (j == DRIVE_MAP_SIZE && current_drive >= 0x80)	//原生硬盘驱动器
+        get_efi_device_boot_path (current_drive);
       image_handle = vpart_load_image (part_data->part_path);  //虚拟磁盘启动
       if (!image_handle)
         image_handle = vdisk_load_image (current_drive);    //虚拟磁盘启动
@@ -6692,6 +6708,84 @@ GetParentUtf8Name (char *dest, grub_uint16_t *src)  //获得utf8格式的父VHD�
   return count;
 }
 
+void add_part_data (int drive);
+void
+add_part_data (int drive)
+{
+	struct grub_part_data *p;	//efi分区数据
+	struct grub_part_data *dp;	//efi分区数据
+	unsigned int back_saved_drive = saved_drive;
+	unsigned int back_current_drive	=	current_drive;
+	unsigned int back_saved_partition	=	saved_partition;
+	unsigned int back_current_partition	=	current_partition;
+ 
+  //查找分区数据结束
+  dp = partition_info;
+  while (dp->next)
+    dp = dp->next;
+  
+  if (drive < 0x90)
+  {
+    unsigned int part = 0xFFFFFF;
+    unsigned long long start, len, offset;
+    unsigned int type, entry1, ext_offset1;
+    saved_drive = current_drive = drive;
+    saved_partition = current_partition = part;
+    while ((	next_partition_drive = drive,
+				next_partition_dest = 0xFFFFFF,
+				next_partition_partition = &part,
+				next_partition_type = &type,
+				next_partition_start = &start,
+				next_partition_len = &len,
+				next_partition_offset = &offset,
+				next_partition_entry = &entry1,
+				next_partition_ext_offset	= &ext_offset1,
+				next_partition_buf = mbr,
+				next_partition ()))
+    {
+      p = grub_zalloc (sizeof (*p));  //分配内存	
+      if(! p)  //如果分配内存失败
+        return;
+      if (*next_partition_type == 0 || *next_partition_type == 5 || *next_partition_type == 0xf)
+        continue;
+
+      //填充设备结构
+      p->drive = drive;
+      p->partition = *next_partition_partition;
+      p->partition_type = *next_partition_type;
+      p->partition_start = *next_partition_start;
+      p->partition_len = *next_partition_len;
+      p->partition_offset = *next_partition_offset;
+      p->partition_entry = *next_partition_entry;
+      p->partition_ext_offset = *next_partition_ext_offset;
+      grub_memcpy (&p->partition_signature, &partition_signature, 16);
+      p->next = 0;
+      dp->next = p;
+      dp = dp->next;
+    }
+
+    saved_drive = back_saved_drive;
+    current_drive = back_current_drive;
+    saved_partition = back_saved_partition;
+    current_partition = back_current_partition;
+  }
+  else
+  {
+    p = grub_zalloc (sizeof (*p));  //分配内存	
+    if(! p)  //如果分配内存失败
+      return;
+    get_efi_device_boot_path(drive);
+    p->drive = drive;
+    p->partition = 0xffff;
+    p->partition_start = part_addr;
+    p->partition_len = part_size;
+    p->partition_number = boot_entry;
+    p->next = 0;
+    dp->next = p;
+    dp = dp->next;
+  }
+}
+
 grub_efi_uint64_t	part_addr;
 grub_efi_uint64_t	part_size;
 grub_efi_uint64_t boot_entry;
@@ -6724,6 +6818,9 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
 
   unsigned long long mem = -1ULL;					//0=加载到内存   -1=不加载到内存
   int read_only = 0;					            //只读					若read_Only=1,则同时unsafe_boot=1
+  unsigned char	from_log2_sector = 9;
+  unsigned char	partmap_type = 0;
+  unsigned char disk_signature[16];
 //  unsigned long long sectors_per_track = -1ULL;
 //  unsigned long long heads_per_cylinder = -1ULL;
 //  int add_mbt = -1;
@@ -7477,8 +7574,7 @@ map_whole_drive:
 
 	if (from >= 0xa0)	//光盘
 	{
-		disk_drive_map[i].media.block_size = 0x800;
-		disk_drive_map[i].from_log2_sector = 11;
+		from_log2_sector = 11;
 	}
 	else if (from >= 0x80)	//硬盘
 	{
@@ -7489,6 +7585,7 @@ map_whole_drive:
 		{
 			if(mbr1->P[k].system_indicator == GRUB_PC_PARTITION_TYPE_GPT_DISK)			//如果系统标识是EFI分区
 				goto get_gpt_info;
+      partmap_type = 1; //MBR
 		}
 		for (k = 0; k < 4; k++)	//查找活动分区
 		{
@@ -7512,15 +7609,13 @@ map_whole_drive:
 
 		if (active == (grub_efi_uint32_t)-1)	//失败
       goto fail_close_free;
-		disk_drive_map[i].media.block_size = 0x200;
-		disk_drive_map[i].from_log2_sector = 9;
+		from_log2_sector = 9;
 		part_addr = mbr1->P[active].start_lba;	//分区起始扇区
 		filepos = part_addr << 9;					//指向dbr 
 		grub_read ((unsigned long long)(grub_size_t) cache, 0x800, 0xedde0d90);
 		if (probe_bpb(mbr1))	//没有bpb
 		{
-			disk_drive_map[i].media.block_size = 0x1000;
-			disk_drive_map[i].from_log2_sector = 12;
+			from_log2_sector = 12;
 			filepos = part_addr << 12;				//指向dbr 是原生4k磁盘
 			grub_read ((unsigned long long)(grub_size_t) cache, 0x800, 0xedde0d90);
 			if (probe_bpb(mbr1))	//没有bpb
@@ -7530,29 +7625,26 @@ map_whole_drive:
 		
 get_gpt_info:
 
-		disk_drive_map[i].media.block_size = 0x200;
-		disk_drive_map[i].from_log2_sector = 9;
+		partmap_type = 2; //GPT
+		from_log2_sector = 9;
 		P_GPT_HDR gpt = (P_GPT_HDR)cache;
 		/* "EFI PART" */
-		grub_uint64_t GPT_HDR_MAGIC = GPT_HDR_SIG;
-
 		filepos = 1 << 9;					//读逻辑1扇区, 普通磁盘
 		grub_read ((unsigned long long)(grub_size_t) cache, 0x800, 0xedde0d90);
-		if (gpt->hdr_sig != GPT_HDR_MAGIC)	//如果签名不符
+		if (gpt->hdr_sig != GPT_HDR_SIG)	//如果签名不符
 		{
-			disk_drive_map[i].media.block_size = 0x1000;
-			disk_drive_map[i].from_log2_sector = 12;
+			from_log2_sector = 12;
 			filepos = 1 << 12;			//读逻辑1扇区, 是原生4k磁盘
 			grub_read ((unsigned long long)(grub_size_t) cache, 0x800, 0xedde0d90);
-			if (gpt->hdr_sig != GPT_HDR_MAGIC)	//如果签名不符
+			if (gpt->hdr_sig != GPT_HDR_SIG)	//如果签名不符
         goto fail_close_free;
 		}
+		grub_memmove(&disk_signature, &gpt->hdr_uuid, 16); //GPT磁盘签名
 		goto get_info_ok;
 	}
 	else	//软盘
 	{
-		disk_drive_map[i].media.block_size = 0x200;
-		disk_drive_map[i].from_log2_sector = 9;
+		from_log2_sector = 9;
 	}
   }
 		
@@ -7704,7 +7796,6 @@ mem_ok:
 	/* if TO_DRIVE is whole floppy, skip the geometry lookup. 如果TO是软盘,跳过几何检查*/
 	if (start_sector == 0 && sector_count == 0 && to < 0x04)
 	{
-		disk_drive_map[i].media.block_size = 0x200;
 		disk_drive_map[i].from_log2_sector = 9;
 	}
 #endif
@@ -7871,6 +7962,7 @@ no_fragment:
   disk_drive_map[i].start_sector = start_sector;
   initrd_start_sector = start_sector;
   disk_drive_map[i].sector_count = sector_count;
+  disk_drive_map[i].from_log2_sector = from_log2_sector;
 
 //删除驱动器映像插槽  带入i=插槽位置  i=0-7
 //delete_drive_map_slot:
@@ -7883,24 +7975,57 @@ no_fragment:
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	buf_drive = -1;
 	buf_track = -1;
-  
-	disk_drive_map[i].from_drive = from;
 	disk_drive_map[i].to_block_size = buf_geom.sector_size;
-	disk_drive_map[i].media.read_only = read_only;					//只读
-  disk_drive_map[i].media.media_id = from;
+  
+  struct grub_disk_data	*d = grub_zalloc (sizeof (*d));  //分配内存, 并清零
+  struct grub_disk_data	*d1;
+  
+//填充磁盘数据
+  d->drive = from;
+  d->to_drive = (unsigned char)to;
+  d->from_log2_sector = from_log2_sector;
+  d->to_log2_sector = buf_geom.log2_sector_size;
+  d->start_sector = start_sector;
+  d->sector_count = sector_count;
+  d->partmap_type = partmap_type;
+  d->fragment = (blklst_num_entries > 1);
+  d->read_only = read_only;
+  grub_memmove(&d->disk_signature, &disk_signature, 16); //GPT磁盘签名
 
-  if (!no_install_vdisk)    //0/1=安装虚拟磁盘/不安装虚拟磁盘
+  d->next = 0;
+  if (d->drive >= 0xa0)
   {
-    status = vdisk_install (i);							//安装虚拟磁盘
+		cdrom_orig++;
+		if (!cd_devices)
+			cd_devices = d;
+		d1 = cd_devices;
+  }
+  else if (d->drive >= 0x80)
+  {
+		harddrives_orig++;
+		if (!hd_devices)
+			hd_devices = d;
+		d1 = hd_devices;
+  }
+  else
+  {
+		floppies_orig++;
+		if (!fd_devices)
+			fd_devices = d;
+		d1 = fd_devices;
+  }
 	
-  if (status != GRUB_EFI_SUCCESS)							//如果安装失败
+  if (d1 != d)
   {
-    printf_errinfo ("Failed to install vdisk.\n");	//未能安装vdisk
-    goto fail;
+		for (; d1->next; d1 = d1->next);
+		d1->next = d;
   }
+  if (d->drive >= 0x80 /*&& d->drive <= 0x8f*/)
+  {
+		add_part_data (d->drive);
   }
 
-  return from | i << 8;
+  return 1;
 
 fail_close_free:
   grub_close ();
@@ -7909,8 +8034,6 @@ fail_close_free:
 
 fail_free:
   grub_free (cache);
-
-fail:	//失败
   return 0;
 }
 

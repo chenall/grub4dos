@@ -5555,11 +5555,17 @@ struct grub_disk_data  //efi磁盘数据	(软盘,硬盘,光盘)  grub2定义
   grub_efi_device_path_t *last_device_path; //最后设备路径  11cba8a2		类型,子类型,长度
   grub_efi_block_io_t *block_io;          	//块输入输出    1280d318		修订,媒体,重置,读块,写块,清除块
   struct grub_disk_data *next;           		//下一个
-	unsigned char	drive;											//驱动器					f0
-	unsigned char	log2_sector;								//每扇区字节2的幂	0b
-	unsigned short sector_size;								//每扇区字节			800
-	unsigned long long total_sectors;					//总扇区数				11ae
-} GRUB_PACKED;															//0x20
+  unsigned char drive;                      //from驱动器					f0
+  unsigned char to_drive;                   //to驱动器
+  unsigned char from_log2_sector;           //from每扇区字节2的幂	0b
+  unsigned char to_log2_sector;             //to每扇区字节2的幂
+  unsigned long long start_sector;          //起始扇区
+  unsigned long long sector_count;          //总扇区数				11ae
+  unsigned char disk_signature[16];         //磁盘签名
+  unsigned char partmap_type;               //磁盘类型        1/2=MBR/GPT
+  unsigned char fragment;                   //碎片
+  unsigned char read_only;                  //只读
+} GRUB_PACKED;
 
 struct grub_part_data  //efi分区数据	(硬盘)  grub定义
 {
@@ -5577,7 +5583,18 @@ struct grub_part_data  //efi分区数据	(硬盘)  grub定义
 	unsigned long long partition_start;		  //分区起始扇区
 	unsigned long long partition_len;			  //分区扇区尺寸
 	unsigned char partition_signature[16];  //分区签名
-} __attribute__ ((packed));							//0x28
+  unsigned char partition_number;         //硬盘: uefi分区号;  光盘: uefi引导入口 
+} __attribute__ ((packed));
+
+typedef struct
+{
+	grub_efi_handle_t from_handle;
+	grub_efi_device_path_t *dp;
+	block_io_protocol_t block_io;
+	grub_efi_block_io_media_t media;
+} grub_efivdisk_t;
+extern grub_efivdisk_t vdisk;
+extern grub_efivdisk_t vpart;
 
 extern struct grub_part_data *get_partition_info (int drive, int partition);
 extern struct grub_part_data *partition_info;
@@ -5597,11 +5614,7 @@ struct drive_map_slot
 	unsigned short to_block_size;
 	unsigned long long start_sector;
 	unsigned long long sector_count;
-	grub_efi_handle_t from_handle;
-	grub_efi_device_path_t *dp;
-  block_io_protocol_t block_io;
-  grub_efi_block_io_media_t media;
-};	//0x6c
+};
 
 struct fragment_map_slot
 {
@@ -5763,9 +5776,9 @@ grub_efi_uint64_t get_size (grub_efi_boolean_t disk, void *file);
 extern grub_efi_handle_t vpart_load_image (grub_efi_device_path_t *part_path);
 extern grub_efi_handle_t vdisk_load_image (unsigned int drive);
 /* vdisk */
-extern grub_efi_status_t vdisk_install (int slot_number);
+extern grub_efi_status_t vdisk_install  (int drive, int partition);
 /* vpart */
-extern grub_efi_status_t vpart_install (int slot_number, grub_efi_device_path_t *dp, struct grub_part_data *p);
+extern grub_efi_status_t vpart_install (int drive, struct grub_part_data *part);
 
 struct grub_efi_component_name2_protocol
 {
@@ -6922,8 +6935,7 @@ int grub_efi_net_boot_from_opa (void);
 extern grub_efi_status_t EFIAPI blockio_read_write (block_io_protocol_t *this, grub_efi_uint32_t media_id,
               grub_efi_lba_t lba, grub_efi_uintn_t len, void *buf, int read_write);
 extern grub_size_t block_io_protocol_this;
-extern int get_efi_cdrom_device_boot_path (int drive);
-extern int get_efi_hd_device_boot_path (int drive);
+extern int get_efi_device_boot_path (int drive);
 extern grub_efi_device_path_t * grub_efi_file_device_path (grub_efi_device_path_t *dp, const char *filename);
 extern int no_install_vdisk;
 extern grub_efi_physical_address_t grub4dos_self_address;
