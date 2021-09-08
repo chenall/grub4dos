@@ -825,6 +825,7 @@ extern unsigned char color_32_to_4 (unsigned int color32);
 extern unsigned int current_color;
 extern unsigned long long current_color_64bit;
 extern unsigned int cursor_state;
+extern unsigned int OnCommandLine;
 extern unsigned int graphics_mode;
 extern unsigned int font_w;
 extern unsigned int font_h;
@@ -840,6 +841,8 @@ extern unsigned long long console_color_64bit[];
 extern unsigned int console_print_unicode (unsigned int unicode, unsigned int max_width);
 extern void console_putstr_utf8 (char *str);
 extern void console_putstr_utf16(unsigned short *str);
+extern unsigned int is_highlight;
+extern unsigned int graphics_inited;
 struct box
 {
 	unsigned char enable;

@@ -1863,7 +1863,6 @@ cmain (void)
     saved_entryno = 0;
 	new_menu = 0;
 	new_hotkey = 0;
-	setcursor (0);  //避免由预置菜单加载主菜单时，图形菜单出现一个奇怪的光标
     /* Never return.  */
 restart2:
     reset ();       

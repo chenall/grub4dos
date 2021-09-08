@@ -11171,7 +11171,7 @@ xyz_done:
 //		return graphics_mode;
     goto ok;
 	}
-	else if (tmp_graphicsmode == 3)
+	else if (tmp_graphicsmode == 3)	//视乎不起作用。
 	{
     current_term->shutdown();	
     current_term->chars_per_line = 80;
@@ -11204,7 +11204,8 @@ xyz_done:
 			}
       else
       {
-				console_shutdown ();		
+				console_setcursor(0); //避免转到后图形模式后，在某一固定位置遗留一个文本模式的光标。
+				console_shutdown ();	//视乎不起作用。
 				current_term = term_table + 1;	/* terminal graphics */
 				current_term->startup();
       }
@@ -11498,15 +11499,15 @@ mem:
          else if (arg[6] == ']')
          {
             int char_attr = 0;
-            if (arg[2] & 7)
+            if (arg[2] & 7)   //A  只要位:0-6有值(位7无效), 高亮字符背景色
 		char_attr |= 0x80;
-	    if (arg[3] & 7)
+	    if (arg[3] & 7)         //B  只要位:0-6有值(位7无效), 高亮字符前景色
 		char_attr |= 8;
-            char_attr |= (arg[4] & 7) << 4;
-            char_attr |= (arg[5] & 7);
+            char_attr |= (arg[4] & 7) << 4; //C 位:0-6 字符背景色, 位7无效
+            char_attr |= (arg[5] & 7);      //D 位:0-6 字符前景色, 位7无效
             current_color = char_attr;
 	    current_color_64bit = color_8_to_64 (current_color);
-	    if (!(current_color & 0x70))
+	    if (!(current_color & 0x70))  //如果字符背景色位3有值, 使用原始背景色
 	    {
 		current_color |= saved_color;
 		current_color_64bit |= saved_color_64;
@@ -11514,7 +11515,8 @@ mem:
             arg += 7;
          }
       }
-      
+      if (current_term->setcolorstate)
+        current_term->setcolorstate (current_color | 0x100);  //控制台直接输入颜色
       grub_putchar((unsigned char)*arg, 255);
       if (!(*arg))
 				break;

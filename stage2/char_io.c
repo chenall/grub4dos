@@ -526,7 +526,7 @@ init_page (void)
 {
   unsigned char tmp_buf[128];
 
-	if(cursor_state==2)
+	if(cursor_state & 2)
 	{
 		if (current_term->setcolorstate)
       current_term->setcolorstate (COLOR_STATE_HEADING);
@@ -798,7 +798,7 @@ static void cl_refresh (int full, int len)
 	  /* From the start to the end.  */
 	  len = CMDLINE_WIDTH;
 	  pos = 0;
-	  if(cursor_state==2)
+	  if(cursor_state & 2)
 			gotoxy (password_x, fonty);
 		else
 			gotoxy (0, fonty);
@@ -1894,12 +1894,12 @@ inline void debug_time(const int line,const char*file)
 //unsigned int cursor_state_put;
 unsigned int setcursor (unsigned int on);
 unsigned int
-setcursor (unsigned int on)	//设置鼠标指针  0/1=关闭/打开
+setcursor (unsigned int on)	//设置控制台光标开关, 设置光标状态变量
 {
   unsigned int old_state = cursor_state;
-  cursor_state = on;					//鼠标状态=0/1=关闭/打开
+  cursor_state = on;					  //光标状态变量  位0: 0/1=光标关/光标开  位1: 0/1=在命令行/在菜单界面
 //  cursor_state_put = on;
-  if (current_term->setcursor)
+  if (current_term->setcursor)	//设置控制台光标开关=0/1=关闭/打开  图形模式不起作用
       current_term->setcursor (on & 1);
 
   return old_state;

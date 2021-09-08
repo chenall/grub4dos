@@ -34,8 +34,6 @@
 //extern unsigned char *font8x16;
 
 int outline = 0;
-extern unsigned int is_highlight;
-extern unsigned int graphics_inited;
 
 #define VSHADOW VSHADOW1
 
@@ -288,8 +286,8 @@ graphics_print_unicode (unsigned int max_width)
 					|| (is_highlight && current_color_64bit >> 32)	//或者,菜单高亮并且有背景色(无论加载图像与否)
 					|| (current_color_64bit & 0x1000000000000000)))	//或者,强制背景色(无论加载图像与否)
 		bgcolor = current_color_64bit >> 32 | 0x1000000;			//则显示字符背景色
-	else if ((cursor_state & 1) || 	scroll_state)						//如果在命令行界面
-	{
+	else if ((cursor_state < 2) || 	scroll_state || OnCommandLine)  //如果在命令行界面, 或者滚屏状态
+	{                                                       //增加OnCommandLine变量, 是为了确保在命令行, 避免胡乱使用 Fn.70 0
 		back_color_64bit = current_color_64bit;
 		back_color = current_color;
 		current_term->setcolorstate (COLOR_STATE_STANDARD);		//显示控制台背景色

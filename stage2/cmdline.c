@@ -530,7 +530,7 @@ static int run_cmd_line (char *heap,int flags)
 }
 //#undef PRINTF_BUFFER 
 
-
+unsigned int OnCommandLine = 0;
 /* Enter the command-line interface. HEAP is used for the command-line
    buffer. Return only if FOREVER is nonzero and get_cmdline returns
    nonzero (ESC is pushed).  */
@@ -541,6 +541,7 @@ enter_cmdline (char *heap, int forever)
   debug = 1;
   /* show cursor and disable splashimage. */
   setcursor (1);
+  OnCommandLine = 1;
   /* Initialize the data and print a message.  */
   current_drive = GRUB_INVALID_DRIVE;
   count_lines = -1;
@@ -572,6 +573,7 @@ enter_cmdline (char *heap, int forever)
 	{
 	  kernel_type = KERNEL_TYPE_NONE;
 	  if (debug == 1) debug = debug_old;
+    OnCommandLine = 0;
 	  return;
 	}
 
