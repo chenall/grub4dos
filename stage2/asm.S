@@ -374,7 +374,7 @@ VARIABLE(menu_mem) 																									      //0x8388 菜单  char *
 	
 ENTRY(disk_fragment_map)	.space	FRAGMENT_MAP_SLOT_SIZE                  //映射碎片插槽  280
 
-	. = EXT_C(main) + 0x480																									//0x8640
+	. = EXT_C(main) + 0x480																									//0x8680
 		
 ENTRY(disk_drive_map)	.space	[DRIVE_MAP_SIZE + 1] * DRIVE_MAP_SLOT_SIZE	//磁盘驱动器映射插槽  70*9=3c0
 

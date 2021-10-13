@@ -813,7 +813,10 @@ find_specified_file (int drive, int partition, char* file)
   int tem_drive = current_drive;
   int tem_partition = current_partition;
 
+  if (drive >= 0x80)  //硬盘
   sprintf (chainloader_file, "(hd%d,%d)%s\0", drive & 0x7f, partition >> 16, file);
+  else                //软盘
+    sprintf (chainloader_file, "(%d)%s\0", drive, file);
   putchar_hooked = (unsigned char*)1; //不打印ls_func信息
   val = ls_func (chainloader_file, 1);
   putchar_hooked = 0;
@@ -823,9 +826,9 @@ find_specified_file (int drive, int partition, char* file)
   return val;
 }
 
-int get_efi_device_boot_path (int drive);
+int get_efi_device_boot_path (int drive, int flags);
 int
-get_efi_device_boot_path (int drive)  //获得硬盘驱动器引导路径
+get_efi_device_boot_path (int drive, int flags)  //获得硬盘/光盘启动分区(入口)
 {
   struct grub_part_data *p;
   char *cache = 0;
@@ -848,11 +851,11 @@ get_efi_device_boot_path (int drive)  //获得硬盘驱动器引导路径
       struct grub_part_data *p_back = p;
       self_locking = 1;
 
-      while (p && p->drive == drive && p->partition_activity_flag == 0) //查找活动分区
+      for (; p && p->drive == drive; p = p->next) //查找活动分区
       {
-        if (find_specified_file(drive, p->partition, EFI_REMOVABLE_MEDIA_FILE_NAME) == 1)
-          goto complete;
-        p = p->next;
+        if (p->partition_activity_flag == 0x80)
+          if (find_specified_file(drive, p->partition, EFI_REMOVABLE_MEDIA_FILE_NAME) == 1)
+            goto complete;
       }
       p = p_back;
     }
@@ -862,6 +865,7 @@ get_efi_device_boot_path (int drive)  //获得硬盘驱动器引导路径
   }
   
   grub_free (cache); 
+  printf_warning("bootx64.efi not found\n");
   return 0; 
   
 complete:
@@ -889,39 +893,52 @@ complete:
     if (vol->unknown.type != CDVOL_TYPE_STANDARD ||					//启动记录卷,类型 				CDVOL_TYPE_STANDARD=0
         grub_memcmp ((const char *)vol->boot_record_volume.system_id, (const char *)CDVOL_ELTORITO_ID,	//启动记录卷,系统id       CDVOL_ELTORITO_ID="EL TORITO SPECIFICATION"
         sizeof (CDVOL_ELTORITO_ID) - 1) != 0)
+    {
+      grub_close ();
       goto fail_close_free;
+    }
 
     catalog = (eltorito_catalog0_t *) cache;
     filepos = *((grub_efi_uint32_t*) vol->boot_record_volume.elt_catalog) * 0x800;	//13*800
     grub_read ((unsigned long long)(grub_size_t) catalog, 0x800, 0xedde0d90);      
-    if (catalog[0].indicator1 != ELTORITO_ID_CATALOG)
+    grub_close ();
+    if (catalog[0].indicator1 != ELTORITO_ID_CATALOG) //0x01
       goto fail_close_free;
 
+    if (flags)  //add_part_data时, 搜索\efi\boot\bootx64.efi
+    {
+    for (k = 0; k < 5 && catalog[k].indicator1; k++)
+    {
+      grub_sprintf (chainloader_file, "(0x%X)0x%lX+0x%lX (0x60)\0", drive, catalog[k].lba, catalog[k].sector_count >> 2); 
+      map_func (chainloader_file, 1);
+      if (find_specified_file(0x60, 0xffffff, EFI_REMOVABLE_MEDIA_FILE_NAME) == 1) //搜索文件 bootx64.efi
+        break;
+      map_func ("--unmap=0x60", 1);
+    }
+    if (k == 5 || !catalog[k].indicator1)
+      goto fail_close_free;
+    else
+      map_func ("--unmap=0x60", 1);
+    }
+    else  //partition_info_init时,只判断EFI_PARTITION与ELTORITO_ID_SECTION_BOOTABLE. 如果搜索\efi\boot\bootx64.efi,
+    {     //会莫名其妙地卡在map_func、chainloader_func、find_func及find_check处，必须使用延时及打印函数，才能解除。
     for (k = 0; k < 5; k++)
     {
-      if ((catalog[k].indicator1 == ELTORITO_ID_SECTION_HEADER_FINAL &&  //ELTORITO_ID_SECTION_HEADER_FINAL=0x91
+      if ((/*catalog[k].indicator1 == ELTORITO_ID_SECTION_HEADER_FINAL &&*/  //ELTORITO_ID_SECTION_HEADER_FINAL=0x91
           catalog[k].platform_id == EFI_PARTITION &&		//EFI_PARTITION=0xef
           catalog[k].indicator88 == ELTORITO_ID_SECTION_BOOTABLE)	//ELTORITO_ID_SECTION_BOOTABLE=0x88
           || k == 4)
       {
         if (k == 4) //如果没有 '91 EF 01',不是双启动(bioe-uefi),有可能是bios,也可能是uefi.不放过任何机会!
           k = 0;
-        boot_entry = catalog[k].indicator1;               //91
-        part_addr = catalog[k].lba;												//19*800=c800
-        part_size = catalog[k].sector_count;						  //1*200=200	
         break;
       }
     }
+    }
 
-    filepos = part_addr * 0x800;	//19*800
-    struct master_and_dos_boot_sector *BS = (struct master_and_dos_boot_sector *) cache;
-    grub_read ((unsigned long long)(grub_size_t)BS, 0x800, 0xedde0d90);
-
-//    if (!probe_bpb(BS))
-//      part_size = probed_total_sectors;
-//    if (part_size < 0xB40)		//BLOCK_OF_1_44MB=0xB40*200=168000
-//      part_size = 0xB40;			//1.44Mb软盘尺寸
-      
+    boot_entry = catalog[k].indicator1;               //91
+    part_addr = catalog[k].lba;												//19*800=c800
+    part_size = catalog[k].sector_count;						  //1*200=200	
     part_data = get_partition_info (drive, 0xffff);
 
     grub_free (cache); 
@@ -929,6 +946,7 @@ complete:
   
 fail_close_free:
     grub_free (cache); 
+    printf_warning("bootx64.efi not found\n");
     return 0;    
   }
 }
@@ -1036,6 +1054,7 @@ chainloader_func (char *arg, int flags)
   static grub_efi_uintn_t pages;
   struct grub_disk_data *d;	//磁盘数据
   struct grub_part_data *p;
+  unsigned int j;
   
   grub_memset(chainloader_file, 0, 256);
   set_full_path(chainloader_file,arg,sizeof(chainloader_file)); //设置完整路径(补齐驱动器号,分区号)  /efi/boot/bootx64.efi -> (hd0,0)/efi/boot/bootx64.efi
@@ -1058,15 +1077,19 @@ chainloader_func (char *arg, int flags)
   //虚拟盘类型
   if (! *filename)
 	{
-    unsigned int j;
+    if (current_partition == 0xFFFFFF)  //如果没有指定启动分区
+    {
+      part_data = get_boot_partition (current_drive);
+      current_partition = part_data->partition;
+    }
     for (j = 0; j < DRIVE_MAP_SIZE; j++)
     {
       if (disk_drive_map[j].from_drive == current_drive)
         break;
     }
-    if (j != DRIVE_MAP_SIZE)	//映射驱动器
+    if (j != DRIVE_MAP_SIZE)	//是映射驱动器, 挂载虚拟磁盘及虚拟分区
     {
-      status = vdisk_install (current_drive, current_partition);  //安装虚拟磁盘
+      status = vdisk_install (current_drive, current_partition);  //安装虚拟磁盘及虚拟分区
       if (status != GRUB_EFI_SUCCESS)							//如果安装失败
       {
         printf_errinfo ("Failed to install vdisk.(%x)\n",status);	//未能安装vdisk
@@ -1074,7 +1097,6 @@ chainloader_func (char *arg, int flags)
       }
     }
 
-    if (current_partition != 0xFFFFFF)  //如果指定启动分区
     {
       p = get_partition_info (current_drive, current_partition);  //获取分区信息
       if (!p) //没有指定的分区
@@ -1087,16 +1109,6 @@ chainloader_func (char *arg, int flags)
       if (!image_handle)
         image_handle = vdisk_load_image (current_drive);	//虚拟磁盘启动
     } 
-    else  //如果没有指定启动分区, 一般是刚安装了分区
-    {
-      if (j == DRIVE_MAP_SIZE && current_drive >= 0xa0)	//原生光盘驱动器
-        part_data = get_partition_info (current_drive, 0xffff);
-      else if (j == DRIVE_MAP_SIZE && current_drive >= 0x80)	//原生硬盘驱动器
-        get_efi_device_boot_path (current_drive);
-      image_handle = vpart_load_image (part_data->part_path);  //虚拟磁盘启动
-      if (!image_handle)
-        image_handle = vdisk_load_image (current_drive);    //虚拟磁盘启动
-    }
 
 complete:
     if (debug > 1)
@@ -1952,6 +1964,7 @@ dd_func (char *arg, int flags)
   char tmp_in_file[16];
   char tmp_out_file[16];
   char *buf_addr = 0;
+  int SameFile_MoveBack = 0;
   
   errnum = 0;
   for (;;)
@@ -2154,7 +2167,7 @@ dd_func (char *arg, int flags)
 	grub_memmove64 (out_filepos, in_filepos, count);
 	part_start = tmp_part_start;
 	part_length = tmp_part_length;
-	printf_debug0 ("\nMoved 0x%lX bytes from 0x%lX to 0x%lX\n", (unsigned long long)count, (unsigned long long)in_filepos, (unsigned long long)out_filepos);
+	printf_debug ("\nMoved 0x%lX bytes from 0x%lX to 0x%lX\n", (unsigned long long)count, (unsigned long long)in_filepos, (unsigned long long)out_filepos);
 	errnum = 0;
 	return count;
   }
@@ -2197,6 +2210,7 @@ dd_func (char *arg, int flags)
     unsigned long long in_pos = in_filepos;
     unsigned long long out_pos = out_filepos;
     unsigned long long tmp_size = buf_size;
+    unsigned int in_count = (unsigned int)(in_filemax - in_filepos + buf_size - 1) / (unsigned int)buf_size;
 
     if (debug > 0)
     {
@@ -2204,17 +2218,37 @@ dd_func (char *arg, int flags)
 	if (count > out_filemax - out_pos)
 	    count = out_filemax - out_pos;
 	count = ((unsigned int)(count + buf_size - 1) / (unsigned int)buf_size);
-	grub_printf ("buf_size=0x%lX, loops=0x%lX. in_pos=0x%lX, out_pos=0x%lX\n", (unsigned long long)buf_size, (unsigned long long)count, (unsigned long long)in_pos, (unsigned long long)out_pos);
+	printf_debug ("buf_size=0x%lX, loops=0x%lX. in_pos=0x%lX, out_pos=0x%lX\n", (unsigned long long)buf_size, (unsigned long long)count, (unsigned long long)in_pos, (unsigned long long)out_pos);
     }
-    count = 0;
+
+  //以终止符替换空格
+  nul_terminate (in_file);  
+  nul_terminate (out_file);
+  //同一文件向后移动, 可能会覆盖数据!!!  补丁修复此bug
+  if (substring (out_file, in_file, 0) == 0   //返回: 0/1/-1=s1与s2相等/s1不是s2的子字符串/s1是s2的子字符串
+          && in_drive == out_drive
+          && in_partition == out_partition
+          && in_count
+          && in_pos < out_pos)
+  {
+    SameFile_MoveBack = 1;  //同一文件向后移动标记
+  }
+
+//    count = 0;
+    buf_addr = grub_malloc (buf_size);
+    if (!buf_addr)
+      return 0;
+
     while (in_pos < in_filemax && out_pos < out_filemax)
     {
+#if 0
 	if (debug > 0)
 	{
 		if (!((char)count & 7))
 			grub_printf ("\r");
 		grub_printf ("%08X ", (unsigned int)(count));
 	}
+#endif
 	/* open in_file */
 	current_drive = saved_drive;
 	current_partition = saved_partition;
@@ -2224,13 +2258,11 @@ dd_func (char *arg, int flags)
 	in_partition = current_partition;
 	current_drive = saved_drive;
 	current_partition = saved_partition;
-
-  buf_addr = grub_malloc (0x10000);
-  if (!buf_addr)
-    return 0;
-  
+  tmp_size = buf_size;
 	if (grub_open (in_file))
 	{
+    if (SameFile_MoveBack)
+      in_pos = (in_count - 1) * buf_size + in_filepos;
 		filepos = in_pos;
 		if (tmp_size > in_filemax - in_pos)
 		    tmp_size = in_filemax - in_pos;
@@ -2254,7 +2286,10 @@ dd_func (char *arg, int flags)
 	if (errnum)
 		goto end;
 
-	in_pos += tmp_size;
+  if (SameFile_MoveBack)
+    in_pos -= tmp_size;
+  else
+    in_pos += tmp_size;
 	
 	/* open out_file */
 	current_drive = saved_drive;
@@ -2267,6 +2302,16 @@ dd_func (char *arg, int flags)
 	current_partition = saved_partition;
 	if (grub_open (out_file))
 	{
+    if (SameFile_MoveBack)
+    {
+      out_pos = (in_count - 1) * buf_size + out_filepos;
+      if (out_pos >= out_filemax || out_pos < out_filepos)
+      {
+        out_pos = tmp_size;
+        goto asd;
+      }
+    }
+    
 		filepos = out_pos;
 		if (tmp_size > out_filemax - out_pos)
 		    tmp_size = out_filemax - out_pos;
@@ -2275,6 +2320,7 @@ dd_func (char *arg, int flags)
 			if (errnum == 0)
 				errnum = ERR_WRITE;
 		}
+asd:
 		{
 			int err = errnum;
 			grub_close ();
@@ -2290,19 +2336,29 @@ dd_func (char *arg, int flags)
 	if (errnum)
 		goto end;
 
-	out_pos += tmp_size;
-	count++;
+  if (SameFile_MoveBack)
+    out_pos -= tmp_size;
+  else
+    out_pos += tmp_size;
+
+//	count++;
+	in_count--;
     }
 
 end:
-
+    if (SameFile_MoveBack)
+    {
+      in_pos = in_filemax - in_filepos;
+      out_pos = out_filemax - out_filepos;
+    }
+    else {
     in_pos -= in_filepos;
-    out_pos -= out_filepos;
+    out_pos -= out_filepos;}
 
     if (debug > 0)
     {
 	int err = errnum;
-	printf_debug0 ("\nBytes read / written = 0x%lX / 0x%lX\n", (unsigned long long)in_pos, (unsigned long long)out_pos);
+	printf_debug ("\nBytes read / written = 0x%lX / 0x%lX\n", (unsigned long long)in_pos, (unsigned long long)out_pos);
 	errnum = err;
     }
   }
@@ -2631,14 +2687,16 @@ static struct builtin builtin_splashimage =
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
   "splashimage [--offset=[type]=[x]=[y]] FILE",
   "type: bit 7:transparent background\n"
+  "FILE: as the background image when in graphics mode.\n"
   "splashimage --fill-color=[0xrrggbb]\n"
   "splashimage --animated=[type]=[duration]=[last_num]=[x]=[y] START_FILE\n"
-  "type: bit 0-3:times(0=repeat play)  bit 5:alone\n"
-  "      bit 7:transparent background  type=00:disable\n"
+  "type: bit 0-4: 0x01-0x0f=play n times, 0x10=infinite play.\n"
+  "      bit 5:1=show the menu after playing , 0=Play in the menu.\n"
+  "      bit 7:1=transparent, 0=opaque.\n"
+  "If type=0, stop working.\n"
   "duration: [10] unit is a tick. [10:ms] units are milliseconds,\n"
   "naming rules for START_FILE: *n.???   n: 1-9 or 01-99 or 001-999\n"
-  "hotkey F2,control animation:  play/stop.\n"
-  "Load FILE as the background image when in graphics mode."
+  "hotkey F2,control animation:  play/stop."
 };
 
 #endif /* SUPPORT_GRAPHICS */
@@ -5791,11 +5849,11 @@ help_func (char *arg, int flags)
 	{
 	  /* If this cannot be used in the command-line interface,
 	     skip this.  */
-	  if (! ((*builtin)->flags & BUILTIN_CMDLINE))
+	  if (! ((*builtin)->flags & BUILTIN_CMDLINE) && (*builtin)->flags)
 	    continue;
 	  /* If this doesn't need to be listed automatically and "--all"
 	     is not specified, skip this.  */
-	  if (! all && ! ((*builtin)->flags & BUILTIN_HELP_LIST))
+	  if (! all && ! ((*builtin)->flags & BUILTIN_HELP_LIST) && (*builtin)->flags)
 	    continue;
 		int i,j=MAX_SHORT_DOC_LEN;
 		for (i = 0; (i < MAX_SHORT_DOC_LEN) && ((*builtin)->short_doc[i] != 0); i++)
@@ -6758,10 +6816,24 @@ add_part_data (int drive)
       p->partition_offset = *next_partition_offset;
       p->partition_entry = *next_partition_entry;
       p->partition_ext_offset = *next_partition_ext_offset;
+      p->partition_activity_flag = partition_activity_flag;
       grub_memcpy (&p->partition_signature, &partition_signature, 16);
       p->next = 0;
+      if (!partition_info)
+      {
+        partition_info = p;
+        dp = p;
+      }
+      else
+      {
       dp->next = p;
       dp = dp->next;
+      }
+    }
+    if (get_efi_device_boot_path (drive,1))
+    {
+      part_data = get_partition_info (drive, part_data->partition);
+      part_data->partition_boot = 1;
     }
 
     saved_drive = back_saved_drive;
@@ -6774,15 +6846,18 @@ add_part_data (int drive)
     p = grub_zalloc (sizeof (*p));  //分配内存	
     if(! p)  //如果分配内存失败
       return;
-    get_efi_device_boot_path(drive);
+    get_efi_device_boot_path(drive,1);
     p->drive = drive;
     p->partition = 0xffff;
     p->partition_start = part_addr;
     p->partition_len = part_size;
     p->partition_number = boot_entry;
+    p->partition_boot = 1;
     p->next = 0;
-    dp->next = p;
-    dp = dp->next;
+    if (!partition_info) //使用 'if (!dp)' 会判断错误。 当 partition_info=bp=0 时，if (!partition_info) 返回1；而 if (!dp) 返回0。
+      partition_info = p;
+    else
+      dp->next = p;
   }
 }
 
@@ -6999,6 +7074,42 @@ struct drive_map_slot
     }
     else if (grub_memcmp (arg, "--unmap=", 8) == 0)
     {
+      int drive;
+      p = arg + 8;
+      for (drive = 0xFF; drive >= 0; drive--)    //从0xff到0
+      {
+        if (drive != INITRD_DRIVE && in_range (p, drive))	//如果驱动器不是0x22及0x23,并且排列存在
+        {
+          for (i = 0; i < DRIVE_MAP_SIZE; i++)
+          {
+            if (disk_drive_map[i].from_drive == drive)
+              break;
+          }
+          if (i < DRIVE_MAP_SIZE)   //是映射驱动器
+          {
+            //卸载碎片插槽
+            if (disk_drive_map[i].fragment == 1)
+            {
+              q = (struct fragment_map_slot *)&disk_fragment_map;     //q=碎片映射插槽起始位置 *q=插槽尺寸 	b6e0
+              filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;          //碎片映射插槽终止位置
+              q = fragment_map_slot_find(q, drive);		                //q=from驱动器在碎片映射插槽起始位置
+              if (q)  		//0/1=没有找到驱动器/找到驱动器位置
+              {
+                void *start = filename - q->slot_len;
+                int len = q->slot_len;
+                grub_memmove (q, (char *)q + q->slot_len, filename - (char *)q - q->slot_len);
+                grub_memset (start, 0, len);
+              }
+            }
+            //卸载映射插槽
+            //移动&disk_drive_map[i+1]到&disk_drive_map[i],移动0-7个插槽	
+            grub_memmove ((char *) &disk_drive_map[i], (char *) &disk_drive_map[i + 1], 
+                  sizeof (struct drive_map_slot) * (DRIVE_MAP_SIZE - i));
+            //卸载映射磁盘,卸载映射分区
+            uninstall_map (drive);
+          }
+        }
+      }
       buf_drive = -1;
       buf_track = -1;
       return 1;
@@ -7473,7 +7584,7 @@ map_whole_drive:
 					{
 						void *start = filename - q->slot_len;
 						int len = q->slot_len;
-						grub_memmove (q, q + q->slot_len,(struct fragment_map_slot *)filename - q - q->slot_len);
+						grub_memmove (q, (char *)q + q->slot_len,filename - (char *)q - q->slot_len);
 						grub_memset (start, 0, len);
 					}
 				}
@@ -7512,7 +7623,7 @@ map_whole_drive:
     //查找父插槽
 		for (j = 0; j < DRIVE_MAP_SIZE; j++)
 		{
-			if (to != disk_drive_map[j].from_drive || (to == 0xFF && (disk_drive_map[j].to_log2_sector == 11)))		//如果to != hooked.from, 或者to是cdrom
+			if (to != disk_drive_map[j].from_drive/* || (to == 0xFF && (disk_drive_map[j].to_log2_sector == 11))*/)		//如果to != hooked.from, 或者to是cdrom
 				continue;															  //继续
 
       //to改变!!!!
@@ -7540,10 +7651,13 @@ map_whole_drive:
         //起始扇区=起始扇区+父起始扇区
         start_sector = (start_sector << disk_drive_map[j].from_log2_sector) >> disk_drive_map[j].to_log2_sector; 
 				start_sector += disk_drive_map[j].start_sector;
+        sector_count = (sector_count << disk_drive_map[j].from_log2_sector) >> disk_drive_map[j].to_log2_sector;
         //如果to有碎片，调整各碎片起始扇区。起始扇区由blocklist_func获得。
 				for (k = 0; (k < DRIVE_MAP_FRAGMENT) && (map_start_sector[k] != 0); k++)
         {
+					map_start_sector[k] = (map_start_sector[k] << disk_drive_map[j].from_log2_sector) >> disk_drive_map[j].to_log2_sector;
 					map_start_sector[k] += disk_drive_map[j].start_sector;
+					map_num_sectors[k] = (map_num_sectors[k] << disk_drive_map[j].from_log2_sector) >> disk_drive_map[j].to_log2_sector;
         }
 			}
 #if 0
@@ -7662,6 +7776,8 @@ get_info_ok:
 
 		if (start_sector == part_start && part_start == 0 && sector_count == 1)		//如果起始扇区=分区起始,并且分区起始=0,并且扇区计数=1
 			sector_count = part_length;  //扇区计数=分区长度
+    if (buf_geom.log2_sector_size != 9)
+      sector_count = (sector_count << buf_geom.log2_sector_size) >> 9;
       /* For GZIP disk image if uncompressed size >= 4GB,  								//如果压缩gzip磁盘图像尺寸>=4GB
          high bits of filemax is wrong, sector_count is also wrong. */		//filemax的高位是错误的，扇区计数也是错的
 		if ( (long long)mem < 0LL && sector_count < (-mem) )		//如果mem<0,并且扇区计数<(-mem)
@@ -7825,6 +7941,7 @@ mem_ok:
 	if ((mem == -1ULL) && (to < 0x9f) && (((primeval_to != to) && (disk_drive_map[j].fragment == 1)) || (blklst_num_entries > 1)))
 	{
     //如果是2次映射,并且有碎片
+#if 0
 		if ((primeval_to != to) && (disk_drive_map[j].fragment == 1))		//如果是2次映射,并且有碎片
 		{
       unsigned long long sum_to_count = 0;      //To计数和, 即各碎片扇区数的和, 是父驱动器的值
@@ -7856,7 +7973,7 @@ mem_ok:
       q->to = to;
       for (l = 0; form_len && (k < DRIVE_MAP_FRAGMENT) && (f[k].start_sector != 0); k++, l++)
       {
-        blklst_num_entries++;
+        blklst_num_entries = l + 2;
         //确定起始扇区
         if (l)
           empty_slot[l].start_sector = f[k].start_sector;
@@ -7875,9 +7992,7 @@ mem_ok:
       q->slot_len = l*16 + sizeof(long);  //sizeof(long=i386/x86_64=4/8
       goto no_fragment;
     }
-    
-      
-#if 0
+#else
 		if ((primeval_to != to) && (disk_drive_map[j].fragment == 1))		//如果是2次映射,并且有碎片
 		{
 			unsigned long long a = 0;																	//Sum(j_count(k))   计数和, 即各碎片扇区数的和, 是父驱动器的值
@@ -7887,6 +8002,7 @@ mem_ok:
 			q = (struct fragment_map_slot *)&disk_fragment_map;
 			q = fragment_map_slot_find(q, primeval_to);
 			struct fragment *f = (struct fragment *)&q->fragment_data;
+			a = f[0].start_sector;
 			for (k = 0; (k < DRIVE_MAP_FRAGMENT) && (f[k].start_sector != 0); k++)
 			{
         //确定起始
@@ -7894,6 +8010,7 @@ mem_ok:
 				if (map_start_sector[0] < a)														//To_statr < Sum(j_count(k))
 				{
 					map_start_sector[0] += f[k].start_sector + f[k].sector_count - a;
+					start_sector = map_start_sector[0];
 					//To_statr = To_statr + j_start(k) +  j_count(k) - Sum(j_count(k))
 					break;																								//ok
 				}
@@ -7904,21 +8021,27 @@ mem_ok:
 			else 
 			{
 				map_num_sectors[0] = a - c;															//j_count(k) = Sum(j_count(k)) - To_statr
-				map_start_sector[1] = f[k+1].start_sector;							//j_start(k+1)
+//				map_start_sector[1] = f[k+1].start_sector;							//j_start(k+1)
 				bb -= (a - c);																					//Residual(To_len) - (Sum(j_count(k)) - To_statr)
-				for (l = 0; ((l < DRIVE_MAP_FRAGMENT - k) && (f[k+l+3].start_sector != 0)); l++)
+//				for (l = 0; ((l < DRIVE_MAP_FRAGMENT - k) && (f[k+l+3].start_sector != 0)); l++)
+        for (l = 0; ((l < DRIVE_MAP_FRAGMENT - k) && (f[k+l].start_sector != 0)); l++)
 				{
 					blklst_num_entries = l + 2;
-					if (bb <= f[k+l+3].sector_count)												//Residual(To_len) <= j_count(k+1)
+//					if (bb <= f[k+l+3].sector_count)												//Residual(To_len) <= j_count(k+1)
+          if (bb <= f[k+l+1].sector_count)												//Residual(To_len) <= j_count(k+1)
 					{
 						map_num_sectors[l+1] = bb;									      		//Residual(To_len)
+            map_start_sector[l+1] = f[k+l+1].start_sector;
 						goto set_ok;
 					}
 					else
 					{
-						map_num_sectors[l+1] = f[k+l+3].sector_count;				//j_count(k+1)
-						map_start_sector[l+2] = f[k+l+4].start_sector;				//j_start(k+2)
-						bb -= f[k+l+3].sector_count;													//Residual(To_len) - j_count(k+1)
+//						map_num_sectors[l+1] = f[k+l+3].sector_count;				  //j_count(k+1)
+//						map_start_sector[l+2] = f[k+l+4].start_sector;				//j_start(k+2)
+//						bb -= f[k+l+3].sector_count;													//Residual(To_len) - j_count(k+1)
+						map_num_sectors[l+1] = f[k+l+1].sector_count;				      //j_count(k+1)
+						map_start_sector[l+1] = f[k+l+1].start_sector;				    //j_start(k+2)
+						bb -= f[k+l+1].sector_count;													//Residual(To_len) - j_count(k+1)
 					}
 				}
 			}
@@ -7963,13 +8086,6 @@ no_fragment:
   initrd_start_sector = start_sector;
   disk_drive_map[i].sector_count = sector_count;
   disk_drive_map[i].from_log2_sector = from_log2_sector;
-
-//删除驱动器映像插槽  带入i=插槽位置  i=0-7
-//delete_drive_map_slot:
- 
-  if (mem != -1ULL)   //如果加载到内存
-	  grub_close ();    //关闭to驱动器
-
 #undef	BS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -8035,6 +8151,13 @@ fail_close_free:
 fail_free:
   grub_free (cache);
   return 0;
+#if 0
+ //删除驱动器映像插槽  带入i=插槽位置  i=0-7
+delete_drive_map_slot:
+  if (mem != -1ULL)   //如果加载到内存
+	  grub_close ();    //关闭to驱动器 
+  return 1;
+#endif
 }
 
 static struct builtin builtin_map =
@@ -10407,6 +10530,7 @@ terminal_func (char *arg, int flags)
 		}
 		if (graphics_inited && graphics_mode > 0xFF)
 		{
+			console_setcursor(0);
 			current_term->shutdown();
 			current_term = term_table + 1;
 			current_term->startup();
@@ -10532,8 +10656,16 @@ terminal_func (char *arg, int flags)
   {
     if (prev_term->shutdown)
       prev_term->shutdown();
+    if (grub_memcmp (current_term->name, "console", 7) == 0)
+    {
+      current_term->chars_per_line = 80;
+      current_term->max_lines = 25;
+      setcursor (1);
+    }
+
     if (current_term->startup)
       current_term->startup();
+    cls();
   }
   
   return 1;
@@ -10544,7 +10676,7 @@ static struct builtin builtin_terminal =
   "terminal",
   terminal_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "terminal [--dumb] [--no-echo] [--no-edit] [--timeout=SECS]\n [--lines=LINES] [--silent] [console] [serial] [hercules] [graphics]",
+  "terminal [--dumb] [--no-echo] [--no-edit] [--timeout=SECS]\n [--lines=LINES] [--silent] [console] [graphics]",
   "Select a terminal. When multiple terminals are specified, wait until"
   " you push any key to continue. If both console and serial are specified,"
   " the terminal to which you input a key first will be selected. If no"
@@ -10622,6 +10754,9 @@ struct builtin builtin_title =
   "title",
   NULL/*title_func*/,
   0/*BUILTIN_TITLE*/,
+  "title [[$[0xRRGGBB]]TITLE] [\\n[$[0xRRGGBB]]NOTE]",
+  "$[0xRRGGBB] Sets the color for TITLE and NOTE.\n"
+  "$[] Restore COLOR STATE STANDARD."
 };
 
 
@@ -11102,7 +11237,7 @@ xyz_done:
 					break;
 
 				default:
-					return printf_debug0 ("unsupported video mode");
+					return printf_errinfo ("unsupported video mode");
 			}
 			
 			if (tmp_graphicsmode == 0x2ff)
@@ -11176,8 +11311,7 @@ xyz_done:
     current_term->shutdown();	
     current_term->chars_per_line = 80;
     current_term->max_lines = 25;
-    printf_debug0 (" Graphics mode number was already 3\n");
-//		return graphics_mode;
+    cls();
     goto ok;
 	}
 	else if (tmp_graphicsmode > 0xff)
@@ -11210,7 +11344,7 @@ xyz_done:
 				current_term->startup();
       }
     }
-		printf_debug0 (" Graphics mode number was already 0x%X\n", graphics_mode);
+    cls();
   }	//else if (safe_parse_maxint (&arg, &tmp_graphicsmode))
 #endif
 ok:
@@ -11425,6 +11559,11 @@ echo_func (char *arg,int flags)
 			img = 1;
 			goto mem;
 		}
+		else if (grub_memcmp(arg,"-mem=",5) == 0)	  //-mem=offset=length  怪怪的, 为了所谓'兼容'
+		{
+			arg--;
+			goto mem;
+		}
 		else if (grub_memcmp(arg,"--mem=",6) == 0)	//--mem=offset=length
 		{
 mem:
@@ -11551,8 +11690,9 @@ static struct builtin builtin_echo =
 	 "--img=pre_stage2_offset=length  hexdump.\n"  
    "$[ABCD] the color for MESSAGE.(console only, 8 bit number)\n" 
    "A=bright background, B=bright characters, C=background color, D=Character color.\n"
-   "$[0xCD] 8 or 64 bit number value for MESSAGE. C=background, D=Character.\n"
-   "$[] using COLOR STATE STANDARD."	
+   "$[0xCD] Sets the 8 or 64 bit numeric color for MESSAGE.\n"
+   "        C=background(high 32 bits), D=Character(low 32 bits).\n"
+   "$[] Restore COLOR STATE STANDARD."
 };
 
 int else_disabled = 0;  //else禁止
@@ -12572,7 +12712,7 @@ static struct builtin builtin_setmenu =
 	"--auto-num-off* --auto-num-all-on --auto-num-on --triangle-on* --triangle-off\n"
 	"--highlight-short* --highlight-full --keyhelp-on* --keyhelp-off\n"
 	"--font-spacing=FONT:LINE. default 0\n"
-	"--string[=iINDEX]=[X|s|m]=[-]Y=COLOR=\"STRING\"\n"
+	"--string[=iINDEX]=[X|s|m]=[-]Y=COLOR=\"[$[0xRRGGBB]]STRING\"\n"
 	"  iINDEX range is i0-i15. Auto-increments if =iINDEX is omitted.\n"
 	"  If the horizontal position is 's', \"STRING\" centers across the whole screen.\n"
 	"  If the horizontal position is 'm', \"STRING\" centers within menu area.\n"
@@ -12583,6 +12723,8 @@ static struct builtin builtin_setmenu =
 	"  \"STRING\"=\"date&time\"  ISO8601 format. equivalent to: \"date&time=yyyy-MM-dd  HH:mm:ss\"\n"
 	"  --string= to disable all strings.\n"
 	"  --string=iINDEX to disable the specified index.\n"
+	"  $[0xRRGGBB] Sets the color for STRING.\n"
+	"  $[] Restore COLOR STATE STANDARD.\n"
 	"--box x=X y=Y w=W h=H l=L\n"
 	"  If W=0, menu box in middle. L=menu border thickness 0-4, 0=none.\n"
 	"--help=X=W=Y\n"
