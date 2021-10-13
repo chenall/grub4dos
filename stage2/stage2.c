@@ -110,11 +110,40 @@ extern int num_text_char(char *p);
 struct border menu_border = {218,191,192,217,196,179,2,0,2,0,0,2,0,0,0}; /* console */
 //struct border menu_border = {20,21,22,19,15,14,2,0,2,0,0}; /* graphics */
 
+char* print_color_characters (char *message, unsigned char *character, unsigned long long *color64_back, unsigned int *color_back);
+char*
+print_color_characters (char *message, unsigned char *character, unsigned long long *color64_back, unsigned int *color_back)
+{
+  if (message[2] == ']')
+  {
+    current_color_64bit = *color64_back;
+    current_color = *color_back;
+    message += 3;
+    *character = *(message);
+  }
+  else if ((message[3] | 0x20) == 'x')
+  {
+    unsigned long long ull;
+    message += 2;
+    if (safe_parse_maxint((char **)&message,&ull) && *message == ']')
+    {
+      *color_back = current_color;
+      *color64_back = current_color_64bit;
+      current_color_64bit = ull;
+      current_color = color_64_to_8 (current_color_64bit);
+      *character = *(++message);
+    }
+  }
+  return message;
+}
+
 static void print_help_message (const char *message,int flags)
 {
 	grub_u32_t j,x,k;
 	grub_u8_t c = *message;
 	int start_offcet = 0;
+	unsigned long long current_color_64bit_back;
+  unsigned int current_color_back;
 
 	if (flags==2)	
 	{
@@ -174,6 +203,9 @@ static void print_help_message (const char *message,int flags)
 								grub_putchar (' ', 255);
 								continue;
 							}
+              //处理菜单项注释中的彩色字符
+              if (*(unsigned short*)message == 0x5B24)//$[
+                message = print_color_characters ((char *)message,&c,&current_color_64bit_back,&current_color_back);
 						grub_putchar (c, 255);
 						c = *(++message);
 					}
@@ -363,8 +395,10 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   if (current_term->setcolorstate)
     current_term->setcolorstate (highlight ? COLOR_STATE_HIGHLIGHT : COLOR_STATE_NORMAL);
   
-	unsigned long long clo64 = current_color_64bit;
-	unsigned int clo = current_color;
+  unsigned long long clo64_back = current_color_64bit;
+  unsigned int clo_back = current_color;
+  unsigned long long clo64_tmp;
+  unsigned int clo_tmp;
   is_highlight = highlight;
 	if (graphic_type)
 	{
@@ -487,7 +521,7 @@ graphic_mixing:
       ret = MENU_BOX_E - x - end_offcet;
       if (c && c != '\n' /* && x <= MENU_BOX_W*/ && x >= start_offcet)
 	{
-		
+hotkey_start:
     if (hotkey_func && hotkey_color_64bit)
     {
       if (c == '^')
@@ -511,13 +545,24 @@ graphic_mixing:
         goto color_no;
       }
 color:
+      clo64_tmp = current_color_64bit;
+      clo_tmp = current_color;
       current_color_64bit = hotkey_color_64bit;
       current_color = hotkey_color;
+      ret = grub_putchar ((unsigned char)c, ret);
+      current_color_64bit = clo64_tmp;
+      current_color = clo_tmp; 
+      goto hotkey_end;
     }
-color_no:
+color_no:    
+    //处理菜单项中的彩色字符
+    if (*(unsigned short*)entry == 0x5B24)//$[
+    {
+      entry = print_color_characters (entry,&c,&clo64_back,&clo_back);
+      goto hotkey_start;
+    }
 		ret = grub_putchar ((unsigned char)c, ret);
-		current_color_64bit = clo64;
-		current_color = clo;
+hotkey_end:
 		//is_highlight = 0;
 		if ((long)ret < 0)
 		{
@@ -530,14 +575,14 @@ color_no:
 	{
 		if (!(menu_tab & 0x10))
 		{
-		clo64 = current_color_64bit;
+		clo64_tmp = current_color_64bit;
 		if(splashimage_loaded & 2)
 			current_color_64bit = 0;
 		else
 			if (current_term->setcolorstate)
 				current_term->setcolorstate (COLOR_STATE_NORMAL);
 		ret = grub_putchar (' ', ret);
-		current_color_64bit = clo64;
+		current_color_64bit = clo64_tmp;
 //		if ((long)ret < 0)
 //			break;
 		}
@@ -1005,6 +1050,10 @@ restart1:
 			{
         int j;
         char y;
+        char *p;
+        unsigned long long current_color_64bit_back;
+        unsigned int current_color_back;
+        grub_u8_t c1;
 				for (j=0; j<16; j++)
 				{
 					if (strings[j].enable == 0)
@@ -1019,7 +1068,19 @@ restart1:
 						current_color_64bit = strings[j].color | (current_color_64bit & 0xffffffff00000000);
 					else
 						current_color_64bit = strings[j].color | 0x1000000000000000;
-					grub_printf("%s",strings[j].string);
+          
+          p = strings[j].string;
+          while(*p)
+          {
+            //处理字符串中的彩色字符
+            if (*(unsigned short*)p == 0x5B24)//$[
+              p = print_color_characters (p,&c1,&current_color_64bit_back,&current_color_back);
+            else
+              c1 = *(p);
+            grub_putchar (c1, 255); //123 4456 778
+            p++;
+          }
+//					grub_printf("%s",strings[j].string);
 				}
 			}
 			

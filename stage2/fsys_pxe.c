@@ -433,7 +433,9 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
           ret = 1;
           goto done;
         }
-	if (checkkey() == 0x11b) break;
+//	if (checkkey() == 0x11b) break;
+    if (checkkey() != (int)-1)
+      if (getkey() == 0x11b) break;
       *(--pc) = 0;
     } while (pc > pxe_tftp_name + MENU_DIR_NAME_LENGTH);
   grub_strcpy (pc, "default");

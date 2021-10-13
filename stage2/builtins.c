@@ -3518,6 +3518,7 @@ dd_func (char *arg, int flags)
   unsigned long long buf_size = 0x10000ULL;
   char tmp_in_file[16];
   char tmp_out_file[16];
+  int SameFile_MoveBack = 0;
 
   errnum = 0;
   for (;;)
@@ -3806,7 +3807,7 @@ dd_func (char *arg, int flags)
 	grub_memmove64 (out_filepos, in_filepos, count);
 	part_start = tmp_part_start;
 	part_length = tmp_part_length;
-	printf_debug0 ("\nMoved 0x%lX bytes from 0x%lX to 0x%lX\n", (unsigned long long)count, (unsigned long long)in_filepos, (unsigned long long)out_filepos);
+	printf_debug ("\nMoved 0x%lX bytes from 0x%lX to 0x%lX\n", (unsigned long long)count, (unsigned long long)in_filepos, (unsigned long long)out_filepos);
 	errnum = 0;
 	return count;
   }
@@ -3850,6 +3851,7 @@ dd_func (char *arg, int flags)
     unsigned long long in_pos = in_filepos;
     unsigned long long out_pos = out_filepos;
     unsigned long long tmp_size = buf_size;
+    unsigned int in_count = (unsigned int)(in_filemax - in_filepos + buf_size - 1) / (unsigned int)buf_size;
 
     if (debug > 0)
     {
@@ -3857,17 +3859,33 @@ dd_func (char *arg, int flags)
 	if (count > out_filemax - out_pos)
 	    count = out_filemax - out_pos;
 	count = ((unsigned long)(count + buf_size - 1) / (unsigned long)buf_size);
-	grub_printf ("buf_size=0x%lX, loops=0x%lX. in_pos=0x%lX, out_pos=0x%lX\n", (unsigned long long)buf_size, (unsigned long long)count, (unsigned long long)in_pos, (unsigned long long)out_pos);
+	printf_debug ("buf_size=0x%lX, loops=0x%lX. in_pos=0x%lX, out_pos=0x%lX\n", (unsigned long long)buf_size, (unsigned long long)count, (unsigned long long)in_pos, (unsigned long long)out_pos);
     }
-    count = 0;
+    
+  //以终止符替换空格
+  nul_terminate (in_file);  
+  nul_terminate (out_file);
+  //同一文件向后移动, 可能会覆盖数据!!!  补丁修复此bug
+  if (substring (out_file, in_file, 0) == 0   //返回: 0/1/-1=s1与s2相等/s1不是s2的子字符串/s1是s2的子字符串
+          && in_drive == out_drive
+          && in_partition == out_partition
+          && in_count
+          && in_pos < out_pos)
+  {
+    SameFile_MoveBack = 1;  //同一文件向后移动标记
+  }
+    
+//    count = 0;
     while (in_pos < in_filemax && out_pos < out_filemax)
     {
+#if 0
 	if (debug > 0)
 	{
 		if (!((char)count & 7))
 			grub_printf ("\r");
 		grub_printf ("%08X ", (unsigned long)(count));
 	}
+#endif
 	/* open in_file */
 	current_drive = saved_drive;
 	current_partition = saved_partition;
@@ -3877,9 +3895,12 @@ dd_func (char *arg, int flags)
 	in_partition = current_partition;
 	current_drive = saved_drive;
 	current_partition = saved_partition;
+  tmp_size = buf_size;
 //	fsys_type = in_fsys_type;
 	if (grub_open (in_file))
 	{
+    if (SameFile_MoveBack)
+      in_pos = (in_count - 1) * buf_size + in_filepos;
 		filepos = in_pos;
 		//tmp_size = buf_size;
 		if (tmp_size > in_filemax - in_pos)
@@ -3904,7 +3925,10 @@ dd_func (char *arg, int flags)
 	if (errnum)
 		goto end;
 
-	in_pos += tmp_size;
+  if (SameFile_MoveBack)
+    in_pos -= tmp_size;
+  else
+    in_pos += tmp_size;
 	
 	/* open out_file */
 	current_drive = saved_drive;
@@ -3918,6 +3942,16 @@ dd_func (char *arg, int flags)
 //	fsys_type = out_fsys_type;
 	if (grub_open (out_file))
 	{
+    if (SameFile_MoveBack)
+    {
+      out_pos = (in_count - 1) * buf_size + out_filepos;
+      if (out_pos >= out_filemax || out_pos < out_filepos)
+      {
+        out_pos = tmp_size;
+        goto asd;
+      }
+    }
+   
 		filepos = out_pos;
 		if (tmp_size > out_filemax - out_pos)
 		    tmp_size = out_filemax - out_pos;
@@ -3926,6 +3960,7 @@ dd_func (char *arg, int flags)
 			if (errnum == 0)
 				errnum = ERR_WRITE;
 		}
+asd:
 		{
 			int err = errnum;
 			grub_close ();
@@ -3941,19 +3976,30 @@ dd_func (char *arg, int flags)
 	if (errnum)
 		goto end;
 
-	out_pos += tmp_size;
-	count++;
+  if (SameFile_MoveBack)
+    out_pos -= tmp_size;
+  else
+    out_pos += tmp_size;
+
+//	count++;
+	in_count--;
     }
 
 end:
-
+    if (SameFile_MoveBack)
+    {
+      in_pos = in_filemax - in_filepos;
+      out_pos = out_filemax - out_filepos;
+    }
+    else {
     in_pos -= in_filepos;
     out_pos -= out_filepos;
+    out_pos -= out_filepos;}
 
     if (debug > 0)
     {
 	int err = errnum;
-	printf_debug0 ("\nBytes read / written = 0x%lX / 0x%lX\n", (unsigned long long)in_pos, (unsigned long long)out_pos);
+	printf_debug ("\nBytes read / written = 0x%lX / 0x%lX\n", (unsigned long long)in_pos, (unsigned long long)out_pos);
 	errnum = err;
     }
   }
@@ -4301,14 +4347,16 @@ static struct builtin builtin_splashimage =
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST,
   "splashimage [--offset=[type]=[x]=[y]] FILE",
   "type: bit 7:transparent background\n"
+  "FILE: as the background image when in graphics mode.\n"
   "splashimage --fill-color=[0xrrggbb]\n"
   "splashimage --animated=[type]=[duration]=[last_num]=[x]=[y] START_FILE\n"
-  "type: bit 0-3:times(0=repeat play)  bit 5:alone\n"
-  "      bit 7:transparent background  type=00:disable\n"
+  "type: bit 0-4: 0x01-0x0f=play n times, 0x10=infinite play.\n"
+  "      bit 5:1=show the menu after playing , 0=Play in the menu.\n"
+  "      bit 7:1=transparent, 0=opaque.\n"
+  "If type=0, stop working.\n"
   "duration: [10] unit is a tick. [10:ms] units are milliseconds,\n"
   "naming rules for START_FILE: *n.???   n: 1-9 or 01-99 or 001-999\n"
-  "hotkey F2,control animation:  play/stop.\n"
-  "Load FILE as the background image when in graphics mode."
+  "hotkey F2,control animation:  play/stop."
 };
 
 
@@ -6938,7 +6986,8 @@ static struct builtin builtin_uuid =
   " on all devices (if UUID is not specified). If DEVICE is specified," 
   " return true or false according to whether or not the DEVICE matches"
   " the specified UUID (if UUID is specified), or just list the uuid of"
-  " DEVICE (if UUID is not specified)."
+  " DEVICE (if UUID is not specified).\n"
+  "uuid of DEVICE is returned in temporary variables '?'."
 };
 
 static void
@@ -7072,7 +7121,8 @@ static struct builtin builtin_vol =
   " return true or false according to whether or not the DEVICE matches"
   " the specified Volume (if VOLUME is specified), or just list the volume of"
   " DEVICE (if VOLUME is not specified)."
-  " Use --primary for ISO Primary Volume Descriptor (as used by linux)."
+  " Use --primary for ISO Primary Volume Descriptor (as used by linux).\n"
+  "vol of DEVICE is returned in temporary variables '?'."
 };
 
 int read_mft(char* buf,unsigned long mftno);
@@ -7797,11 +7847,11 @@ help_func (char *arg, int flags)
 	//  int i;
 	  /* If this cannot be used in the command-line interface,
 	     skip this.  */
-	  if (! ((*builtin)->flags & BUILTIN_CMDLINE))
+	  if (! ((*builtin)->flags & BUILTIN_CMDLINE) && (*builtin)->flags)
 	    continue;
 	  /* If this doesn't need to be listed automatically and "--all"
 	     is not specified, skip this.  */
-	  if (! all && ! ((*builtin)->flags & BUILTIN_HELP_LIST))
+	  if (! all && ! ((*builtin)->flags & BUILTIN_HELP_LIST) && (*builtin)->flags)
 	    continue;
 #if 0
 	  len = grub_strlen ((*builtin)->short_doc);
@@ -10673,7 +10723,7 @@ map_whole_drive:
 				{
 					void *start = filename - q->slot_len;
 					int len = q->slot_len;
-					grub_memmove (q, q + q->slot_len,(struct fragment_map_slot *)filename - q - q->slot_len);
+					grub_memmove (q, (char *)q + q->slot_len,filename - (char *)q - q->slot_len);
 					grub_memset (start, 0, len);
 				}
 				}
@@ -11389,7 +11439,7 @@ delete_drive_map_slot:
 	{
 		void *start = filename - q->slot_len;
 		int len = q->slot_len;
-		grub_memmove (q, q + q->slot_len, (struct fragment_map_slot *)filename - q - q->slot_len);
+		grub_memmove (q, (char *)q + q->slot_len, filename - (char *)q - q->slot_len);
 		grub_memset (start, 0, len);
 	}
 	}
@@ -14124,7 +14174,7 @@ static struct builtin builtin_setkey =
   " underscore, equal, plus, backspace, tab, bracketleft, braceleft,"
   " bracketright, braceright, enter, semicolon, colon, quote, doublequote,"
   " backquote, tilde, backslash, bar, comma, less, period, greater,"
-  " slash, question, alt, space, delete, oem102, shiftoem102,"
+  " slash, question, space, delete, oem102, shiftoem102,"
   " [ctrl|shift]F1-10. For Alt+ prefix with A, e.g. 'setkey at Aequal'."
   " Use 'setkey at at' to reset one key, 'setkey' to reset all keys."
 };
@@ -14859,11 +14909,9 @@ struct builtin builtin_title =
   "title",
   NULL/*title_func*/,
   0/*BUILTIN_TITLE*/,
-#if 0
-  "title [NAME ...]",
-  "Start a new boot entry, and set its name to the contents of the"
-  " rest of the line, starting with the first non-space character."
-#endif
+  "title [[$[0xRRGGBB]]TITLE] [\\n[$[0xRRGGBB]]NOTE]",
+  "$[0xRRGGBB] Sets the color for TITLE and NOTE.\n"
+  "$[] Restore COLOR STATE STANDARD."
 };
 
 
@@ -15714,7 +15762,7 @@ echo_func (char *arg,int flags)
 				gotoxy(saved_x, saved_y);
 			return 1;
 		}
-		else if (grub_memcmp(arg,"--mem=",6) == 0)	//-mem=offset=length
+		else if (grub_memcmp(arg,"--mem=",6) == 0)	//--mem=offset=length
 		{
 			unsigned long long offset;
 			unsigned long long length;
@@ -15822,7 +15870,7 @@ static struct builtin builtin_echo =
    "echo",
    echo_func,
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-   "echo [-P:XXYY] [-h] [-e] [-n] [-v] [-rrggbb] [-mem=offset=length] [[$[ABCD]]MESSAGE ...] ",
+   "echo [-P:XXYY] [-h] [-e] [-n] [-v] [-rrggbb] [--mem=offset=length] [[$[ABCD]]MESSAGE ...] ",
    "-P:XXYY position control line(XX) and column(YY).\n"
    "-h      show a color panel.\n"
    "-n      do not output the trailing newline.\n"
@@ -15834,8 +15882,9 @@ static struct builtin builtin_echo =
 	 "--mem=offset=length  hexdump.\n"
    "$[ABCD] the color for MESSAGE.(console only, 8 bit number)\n" 
    "A=bright background, B=bright characters, C=background color, D=Character color.\n"
-   "$[0xCD] 8 or 64 bit number value for MESSAGE. C=background, D=Character.\n"
-   "$[] using COLOR STATE STANDARD."	
+   "$[0xCD] Sets the 8 or 64 bit numeric color for MESSAGE.\n"
+   "        C=background(high 32 bits), D=Character(low 32 bits).\n"
+   "$[] Restore COLOR STATE STANDARD."
 };
 
 int else_disabled = 0;  //else禁止
@@ -16826,7 +16875,7 @@ static struct builtin builtin_setmenu =
 	"--auto-num-off* --auto-num-all-on --auto-num-on --triangle-on* --triangle-off\n"
 	"--highlight-short* --highlight-full --keyhelp-on* --keyhelp-off\n"
 	"--font-spacing=FONT:LINE. default 0\n"
-	"--string[=iINDEX]=[X|s|m]=[-]Y=COLOR=\"STRING\"\n"
+	"--string[=iINDEX]=[X|s|m]=[-]Y=COLOR=\"[$[0xRRGGBB]]STRING\"\n"
 	"  iINDEX range is i0-i15. Auto-increments if =iINDEX is omitted.\n"
 	"  If the horizontal position is 's', \"STRING\" centers across the whole screen.\n"
 	"  If the horizontal position is 'm', \"STRING\" centers within menu area.\n"
@@ -16837,6 +16886,8 @@ static struct builtin builtin_setmenu =
 	"  \"STRING\"=\"date&time\"  ISO8601 format. equivalent to: \"date&time=yyyy-MM-dd  HH:mm:ss\"\n"
 	"  --string= to disable all strings.\n"
 	"  --string=iINDEX to disable the specified index.\n"
+	"  $[0xRRGGBB] Sets the color for STRING.\n"
+	"  $[] Restore COLOR STATE STANDARD.\n"
 	"--box x=X y=Y w=W h=H l=L\n"
 	"  If W=0, menu box in middle. L=menu border thickness 0-4, 0=none.\n"
 	"--help=X=W=Y\n"

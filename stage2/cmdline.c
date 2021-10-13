@@ -299,6 +299,16 @@ int run_line (char *heap,int flags)
    int status = 0;
    int ret = 0;
    int arg_len = strlen(heap) + 1;
+
+   //吸收命令行尾部空格
+   char *p = heap;
+   while (*p++);
+   while (*(p - 2) == ' ' || *(p - 2) == '\t')
+   {
+     *(p - 2) = 0;
+     p--;
+   }
+
    cmd_buffer += (arg_len + 0xf) & -0x10;
    memmove(cmdline_buf,heap,arg_len);
    heap = cmdline_buf;
