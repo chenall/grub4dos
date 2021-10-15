@@ -375,7 +375,8 @@ static int run_cmd_line (char *heap,int flags)
 				}
 				i = grub_strlen(arg);
 				grub_memmove(cmdBuff,arg,i);
-				if (skip_to (0, arg) - arg == i)
+//        if (skip_to (0, arg) - arg == i)
+				if (skip_to (0, arg) - arg == i || cmdBuff[skip_to (0, arg) - arg] == ':') //修正找不到标签
 					cmdBuff[i++] = ' ';
 				cmdBuff[i] = 0;
 				grub_strncat(cmdBuff,(const char *)PRINTF_BUFFER,0x20000);

@@ -1413,7 +1413,6 @@ void enter_cmdline (char *heap, int forever);
 int grub_sprintf (char *buffer, const char *format, ...);
 int grub_tolower (int c);
 int grub_isspace (int c);
-int grub_strncat (char *s1, const char *s2, int n);
 void *grub_memcpy (void *to, const void *from, unsigned int n);
 void *grub_memmove (void *to, const void *from, int len);
 void *grub_memset (void *start, int c, int len);
