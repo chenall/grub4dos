@@ -9,12 +9,14 @@ on:
 jobs:
   build-pr:
     if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
       with:
         fetch-depth: 10
     - uses: chenall/grub4dos-build@main
+      with:
+        useQemu: 1
     - name: 上传文件到1 transfer.sh
       run: |
         echo transfer_url=`curl -H "Max-Downloads: 100" -H "Max-Days: 5" --upload-file ./$GRUB4DOS_BIN https://transfer.sh` >> $GITHUB_ENV
@@ -26,7 +28,7 @@ jobs:
           curl -X POST $URL -H "Content-Type: application/json" -H "Authorization: token $GITHUB_TOKEN" --data "{ \"body\": \"$transfer_url\" }"
   build-push:
     if: ${{ github.event_name == 'push' }}
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     environment: 
      name: PAGES
     env:
@@ -46,6 +48,8 @@ jobs:
         path: ipxe
     - name: 调用专用编译环境进行编译
       uses: chenall/grub4dos-build@main
+      with:
+        useQemu: 1      
     - name: 发布到 github
       if: ${{ github.event_name == 'push' }}
       uses: marvinpinto/action-automatic-releases@latest
