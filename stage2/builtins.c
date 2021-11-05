@@ -144,6 +144,12 @@ static int find_func (char *arg, int flags);
 static int insmod_func(char *arg,int flags);
 static unsigned long long start_sector, sector_count;
 unsigned long long initrd_start_sector;
+grub_efi_uint64_t	part_addr;
+grub_efi_uint64_t	part_size;
+grub_efi_uint64_t boot_entry;
+grub_efi_uint8_t  cdrom_validation_entry;
+grub_efi_uint32_t cdrom_boot_catalog;
+struct grub_part_data *part_data;
 
 void set_full_path(char *dest, char *arg, grub_u32_t max_len);
 void set_full_path(char *dest, char *arg, grub_u32_t max_len)
@@ -826,20 +832,22 @@ find_specified_file (int drive, int partition, char* file)
   return val;
 }
 
-int get_efi_device_boot_path (int drive, int flags);
+int get_efi_device_boot_path (int drive);
 int
-get_efi_device_boot_path (int drive, int flags)  //获得硬盘/光盘启动分区(入口)
+get_efi_device_boot_path (int drive)  //获得硬盘/光盘启动分区(入口)
 {
   struct grub_part_data *p;
+  char tmp[512];
   char *cache = 0;
   int self_locking = 0;
   int k = 0;
+  part_size = 0;
 
   cache = grub_zalloc (0x800);	//分配缓存
   if (!cache)
     return 0;
 
-  if (drive >= 0x80 && drive <= 0x8f)
+  if (drive >= 0x80 && drive <= 0x8f) //硬盘
   {
   for (p = partition_info; p; p = p->next)
   {
@@ -875,7 +883,7 @@ complete:
   grub_free (cache); 
   return 1;  
   }
-  else
+  else  //光盘
   {
     cdrom_volume_descriptor_t *vol = (cdrom_volume_descriptor_t *)cache;
     eltorito_catalog0_t *catalog = NULL;
@@ -889,7 +897,7 @@ complete:
     if (! grub_open (chainloader_file))
       goto fail_close_free;
     filepos = 17 * 0x800;
-    grub_read ((unsigned long long)(grub_size_t) vol, 0x800, 0xedde0d90);	//读引导扇区(17,规定值,不变),0x800字节
+    grub_read ((unsigned long long)(grub_size_t) vol, 0x800, 0xedde0d90);	//读引导描述符扇区(17,规定值,不变),0x800字节
     if (vol->unknown.type != CDVOL_TYPE_STANDARD ||					//启动记录卷,类型 				CDVOL_TYPE_STANDARD=0
         grub_memcmp ((const char *)vol->boot_record_volume.system_id, (const char *)CDVOL_ELTORITO_ID,	//启动记录卷,系统id       CDVOL_ELTORITO_ID="EL TORITO SPECIFICATION"
         sizeof (CDVOL_ELTORITO_ID) - 1) != 0)
@@ -899,29 +907,14 @@ complete:
     }
 
     catalog = (eltorito_catalog0_t *) cache;
-    filepos = *((grub_efi_uint32_t*) vol->boot_record_volume.elt_catalog) * 0x800;	//13*800
-    grub_read ((unsigned long long)(grub_size_t) catalog, 0x800, 0xedde0d90);      
-    grub_close ();
+    cdrom_boot_catalog = *((grub_efi_uint32_t*) vol->boot_record_volume.elt_catalog); //启动目录文件所在扇区
+    filepos = cdrom_boot_catalog * 0x800;
+    grub_read ((unsigned long long)(grub_size_t) catalog, 0x800, 0xedde0d90); //读启动目录文件扇区
     if (catalog[0].indicator1 != ELTORITO_ID_CATALOG) //0x01
-      goto fail_close_free;
-
-    if (flags)  //add_part_data时, 搜索\efi\boot\bootx64.efi
     {
-    for (k = 0; k < 5 && catalog[k].indicator1; k++)
-    {
-      grub_sprintf (chainloader_file, "(0x%X)0x%lX+0x%lX (0x60)\0", drive, catalog[k].lba, catalog[k].sector_count >> 2); 
-      map_func (chainloader_file, 1);
-      if (find_specified_file(0x60, 0xffffff, EFI_REMOVABLE_MEDIA_FILE_NAME) == 1) //搜索文件 bootx64.efi
-        break;
-      map_func ("--unmap=0x60", 1);
-    }
-    if (k == 5 || !catalog[k].indicator1)
+      grub_close ();
       goto fail_close_free;
-    else
-      map_func ("--unmap=0x60", 1);
     }
-    else  //partition_info_init时,只判断EFI_PARTITION与ELTORITO_ID_SECTION_BOOTABLE. 如果搜索\efi\boot\bootx64.efi,
-    {     //会莫名其妙地卡在map_func、chainloader_func、find_func及find_check处，必须使用延时及打印函数，才能解除。
     for (k = 0; k < 5; k++)
     {
       if ((/*catalog[k].indicator1 == ELTORITO_ID_SECTION_HEADER_FINAL &&*/  //ELTORITO_ID_SECTION_HEADER_FINAL=0x91
@@ -931,14 +924,30 @@ complete:
       {
         if (k == 4) //如果没有 '91 EF 01',不是双启动(bioe-uefi),有可能是bios,也可能是uefi.不放过任何机会!
           k = 0;
+        filepos = catalog[k].lba * 0x800;
+        grub_read ((unsigned long long)(grub_size_t) tmp, 0x200, 0xedde0d90); //读启动映像mbr
+#define	BS	((struct master_and_dos_boot_sector *)tmp)
+        if (BS->boot_signature != 0xAA55
+                || (BS->total_sectors_short && BS->total_sectors_long)
+                || (!BS->total_sectors_short && !BS->total_sectors_long))
+          continue;
+        if (BS->total_sectors_short)
+          part_size = BS->total_sectors_short;  //FAT12/16 总扇区数
+        else              
+          part_size = BS->total_sectors_long;   //FAT32 总扇区数
+        cdrom_validation_entry = k; //光盘启动目录确认入口
+#undef BS
         break;
       }
     }
-    }
-
-    boot_entry = catalog[k].indicator1;               //91
+    grub_close ();
+//    boot_entry = catalog[k].indicator1;               //91
+    boot_entry = 1;                                   //如果入口号是0x91，安装虚拟分区映像有时反倒失败。
     part_addr = catalog[k].lba;												//19*800=c800
-    part_size = catalog[k].sector_count;						  //1*200=200	
+    if (!part_size)
+      part_size = catalog[k].sector_count;						//1*200=200	
+    if (catalog[k].sector_count == part_size)
+      cdrom_validation_entry = 0xff;
     part_data = get_partition_info (drive, 0xffff);
 
     grub_free (cache); 
@@ -1104,8 +1113,11 @@ chainloader_func (char *arg, int flags)
         image_handle = vdisk_load_image (current_drive);	//虚拟磁盘启动
         goto complete;
       }
+      if (current_drive < 0x90)
+        image_handle = vpart_load_image (p->part_path);	    //虚拟磁盘启动
+      else
+        image_handle = 0;
       
-      image_handle = vpart_load_image (p->part_path);	    //虚拟磁盘启动
       if (!image_handle)
         image_handle = vdisk_load_image (current_drive);	//虚拟磁盘启动
     } 
@@ -1203,7 +1215,7 @@ complete:
 		image1->load_options = cmdline;	//加载选项
 		image1->load_options_size = cmdline_len;//加载选项尺寸
   }
-  printf_debug ("image=0x%x device_handle=%x",image1,dev_handle);//113b8e40,11b3d398
+  printf_debug ("image=%x device_handle=%x",image1,dev_handle);//113b8e40,11b3d398
   grub_close ();	//关闭文件
 
 	kernel_type = KERNEL_TYPE_CHAINLOADER;
@@ -6830,7 +6842,7 @@ add_part_data (int drive)
       dp = dp->next;
       }
     }
-    if (get_efi_device_boot_path (drive,1))
+    if (get_efi_device_boot_path (drive))
     {
       part_data = get_partition_info (drive, part_data->partition);
       part_data->partition_boot = 1;
@@ -6846,12 +6858,14 @@ add_part_data (int drive)
     p = grub_zalloc (sizeof (*p));  //分配内存	
     if(! p)  //如果分配内存失败
       return;
-    get_efi_device_boot_path(drive,1);
+    get_efi_device_boot_path(drive);
     p->drive = drive;
     p->partition = 0xffff;
     p->partition_start = part_addr;
     p->partition_len = part_size;
     p->partition_number = boot_entry;
+    p->partition_entry = cdrom_validation_entry;
+    p->partition_ext_offset = cdrom_boot_catalog;
     p->partition_boot = 1;
     p->next = 0;
     if (!partition_info) //使用 'if (!dp)' 会判断错误。 当 partition_info=bp=0 时，if (!partition_info) 返回1；而 if (!dp) 返回0。
@@ -6861,10 +6875,6 @@ add_part_data (int drive)
   }
 }
 
-grub_efi_uint64_t	part_addr;
-grub_efi_uint64_t	part_size;
-grub_efi_uint64_t boot_entry;
-struct grub_part_data *part_data;
 grub_efi_device_path_protocol_t* grub_efi_create_device_node (grub_efi_uint8_t node_type, grub_efi_uintn_t node_subtype,
                     grub_efi_uint16_t node_length);
 unsigned long long tmp;
@@ -7776,8 +7786,8 @@ get_info_ok:
 
 		if (start_sector == part_start && part_start == 0 && sector_count == 1)		//如果起始扇区=分区起始,并且分区起始=0,并且扇区计数=1
 			sector_count = part_length;  //扇区计数=分区长度
-    if (buf_geom.log2_sector_size != 9)
-      sector_count = (sector_count << buf_geom.log2_sector_size) >> 9;
+//    if (buf_geom.log2_sector_size != 9)
+//      sector_count = (sector_count << buf_geom.log2_sector_size) >> 9;
       /* For GZIP disk image if uncompressed size >= 4GB,  								//如果压缩gzip磁盘图像尺寸>=4GB
          high bits of filemax is wrong, sector_count is also wrong. */		//filemax的高位是错误的，扇区计数也是错的
 		if ( (long long)mem < 0LL && sector_count < (-mem) )		//如果mem<0,并且扇区计数<(-mem)

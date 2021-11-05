@@ -5580,8 +5580,8 @@ struct grub_part_data  //efi分区数据	(硬盘)  grub定义
 	unsigned char	drive;									  //驱动器
 	unsigned char	partition_type;					  //MBR分区ID          EE是gpt分区类型
 	unsigned char	partition_activity_flag;  //MBR分区活动标志    80活动
-	unsigned char partition_entry;				  //分区入口
-	unsigned int partition_ext_offset;		  //扩展分区偏移
+	unsigned char partition_entry;				  //分区入口           光盘: 启动目录确认入口   
+	unsigned int partition_ext_offset;		  //扩展分区偏移       光盘: 启动目录扇区地址
 	unsigned int partition;							    //当前分区
 	unsigned long long partition_offset;	  //分区偏移
 	unsigned long long partition_start;		  //分区起始扇区       光盘: 引导软盘在光盘的起始扇区(1扇区=2048字节)
@@ -5774,6 +5774,8 @@ extern grub_packed_guid_t VDISK_GUID;
 extern grub_efi_uint64_t boot_entry;
 extern grub_efi_uint64_t	part_addr;
 extern grub_efi_uint64_t	part_size;
+extern grub_efi_uint8_t cdrom_validation_entry;
+extern grub_efi_uint32_t  cdrom_boot_catalog;
 extern struct grub_part_data *part_data;
 void file_read (grub_efi_boolean_t disk, void *file,
                 void *buf, grub_efi_uintn_t len, grub_efi_uint64_t offset);
@@ -6942,7 +6944,7 @@ int grub_efi_net_boot_from_opa (void);
 extern grub_efi_status_t EFIAPI blockio_read_write (block_io_protocol_t *this, grub_efi_uint32_t media_id,
               grub_efi_lba_t lba, grub_efi_uintn_t len, void *buf, int read_write);
 extern grub_size_t block_io_protocol_this;
-extern int get_efi_device_boot_path (int drive, int flags);
+extern int get_efi_device_boot_path (int drive);
 extern grub_efi_device_path_t * grub_efi_file_device_path (grub_efi_device_path_t *dp, const char *filename);
 extern int no_install_vdisk;
 extern grub_efi_physical_address_t grub4dos_self_address;

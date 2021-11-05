@@ -363,19 +363,19 @@ struct ext4_extent_header
 
 /* made up, these are pointers into FSYS_BUF */
 /* read once, always stays there: */
-#if 0
+#if 1
 #define NAME_BUF ((char *)(FSYS_BUF))	/* 512 bytes */
 #define SUPERBLOCK \
     ((struct ext2_super_block *)((FSYS_BUF)+512))	/* 1024 bytes */
 #define GROUP_DESC \
     ((struct ext2_group_desc *) \
-     ((int)SUPERBLOCK + sizeof(struct ext2_super_block)))	/* 32 bytes */
+     ((grub_size_t)SUPERBLOCK + sizeof(struct ext2_super_block)))	/* 32 bytes */
 #define INODE \
-    ((struct ext2_inode *)((int)GROUP_DESC + EXT2_BLOCK_SIZE(SUPERBLOCK)))
+    ((struct ext2_inode *)((grub_size_t)GROUP_DESC + EXT2_BLOCK_SIZE(SUPERBLOCK)))
 #define DATABLOCK1 \
-    ((int)((int)INODE + sizeof(struct ext2_inode)))
+    ((grub_size_t)((grub_size_t)INODE + sizeof(struct ext2_inode)))
 #define DATABLOCK2 \
-    ((int)((int)DATABLOCK1 + EXT2_BLOCK_SIZE(SUPERBLOCK)))
+    ((grub_size_t)((grub_size_t)DATABLOCK1 + EXT2_BLOCK_SIZE(SUPERBLOCK)))
 #endif
 
 /* linux/ext2_fs.h */
@@ -423,8 +423,10 @@ struct ext4_extent_header
 #define S_ISREG(m)      (((m) & S_IFMT) == S_IFREG)
 #define S_ISDIR(m)      (((m) & S_IFMT) == S_IFDIR)
 
-//	static char *linkbuf = (char *)(FSYS_BUF - PATH_MAX);	/* buffer for following symbolic links */
-
+#if 1
+//static char *linkbuf = (char *)(FSYS_BUF - PATH_MAX);	/* buffer for following symbolic links */
+#define linkbuf ((char *)(FSYS_BUF - PATH_MAX))	/* buffer for following symbolic links */
+#else
 char *NAME_BUF;
 struct ext2_super_block *SUPERBLOCK;
 struct ext2_group_desc *GROUP_DESC;
@@ -432,7 +434,7 @@ struct ext2_inode *INODE;
 int DATABLOCK1;
 int DATABLOCK2;
 char *linkbuf;
-
+#endif
 /* include/asm-i386/bitops.h */
 /*
  * ffz = Find First Zero in word. Undefined if no zero exists,
@@ -444,6 +446,7 @@ int ext2fs_mount (void);
 int
 ext2fs_mount (void)
 {
+#if 0
 	NAME_BUF = (char *)FSYS_BUF;
 	SUPERBLOCK = (struct ext2_super_block *)((char *)FSYS_BUF+512);
 	GROUP_DESC = (struct ext2_group_desc *)((char *)SUPERBLOCK + sizeof(struct ext2_super_block));
@@ -451,7 +454,7 @@ ext2fs_mount (void)
 	DATABLOCK1 = (grub_size_t)INODE + sizeof(struct ext2_inode);
 	DATABLOCK2 = (grub_size_t)DATABLOCK1 + EXT2_BLOCK_SIZE(SUPERBLOCK);
 	linkbuf = (char *)(grub_size_t)DATABLOCK2 + 1024;
-      
+#endif      
   if ((unsigned int)part_length < (SBLOCK + (sizeof(struct ext2_super_block) / DEV_BSIZE)))
       return 0;
 

@@ -2337,14 +2337,14 @@ make_devices (void) //制作设备
       p->part_handle = *handle;
       p->part_path = dp;
       p->last_part_path = ldp;
-      if (GRUB_EFI_DEVICE_PATH_SUBTYPE (ldp) == GRUB_EFI_HARD_DRIVE_DEVICE_PATH_SUBTYPE)
+      if (GRUB_EFI_DEVICE_PATH_SUBTYPE (ldp) == GRUB_EFI_HARD_DRIVE_DEVICE_PATH_SUBTYPE)  //1	硬盘子类型
       {
         p->partition_number = ((grub_efi_hard_drive_device_path_t *)ldp)->partition_number;
         p->partition_start = ((grub_efi_hard_drive_device_path_t *)ldp)->partition_start;
         p->partition_len = ((grub_efi_hard_drive_device_path_t *)ldp)->partition_size;
 //        grub_memcpy (&p->partition_signature, &((grub_efi_hard_drive_device_path_t *)ldp)->partition_signature, 16);
       }
-      else
+      else  //2	光盘子类型
       {
         p->partition_number = ((grub_efi_cdrom_device_path_t *)ldp)->boot_entry;
         p->partition_start = ((grub_efi_cdrom_device_path_t *)ldp)->partition_start;
@@ -2786,7 +2786,7 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 			grub_size_t size, char *buf, int read_write)
 {
   struct grub_disk_data *d;	//磁盘数据
-  struct grub_part_data *dp;
+  struct grub_part_data *dp = 0;
   grub_efi_block_io_t *bio=0;			//块io
   grub_efi_status_t status;			//状态
   grub_size_t io_align;					//对齐
@@ -2798,6 +2798,7 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
   struct fragment *data=0;
   unsigned int i=0, j=0;
   unsigned char	from_drive, to_drive;			//驱动器
+  grub_disk_addr_t sector_in = 0;
   unsigned int partition;
 
   if (read_write != 0xedde0d90 && read_write != 0x900ddeed) //如果不是读/写, 错误
@@ -2814,6 +2815,11 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
       drive = 0x60;
     else
       lba_byte = (sector + dp->partition_start) << d->from_log2_sector;
+  }
+  else if (drive >= 0xa0)
+  {
+    dp = get_partition_info (drive, 0xffff);
+    sector_in = sector;
   }
   //md或者rd
 	if (drive == 0xffff || (drive == (int)ram_drive && rd_base != -1ULL))
@@ -2868,6 +2874,17 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
       grub_memmove64 ((unsigned long long)(grub_size_t)buf, lba_byte, size);
     else
       grub_memmove64 (lba_byte, (unsigned long long)(grub_size_t)buf, size);
+    //好多cdrom启动镜像(efi.img)有问题，其初始入口的第0x26-0x27字节，即启动时装入内存的映像文件扇区数，是错误值，通常是1或者8.
+    //在这里修正它
+    if (drive >= 0xa0 && dp->partition_entry != 0xff
+            && dp->partition_ext_offset >= sector_in
+            && dp->partition_ext_offset < sector_in + (size >> 11))
+    {
+      grub_memmove64 ((unsigned long long)(grub_size_t)(buf + ((dp->partition_ext_offset - sector_in) << 11)
+              + dp->partition_entry * 0x40 + 0x26),
+              (unsigned long long)(grub_size_t)&dp->partition_len, 2);
+    }
+
 		return 0;
 	}
 
@@ -2935,6 +2952,17 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 //      status = grub_efidisk_readwrite (to_drive, sector, disk_drive_map[i].to_block_size, disk_buffer, 0xedde0d90);
       status = efi_call_5 (((read_write == 0x900ddeed) ? bio->write_blocks : bio->read_blocks), bio,
       bio->media->media_id, sector, disk_drive_map[i].to_block_size,  disk_buffer);	//读写(读/写,本身块io,media_id,扇区,字节尺寸,缓存)
+      //好多cdrom启动镜像(efi.img)有问题，其初始入口的第0x26-0x27字节，即启动时装入内存的映像文件扇区数，是错误值，通常是1或者8.
+      //在这里修正它
+      if (drive >= 0xa0 && dp->partition_entry != 0xff
+              && dp->partition_ext_offset >= sector_in
+              && dp->partition_ext_offset < sector_in + (disk_drive_map[i].to_block_size >> 11)) //光盘, 映射盘, 读启动目录扇区
+      {
+        grub_memmove64 ((unsigned long long)(grub_size_t)(disk_buffer + ((dp->partition_ext_offset - sector_in) << 11)
+                + dp->partition_entry * 0x40 + 0x26),
+                (unsigned long long)(grub_size_t)&dp->partition_len, 2);
+      }
+
       read_start = (unsigned long long)(grub_size_t)disk_buffer + offset;         //读写起始
       read_len = disk_drive_map[i].to_block_size - offset;                        //读写尺寸   
       if (read_len > size)
@@ -2962,6 +2990,17 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 //      status = grub_efidisk_readwrite (to_drive, sector, read_len, buf, read_write);
       status = efi_call_5 (((read_write == 0x900ddeed) ? bio->write_blocks : bio->read_blocks), bio,
       bio->media->media_id, sector, read_len, buf);	//读写(读/写,本身块io,media_id,扇区,字节尺寸,缓存)
+      //好多cdrom启动镜像(efi.img)有问题，其初始入口的第0x26-0x27字节，即启动时装入内存的映像文件扇区数，是错误值，通常是1或者8.
+      //在这里修正它
+      if (drive >= 0xa0 && dp->partition_entry != 0xff
+              && dp->partition_ext_offset >= sector_in
+              && dp->partition_ext_offset < sector_in + (read_len >> 11))
+      {
+        grub_memmove64 ((unsigned long long)(grub_size_t)(buf + ((dp->partition_ext_offset - sector_in) << 11)
+                + dp->partition_entry * 0x40 + 0x26),
+                (unsigned long long)(grub_size_t)&dp->partition_len, 2);
+      }
+
       buf = (void *)((grub_size_t)buf + read_len);
       fragment_len -= read_len;
     }
@@ -3092,7 +3131,7 @@ partition_info_init (void)
       
 			partition_info = p;																		//dfb0110	dfb00e0 dfb00b0	dfb0080	dfb0050										dfaff90		dfaff60		dfaff30
 		}
-    if (get_efi_device_boot_path (drive,0))
+    if (get_efi_device_boot_path (drive))
     {
       part_data = get_partition_info (drive, part_data->partition);
       part_data->partition_boot = 1;
@@ -3111,8 +3150,7 @@ partition_info_init (void)
       p = grub_zalloc (sizeof (*p));  //分配内存	
       if(! p)  //如果分配内存失败
         return;
-      get_efi_device_boot_path(d->drive,0);
-//      efi_call_1 (grub_efi_system_table->boot_services->stall, 20);  //微妙    不加延时,莫名其妙的卡住了!
+      get_efi_device_boot_path(d->drive);
 //grub_efi_print_device_path(p1->part_path);
 //grub_printf ("partition_info_init,%x,%x,%x,%x,%x,%x,%x,\n",d->drive,p1->partition_number,p1->partition_start,p1->partition_len,
 //               boot_entry,part_addr,part_size);
@@ -3122,8 +3160,8 @@ partition_info_init (void)
 //PciRoot(0)/Pci(1,1)/Ata(Secondary,Master,0)/CDROM(0,35,1680)                          a0,0,35,1680,1,35,1680; err 这个不能启动
 //PciRoot(0)/Pci(1,1)/Ata(Secondary,Master,0)/CDROM(1,2b,5ea)                           a0,1,2b,5ea,91,2b,5ea;  ok  正常的MBR, bios/uefi双启动
 //PciRoot(0)/Pci(1,1)/Ata(Secondary,Master,0)/CDROM(0,1a5,4)                            a0,0,1a5,4,91,2b,5ea;       这是bios启动入口
-//      if (p1->partition_start == part_addr)
-      if (p1->partition_len == part_size)
+      if (p1->partition_start == part_addr)
+//      if (p1->partition_len == part_size)
       {
         p->part_handle = p1->part_handle;
         p->part_path = p1->part_path;
@@ -3134,6 +3172,7 @@ partition_info_init (void)
         p->partition_start = p1->partition_start;
         p->partition_len = p1->partition_len;
         p->partition_boot = 1;
+        p->partition_entry = 0xff;
         p->next = partition_info;
         partition_info = p;
         break;
@@ -3715,7 +3754,7 @@ vpart_load_image (grub_efi_device_path_t *part_path)	//虚拟分区引导
   {
     if (boot_file)
       grub_free (boot_file);
-    printf_errinfo ("Failed to load virtual partition image.(%x)\n",status);
+    printf_warning ("Failed to load virtual partition image.(%x)\n",status);
 			return NULL;
   }
   return boot_image_handle;
