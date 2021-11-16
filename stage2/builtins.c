@@ -2752,7 +2752,6 @@ in_range (char *range, unsigned long long val)
 }
 
 /* checkrange */
-int checkrange_func(char *arg, int flags);
 int
 checkrange_func(char *arg, int flags)
 {
@@ -3057,7 +3056,6 @@ static struct builtin builtin_displaymem =
 };
 
 /* errnum */
-int errnum_func (char *arg, int flags);
 int
 errnum_func (char *arg, int flags)
 {
@@ -3417,7 +3415,6 @@ static int command_open(char *arg,int flags)
 #undef t_path
 }
 
-int command_func (char *arg, int flags);
 int
 command_func (char *arg, int flags)
 {

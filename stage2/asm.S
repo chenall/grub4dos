@@ -172,7 +172,7 @@ VARIABLE(menu_num_ctrl) //unsigned char menu_num_ctrl[4]  4字节
 #if HOTKEY
 VARIABLE(hotkey_func_enable)    //int                                     0x827c    内置热键功能允许
 #else
-VARIABLE(hotkey_flags)          //int                                     0x827c    外置热键功能标记
+
 #endif
 	.long 0
   
