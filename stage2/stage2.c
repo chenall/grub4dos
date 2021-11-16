@@ -1268,10 +1268,10 @@ restart1:
 	  {
       if (c > 0)
         clear_delay_display (entryno);
-			putchar_hooked = (unsigned char*)0x800;
+//			putchar_hooked = (unsigned char*)0x800;
 			//0x4b40 flags HK,
 			c = hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno);
-			putchar_hooked = 0;
+//			putchar_hooked = 0;
       
       if (beep_enable)
       {

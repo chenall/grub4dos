@@ -142,6 +142,10 @@ VARIABLE(config_file)
 	 * where the "bootlace" signature is placed and preset-menu
 	 * follows.
 	 */
+	. = EXT_C(main) + 0x60
+
+VARIABLE(hotkey_func)  //int*                                             //0x8260	外置热键功能
+  .long 0 
 
 	. = EXT_C(main) + 0x6C  #; bss starting address
 
@@ -176,7 +180,6 @@ VARIABLE(menu_num_ctrl)
 	.long 0
 	#endif
 	#undef GRUB4DOS_INT_VER
-VARIABLE(hotkey_func)
 	.long 0
 	. = EXT_C(main) + 0x80
 
