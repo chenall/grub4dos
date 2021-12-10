@@ -344,9 +344,9 @@ grub_sprintf (char *buffer, const char *format, ...)
   
   if (buffer && (grub_size_t)buffer <= (grub_size_t)3)
   {
-    if (!debug_msg) return 1;
+    if (!debug_msg) goto err;
     if ((grub_size_t)buffer != (grub_size_t)3 && (grub_size_t)debug < (grub_size_t)buffer)
-      return 1;
+      goto err;
 
     bp=NULL,buffer=NULL;//reset buffer and bp to NULL
 
@@ -514,6 +514,9 @@ grub_sprintf (char *buffer, const char *format, ...)
 
   va_end(ap); 				  //清空va_list，即结束变参的获取
   return bp - (unsigned char *)buffer;
+err:
+  va_end(ap); 				  //清空va_list，即结束变参的获取
+  return 1;
 }
 
 
@@ -2080,7 +2083,7 @@ grub_memmove (void *to, const void *from, grub_size_t len)
     while (len--)
       *t++ = *f++;
   }
-  else
+  else if (to > from)
   {
     t += len - 1;
     f += len - 1;

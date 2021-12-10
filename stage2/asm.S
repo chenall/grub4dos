@@ -608,8 +608,8 @@ VARIABLE(system_functions)                            //IMG(0x8300)
 	.extent	ABS(EXT_C(open_device))                       //35
 	.extent	ABS(EXT_C(real_open_partition))               //36
 	.extent	ABS(EXT_C(set_device))                        //37
-	.extent 0				                                      //38  reserved
-	.extent 0				                                      //39  reserved
+	.extent ABS(EXT_C(run_line))				                  //38  int
+	.extent ABS(EXT_C(vdisk_install))				              //39  grub_efi_status_t
 	.extent 0				                                      //40  reserved
 	.extent	ABS(EXT_C(parse_string))                      //41
 	.extent	ABS(EXT_C(hexdump))                           //42
@@ -733,8 +733,10 @@ VARIABLE(gzip_filemax)                  //30  long long
 	.extent	0
 	.extent	ABS(EXT_C(WENV_ENVI))           //31  char *
 	//reserved for wee
-	.extent	0                               //32  reserved
-	.extent	0                               //33  reserved
+VARIABLE(bat_md_start)                    //32  grub_size_t
+	.extent	0
+VARIABLE(bat_md_count)                    //33  unsigned int
+	.extent	0
 	.extent	0                               //34  reserved
 	.extent	0                               //35  reserved
 	.extent	0                               //36  reserved

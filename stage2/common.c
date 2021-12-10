@@ -1541,12 +1541,16 @@ copy_grub4dos_self_address (void)
     return;  
   //清除残留
   grub_memset ((void *)(grub_size_t)grub4dos_self_address, 0, 0x1000);
-  //复制特定字符串, 为了SVBus
-  grub_memmove ((void *)(grub_size_t)(grub4dos_self_address + 0xe0), "   $INT13SFGRUB4DOS", 19);  
+  //映射插槽结构起始于0(G4D起始于0x20), 尺寸8*0x18=0xc0
+  //复制特定字符串, 为了SVBus(G4D位于0x103)
+  grub_memmove ((void *)(grub_size_t)(grub4dos_self_address + 0xe3), "$INT13SFGRUB4DOS", 16);  
   //复制特定字符串, 为了G4E外部命令
   grub_memmove ((void *)(grub_size_t)(grub4dos_self_address + 0x100), "GRUB4EFI", 8);  
   //复制bootx64.efi自身地址
   *(grub_size_t*)((char *)(grub_size_t)grub4dos_self_address + 0x110) = (grub_size_t)g4e_data;
+  //复制碎片字符串, 为了SVBus
+  grub_memmove ((void *)(grub_size_t)(grub4dos_self_address + 0x140), "FRAGMENT", 8); 
+  //碎片结构起始于0x148, 尺寸0x280
 }
 
 /* Search the mods section from the PE32/PE32+ image.   从PE32/PE32+图像中搜索mods部分。此代码使用PE32头，但也应与PE32+一起使用。

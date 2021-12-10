@@ -56,7 +56,7 @@ unsigned int current_y_resolution;
 unsigned int current_bits_per_pixel;
 unsigned int current_bytes_per_scanline;
 unsigned int current_bytes_per_pixel;
-unsigned int current_phys_base;
+unsigned long long current_phys_base;
 unsigned int image_pal[16];
 extern int use_phys_base;
 int use_phys_base=0;

@@ -2785,7 +2785,7 @@ int
 grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 			grub_size_t size, char *buf, int read_write)
 {
-  struct grub_disk_data *d;	//磁盘数据
+  struct grub_disk_data *d, *df;	//磁盘数据
   struct grub_part_data *dp = 0;
   grub_efi_block_io_t *bio=0;			//块io
   grub_efi_status_t status;			//状态
@@ -2854,6 +2854,10 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
     goto not_map;
   else    //映射磁盘
     to_drive = disk_drive_map[i].to_drive;
+    
+  df = get_device_by_drive (from_drive);
+  if (!df)
+    return 0;
 
 //启动hdd_cs.img, 驱动器号 80
 //map /boot/imgs/z.iso (0xa0)     插槽:  a0 80 0b 09 01 00 508 1c00
@@ -2865,11 +2869,14 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 //(13<<9)+(2b<<b)=17e00 17e00>>9=bf  从b2968+5f读10扇区
 
   if (!lba_byte) //如果不是虚拟分区 
-    lba_byte = (sector << disk_drive_map[i].from_log2_sector);        //from驱动器起始逻辑扇区lba转起始字节
+//    lba_byte = (sector << disk_drive_map[i].from_log2_sector);        //from驱动器起始逻辑扇区lba转起始字节
+    lba_byte = (sector << df->from_log2_sector);        //from驱动器起始逻辑扇区lba转起始字节
   //内存驱动器	
-	if (to_drive == 0xff && disk_drive_map[i].to_log2_sector == 9)			//如果是内存驱动器, 映射盘加载到内存, 
+//	if (to_drive == 0xff && disk_drive_map[i].to_log2_sector == 9)			//如果是内存驱动器, 映射盘加载到内存
+  if (to_drive == 0xff && df->to_log2_sector == 9)			//如果是内存驱动器, 映射盘加载到内存
 	{
-		lba_byte += (disk_drive_map[i].start_sector << 9);		//加映射起始(字节)
+//		lba_byte += (disk_drive_map[i].start_sector << 9);		//加映射起始(字节)
+    lba_byte += (df->start_sector << 9);		//加映射起始(字节)
     if (read_write == 0xedde0d90) //读
       grub_memmove64 ((unsigned long long)(grub_size_t)buf, lba_byte, size);
     else
@@ -2889,14 +2896,18 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 	}
 
 	//确定to驱动器起始相对逻辑扇区号
-	sector = lba_byte >> disk_drive_map[i].to_log2_sector;		      //95564	
+//	sector = lba_byte >> disk_drive_map[i].to_log2_sector;		      //95564	
+  sector = lba_byte >> df->to_log2_sector;		      //95564	
 	//确定to驱动器起始偏移字节
-	offset = lba_byte & (disk_drive_map[i].to_block_size - 1);	//12aac800&fff=0
+//	offset = lba_byte & (disk_drive_map[i].to_block_size - 1);	//12aac800&fff=0
+  offset = lba_byte & (df->to_block_size - 1);	//12aac800&fff=0
 
   //判断有无碎片
-	if (!disk_drive_map[i].fragment)		//没有碎片    3f9+8, 641+1b30
+//	if (!disk_drive_map[i].fragment)		//没有碎片    3f9+8, 641+1b30
+  if (!df->fragment)		//没有碎片    3f9+8, 641+1b30
 	{
-		sector += disk_drive_map[i].start_sector;			//加映射起始(扇区或字节)		4cc0		
+//		sector += disk_drive_map[i].start_sector;			//加映射起始(扇区或字节)		4cc0
+    sector += df->start_sector;			//加映射起始(扇区或字节)		4cc0
     fragment_len = size;
 	}
   else
@@ -2927,7 +2938,8 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
         break;
     }
     //确定本碎片最大访问字节
-    fragment_len = (total - sector) << disk_drive_map[i].to_log2_sector;
+//    fragment_len = (total - sector) << disk_drive_map[i].to_log2_sector;
+    fragment_len = (total - sector) << df->to_log2_sector;
     //确定Form扇区起始的确切位置(To_start(j)+偏移)
     sector += data[j-1].start_sector + data[j-1].sector_count - total;
   }  
@@ -2947,16 +2959,18 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
       read_len = size;
 
     //首先处理偏移, 实际读写字节(disk_drive_map[i].to_block_size - offset)
-    if (offset || size < disk_drive_map[i].to_block_size)  //如果有偏移字节
+//    if (offset || size < disk_drive_map[i].to_block_size)  //如果有偏移字节
+    if (offset || size < df->to_block_size)  //如果有偏移字节
     {
-//      status = grub_efidisk_readwrite (to_drive, sector, disk_drive_map[i].to_block_size, disk_buffer, 0xedde0d90);
       status = efi_call_5 (((read_write == 0x900ddeed) ? bio->write_blocks : bio->read_blocks), bio,
-      bio->media->media_id, sector, disk_drive_map[i].to_block_size,  disk_buffer);	//读写(读/写,本身块io,media_id,扇区,字节尺寸,缓存)
+//      bio->media->media_id, sector, disk_drive_map[i].to_block_size,  disk_buffer);	//读写(读/写,本身块io,media_id,扇区,字节尺寸,缓存)
+      bio->media->media_id, sector, df->to_block_size,  disk_buffer);	//读写(读/写,本身块io,media_id,扇区,字节尺寸,缓存)
       //好多cdrom启动镜像(efi.img)有问题，其初始入口的第0x26-0x27字节，即启动时装入内存的映像文件扇区数，是错误值，通常是1或者8.
       //在这里修正它
       if (drive >= 0xa0 && dp->partition_entry != 0xff
               && dp->partition_ext_offset >= sector_in
-              && dp->partition_ext_offset < sector_in + (disk_drive_map[i].to_block_size >> 11)) //光盘, 映射盘, 读启动目录扇区
+//              && dp->partition_ext_offset < sector_in + (disk_drive_map[i].to_block_size >> 11)) //光盘, 映射盘, 读启动目录扇区
+              && dp->partition_ext_offset < sector_in + (df->to_block_size >> 11)) //光盘, 映射盘, 读启动目录扇区
       {
         grub_memmove64 ((unsigned long long)(grub_size_t)(disk_buffer + ((dp->partition_ext_offset - sector_in) << 11)
                 + dp->partition_entry * 0x40 + 0x26),
@@ -2964,7 +2978,8 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
       }
 
       read_start = (unsigned long long)(grub_size_t)disk_buffer + offset;         //读写起始
-      read_len = disk_drive_map[i].to_block_size - offset;                        //读写尺寸   
+//      read_len = disk_drive_map[i].to_block_size - offset;                        //读写尺寸  
+      read_len = df->to_block_size - offset;                        //读写尺寸 
       if (read_len > size)
         read_len = size;
 
@@ -2973,9 +2988,9 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
       else              //写
       {
         grub_memmove64 (read_start, (unsigned long long)(grub_size_t)buf, read_len);
-//        status = grub_efidisk_readwrite (to_drive, sector, disk_drive_map[i].to_block_size, disk_buffer, 0x900ddeed);
       status = efi_call_5 (((read_write == 0x900ddeed) ? bio->write_blocks : bio->read_blocks), bio,
-      bio->media->media_id, sector, disk_drive_map[i].to_block_size,  disk_buffer);	//读写(读/写,本身块io,media_id,扇区,字节尺寸,缓存)
+//      bio->media->media_id, sector, disk_drive_map[i].to_block_size,  disk_buffer);	//读写(读/写,本身块io,media_id,扇区,字节尺寸,缓存)
+      bio->media->media_id, sector, df->to_block_size,  disk_buffer);	//读写(读/写,本身块io,media_id,扇区,字节尺寸,缓存)
       }
       
       buf = (void *)((grub_size_t)buf + read_len);
@@ -2985,9 +3000,9 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
     }
     else
     {
-      read_len &= ~(disk_drive_map[i].to_block_size -1);
+//      read_len &= ~(disk_drive_map[i].to_block_size -1);
+      read_len &= ~(df->to_block_size -1);
       size -= read_len;
-//      status = grub_efidisk_readwrite (to_drive, sector, read_len, buf, read_write);
       status = efi_call_5 (((read_write == 0x900ddeed) ? bio->write_blocks : bio->read_blocks), bio,
       bio->media->media_id, sector, read_len, buf);	//读写(读/写,本身块io,media_id,扇区,字节尺寸,缓存)
       //好多cdrom启动镜像(efi.img)有问题，其初始入口的第0x26-0x27字节，即启动时装入内存的映像文件扇区数，是错误值，通常是1或者8.
@@ -3009,15 +3024,18 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
     if (!size)
       return status;
     //确定本碎片还可以访问扇区数
-    if (disk_drive_map[i].fragment && !fragment_len)  //肯定有碎片, 否则fragment_len=size, 既然len不为零, 则fragment_len也不会为零.
+//    if (disk_drive_map[i].fragment && !fragment_len)  //肯定有碎片, 否则fragment_len=size, 既然len不为零, 则fragment_len也不会为零.
+    if (df->fragment && !fragment_len)  //肯定有碎片, 否则fragment_len=size, 既然len不为零, 则fragment_len也不会为零.
     {
       sector = data[j].start_sector;
-      fragment_len = data[j].sector_count << disk_drive_map[i].to_log2_sector;
+//      fragment_len = data[j].sector_count << disk_drive_map[i].to_log2_sector;
+      fragment_len = data[j].sector_count << df->to_log2_sector;
       j++;
     }
     else  //不能确定有无碎片
     {
-      sector += (read_len + disk_drive_map[i].to_block_size - 1) >> disk_drive_map[i].to_log2_sector;
+//      sector += (read_len + disk_drive_map[i].to_block_size - 1) >> disk_drive_map[i].to_log2_sector;
+      sector += (read_len + df->to_block_size - 1) >> df->to_log2_sector;
     }      
   }
   return 1;

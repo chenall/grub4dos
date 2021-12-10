@@ -1397,7 +1397,7 @@ extern unsigned int current_y_resolution;
 extern unsigned int current_bits_per_pixel;
 extern unsigned int current_bytes_per_scanline;
 extern unsigned int current_bytes_per_pixel;
-extern unsigned int current_phys_base;
+extern unsigned long long current_phys_base;
 extern unsigned int fill_color;
 extern unsigned char animated_enable;
 extern unsigned char animated_enable_backup;
@@ -1832,6 +1832,8 @@ void stop_floppy (void);
 #define BUILTIN_NO_DECOMPRESSION (1 << 9)
 
 #define BAT_SIGN 0x54414221UL		//!BAT
+extern grub_size_t bat_md_start;
+extern unsigned int bat_md_count;
 
 /* The table for a psp_end*/
 typedef struct {
@@ -5566,6 +5568,7 @@ struct grub_disk_data  //efi磁盘数据	(软盘,硬盘,光盘)  grub2定义
   unsigned long long start_sector;          //起始扇区                  原生磁盘为0
   unsigned long long sector_count;          //总扇区数				11ae
   unsigned char disk_signature[16];         //磁盘签名                  软盘/光盘或略  启动wim/vhd需要  mbr类型同分区签名,gpt类型则异样
+  unsigned short to_block_size;             //to块尺寸
   unsigned char partmap_type;               //磁盘类型        1/2=MBR/GPT
   unsigned char fragment;                   //碎片
   unsigned char read_only;                  //只读
@@ -5614,14 +5617,25 @@ struct drive_map_slot
 	 */
 	unsigned char from_drive;
 	unsigned char to_drive;						/* 0xFF indicates a memdrive */
-	unsigned char from_log2_sector;
-	unsigned char to_log2_sector;
-	unsigned char fragment;
-	unsigned char read_only;
-	unsigned short to_block_size;
+	unsigned char max_head;
+  
+	unsigned char :7;
+	unsigned char read_only:1;          //位7
+  
+	unsigned short to_log2_sector:4;    //位0-3
+	unsigned short from_log2_sector:4;  //位4-7
+	unsigned short :2;
+	unsigned short fragment:1;          //位10
+	unsigned short :2;
+	unsigned short from_cdrom:1;        //位13
+	unsigned short to_cdrom:1;          //位14
+	unsigned short :1;
+  
+	unsigned char to_head;
+	unsigned char to_sector;
 	unsigned long long start_sector;
 	unsigned long long sector_count;
-};
+} __attribute__ ((packed));
 
 struct fragment_map_slot
 {
@@ -5629,7 +5643,7 @@ struct fragment_map_slot
 	unsigned char from;
 	unsigned char to;
 	unsigned long long fragment_data[0];
-};
+} __attribute__ ((packed));
 
 struct fragment
 {

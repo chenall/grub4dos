@@ -786,10 +786,10 @@ void map_to_svbus (grub_efi_physical_address_t address);
 void
 map_to_svbus (grub_efi_physical_address_t address)
 {
-  int i;
+  int i, j;
 
   //复制映射插槽
-  for (i = 0; i < DRIVE_MAP_SIZE; i++)
+  for (i = 0, j = 0; i < DRIVE_MAP_SIZE; i++)
   {
     if (drive_map_slot_empty (disk_drive_map[i]))   //判断驱动器映像插槽是否为空   为空,返回1
       break;
@@ -798,14 +798,12 @@ map_to_svbus (grub_efi_physical_address_t address)
     if (disk_drive_map[i].from_drive < 0x80)
       continue;
     //复制映射插槽
-    grub_memmove ((char *)((char *)(grub_size_t)address + i*24), (char *)&disk_drive_map[i], 24);
-    *(char*)((char *)(grub_size_t)address + i*24 + 2) = 0xfe;    //from最大磁头号 
-    if (disk_drive_map[i].from_drive >= 0xa0)
-      *(char*)((char *)(grub_size_t)address + i*24 + 5) = 0x20;  //from驱动器是cdrom
+    grub_memmove ((char *)((char *)(grub_size_t)address + j*24), (char *)&disk_drive_map[i], 24);
+    j++;
   }
 
   //复制碎片插槽
-  grub_memmove ((char *)((char *)(grub_size_t)address + 0x120), (char *)&disk_fragment_map, 0x400);
+  grub_memmove ((char *)((char *)(grub_size_t)address + 0x148), (char *)&disk_fragment_map, 0x280);
 }
 
 //使用于get_efi_device_boot_path，find_specified_file，chainloader_func，command_func，uuid_func
@@ -1043,7 +1041,60 @@ static struct builtin builtin_boot =
   "Boot the OS/chain-loader which has been loaded."
   "with option \"-1\" will boot to local via INT 18.",
 };
+#if 0
+static grub_efi_status_t (EFIAPI *orig_open_protocol)
+                      (grub_efi_handle_t handle,
+                       grub_efi_guid_t *protocol,
+                       void **interface,
+                       grub_efi_handle_t agentHandle,
+                       grub_efi_handle_t controllerHandle,
+                       grub_efi_uint32_t attributes) = NULL;
+grub_efi_guid_t efi_graphics_output_protocol_guid = GRUB_EFI_GOP_GUID;
+/**
+ * Intercept OpenProtocol()   拦截OpenProtocol
+ *
+ * @v handle    EFI handle                句柄
+ * @v protocol    Protocol GUID           协议GUID 
+ * @v interface   Opened interface        开放式接口 
+ * @v agent_handle  Agent handle          代理句柄
+ * @v controller_handle Controller handle 控制器句柄 
+ * @v attributes  Attributes              属性
+ * @ret efirc   EFI status code           返回 状态代码
+ */
+static grub_efi_status_t EFIAPI efi_open_protocol_wrapper (grub_efi_handle_t handle, grub_efi_guid_t *protocol,
+                           VOID **interface, grub_efi_handle_t agent_handle,
+                           grub_efi_handle_t controller_handle, grub_efi_uint32_t attributes);
+static grub_efi_status_t EFIAPI
+efi_open_protocol_wrapper (grub_efi_handle_t handle, grub_efi_guid_t *protocol,
+                           VOID **interface, grub_efi_handle_t agent_handle,
+                           grub_efi_handle_t controller_handle, grub_efi_uint32_t attributes) //打开协议包装器
+{
+  static unsigned int count;
+  grub_efi_status_t status;
+  /* Open the protocol */
 
+  if ((status = orig_open_protocol (handle, protocol, interface,
+                                   agent_handle, controller_handle,
+                                   attributes)) != 0)
+                                   {
+    return status;
+                                   }
+  /* Block first attempt by bootmgfw.efi to open                  阻止bootmgfw.efi首次尝试打开EFI_GRAPHICS_OUTPUT_PROTOCOL.
+   * EFI_GRAPHICS_OUTPUT_PROTOCOL.  This forces error messages
+   * to be displayed in text mode (thereby avoiding the totally   这将强制以文本模式显示错误消息(从而避免在缺少字体时出现完全空白的错误屏幕)
+   * blank error screen if the fonts are missing).  We must
+   * allow subsequent attempts to succeed, otherwise the OS will  我们必须允许随后的努力取得成功，否则操作系统将无法启动。
+   * fail to boot.
+   */
+  if ((memcmp ((const char *)protocol, (const char *)&efi_graphics_output_protocol_guid,
+               sizeof (*protocol)) == 0) && (count++ == 0) &&
+               (cursor_state & 1))
+  {
+    return GRUB_EFI_INVALID_PARAMETER;       //参数无效
+  }
+  return 0;
+}
+#endif
 static grub_efi_char16_t *cmdline;
 static grub_ssize_t cmdline_len;
 static grub_efi_device_path_t *file_path_public;
@@ -1067,9 +1118,7 @@ chainloader_func (char *arg, int flags)
   
   grub_memset(chainloader_file, 0, 256);
   set_full_path(chainloader_file,arg,sizeof(chainloader_file)); //设置完整路径(补齐驱动器号,分区号)  /efi/boot/bootx64.efi -> (hd0,0)/efi/boot/bootx64.efi
-//  chainloader_file[255]=0;
   errnum = ERR_NONE;
-  //
   filename = set_device (chainloader_file); //设置当前驱动器=输入驱动器号, 当前分区=输入分区号, 其余作为文件名 /efi/boot/bootx64.efi
   //没有设备指定.默认到根设备
   if (errnum)
@@ -1137,7 +1186,6 @@ complete:
   if (errnum)
 		goto failure_exec_format_0;
 
-  errnum = ERR_NONE;	
 	pages = ((filemax + ((1 << 12) - 1)) >> 12);	//计算页
 	status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,
 			      GRUB_EFI_LOADER_CODE,
@@ -1217,7 +1265,11 @@ complete:
   }
   printf_debug ("image=%x device_handle=%x",image1,dev_handle);//113b8e40,11b3d398
   grub_close ();	//关闭文件
-
+#if 0
+  //拦截对OpenProtocol的调用
+  orig_open_protocol = (void *)image1->system_table->boot_services->open_protocol;
+  image1->system_table->boot_services->open_protocol = (void *)efi_open_protocol_wrapper; 
+#endif
 	kernel_type = KERNEL_TYPE_CHAINLOADER;
   return 1;
 
@@ -3537,7 +3589,8 @@ command_func (char *arg, int flags)
 	char *tmp;
 	prog_len = filemax; //程序(文件)尺寸
 	psp_len = ((arg_len + strlen(file_path)+ 16) & ~0xF) + 0x10 + 0x20; //psp尺寸
-	tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);  //缓存
+//	tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);  //缓存
+	tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len + 512);  //缓存
 
 	if (tmp == NULL)
 	{
@@ -3545,7 +3598,8 @@ command_func (char *arg, int flags)
 	}
 
 	program = (char *)((grub_size_t)(tmp + 4095) & ~4095); /* 4K align the program 4K对齐程序*/   //程序缓存
-	psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F); //psp地址  向上舍入，否则覆盖program数据
+//	psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F); //psp地址  向上舍入，否则覆盖program数据
+	psp = (char *)((grub_size_t)(program + prog_len + 16 + 512) & ~0x0F); //psp地址  向上舍入，否则覆盖program数据
 	unsigned long long *end_signature = (unsigned long long *)(program + filemax - (unsigned long long)8);  //程序结束签名地址
 	if (p_exec == NULL)
 	{
@@ -3594,16 +3648,15 @@ command_func (char *arg, int flags)
 			if (prog_len != (*bss_end - *prog_start)){  //如果bss区有数据,外部命令尺寸是filemax+bss尺寸
 				grub_free(tmp);
         prog_len = *bss_end - *prog_start;
-        char *tmp1 = tmp;
         char *program1 = program;
         tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
         if (tmp == NULL)
 					goto fail;
         program = (char *)((grub_size_t)(tmp + 4095) & ~4095); /* 4K align the program */
-        if (tmp1 != tmp)
+        if (program != program1)
 					grub_memmove (program, program1, (unsigned long)filemax);
-        psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F);
-//        grub_read ((unsigned long long)(grub_size_t)program, -1ULL, 0xedde0d90);
+//        psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F);
+        psp = (char *)((grub_size_t)(program + prog_len + 16 + 512) & ~0x0F);
 			}
 		} else {//the old program
 #if 0
@@ -5347,7 +5400,8 @@ geometry_func (char *arg, int flags)
       return 0;
     }
 
-  grub_printf ("drive 0x%02X(%s): Sector Count/Size=%ld/%d\n",
+//  grub_printf ("drive 0x%02X(%s): Sector Count/Size=%ld/%d\n",
+  grub_printf ("drive 0x%02X(%s): SectorCount/Size=%ld / %d\n",
 	       current_drive, msg,
 	       (unsigned long long)tmp_geom.total_sectors, tmp_geom.sector_size);
 
@@ -6498,7 +6552,7 @@ probe_bpb (struct master_and_dos_boot_sector *BS)
   unsigned int i,j; 
   /* first, check ext2 grldr boot sector */
  	if (*(unsigned short *)((char *)BS)  == 0x2EEB										//"jmp + 0x30"
-		&& ((grub_size_t)(char *)BS == 0x8000 && *(unsigned short *)((char *)BS + 0x438) == 0xEF53))
+		&& (*(int*)((char *)BS + 0x420) == 0x8000 && *(unsigned short *)((char *)BS + 0x438) == 0xEF53))
 		{
 	
   /* at 0D: (byte)Sectors per block. Valid values are 2, 4, 8, 16 and 32. */
@@ -6689,14 +6743,14 @@ static struct fragment_map_slot *fragment_map_slot_empty(struct fragment_map_slo
 static struct fragment_map_slot *
 fragment_map_slot_empty(struct fragment_map_slot *q)  //查找碎片空槽			返回=0/非0=没有空槽/空槽位置
 {
-	unsigned int n = FRAGMENT_MAP_SLOT_SIZE;
-  while (n)
+	int n = FRAGMENT_MAP_SLOT_SIZE;
+  while (n > 0)
   {
     if (!q->slot_len)
       return q;
     n -= q->slot_len;
 //    q += q->slot_len;
-    q = (struct fragment_map_slot *)((unsigned char *)q + q->slot_len);
+    q = (struct fragment_map_slot *)((char *)q + q->slot_len);
   }
   return 0;
 }
@@ -6705,9 +6759,9 @@ struct fragment_map_slot *fragment_map_slot_find(struct fragment_map_slot *q, un
 struct fragment_map_slot *
 fragment_map_slot_find(struct fragment_map_slot *q, unsigned int from) //在碎片插槽中查找包含from驱动器的插槽    返回=0/非0=没有找到/插槽位置
 {
-  unsigned int n = FRAGMENT_MAP_SLOT_SIZE;
+  int n = FRAGMENT_MAP_SLOT_SIZE;
 
-  while (n)
+  while (n > 0)
   {
     if (!q->slot_len)
       return 0;
@@ -6715,7 +6769,7 @@ fragment_map_slot_find(struct fragment_map_slot *q, unsigned int from) //在碎�
       return q;
     n -= q->slot_len;
 //    q += q->slot_len;
-    q = (struct fragment_map_slot *)((unsigned char *)q + q->slot_len);
+    q = (struct fragment_map_slot *)((char *)q + q->slot_len);
   }
   return 0;
 }
@@ -6932,7 +6986,8 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
 			if (grub_memcmp (arg, "-byte", 5) == 0)			//按字节显示
 				byte = 1;
 			arg = skip_to(1,arg); //标记=0:  跳过"空格,回车,换行,水平制表符"; 标记=1:  跳过"空格,回车,换行,水平制表符,等号"
-			if (*arg>='0' && *arg <='9')		//如果参数在0-9之间
+//			if (*arg>='0' && *arg <='9')		//如果参数在0-9之间
+			if ((unsigned char)*arg>='0' /*&& *arg <='9'*/)
 			{
 				if (!safe_parse_maxint(&arg,&mem))				//分析十进制或十六进制ASCII输人字符,转换到64位整数
 					return 0; //分析错误
@@ -6986,18 +7041,25 @@ struct drive_map_slot
 	The struct size must be a multiple of 4.
 	unsigned char from_drive;
 	unsigned char to_drive;						0xFF indicates a memdrive
-	unsigned char from_log2_sector;   与svbus冲突  from最大磁头号
-	unsigned char to_log2_sector;
-	unsigned char fragment;
-	unsigned char read_only;          与svbus冲突 位5: from驱动器是cdrom
-	unsigned short to_block_size;
+	unsigned char max_head;
+
+	unsigned char :7;
+	unsigned char read_only:1;          //位7
+
+	unsigned short to_log2_sector:4;    //位0-3
+	unsigned short from_log2_sector:4;  //位4-7
+	unsigned short :2;
+	unsigned short fragment:1;          //位10
+	unsigned short :2;
+	unsigned short from_cdrom:1;        //位13
+	unsigned short to_cdrom:1;          //位14
+	unsigned short :1;
+  
+	unsigned char to_head;
+	unsigned char to_sector;
 	unsigned long long start_sector;
 	unsigned long long sector_count;
-	grub_efi_handle_t from_handle;
-	grub_efi_device_path_t *dp;
-  block_io_protocol_t block_io;
-  grub_efi_block_io_media_t media;
-};	//0x6c
+};
 */
 
 //过去：
@@ -7023,7 +7085,7 @@ struct drive_map_slot
 																																				//									  位9-0:最大柱面号 0-0x3ff; to是分叉时,0x80代表真实分叉	 	
 					/* bit 15:  TO  drive support LBA */													//									  来源: 由几何探测计数
 					/* bit 14:  TO  drive is CDROM(with big 2048-byte sector) */  //									  如果in_situ!=0,则to_c含义: 位8=in_situ_flags,位0-7=分区类型
-					/* bit 13:	FROM drive is CDROM(with big 2048-byte sector) */ //                    位6:to驱动器是4k   位5:from驱动器是4k
+					/* bit 13:	FROM drive is CDROM(with big 2048-byte sector) */ //                    位7-4:from_log2_sector    位3-0:to_log2_sector
 					/* bit 12:  TO  drive is BIFURCATE */
 					/* bit 11:  TO  drive has a known boot sector type */
 					/* bit 10:  TO  drive has Fragment */
@@ -7069,6 +7131,7 @@ struct drive_map_slot
 		}
     else if (grub_memcmp (arg, "--hook", 6) == 0)
     {
+//      map_to_svbus(grub4dos_self_address); //为svbus复制插槽  测试使用
       buf_drive = -1;
       buf_track = -1;
       return 1;
@@ -7996,7 +8059,7 @@ mem_ok:
           form_len -= f[k].sector_count - (empty_slot[l].start_sector - f[k].start_sector);
         }
       }
-      q->slot_len = l*16 + sizeof(long);  //sizeof(long=i386/x86_64=4/8
+      q->slot_len = l*16 + 4;
       goto no_fragment;
     }
 #else
@@ -8078,27 +8141,29 @@ set_ok:
 			f[k].sector_count = map_num_sectors[k];
 		}
 
-//		q->slot_len = k*16 + 4;
-    q->slot_len = k*16 + sizeof(long);  //sizeof(long=i386/x86_64=4/8
+		q->slot_len = k*16 + 4;
 	}
   
 //无碎片
 no_fragment:
 	disk_drive_map[i].from_drive = from;
   disk_drive_map[i].to_drive = (unsigned char)to; /* to_drive = 0xFF if to == 0xffff */
+  disk_drive_map[i].from_log2_sector = from_log2_sector;
 	disk_drive_map[i].to_log2_sector = buf_geom.log2_sector_size; //????
 	disk_drive_map[i].fragment = (blklst_num_entries > 1);        //to有碎片
 	disk_drive_map[i].read_only = read_only;	
+  if (from_log2_sector == 0xb)
+    disk_drive_map[i].from_cdrom = 1;
+  if (buf_geom.log2_sector_size == 0xb)
+    disk_drive_map[i].to_cdrom = 1;
   disk_drive_map[i].start_sector = start_sector;
   initrd_start_sector = start_sector;
   disk_drive_map[i].sector_count = sector_count;
-  disk_drive_map[i].from_log2_sector = from_log2_sector;
 #undef	BS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	buf_drive = -1;
 	buf_track = -1;
-	disk_drive_map[i].to_block_size = buf_geom.sector_size;
   
   struct grub_disk_data	*d = grub_zalloc (sizeof (*d));  //分配内存, 并清零
   struct grub_disk_data	*d1;
@@ -8110,6 +8175,7 @@ no_fragment:
   d->to_log2_sector = buf_geom.log2_sector_size;
   d->start_sector = start_sector;
   d->sector_count = sector_count;
+  d->to_block_size = buf_geom.sector_size;
   d->partmap_type = partmap_type;
   d->fragment = (blklst_num_entries > 1);
   d->read_only = read_only;
@@ -13726,7 +13792,13 @@ static int grub_exec_run(char *program, char *psp, int flags)
 		grub_u32_t size = grub_strlen(program);
 
 		p_bat_array->size = size++;
-		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",program + size,PI->proglen - size);
+//		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",program + size,PI->proglen - size);
+		bat_md_start = (grub_size_t)(program + size + 511) & (-512);
+		bat_md_count = PI->proglen - size;
+		grub_memmove((void *)bat_md_start,(void *)(program + size),PI->proglen - size);
+		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",bat_md_start,bat_md_count);
+		bat_md_start >>= 9;
+		bat_md_count >>= 9;
 		//判断回车换行模式
 		if (debug_prog)
 		{
