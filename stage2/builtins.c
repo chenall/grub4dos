@@ -3290,7 +3290,6 @@ static int grub_mod_add (struct exec_array *mod)
 
    if (grub_mod_find(name) == NULL)
    {
-
       printf_debug("insmod:%s...\n",name);
       unsigned long long rd_base_bak = rd_base;
       unsigned long long rd_size_bak = rd_size;
@@ -3299,7 +3298,7 @@ static int grub_mod_add (struct exec_array *mod)
       buf_drive = -1;
       grub_open("(rd)+1");
       data_len += filemax;
-      if ((mod_end + data_len) >= GRUB_MOD_ADDR + 0x100000)
+      if ((mod_end + data_len) >= GRUB_MOD_ADDR + 0x800000)
       {
 	 grub_close();
          errnum = ERR_WONT_FIT;
@@ -3743,7 +3742,7 @@ static int insmod_func(char *arg,int flags)
    
   if (!GRUB_MOD_ADDR)
   {        
-    GRUB_MOD_ADDR = grub_malloc (0x100000);   //模块缓存
+    GRUB_MOD_ADDR = grub_malloc (0x800000);   //模块缓存
     mod_end = GRUB_MOD_ADDR;
   }
    if (substring(skip_to(0,arg) - 4,".mod",1) == 0 || flags == 101)
@@ -13789,16 +13788,20 @@ static int grub_exec_run(char *program, char *psp, int flags)
 		char **bat_entry = (char **)(label_entry + 0x80);//0x400/sizeof(label_entry)
 		unsigned int i_bat = 1,i_lab = 1;//i_bat:lines of script;i_lab=numbers of label.
 		unsigned int type = 0; //type=0/1/2=Windows:(每行结尾是“\r\n”)/Unix:(每行结尾是“\n”)/Mac OS:(每行结尾是“\r”)
-		grub_u32_t size = grub_strlen(program);
+		grub_u32_t size = grub_strlen(program); //取批处理尺寸(注意:PI->proglen是包含尾随文件的尺寸,如果有的话)
 
 		p_bat_array->size = size++;
-//		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",program + size,PI->proglen - size);
+		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",program + size,PI->proglen - size);
+		if (PI->proglen > size) //如果批处理有尾随文件,移动尾随文件,对齐0x200
+		{
 		bat_md_start = (grub_size_t)(program + size + 511) & (-512);
 		bat_md_count = PI->proglen - size;
 		grub_memmove((void *)bat_md_start,(void *)(program + size),PI->proglen - size);
 		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",bat_md_start,bat_md_count);
 		bat_md_start >>= 9;
 		bat_md_count >>= 9;
+		}
+
 		//判断回车换行模式
 		if (debug_prog)
 		{

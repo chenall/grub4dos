@@ -73,29 +73,56 @@ title 启动 Linux Porteus 5.0 x86_64 openbox
 kernel /porteus/vmlinuz copy2ram
 initrd /porteus/initrd.xz
 
-#使用外部命令ntloader及initrd.lz1
-#假设 WIM 或 VHD 位于 (hdx,y)/path/to/winpe.wim
-title 启动 Windows WIM/VHD  使用 kernel
-find --set-root /path/to/winpe.wim
-uuid %@root%
-kernel /ntloader uuid=%?_UUID% file=/path/to/winpe.wim
-initrd /initrd.lz1
+#假设外部命令位于 /efi/grub/ext/
+#假设 WIM/VHD(或者启动文件夹) 位于 (hdx,y)/boot/imgs/
 
-title 启动 Windows WIM/VHD  使用 chainloader
-find --set-root /path/to/winpe.wim
-uuid %@root%
-chainloader /ntloader initrd=/initrd.lz1 uuid=%?_UUID% file=/path/to/winpe.wim
-
-#使用外部命令ntloader及initrd.lz1
-#假设系统文件夹位于 (hdx,y)
-title 启动 Windows 系统
+title 使用外部命令 ntloader 启动 WIM/VHD (kernel方案1)
 uuid (hdx,y)
-kernel /ntloader uuid=%?_UUID%
-initrd /initrd.lz1
+kernel /efi/grub/ext/ntloader uuid=%?% file=/boot/imgs/winpe.wim
+initrd /efi/grub/ext/initrd.lz1
 
-title 启动 Windows 系统
+title 使用外部命令 ntloader 启动 WIM/VHD (kernel 方案2)
+find --set-root /boot/imgs/winpe.wim
+uuid ()
+find --set-root /efi/grub/ext/ntloader
+kernel /efi/grub/ext/ntloader uuid=%?% file=/boot/imgs/winpe.wim
+initrd /efi/grub/ext/initrd.lz1
+
+title 使用外部命令 ntloader 启动 WIM/VHD (chainloader 方案1)
 uuid (hdx,y)
-chainloader /ntloader initrd=/initrd.lz1 uuid=%?_UUID%
+chainloader /efi/grub/ext/ntloader initrd=/efi/grub/ext/initrd.lz1 uuid=%?% file=/boot/imgs/winpe.wim
+
+title 使用外部命令 ntloader 启动 WIM/VHD (chainloader 方案2)
+find --set-root /boot/imgs/winpe.wim
+uuid ()
+find --set-root /efi/grub/ext/ntloader
+chainloader /efi/grub/ext/ntloader initrd=/efi/grub/ext/initrd.lz1 uuid=%?% file=/boot/imgs/winpe.wim
+
+title 使用外部命令 ntloader 启动 Windows 系统 (kernel 方案)
+uuid (hdx,y)
+kernel /efi/grub/ext/ntloader uuid=%?%
+initrd /efi/grub/ext/initrd.lz1
+
+title 使用外部命令 ntloader 启动 Windows 系统 (chainloader 方案)
+uuid (hdx,y)
+chainloader /efi/grub/ext/ntloader initrd=/efi/grub/ext/initrd.lz1 uuid=%?%
+
+title 使用外部命令 NTBOOT 启动 WIM/VHD (方案1)
+map --mem /efi/grub/ext/NTBOOT (hd)
+(hd-1,0)/loaderNT (hdx,y)/boot/imgs/winpe.wim
+boot
+
+title 使用外部命令 NTBOOT 启动 WIM/VHD (方案2)
+find --set-root /efi/grub/ext/NTBOOT
+map --mem /efi/grub/ext/NTBOOT (hd)
+find --set-root /boot/imgs/winpe.wim
+(hd-1,0)/loaderNT /boot/imgs/winpe.wim
+boot
+
+title 使用外部命令 NTBOOT 启动 Windows 系统
+map --mem /efi/grub/ext/NTBOO (hd)
+(hd-1,0)/loaderNT (hdx,y)/.win
+boot
 
 title 命令行
 commandline

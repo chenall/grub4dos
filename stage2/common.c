@@ -1458,7 +1458,7 @@ grub_efi_mm_init (void)  //内存管理初始化
   filtered_memory_map_end = filter_memory_map (memory_map, filtered_memory_map,
 			desc_size, memory_map_end);  //筛选内存映射结尾
 
-  required_pages = 0x2000;  //分配32Mb
+  required_pages = 0x4000;  //分配64Mb
   /* Allocate memory regions for GRUB's memory management. 为GRUB's内存管理分配内存区域 */
   add_memory_regions (filtered_memory_map, desc_size,
 			filtered_memory_map_end, required_pages);
