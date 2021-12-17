@@ -2235,6 +2235,9 @@ VARIABLE(saved_pxe_mac)
 	/* space reserved. */
 
 	. = int13_handler + 0x140
+	.ascii	"FRAGMENT"
+	
+ENTRY(hooked_fragment_map)	.space	FRAGMENT_MAP_SLOT_SIZE
 	
 restore_old_emu:
   
@@ -6337,9 +6340,9 @@ ENTRY(hooked_drive_map_2)
 	.space	(DRIVE_MAP_SIZE / 2 + 1) * DRIVE_MAP_SLOT_SIZE
 #endif
 
-	.ascii	"FRAGMENT"
+//	.ascii	"FRAGMENT"
 	
-ENTRY(hooked_fragment_map)	.space	FRAGMENT_MAP_SLOT_SIZE
+//ENTRY(hooked_fragment_map)	.space	FRAGMENT_MAP_SLOT_SIZE
 
 	.ascii	"int13end"
 

@@ -7054,6 +7054,7 @@ get_uuid (char* uuid_found, int tag)
           return;
         }
 #endif
+#if 0
 #ifdef FSYS_REISERFS
       if (grub_memcmp(fsys_table[fsys_type].name, "reiserfs", 8) == 0)
         {
@@ -7088,6 +7089,7 @@ get_uuid (char* uuid_found, int tag)
           grub_sprintf(uuid_found, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x", uuid[0], uuid[1], uuid[2], uuid[3], uuid[4], uuid[5], uuid[6], uuid[7], uuid[8], uuid[9], uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]);
           return;
         }
+#endif
 #endif
 #ifdef FSYS_ISO9660
 	if (grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) == 0)
@@ -8461,7 +8463,7 @@ probe_bpb (struct master_and_dos_boot_sector *BS)
   /* first, check ext2 grldr boot sector */
 //  probed_total_sectors = BS->total_sectors_long;
  	if (*(unsigned short *)((char *)BS)  == 0x2EEB										//"jmp + 0x30"
-		&& ((int)(char *)BS == 0x8000 && *(unsigned short *)((char *)0x2F000 + 0x438) == 0xEF53))
+		&& (*(int*)((char *)BS + 0x420) == 0x8000 && *(unsigned short *)((char *)BS + 0x438) == 0xEF53))
 		{
 	
   /* at 0D: (byte)Sectors per block. Valid values are 2, 4, 8, 16 and 32. */

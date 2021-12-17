@@ -132,32 +132,32 @@ struct fsys_entry fsys_table[NUM_FSYS + 1] =
 # ifdef FSYS_NTFS
   {"ntfs", ntfs_mount, ntfs_read, ntfs_dir, 0, 0},
 # endif
-# ifdef FSYS_MINIX
-  {"minix", minix_mount, minix_read, minix_dir, 0, 0},
-# endif
-# ifdef FSYS_REISERFS
-  {"reiserfs", reiserfs_mount, reiserfs_read, reiserfs_dir, 0, reiserfs_embed},
-# endif
-# ifdef FSYS_VSTAFS
-  {"vstafs", vstafs_mount, vstafs_read, vstafs_dir, 0, 0},
-# endif
-# ifdef FSYS_JFS
-  {"jfs", jfs_mount, jfs_read, jfs_dir, 0, jfs_embed},
-# endif
-# ifdef FSYS_XFS
-  {"xfs", xfs_mount, xfs_read, xfs_dir, 0, 0},
-# endif
-# ifdef FSYS_UFS2
-  {"ufs2", ufs2_mount, ufs2_read, ufs2_dir, 0, ufs2_embed},
-# endif
+//# ifdef FSYS_MINIX
+//{"minix", minix_mount, minix_read, minix_dir, 0, 0},
+//# endif
+//# ifdef FSYS_REISERFS
+//  {"reiserfs", reiserfs_mount, reiserfs_read, reiserfs_dir, 0, reiserfs_embed},
+//# endif
+//# ifdef FSYS_VSTAFS
+//  {"vstafs", vstafs_mount, vstafs_read, vstafs_dir, 0, 0},
+// endif
+//# ifdef FSYS_JFS
+//  {"jfs", jfs_mount, jfs_read, jfs_dir, 0, jfs_embed},
+//# endif
+//# ifdef FSYS_XFS
+//  {"xfs", xfs_mount, xfs_read, xfs_dir, 0, 0},
+//# endif
+//# ifdef FSYS_UFS2
+//  {"ufs2", ufs2_mount, ufs2_read, ufs2_dir, 0, ufs2_embed},
+//# endif
 # ifdef FSYS_ISO9660
   {"iso9660", iso9660_mount, iso9660_read, iso9660_dir, 0, 0},
 # endif
   /* XX FFS should come last as it's superblock is commonly crossing tracks
      on floppies from track 1 to 2, while others only use 1.  */
-# ifdef FSYS_FFS
-  {"ffs", ffs_mount, ffs_read, ffs_dir, 0, ffs_embed},
-# endif
+//# ifdef FSYS_FFS
+//  {"ffs", ffs_mount, ffs_read, ffs_dir, 0, ffs_embed},
+//# endif
 # ifdef FSYS_INITRD
   {"initrdfs", initrdfs_mount, initrdfs_read, initrdfs_dir, initrdfs_close, 0},
 # endif

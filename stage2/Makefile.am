@@ -10,9 +10,9 @@ AM_V_OBJCOPY_  = $(AM_V_OBJCOPY_$(AM_DEFAULT_VERBOSITY))
 AM_V_OBJCOPY   = $(AM_V_OBJCOPY_$(V))
 # For dist target.
 noinst_HEADERS = fat.h filesys.h freebsd.h hercules.h \
-	iso9660.h jfs.h mb_header.h mb_info.h md5.h \
+	iso9660.h mb_header.h mb_info.h md5.h \
 	pc_slice.h serial.h shared.h term.h \
-    terminfo.h tparm.h ufs2.h vstafs.h xfs.h pxe.h ipxe.h graphics.h fsys_initrd.h fsys_ipxe.h cpio.h
+  terminfo.h tparm.h pxe.h ipxe.h graphics.h fsys_initrd.h fsys_ipxe.h cpio.h
 EXTRA_DIST = $(noinst_SCRIPTS)
 
 # Stage 2 and Stage 1.5's.
@@ -61,8 +61,8 @@ STAGE2_COMPILE = $(STAGE2_CFLAGS) -fno-builtin -nostdinc \
 # For stage2 target.
 pre_stage2_exec_SOURCES = asm.S bios.c boot.c builtins.c char_io.c \
 	cmdline.c common.c console.c dec_lz4.c dec_lzma.c dec_vhd.c disk_io.c fsys_ext2fs.c \
-	fsys_fat.c fsys_ntfs.c fsys_ffs.c fsys_iso9660.c fsys_jfs.c fsys_minix.c \
-    fsys_reiserfs.c fsys_ufs2.c fsys_vstafs.c fsys_xfs.c fsys_pxe.c fsys_initrd.c fsys_ipxe.c fsys_fb.c gunzip.c \
+	fsys_fat.c fsys_ntfs.c fsys_iso9660.c \
+  fsys_pxe.c fsys_initrd.c fsys_ipxe.c fsys_fb.c gunzip.c \
 	hercules.c md5.c serial.c stage2.c terminfo.c tparm.c graphics.c
 pre_stage2_exec_CFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)
 pre_stage2_exec_CCASFLAGS = $(STAGE2_COMPILE) $(FSYS_CFLAGS)

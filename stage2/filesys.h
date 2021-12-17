@@ -22,29 +22,29 @@
 #include "pc_slice.h"
 #endif
 
-#ifdef FSYS_FFS
-#define FSYS_FFS_NUM 1
-#ifndef ASM_FILE
-int ffs_mount (void);
-unsigned long long ffs_read (unsigned long long buf, unsigned long long len, unsigned long write);
-int ffs_dir (char *dirname);
-unsigned long ffs_embed (unsigned long *start_sector, unsigned long needed_sectors);
-#endif
-#else
-#define FSYS_FFS_NUM 0
-#endif
+//#ifdef FSYS_FFS
+//#define FSYS_FFS_NUM 1
+//#ifndef ASM_FILE
+//int ffs_mount (void);
+//unsigned long long ffs_read (unsigned long long buf, unsigned long long len, unsigned long write);
+//int ffs_dir (char *dirname);
+//unsigned long ffs_embed (unsigned long *start_sector, unsigned long needed_sectors);
+//#endif
+//#else
+//#define FSYS_FFS_NUM 0
+//#endif
 
-#ifdef FSYS_UFS2
-#define FSYS_UFS2_NUM 1
-#ifndef ASM_FILE
-int ufs2_mount (void);
-unsigned long long ufs2_read (unsigned long long buf, unsigned long long len, unsigned long write);
-int ufs2_dir (char *dirname);
-unsigned long ufs2_embed (unsigned long *start_sector, unsigned long needed_sectors);
-#endif
-#else
-#define FSYS_UFS2_NUM 0
-#endif
+//#ifdef FSYS_UFS2
+//#define FSYS_UFS2_NUM 1
+//#ifndef ASM_FILE
+//int ufs2_mount (void);
+//unsigned long long ufs2_read (unsigned long long buf, unsigned long long len, unsigned long write);
+//int ufs2_dir (char *dirname);
+//unsigned long ufs2_embed (unsigned long *start_sector, unsigned long needed_sectors);
+//#endif
+//#else
+//#define FSYS_UFS2_NUM 0
+//#endif
 
 #ifdef FSYS_FAT
 #define FSYS_FAT_NUM 1
@@ -79,62 +79,62 @@ int ext2fs_dir (char *dirname);
 #define FSYS_EXT2FS_NUM 0
 #endif
 
-#ifdef FSYS_MINIX
-#define FSYS_MINIX_NUM 1
-#ifndef ASM_FILE
-int minix_mount (void);
-unsigned long long minix_read (unsigned long long buf, unsigned long long len, unsigned long write);
-int minix_dir (char *dirname);
-#endif
-#else
-#define FSYS_MINIX_NUM 0
-#endif
+//#ifdef FSYS_MINIX
+//#define FSYS_MINIX_NUM 1
+//#ifndef ASM_FILE
+//int minix_mount (void);
+//unsigned long long minix_read (unsigned long long buf, unsigned long long len, unsigned long write);
+//int minix_dir (char *dirname);
+//#endif
+//#else
+//#define FSYS_MINIX_NUM 0
+//#endif
 
-#ifdef FSYS_REISERFS
-#define FSYS_REISERFS_NUM 1
-#ifndef ASM_FILE
-int reiserfs_mount (void);
-unsigned long long reiserfs_read (unsigned long long buf, unsigned long long len, unsigned long write);
-int reiserfs_dir (char *dirname);
-unsigned long reiserfs_embed (unsigned long *start_sector, unsigned long needed_sectors);
-#endif
-#else
-#define FSYS_REISERFS_NUM 0
-#endif
+//#ifdef FSYS_REISERFS
+//#define FSYS_REISERFS_NUM 1
+//#ifndef ASM_FILE
+//int reiserfs_mount (void);
+//unsigned long long reiserfs_read (unsigned long long buf, unsigned long long len, unsigned long write);
+//int reiserfs_dir (char *dirname);
+//unsigned long reiserfs_embed (unsigned long *start_sector, unsigned long needed_sectors);
+//#endif
+//#else
+//#define FSYS_REISERFS_NUM 0
+//#endif
 
-#ifdef FSYS_VSTAFS
-#define FSYS_VSTAFS_NUM 1
-#ifndef ASM_FILE
-int vstafs_mount (void);
-unsigned long long vstafs_read (unsigned long long buf, unsigned long long len, unsigned long write);
-int vstafs_dir (char *dirname);
-#endif
-#else
-#define FSYS_VSTAFS_NUM 0
-#endif
+//#ifdef FSYS_VSTAFS
+//#define FSYS_VSTAFS_NUM 1
+//#ifndef ASM_FILE
+//int vstafs_mount (void);
+//unsigned long long vstafs_read (unsigned long long buf, unsigned long long len, unsigned long write);
+//int vstafs_dir (char *dirname);
+//#endif
+//#else
+//#define FSYS_VSTAFS_NUM 0
+//#endif
 
-#ifdef FSYS_JFS
-#define FSYS_JFS_NUM 1
-#ifndef ASM_FILE
-int jfs_mount (void);
-unsigned long long jfs_read (unsigned long long buf, unsigned long long len, unsigned long write);
-int jfs_dir (char *dirname);
-unsigned long jfs_embed (unsigned long *start_sector, unsigned long needed_sectors);
-#endif
-#else
-#define FSYS_JFS_NUM 0
-#endif
+//#ifdef FSYS_JFS
+//#define FSYS_JFS_NUM 1
+//#ifndef ASM_FILE
+//int jfs_mount (void);
+//unsigned long long jfs_read (unsigned long long buf, unsigned long long len, unsigned long write);
+//int jfs_dir (char *dirname);
+//unsigned long jfs_embed (unsigned long *start_sector, unsigned long needed_sectors);
+//#endif
+//#else
+//#define FSYS_JFS_NUM 0
+//#endif
 
-#ifdef FSYS_XFS
-#define FSYS_XFS_NUM 1
-#ifndef ASM_FILE
-int xfs_mount (void);
-unsigned long long xfs_read (unsigned long long buf, unsigned long long len, unsigned long write);
-int xfs_dir (char *dirname);
-#endif
-#else
-#define FSYS_XFS_NUM 0
-#endif
+//#ifdef FSYS_XFS
+//#define FSYS_XFS_NUM 1
+//#ifndef ASM_FILE
+//int xfs_mount (void);
+//unsigned long long xfs_read (unsigned long long buf, unsigned long long len, unsigned long write);
+//int xfs_dir (char *dirname);
+//#endif
+//#else
+//#define FSYS_XFS_NUM 0
+//#endif
 
 #ifdef FSYS_TFTP
 #define FSYS_TFTP_NUM 1
@@ -195,12 +195,21 @@ int fb_dir (char *dirname);
 #define FSYS_FB_NUM 0
 #endif
 
+/*
 #ifndef NUM_FSYS
 #define NUM_FSYS	\
   (FSYS_FFS_NUM + FSYS_FAT_NUM + FSYS_NTFS_NUM + FSYS_EXT2FS_NUM + FSYS_MINIX_NUM	\
    + FSYS_REISERFS_NUM + FSYS_VSTAFS_NUM + FSYS_JFS_NUM + FSYS_XFS_NUM	\
    + FSYS_TFTP_NUM + FSYS_ISO9660_NUM + FSYS_UFS2_NUM + FSYS_PXE_NUM + FSYS_FB_NUM + FSYS_INITRD_NUM)
 #endif
+*/
+
+#ifndef NUM_FSYS
+#define NUM_FSYS	\
+  (FSYS_FAT_NUM + FSYS_NTFS_NUM + FSYS_EXT2FS_NUM	\
+   + FSYS_TFTP_NUM + FSYS_ISO9660_NUM + FSYS_PXE_NUM + FSYS_FB_NUM + FSYS_INITRD_NUM)
+#endif
+
 
 #ifndef ASM_FILE
 /* defines for the block filesystem info area */

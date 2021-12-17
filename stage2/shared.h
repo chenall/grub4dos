@@ -162,7 +162,8 @@
 /* graphics.c uses 0x3A0000 - 0x3DA980 and 0x3FC000 - 0x3FF9D0 */
 
 /* The size of the drive map.  */
-#define	MAP_NUM_16	1
+#define	MAP_NUM_16	0
+#define	CDROM_INIT  0
 
 #if	MAP_NUM_16
 #define DRIVE_MAP_SIZE		16
