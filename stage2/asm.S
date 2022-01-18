@@ -345,7 +345,7 @@ VARIABLE(buf_track)
 	.long	0	/* buf_track will grow to 64-bit */
 VARIABLE(buf_drive)
 	.long	-1
-	.long	0	/* padding */
+VARIABLE(current_x_resolution)	//0x834c  当前水平像素 int
 
 	. = EXT_C(main) + 0x150
 	
