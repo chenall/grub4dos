@@ -51,7 +51,7 @@ unsigned int xpixels = 640;
 unsigned int ypixels = 480;
 unsigned int plano_size = 38400;
 unsigned int graphics_mode = 3;
-unsigned int current_x_resolution;
+//unsigned int current_x_resolution;
 unsigned int current_y_resolution;
 unsigned int current_bits_per_pixel;
 unsigned int current_bytes_per_scanline;
@@ -1849,9 +1849,30 @@ graphics_scroll (void)
     unsigned int i;
     unsigned int old_state = cursor_state;
     cursor_state &= ~1;
-
+#if 0   //滚屏速度太慢，尤其在实体机
   grub_memcpy ((char *)(grub_size_t)current_phys_base, (char *)(grub_size_t)current_phys_base + (current_bytes_per_scanline * (font_h + line_spacing)),
 		    (current_term->max_lines - 1) * current_bytes_per_scanline * (font_h + line_spacing));
+#else
+  static grub_efi_guid_t graphics_output_guid = GRUB_EFI_GOP_GUID;
+  static struct grub_efi_gop *gop;
+  grub_efi_handle_t *handles;
+  grub_efi_uintn_t num_handles;
+
+  handles = grub_efi_locate_handle (GRUB_EFI_BY_PROTOCOL,
+				    &graphics_output_guid, NULL, &num_handles);	//定位手柄(通过协议)
+  if (!handles || num_handles == 0)	//如果句柄为零, 或者句柄数为零
+    return;												  //错误
+  gop = grub_efi_open_protocol (handles[0], &graphics_output_guid,
+          GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);	//打开协议
+  efi_call_10 (gop->blt, gop, (void *)(grub_size_t)current_phys_base,      //没有此函数，在实体机启动时，滚动的是固件的内容！
+          GRUB_EFI_BLT_BUFFER_TO_VIDEO, 0, 0, 0, 0,
+          current_x_resolution, current_y_resolution,
+          0);
+  efi_call_10 (gop->blt, gop, 0,
+          GRUB_EFI_BLT_VIDEO_TO_VIDEO, 0, font_h, 0, 0,
+          current_x_resolution, current_y_resolution - font_h,
+          0);
+#endif
 	if (old_state & 1)
 		scroll_state = 1;		//避免空格背景杂乱无章
     for (i=0;i<current_term->chars_per_line;++i)

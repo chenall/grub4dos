@@ -15,10 +15,18 @@ default 1
 
 #设置图形模式(可使用 graphicsmode 探测系统支持的图形模式)
 #graphicsmode -1 800(水平像素)
+
 #加载背景图
 #splashimage /efi/grub/splashimage.jpg || splashimage /boot/grub/splashimage.bmp
 #加载unifont字体(如果不是 16*16 字体，需增加参数，如 --font-high=24)
 #font /efi/grub/unifont.hex.gz
+
+#获取水平像素，加载不同尺寸的字体及背景图
+#calc *0x834c > nul ;; set a=%@retval%
+#if %a%>=801 && font --font-high=40 /efi/grub/menu40.hex 
+#if %a%<=800 && font /efi/grub/unifont.hex.gz && splashimage /efi/grub/lt.jpg
+
+#判断启动环境：calc *0x8277 > nul ;; set 启动环境=%@retval%     启动环境：0/32/64=bios/uefi_x86/uefi_x64
 
 #设置菜单框
 #setmenu --box x=4 w=60 y=6 h=9 l=2
@@ -75,6 +83,7 @@ initrd /porteus/initrd.xz
 
 #假设外部命令位于 /efi/grub/ext/
 #假设 WIM/VHD(或者启动文件夹) 位于 (hdx,y)/boot/imgs/
+#假设 windows 的 winload.efi 位于 (hdx,y)
 
 title 使用外部命令 ntloader 启动 WIM/VHD (kernel方案1)
 uuid (hdx,y)
@@ -108,19 +117,19 @@ uuid (hdx,y)
 chainloader /efi/grub/ext/ntloader initrd=/efi/grub/ext/initrd.lz1 uuid=%?%
 
 title 使用外部命令 NTBOOT 启动 WIM/VHD (方案1)
-map --mem /efi/grub/ext/NTBOOT (hd)
+map --mem --no-hook /efi/grub/ext/NTBOOT (hd)
 (hd-1,0)/loaderNT (hdx,y)/boot/imgs/winpe.wim
 boot
 
 title 使用外部命令 NTBOOT 启动 WIM/VHD (方案2)
 find --set-root /efi/grub/ext/NTBOOT
-map --mem /efi/grub/ext/NTBOOT (hd)
+map --mem --no-hook /efi/grub/ext/NTBOOT (hd)
 find --set-root /boot/imgs/winpe.wim
 (hd-1,0)/loaderNT /boot/imgs/winpe.wim
 boot
 
 title 使用外部命令 NTBOOT 启动 Windows 系统
-map --mem /efi/grub/ext/NTBOO (hd)
+map --mem --no-hook /efi/grub/ext/NTBOO (hd)
 (hd-1,0)/loaderNT (hdx,y)/.win
 boot
 

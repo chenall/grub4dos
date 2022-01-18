@@ -1114,7 +1114,6 @@ chainloader_func (char *arg, int flags)
   static grub_efi_uintn_t pages;
   struct grub_disk_data *d;	//磁盘数据
   struct grub_part_data *p;
-  unsigned int j;
   
   grub_memset(chainloader_file, 0, 256);
   set_full_path(chainloader_file,arg,sizeof(chainloader_file)); //设置完整路径(补齐驱动器号,分区号)  /efi/boot/bootx64.efi -> (hd0,0)/efi/boot/bootx64.efi
@@ -1140,6 +1139,8 @@ chainloader_func (char *arg, int flags)
       part_data = get_boot_partition (current_drive);
       current_partition = part_data->partition;
     }
+#if 0
+    unsigned int j;
     for (j = 0; j < DRIVE_MAP_SIZE; j++)
     {
       if (disk_drive_map[j].from_drive == current_drive)
@@ -1154,7 +1155,7 @@ chainloader_func (char *arg, int flags)
         return 0;
       }
     }
-
+#endif
     {
       p = get_partition_info (current_drive, current_partition);  //获取分区信息
       if (!p) //没有指定的分区
@@ -3013,6 +3014,7 @@ displaymem_func (char *arg, int flags)
   b = grub_efi_system_table->boot_services; //系统表->引导服务
   int mm_status;						    //分配内存状态=1/0/-1=成功/部分/失败
   int i, mode = 0;
+  quit_print = 0;               //满屏按“Q”退出打印
 	
 	if (grub_memcmp (arg, "-s", 2) == 0)			//以扇区数计, 简约模式
 		mode = 1;
@@ -3088,6 +3090,8 @@ displaymem_func (char *arg, int flags)
         else
           break;
 		}				
+    if (quit_print)
+      break;
 	}
 
 //	grub_free (memory_map);
@@ -6947,6 +6951,7 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
 //  unsigned int extended_part_length;
   int err;
   int prefer_top = 0;
+  int no_hook = 0;
 
   //struct master_and_dos_boot_sector *BS = (struct master_and_dos_boot_sector *) RAW_ADDR (0x8000);
 #define	BS	((struct master_and_dos_boot_sector *)mbr)
@@ -7040,7 +7045,7 @@ struct drive_map_slot
 	The struct size must be a multiple of 4.
 	unsigned char from_drive;
 	unsigned char to_drive;						0xFF indicates a memdrive
-	unsigned char max_head;
+	unsigned char max_head;             //旧svbus使用，否则蓝屏。支持碎片的新版本不需要。
 
 	unsigned char :7;
 	unsigned char read_only:1;          //位7
@@ -7055,7 +7060,7 @@ struct drive_map_slot
 	unsigned short :1;
   
 	unsigned char to_head;
-	unsigned char to_sector;
+	unsigned char to_sector;            //旧svbus使用，否则蓝屏。支持碎片的新版本不需要。
 	unsigned long long start_sector;
 	unsigned long long sector_count;
 };
@@ -7134,6 +7139,10 @@ struct drive_map_slot
       buf_drive = -1;
       buf_track = -1;
       return 1;
+    }
+    else if (grub_memcmp (arg, "--no-hook", 9) == 0)
+    {
+      no_hook = 1;
     }
     else if (grub_memcmp (arg, "--unhook", 8) == 0)
     {
@@ -8158,6 +8167,8 @@ no_fragment:
   disk_drive_map[i].start_sector = start_sector;
   initrd_start_sector = start_sector;
   disk_drive_map[i].sector_count = sector_count;
+  disk_drive_map[i].max_head = 0xfe;    //避免旧svbus蓝屏。支持碎片的新版本不需要。
+  disk_drive_map[i].to_sector = 0x3f;   //避免旧svbus蓝屏。支持碎片的新版本不需要。
 #undef	BS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -8208,9 +8219,21 @@ no_fragment:
 		for (; d1->next; d1 = d1->next);
 		d1->next = d;
   }
-  if (d->drive >= 0x80 /*&& d->drive <= 0x8f*/)
+  if (d->drive >= 0x80)
   {
 		add_part_data (d->drive);
+    if (!no_hook)
+    {
+      current_drive = d->drive;
+      part_data = get_boot_partition (current_drive);
+      current_partition = part_data->partition;
+      status = vdisk_install (current_drive, current_partition);  //安装虚拟磁盘及虚拟分区
+      if (status != GRUB_EFI_SUCCESS)							//如果安装失败
+      {
+        printf_errinfo ("Failed to install vdisk.(%x)\n",status);	//未能安装vdisk
+        return 0;
+      }
+    }
   }
 
   return 1;

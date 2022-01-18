@@ -331,7 +331,8 @@ VARIABLE(buf_track)																												//缓存跟踪  long long
 	.long	0
 VARIABLE(buf_drive)																												//缓存驱动器  int
 	.long	-1
-	.long	0 //未使用
+VARIABLE(current_x_resolution)                                            //0x834c  当前水平像素 int
+	.long	0
 
 	. = EXT_C(main) + 0x150																									//0x8350
 	

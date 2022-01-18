@@ -29,6 +29,7 @@
 
 //UEFI 编译开关
 #define HOTKEY  0         //热键      0: 外置;    1: 内置
+#define DPUP    0         //使用设备路径实用程序协议   低版本UEFI固件不支持
 
 /* Add an underscore to a C symbol in assembler code if needed. */
 #ifdef HAVE_ASM_USCORE
@@ -5601,8 +5602,6 @@ typedef struct
 	block_io_protocol_t block_io;
 	grub_efi_block_io_media_t media;
 } grub_efivdisk_t;
-extern grub_efivdisk_t vdisk;
-extern grub_efivdisk_t vpart;
 
 extern struct grub_part_data *get_partition_info (int drive, int partition);
 extern struct grub_part_data *partition_info;
@@ -6092,19 +6091,19 @@ typedef grub_efi_status_t
 		       grub_efi_uintn_t dy,					//目的y	BltOperation目标的Y坐标。屏幕的原点是0，0，这是屏幕的左上角。
 		       grub_efi_uintn_t width,			//宽		blt矩形中矩形的宽度(像素)。每个像素由EFI_GRAPHICS_OUTPUT_BLT_PIXEL元素表示。
 		       grub_efi_uintn_t height,			//高		blt矩形中矩形的高度(像素)。 
-		       grub_efi_uintn_t delta);			//三角洲	不用于EfiBltVideoFill或EfiBltVideoToVideo操作。如果使用0的增量，则整个BltBuffer正在运行。
+		       grub_efi_uintn_t delta);			//增量	不用于EfiBltVideoFill或EfiBltVideoToVideo操作。如果使用0的增量，则整个BltBuffer正在运行。
 																				//如果正在使用BltBuffer的子矩形，则Delta表示BltBuffer行中的字节数。
 
 //表113描述了矩形上支持的bltoperation。矩形有坐标（左，上）（右，下）： 
 typedef enum
   {
-//将数据从BltBuffer像素(0,0)直接写入视频显示矩形(DestinationX，DestinationY)(DestinationX+宽度，DestinationY+高度)。只有一个像素将使用从BltBuffer。未使用增量。
+//将数据从BltBuffer像素(0,0)直接写入视频显示矩形(DestinationX，DestinationY)(DestinationX+宽度，DestinationY+高度)。只有一个像素将使用从BltBuffer。不使用增量。
     GRUB_EFI_BLT_VIDEO_FILL,					//BLT视频填充 
 //从视频显示矩形(SourceX，SourceY)(SourceX+Width，SourceY+Height)读取数据，并将其放置在BltBuffer矩形(DestinationX，DestinationY)(DestinationX+Width，DestinationY+Height)中。
-//如果DestinationX或DestinationY不为零，则Delta必须设置为BltBuffer中行的长度(字节)。 
+//如果DestinationX或DestinationY不为零，则Delta必须设置为BltBuffer中一行的长度(字节)。 
     GRUB_EFI_BLT_VIDEO_TO_BLT_BUFFER,	//BLT视频到BLT缓冲区
 //将数据从BltBuffer矩形(SourceX，SourceY)(SourceX+Width，SourceY+Height)直接写入视频显示矩形(DestinationX，DestinationY)(DestinationX+Width，DestinationY+Height)。 
-//如果SourceX或SourceY不为零，则Delta必须设置为BltBuffer中行的长度(以字节为单位)。 
+//如果SourceX或SourceY不为零，则Delta必须设置为BltBuffer中一行的长度(以字节为单位)。 
     GRUB_EFI_BLT_BUFFER_TO_VIDEO,			//BLT缓冲区到视频
 //从视频显示矩形(SourceX，SourceY)(SourceX+Width，SourceY+Height)复制到视频显示矩形(DestinationX，DestinationY)(DestinationX+Width，DestinationY+Height)。
 //此模式中不使用BltBuffer和Delta。源矩形和目标矩形的重叠没有限制。
