@@ -93,7 +93,7 @@ extern int outline;
 #endif /* SUPPORT_GRAPHICS */
 
 /* The BIOS drive map.  */
-int drive_map_slot_empty (struct drive_map_slot item);
+//int drive_map_slot_empty (struct drive_map_slot item);
 
 static int chainloader_load_segment = 0;
 static int chainloader_load_offset = 0;
@@ -167,7 +167,7 @@ void set_full_path(char *dest, char *arg, grub_u32_t max_len)
 	if (*arg == '/') grub_sprintf(dest + len,"%s%s",saved_dir,arg);
 	else grub_sprintf(dest + len,"%s",arg + 2);
 }
-
+#if 0
 int drive_map_slot_empty (struct drive_map_slot item);
 int
 drive_map_slot_empty (struct drive_map_slot item)//判断驱动器映像插槽是否为空   为空,返回1
@@ -188,7 +188,7 @@ drive_map_slot_empty (struct drive_map_slot item)//判断驱动器映像插槽�
 }
 
 int disable_map_info = 0;
-
+#endif
 /* Prototypes for allowing straightfoward calling of builtins functions
    inside other functions.  */
 static int configfile_func (char *arg, int flags);
@@ -786,6 +786,7 @@ void map_to_svbus (grub_efi_physical_address_t address);
 void
 map_to_svbus (grub_efi_physical_address_t address)
 {
+#if 0
   int i, j;
 
   //复制映射插槽
@@ -801,6 +802,27 @@ map_to_svbus (grub_efi_physical_address_t address)
     grub_memmove ((char *)((char *)(grub_size_t)address + j*24), (char *)&disk_drive_map[i], 24);
     j++;
   }
+#else
+  struct grub_disk_data *d;	//磁盘数据
+  struct drive_map_slot *s = (struct drive_map_slot *)(grub_size_t)address;
+
+	for (d = disk_data; d; d = d->next)	//从设备结构起始查; 只要设备存在,并且驱动器号不为零;
+	{
+		if (d->sector_count && d->drive >= 0x80)  //如果是映射驱动器, 不是软盘
+    {
+      s->from_drive = d->drive;
+      s->to_drive = d->to_drive;
+      s->max_head = 0xfe;    //避免旧svbus蓝屏。支持碎片的新版本不需要
+      s->fragment = d->fragment;
+      if (d->from_log2_sector == 0xb)
+        s->from_cdrom = 1;
+      s->to_sector = 0x3f;   //避免旧svbus蓝屏。支持碎片的新版本不需要。
+      s->start_sector = d->start_sector;
+      s->sector_count = d->sector_count;
+      s++;
+    }
+  }
+#endif
 
   //复制碎片插槽
   grub_memmove ((char *)((char *)(grub_size_t)address + 0x148), (char *)&disk_fragment_map, 0x280);
@@ -940,7 +962,8 @@ complete:
     }
     grub_close ();
 //    boot_entry = catalog[k].indicator1;               //91
-    boot_entry = 1;                                   //如果入口号是0x91，安装虚拟分区映像有时反倒失败。
+//    boot_entry = 1;                                   //如果入口号是0x91，安装虚拟分区映像有时反倒失败。
+    boot_entry = k;
     part_addr = catalog[k].lba;												//19*800=c800
     if (!part_size)
       part_size = catalog[k].sector_count;						//1*200=200	
@@ -1097,7 +1120,6 @@ efi_open_protocol_wrapper (grub_efi_handle_t handle, grub_efi_guid_t *protocol,
 #endif
 static grub_efi_char16_t *cmdline;
 static grub_ssize_t cmdline_len;
-static grub_efi_device_path_t *file_path_public;
 static grub_efi_handle_t dev_handle;
 
 /* chainloader */
@@ -1112,8 +1134,6 @@ chainloader_func (char *arg, int flags)
 	b = grub_efi_system_table->boot_services;		//引导服务
   static grub_efi_physical_address_t address;
   static grub_efi_uintn_t pages;
-  struct grub_disk_data *d;	//磁盘数据
-  struct grub_part_data *p;
   
   grub_memset(chainloader_file, 0, 256);
   set_full_path(chainloader_file,arg,sizeof(chainloader_file)); //设置完整路径(补齐驱动器号,分区号)  /efi/boot/bootx64.efi -> (hd0,0)/efi/boot/bootx64.efi
@@ -1134,45 +1154,7 @@ chainloader_func (char *arg, int flags)
   //虚拟盘类型
   if (! *filename)
 	{
-    if (current_partition == 0xFFFFFF)  //如果没有指定启动分区
-    {
-      part_data = get_boot_partition (current_drive);
-      current_partition = part_data->partition;
-    }
-#if 0
-    unsigned int j;
-    for (j = 0; j < DRIVE_MAP_SIZE; j++)
-    {
-      if (disk_drive_map[j].from_drive == current_drive)
-        break;
-    }
-    if (j != DRIVE_MAP_SIZE)	//是映射驱动器, 挂载虚拟磁盘及虚拟分区
-    {
-      status = vdisk_install (current_drive, current_partition);  //安装虚拟磁盘及虚拟分区
-      if (status != GRUB_EFI_SUCCESS)							//如果安装失败
-      {
-        printf_errinfo ("Failed to install vdisk.(%x)\n",status);	//未能安装vdisk
-        return 0;
-      }
-    }
-#endif
-    {
-      p = get_partition_info (current_drive, current_partition);  //获取分区信息
-      if (!p) //没有指定的分区
-      {
-        image_handle = vdisk_load_image (current_drive);	//虚拟磁盘启动
-        goto complete;
-      }
-      if (current_drive < 0x90)
-        image_handle = vpart_load_image (p->part_path);	    //虚拟磁盘启动
-      else
-        image_handle = 0;
-      
-      if (!image_handle)
-        image_handle = vdisk_load_image (current_drive);	//虚拟磁盘启动
-    } 
-
-complete:
+    image_handle = grub_load_image (current_drive, EFI_REMOVABLE_MEDIA_FILE_NAME, 0, 0, &dev_handle);	//虚拟磁盘启动
     if (debug > 1)
     {
       grub_efi_loaded_image_t *image0 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
@@ -1205,21 +1187,7 @@ complete:
 		goto failure_exec_format;
   }
 
-  p = get_partition_info (current_drive, current_partition);
-  dev_handle = p->part_handle;
-  
-  if (! p->part_path)
-  {
-    d = get_device_by_drive (current_drive);
-    dev_handle = d->device_handle;
-    file_path_public = grub_efi_file_device_path (d->device_path, filename);
-  }
-  else
-    file_path_public = grub_efi_file_device_path (p->part_path, filename);
-  
-  if (debug > 1)
-    grub_efi_print_device_path (file_path_public);	//打印设备路径
-  
+  char *arg1 = arg;
   arg = skip_to(0,arg);	//标记=0/1/100/200=跳过"空格,回车,换行,水平制表符"/跳过等号/跳到下一行/使用'0'替换
   if (*arg)	//如果有变量
 	{
@@ -1241,22 +1209,10 @@ complete:
 		*(--p16) = 0;
 	}
 
-  status = efi_call_6 (b->load_image, 0, grub_efi_image_handle, file_path_public,
-		       boot_image, filemax,
-		       &image_handle);	//调用(装载镜像,0,镜像句柄,文件路径,引导镜像,尺寸,镜像句柄地址)
-
-  if (status != GRUB_EFI_SUCCESS)	//失败退出
-	{
-		if (status == GRUB_EFI_OUT_OF_RESOURCES)
-			printf_errinfo ("out of resources");	//"资源不足"
-		else
-			printf_errinfo ("cannot load image");	//"不能装载镜像"
-		goto failure_exec_format;
-	}
-  
+  image_handle = grub_load_image (current_drive, arg1, boot_image, filemax, &dev_handle);
   grub_efi_loaded_image_t *image1 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
   //UEFI固件已经设置了“image1->device_handle = d->handle”。他没有分区信息，启动不了某些bootmgfw.efi。必须在此填充对应分区的句柄。
-//  d = get_device_by_drive (current_drive);
+//  d = get_device_by_drive (current_drive,0);
 //  image1->device_handle = d->handle;
   image1->device_handle = dev_handle;
   if (cmdline)
@@ -3652,7 +3608,8 @@ command_func (char *arg, int flags)
 				grub_free(tmp);
         prog_len = *bss_end - *prog_start;
         char *program1 = program;
-        tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
+//        tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
+        tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len + 512);
         if (tmp == NULL)
 					goto fail;
         program = (char *)((grub_size_t)(tmp + 4095) & ~4095); /* 4K align the program */
@@ -3939,7 +3896,6 @@ find_func (char *arg, int flags)
 {
   struct builtin *builtin1 = 0;
   char *filename;
-  unsigned int drive;
   unsigned int tmp_drive = saved_drive;
   unsigned int tmp_partition = saved_partition;
   unsigned int got_file = 0;
@@ -4109,9 +4065,10 @@ find_func (char *arg, int flags)
 				break;
 #endif
 			case 'c':/*Only search first cdrom*/
-        d = cd_devices;
-        for ( ; d && cdrom_orig; d = d->next)	//从设备结构起始查; 只要设备存在,并且驱动器号不为零;
+        for (d = disk_data; d && cdrom_orig; d = d->next)	//从设备结构起始查
         {
+          if (d->disk_type != DISK_TYPE_CD)
+            continue;
           current_drive = d->drive;
 					if (tmp_drive == current_drive)
 						continue;
@@ -4138,9 +4095,10 @@ find_func (char *arg, int flags)
 #endif
 				break;
 			case 'f':
-        d = fd_devices;
-        for ( ; d && floppies_orig; d = d->next)	//从设备结构起始查; 只要设备存在,并且驱动器号不为零;
+        for (d = disk_data; d && floppies_orig; d = d->next)	//从设备结构起始查
         {
+          if (d->disk_type != DISK_TYPE_FD)
+            continue;
           current_drive = d->drive;
 					if (tmp_drive == current_drive)
 						continue;
@@ -4167,6 +4125,41 @@ find_func (char *arg, int flags)
 #endif
 				break;
 			case 'h':
+        for (d = disk_data; d && harddrives_orig; d = d->next)	//从设备结构起始查
+        {
+					struct grub_part_data *dp;
+          if (d->disk_type != DISK_TYPE_HD)
+            continue;
+
+          current_drive = d->drive;
+					current_partition = 0xFFFFFF;
+
+					if (tmp_drive == current_drive)
+						continue;
+          if (d->drive == (unsigned char)(fb_status >> 8) && find_check(filename,builtin1,arg,flags) == 1)
+          {
+            got_file = 1;
+            if (set_root)
+              goto found;
+          }
+					for (dp = partition_info; dp; dp = dp->next)
+					{
+						if (dp->drive == d->drive)
+							current_partition = dp->partition;
+						else
+							continue;
+					
+						if (find_check(filename,builtin1,arg,flags) == 1)
+						{
+							got_file = 1;
+							if (set_root)
+								goto found;
+						}
+					}
+				/* next_partition always sets ERRNUM in the last call, so clear it.  */
+					errnum = ERR_NONE;
+				}
+#if 0
 				for (drive = 0x80; drive < (unsigned int)0x80 + harddrives_orig; drive++)
 				{
 					current_drive = drive;
@@ -4198,6 +4191,7 @@ find_func (char *arg, int flags)
 				/* next_partition always sets ERRNUM in the last call, so clear it.  */
 					errnum = ERR_NONE;
 				}
+#endif
 				#undef FIND_HD_DRIVES
 				#undef FIND_FD_DRIVES
 				//h,f. no break;default continue;
@@ -4806,20 +4800,8 @@ uuid_func (char *argument, int flags)
     
     if (drive == FB_DRIVE)
       continue;
-    else if (drive >= 0x80 && drive <= 0x8f && harddrives_orig)
-      d = hd_devices;
-    else if (drive >= 0xa0 && drive <= 0xff && cdrom_orig)
-      d = cd_devices;
-    else if (drive <= 0x7f && floppies_orig)
-      d = fd_devices;
-    else
-      continue;
 
-    for ( ; d; d = d->next)	//从设备结构起始查; 只要设备存在,并且驱动器号不为零;
-    {
-      if (d->drive == drive)
-        break;
-    }
+    d = get_device_by_drive (drive,0);
     if (! d)	//如果设备=0, 错误
       continue;
 #if 0
@@ -6867,11 +6849,12 @@ add_part_data (int drive)
 				next_partition_buf = mbr,
 				next_partition ()))
     {
+      if (*next_partition_type == 0 || *next_partition_type == 5 || *next_partition_type == 0xf)
+        continue;
+      
       p = grub_zalloc (sizeof (*p));  //分配内存	
       if(! p)  //如果分配内存失败
         return;
-      if (*next_partition_type == 0 || *next_partition_type == 5 || *next_partition_type == 0xf)
-        continue;
 
       //填充设备结构
       p->drive = drive;
@@ -6929,10 +6912,7 @@ add_part_data (int drive)
   }
 }
 
-grub_efi_device_path_protocol_t* grub_efi_create_device_node (grub_efi_uint8_t node_type, grub_efi_uintn_t node_subtype,
-                    grub_efi_uint16_t node_length);
 unsigned long long tmp;
-int pause_func (char *arg, int flags);
 
 /* map */
 /* Map FROM_DRIVE to TO_DRIVE.  映射 FROM 驱动器到 TO 驱动器*/
@@ -6942,8 +6922,8 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
 {
   char *to_drive;
   char *from_drive;
-  unsigned int to, from, i = 0, primeval_to;
-  int j = 0xff, k, l;
+  unsigned int to, from,primeval_to;
+  int k, l, m;
   char *filename;
   char *p;
   struct fragment_map_slot *q;
@@ -6977,6 +6957,7 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
 	grub_efi_boot_services_t *b;		//引导服务
 	b = grub_efi_system_table->boot_services;	//系统表->引导服务
 	char *cache = 0;
+	struct grub_disk_data *df, *dt=0;
   //处理入口参数
   errnum = 0;
   
@@ -6987,14 +6968,15 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
 			int byte = 0;
 //      unsigned long long tmp;
 			arg += 8;
-			if (grub_memcmp (arg, "-byte", 5) == 0)			//按字节显示
+			if (grub_memcmp (arg, "-byte", 5) == 0)			//按字节显示  --status-byte
 				byte = 1;
 			arg = skip_to(1,arg); //标记=0:  跳过"空格,回车,换行,水平制表符"; 标记=1:  跳过"空格,回车,换行,水平制表符,等号"
 //			if (*arg>='0' && *arg <='9')		//如果参数在0-9之间
-			if ((unsigned char)*arg>='0' /*&& *arg <='9'*/)
+			if ((unsigned char)*arg>='0' /*&& *arg <='9'*/)  //--status=
 			{
 				if (!safe_parse_maxint(&arg,&mem))				//分析十进制或十六进制ASCII输人字符,转换到64位整数
 					return 0; //分析错误
+#if 0
 				for (i = 0; i < DRIVE_MAP_SIZE && !(drive_map_slot_empty (disk_drive_map[i])); i++)
 				{
 					if (disk_drive_map[i].from_drive != (unsigned char)mem)  //如果from驱动器号不等于输入参数,继续
@@ -7003,13 +6985,21 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
           sprintf(ADDR_RET_STR,"0x%lx",(unsigned int)disk_drive_map[i].start_sector);
 					return disk_drive_map[i].sector_count;  //返回起始扇区(32位)
 				}
+#else
+        df = get_device_by_drive ((unsigned int)mem,1);
+        if (df)
+        {
+          sprintf(ADDR_RET_STR,"0x%lx",df->start_sector);
+					return df->sector_count;  //返回起始扇区(32位)
+        }
+#endif
 				return 0;  //没有查到from驱动器号
 			}
 
 			print_bios_total_drives();	//打印软盘数,硬盘数
 			if (rd_base != -1ULL)		//如果rd基地址被赋值
 				grub_printf ("\nram_drive=0x%X, rd_base=0x%lX, rd_size=0x%lX\n", ram_drive, rd_base, rd_size); 
-
+#if 0
 			if (drive_map_slot_empty (disk_drive_map[0]))   //判断驱动器映像插槽是否为空   为空,返回1
 			{
 				grub_printf ("\nThe drive map table is currently empty.\n");
@@ -7131,6 +7121,21 @@ struct drive_map_slot
             byte?((unsigned long long)disk_drive_map[i].sector_count)
 						<< disk_drive_map[i].to_log2_sector:(unsigned long long)disk_drive_map[i].sector_count);
 	    }
+#else
+			grub_printf ("\nFd Td Fs Ts Fg Ro   Start_Sector     Sector_Count"
+		       "\n-- -- -- -- ---- -- -- -- ---------------- ----------------\n");
+      for (df = disk_data; df; df = df->next) 	//从设备结构起始查
+      {
+        if(df->sector_count)
+        {
+          grub_printf ("%02X %02X %02X %02X %02X %02X %016lX %016lX\n", df->drive, df->to_drive,
+              df->from_log2_sector, df->to_log2_sector, df->fragment, df->read_only,
+              byte?(df->start_sector << df->to_log2_sector):df->start_sector,
+              byte?((unsigned long long)df->sector_count)
+              << df->to_log2_sector:(unsigned long long)df->sector_count);
+        }
+      }
+#endif
 			return 1;
 		}
     else if (grub_memcmp (arg, "--hook", 6) == 0)
@@ -7152,6 +7157,7 @@ struct drive_map_slot
     }
     else if (grub_memcmp (arg, "--unmap=", 8) == 0)
     {
+#if UNMAP
       int drive;
       p = arg + 8;
       for (drive = 0xFF; drive >= 0; drive--)    //从0xff到0
@@ -7188,6 +7194,7 @@ struct drive_map_slot
           }
         }
       }
+#endif
       buf_drive = -1;
       buf_track = -1;
       return 1;
@@ -7646,6 +7653,7 @@ map_whole_drive:
 #endif
   if (from != ram_drive)		//如果from不等于rd
   {
+#if 0
     /* Search for an empty slot in disk_drive_map.  在磁盘驱动器映射中搜索空插槽*/
     for (i = 0; i < DRIVE_MAP_SIZE; i++)
     {
@@ -7680,6 +7688,22 @@ map_whole_drive:
       errnum = ERR_WONT_FIT;
       goto fail_free;
     }
+#else
+    df = get_device_by_drive (from,1);
+    if (df && df->fragment == 1)  //有碎片
+    {
+      q = (struct fragment_map_slot *)&disk_fragment_map;   //碎片插槽起始
+      filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;			  //碎片插槽结束
+      q = fragment_map_slot_find(q, from);		              //从碎片插槽查找from驱动器
+      if (q)  		//q=0/非0=没有找到/from驱动器在碎片插槽位置
+      {
+        void *start = filename - q->slot_len;
+        int len = q->slot_len;
+        grub_memmove (q, (char *)q + q->slot_len,filename - (char *)q - q->slot_len);
+        grub_memset (start, 0, len);
+      }
+    }
+#endif
 #if 0
     /* If TO == FROM and whole drive is mapped, and, no map options occur, then delete the entry.  */
     //如果TO=FROM,并且是整个驱动器映射，并且没有映射选项出现，然后删除该条目。
@@ -7699,6 +7723,7 @@ map_whole_drive:
 	if (mem == -1ULL)  //如果不加载到内存
 	{
     //查找父插槽
+#if 0
 		for (j = 0; j < DRIVE_MAP_SIZE; j++)
 		{
 			if (to != disk_drive_map[j].from_drive/* || (to == 0xFF && (disk_drive_map[j].to_log2_sector == 11))*/)		//如果to != hooked.from, 或者to是cdrom
@@ -7753,16 +7778,45 @@ map_whole_drive:
 #endif
 			break;
 		}
+#else
+    dt = get_device_by_drive (to,1);
+    if (dt)
+    {
+      //to改变!!!!
+      to = dt->to_drive;					//设置当前to等于父插槽的to
+      if (to == 0xFF && !(dt->to_log2_sector == 11))		//如果to=0xFF,并且to不是cdrom
+        to = 0xFFFF;		/* memory device   内存驱动器*/
+      //确定起时扇区
+      if (! dt->fragment)
+      {
+        //起始扇区=起始扇区+父起始扇区
+        start_sector = (start_sector << dt->from_log2_sector) >> dt->to_log2_sector; 
+        start_sector += dt->start_sector;
+        //扇区计数
+        sector_count = (sector_count << dt->from_log2_sector) >> dt->to_log2_sector;
+      }
+      //如果to有碎片，调整各碎片起始扇区。起始扇区由blocklist_func获得。
+      else
+      {
+        for (k = 0; (k < DRIVE_MAP_FRAGMENT) && (map_start_sector[k] != 0); k++)
+        {
+          map_start_sector[k] = (map_start_sector[k] << dt->from_log2_sector) >> dt->to_log2_sector;
+          map_start_sector[k] += dt->start_sector;
+          map_num_sectors[k] = (map_num_sectors[k] << dt->from_log2_sector) >> dt->to_log2_sector;
+        }
+      }
+    }
+#endif
 	}
 //至此,start_sector与sector_count最终确定!!!!
-//j=from驱动器的父插槽号  也就是说,to不是原生磁盘,是映射盘
-//i=from驱动器的插槽号
+//j=from驱动器的父插槽号  也就是说,to不是原生磁盘,是映射盘  dt是from的父驱动器设备
+//i=from驱动器的插槽号                                      df是from驱动器的设备
 //====================================================================================================================
   if (from != ram_drive && from != 0xffff)
   {
   //获取to驱动器,虚拟分区信息
-  disk_drive_map[i].start_sector = start_sector;
-  disk_drive_map[i].sector_count = sector_count;
+//  disk_drive_map[i].start_sector = start_sector;
+//  disk_drive_map[i].sector_count = sector_count;
 
 	if (from >= 0xa0)	//光盘
 	{
@@ -7895,7 +7949,8 @@ get_info_ok:
 
     if (to == 0x21) //网络驱动器
     {
-      disk_drive_map[i].start_sector = ((unsigned long long)(grub_size_t)(char*)efi_pxe_buf | 0x200) & 0xfffffffffffffe00;  //此处是内存起始字节!!!
+//      disk_drive_map[i].start_sector = ((unsigned long long)(grub_size_t)(char*)efi_pxe_buf | 0x200) & 0xfffffffffffffe00;  //此处是内存起始字节!!!
+      start_sector = ((unsigned long long)(grub_size_t)(char*)efi_pxe_buf | 0x200) & 0xfffffffffffffe00;  //此处是内存起始字节!!!
       efi_pxe_buf = 0;
     }
     else  //其他
@@ -7939,8 +7994,8 @@ get_info_ok:
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////以上插入分配内存
 mem_ok:
-//		sector_count = bytes_needed >> SECTOR_BITS;			//扇区计数=需要扇区
-    sector_count = bytes_needed >> buf_geom.log2_sector_size;			//扇区计数=需要扇区 
+		sector_count = bytes_needed >> 9;			//扇区计数=加载到内存的扇区数，每扇区0x200字节
+//    sector_count = bytes_needed >> buf_geom.log2_sector_size;			//扇区计数=需要扇区 
 		//向内存移动映像 第一扇区已经读到了BS
 	  /* if image is in memory and not compressed, we can simply move it. */
 	  if ((to == 0xffff || to == ram_drive) && !compressed_file) //如果映像在内存中，并且没有压缩，我们可以简单地移动它。
@@ -7993,34 +8048,30 @@ mem_ok:
 		disk_drive_map[i].from_log2_sector = 9;
 	}
 #endif
-//          j_count(0)       j_count(1)          j_count(2)         j_count(3)
-//  		├──────────────┼───────────────────┼───────────────────┼───────────────────┤
-//  j_start(0)     j_start(1)          j_start(2)          j_start(3)
-//                                                      To_len
-//     ┇┅┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄├───────────────────────┤
-//     0                                   To_statr
-
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ buf_geom 是 primeval_to 的信息
   if (primeval_to != to)
     if (get_diskinfo (to, &buf_geom, 0))	//如果'获得磁盘信息'返回非0, 错误
       return !(errnum = ERR_NO_DISK);
 
 //有碎片
-//			 To_count(0)			To_count(1)					To_count(2)					To_count(3)
-//		├──────────────┼───────────────────┼───────────────────┼───────────────────┤		To驱动器     从To_start(0)起始,扇区不连续  物理地址  
-//To_start(0)		To_start(1)					To_start(2)					To_start(3)
-//				              									Form_len
-//	  ├--------------------├------------------------------------------┤								Form驱动器   从Form_statr起始,扇区连续     虚拟地址
-//	                  Form_statr
-
+//		│                 Virtual_sector             │   虚拟扇区(假设连续)
+//		│                                            │
+//		│	  To_count(0)			      To_count(1)				│	    To_count(2)		│			        To_count(3)             │
+//		├─────────┼────────────┼──────────┼───────────────────┤	To驱动器(父)  有碎片
+//To_start(0)		      To_start(1)					      To_start(2)					  To_start(3)
+//		│		              								Form_len   
+//	  ├--------------------├------------------------------------┤	Form驱动器(子)  可能有碎片
+//	  │                Form_statr
 
   //Determine the start fragment 
   //不加载到内存,并且to不是光盘,并且((原始to != to,并且有碎片) 或者块列表数大于1)
-	if ((mem == -1ULL) && (to < 0x9f) && (((primeval_to != to) && (disk_drive_map[j].fragment == 1)) || (blklst_num_entries > 1)))
+//	if ((mem == -1ULL) && (to < 0x9f) && (((primeval_to != to) && (disk_drive_map[j].fragment == 1)) || (blklst_num_entries > 1)))
+  if ((mem == -1ULL) && (to < 0x9f) && (((primeval_to != to) && (dt->fragment == 1)) || (blklst_num_entries > 1)))
 	{
     //如果是2次映射,并且有碎片
 #if 0
-		if ((primeval_to != to) && (disk_drive_map[j].fragment == 1))		//如果是2次映射,并且有碎片
+//		if ((primeval_to != to) && (disk_drive_map[j].fragment == 1))		//如果是2次映射,并且有碎片
+    if ((primeval_to != to) && (dt->fragment == 1))		//如果是2次映射,并且有碎片
 		{
       unsigned long long sum_to_count = 0;      //To计数和, 即各碎片扇区数的和, 是父驱动器的值
       unsigned long long form_statr;            //Form驱动器起始扇区 24eda
@@ -8044,7 +8095,8 @@ mem_ok:
         if (form_statr < sum_to_count)
           break;
       }
-      empty_slot[0].start_sector = f[k].start_sector + (form_statr << (disk_drive_map[j].from_log2_sector - disk_drive_map[j].to_log2_sector)) - (sum_to_count - f[k].sector_count);
+//      empty_slot[0].start_sector = f[k].start_sector + (form_statr << (disk_drive_map[j].from_log2_sector - disk_drive_map[j].to_log2_sector)) - (sum_to_count - f[k].sector_count);
+      empty_slot[0].start_sector = f[k].start_sector + (form_statr << (dt->from_log2_sector - dt->to_log2_sector)) - (sum_to_count - f[k].sector_count);
       start_sector = empty_slot[0].start_sector;
       //建立碎片映射
       q->from = from;
@@ -8071,60 +8123,79 @@ mem_ok:
       goto no_fragment;
     }
 #else
-		if ((primeval_to != to) && (disk_drive_map[j].fragment == 1))		//如果是2次映射,并且有碎片
+//		if ((primeval_to != to) && (disk_drive_map[j].fragment == 1))		//如果是2次映射,并且有碎片
+    if ((primeval_to != to) && (dt->fragment == 1))		//如果是2次映射,并且有碎片
 		{
-			unsigned long long a = 0;																	//Sum(j_count(k))   计数和, 即各碎片扇区数的和, 是父驱动器的值
-			unsigned long long bb = map_num_sectors[0];								//Residual(To_len)  剩余扇区, 是子驱动器的值, 最大值=子驱动器扇区数
-			unsigned long long c = map_start_sector[0];								//To_statr          to起始扇区, 是子驱动器的值
-      //查找父插槽from
+      //临时缓存子程序碎片信息
+      char *p1 = grub_zalloc (DRIVE_MAP_FRAGMENT * 8);
+      if (!p1)
+        return 0;
+      char *p2 = grub_zalloc (DRIVE_MAP_FRAGMENT * 8);
+      if (!p2)
+        return 0;
+      unsigned long long *map_start_sector_back = (unsigned long long *)p1;
+      unsigned long long *map_num_sectors_back = (unsigned long long *)p2;
+      grub_memmove64 ((unsigned long long)(grub_size_t)p1, (unsigned long long)(grub_size_t)map_start_sector, DRIVE_MAP_FRAGMENT * 8);
+      grub_memmove64 ((unsigned long long)(grub_size_t)p2, (unsigned long long)(grub_size_t)map_start_sector, DRIVE_MAP_FRAGMENT * 8);
+      //查找父插槽To_
 			q = (struct fragment_map_slot *)&disk_fragment_map;
 			q = fragment_map_slot_find(q, primeval_to);
-			struct fragment *f = (struct fragment *)&q->fragment_data;
-			a = f[0].start_sector;
-			for (k = 0; (k < DRIVE_MAP_FRAGMENT) && (f[k].start_sector != 0); k++)
-			{
-        //确定起始
-				a += f[k].sector_count;																  //Sum(j_count(k))
-				if (map_start_sector[0] < a)														//To_statr < Sum(j_count(k))
-				{
-					map_start_sector[0] += f[k].start_sector + f[k].sector_count - a;
-					start_sector = map_start_sector[0];
-					//To_statr = To_statr + j_start(k) +  j_count(k) - Sum(j_count(k))
-					break;																								//ok
-				}
-			}
-			//Determine the length  确定长度
-			if ((bb + c) <= a ) 																			//Residual(To_len) <= Sum(j_count(k)) - j_start(0)
-				goto set_ok;																						//j_count(k) = To_len
-			else 
-			{
-				map_num_sectors[0] = a - c;															//j_count(k) = Sum(j_count(k)) - To_statr
-//				map_start_sector[1] = f[k+1].start_sector;							//j_start(k+1)
-				bb -= (a - c);																					//Residual(To_len) - (Sum(j_count(k)) - To_statr)
-//				for (l = 0; ((l < DRIVE_MAP_FRAGMENT - k) && (f[k+l+3].start_sector != 0)); l++)
-        for (l = 0; ((l < DRIVE_MAP_FRAGMENT - k) && (f[k+l].start_sector != 0)); l++)
-				{
-					blklst_num_entries = l + 2;
-//					if (bb <= f[k+l+3].sector_count)												//Residual(To_len) <= j_count(k+1)
-          if (bb <= f[k+l+1].sector_count)												//Residual(To_len) <= j_count(k+1)
-					{
-						map_num_sectors[l+1] = bb;									      		//Residual(To_len)
-            map_start_sector[l+1] = f[k+l+1].start_sector;
-						goto set_ok;
-					}
-					else
-					{
-//						map_num_sectors[l+1] = f[k+l+3].sector_count;				  //j_count(k+1)
-//						map_start_sector[l+2] = f[k+l+4].start_sector;				//j_start(k+2)
-//						bb -= f[k+l+3].sector_count;													//Residual(To_len) - j_count(k+1)
-						map_num_sectors[l+1] = f[k+l+1].sector_count;				      //j_count(k+1)
-						map_start_sector[l+1] = f[k+l+1].start_sector;				    //j_start(k+2)
-						bb -= f[k+l+1].sector_count;													//Residual(To_len) - j_count(k+1)
-					}
-				}
-			}
-		}
+			struct fragment *to_ = (struct fragment *)&q->fragment_data; 
+      
+      for (m = 0; *map_start_sector_back && m < DRIVE_MAP_FRAGMENT; map_start_sector_back += 8, map_num_sectors_back += 8)
+      {
+        unsigned long long Virtual_sector = 0;											//虚拟扇区终点(假设扇区连续)  以To_start(0)为起点，把各碎片依序逐次拼接的终端值。
+        unsigned long long Form_len = *map_num_sectors_back;				//Form扇区计数
+        unsigned long long Form_statr = *map_start_sector_back;			//Form起始扇区
+        Virtual_sector = to_[0].start_sector;  //虚拟扇区终端，以To_start(0)为起点
+
+        for (k = 0; (k+m < DRIVE_MAP_FRAGMENT) && (to_[k].start_sector != 0); k++)
+        {
+          //确定Form_statr在父驱动器的物理地址
+          Virtual_sector += to_[k].sector_count;    //拼接第k段后的虚拟扇区终点
+          if (Form_statr < Virtual_sector)	        //如果Form起始扇区小于虚拟扇区终点，说明Form起始扇区位于碎片段k
+          {
+            map_start_sector[m] = to_[k].start_sector + to_[k].sector_count - (Virtual_sector - Form_statr);  //Form_statr在父驱动器的物理地址
+            start_sector = map_start_sector[m];
+            break;
+          }
+        }
+        //确定碎片尺寸(也可能只有一段)
+        l = 0;
+        if ((Form_len + Form_statr) <= Virtual_sector)        //如果父碎片段k可容纳Form_len
+          goto set_ok;                                        //完成
+        else 
+        {
+          //确定子碎片段0尺寸
+          map_num_sectors[m] = Virtual_sector - Form_statr;	  //碎片段k剩余尺寸，作为子碎片段0的尺寸
+          Form_len -= map_num_sectors[m];                     //Form扇区计数剩余值
+          //确定子碎片段l尺寸
+          for (l = 1; ((k+l+m < DRIVE_MAP_FRAGMENT) && (to_[k+l].start_sector != 0)); l++)
+          {
+            blklst_num_entries = l + 2;
+            //
+            if (Form_len <= to_[k+l].sector_count)        //如果父碎片段k可容纳Form_len
+            {
+              map_num_sectors[l+m] = Form_len;            //Form扇区计数剩余值，作为子碎片段l的尺寸
+              map_start_sector[l+m] = to_[k+l].start_sector;//父碎片段k+l的起时扇区,作为子碎片段l的起时扇区
+              goto set_ok;                                //完成
+            }
+            else                                          //如果父碎片段k不能容纳Form_len
+            {
+              map_num_sectors[l+m] = to_[k+l].sector_count;	//父碎片段k+l的起时扇区,作为子碎片段l的起时扇区
+              map_start_sector[l+m] = to_[k+l].start_sector;//父碎片段k+l的扇区尺寸,作为子碎片段l的扇区尺寸
+              Form_len -= to_[k+l].sector_count;          //Form扇区计数剩余值
+            }
+          }
+        }
 set_ok:
+        m += l + 1;
+      }
+      map_num_sectors[m] = 0;
+      map_start_sector[m] = 0;
+      grub_free (p1);
+      grub_free (p2);
+    }
 #endif
 
 		if (blklst_num_entries < 2)
@@ -8154,6 +8225,7 @@ set_ok:
   
 //无碎片
 no_fragment:
+#if 0
 	disk_drive_map[i].from_drive = from;
   disk_drive_map[i].to_drive = (unsigned char)to; /* to_drive = 0xFF if to == 0xffff */
   disk_drive_map[i].from_log2_sector = from_log2_sector;
@@ -8169,6 +8241,7 @@ no_fragment:
   disk_drive_map[i].sector_count = sector_count;
   disk_drive_map[i].max_head = 0xfe;    //避免旧svbus蓝屏。支持碎片的新版本不需要。
   disk_drive_map[i].to_sector = 0x3f;   //避免旧svbus蓝屏。支持碎片的新版本不需要。
+#endif
 #undef	BS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -8185,6 +8258,7 @@ no_fragment:
   d->to_log2_sector = buf_geom.log2_sector_size;
   d->start_sector = start_sector;
   d->sector_count = sector_count;
+  d->total_sectors = (filemax + (1 << from_log2_sector) - 1) >> from_log2_sector;
   d->to_block_size = buf_geom.sector_size;
   d->partmap_type = partmap_type;
   d->fragment = (blklst_num_entries > 1);
@@ -8195,24 +8269,19 @@ no_fragment:
   if (d->drive >= 0xa0)
   {
 		cdrom_orig++;
-		if (!cd_devices)
-			cd_devices = d;
-		d1 = cd_devices;
+		d->disk_type = DISK_TYPE_CD;
   }
   else if (d->drive >= 0x80)
   {
 		harddrives_orig++;
-		if (!hd_devices)
-			hd_devices = d;
-		d1 = hd_devices;
+		d->disk_type = DISK_TYPE_HD;
   }
   else
   {
 		floppies_orig++;
-		if (!fd_devices)
-			fd_devices = d;
-		d1 = fd_devices;
+		d->disk_type = DISK_TYPE_FD;
   }
+  d1 = disk_data;
 	
   if (d1 != d)
   {
@@ -9029,8 +9098,8 @@ static struct builtin builtin_password =
 
 
 /* pause */
-//static int
-int
+static int pause_func (char *arg, int flags);
+static int
 pause_func (char *arg, int flags)
 {
 //  char *p;

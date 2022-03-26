@@ -363,7 +363,6 @@ struct ext4_extent_header
 
 /* made up, these are pointers into FSYS_BUF */
 /* read once, always stays there: */
-#if 1
 #define NAME_BUF ((char *)(FSYS_BUF))	/* 512 bytes */
 #define SUPERBLOCK \
     ((struct ext2_super_block *)((FSYS_BUF)+512))	/* 1024 bytes */
@@ -376,7 +375,6 @@ struct ext4_extent_header
     ((grub_size_t)((grub_size_t)INODE + sizeof(struct ext2_inode)))
 #define DATABLOCK2 \
     ((grub_size_t)((grub_size_t)DATABLOCK1 + EXT2_BLOCK_SIZE(SUPERBLOCK)))
-#endif
 
 /* linux/ext2_fs.h */
 #define EXT2_ADDR_PER_BLOCK(s)          (EXT2_BLOCK_SIZE(s) / sizeof (__u32))
@@ -423,18 +421,7 @@ struct ext4_extent_header
 #define S_ISREG(m)      (((m) & S_IFMT) == S_IFREG)
 #define S_ISDIR(m)      (((m) & S_IFMT) == S_IFDIR)
 
-#if 1
-//static char *linkbuf = (char *)(FSYS_BUF - PATH_MAX);	/* buffer for following symbolic links */
 #define linkbuf ((char *)(FSYS_BUF - PATH_MAX))	/* buffer for following symbolic links */
-#else
-char *NAME_BUF;
-struct ext2_super_block *SUPERBLOCK;
-struct ext2_group_desc *GROUP_DESC;
-struct ext2_inode *INODE;
-int DATABLOCK1;
-int DATABLOCK2;
-char *linkbuf;
-#endif
 /* include/asm-i386/bitops.h */
 /*
  * ffz = Find First Zero in word. Undefined if no zero exists,
@@ -446,15 +433,6 @@ int ext2fs_mount (void);
 int
 ext2fs_mount (void)
 {
-#if 0
-	NAME_BUF = (char *)FSYS_BUF;
-	SUPERBLOCK = (struct ext2_super_block *)((char *)FSYS_BUF+512);
-	GROUP_DESC = (struct ext2_group_desc *)((char *)SUPERBLOCK + sizeof(struct ext2_super_block));
-	INODE = (struct ext2_inode *)((grub_size_t)GROUP_DESC + EXT2_BLOCK_SIZE(SUPERBLOCK));
-	DATABLOCK1 = (grub_size_t)INODE + sizeof(struct ext2_inode);
-	DATABLOCK2 = (grub_size_t)DATABLOCK1 + EXT2_BLOCK_SIZE(SUPERBLOCK);
-	linkbuf = (char *)(grub_size_t)DATABLOCK2 + 1024;
-#endif      
   if ((unsigned int)part_length < (SBLOCK + (sizeof(struct ext2_super_block) / DEV_BSIZE)))
       return 0;
 
@@ -503,15 +481,15 @@ ext2fs_mount (void)
 }
 
 /* Takes a file system block number and reads it into BUFFER. */
-static int ext2_rdfsb (unsigned long long fsblock, int buffer);
+static int ext2_rdfsb (unsigned long long fsblock, unsigned long long buffer);
 static int
-ext2_rdfsb (unsigned long long fsblock, int buffer)
+ext2_rdfsb (unsigned long long fsblock, unsigned long long buffer)
 {
 #ifdef E2DEBUG
   printf ("fsblock %d buffer %d\n", fsblock, buffer);
 #endif /* E2DEBUG */
   return devread (fsblock * (EXT2_BLOCK_SIZE (SUPERBLOCK) / DEV_BSIZE), 0,
-		  EXT2_BLOCK_SIZE (SUPERBLOCK), (unsigned long long)(grub_size_t)(char *)(grub_size_t) buffer, 0xedde0d90);
+      EXT2_BLOCK_SIZE (SUPERBLOCK), buffer, 0xedde0d90);
 }
 
 /* from

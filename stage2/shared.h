@@ -29,7 +29,8 @@
 
 //UEFI 编译开关
 #define HOTKEY  0         //热键      0: 外置;    1: 内置
-#define DPUP    0         //使用设备路径实用程序协议   低版本UEFI固件不支持
+#define GDPUP   0         //使用设备路径实用程序协议   低版本UEFI固件不支持
+#define UNMAP   0         //卸载映像
 
 /* Add an underscore to a C symbol in assembler code if needed. */
 #ifdef HAVE_ASM_USCORE
@@ -95,7 +96,7 @@
 #define DRIVE_MAP_SIZE		8
 
 /* The size of the drive_map_slot struct.  */
-#define DRIVE_MAP_SLOT_SIZE		0x70
+//#define DRIVE_MAP_SLOT_SIZE		0x70
 
 /* The fragment of the drive map.  */
 #define DRIVE_MAP_FRAGMENT		0x27
@@ -2255,12 +2256,11 @@ extern char harddrives_orig;
 extern char cdrom_orig;
 //extern char first_boot;
 typedef void *grub_efi_handle_t;
-extern struct grub_disk_data *get_device_by_drive (unsigned int drive);
-extern struct grub_disk_data *fd_devices;  //软盘	全局变量
-extern struct grub_disk_data *hd_devices;  //硬盘
-extern struct grub_disk_data *cd_devices;  //光盘
+extern struct grub_disk_data *get_device_by_drive (unsigned int drive, unsigned int map);
+extern struct grub_disk_data *disk_data;  //磁盘数据
 extern int big_to_little (char *filename, unsigned int n);
 extern void uninstall_map (unsigned int drive);
+
 
 //##########################################################################################################################################
 
@@ -3224,8 +3224,8 @@ struct grub_efi_cdrom_device_path   //光盘驱动器路径
 {
   grub_efi_device_path_t header;				//设备路径表头
   unsigned int boot_entry;							//引导入口	引导目录中的引导条目号。初始/默认项定义为零。				0
-  unsigned long long partition_start;		//引导起始	引导映像文件的扇区地址。														12b
-  unsigned long long partition_size;		//引导尺寸	引导时装入内存的映像文件扇区数(每扇区按0x200字节)		4
+  unsigned long long boot_start;        //引导起始	引导映像文件的扇区地址。														12b
+  unsigned long long boot_size;         //引导尺寸	引导时装入内存的映像文件扇区数(每扇区按0x200字节)		4
 } __attribute__ ((packed));
 typedef struct grub_efi_cdrom_device_path grub_efi_cdrom_device_path_t;
 //多媒体设备路径子类型
@@ -5538,6 +5538,10 @@ grub_decompress_lzss (grub_uint8_t *dst, grub_uint8_t *dstend,
 		      grub_uint8_t *src, grub_uint8_t *srcend);
 
 #define VDISK_MEDIA_ID 0x1
+#define DISK_TYPE_CD 0
+#define DISK_TYPE_HD 1
+#define DISK_TYPE_FD 2
+
 
 //struct grub_efi_block_io_media  //块输入输出介质
 //{																																														My_Boot_ISO_xg.iso
@@ -5555,38 +5559,42 @@ grub_decompress_lzss (grub_uint8_t *dst, grub_uint8_t *dstend,
 //};
 //typedef struct grub_efi_block_io_media grub_efi_block_io_media_t;	//0x20(按指定)
 					
-struct grub_disk_data  //efi磁盘数据	(软盘,硬盘,光盘)  grub2定义
+struct grub_disk_data  //efi磁盘数据	(软盘,硬盘,光盘)
 {
   grub_efi_handle_t device_handle;          //句柄          11cba410		hndl
-  grub_efi_device_path_t *device_path;      //设备路径      11cba890		类型,子类型,长度
-  grub_efi_device_path_t *last_device_path; //最后设备路径  11cba8a2		类型,子类型,长度
+//  grub_efi_device_path_t *device_path;      //设备路径      11cba890		类型,子类型,长度
+//  grub_efi_device_path_t *last_device_path; //最后设备路径  11cba8a2		类型,子类型,长度
   grub_efi_block_io_t *block_io;          	//块输入输出    1280d318		修订,媒体,重置,读块,写块,清除块
   struct grub_disk_data *next;           		//下一个
   unsigned char drive;                      //from驱动器					f0
   unsigned char to_drive;                   //to驱动器                  原生磁盘为0
   unsigned char from_log2_sector;           //from每扇区字节2的幂	0b
   unsigned char to_log2_sector;             //to每扇区字节2的幂         原生磁盘为0
-  unsigned long long start_sector;          //起始扇区                  原生磁盘为0
-  unsigned long long sector_count;          //总扇区数				11ae
+  unsigned long long start_sector;          //起始扇区                  原生磁盘为0  from在to的起始扇区  每扇区字节=(1 << to_log2_sector)
+  unsigned long long sector_count;          //扇区计数                  原生磁盘为0  from在to的扇区数    每扇区字节=(1 << to_log2_sector)
+  unsigned long long total_sectors;         //总扇区数                  from驱动器的总扇区数  每扇区字节=(1 << from_log2_sector)
   unsigned char disk_signature[16];         //磁盘签名                  软盘/光盘或略  启动wim/vhd需要  mbr类型同分区签名,gpt类型则异样
   unsigned short to_block_size;             //to块尺寸
   unsigned char partmap_type;               //磁盘类型        1/2=MBR/GPT
   unsigned char fragment;                   //碎片
   unsigned char read_only;                  //只读
-} GRUB_PACKED;
+  unsigned char disk_type;                  //磁盘类型        0/1/2=光盘/硬盘/软盘
+  unsigned char cd_boot_floppy;             //光盘引导软盘号             原生磁盘为0
+  unsigned char fill;                       //填充
+}  __attribute__ ((packed));
 
 struct grub_part_data  //efi分区数据	(硬盘)  grub定义
 {
-	grub_efi_handle_t part_handle;          //句柄
-	grub_efi_device_path_t *part_path;      //分区路径
-	grub_efi_device_path_t *last_part_path; //最后分区路径
+//	grub_efi_handle_t part_handle;          //句柄
+//	grub_efi_device_path_t *part_path;      //分区路径
+//	grub_efi_device_path_t *last_part_path; //最后分区路径
 	struct grub_part_data *next;  				  //下一个
 	unsigned char	drive;									  //驱动器
 	unsigned char	partition_type;					  //MBR分区ID          EE是gpt分区类型
 	unsigned char	partition_activity_flag;  //MBR分区活动标志    80活动
 	unsigned char partition_entry;				  //分区入口           光盘: 启动目录确认入口   
 	unsigned int partition_ext_offset;		  //扩展分区偏移       光盘: 启动目录扇区地址
-	unsigned int partition;							    //当前分区
+	unsigned int partition;							    //当前分区           光盘: ffff 
 	unsigned long long partition_offset;	  //分区偏移
 	unsigned long long partition_start;		  //分区起始扇区       光盘: 引导软盘在光盘的起始扇区(1扇区=2048字节)
 	unsigned long long partition_len;			  //分区扇区尺寸       光盘: 引导软盘的扇区数(1扇区=512字节)
@@ -5602,6 +5610,23 @@ typedef struct
 	block_io_protocol_t block_io;
 	grub_efi_block_io_media_t media;
 } grub_efivdisk_t;
+
+struct efidisk_data
+{
+  grub_efi_handle_t device_handle;
+  grub_efi_device_path_t *device_path;
+  grub_efi_device_path_t *last_device_path;
+  grub_efi_block_io_t *block_io;
+  struct efidisk_data *next;
+};
+
+struct efipart_data
+{
+  struct efipart_data *next;
+  unsigned char partition_number;
+  unsigned long long partition_start;
+	unsigned long long partition_len;	
+};
 
 extern struct grub_part_data *get_partition_info (int drive, int partition);
 extern struct grub_part_data *partition_info;
@@ -5651,11 +5676,11 @@ struct fragment
 };
 
 //extern struct drive_map_slot	vpart_drive_map[DRIVE_MAP_SIZE + 1];
-extern struct drive_map_slot	disk_drive_map[DRIVE_MAP_SIZE + 1];
+//extern struct drive_map_slot	disk_drive_map[DRIVE_MAP_SIZE + 1];
 extern struct fragment_map_slot	disk_fragment_map;
 //extern char disk_buffer[0x1000];
 extern char *disk_buffer;
-extern int drive_map_slot_empty (struct drive_map_slot item);
+//extern int drive_map_slot_empty (struct drive_map_slot item);
 extern struct fragment_map_slot *fragment_map_slot_find(struct fragment_map_slot *q, unsigned int from);
 
 
@@ -5795,8 +5820,7 @@ void file_read (grub_efi_boolean_t disk, void *file,
 grub_efi_uint64_t get_size (grub_efi_boolean_t disk, void *file);
 
 /* vboot */
-extern grub_efi_handle_t vpart_load_image (grub_efi_device_path_t *part_path);
-extern grub_efi_handle_t vdisk_load_image (unsigned int drive);
+extern grub_efi_handle_t grub_load_image (unsigned int drive, const char *filename, void *boot_image, unsigned long long file_len, grub_efi_handle_t *devhandle);
 /* vdisk */
 extern grub_efi_status_t vdisk_install  (int drive, int partition);
 /* vpart */

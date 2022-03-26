@@ -361,13 +361,15 @@ grub_efi_get_loaded_image (grub_efi_handle_t image_handle)  //获得加载映像
 				 GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);  //打开协议(映像句柄,guid,获得协议)
 }
 
+//有的主板热复位功能有问题，键盘“ctrl+alt+del”重启也会出现掉me固件，内存识别为零。
 void grub_reboot (void);
 void
-grub_reboot (void)  //热重新启动
+grub_reboot (void)  //重新启动
 {
   grub_machine_fini ();
   efi_call_4 (grub_efi_system_table->runtime_services->reset_system,	//系统表->运行时服务->重置系统
-              GRUB_EFI_RESET_WARM, GRUB_EFI_SUCCESS, 0, NULL);				//冷复位,成功 ,0,NULL
+//              GRUB_EFI_RESET_WARM, GRUB_EFI_SUCCESS, 0, NULL);				//热复位,成功 ,0,NULL
+              GRUB_EFI_RESET_COLD, GRUB_EFI_SUCCESS, 0, NULL);				//冷复位,成功 ,0,NULL
   for (;;) ;
 }
 
@@ -376,7 +378,7 @@ void
 grub_halt (void)  //关机
 {
   efi_call_4 (grub_efi_system_table->runtime_services->reset_system,	//系统表->运行时服务->重置系统
-              GRUB_EFI_RESET_SHUTDOWN, GRUB_EFI_SUCCESS, 0, NULL);				//冷复位,成功 ,0,NULL
+              GRUB_EFI_RESET_SHUTDOWN, GRUB_EFI_SUCCESS, 0, NULL);				//关机,成功 ,0,NULL
   for (;;) ;
 }
 
@@ -439,6 +441,28 @@ grub_efi_print_device_path (grub_efi_device_path_t *dp) //efi打印设备路径
   unsigned short *str;
   grub_efi_device_to_text_protocol_t *DPTTP;  //设备路径到文本协议
   static grub_efi_guid_t dpttp_guid = GRUB_EFI_DEVICE_PATH_TO_TEXT_PROTOCOL_GUID;
+  grub_efi_handle_t *handles;
+  grub_efi_uintn_t num_handles;
+  
+  handles = grub_efi_locate_handle (GRUB_EFI_BY_PROTOCOL,
+				    &dpttp_guid, NULL, &num_handles);	//定位手柄(通过协议)
+  if (!handles || num_handles == 0)	 //如果不支持路径到文本，退出。否则在UEFI版本1.0a会死机
+  {
+    int i,j;
+    unsigned char *p =	(unsigned char *)dp;
+    grub_printf("\n");
+    for (i = 0; i < 0x80;)
+    {
+      for (j=0; j<16; j++)
+      {
+        if (j==8)
+          grub_printf("%c%c",'-',' ');
+        grub_printf("%02x%c",p[i++],' ');
+      }
+      grub_printf("\n");
+    }
+    return;
+  }    
 
   DPTTP = grub_efi_locate_protocol (&dpttp_guid, 0);  //EFI定位协议
   str = (unsigned short *)efi_call_3 (DPTTP->ConvertDevicePathToText,
@@ -1696,9 +1720,10 @@ grub_efi_loaded_image_t *image;
 void
 grub_init (void)
 {
+	int i;
 	grub_console_init ();
 
-  if (checkkey () == 0x075200) //按Insert键，进入调试模式
+  if ((i = checkkey ()) == 0x075200 || i == 0x0071) //按Insert键或者q键，进入调试模式
   {
     debug = 3;
 //    getkey();

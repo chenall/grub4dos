@@ -119,8 +119,6 @@ static int cpio_dir(const char* dirname)
 
 int initrdfs_mount (void)
 {
-	int i;
-
 	if (current_drive == ram_drive)
 	{
 		initrdfs_base = rd_base;
@@ -134,6 +132,7 @@ int initrdfs_mount (void)
 	}
 	else
 	{
+#if 0
 		for (i = 0; i < DRIVE_MAP_SIZE && !drive_map_slot_empty (disk_drive_map[i]); i++)
 		{
 			if (disk_drive_map[i].from_drive == (unsigned char)current_drive)
@@ -146,6 +145,15 @@ int initrdfs_mount (void)
 				break;
 			}
 		}
+#else
+    struct grub_disk_data *d;
+    d = get_device_by_drive (current_drive,1);
+    if (d && d->to_drive == 0xFF)
+    {
+      initrdfs_base = d->start_sector << 9;
+      initrdfs_size = d->sector_count << 9;
+    }
+#endif
 	}
 
 	if (initrdfs_base == 0) return 0;

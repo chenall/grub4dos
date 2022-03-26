@@ -336,15 +336,12 @@ VARIABLE(current_x_resolution)                                            //0x83
 
 	. = EXT_C(main) + 0x150																									//0x8350
 	
-VARIABLE(fd_devices)                                                      //软盘驱动器信息指针  grub_disk_data *
-	.long	0, 0
-
-VARIABLE(hd_devices)                                                      //0x8358 硬盘驱动器信息指针  grub_disk_data *
-	.long	0, 0
+	.long	0, 0                                                              //未使用
+	.long	0, 0                                                              //未使用
 
 	. = EXT_C(main) + 0x160																									//0x8360
 
-VARIABLE(cd_devices)                                                      //光盘驱动器信息指针  grub_disk_data *
+VARIABLE(disk_data)                                                       //磁盘数据指针  grub_disk_data *
 	.long	0, 0
 
 VARIABLE(partition_info)                                                  //0x8368 分区信息指针  grub_part_data *
@@ -377,9 +374,8 @@ ENTRY(disk_fragment_map)	.space	FRAGMENT_MAP_SLOT_SIZE                  //映射
 
 	. = EXT_C(main) + 0x480																									//0x8680
 		
-ENTRY(disk_drive_map)	.space	[DRIVE_MAP_SIZE + 1] * DRIVE_MAP_SLOT_SIZE	//磁盘驱动器映射插槽  70*9=3c0
+//ENTRY(disk_drive_map)	.space	[DRIVE_MAP_SIZE + 1] * DRIVE_MAP_SLOT_SIZE	//磁盘驱动器映射插槽  70*9=3c0
 
-  . = EXT_C(main) + 0x870
 real_codestart:
 
 	.align	8
