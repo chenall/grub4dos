@@ -3771,6 +3771,9 @@ gen_uuid (void)	//获得uuid
 //创建设备节点; 附加设备节点; 安装多协议接口; 连接控制器;
 //不安装虚拟分区，一般情况可以正常启动。但是对于4k磁盘，则必须安装。(可能使UEFI对4k磁盘正常不充分)
 //如果光盘的启动镜像尺寸小于0x1680扇区时，虽然可以安装成功，但是在load_image时失败，找不到(0x800000000000000e)。
+//如果光盘的启动镜像尺寸等于0x1680扇区时，对于z1680.iso(引导入口=91,引导起始=27,引导尺寸=1680(或者1))，可以安装成功，在load_image时也成功。
+//如果光盘的启动镜像尺寸等于0x1680扇区时，对于WePE_64_V2.2.iso(引导入口=91,引导起始=144,引导尺寸=1(或者1680))，虽然可以安装成功，但是在load_image时失败，找不到(0x800000000000000e)。
+//结论：光盘启动，不能安装虚拟分区。
 grub_efi_status_t vpart_install (int drive, struct grub_part_data *part); //安装虚拟分区
 grub_efi_status_t
 vpart_install (int drive, struct grub_part_data *part) //安装虚拟分区
@@ -3821,7 +3824,7 @@ vpart_install (int drive, struct grub_part_data *part) //安装虚拟分区
   else
     vpart->media.last_block = part->partition_len - 1;
 
-  if (drive >= 0xa0 && part->partition_len < 0x1680) //如果是光盘，并且引导镜像尺寸小于1680扇区，安装虚拟分区接口无效，去安装磁盘接口
+  if (drive >= 0xa0) //如果是光盘，安装虚拟分区接口无效，去安装磁盘接口
     goto install_end;
 
   status = efi_call_6 (b->install_multiple_protocol_interfaces,	//安装多协议接口
