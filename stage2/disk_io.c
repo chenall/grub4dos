@@ -3824,9 +3824,6 @@ vpart_install (int drive, struct grub_part_data *part) //安装虚拟分区
   else
     vpart->media.last_block = part->partition_len - 1;
 
-  if (drive >= 0xa0) //如果是光盘，安装虚拟分区接口无效，去安装磁盘接口
-    goto install_end;
-
   status = efi_call_6 (b->install_multiple_protocol_interfaces,	//安装多协议接口
                        &vpart->from_handle,										//指向协议接口的指针(如果要分配新句柄，则指向NULL的指针)
                        &dp_guid, vpart->dp,										//指向协议GUID的指针,指向设备路径的指针
@@ -3844,7 +3841,6 @@ vpart_install (int drive, struct grub_part_data *part) //安装虚拟分区
 //    return GRUB_EFI_NOT_FOUND;
   }
 
-install_end:
 //  part->part_handle = vpart->from_handle;
 //  part->part_path = vpart->dp;
 
@@ -3870,7 +3866,6 @@ vdisk_install (int drive, int partition)	//安装虚拟磁盘(驱动器号)
   struct grub_disk_data	*d = get_device_by_drive(drive,0);  //由驱动器号获得设备
   grub_efi_guid_t dp_guid = GRUB_EFI_DEVICE_PATH_GUID;	//设备路径GUID 
   grub_efi_guid_t blk_io_guid = GRUB_EFI_BLOCK_IO_GUID;	//块IO_GUID
-  char tmp[64];
   vdisk = 0;
   vdisk = grub_zalloc (sizeof(grub_efivdisk_t));
   if (vdisk == 0)
@@ -3932,15 +3927,9 @@ vdisk_install (int drive, int partition)	//安装虚拟磁盘(驱动器号)
   /* info 打印信息*/
   printf_debug ("disk_map: addr=%lx size=%lx blksize=%x\n", d->start_sector, d->sector_count, 1 << d->from_log2_sector);//508,1c00,800
 
-  if (drive >= 0x80)
+  if (drive >= 0x80 && drive <= 0x8f)
   {
     part_data = get_partition_info (drive, partition);
-    if (drive >= 0xa0)
-    {
-      d->cd_boot_floppy = 0x60 + floppies_orig;
-      grub_sprintf (tmp, "--mem (0x%X)0x%lX+0x%lX (0x%X)\0", drive, part_data->partition_start, part_data->partition_len >> 2, d->cd_boot_floppy);
-      map_func (tmp, 1);
-    }
     vpart_install (drive, part_data);				    //安装虚拟分区
   }
 
@@ -4171,7 +4160,8 @@ grub_load_image (unsigned int drive, const char *filename, void *boot_image, uns
   if (drive >= 0xa0)
   {
     //windows启动cdrom时，只启动第一个cdrom，因此如果有多个cdrom，必须把要启动的cdrom移动到第一位。
-    saved_handle = *devhandle;
+    struct grub_disk_data *d = get_device_by_drive (drive,0);
+    saved_handle = d->device_handle; //不能使用“*devhandle”。启动WePE_64_V2.2.iso时错误提示：0xc000000f。可能对应的块IO驱动不对。
     if (!orig_locate_handle)
     {
       orig_locate_handle = (void *) b->locate_handle;
