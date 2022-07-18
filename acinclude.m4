@@ -61,7 +61,7 @@ for link_addr in 2000 8000 7C00; do
   else
     AC_MSG_ERROR([${CC-cc} cannot link at address $link_addr])
   fi
-  if AC_TRY_COMMAND([${OBJCOPY-objcopy} -O binary conftest.exec conftest]); then :
+  if AC_TRY_COMMAND([${OBJCOPY-objcopy} --only-section=.text -O binary conftest.exec conftest]); then :
   else
     AC_MSG_ERROR([${OBJCOPY-objcopy} cannot create binary files])
   fi
