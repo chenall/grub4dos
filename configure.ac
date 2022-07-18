@@ -184,6 +184,17 @@ if test "x$build_id_flag" = xyes; then
   LDFLAGS="$LDFLAGS -Wl,--build-id=none"
 fi
 
+# Check if the linker required no-pie parameter
+
+AC_MSG_CHECKING([checking whether linker has  \`-no-pie'])
+saved_LDFLAGS="$LDFLAGS"
+LDFLAGS="-no-pie"
+AC_TRY_LINK(, , no_pie_linker_flag=yes, no_pie_linker_flag=no)
+AC_MSG_RESULT([$no_pie_linker_flag])
+LDFLAGS=$saved_LDFLAGS
+if test "x$no_pie_linker_flag" = xyes; then
+  LDFLAGS="$LDFLAGS -no-pie"
+fi
 if test "x$with_binutils" != x; then
 dnl  AC_PATH_TOOL(OBJCOPY, objcopy, , "$with_binutils:$PATH")
   AC_PATH_PROG(OBJCOPY, objcopy, , "$with_binutils:$PATH")
