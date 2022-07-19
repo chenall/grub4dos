@@ -767,9 +767,8 @@ static int read_block(read_ctx* ctx, unsigned long long buf, unsigned long num, 
 				//o = 512 - (unsigned long)len;
 
 				/* sbuf must be 4K align!! buf is now offset to sbuf. */
-				//o = ((unsigned long)buf) % 4096;
-//				o = ((grub_size_t)buf) & 4095;  //4K对齐的问题,由后续真正读磁盘时再解决
-        o = (1UL << ((get_rflag(RF_COMP)) ? 12 : log2_bps)) - ss; //2021-10-07  解决写偏移的问题
+				//o = ((unsigned long)buf) % 4096;  //sbuf必须是4K对齐
+				o = (unsigned int)filepos % (1UL << log2_bps); //2022-07-15  解决写偏移的问题   sbuf无需4K对齐
 			}
 			else {
 				ss = len;

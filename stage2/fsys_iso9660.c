@@ -355,6 +355,7 @@ iso9660_dir (char *dirname)
 			idr = (struct iso_directory_record *)DIRREC;
 
 			udf_101 = (struct udf_File_Identifier *)((int)UDF_IDENTIFIER - name_offset);
+			name_offset = 0;
 asdf:
 		for (; ((iso_type == ISO_TYPE_udf)?(udf_101->Tag != 0):(idr->length.l > 0)); )
 	  {
