@@ -950,7 +950,7 @@ start:
 # This is the setup header, and it must start at %cs:2 (old 0x9020:2)
 
 		.ascii	"HdrS"		# header signature
-		.word	0x0203		# header version number (>= 0x0105)
+		.word	0x0206		# header version number (>= 0x0105)
 					# or else old loadlin-1.5 will fail)
 realmode_swtch:	.word	0, 0		# default_switch, SETUPSEG
 start_sys_seg:	.word	0x1000		# SYSSEG
@@ -1017,24 +1017,38 @@ ramdisk_max:	.long 0x1FFFFFFF # (-0xC0000000-(512 << 20)-1) & 0x7fffffff
 					# The highest safe address for
 					# the contents of an initrd
 
+kernel_align:	.long 0
+reloc_kernel:	.byte 0
+min_align:		.byte 0
+xloadflags:		.word 0
+
+cmdline_size:	.long 4096 # 0x238
+					# The maximum size of the command line
+					# without the terminating zero.
+					# This means that the command line can contain at
+					# most cmdline_size characters.
+					# With protocol version 2.05 and earlier, the maximum
+					# size was 255.
+
 trampoline:
 
 #if 0
 	call	start_of_setup
 #else
 	//jmp	start_of_setup		# short jump
-	nop
-	nop
-	nop
+	//nop
+	//nop
+	//nop
 #endif
 
 #-----------------------------------------------------------------------------
 #		GRLDR structure for BOOT.INI begins here
 #-----------------------------------------------------------------------------
 
-	. = _start + 0x233
+	//. = _start + 0x233
+	. = _start + 0x23c
 
-	.byte	0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90
+	//.byte	0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90
 	.byte	0x90, 0x90, 0x90, 0x90
 
 	. = _start + 0x240
