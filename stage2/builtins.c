@@ -5366,7 +5366,6 @@ command_func (char *arg, int flags)
 				psp = (char *)((int)(program + prog_len + 16) & ~0x0F);
 			}
 		} else {//the old program
-#if 0
 			char *program1;
 			printf_warning ("\nWarning! The program is outdated!\n");
 			psp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
@@ -5379,8 +5378,6 @@ command_func (char *arg, int flags)
 			grub_memmove (program1, program, prog_len);
 			program = program1;
 			tmp = psp;
-#endif
-      return ! (errnum = ERR_EXEC_FORMAT);
 		}
 	}
 

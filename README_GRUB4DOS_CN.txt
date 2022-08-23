@@ -1217,7 +1217,7 @@ kexec -e
 我们已经注意到通过使用 kexec 和 grub.exe，Linux本身就能够成为一个大的引导管理器。
 这给安装程序或者引导程序或者初始化程序的开发者带来了方便。
 
-当然，grub.exe和可引导的磁盘映像也能够被运行中的GRUB 或LILO 或syslinux 加载。例如：
+当然，grub.exe和可引导的磁盘映像也能够被运行中的GRUB、GRUB2、LILO 或 syslinux 加载。例如：
 
 1.通过 GRUB 加载：
 
@@ -1225,14 +1225,24 @@ kexec -e
 	initrd (hd0,0)/DOS.IMG
 	boot
 
-2.通过 LILO 加载：
+2.通过 GRUB2 加载：
+
+	g4d_cfg="map (rd) (fd0); map --hook; chainloader (fd0)+1; rootnoverify (fd0)"
+	linux (hd0,0)/grub.exe --config-file=$g4d_cfg
+	initrd (hd0,0)/DOS.IMG
+	boot
+
+	注意：--config文件的参数不能用双引号括起来。
+  这意味着带空格的命令行应始终设置为变量，并使用变量(无引号)，如上所述。
+
+3.通过 LILO 加载：
 
 	image=/boot/grub.exe
 		label=grub.exe
 		initrd=/boot/DOS.IMG
 		append="--config-file=map (rd) (fd0); map --hook; chainloader (fd0)+1; rootnoverify (fd0)"
 
-3.通过 SYSLINUX 加载：
+4.通过 SYSLINUX 加载：
 
 	label grub.exe
 		kernel grub.exe
