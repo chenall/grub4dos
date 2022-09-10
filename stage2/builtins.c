@@ -11749,7 +11749,15 @@ void
 lba_to_chs (unsigned long lba, unsigned long *cl, unsigned long *ch, unsigned long *dh)
 {
       unsigned long cylinder, head, sector;
-
+      
+  if (lba >= 0xfb03ff) //如果超过8GB，则应将1023、254、63用于CHS。issues#374
+  {
+    sector = 63; 
+    head = 254;
+    cylinder = 1023;
+  }
+  else
+  {
       sector = lba % buf_geom.sectors + 1;
       head = (lba / buf_geom.sectors) % buf_geom.heads;
       cylinder = lba / (buf_geom.sectors * buf_geom.heads);
@@ -11759,7 +11767,7 @@ lba_to_chs (unsigned long lba, unsigned long *cl, unsigned long *ch, unsigned lo
       
       if (cylinder >= buf_geom.cylinders)
 	cylinder = buf_geom.cylinders - 1;
-      
+  }      
       *cl = sector | ((cylinder & 0x300) >> 2);
       *ch = cylinder & 0xFF;
       *dh = head;
