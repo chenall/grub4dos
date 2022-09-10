@@ -700,10 +700,12 @@ run_script (char *script, char *heap)
         break;
       *(cur_entry - 1) = 0x0a;
     }
-    menu_bat = (char *)grub_malloc(cur_entry - script + 10 + 512);
+//    menu_bat = (char *)grub_malloc(cur_entry - script + 10 + 512);
+    menu_bat = (char *)grub_memalign(512, cur_entry - script + 10 + 512);  //对齐分配内存
     if (menu_bat == NULL)
       return 0;
-    p = (char *)(((grub_size_t)menu_bat + 511) & ~511);
+//    p = (char *)(((grub_size_t)menu_bat + 511) & ~511);
+    p = menu_bat;
     grub_memmove (p, script, cur_entry - script);
     grub_sprintf (cmd_add, "(md)%d+%d", (grub_size_t)p >> 9, ((cur_entry - script + 10 + 511) & ~511) >> 9);
     command_func (cmd_add, BUILTIN_SCRIPT);
@@ -1918,8 +1920,8 @@ cmain (void)
     titles = (char * *)(menu_mem + 1024);
     CONFIG_ENTRIES = menu_mem + 1024 + 256 * sizeof (char *);
   }
-  else
-    grub_memset (menu_mem, 0, 0x40e00 - 0x200);
+//  else
+//    grub_memset (menu_mem, 0, 0x40e00 - 0x200);
 
     saved_entryno = 0;
 	new_menu = 0;

@@ -180,7 +180,7 @@ dec_vhd_open(void)
 {
 	VHDFooter *footer = 0;
 	VHDDynamicDiskHeader *dynaheader = 0;
-  int i = 0;
+//  int i = 0;
 
   if (filemax < 0x10000) return 0;//file is to small
 	/* Now it does not support openning more than 1 file at a time. 现在它不支持一次打开多个文件。
@@ -203,7 +203,7 @@ dec_vhd_open(void)
 	}
 
   vhd_footer_in(footer);
-	if (footer->diskType != VHD_DISKTYPE_DYNAMIC && footer->diskType != VHD_DISKTYPE_DIFFERENCE)  //磁盘类型不是动态, 不是差分, 退出
+	if (footer->diskType != VHD_DISKTYPE_DYNAMIC/* && footer->diskType != VHD_DISKTYPE_DIFFERENCE*/)  //磁盘类型不是动态,/* 不是差分, 退出*/
 		goto quit_1; 
 
 		if (footer->dataOffset + sizeof(VHDDynamicDiskHeader) > filemax) { //数据偏移+VHD页脚表 > filemax, 退出
@@ -237,7 +237,7 @@ dec_vhd_open(void)
 		grub_read((grub_u64_t)(grub_size_t)vhdfc->blockAllocationTable, batSize, GRUB_READ);//读BAT结构
 		vhdfc->currentBlockOffset = -1LL;
   grub_memmove(&vhdfc->uniqueId, &footer->uniqueId, 16);
-   
+#if 0   
   //如果是差分
   if (footer->diskType == VHD_DISKTYPE_DIFFERENCE)
   {
@@ -333,6 +333,7 @@ quitP:
     goto quit_2;
 	}
 normalP:  
+#endif
 	compressed_file = 1;            //压缩文件
 	decomp_type = DECOMP_TYPE_VHD;  //解压缩类型VHD 
 	filemax = vhdfc->volumeSize;    //修改filemax
@@ -374,10 +375,10 @@ dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write)
   unsigned int offsetInBlock;
   unsigned int txLen;
   grub_u32_t blockLBA;
-  grub_u32_t parent_blockLBA;
-  unsigned long long total, fragment_len; 
+//  grub_u32_t parent_blockLBA;
+//  unsigned long long total, fragment_len; 
   unsigned long long nread;
-  unsigned int i, j, k;
+//  unsigned int i, j, k;
 
   while (rem) {
     blockNumber = (unsigned int)(uFilePos >> vhdfc->blockSizeLog2);                             //块号
@@ -406,6 +407,7 @@ dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write)
 				grub_memmove64(buf, (grub_size_t)(vhdfc->blockData + offsetInBlock), txLen);
 			}
     }
+#if 0
     else   //如果是差分
     {
       if (parentVHDFC->diskType == VHD_DISKTYPE_DYNAMIC)  //如果父磁盘类型是动态
@@ -507,6 +509,7 @@ dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write)
       grub_memmove64(buf, (unsigned long long)(grub_size_t)(parentVHDFC->blockData + offsetInBlock), txLen);
     }
 quit: 
+#endif
 			buf += txLen;
 			uFilePos += txLen;
 			rem -= txLen;

@@ -33,7 +33,7 @@
 //static int saved_videomode = 0;
 //extern unsigned char *font8x16;
 
-int outline = 0;
+//int outline = 0;
 
 #define VSHADOW VSHADOW1
 

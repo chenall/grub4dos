@@ -30,7 +30,7 @@
 //UEFI 编译开关
 #define HOTKEY  0         //热键      0: 外置;    1: 内置
 #define GDPUP   0         //使用设备路径实用程序协议   低版本UEFI固件不支持
-#define UNMAP   0         //卸载映像
+#define UNMAP   1         //卸载映像
 
 /* Add an underscore to a C symbol in assembler code if needed. */
 #ifdef HAVE_ASM_USCORE
@@ -433,40 +433,38 @@
 
 
 
-#if defined(__i386__)
-# define GRUB_CPU_SIZEOF_LONG		  4
-# define GRUB_CPU_SIZEOF_VOID_P		4
-# define GRUB_TARGET_SIZEOF_VOID_P  4
-#else
-# define GRUB_CPU_SIZEOF_LONG		  8
-# define GRUB_CPU_SIZEOF_VOID_P		8
-# define GRUB_TARGET_SIZEOF_VOID_P  8
-#endif
+//#if defined(__i386__)
+//# define GRUB_CPU_SIZEOF_LONG		  4
+//# define GRUB_CPU_SIZEOF_VOID_P		4
+//# define GRUB_TARGET_SIZEOF_VOID_P  4
+//#else
+//# define GRUB_CPU_SIZEOF_LONG		  8
+//# define GRUB_CPU_SIZEOF_VOID_P		8
+//# define GRUB_TARGET_SIZEOF_VOID_P  8
+//#endif
 
 #define GRUB_CPU_WORDS_BIGENDIAN	0			//小端
 #define GRUB_PACKED __attribute__ ((packed))					
 
-#if GRUB_CPU_SIZEOF_LONG == 8			//8		x86_64
-typedef int                 grub_int32_t;
-typedef unsigned int				grub_uint32_t;
-typedef long long           grub_int64_t;
 typedef unsigned long long  grub_uint64_t;
-typedef grub_uint64_t				grub_addr_t;
-typedef grub_uint64_t				grub_size_t;
-typedef grub_int64_t				grub_ssize_t;
+typedef long long           grub_int64_t;
+typedef int                 grub_int32_t;
+typedef unsigned int        grub_uint32_t;
 typedef long long           grub_s64_t;
 typedef unsigned long long  grub_u64_t;
+
+//#if GRUB_CPU_SIZEOF_LONG == 8			//8		x86_64
+#if !defined(__i386__)
+typedef grub_uint64_t				grub_size_t;
+typedef grub_int64_t				grub_ssize_t;
 #else
-typedef int                 grub_int32_t;
-typedef unsigned int				grub_uint32_t;
-typedef long long						grub_int64_t;
-typedef unsigned long long	grub_uint64_t;
-typedef grub_uint32_t				grub_addr_t;
 typedef grub_uint32_t				grub_size_t;
 typedef grub_int32_t				grub_ssize_t;
-typedef long long						grub_s64_t;
-typedef unsigned long long	grub_u64_t;
 #endif
+
+typedef grub_size_t grub_efi_uintn_t;
+typedef grub_ssize_t grub_efi_intn_t;
+typedef grub_size_t grub_addr_t;
 
 
 /* Define various wide integers.  定义各种宽度整数 */
@@ -487,23 +485,20 @@ typedef short						grub_s16_t;
 typedef int							grub_s32_t;
 #define PACKED			__attribute__ ((packed))
 
+typedef unsigned long long grub_efi_uint64_t;
+typedef long long grub_efi_int64_t;
+typedef unsigned int grub_efi_uint32_t;
+typedef int grub_efi_int32_t;
 /* Types. 类型 */
 typedef char grub_efi_boolean_t;
-#if GRUB_CPU_SIZEOF_VOID_P == 8
-typedef long long grub_efi_intn_t;
-typedef unsigned long long grub_efi_uintn_t;
-typedef long grub_efi_int64_t;
-typedef unsigned long grub_efi_uint64_t;
-typedef unsigned int grub_efi_uint32_t;
-typedef int grub_efi_int32_t;
-#else
-typedef long long grub_efi_int64_t;
-typedef unsigned long long grub_efi_uint64_t;
-typedef long grub_efi_intn_t;
-typedef unsigned long grub_efi_uintn_t;
-typedef unsigned int grub_efi_uint32_t;
-typedef int grub_efi_int32_t;
-#endif
+//#if GRUB_CPU_SIZEOF_VOID_P == 8
+//#if !defined(__i386__)
+//typedef long long grub_efi_intn_t;
+//typedef unsigned long long grub_efi_uintn_t;
+//#else
+//typedef int grub_efi_intn_t;
+//typedef unsigned int grub_efi_uintn_t;
+//#endif
 
 typedef char grub_efi_int8_t;
 typedef unsigned char grub_efi_uint8_t;
@@ -567,7 +562,8 @@ EFIAPI    定义UEFI接口的调用约定。
 # define PRIxGRUB_UINT32_T	"x"
 # define PRIuGRUB_UINT32_T	"u"
 
-#if GRUB_CPU_SIZEOF_LONG == 8			//8		x86_64
+//#if GRUB_CPU_SIZEOF_LONG == 8			//8		x86_64
+#if !defined(__i386__)
 # define PRIxGRUB_UINT64_T	"lx"
 # define PRIuGRUB_UINT64_T	"lu"
 #else
@@ -577,19 +573,20 @@ EFIAPI    定义UEFI接口的调用约定。
 
 /* Misc types. 其他类型 */
 
-#if GRUB_CPU_SIZEOF_VOID_P == 8		//8		x86_64
+//#if GRUB_CPU_SIZEOF_VOID_P == 8		//8		x86_64
+#if !defined(__i386__)
 # define GRUB_SIZE_MAX 18446744073709551615UL
-# if GRUB_CPU_SIZEOF_LONG == 8		//8		x86_64
+//# if GRUB_CPU_SIZEOF_LONG == 8		//8		x86_64
 #  define PRIxGRUB_SIZE	 "lx"
 #  define PRIxGRUB_ADDR	 "lx"
 #  define PRIuGRUB_SIZE	 "lu"
 #  define PRIdGRUB_SSIZE "ld"
-# else
-#  define PRIxGRUB_SIZE	 "llx"
-#  define PRIxGRUB_ADDR	 "llx"
-#  define PRIuGRUB_SIZE  "llu"
-#  define PRIdGRUB_SSIZE "lld"
-# endif
+//# else
+//#  define PRIxGRUB_SIZE	 "llx"
+//#  define PRIxGRUB_ADDR	 "llx"
+//#  define PRIuGRUB_SIZE  "llu"
+//#  define PRIdGRUB_SSIZE "lld"
+//# endif
 #else
 # define GRUB_SIZE_MAX 4294967295UL
 # define PRIxGRUB_SIZE	"x"
@@ -606,7 +603,8 @@ EFIAPI    定义UEFI接口的调用约定。
 #define GRUB_INT32_MIN (-2147483647 - 1)
 #define GRUB_INT32_MAX 2147483647
 
-#if GRUB_CPU_SIZEOF_LONG == 8			//8		x86_64
+//#if GRUB_CPU_SIZEOF_LONG == 8			//8		x86_64
+#if !defined(__i386__)
 # define GRUB_ULONG_MAX 18446744073709551615UL
 # define GRUB_LONG_MAX 9223372036854775807L
 # define GRUB_LONG_MIN (-9223372036854775807L - 1)
@@ -1428,6 +1426,7 @@ struct malloc_array
 
 extern void *grub_malloc(grub_size_t size);
 extern void *grub_zalloc(grub_size_t size);
+extern void * grub_memalign (grub_size_t align, grub_size_t size);
 extern void grub_free(void *ptr);
 struct malloc_array *malloc_array_start;
 
@@ -2173,25 +2172,25 @@ typedef struct {
 typedef struct {
 	grub_u64_t		hdr_sig;			//签名
 	grub_u32_t		hdr_revision;	//版本 
-	grub_u32_t		hdr_size;			//标题尺寸
-	grub_u32_t		hdr_crc_self;	//crc32
-	grub_u32_t		__reserved;		//保留
-	grub_u64_t		hdr_lba_self;	//标题lba
-	grub_u64_t		hdr_lba_alt;	//备用lba
-	grub_u64_t		hdr_lba_start;//标题lba起始
-	grub_u64_t		hdr_lba_end;	//标题lba结束
-	GUID		hdr_uuid;						//标题GUID
-	grub_u64_t		hdr_lba_table;//分区表lba
-	grub_u32_t		hdr_entries;	//最大分区(入口数)
-	grub_u32_t		hdr_entsz;		//分区入口尺寸
-	grub_u32_t		hdr_crc_table;//分区入口crc32
-	grub_u32_t		padding;			//填充
+	grub_u32_t		hdr_size;			//分区表头尺寸
+	grub_u32_t		hdr_crc_self;	//分区表头crc32(第0－91字节)
+	grub_u32_t		__reserved;		//保留(必须是0)
+	grub_u64_t		hdr_lba_self;	//当前分区表头lba(这个分区表头的位置)
+	grub_u64_t		hdr_lba_alt;	//备用分区表头lba(另一个分区表头的位置)
+	grub_u64_t		hdr_lba_start;//可用分区起始lba
+	grub_u64_t		hdr_lba_end;	//可用分区结束lba
+	GUID		hdr_uuid;						//硬盘GUID
+	grub_u64_t		hdr_lba_table;//分区表起始lba
+	grub_u32_t		hdr_entries;	//分区表数量(入口数)
+	grub_u32_t		hdr_entsz;		//单个分区表尺寸
+	grub_u32_t		hdr_crc_table;//分区crc32
+	grub_u32_t		padding;			//填充(必须是0)
 } PACKED GPT_HDR;
 typedef GPT_HDR* P_GPT_HDR;	//gpt_标题
 
 typedef struct {
-	GUID type;
-	GUID uid;
+	GUID type;                //分区类型GUID
+	GUID uid;                 //分区GUID
 	grub_u64_t starting_lba;	//分区起始
 	grub_u64_t ending_lba;		//分区尺寸
 	union{
@@ -2259,7 +2258,7 @@ typedef void *grub_efi_handle_t;
 extern struct grub_disk_data *get_device_by_drive (unsigned int drive, unsigned int map);
 extern struct grub_disk_data *disk_data;  //磁盘数据
 extern int big_to_little (char *filename, unsigned int n);
-extern void uninstall_map (unsigned int drive);
+extern void uninstall (unsigned int drive, struct grub_disk_data *d);
 
 
 //##########################################################################################################################################
@@ -3715,7 +3714,12 @@ struct grub_efi_boot_services   //引导服务
 					void* data);
 
   grub_efi_status_t EFIAPI
-  (*uninstall_multiple_protocol_interfaces) (grub_efi_handle_t handle, ...);  //卸载多协议接口
+  (*uninstall_multiple_protocol_interfaces)(grub_efi_handle_t *handle,	//指向协议接口的指针
+					grub_efi_guid_t *guid,				//指向协议GUID的指针
+					grub_efi_device_path_t *dp,		//指向设备路径的指针
+					grub_efi_guid_t *blk_io_guid,	//指向io设备接口的指针
+					block_io_protocol_t *block_io,//指向block_io设备接口的指针
+					void* data);
 
   grub_efi_status_t EFIAPI
   (*calculate_crc32) (void *data,
@@ -4262,7 +4266,7 @@ struct grub_efi_loaded_image  //加载映像 11b45328
   void * parent_handle;        						//父句柄        0
   grub_efi_system_table_t *system_table;  //系统表        12b7ef90
   void * device_handle;        						//设备句柄      11cb5a90->hndl...
-  grub_efi_device_path_t *file_path;      //设备路径      11afb890->04 04 32 00 \EFI\BOOT\BOOTIA32.EFI
+  grub_efi_device_path_t *file_path;      //文件路径      11afb890->04 04 32 00 \EFI\BOOT\BOOTIA32.EFI  不是设备句柄对应的设备路径
   void *reserved;                         //保留          00
   grub_efi_uint32_t load_options_size;    //加载选项尺寸  00
   void *load_options;                     //加载选项      00
@@ -5366,7 +5370,8 @@ struct grub_module_info64
   grub_uint64_t size;
 };
 
-#if GRUB_TARGET_SIZEOF_VOID_P == 8
+//#if GRUB_TARGET_SIZEOF_VOID_P == 8
+#if !defined(__i386__)
 #define grub_module_info grub_module_info64
 #else
 #define grub_module_info grub_module_info32
@@ -5558,50 +5563,6 @@ grub_decompress_lzss (grub_uint8_t *dst, grub_uint8_t *dstend,
 //  unsigned long long last_block;    //最后块      1fffff(1G)	3a38602f(465G)	1e45ff(968M)	11ad
 //};
 //typedef struct grub_efi_block_io_media grub_efi_block_io_media_t;	//0x20(按指定)
-					
-struct grub_disk_data  //efi磁盘数据	(软盘,硬盘,光盘)
-{
-  grub_efi_handle_t device_handle;          //句柄          11cba410		hndl
-//  grub_efi_device_path_t *device_path;      //设备路径      11cba890		类型,子类型,长度
-//  grub_efi_device_path_t *last_device_path; //最后设备路径  11cba8a2		类型,子类型,长度
-  grub_efi_block_io_t *block_io;          	//块输入输出    1280d318		修订,媒体,重置,读块,写块,清除块
-  struct grub_disk_data *next;           		//下一个
-  unsigned char drive;                      //from驱动器					f0
-  unsigned char to_drive;                   //to驱动器                  原生磁盘为0
-  unsigned char from_log2_sector;           //from每扇区字节2的幂	0b
-  unsigned char to_log2_sector;             //to每扇区字节2的幂         原生磁盘为0
-  unsigned long long start_sector;          //起始扇区                  原生磁盘为0  from在to的起始扇区  每扇区字节=(1 << to_log2_sector)
-  unsigned long long sector_count;          //扇区计数                  原生磁盘为0  from在to的扇区数    每扇区字节=(1 << to_log2_sector)
-  unsigned long long total_sectors;         //总扇区数                  from驱动器的总扇区数  每扇区字节=(1 << from_log2_sector)
-  unsigned char disk_signature[16];         //磁盘签名                  软盘/光盘或略  启动wim/vhd需要  mbr类型同分区签名,gpt类型则异样
-  unsigned short to_block_size;             //to块尺寸
-  unsigned char partmap_type;               //磁盘类型        1/2=MBR/GPT
-  unsigned char fragment;                   //碎片
-  unsigned char read_only;                  //只读
-  unsigned char disk_type;                  //磁盘类型        0/1/2=光盘/硬盘/软盘
-  unsigned char cd_boot_floppy;             //光盘引导软盘号             原生磁盘为0
-  unsigned char fill;                       //填充
-}  __attribute__ ((packed));
-
-struct grub_part_data  //efi分区数据	(硬盘)  grub定义
-{
-//	grub_efi_handle_t part_handle;          //句柄
-//	grub_efi_device_path_t *part_path;      //分区路径
-//	grub_efi_device_path_t *last_part_path; //最后分区路径
-	struct grub_part_data *next;  				  //下一个
-	unsigned char	drive;									  //驱动器
-	unsigned char	partition_type;					  //MBR分区ID          EE是gpt分区类型
-	unsigned char	partition_activity_flag;  //MBR分区活动标志    80活动
-	unsigned char partition_entry;				  //分区入口           光盘: 启动目录确认入口   
-	unsigned int partition_ext_offset;		  //扩展分区偏移       光盘: 启动目录扇区地址
-	unsigned int partition;							    //当前分区           光盘: ffff 
-	unsigned long long partition_offset;	  //分区偏移
-	unsigned long long partition_start;		  //分区起始扇区       光盘: 引导软盘在光盘的起始扇区(1扇区=2048字节)
-	unsigned long long partition_len;			  //分区扇区尺寸       光盘: 引导软盘的扇区数(1扇区=512字节)
-	unsigned char partition_signature[16];  //分区签名
-  unsigned char partition_number;         //入口号             硬盘：uefi分区号  光盘: uefi引导入口
-  unsigned char partition_boot;           //启动分区           /efi/boot/bootx64.efi文件所在分区
-} __attribute__ ((packed));
 
 typedef struct
 {
@@ -5617,16 +5578,56 @@ struct efidisk_data
   grub_efi_device_path_t *device_path;
   grub_efi_device_path_t *last_device_path;
   grub_efi_block_io_t *block_io;
+//  unsigned char partition_number;
+  unsigned long long partition_start;
+  unsigned long long partition_size;
+//  unsigned char partition_signature[16];
   struct efidisk_data *next;
 };
-
-struct efipart_data
+					
+struct grub_disk_data  //efi磁盘数据	(软盘,硬盘,光盘)    注意外部命令兼容性
 {
-  struct efipart_data *next;
-  unsigned char partition_number;
-  unsigned long long partition_start;
-	unsigned long long partition_len;	
-};
+  grub_efi_handle_t device_handle;          //句柄          11cba410		hndl
+//  grub_efi_device_path_t *device_path;      //设备路径      11cba890		类型,子类型,长度
+//  grub_efi_device_path_t *last_device_path; //最后设备路径  11cba8a2		类型,子类型,长度
+  grub_efi_block_io_t *block_io;          	//块输入输出    1280d318		修订,媒体,重置,读块,写块,清除块
+  struct grub_disk_data *next;           		//下一个
+  unsigned char drive;                      //from驱动器					f0
+  unsigned char to_drive;                   //to驱动器                  原生磁盘为0
+  unsigned char from_log2_sector;           //from每扇区字节2的幂	0b
+  unsigned char to_log2_sector;             //to每扇区字节2的幂         原生磁盘为0
+  unsigned long long start_sector;          //起始扇区                  原生磁盘为0  from在to的起始扇区  每扇区字节=(1 << to_log2_sector)
+  unsigned long long sector_count;          //扇区计数                  原生磁盘为0  from在to的扇区数    每扇区字节=(1 << to_log2_sector)
+  unsigned long long total_sectors;         //总扇区数                  from驱动器的总扇区数  每扇区字节=(1 << from_log2_sector)
+  unsigned char disk_signature[16];         //磁盘签名                  软盘/光盘或略  启动wim/vhd需要  mbr类型同分区签名,gpt类型则异样  原生磁盘为0
+  unsigned short to_block_size;             //to块尺寸                  原生磁盘为0
+  unsigned char partmap_type;               //硬盘分区类型    1/2=MBR/GPT
+  unsigned char fragment;                   //碎片
+  unsigned char read_only;                  //只读
+  unsigned char disk_type;                  //磁盘类型        0/1/2=光盘/硬盘/软盘
+  unsigned short fill;                      //填充
+  grub_efivdisk_t *vdisk;                   //虚拟磁盘指针
+}  __attribute__ ((packed));
+
+struct grub_part_data  //efi分区数据	(硬盘)    注意外部命令兼容性
+{
+	struct grub_part_data *next;  				  //下一个
+	unsigned char	drive;									  //驱动器
+	unsigned char	partition_type;					  //MBR分区ID         EE是gpt分区类型     光盘:
+	unsigned char	partition_activity_flag;  //MBR分区活动标志   80活动              光盘:
+	unsigned char partition_entry;				  //分区入口                              光盘: 启动目录确认入口   
+	unsigned int partition_ext_offset;		  //扩展分区偏移                          光盘: 启动目录扇区地址
+	unsigned int partition;							    //当前分区                              光盘: ffff
+	unsigned long long partition_offset;	  //分区偏移
+	unsigned long long partition_start;		  //分区起始扇区                          光盘: 引导镜像是硬盘时，分区起始扇区
+	unsigned long long partition_size;			//分区扇区尺寸                          光盘: 引导镜像是硬盘时，分区扇区尺寸
+	unsigned char partition_signature[16];  //分区签名                              光盘: 
+	unsigned int boot_start;                //                                      光盘: 引导镜像在光盘的起始扇区(1扇区=2048字节)
+	unsigned int boot_size;                 //                                      光盘: 引导镜像的扇区数(1扇区=512字节)
+	grub_efi_handle_t part_handle;          //句柄
+  unsigned char partition_number;         //入口号           未使用
+	unsigned char partition_boot;           //启动分区         /efi/boot/bootx64.efi文件所在分区
+} __attribute__ ((packed));
 
 extern struct grub_part_data *get_partition_info (int drive, int partition);
 extern struct grub_part_data *partition_info;
@@ -5809,11 +5810,13 @@ struct grub_packed_guid
 typedef struct grub_packed_guid grub_packed_guid_t;
 
 extern grub_packed_guid_t VDISK_GUID;
-extern grub_efi_uint64_t boot_entry;
+extern grub_efi_uint32_t cd_boot_entry;
+extern grub_efi_uint16_t cd_boot_start;
+extern grub_efi_uint32_t cd_boot_size;
+extern grub_efi_uint32_t cd_Image_part_start;
+extern grub_efi_uint32_t cd_Image_disk_size;
 extern grub_efi_uint64_t	part_addr;
 extern grub_efi_uint64_t	part_size;
-extern grub_efi_uint8_t cdrom_validation_entry;
-extern grub_efi_uint32_t  cdrom_boot_catalog;
 extern struct grub_part_data *part_data;
 void file_read (grub_efi_boolean_t disk, void *file,
                 void *buf, grub_efi_uintn_t len, grub_efi_uint64_t offset);
@@ -6981,7 +6984,7 @@ int grub_efi_net_boot_from_opa (void);
 extern grub_efi_status_t EFIAPI blockio_read_write (block_io_protocol_t *this, grub_efi_uint32_t media_id,
               grub_efi_lba_t lba, grub_efi_uintn_t len, void *buf, int read_write);
 extern grub_size_t block_io_protocol_this;
-extern int get_efi_device_boot_path (int drive);
+extern int get_efi_device_boot_path (int drive, int flags);
 extern grub_efi_device_path_t * grub_efi_file_device_path (grub_efi_device_path_t *dp, const char *filename);
 extern int no_install_vdisk;
 extern grub_efi_physical_address_t grub4dos_self_address;
@@ -6993,8 +6996,8 @@ extern void close_event (void);
 extern int find_specified_file (int drive, int partition, char* file);
 extern char map_file_name [256];
 extern char *map_file_path;
-extern int GetParentUtf8Name (char *dest, grub_uint16_t *src);
-extern int get_ParentDisk (char* parentUtf8Name, struct fragment** Parent_Disk);
+//extern int GetParentUtf8Name (char *dest, grub_uint16_t *src);
+//extern int get_ParentDisk (char* parentUtf8Name, struct fragment** Parent_Disk);
 extern char *preset_menu;
 extern int use_preset_menu;
 //======================================================================================================================

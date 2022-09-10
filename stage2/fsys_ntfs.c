@@ -781,8 +781,8 @@ static int read_block(read_ctx* ctx, unsigned long long buf, unsigned int num, u
 				}
 
 				/* sbuf must be 4K align!! buf is now offset to sbuf. */
-        //o = ((unsigned long)buf) % 4096;  //sbuf必须是4K对齐
-        o = (unsigned long)filepos % (1UL << log2_bps); //2022-07-15  解决写偏移的问题   sbuf无需4K对齐
+				//o = ((unsigned long)buf) % 4096;  //sbuf必须是4K对齐
+        o = (unsigned int)filepos % (1UL << log2_bps); //2022-07-15  解决写偏移的问题   sbuf无需4K对齐
 			}
 			else {
 				ss = len;

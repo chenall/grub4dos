@@ -556,6 +556,8 @@ VARIABLE(mbi) //multiboot_info
 #define open ((int (*)(char *))((*(int **)0x8300)[26]))
 #define read ((unsigned long (*)(unsigned long long, unsigned long long, unsigned long))((*(int **)0x8300)[27]))
 #define close ((void (*)(void))((*(int **)0x8300)[28]))
+#define grub_memalign ((void * (*)(grub_size_t, grub_size_t))((*(int **)0x8300)[48]))
+#define grub_zalloc ((void *(*)(unsigned long))((*(int **)0x8300)[49]))
 #define grub_malloc ((void *(*)(unsigned long))((*(int **)0x8300)[50]))
 
 http://grubutils.googlecode.com/svn/trunk/src/include/grub4dos.h
@@ -615,10 +617,10 @@ VARIABLE(system_functions)                            //IMG(0x8300)
 	.extent	ABS(EXT_C(get_datetime))                      //45
 	.extent	ABS(EXT_C(find_command))                      //46
 	.extent 0				                                      //47  reserved
-	.extent 0				                                      //48  reserved
-	.extent	ABS(EXT_C(grub_zalloc))			                  //49
-	.extent	ABS(EXT_C(grub_malloc))                       //50
-	.extent	ABS(EXT_C(grub_free))                         //51
+	.extent ABS(EXT_C(grub_memalign))			                //48  void *
+	.extent	ABS(EXT_C(grub_zalloc))			                  //49  void *
+	.extent	ABS(EXT_C(grub_malloc))                       //50  void *
+	.extent	ABS(EXT_C(grub_free))                         //51  void
 	.extent 0                                             //52  原list_partitions 现在未使用
 	.extent 0						                                  //53  原ABS(EXT_C(realmode_run)) realmode_run	reserved for wee  现在未使用
 	.extent 0                                             //54  未使用

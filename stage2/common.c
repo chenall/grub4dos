@@ -476,7 +476,7 @@ grub_efi_print_device_path (grub_efi_device_path_t *dp) //efi打印设备路径
 int grub_efi_compare_device_paths (const grub_efi_device_path_t *dp1, const grub_efi_device_path_t *dp2);
 int 
 grub_efi_compare_device_paths (const grub_efi_device_path_t *dp1,
-			       const grub_efi_device_path_t *dp2) //efi比较设备路径 	返回: 0/非0=成功/失败
+			       const grub_efi_device_path_t *dp2) //efi比较设备路径 	返回: 0/1/-1=相等/不相等/包含
 {
   if (! dp1 || ! dp2)	//如果dp1或者dp2为零, 错误
     /* Return non-zero.  */
@@ -493,32 +493,38 @@ grub_efi_compare_device_paths (const grub_efi_device_path_t *dp1,
 		type2 = GRUB_EFI_DEVICE_PATH_TYPE (dp2);
 
 		if (type1 != type2)	//如果设备路径类型不同
-			return (int) type2 - (int) type1;
+			return 1;
 
 		subtype1 = GRUB_EFI_DEVICE_PATH_SUBTYPE (dp1);
 		subtype2 = GRUB_EFI_DEVICE_PATH_SUBTYPE (dp2);
 
 		if (subtype1 != subtype2)	//如果设备路径子类型不同
-			return (int) subtype1 - (int) subtype2;
+			return 1;
 
 		len1 = GRUB_EFI_DEVICE_PATH_LENGTH (dp1);
 		len2 = GRUB_EFI_DEVICE_PATH_LENGTH (dp2);
 
 		if (len1 != len2)	//如果设备路径尺寸不同
-			return (int) len1 - (int) len2;
+			return 1;
 
 		ret = grub_memcmp ((const char *)dp1, (const char *)dp2, len1);	//比较数据
 		if (ret != 0)	//如果数据不同
-			return ret;
-
-		if (GRUB_EFI_END_ENTIRE_DEVICE_PATH (dp1))	//如果是结束, 退出循环
-			break;
+			return 1;
 
 		dp1 = (grub_efi_device_path_t *) ((char *) dp1 + len1);	//下一设备路径
 		dp2 = (grub_efi_device_path_t *) ((char *) dp2 + len2);
-	}
 
-  return 0;
+		//假设路径首位不会是结束
+		if (GRUB_EFI_END_ENTIRE_DEVICE_PATH (dp1))    //如果dp1是结束
+		{
+      if (GRUB_EFI_END_ENTIRE_DEVICE_PATH (dp2))  //如果dp1也是结束, 返回相等
+        return 0;
+      else            //否则, 返回包含
+        return -1;
+		}
+		else if (GRUB_EFI_END_ENTIRE_DEVICE_PATH (dp2))	//如果dp1不是结束, 但是dp2是结束, 返回包含
+      return -1;
+	}
 }
 //-------------------------------------------------------------------------------------;
 //kern/mm.c
@@ -532,19 +538,13 @@ typedef struct grub_mm_header		//内存头
   struct grub_mm_header *next;	//下一个内存头
   grub_size_t size;							//尺寸
   grub_size_t magic;						//魔术
-#if GRUB_CPU_SIZEOF_VOID_P == 4
-  char padding[4];							//衬垫
-#elif GRUB_CPU_SIZEOF_VOID_P == 8
-  char padding[8];
-#else
-# error "unknown word size"
-#endif
+  grub_size_t padding;          //衬垫
 }
 *grub_mm_header_t;	//32位: 0x10   64位: 0x20
 
-#if GRUB_CPU_SIZEOF_VOID_P == 4
+#if defined(__i386__)
 # define GRUB_MM_ALIGN_LOG2	4
-#elif GRUB_CPU_SIZEOF_VOID_P == 8
+#else
 # define GRUB_MM_ALIGN_LOG2	5
 #endif
 
@@ -567,26 +567,38 @@ grub_mm_region_t grub_mm_base;	//内存基址
 /* Get a header from the pointer PTR, and set *P and *R to a pointer		从指针PTR获取头，并分别将*P和*R设置为指向头的指针和指向其区域的指针,
    to the header and a pointer to its region, respectively. PTR must		必须分配PTR。
    be allocated.  */
-static void get_header_from_pointer (void *ptr, grub_mm_header_t *p, grub_mm_region_t *r);
-static void
+static int get_header_from_pointer (void *ptr, grub_mm_header_t *p, grub_mm_region_t *r);
+static int
 get_header_from_pointer (void *ptr, grub_mm_header_t *p, grub_mm_region_t *r)
 {
   if ((grub_addr_t) ptr & (GRUB_MM_ALIGN - 1))
+  {
     printf_debug ("unaligned pointer %x", ptr);
-
+    return 0;
+  }
   for (*r = grub_mm_base; *r; *r = (*r)->next)
     if ((grub_addr_t) ptr > (grub_addr_t) ((*r) + 1)
 				&& (grub_addr_t) ptr <= (grub_addr_t) ((*r) + 1) + (*r)->size)
       break;
 
   if (! *r)
+  {
     printf_errinfo ("out of range pointer %x\n", ptr); //指针超出范围 
+    return 0;
+  }
 
   *p = (grub_mm_header_t) ptr - 1;
   if ((*p)->magic == GRUB_MM_FREE_MAGIC)	//魔术	0x2d3c2808
-    printf_debug ("double free at %x", *p);
+  {
+    printf_errinfo ("double free at %x", *p);
+    return 0;
+  }
   if ((*p)->magic != GRUB_MM_ALLOC_MAGIC)	//魔术	0x6db08fa4
-    printf_debug ("alloc magic is broken at %x: %x", *p,(*p)->magic);   //eb985d0:0
+  {
+    printf_errinfo ("alloc magic is broken at %x: %x", *p,(*p)->magic);   //eb985d0:0
+    return 0;
+  }
+  return 1;
 }
 
 /* Deallocate the pointer PTR.  释放指针PTR。 */
@@ -600,7 +612,9 @@ grub_free (void *ptr)
   if (! ptr)
     return;
 
-  get_header_from_pointer (ptr, &p, &r);
+  if (!get_header_from_pointer (ptr, &p, &r))
+    return;
+
   if (r->first->magic == GRUB_MM_ALLOC_MAGIC)
 	{
 		p->magic = GRUB_MM_FREE_MAGIC;
@@ -612,7 +626,10 @@ grub_free (void *ptr)
 		for (s = r->first, q = s->next; q <= p || q->next >= p; s = q, q = s->next)
 		{
 			if (q->magic != GRUB_MM_FREE_MAGIC)
-				printf_debug ("free magic is broken at %x: 0x%x", q, q->magic);
+      {
+				printf_errinfo ("free magic is broken at %x: 0x%x", q, q->magic);
+        return;
+      }
 			if (q <= q->next && (q > p || q->next < p))
 				break;
 		}
@@ -679,10 +696,16 @@ grub_real_malloc (grub_mm_header_t *first, grub_size_t n, grub_size_t align)	//�
 			extra = align - extra;	//额外的=对齐方式-额外的
 
 		if (! p)	//如果下一个结束
-			printf_debug ("null in the ring");	//环中的NULL 
+		{
+			printf_errinfo ("null in the ring");	//环中的NULL
+      return 0;
+		}
 
 		if (p->magic != GRUB_MM_FREE_MAGIC)	//如果魔术错误  2d3c2808
+		{
 			printf_errinfo ("free magic is broken at %x: 0x%x", (grub_size_t)p, p->magic);	//自由魔法在%p被打破 
+      return 0;
+		}
 
 		if (p->size >= n + extra)	//如果下一个->尺寸 >= N+额外的
 		{
@@ -759,16 +782,20 @@ grub_real_malloc (grub_mm_header_t *first, grub_size_t n, grub_size_t align)	//�
 	         | free, size=orig.size-extra-n | <------+, next --+						释放,尺寸=orig.size-extra-n
 	         +------------------------------+                  v
 	       */
+#if 0
 	      grub_mm_header_t r;
 
 	      r = p + extra + n;
 	      r->magic = GRUB_MM_FREE_MAGIC;
 	      r->size = p->size - extra - n;
 	      r->next = p;
-
+#endif
+        n = p->size - extra;
 	      p->size = extra;
+#if 0
 	      q->next = r;
-	      p += extra;
+#endif
+	      p += extra;     
 	    }
 
 			p->magic = GRUB_MM_ALLOC_MAGIC;
@@ -804,14 +831,14 @@ grub_memalign (grub_size_t align, grub_size_t size)	//内存对齐(对齐,尺寸
   if (!grub_mm_base)	//如果内存基址=0
     goto fail;	//失败
 
-  if (size > ~(grub_size_t) align)	//如果尺寸大于对齐  size > ~align
-    goto fail;	//失败
+//  if (size > ~(grub_size_t) align)	//如果尺寸大于对齐  size > ~align
+//    goto fail;	//失败
 
   /* We currently assume at least a 32-bit grub_size_t,			我们目前假设至少有32位grub_size_t，
      so limiting allocations to <adress space size> - 1MiB	因此，以健全的名义将分配限制在"地址空间尺寸"-1MiB是有益的。 
      in name of sanity is beneficial. */
-  if ((size + align) > ~(grub_size_t) 0x100000)	//如果(尺寸+对齐) > 0x100000
-    goto fail;	//失败
+//  if ((size + align) > ~(grub_size_t) 0x100000)	//如果(尺寸+对齐) > 0x100000
+//    goto fail;	//失败
 
   align = (align >> GRUB_MM_ALIGN_LOG2);	//对齐/0x10
   if (align == 0)
@@ -863,7 +890,7 @@ grub_zalloc (grub_size_t size)
 
   return ret;
 }
-
+#if 0
 /* Reallocate SIZE bytes and return the pointer. The contents will be		重新分配SIZE字节并返回指针。内容与PTR相同。
    the same as that of PTR.  */
 void * grub_realloc (void *ptr, grub_size_t size);
@@ -900,7 +927,7 @@ grub_realloc (void *ptr, grub_size_t size)
   grub_free (ptr);
   return q;
 }
-
+#endif
 
 //-------------------------------------------------------------------------------------
 //kern/efi/mm.c
@@ -1647,11 +1674,12 @@ get_embed (void)		//获取嵌入数据
     if (header->type == OBJ_TYPE_CONFIG)  //嵌入式配置
     {
       embed_menu_size = header->size - header->pad_size - sizeof (struct grub_module_header);
-      preset_menu = grub_malloc (embed_menu_size + 0x1ff);
+//      preset_menu = grub_malloc (embed_menu_size + 0x1ff);
+      preset_menu = grub_memalign (512, embed_menu_size); //对齐分配
     if (!preset_menu)
       continue;
 
-    preset_menu = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)preset_menu + 0x1ff) & 0xfffffffffffffe00);
+//    preset_menu = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)preset_menu + 0x1ff) & 0xfffffffffffffe00);
       grub_memcpy (preset_menu, (char *) header + sizeof (struct grub_module_header), embed_menu_size);
       grub_sprintf (preset_menu_path,"(md)0x%lx+0x%lx,0x%lx", ((grub_size_t) preset_menu) >> 9, 
           (embed_menu_size + 0x1ff) >> 9, embed_menu_size);
@@ -1662,11 +1690,12 @@ get_embed (void)		//获取嵌入数据
     else if (header->type == OBJ_TYPE_MEMDISK)  //嵌入式模块
     {
       embed_mod_size = header->size - header->pad_size - sizeof (struct grub_module_header);
-      embed_mod = grub_malloc (embed_mod_size + 0x1ff);
+//      embed_mod = grub_malloc (embed_mod_size + 0x1ff);
+      embed_mod = grub_memalign (512, embed_mod_size); //对齐分配
       if (!embed_mod)
         continue;
 
-      embed_mod = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)embed_mod + 0x1ff) & 0xfffffffffffffe00);
+//      embed_mod = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)embed_mod + 0x1ff) & 0xfffffffffffffe00);
       grub_memmove (embed_mod, (char *) header + sizeof (struct grub_module_header), embed_mod_size);
       grub_sprintf (embed_mod_cmd, "insmod (md)0x%lx+0x%lx,0x%lx",
             ((grub_size_t) embed_mod) >> 9, (embed_mod_size + 0x1ff) >> 9, embed_mod_size);
@@ -1677,11 +1706,12 @@ get_embed (void)		//获取嵌入数据
     else if (header->type == OBJ_TYPE_FONT)  //嵌入式字库
     {
       embed_font_size = header->size - header->pad_size - sizeof (struct grub_module_header);
-      embed_font = grub_malloc (embed_font_size + 0x1ff);
+//      embed_font = grub_malloc (embed_font_size + 0x1ff);
+      embed_font = grub_memalign (512, embed_font_size); //对齐分配
       if (!embed_font)
         continue;
 
-      embed_font = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)embed_font + 0x1ff) & 0xfffffffffffffe00);
+//      embed_font = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)embed_font + 0x1ff) & 0xfffffffffffffe00);
       grub_memmove (embed_font, (char *) header + sizeof (struct grub_module_header), embed_font_size);
       grub_sprintf (embed_font_path, "(md)0x%lx+0x%lx,0x%lx",
               ((grub_size_t) embed_font) >> 9, (embed_font_size + 0x1ff) >> 9, embed_font_size);         
@@ -1755,6 +1785,7 @@ grub_init (void)
   disk_buffer = grub_malloc (0x1000);       //磁盘缓存
 //buffer=grub_malloc (byte)  分配内存
 //buffer=grub_zalloc (byte)  分配内存, 并清零
+//buffer=grub_memalign (align,byte)  对齐分配内存
 //grub_free (buffer)  释放内存
 
 	efi_call_4 (grub_efi_system_table->boot_services->set_watchdog_timer,   //引导服务->设置看门狗定时器  避免设备5分钟就重启.
