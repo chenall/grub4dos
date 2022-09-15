@@ -11785,12 +11785,21 @@ partnew_func (char *arg, int flags)
   char *filename;
   unsigned long entry1, i;
   unsigned long active = -1;
+  int force = 0;
 
   errnum = 0;
+resume:
   if (grub_memcmp (arg, "--active", 8) == 0)
     {
       active = 0x80;
       arg = skip_to (0, arg);
+      goto resume;
+    }
+  if (grub_memcmp (arg, "--force", 7) == 0)
+    {
+      force = 1;
+      arg = skip_to (0, arg);
+      goto resume;
     }
 
   /* Get the drive and the partition.  */
@@ -11948,7 +11957,7 @@ partnew_func (char *arg, int flags)
   if (! rawread (current_drive, 0, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)mbr, 0xedde0d90))
     return 0;
 
-  if (current_drive_bak)	/* creating a partition from a file */
+  if (current_drive_bak && !force)	/* creating a partition from a file */
   {
 	/* if the entry is not empty, it should be a part of another
 	 * partition, that is, it should be covered by another partition. */
@@ -11968,7 +11977,7 @@ partnew_func (char *arg, int flags)
 	if (i >= 4)
 	{
 		/* not found */
-		printf_debug0 ("Cannot overwrite an independent partition.\n");
+		printf_debug0 ("Cannot overwrite an independent partition. Can use the parameter '--force' to enforce\n");
 		return ! (errnum = ERR_BAD_ARGUMENT);
 	}
     }
@@ -12058,10 +12067,11 @@ static struct builtin builtin_partnew =
   "partnew",
   partnew_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST | BUILTIN_NO_DECOMPRESSION,
-  "partnew [--active] PART TYPE START [LEN]",
+  "partnew [--active] [--force] PART TYPE START [LEN]",
   "Create a primary partition at the starting address START with the"
   " length LEN, with the type TYPE. START and LEN are in sector units."
-  " If --active is used, the new partition will be active. START can be"
+  " If --active is used, the new partition will be active."
+  " If --force is used, can overwrite an independent partition. START can be"
   " a contiguous file that will be used as the content/data of the new"
   " partition, in which case the LEN parameter is ignored, and TYPE can"
   " be either 0x00 for auto or 0x10 for hidden-auto."
