@@ -911,7 +911,7 @@ typedef char VAR_VALUE[MAX_ENV_LEN];
 #define get_env_all()				envi_cmd(NULL, NULL, 2)
 #define reset_env_all()				envi_cmd(NULL, NULL, 3)
 extern int envi_cmd(const char *var,char * const env,int flags);
-
+extern long long retval64;
 
 /* GUI interface variables. */
 # define MAX_FALLBACK_ENTRIES	8

@@ -1,4 +1,9 @@
 ﻿更新说明：
+2022-10-26 (yaya)
+  calc函数支持64位除法。增加变量@retval64，返回calc函数的64位计算值。issues #380
+  echo函数的 [-P:XXYY] 功能，允许XX(YY)为十六进制值。issues #383
+  修正echo函数的$[ABCD]功能，在BIOS环境下的VM(VBOX)控制台中，如果首字符使用，滚屏时花屏的问题。issues #381
+
 2022-09-15 (yaya)
   partnew函数增加'--force'参数，允许覆盖独立分区。
 
