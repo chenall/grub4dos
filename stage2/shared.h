@@ -1664,9 +1664,10 @@ extern unsigned long long md_part_base;
 extern unsigned long long md_part_size;
 extern unsigned long long rd_base;
 extern unsigned long long rd_size;
-//extern unsigned long long saved_mem_higher;
+extern unsigned long long saved_mem_higher;
 extern unsigned int saved_mem_upper;
 extern unsigned int saved_mem_lower;
+extern unsigned int free_mem_lower_start;
 //extern unsigned int saved_mmap_addr;
 //extern unsigned int saved_mmap_length;
 extern unsigned int extended_memory;
@@ -1676,6 +1677,7 @@ extern char menu_init_script_file[32];
 extern unsigned int minimum_mem_hi_in_map;
 extern int min_con_mem_start;
 extern int min_con_mem_size;
+extern int displaymem_func (char *arg, int flags);
 /*
  *  Error variables.
  */
@@ -4195,23 +4197,23 @@ typedef struct grub_efi_pxe
 
 
 
-#define GRUB_EFI_BLACK		0x00
-#define GRUB_EFI_BLUE		0x01
-#define GRUB_EFI_GREEN		0x02
-#define GRUB_EFI_CYAN		0x03
-#define GRUB_EFI_RED		0x04
-#define GRUB_EFI_MAGENTA	0x05
-#define GRUB_EFI_BROWN		0x06
-#define GRUB_EFI_LIGHTGRAY	0x07
-#define GRUB_EFI_BRIGHT		0x08
-#define GRUB_EFI_DARKGRAY	0x08
-#define GRUB_EFI_LIGHTBLUE	0x09
-#define GRUB_EFI_LIGHTGREEN	0x0A
-#define GRUB_EFI_LIGHTCYAN	0x0B
-#define GRUB_EFI_LIGHTRED	0x0C
-#define GRUB_EFI_LIGHTMAGENTA	0x0D
-#define GRUB_EFI_YELLOW		0x0E
-#define GRUB_EFI_WHITE		0x0F
+#define GRUB_EFI_BLACK        0x00			//前景黑
+#define GRUB_EFI_BLUE         0x01			//前景蓝
+#define GRUB_EFI_GREEN        0x02			//前景绿
+#define GRUB_EFI_CYAN         0x03			//前景青
+#define GRUB_EFI_RED          0x04			//前景红
+#define GRUB_EFI_MAGENTA      0x05		  //前景品红
+#define GRUB_EFI_BROWN        0x06			//前景棕
+#define GRUB_EFI_LIGHTGRAY    0x07      //前景浅灰色
+#define GRUB_EFI_BRIGHT       0x08      //前景明亮
+#define GRUB_EFI_DARKGRAY     0x08      //前景暗灰
+#define GRUB_EFI_LIGHTBLUE    0x09      //前景浅蓝色
+#define GRUB_EFI_LIGHTGREEN   0x0A      //前景浅绿色
+#define GRUB_EFI_LIGHTCYAN    0x0B      //前景浅蓝色
+#define GRUB_EFI_LIGHTRED     0x0C      //前景浅红
+#define GRUB_EFI_LIGHTMAGENTA 0x0D      //前景浅品红
+#define GRUB_EFI_YELLOW       0x0E      //前景黃色
+#define GRUB_EFI_WHITE        0x0F      //前景白色
 
 #define GRUB_EFI_BACKGROUND_BLACK	0x00			//背景黑
 #define GRUB_EFI_BACKGROUND_BLUE	0x10			//背景蓝
@@ -5311,7 +5313,8 @@ extern char *BASE_ADDR;
 extern char *CMD_RUN_ON_EXIT;
 extern char *SCRATCHADDR;
 extern int return_value;
-extern int QUOTE_CHAR;
+extern long long return_value64;
+//extern int QUOTE_CHAR;
 //extern char *GRUB_MOD_ADDR;
 //extern char* mod_end;
 extern char *CONFIG_ENTRIES;

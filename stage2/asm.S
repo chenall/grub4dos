@@ -246,7 +246,7 @@ VARIABLE(rd_size)																													//0x82d8		RD尺寸  long long
 VARIABLE(return_value)                                                    //int       返回值
 	.long	0
 
-VARIABLE(QUOTE_CHAR)                                                      //int
+//VARIABLE(QUOTE_CHAR)                                                    //int  uefi未使用
 	.long	0
 
 VARIABLE(linux_bzimage_tmp_addr)                                          //char *

@@ -3239,58 +3239,91 @@ grub_efidisk_fini (void)		//efidisk结束
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //kern.misc.c
-#if 0
-/* Divide N by D, return the quotient, and store the remainder in *R.  将N除以D，返回商，并将余数存储在*R中*/
+#if defined(__i386__)
+/*
+计算原理：
+1. 二进制数字和
+0xn3n2n1n0 = n3*2^3 + n2*2^2 + n1*2^1 + n0*2^0 = 2(2(2(n3) + n2) + n1) + n0
+左移一位相当于乘以2。n3乘以3次，n2乘以2次，n1乘以1次，n0没有乘。
+2. 逐步重新计算被除数，即被除数逐步向左移位
+0xn3n2n1n0 = 2(n3) + n2 -> 2(2(n3) + n2) + n1 -> 2(2(2(n3) + n2) + n1) + n0
+3. 等号两边同乘一数仍然相等 
+被除数/除数=商 == 2被除数/除数=2商
+*/
+//N除以D，返回商，并将余数存储在*R中
 grub_uint64_t grub_divmod64 (grub_uint64_t n, grub_uint64_t d, grub_uint64_t *r);
 grub_uint64_t
-grub_divmod64 (grub_uint64_t n, grub_uint64_t d, grub_uint64_t *r)    //没有使用
+grub_divmod64 (grub_uint64_t n, grub_uint64_t d, grub_uint64_t *r) //64位除法(32位gcc编译不支持64位除法)
 {
   /* This algorithm is typically implemented by hardware. The idea	该算法通常由硬件实现。
-     is to get the highest bit in N, 64 times, by keeping						我们的想法是得到N的最高位64次，
-     upper(N * 2^i) = (Q * D + M), where upper											通过保持上限(N*2^i)=(Q*D+M)，其中，上限表示128位空间中的高64位。
+     is to get the highest bit in N, 64 times, by keeping						其思想是通过保持上限（N*2^i）=（Q*D+M），
+     upper(N * 2^i) = (Q * D + M), where upper											获得N中的最高位64次，其中上限表示128位空间中的高64位。
      represents the high 64 bits in 128-bits space.  */
-  unsigned bits = 64;
-  grub_uint64_t q = 0;
-  grub_uint64_t m = 0;
+  unsigned bits = 64;  //循环计数
+  grub_uint64_t q = 0; //商
+  grub_uint64_t m = 0; //余数
+  unsigned char q_sign = 0; //商符号   0/1=正/负
+  unsigned char m_sign = 0; //余数符号 0/1=正/负
 
   /* ARM and IA64 don't have a fast 32-bit division.								ARM和IA64没有快速的32位除法。 
-     Using that code would just make us use software division routines, calling  使用这些代码只会让我们使用软件部门的程序，
-     ourselves indirectly and hence getting infinite recursion.			间接地呼唤自己，从而得到无限的执念。 
+     Using that code would just make us use software division routines, calling  使用该代码只会让我们使用软件划分例程，
+     ourselves indirectly and hence getting infinite recursion.			间接调用我们自己，从而获得无限递归。 
   */
-#if 0
+#if 1
   /* Skip the slow computation if 32-bit arithmetic is possible.  如果可以使用32位算法，则跳过慢速计算*/
-  if (n < 0xffffffff && d < 0xffffffff)
-    {
-      if (r)
-	*r = ((grub_uint32_t) n) % (grub_uint32_t) d;
-
-      return ((grub_uint32_t) n) / (grub_uint32_t) d;
-    }
+  if (n <= 0xffffffff && d <= 0xffffffff)
+  {
+    if (r)
+      *r = ((unsigned int)n) % (unsigned int)d;
+ 
+    return ((unsigned int)n) / (unsigned int)d;
+  }
 #endif
+  if ((n & (1ULL << 63)) != (d & (1ULL << 63))) //确定商的符号 正/正=正 负/负=正  正/负=负  负/正=负
+    q_sign = 1;
+  if (n & (1ULL << 63)) //如果被除数为负, 则取补数
+  {
+    n = ~n + 1;
+    m_sign = 1; //确定余数的符号
+  }
+  if (d & (1ULL << 63)) //如果除数为负, 则取补数
+    d = ~d + 1;
 
-  while (bits--)
+  while (!(n & (1ULL << 63))) //把原始被除数首位1移动到最左(第63位)
+  {
+    bits--;
+    n <<= 1;
+  }
+
+  while (bits--)  //重复次数  连上面的总共64次
+  {
+    //重新计算的被除数及商同时乘以2
+    m <<= 1;      //重新计算的被除数乘以2
+    q <<= 1;      //商乘以2
+    //逐步重新计算被除数
+    if (n & (1ULL << 63)) //如果原始被除数首位为1，则参与运算
+      m |= 1;     //重新计算的被除数+1 
+    n <<= 1;      //原始被除数乘以2，为下一次计算做准备
+    //除法计算：使用减法求商。减除数，增加商
+    if (m >= d)   //如果重新计算的被除数>=除数
     {
-      m <<= 1;
-
-      if (n & (1ULL << 63))
-	m |= 1;
-
-      q <<= 1;
-      n <<= 1;
-
-      if (m >= d)
-	{
-	  q |= 1;
-	  m -= d;
-	}
-    }
+      q |= 1;     //商+1
+      m -= d;     //重新计算的被除数-除数
+     }
+  }
+ 
+  if (q_sign) //如果商为负, 则商取补
+    q = ~q + 1;
+  if (m_sign) //如果余数为负, 则余数取补
+    m = ~m + 1;
 
   if (r)
     *r = m;
 
   return q;
 }
-
+#endif
+#if 0
 grub_uint64_t __umoddi3 (grub_uint64_t a, grub_uint64_t b);
 grub_uint64_t
 __umoddi3 (grub_uint64_t a, grub_uint64_t b)
@@ -4332,7 +4365,7 @@ grub_efidisk_init (void)  //efidisk初始化
 			saved_partition = install_partition;
 			current_partition = install_partition;
 			run_line((char *)"set ?_BOOT=%@root%",1);
-			QUOTE_CHAR = '\"';	
+//			QUOTE_CHAR = '\"';	
 			*saved_dir = 0;
 			cmain ();
 			return;
@@ -4384,7 +4417,7 @@ grub_efidisk_init (void)  //efidisk初始化
     run_line((char *)"find --set-root /efi/grub/menu.lst",1);
 //初始化变量空间	
   run_line((char *)"set ?_BOOT=%@root%",1);
-  QUOTE_CHAR = '\"';	
+//  QUOTE_CHAR = '\"';	
   *saved_dir = 0;
 #if 0
 	run_line((char *)"errorcheck off",1);

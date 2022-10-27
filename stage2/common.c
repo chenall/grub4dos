@@ -27,7 +27,6 @@
  */
 
 char saved_dir[256];
-unsigned int saved_mem_lower;
 
 unsigned int extended_memory;	/* extended memory in KB */
 extern int errorcheck;
@@ -1276,7 +1275,8 @@ filter_memory_map (grub_efi_memory_descriptor_t *memory_map,	//映射起始
 				&& desc->physical_start < 0x100000)											//并且物理起始 < 1Mb
     {
 			min_con_mem_start = (int)desc->physical_start;  //最低可用内存起始
-      min_con_mem_size = (int)(desc->num_pages * 0x1000);
+//      min_con_mem_size = (int)(desc->num_pages * 0x1000);
+      min_con_mem_size = (int)(desc->num_pages << 12);
     }
 
 		if (desc->type == GRUB_EFI_CONVENTIONAL_MEMORY        			//如果是常规内存
@@ -1746,11 +1746,19 @@ void grub_console_init (void);
 void grub_efidisk_init (void);
 void grub_init (void);
 grub_efi_loaded_image_t *image;
+unsigned long long saved_mem_higher;
+unsigned int saved_mem_upper;
+unsigned int saved_mem_lower;
+unsigned int free_mem_lower_start;
 
 void
 grub_init (void)
 {
 	int i;
+	saved_mem_higher = 0;
+	saved_mem_upper = 0;
+	saved_mem_lower = 0;
+	free_mem_lower_start = 0;
 	grub_console_init ();
 
   if ((i = checkkey ()) == 0x075200 || i == 0x0071) //按Insert键或者q键，进入调试模式
@@ -1793,5 +1801,6 @@ grub_init (void)
 				
 	grub_efidisk_init ();  //efidisk初始化
   get_embed();
+  displaymem_func ((char *)"-init ", 1);  //获得内存信息
   cmain ();
 }

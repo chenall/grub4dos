@@ -68,9 +68,11 @@ skip_to (int flags, char *cmdline)
   while (*cmdline && !grub_isspace(*cmdline) &&
 	 ! ((flags & 1) && *cmdline == '='))
   {
-		if (*cmdline == QUOTE_CHAR)
+//		if (*cmdline == QUOTE_CHAR)
+		if (*cmdline == '\"')
 		{
-			while (*++cmdline && *cmdline != QUOTE_CHAR)
+//			while (*++cmdline && *cmdline != QUOTE_CHAR)
+			while (*++cmdline && *cmdline != '\"')
 				;
 		}
 		else if (*cmdline == '\\')
@@ -170,7 +172,8 @@ char *get_next_arg(char *arg)  //获得下一参数
 {
 	while(*arg && !isspace(*arg))
 	{
-		if (*arg == QUOTE_CHAR) while (*++arg && *arg != QUOTE_CHAR);
+//		if (*arg == QUOTE_CHAR) while (*++arg && *arg != QUOTE_CHAR);
+		if (*arg == '\"') while (*++arg && *arg != '\"');
 		if (*arg == '\\') ++arg;
 		if (*arg) ++arg;
 	}

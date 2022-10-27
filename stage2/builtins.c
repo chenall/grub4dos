@@ -1341,7 +1341,7 @@ static struct builtin builtin_chainloader =
   "for example:\n"
   "  chainloader (0xff)\n"
   "  chainloader (hd2)\n"
-  "  chainloader /grub2.efi"
+  "  chainloader (bd)/grub.efi \"vdisk=/_ISO/LINUX/Ubuntu Mint.vdi.vtoy\""
 };
 
 /* This function could be used to debug new filesystem code. Put a file
@@ -3035,8 +3035,8 @@ static struct builtin builtin_clear =
 };
 
 /* displaymem */
-static int displaymem_func (char *arg, int flags);
-static int
+int displaymem_func (char *arg, int flags);
+int
 displaymem_func (char *arg, int flags)
 {
 	grub_efi_uintn_t mmap_size = 0x3000;
@@ -3056,6 +3056,8 @@ displaymem_func (char *arg, int flags)
 		mode = 2;
 	else if (grub_memcmp (arg, "-mem", 4) == 0) //探测4GB以上满足条件的可用内存
     	mode = 3;
+	else if (grub_memcmp (arg, "-init", 5) == 0) //获得内存信息
+    	mode = 4;
 	else																			//以字节计, 简约模式(默认)
 		mode = 0;
 		
@@ -3120,6 +3122,28 @@ displaymem_func (char *arg, int flags)
 //          grub_free (memory_map);
           efi_call_2 (b->free_pages, (grub_efi_physical_address_t)(grub_size_t)memory_map, mmap_size >> 11);	//(释放页,地址,页)
           return 1;
+        }
+			case 4:
+        if (desc->type == GRUB_EFI_CONVENTIONAL_MEMORY) //可用
+        {
+          if (desc->physical_start < 0x100000)          //常规内存(Kb)  0-a0000
+          {
+            if (desc->num_pages > saved_mem_lower)
+            {
+              free_mem_lower_start = desc->physical_start;
+              saved_mem_lower = desc->num_pages;
+            }
+          }
+          else if (desc->physical_start < 0x100000000)  //扩展内存(Mb)  1M-4G
+          {
+            if (desc->num_pages > saved_mem_upper)
+              saved_mem_upper = desc->num_pages;
+          }
+          else                                           //上位内存(Mb)  4G以上
+          {
+            if (desc->num_pages > saved_mem_higher)
+              saved_mem_higher = desc->num_pages;
+          }
         }
         else
           break;
@@ -11394,6 +11418,7 @@ static int read_val(char **str_ptr,long long *val)  //读值
       return 1;
 }
 
+long long return_value64; 
 static long long s_calc (char *arg, int flags);
 static long long
 s_calc (char *arg, int flags)
@@ -11403,6 +11428,10 @@ s_calc (char *arg, int flags)
    long long *p_result = &val1;
    char O;
    int mem=0;
+#if defined(__i386__)
+   unsigned long long r;
+#endif
+   return_value64 = 0;
    
   errnum = 0;
   if (grub_memcmp (arg, "--mem", 5) == 0)
@@ -11483,14 +11512,23 @@ s_calc (char *arg, int flags)
 		 val1 *= val2;
 		 break;
 	 case '/':
-		 if ((int)val2 == 0)
-			return !(errnum = ERR_DIVISION_BY_ZERO);
-		 val1 = (int)val1 / (int)val2;
-		 break;
+		 if (val2 == 0)
+ 			return !(errnum = ERR_DIVISION_BY_ZERO);
+#if defined(__i386__)
+		 val1 = (long long)grub_divmod64 (val1, val2, 0);
+#else
+		 val1 = val1 / val2;
+#endif
+ 		 break;
 	 case '%':
-		 if ((int)val2 == 0)
-			return !(errnum = ERR_DIVISION_BY_ZERO);
-		 val1 = (int)val1 % (int)val2;
+		 if (val2 == 0)
+ 			return !(errnum = ERR_DIVISION_BY_ZERO);
+#if defined(__i386__)
+		 grub_divmod64 (val1, val2, &r);
+		 val1 = (long long)r;
+#else
+		 val1 = val1 % val2;
+#endif
 		 break;
 	 case '&':
 		 val1 &= val2;
@@ -11517,6 +11555,7 @@ s_calc (char *arg, int flags)
   printf_debug0(" %d (HEX:0x%X)\n",val1,val1);
 	if (p_result != &val1)
 	   *p_result = val1;
+   return_value64 = val1;
    return val1;
 }
 
@@ -11852,7 +11891,7 @@ xyz_done:
 //		return graphics_mode;
     goto ok;
 	}
-	else if (tmp_graphicsmode == 3)	//视乎不起作用。
+	else if (tmp_graphicsmode == 3 && graphics_mode != 3)	//在控制台设置模式3会死机。
 	{
     current_term->shutdown();	
     current_term->chars_per_line = 80;
@@ -11986,9 +12025,24 @@ echo_func (char *arg,int flags)
       {
 	 arg += 3;
 	 char c = 0;
-	 if (*arg == '-') c=*arg++;
-	 y = ((*arg++ - '0') & 15)*10;
-	 y += ((*arg++ - '0') & 15);
+	 char s[5] = {0};
+	 char* p = s;
+	 unsigned long long length;
+	 int i=2, j=0;
+ 	 if (*arg == '-') c=*arg++;
+		if (*arg == '0' && (arg[1]|32) == 'x')
+		{
+			if (arg[3] == '-' || (arg[4]|32) == 'x')
+				i = 3;
+			else
+				i = 4;
+		}
+		while(i--)
+		s[j++] = *arg++;
+		safe_parse_maxint (&p, &length);
+		y = length;
+//	 y = ((*arg++ - '0') & 15)*10;
+//	 y += ((*arg++ - '0') & 15);
 	 if ( c != '\0' )
 	 {
 	    y = current_term->max_lines - y;
@@ -11996,9 +12050,10 @@ echo_func (char *arg,int flags)
 	 }
 
 	 if (*arg == '-') c = *arg++;
-	 
-	 x = ((*arg++ - '0') & 15)*10;
-	 x += ((*arg++ - '0') & 15);
+	 safe_parse_maxint (&arg, &length);
+	 x = length;
+//	 x = ((*arg++ - '0') & 15)*10;
+//	 x += ((*arg++ - '0') & 15);
 	 if (c != 0) x = current_term->chars_per_line - x;
 	 //saved_xy = getxy();
 	 saved_x = fontx;
@@ -12182,6 +12237,7 @@ mem:
 		else
 		{
 			current_color_64bit = ull;
+			current_color = color_64_to_8 (current_color_64bit);
 		}
 		arg = p + 1;
             }
@@ -12230,6 +12286,7 @@ static struct builtin builtin_echo =
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "echo [-P:XXYY] [-h] [-e] [-n] [-v] [-rrggbb] [--uefi-img] [--uefi-v]\n   [[--mem | --img]=offset=length] [[$[ABCD]]MESSAGE ...]",
    "-P:XXYY position control line(XX) and column(YY).\n"
+   "   XX(YY) are both 2 digit decimal or both 3/4 character hex. Can precede with - sign for position from end.\n"
    "-h      show a color panel.\n"
    "-n      do not output the trailing newline.\n"
    "-e      enable interpretation of backslash escapes.\n"
@@ -12389,7 +12446,7 @@ int envi_cmd(const char *var,char * const env,int flags)
 	    memset( (char *)BASE_ADDR, 0, 512 );
 	    sprintf(VAR[_WENV_], "?_WENV");
 	    sprintf(VAR[_WENV_+1], "?_BOOT");
-	    QUOTE_CHAR = '\"';
+//	    QUOTE_CHAR = '\"';
 	    return 1;
 	}
 
@@ -12517,6 +12574,8 @@ int envi_cmd(const char *var,char * const env,int flags)
 	    }
 	    else if (substring(ch,"@retval",1) == 0)
     sprintf(p,"%d",return_value);
+	    else if (substring(ch,"@retval64",1) == 0)
+    sprintf(p,"%ld",return_value64);
 	    #ifdef PATHEXT
 	    else if (substring(ch,"@pathext",1) == 0)
 		sprintf(p,"%s",PATHEXT);
