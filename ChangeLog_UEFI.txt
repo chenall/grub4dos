@@ -1,4 +1,10 @@
 ﻿更新说明：
+2022-11-28 (yaya)
+  修正splashimage函数的动画功能。issues #387
+  修正graphics函数，避免图形模式时，在命令行滚屏，第24行被有其他属性的空格清屏.
+  消除echo @%*@结尾多余的空格字符。issues #384
+  避免echo$[0xf0]输出00字符。issues #385
+
 2022-10-27 (yaya)
   calc函数支持64位除法。增加变量@retval64，返回calc函数的64位计算值。
   echo函数的 [-P:XXYY] 功能，允许XX(YY)为十六进制值。

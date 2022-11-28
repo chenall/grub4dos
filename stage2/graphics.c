@@ -58,7 +58,6 @@ unsigned int current_bytes_per_scanline;
 unsigned int current_bytes_per_pixel;
 unsigned long long current_phys_base;
 unsigned int image_pal[16];
-extern int use_phys_base;
 int use_phys_base=0;
 
 /* why do these have to be kept here? */
@@ -849,7 +848,6 @@ static int read_image_bmp(int type)
 		filepos += ((bmih.biWidth*bfbit&3)?(4-(bmih.biWidth*bfbit&3)):0);
 	}
 	background_transparent=0;
-//	use_phys_base=0;
 	return 2;
 }
 
@@ -1755,7 +1753,6 @@ read_image_jpg(int type)
 
 	Decode();
 	background_transparent=0;
-//	use_phys_base=0;
 	return 2;
 }
 
@@ -1849,6 +1846,8 @@ graphics_scroll (void)
     unsigned int i;
     unsigned int old_state = cursor_state;
     cursor_state &= ~1;
+	unsigned long long clo64 = current_color_64bit;
+	unsigned int clo = current_color;
 #if 0   //滚屏速度太慢，尤其在实体机
   grub_memcpy ((char *)(grub_size_t)current_phys_base, (char *)(grub_size_t)current_phys_base + (current_bytes_per_scanline * (font_h + line_spacing)),
 		    (current_term->max_lines - 1) * current_bytes_per_scanline * (font_h + line_spacing));
@@ -1875,8 +1874,12 @@ graphics_scroll (void)
 #endif
 	if (old_state & 1)
 		scroll_state = 1;		//避免空格背景杂乱无章
+	if (current_term->setcolorstate)
+		current_term->setcolorstate (COLOR_STATE_NORMAL);	//避免图形模式时，在命令行滚屏，第24行被有其他属性的空格清屏  2022-11-28
     for (i=0;i<current_term->chars_per_line;++i)
 	graphics_putchar(' ',1);	
+	current_color_64bit = clo64;
+	current_color = clo;
     gotoxy(0,fonty);
     cursor_state = old_state;
 	scroll_state = 0;

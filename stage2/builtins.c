@@ -2679,7 +2679,7 @@ unsigned short animated_delay;
 unsigned char animated_last_num;
 unsigned short animated_offset_x;
 unsigned short animated_offset_y;
-char animated_name[57];
+char animated_name[128];
 unsigned int fill_color;
 int background_transparent=0;
 
@@ -12264,9 +12264,10 @@ mem:
       }
       if (current_term->setcolorstate)
         current_term->setcolorstate (current_color | 0x100);  //控制台直接输入颜色
-      grub_putchar((unsigned char)*arg, 255);
+//      grub_putchar((unsigned char)*arg, 255);	//移动到判断之后，避免打印‘\0’   2022-11-05
       if (!(*arg))
 				break;
+      grub_putchar((unsigned char)*arg, 255);
    }
    if (current_term->setcolorstate)
 	  current_term->setcolorstate (COLOR_STATE_STANDARD);
@@ -13866,7 +13867,13 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				for (i = 1;i< 10;++i)
 				{
 					if (s[i][0])
-						p_cmd += sprintf(p_cmd,"%s ",s[i]);
+//						p_cmd += sprintf(p_cmd,"%s ",s[i]);
+					{		//消除末尾的空格  2022-11-05
+						if (i == 1)
+							p_cmd += sprintf(p_cmd,"%s",s[i]);
+						else
+							p_cmd += sprintf(p_cmd," %s",s[i]);
+					}
 					else
 						break;
 				}

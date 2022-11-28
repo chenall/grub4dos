@@ -346,7 +346,6 @@ num_text_char(char *p)
 /* Print an entry in a line of the menu box.  */
 char menu_cfg[2];
 unsigned char menu_num_ctrl[4];
-int use_phys_base;
 char graphic_file_shift[32];
 
 static void print_entry (int y, int highlight,int entryno, char *config_entries);
