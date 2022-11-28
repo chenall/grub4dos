@@ -1,6 +1,6 @@
 /* graphics.c - graphics mode support for GRUB */
 /* Implemented as a terminal type by Jeremy Katz <katzj@redhat.com> based
- * on a patch by Paulo C�sar Pereira de Andrade <pcpa@conectiva.com.br>
+ * on a patch by Paulo C閟ar Pereira de Andrade <pcpa@conectiva.com.br>
  */
 /*
  *  GRUB  --  GRand Unified Bootloader
@@ -1067,7 +1067,6 @@ vbe_fill_color (unsigned long color)
 
 
 int animated (void);
-extern int use_phys_base;
 int use_phys_base=0;
 unsigned long delay0, delay1, name_len;
 char num;
@@ -1122,6 +1121,7 @@ int animated (void)
       use_phys_base=1;
       sprintf(tmp,"--offset=%d=%d=%d %s",(animated_type & 0x80),animated_offset_x,animated_offset_y,animated_name);
       splashimage_func(tmp,1);
+      use_phys_base=0;
 
       p = &animated_name[name_len-5];
       while(*p>=0x30 && *p<=0x39) p--;
@@ -1290,7 +1290,6 @@ static int read_image_bmp(int type)
 		filepos += ((bmih.biWidth*bfbit&3)?(4-(bmih.biWidth*bfbit&3)):0);
 	}
 	background_transparent=0;
-	use_phys_base=0;
 	return 2;
 }
 
@@ -2185,7 +2184,6 @@ read_image_jpg(int type)
 		return 1;
 	Decode();
 	background_transparent=0;
-	use_phys_base=0;
 	return 2;
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2466,6 +2464,8 @@ graphics_scroll (void)
     unsigned long i;
     unsigned long old_state = cursor_state;
     cursor_state &= ~1;
+    unsigned long long clo64 = current_color_64bit;
+    unsigned int clo = current_color;
     if (graphics_mode <= 0xFF)
     {/* VGA */
 	bios_scroll_up ();
@@ -2481,8 +2481,12 @@ graphics_scroll (void)
 #endif
     }
 
+		if (current_term->setcolorstate)
+			current_term->setcolorstate (COLOR_STATE_NORMAL);	//避免图形模式时，在命令行滚屏，第24行被有其他属性的空格清屏
     for (i=0;i<current_term->chars_per_line;++i)
 	graphics_putchar(' ',1);
+		current_color_64bit = clo64;
+		current_color = clo;
     gotoxy(0,fonty);
     cursor_state = old_state;
     return;

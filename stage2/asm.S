@@ -144,7 +144,7 @@ VARIABLE(config_file)
 	 */
 	. = EXT_C(main) + 0x60
 
-VARIABLE(hotkey_func)  //int*                                             //0x8260	ÍâÖÃÈÈ¼ü¹¦ÄÜ
+VARIABLE(hotkey_func)  //int*                                             //0x8260	å¤–ç½®çƒ­é”®åŠŸèƒ½
   .long 0 
 
 	. = EXT_C(main) + 0x6C  #; bss starting address
@@ -345,7 +345,7 @@ VARIABLE(buf_track)
 	.long	0	/* buf_track will grow to 64-bit */
 VARIABLE(buf_drive)
 	.long	-1
-VARIABLE(current_x_resolution)	//0x834c  µ±Ç°Ë®Æ½ÏñËØ int
+VARIABLE(current_x_resolution)	//0x834c  å½“å‰æ°´å¹³åƒç´  int
 
 	. = EXT_C(main) + 0x150
 	
@@ -3198,10 +3198,10 @@ disk_address_packet_ready:
 	jc	3f		/* no sectors to transfer, fail */
 
 //			 To_count(0)			To_count(1)					To_count(2)					To_count(3)
-//		©À©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©È
+//		â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
 //To_start(0)		To_start(1)					To_start(2)					To_start(3)
 //																									Form_len
-//	 ©«©©©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©À©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©È
+//	 â”‡â”…â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
 //	 0																		Form_statr
 
 	pushaw
@@ -3234,9 +3234,9 @@ disk_address_packet_ready:
 	xorl	%ecx, %ecx
 	xorl	%edx, %edx
 2:
-	addl	%cs:12(%bp,%di), %ecx	//¡ÆTo_count(0¡úi) + To_count(i+1)
+	addl	%cs:12(%bp,%di), %ecx	//âˆ‘To_count(0â†’i) + To_count(i+1)
 	adcl	%cs:16(%bp,%di), %edx
-	call	compare_64						//Form_statr <> ¡ÆTo_count(0¡úi)
+	call	compare_64						//Form_statr <> âˆ‘To_count(0â†’i)
 	jb	2f
 	addw	$16, %di
 //	cmpw	$(16*DRIVE_MAP_FRAGMENT), %di
@@ -3247,20 +3247,20 @@ disk_address_packet_ready:
 	adcl	%cs:16(%bp,%di), %ebx
 	addl	%cs:4(%bp,%di), %eax	//Form_statr + To_count(i) + To_start(i)
 	adcl	%cs:8(%bp,%di), %ebx
-	subl	%ecx, %eax						//Form_statr + To_count(i) + To_start(i) - ¡ÆTo_count(0¡úi)
+	subl	%ecx, %eax						//Form_statr + To_count(i) + To_start(i) - âˆ‘To_count(0â†’i)
 	sbbl	%edx, %ebx
 
-	subl	8(%si), %ecx						//¡ÆTo_count(0¡úi) - Form_statr
+	subl	8(%si), %ecx						//âˆ‘To_count(0â†’i) - Form_statr
 	sbbl	12(%si), %edx
-	movl	%eax, 8(%si)						//Form_statr - ¡ÆTo_count(0¡úi-1) + To_start(i)
+	movl	%eax, 8(%si)						//Form_statr - âˆ‘To_count(0â†’i-1) + To_start(i)
 	movl	%ebx, 12(%si)	
 	movzwl	2(%si), %eax				 	//Form_len
 	xorl	%ebx, %ebx
-	call	compare_64							//Form_len <> ¡ÆTo_count(0¡úi) - Form_statr
+	call	compare_64							//Form_len <> âˆ‘To_count(0â†’i) - Form_statr
 	jbe	2f
 
-	movw	%cx, 2(%si)						  //¡ÆTo_count(0¡úi) - Form_statr														
-	subw	%cx, %ax								//Form_len - (¡ÆTo_count(0¡úi) - Form_statr)
+	movw	%cx, 2(%si)						  //âˆ‘To_count(0â†’i) - Form_statr														
+	subw	%cx, %ax								//Form_len - (âˆ‘To_count(0â†’i) - Form_statr)
 	movw	%ax, %cs:(next_fragment_len - int13_handler)
 	addw	$16, %di
 	movw	%di, %cs:(next_fragment_offset - int13_handler)
@@ -14729,7 +14729,7 @@ ENTRY(console_putchar)
 
 	movb	%dl, %al
 	xorb	%bh, %bh
-
+#if 0		//é€šå¸¸ä»0åˆ—å¼€å§‹æ‰“å°ï¼Œä¸ä¼šå‡ºç°è¿™äº›æƒ…å†µ 2022-11-11
 	cmpb	$80, %cl
 	jb	5f
 	movb	$0, %cl
@@ -14751,6 +14751,7 @@ ENTRY(console_putchar)
 	popaw
 	decb	%ch
 	jmp	3f
+#endif
 5:
 	movw	%cx, %dx
 	pushaw
@@ -14833,6 +14834,10 @@ ENTRY(console_putchar)
 	int	$0x10
 	popaw
 	decb	%dh
+	movw	$0x0920, %ax	//åœ¨BIOSç¯å¢ƒä¸‹ï¼Œåœ¨VMæˆ–VBOXçš„æ§åˆ¶å°ä¸­ï¼Œå¦‚æœä¸€è¡Œé¦–å­—ç¬¦éæ ‡å‡†è‰²ï¼Œæ»šå±æ—¶ä¼šèŠ±å±ã€‚2022-11-11
+	movw	$80, %cx
+	movb	$0, %bl
+	int	$0x10
 	jmp	3f
 5:
 	pushaw

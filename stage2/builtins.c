@@ -4217,7 +4217,7 @@ unsigned short animated_delay;
 unsigned char animated_last_num;
 unsigned short animated_offset_x;
 unsigned short animated_offset_y;
-char animated_name[57];
+char animated_name[128];
 unsigned long fill_color;
 int splashimage_func(char *arg, int flags);
 int background_transparent=0;
@@ -15643,11 +15643,13 @@ xyz_done:
 	if (current_term != term_table)		/* terminal console */
 		current_term = term_table;	/* terminal console */
       }
-      return old_graphics_mode;
+			graphics_mode = tmp_graphicsmode;
+//      return old_graphics_mode;
+			return graphics_mode;
     }
 enter_graphics_mode:
-    if (graphics_mode != (unsigned long)tmp_graphicsmode 
-	|| current_term != term_table + 1	/* terminal graphics */
+    if (graphics_mode != tmp_graphicsmode 
+	/*|| current_term != term_table + 1*/	/* terminal graphics */
 	)
     {
       graphics_mode = tmp_graphicsmode;
@@ -15688,7 +15690,8 @@ bad_arg:
     return 0;
   }
 
-  return old_graphics_mode;
+//  return old_graphics_mode;
+  return graphics_mode;
 #else
   return 0x12;
 #endif
@@ -15948,8 +15951,6 @@ echo_func (char *arg,int flags)
 			current_color = color_64_to_8 (current_color_64bit);
 		}
 		arg = p + 1;
-		if (!fontx && current_term == term_table) //在BIOS环境下，在VM或VBOX的控制台中，如果一行首字符非标准色，滚屏时会花屏。
-			fontx++;
             }
             errnum = 0;
          }
@@ -15973,9 +15974,10 @@ echo_func (char *arg,int flags)
          }
       }
       
-      grub_putchar((unsigned char)*arg, 255);
+//      grub_putchar((unsigned char)*arg, 255);		//移动到判断之后，避免打印‘\0’   2022-11-05
       if (!(*arg))
 				break;
+      grub_putchar((unsigned char)*arg, 255);
    }
    if (current_term->setcolorstate)
 	  current_term->setcolorstate (COLOR_STATE_STANDARD);
@@ -17536,7 +17538,13 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				for (i = 1;i< 10;++i)
 				{
 					if (s[i][0])
-						p_cmd += sprintf(p_cmd,"%s ",s[i]);
+//						p_cmd += sprintf(p_cmd,"%s ",s[i]);
+					{		//消除末尾的空格  2022-11-05
+						if (i == 1)
+							p_cmd += sprintf(p_cmd,"%s",s[i]);
+						else
+							p_cmd += sprintf(p_cmd," %s",s[i]);
+					}
 					else
 						break;
 				}

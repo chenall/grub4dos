@@ -379,7 +379,6 @@ num_text_char(char *p)
 /* Print an entry in a line of the menu box.  */
 extern char menu_cfg[];
 extern unsigned char menu_num_ctrl[];
-int use_phys_base;
 char graphic_file_shift[32];
 
 static void
