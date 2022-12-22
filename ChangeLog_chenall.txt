@@ -1,4 +1,7 @@
 ﻿更新说明：
+2022-12-22 (yaya)
+  撤销issues #384补丁。会使得外部命令SISO、RUN列表文件时，扩展名只显示前2个。
+
 2022-11-28 (yaya)
   修正echo函数的$[ABCD]功能，在BIOS环境下的VM(VBOX)控制台中，如果首字符使用，滚屏时花屏的问题。issues #381
   修正splashimage函数的动画功能。issues #387

@@ -4329,7 +4329,7 @@ splashimage_func(char *arg, int flags)
 	if (! animated_type && ! graphic_type )
 	graphics_end();
 fill:
-	current_term = term_table + 1;	/* terminal graphics */
+//	current_term = term_table + 1;	/* terminal graphics */
 	backup_x = fontx;
 	backup_y = fonty;
 	if (! graphics_init())
@@ -17538,13 +17538,16 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				for (i = 1;i< 10;++i)
 				{
 					if (s[i][0])
-//						p_cmd += sprintf(p_cmd,"%s ",s[i]);
-					{		//消除末尾的空格  2022-11-05
+#if 1
+						p_cmd += sprintf(p_cmd,"%s ",s[i]);
+#else
+					{		//消除末尾的空格  2022-11-05    会使得外部命令SISO、RUN列表文件时，扩展名只显示前2个！  2022-12-15
 						if (i == 1)
 							p_cmd += sprintf(p_cmd,"%s",s[i]);
 						else
 							p_cmd += sprintf(p_cmd," %s",s[i]);
 					}
+#endif
 					else
 						break;
 				}
