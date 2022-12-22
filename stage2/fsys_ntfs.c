@@ -1170,6 +1170,7 @@ static int list_file(char* cur_mft,char *fn,char *pos)
 													current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
 												current_color_64bit = (current_color_64bit & 0xffffff) | (clo64 & 0xffffff00000000);
 												current_color = (current_color & 0x0f) | (clo & 0xf0);
+												console_setcolorstate (current_color | 0x100);	//设置控制台文本模式的颜色(UEFI)
 											}
                       print_a_completion((char *)utf8, 1);
 											if (cursor_state & 1)

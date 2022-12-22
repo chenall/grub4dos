@@ -173,7 +173,7 @@ cd $SOURCE_DIR
 
 rm -f ${RELEASE}.zip ${RELEASE}.rar ${RELEASE}.tar.gz || exit $?
 if ! 7z a ${RELEASE}.7z ${GRUB4DOS_TEMP}/BOOTX64.EFI ${GRUB4DOS_TEMP}/BOOTIA32.EFI $SOURCE_DIR/ChangeLog_UEFI.txt \
-    $SOURCE_DIR/menu.lst ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff \
+    $SOURCE_DIR/menu.lst  $SOURCE_DIR/default ${GRUB4DOS_TEMP}/Get_Source_of_This_Build.txt ${GRUB4DOS_TEMP}/grub4dos_${CURR_REVISION}.diff \
     ${GRUB4DOS_TEMP}/i386-efi ${GRUB4DOS_TEMP}/x86_64-efi mkimage.exe; then
 	echo 7z failed. Continue with zip or tar...
 fi

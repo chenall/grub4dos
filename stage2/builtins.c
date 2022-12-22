@@ -84,7 +84,7 @@ unsigned int configfile_in_menu_init = 0;
  * The stage2-body, i.e., the pre_stage2, starts at 0x8200!
  * Do NOT overwrite the pre_stage2 code at 0x8200!
  */
-extern char *mbr /* = (char *)0x8000 */; /* 512-byte buffer for any use. */
+//extern char *mbr /* = (char *)0x8000 */; /* 512-byte buffer for any use. */
 
 extern int dir (char *dirname);
 
@@ -2766,7 +2766,7 @@ splashimage_func(char *arg, int flags)
 //	if (! animated_type && ! graphic_type )
 //    graphics_end(); graphics_inited = 0;
 fill:
-	current_term = term_table + 1;	/* terminal graphics */
+//	current_term = term_table + 1;	/* terminal graphics */
 	backup_x = fontx;
 	backup_y = fonty;
  
@@ -9378,6 +9378,7 @@ parttype_func (char *arg, int flags)
       return 0;
     }
 
+  rawread (current_drive, 0, 0, SECTOR_SIZE, (unsigned long long)(grub_size_t)mbr, 0xedde0d90);	//mbr可能存储的是其他分区信息，必需更新一下。2022-11-29
   q = get_partition_info (current_drive, current_partition);
   if (!q)
     return 0;
@@ -9385,7 +9386,8 @@ parttype_func (char *arg, int flags)
 	  errnum = 0;
 	  if (new_type == -1)	/* return the current type */
 	  {
-		new_type = (q->partition_type == PC_SLICE_TYPE_GPT)?0xEE:PC_SLICE_TYPE (mbr, q->partition_entry);
+//		new_type = (q->partition_type == PC_SLICE_TYPE_GPT)?0xEE:PC_SLICE_TYPE (mbr, q->partition_entry);
+		new_type = q->partition_type;
 		if (debug > 0)
 			printf ("Partition type for (%cd%d,%d) is 0x%02X.\n",
 				((current_drive & 0x80) ? 'h' : 'f'),
@@ -11727,7 +11729,13 @@ graphicsmode_func (char *arg, int flags)
   errnum = 0;
   if (! *arg)
   {
-    tmp_graphicsmode = 0x2ff;
+		printf_debug ("The current graphic mode is %d.\n",graphics_mode);
+		return graphics_mode;
+  }
+
+  if (grub_memcmp (arg, "--info", 6) == 0)
+  {
+		tmp_graphicsmode = 0x2ff;
   }
   else if (safe_parse_maxint (&arg, &tmp_graphicsmode))
   {
@@ -11894,6 +11902,7 @@ xyz_done:
 	else if (tmp_graphicsmode == 3 && graphics_mode != 3)	//在控制台设置模式3会死机。
 	{
     current_term->shutdown();	
+    graphics_end ();
     current_term->chars_per_line = 80;
     current_term->max_lines = 25;
     graphics_mode = tmp_graphicsmode;
@@ -11948,7 +11957,7 @@ xyz_done:
       {
 				console_setcursor(0); //避免转到后图形模式后，在某一固定位置遗留一个文本模式的光标。
 				console_shutdown ();	//视乎不起作用。
-				current_term = term_table + 1;	/* terminal graphics */
+				graphics_init();
 				current_term->startup();
       }
     }
@@ -11967,10 +11976,11 @@ struct builtin builtin_graphicsmode =
   "graphicsmode",
   graphicsmode_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "graphicsmode [MODE] [-1 | RANGE_X_RESOLUTION]",
+  "graphicsmode [--info] [MODE] [-1 | RANGE_X_RESOLUTION]",
   "Examples:\n"
   "graphicsmode (display graphic information)\n"
   "graphicsmode ;; set /A GMODE=%@retval%  (get current mode)\n"
+  "graphicsmode --info (Returns the currently supported graphics mode)\n"
   "graphicsmode -1 (auto select mode)\n"
   "graphicsmode -1 800 (switch to highest mode for 800 pixel width)\n"
   "graphicsmode -1 100:1000 (The highest mode available in the range of x = 100-1000)"
@@ -13867,13 +13877,16 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				for (i = 1;i< 10;++i)
 				{
 					if (s[i][0])
-//						p_cmd += sprintf(p_cmd,"%s ",s[i]);
-					{		//消除末尾的空格  2022-11-05
+#if 1
+						p_cmd += sprintf(p_cmd,"%s ",s[i]);
+#else
+					{		//消除末尾的空格  2022-11-05    会使得外部命令SISO、RUN列表文件时，扩展名只显示前2个！  2022-12-15
 						if (i == 1)
 							p_cmd += sprintf(p_cmd,"%s",s[i]);
 						else
 							p_cmd += sprintf(p_cmd," %s",s[i]);
 					}
+#endif
 					else
 						break;
 				}

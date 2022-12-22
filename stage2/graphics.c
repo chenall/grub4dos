@@ -171,6 +171,7 @@ graphics_init (void)
     }
   }
   
+  current_term = term_table + 1;	/* terminal graphics */  
   fontx = fonty = 0;
   graphics_inited = graphics_mode;
   return 1;
@@ -221,8 +222,8 @@ graphics_print_unicode (unsigned int max_width)
 	unsigned char *lfb, *pat, *p;
 	unsigned char column;
 	unsigned long long dot_matrix;
-	unsigned long long back_color_64bit;
-	unsigned int back_color;
+//	unsigned long long back_color_64bit;
+//	unsigned int back_color;
 	
 	CursorX = fontx * (font_w + font_spacing);
 	CursorY = fonty * (font_h + line_spacing);
@@ -280,6 +281,7 @@ graphics_print_unicode (unsigned int max_width)
     if (fontx + char_width > current_term->chars_per_line)
 	{ fontx = 0; check_scroll (); }
 
+#if 0		//issue #390 steve6375提议与grub4dos相同
 	if ((cursor_state & 2) && 															//如果在菜单界面, 并且
 					(!(splashimage_loaded & 2)											//没有加载背景图像.
 					|| (is_highlight && current_color_64bit >> 32)	//或者,菜单高亮并且有背景色(无论加载图像与否)
@@ -296,6 +298,15 @@ graphics_print_unicode (unsigned int max_width)
 	}
 	else																										//否则显示图像(背景透明)
 		bgcolor = 0;
+#else
+	if (!(cursor_state & 2)																	//如果不在在菜单界面,
+					|| !(splashimage_loaded & 2)										//或者没有加载背景图像.
+					|| (is_highlight && current_color_64bit >> 32)	//或者菜单高亮并且有背景色(无论加载图像与否)
+					|| (current_color_64bit & 0x1000000000000000))	//或者强制背景色(无论加载图像与否)
+		bgcolor = current_color_64bit >> 32 | 0x1000000;			//则显示字符背景色
+	else																										//否则显示图像(背景透明)
+		bgcolor = 0;
+#endif
 
 	for (i = 0; i<char_width * (font_w+font_spacing);++i)
 	{
@@ -1875,7 +1886,8 @@ graphics_scroll (void)
 	if (old_state & 1)
 		scroll_state = 1;		//避免空格背景杂乱无章
 	if (current_term->setcolorstate)
-		current_term->setcolorstate (COLOR_STATE_NORMAL);	//避免图形模式时，在命令行滚屏，第24行被有其他属性的空格清屏  2022-11-28
+//		current_term->setcolorstate (COLOR_STATE_NORMAL);	//避免图形模式时，在命令行滚屏，第24行被有其他属性的空格清屏  2022-11-28
+		current_term->setcolorstate (COLOR_STATE_STANDARD);	//避免图形模式时，在命令行滚屏，第24行被有其他属性的空格清屏  2022-12-15
     for (i=0;i<current_term->chars_per_line;++i)
 	graphics_putchar(' ',1);	
 	current_color_64bit = clo64;
