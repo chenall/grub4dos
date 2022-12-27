@@ -1605,6 +1605,9 @@ struct geometry
   unsigned int sector_size;
 	/* Power of sector size 2 */
 	unsigned int log2_sector_size;
+	unsigned char vhd_disk;								//vhd磁盘					位0-1,仿真类型：1=不加载到内存    2=加载到内存
+	unsigned char fill1;									//填充
+	unsigned short fill2;									//填充	
 };
 
 extern unsigned long long part_start;
@@ -2009,6 +2012,8 @@ unsigned long long dec_lz4_read (unsigned long long buf, unsigned long long len,
 extern int dec_vhd_open(void);
 void dec_vhd_close(void);
 unsigned long long dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write);
+extern int vhd_read;
+extern unsigned long long vhd_start_sector;
 #endif /* NO_DECOMPRESSION */
 
 extern int rawread (unsigned int drive, unsigned long long sector, unsigned int byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned int write);
@@ -5609,7 +5614,8 @@ struct grub_disk_data  //efi磁盘数据	(软盘,硬盘,光盘)    注意外部�
   unsigned char fragment;                   //碎片
   unsigned char read_only;                  //只读
   unsigned char disk_type;                  //磁盘类型        0/1/2=光盘/硬盘/软盘
-  unsigned short fill;                      //填充
+  unsigned char vhd_disk;										//vhd磁盘					位0-1,仿真类型：1=不加载到内存    2=加载到内存
+  unsigned char fill;                      	//填充
   grub_efivdisk_t *vdisk;                   //虚拟磁盘指针
 }  __attribute__ ((packed));
 
@@ -5687,6 +5693,8 @@ extern struct fragment_map_slot	disk_fragment_map;
 extern char *disk_buffer;
 //extern int drive_map_slot_empty (struct drive_map_slot item);
 extern struct fragment_map_slot *fragment_map_slot_find(struct fragment_map_slot *q, unsigned int from);
+extern int grub_SectorSequence_readwrite (int drive, struct fragment *data, unsigned char from_log2_sector, unsigned char to_log2_sector,
+			grub_disk_addr_t sector, grub_size_t size, char *buf, int read_write);
 
 
 #define CDVOL_TYPE_STANDARD 0x0
@@ -6998,10 +7006,10 @@ extern grub_uint64_t EXPORT_FUNC (__udivdi3) (grub_uint64_t a, grub_uint64_t b);
 extern void start_event (void);
 extern void close_event (void);
 extern int find_specified_file (int drive, int partition, char* file);
-extern char map_file_name [256];
-extern char *map_file_path;
-//extern int GetParentUtf8Name (char *dest, grub_uint16_t *src);
-//extern int get_ParentDisk (char* parentUtf8Name, struct fragment** Parent_Disk);
+extern char *vhd_file_name;
+extern char vhd_file_path [128];
+extern int GetParentUtf8Name (char *dest, grub_uint16_t *src);
+extern int GetSectorSequence (char* Utf8Name, struct fragment_map_slot** SectorSeq, int exist);
 extern char *preset_menu;
 extern int use_preset_menu;
 //======================================================================================================================

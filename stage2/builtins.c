@@ -355,7 +355,7 @@ blocklist_func (char *arg, int flags)
 #ifndef NO_DECOMPRESSION
   if (compressed_file)
   {
-    if (query_block_entries < 0)
+    if (query_block_entries < 0 && decomp_type != DECOMP_TYPE_VHD) //为了给vhd_start_sector赋值
     {
 	/* compressed files are not considered contiguous. */
 	goto fail_read;
@@ -7021,24 +7021,28 @@ unload_fragment_slot (unsigned int from)  //卸载碎片插槽
     grub_memset (start, 0, len);
   }
 }
-#if 0
-char map_file_name [256];
-char *map_file_path;
-int get_ParentDisk (char* parentUtf8Name, struct fragment** Parent_Disk);
+
+int GetSectorSequence (char* Utf8Name, struct fragment_map_slot** SectorSeq, int exist);
 int
-get_ParentDisk (char* parentUtf8Name, struct fragment** Parent_Disk)  //获得父VHD文件的扇区序列
+GetSectorSequence (char* Utf8Name, struct fragment_map_slot** SectorSeq, int exist)  //获得父VHD文件的扇区序列
 {
+	if (exist)
+	{
+		errnum = 0;
+		goto aaa;
+	}
   int i = no_decompression;
   query_block_entries = -1;           //仅请求块列表*/
   no_decompression = 1;
-  blocklist_func (parentUtf8Name, 1);	//请求块列表   执行成功后,将设置query_block_entries=1,设置errnum=0
+  blocklist_func (Utf8Name, 1);	//请求块列表   执行成功后,将设置query_block_entries=1,设置errnum=0
   no_decompression = i;
-
+aaa:
   if (errnum || query_block_entries > DRIVE_MAP_FRAGMENT || query_block_entries <= 0)
     return 0;
-  *Parent_Disk = grub_zalloc ((blklst_num_entries + 1) << 4); 
-  struct fragment* p = *Parent_Disk;
- 
+  *SectorSeq = grub_zalloc (((blklst_num_entries + 1) << 4) + 4); 
+  struct fragment_map_slot* q = *SectorSeq;
+
+  struct fragment *p = (struct fragment *)&q->fragment_data;
   if (!p)
     return 0;
   for (i = 0; i < blklst_num_entries; i++)
@@ -7052,6 +7056,8 @@ get_ParentDisk (char* parentUtf8Name, struct fragment** Parent_Disk)  //获得�
   return blklst_num_entries;
 }
 
+char *vhd_file_name = 0;
+char vhd_file_path [128];
 int GetParentUtf8Name (char *dest, grub_uint16_t *src);
 int
 GetParentUtf8Name (char *dest, grub_uint16_t *src)  //获得utf8格式的父VHD文件名
@@ -7071,12 +7077,12 @@ GetParentUtf8Name (char *dest, grub_uint16_t *src)  //获得utf8格式的父VHD�
   while (*d-- != '\\') ;
   d += 2;
 
-  grub_sprintf (dest, "%s%s", map_file_path, d);
+  grub_sprintf (dest, "%s%s", vhd_file_path, d);
   count = grub_strlen (dest);
 
   return count;
 }
-#endif
+
 void add_part_data (int drive);
 void
 add_part_data (int drive)
@@ -7175,7 +7181,7 @@ add_part_data (int drive)
 }
 
 unsigned long long tmp;
-
+unsigned long long vhd_start_sector;
 /* map */
 /* Map FROM_DRIVE to TO_DRIVE.  映射 FROM 驱动器到 TO 驱动器*/
 int map_func (char *arg, int flags);
@@ -7194,6 +7200,8 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
   int err;
   int prefer_top = 0;
   int no_hook = 0;
+  int vhd_disk = 0;
+  vhd_start_sector = 0;
 
   //struct master_and_dos_boot_sector *BS = (struct master_and_dos_boot_sector *) RAW_ADDR (0x8000);
 #define	BS	((struct master_and_dos_boot_sector *)mbr)
@@ -7688,17 +7696,38 @@ struct drive_map_slot
 #endif
 	}
 
-  if (mem == -1ULL)		//如果不加载到内存
+	//保存to驱动器的路径文件名
+	if (*(to_drive) == '/' || *(to_drive) == '(')
+	{
+		grub_memmove (chainloader_file, to_drive, grub_strlen (to_drive) + 1);
+    p = skip_to (0, chainloader_file);
+    *(p - 1) = 0;
+
+		vhd_file_name = grub_zalloc(256);
+    grub_memmove (vhd_file_name, chainloader_file, grub_strlen (chainloader_file) + 1);
+    //获得并保存to驱动器的路径
+    p--;
+    while (*p-- != '/') ;
+    *(p + 2) = 0;
+
+		grub_memmove (vhd_file_path, chainloader_file, grub_strlen (chainloader_file) + 1);
+	}
+
+//  if (mem == -1ULL)		//如果不加载到内存
   {
     //判断是否连续(填充碎片信息)
     query_block_entries = -1; /* query block list only   仅请求块列表*/
+		k = no_decompression;
+		no_decompression = 1;
     blocklist_func (to_drive, flags);	//请求块列表   执行成功后,将设置query_block_entries=1,设置errnum=0
+		no_decompression = k;
     if (errnum)
       return 0;
-    if (query_block_entries <= 0 || query_block_entries > DRIVE_MAP_FRAGMENT) //如果是动态VHD, 或者碎片太多
+
+		vhd_start_sector = map_start_sector[0];
+		if ((compressed_file && decomp_type != DECOMP_TYPE_VHD) || query_block_entries > DRIVE_MAP_FRAGMENT) //如果是压缩文件且不是VHD, 或者碎片太多
     {
-      printf_warning ("Too many fragments or Dynamic VHD needs to be loaded into memory.");
-      mem = 0;		//加载到内存
+			printf_warning ("Too many fragments or compressed file needs to be loaded into memory.");
     }
 #if 0
 		start_sector = map_start_sector[0];    
@@ -7726,23 +7755,6 @@ struct drive_map_slot
 #endif
 	{
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-#if 0
-    //保存to驱动器的路径文件名
-    if (*(to_drive+5) == '/' || *(to_drive+6) == '/' || *(to_drive+7) == '/')
-    {
-    p = skip_to (0, to_drive);
-    *(p - 1) = 0;
-    grub_memmove (map_file_name, to_drive, grub_strlen (to_drive) + 1);
-    //获得并保存to驱动器的路径
-    p--;
-    while (*p-- != '/') ;
-    *(p + 2) = 0; 
-    map_file_path = to_drive;
-    if (! grub_open (map_file_name))	//打开to驱动器
-      goto  fail_free;
-    }
-    else
-#endif
     {
       if (! grub_open (to_drive))	//打开to驱动器
         goto  fail_free;
@@ -7786,6 +7798,8 @@ struct drive_map_slot
     //此处重新设置了 sector_count, 将扇区计数更改为按每扇区0x200字节计的小扇区!!!
 //    sector_count = (filemax + 0x1ff) >> 9; /* in small 512-byte sectors */
     sector_count = (filemax + buf_geom.sector_size - 1) >> buf_geom.log2_sector_size;
+		if (!start_sector)
+			start_sector = vhd_start_sector;
 #if 0
     if (part_length		//如果分区长度不为零		此处buf_geom是to驱动器的参数
 				&& (buf_geom.sector_size == 2048 ? (start_sector - (skip_sectors >> 2)) : (start_sector - skip_sectors)) == part_start //并且(扇区起始-跳过扇区)=分区起始
@@ -7811,8 +7825,8 @@ struct drive_map_slot
 #endif
     //此处又修改sector_count
     sector_count -= skip_sectors;  //扇区计数=扇区计数-跳过扇区
-    if (mem == -1ULL)		//如果不加载到内存
-      grub_close ();		//关闭to驱动器
+//    if (mem == -1ULL)		//如果不加载到内存
+//      grub_close ();		//关闭to驱动器
 #if 0
     if (to == 0xffff && sector_count == 1)		//如果to=md,并且扇区计数=1
     {
@@ -7964,7 +7978,7 @@ map_whole_drive:
       errnum = ERR_WONT_FIT;
       goto fail_free;
     }
-#else
+#endif
     df = get_device_by_drive (from,1);
     if (df && df->fragment == 1)  //有碎片
     {
@@ -7979,7 +7993,6 @@ map_whole_drive:
         grub_memset (start, 0, len);
       }
     }
-#endif
 #if 0
     /* If TO == FROM and whole drive is mapped, and, no map options occur, then delete the entry.  */
     //如果TO=FROM,并且是整个驱动器映射，并且没有映射选项出现，然后删除该条目。
@@ -8054,7 +8067,7 @@ map_whole_drive:
 #endif
 			break;
 		}
-#else
+#endif
     dt = get_device_by_drive (to,1);
     if (dt)
     {
@@ -8082,7 +8095,6 @@ map_whole_drive:
         }
       }
     }
-#endif
 	}
 //至此,start_sector与sector_count最终确定!!!!
 //j=from驱动器的父插槽号  也就是说,to不是原生磁盘,是映射盘  dt是from的父驱动器设备
@@ -8175,6 +8187,17 @@ get_gpt_info:
 get_info_ok:
 	grub_free (cache);
   cache = 0;
+
+	if (compressed_file && decomp_type == DECOMP_TYPE_VHD)	//vhd动态磁盘
+	{
+		if (mem == -1ULL)	//不加载到内存
+			vhd_disk |= 1;
+		else							//加载到内存
+			vhd_disk |= 2;
+	}
+
+	if (mem == -1ULL)		//如果不加载到内存
+		grub_close ();		//关闭to驱动器
 //====================================================================================================================  
   /* how much memory should we use for the drive emulation? */
   if (mem != -1ULL)		  //如果加载到内存
@@ -8289,7 +8312,12 @@ mem_ok:
 			if (read_size > filemax - (skip_sectors << 9))
 				read_size = filemax - (skip_sectors << 9);
 			filepos = skip_sectors << 9;
+			unsigned long long asdf = part_start;
+			if (vhd_disk & 2)
+				part_start = vhd_start_sector;
 			read_result = grub_read (alloc, read_size, 0xedde0d90);	//读结果=返回读尺寸
+			part_start = asdf;
+
 			if (read_result != read_size)	//如果读结果!=读尺寸
 			{
 				grub_close ();     //关闭to驱动器
@@ -8400,7 +8428,7 @@ mem_ok:
       q->slot_len = l*16 + 4;
       goto no_fragment;
     }
-#else
+#endif
 //		if ((primeval_to != to) && (disk_drive_map[j].fragment == 1))		//如果是2次映射,并且有碎片
     if ((primeval_to != to) && (dt->fragment == 1))		//如果是2次映射,并且有碎片
 		{
@@ -8474,7 +8502,6 @@ set_ok:
       grub_free (p1);
       grub_free (p2);
     }
-#endif
 
 		if (blklst_num_entries < 2)
 		{
@@ -8544,8 +8571,15 @@ no_fragment:
   d->partmap_type = partmap_type;
   d->fragment = (blklst_num_entries > 1);
   d->read_only = read_only;
+  d->vhd_disk = vhd_disk;
   if (from >= 0x80 && from <= 0x8f)
     grub_memmove(&d->disk_signature, &disk_signature, 16); //磁盘签名
+	
+	if (vhd_file_name)
+	{
+		grub_free (vhd_file_name);
+		vhd_file_name = 0;
+	}
 
   if (de)
     return 1;
@@ -8596,11 +8630,15 @@ no_fragment:
 
 fail_close_free:
   grub_close ();
-  grub_free (cache);
-  return 0;
 
 fail_free:
-  grub_free (cache);
+	if (cache)
+		grub_free (cache);
+	if (vhd_file_name)
+	{
+		grub_free (vhd_file_name);
+		vhd_file_name = 0;
+	}
   return 0;
 #if 0
  //删除驱动器映像插槽  带入i=插槽位置  i=0-7
@@ -9392,8 +9430,8 @@ parttype_func (char *arg, int flags)
 			printf ("Partition type for (%cd%d,%d) is 0x%02X.\n",
 				((current_drive & 0x80) ? 'h' : 'f'),
 				(current_drive & ~0x80),
-				(unsigned long)(unsigned char)(current_partition >> 16),
-				(unsigned long)new_type);
+				(unsigned int)(unsigned char)(current_partition >> 16),
+				(unsigned int)new_type);
 		return new_type;
 	  }
 
@@ -9418,8 +9456,8 @@ parttype_func (char *arg, int flags)
 		printf ("Partition type for (%cd%d,%d) set to 0x%02X successfully.\n",
 			((current_drive & 0x80) ? 'h' : 'f'),
 			(current_drive & ~0x80),
-			(unsigned long)(unsigned char)(current_partition >> 16),
-			(unsigned long)new_type);
+			(unsigned int)(unsigned char)(current_partition >> 16),
+			(unsigned int)new_type);
 	  /* Succeed.  */
 	  errnum = 0;
 	  return 1;
