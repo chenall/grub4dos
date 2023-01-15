@@ -5551,6 +5551,27 @@ LDFLAGS=$saved_LDFLAGS
 if test "x$no_pie_linker_flag" = xyes; then
   LDFLAGS="$LDFLAGS -no-pie"
 fi
+#gcc 10 and newer has builded with -fno-common by defualt so we add -fcommon to STAGE2_CFLAGS
+
+# Check if gcc 10 or newer
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether gcc 10 or newer builded with -fno-common by defualt" >&5
+$as_echo_n "checking whether gcc 10 or newer builded with -fno-common by defualt... " >&6; }
+currentgccver="$(gcc -dumpversion)"
+gcc10="10.0.0"
+ 
+if [ "$(printf '%s\n' "$gcc10" "$currentgccver" | sort -V | head -n1)" = "$gcc10" ]; then 
+  fno_common_flag=yes
+else
+  fno_common_flag=no
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $fno_common_flag" >&5
+$as_echo "$fno_common_flag" >&6; }
+
+if test "x$fno_common_flag" = xyes; then
+   STAGE2_CFLAGS="$STAGE2_CFLAGS -fcommon"
+fi
+
 if test "x$with_binutils" != x; then
   # Extract the first word of "objcopy", so it can be a program name with args.
 set dummy objcopy; ac_word=$2
