@@ -125,12 +125,17 @@ VARIABLE(version_string)
 VARIABLE(config_file)
 	.string "/menu.lst"
 
-	. = EXT_C(main) + 0x34
+	. = EXT_C(main) + 0x34																									//0x8234    0x8238-0x8243  12字节未使用!!
 
 	.word	0x14C	/* CPU type for i386 and compatibles */
 	.word	1	/* there is 1 section */
+VARIABLE(ext_timer)																												//0x8238  外部定时器  int*
+	.long 0
+	.long 0																																	//未使用
+VARIABLE(grub_timeout)                                                    //0x8240  倒计时			int
+	.long	-1
 
-	. = EXT_C(main) + 0x44
+	. = EXT_C(main) + 0x44																									//0x8244	0x824e-0x8259  18字节未使用!!
 
 	.word	0x00	/* size of optional header */
 	.word	3	/* flags: "no relocation" and "valid executable" */
@@ -138,15 +143,18 @@ VARIABLE(config_file)
 	.word	0x7273
 	.word	0x63
 
-	/* Utilities may use this to locate the bss starting address,
-	 * where the "bootlace" signature is placed and preset-menu
-	 * follows.
-	 */
 	. = EXT_C(main) + 0x60
 
 VARIABLE(hotkey_func)  //int*                                             //0x8260	外置热键功能
   .long 0 
 
+	.long 0																																	//未使用
+	.long	0																																	//未使用
+	
+	/* Utilities may use this to locate the bss starting address,
+	 * where the "bootlace" signature is placed and preset-menu
+	 * follows.
+	 */
 	. = EXT_C(main) + 0x6C  #; bss starting address
 
 preset_menu_old:
@@ -15040,11 +15048,21 @@ ENTRY(console_getkey)
   popl %eax
   cmpb $0, beep_enable
   je 2f
-  call beep_func
+	pushl $1
+	pushl beep_buf
+	call beep_func
+	addl $8, %esp
 2:
 	cmpb $0, DateTime_enable
 	je 2f
 	call DateTime_refresh
+2:
+	cmpl $0, ext_timer
+	je 2f
+	pushl $-1
+	pushl $0
+	call *ext_timer
+	addl $8, %esp
 2:
 	cmpl $0, graphics_inited
 	je 4b
@@ -15187,11 +15205,21 @@ ENTRY(console_checkkey)
 	popl %eax
 	cmpb $0, beep_enable
 	jz 2f
+	pushl $1
+	pushl beep_buf
 	call beep_func
+	addl $8, %esp
 2:
 	cmpb $0, DateTime_enable
 	je 2f
 	call DateTime_refresh
+2:
+	cmpl $0, ext_timer
+	je 2f
+	pushl $-1
+	pushl $0
+	call *ext_timer
+	addl $8, %esp
 2:
 	cmpl $0, graphics_inited
 	je 5f
@@ -17049,7 +17077,7 @@ VARIABLE(grub_putchar)
 	.long	ABS(EXT_C(open_device))
 	.long	ABS(EXT_C(real_open_partition))
 	.long	ABS(EXT_C(set_device))
-	.long 0				//reserved
+	.long ABS(EXT_C(run_line))
 	.long 0				//reserved
 	.long 0				//reserved
 	.long	ABS(EXT_C(parse_string))

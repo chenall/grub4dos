@@ -758,7 +758,8 @@ do_backward:
 	      {
 		/* get char width */
 		count = 2;	/* initalize as wide char */
-		if (*(unsigned long *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
+//		if (*(unsigned long *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
+		if (((*(unsigned char *)((unsigned int)narrow_mem + unicode/8)) & (unsigned char)(1 << (unicode&7))) == 0)		//宽字符指示器使用内存分配		2023-02-22
 			count--;	// count = 1;
 	      }
 	      xpos -= count;
@@ -838,7 +839,8 @@ do_forward:
 	      {
 		/* get char width */
 		count = 2;	/* initalize as wide char */
-		if (*(unsigned long *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
+//		if (*(unsigned long *)(UNIFONT_START + (unicode << 5)) == narrow_char_indicator)
+		if (((*(unsigned char *)((unsigned int)narrow_mem + unicode/8)) & (unsigned char)(1 << (unicode&7))) == 0)		//宽字符指示器使用内存分配		2023-02-22
 			count--;	// count = 1;
 	      }
 	      xpos += count;

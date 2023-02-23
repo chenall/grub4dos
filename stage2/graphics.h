@@ -20,16 +20,21 @@
 
 #ifndef GRAPHICS_H
 #define GRAPHICS_H
-#define SPLASH_BASE_ADDR (splashimage_loaded & ~0xfL)
-#define SPLASH_W (*(unsigned long *)SPLASH_BASE_ADDR)
-#define SPLASH_H (*(unsigned long *)(SPLASH_BASE_ADDR+4))
-#define SPLASH_IMAGE ((unsigned long*)(SPLASH_BASE_ADDR+0x10))
+//#define SPLASH_BASE_ADDR (splashimage_loaded & ~0xfL)
+//#define SPLASH_W (*(unsigned long *)SPLASH_BASE_ADDR)
+//#define SPLASH_H (*(unsigned long *)(SPLASH_BASE_ADDR+4))
+//#define SPLASH_IMAGE ((unsigned long*)(SPLASH_BASE_ADDR+0x10))
+unsigned int SPLASH_H;
+unsigned int SPLASH_W;
+#define SPLASH_IMAGE IMAGE_BUFFER
 #endif /* GRAPHICS_H */
 
-#define JPG_FILE						0x3A0000
-#define JPG_FILE_LENGTH			0x8000
-#define	IMAGE_BUFFER				0x1000000
-#define	IMAGE_BUFFER_LENGTH	0x753000		// 1600*1200*4
+//#define JPG_FILE						0x3A0000
+unsigned char *JPG_FILE = 0;
+//#define JPG_FILE_LENGTH			0x8000
+//#define	IMAGE_BUFFER				0x1000000
+unsigned char *IMAGE_BUFFER = 0;
+//#define	IMAGE_BUFFER_LENGTH	0x753000		// 1600*1200*4
 #define MAKEWORD(a, b) (((unsigned long)((unsigned char)(a) & 0xff)) | ((unsigned long)(((unsigned char)(b) & 0xff) << 8)))
 #define HEX    0
 #define BIN    1

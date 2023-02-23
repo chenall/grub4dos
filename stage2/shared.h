@@ -51,11 +51,10 @@
 #define LINUX_TMP_MEMORY	0x2600000
 
 /* unifont start at 24M */
-#define UNIFONT_START		0x1800000
-#define UNIFONT_START_SIZE		0x800000		//32*32
+//#define UNIFONT_START		0x1800000
+//#define UNIFONT_START_SIZE		0x800000		//32*32
 
-//#define narrow_char_indicator	(*(unsigned long *)(UNIFONT_START + ('A' << 5)))
-#define narrow_char_indicator	(*(unsigned long *)(UNIFONT_START + 'A'*num_wide*font_h))
+//#define narrow_char_indicator	(*(unsigned long *)(UNIFONT_START + 'A'*num_wide*font_h))
 
 /* graphics video memory */
 #define VIDEOMEM 0xA0000
@@ -811,6 +810,7 @@ extern void clear_entry (int x, int y, int w, int h);
 extern void vbe_fill_color (unsigned long color);
 extern unsigned long long hotkey_color_64bit;
 extern unsigned int hotkey_color;
+extern int (*ext_timer)(char *arg, int flags);
 
 #ifdef SUPPORT_GRAPHICS
 extern unsigned long current_x_resolution;
@@ -850,6 +850,7 @@ struct malloc_array
 };
 
 extern void *grub_malloc(unsigned long size);
+extern void *grub_zalloc(unsigned long size);
 extern void grub_free(void *ptr);
 struct malloc_array *malloc_array_start;
 
@@ -1792,6 +1793,10 @@ extern unsigned long long *next_partition_offset;
 extern unsigned long *next_partition_entry;
 extern unsigned long *next_partition_ext_offset;
 extern char *next_partition_buf;
+extern unsigned char *IMAGE_BUFFER;
+extern unsigned char *JPG_FILE;
+extern unsigned char *UNIFONT_START;
+extern unsigned char *narrow_mem;
 #endif /* ! ASM_FILE */
 
 #endif /* ! GRUB_SHARED_HEADER */

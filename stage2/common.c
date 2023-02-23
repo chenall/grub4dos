@@ -307,6 +307,19 @@ void *grub_malloc(unsigned long size)
 	return NULL;
 }
 
+void *grub_zalloc(unsigned long size);
+void *
+grub_zalloc(unsigned long size)
+{
+	void *ret;
+
+  ret = grub_malloc (size);
+  if (ret)
+    grub_memset (ret, 0, size);
+
+  return ret;
+}
+
 void grub_free(void *ptr)
 {
 	if (ptr == NULL)
