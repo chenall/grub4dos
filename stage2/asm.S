@@ -124,15 +124,30 @@ VARIABLE(force_lba)																												//0x8211 强制LBA  uefi未使用
 VARIABLE(version_string)                                                  //0x8212
 	.string VERSION                                                         //0.97\0(hd0,0)
 
-VARIABLE(config_file)																											//0x8217-0x825f		配置文件
+VARIABLE(config_file)																											//0x8217		配置文件  最长29字节
 	.string "/efi/grub/menu.lst"
+																																					//G4D情况：0x8234占用
+																																					//G4D情况：0x8244占用		0x824e-0x8259  18字节未使用!!
+	. = EXT_C(main) + 0x38	
+VARIABLE(ext_timer)																												//0x8238  外部定时器  int*
+	.long	0
+	.long	0
+//	.extent	0
+//#if defined(__i386__)
+//	.long	0
+//#endif
+VARIABLE(grub_timeout)                                                    //0x8240  倒计时			int
+	.long	-1
 
-#if !HOTKEY
 	. = EXT_C(main) + 0x60
 
 VARIABLE(hotkey_func)  //int*                                             //0x8260	外置热键功能
-  .extent 0 
-#endif
+	.long	0
+	.long	0
+//  .extent 0 
+//#if defined(__i386__)
+//	.long	0
+//#endif
 
 	. = EXT_C(main) + 0x68                                                  //0x8268
   
@@ -169,12 +184,7 @@ VARIABLE(menu_num_ctrl) //unsigned char menu_num_ctrl[4]  4字节
 #endif
 #undef GRUB4DOS_INT_VER
 
-#if HOTKEY
-VARIABLE(hotkey_func_enable)    //int                                     0x827c    内置热键功能允许
-#else
-
-#endif
-	.long 0
+	.long 0																																	//0x827c  未使用
   
 	. = EXT_C(main) + 0x80																									//0x8280
 
@@ -272,7 +282,9 @@ VARIABLE(addr_system_functions)																						//0x8300    系统功能地
 
 VARIABLE(addr_system_variables)																						//0x8308		系统变量地址(原0x8304）
 	.extent	ABS(EXT_C(system_variables))	
-
+#if defined(__i386__)
+	.long	0
+#endif
   
 	. = EXT_C(main) + 0x110																									//0x8310
   
@@ -336,9 +348,6 @@ VARIABLE(current_x_resolution)                                            //0x83
 
 	. = EXT_C(main) + 0x150																									//0x8350
 	
-	.long	0, 0                                                              //未使用
-	.long	0, 0                                                              //未使用
-
 	. = EXT_C(main) + 0x160																									//0x8360
 
 VARIABLE(disk_data)                                                       //磁盘数据指针  grub_disk_data *

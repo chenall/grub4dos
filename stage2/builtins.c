@@ -64,7 +64,7 @@ password_t password_type;
 /* The flag for indicating that the user is authoritative.  */
 int auth = 0;
 /* The timeout.  */
-int grub_timeout = -1;
+//int grub_timeout = -1;
 /* Whether to show the menu or not.  */
 int show_menu = 1;
 /* Don't display a countdown message for the hidden menu */
@@ -4400,11 +4400,7 @@ ged_unifont_simp (unsigned int unicode)
 //static unsigned long old_narrow_char_indicator = 0;
 //#define	old_narrow_char_indicator	narrow_char_indicator
 
-#if !HOTKEY		//外置热键
 int (*hotkey_func)(char *titles,int flags,int flags1,int key);
-#else
-int hotkey_func (char *arg,int flags,int flags1,int key);
-#endif
 struct simp unifont_simp[]={{0,0xff,0},{0x2000,0x206f,0x1f00},{0x2190,0x21ff,0x2020},{0x2e80,0x303f,0x2ca0},{0x31c0,0x9fbf,0x2e20},{0xf900,0xfaff,0x8760},{0xfe30,0xffef,0x8a90}};
 unsigned char unifont_simp_on;
 
@@ -4432,7 +4428,6 @@ font_func (char *arg, int flags)
 	unsigned char tag[]={'d','o','t','s','i','z','e','='};
 	unsigned int font_h_old = font_h;
 	unsigned int font_h_new = 0;
-//	unsigned char *narrow_mem = 0;
   valid_lines = 0;
   errnum = 0;
 
@@ -4553,7 +4548,7 @@ redo:
 	/* simply put the 8x16 dot matrix at the right half */
 		if (unifont_simp_on)
 			unicode = ged_unifont_simp (unicode);
-			*(unsigned char *)(narrow_mem + unicode/8) &= ~(1 << (unicode&7));
+//			*(unsigned char *)(narrow_mem + unicode/8) &= ~(1 << (unicode&7));	//初始化已经清零   2023-02-22
 			for (j=0; j<font_w; j++)
 			{
 				unsigned long long dot_matrix = 0;
@@ -4608,16 +4603,6 @@ redo:
 				}
 				for (k=0; k<num_wide; k++)
 					((unsigned char *)(UNIFONT_START + unicode*num_wide*font_h))[j*num_wide+k] = (dot_matrix >> k*8)&0xff;
-#if 0
-				/* the first integer is to be checked for narrow_char_indicator */
-				if (j == 0)
-				{
-					/* set bit 4: this integer already used by this wide char, so
-					* it will not be used as the narrow_char_indicator.
-					*/
-					*(unsigned char *)(narrow_mem + (unsigned short)(dot_matrix & 0xffff)) |= 16;	/* bit 4 */
-				}
-#endif
 			}
     }
     valid_lines++;
@@ -4668,63 +4653,6 @@ close_file:
     }
   }
   grub_close();
-#if 0
-  if (! valid_lines)	// if no valid lines,
-	{
-		if (narrow_mem)
-			grub_free (narrow_mem);
-    return valid_lines;	// simply fail without loading ROM font.
-	}
-
-  errnum = 0;
-  /* determine narrow_char_indicator */
-  narrow_indicator = 0;
-
-  i = 0;
-loop:
-  i++;
-  if (i < 0x10000)
-  {
-//    if (((*(unsigned char *)(grub_size_t)(0x100000 + i)) & 16))
-    if (((*(unsigned char *)(grub_size_t)(narrow_mem + i)) & 16))
-	goto loop; /* the i already used by a new wide char, failed */
-    /* now the i is not used by all new wide chars */
-    if (i == old_narrow_char_indicator)
-    {
-	*(unsigned int *)UNIFONT_START = i;	// disable next font command.
-  if (narrow_mem)
-    grub_free (narrow_mem);
-	return valid_lines;	/* nothing need to change, success */
-    }
-    /* old wide chars should not use this i as leading integer */
-    for (j = 0x80; j < 0x10000; j++)
-    {
-	if (*(unsigned int *)(UNIFONT_START + (j*num_wide*font_h)) == i)
-		goto loop; /* the i was used by old wide char j, failed */
-    }
-    /* the i is not used by all wide chars, and got it! */
-    narrow_indicator = i;
-  }
-
-  if (narrow_indicator == 0)
-  {
-    errnum = ERR_INTERNAL_CHECK;
-    return 0;
-  }
-  /* update narrow_char_indicator for each narrow char */
-  for (i = 0xFFFF; (int)i >= 0; i--)
-  {
-		if ((!((*(unsigned char *)(narrow_mem + i)) & 1) /* not a new wide char */
-	&& (*(unsigned int *)(UNIFONT_START + (i*num_wide*font_h))
-		 == old_narrow_char_indicator)	/* not an old wide char */
-	)
-	|| i <= 0x7F
-       )
-    {
-	*(unsigned int *)(UNIFONT_START + (i*num_wide*font_h)) = narrow_indicator;
-    }
-  }
-#endif
   //old_narrow_char_indicator = narrow_indicator;
 //#undef	old_narrow_char_indicator
 
@@ -11686,7 +11614,7 @@ grub_video_gop_get_bitmask (grub_uint32_t mask, unsigned int *mask_size,
   *mask_size = last_p - *field_pos + 1;
 }
 
-//0x20-0x7f及0x2192、0x2193(上下箭头)的16*16点阵字符。hex格式，lzma压缩。
+//0x20-0x7f及0x2191、0x2193(上下箭头)的16*16点阵字符。hex格式，lzma压缩。
 static char mini_font_lzma[] = {
 0x5D,0x00,0x00,0x80,0x00,0xAC,0x0E,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x19,0x0C,
 0x43,0x90,0x39,0x67,0xD5,0x47,0x76,0xE2,0x4A,0xFC,0x16,0xF6,0xCE,0x1E,0x52,0x1A,
@@ -11741,13 +11669,14 @@ static char mini_font_lzma[] = {
 0x9E,0x42,0x0F,0x43,0x63,0xBC,0x5B,0x20,0x27,0xE6,0xB7,0xBA,0xA3,0xD8,0xD4,0xF1,
 0x5A,0xE2,0x84,0xE7
 };
+
 /* graphicsmode */
 int graphicsmode_func (char *arg, int flags);
 int
 graphicsmode_func (char *arg, int flags)
 {
 #ifdef SUPPORT_GRAPHICS
-  unsigned long long tmp_graphicsmode;
+  unsigned long long tmp_graphicsmode = -1;
   char *x_restrict = "0:-1";
   char *y_restrict = "0:-1";
   char *z_restrict = "0:-1";
@@ -11760,14 +11689,14 @@ graphicsmode_func (char *arg, int flags)
 	static struct grub_efi_gop *gop;
 	unsigned int red_mask_size, green_mask_size, blue_mask_size, reserved_mask_size;
   unsigned int red_field_pos, green_field_pos, blue_field_pos, reserved_field_pos;
-	int mode;
+	int mode, test = 0;
 	static grub_efi_guid_t graphics_output_guid = GRUB_EFI_GOP_GUID;
   grub_efi_status_t status;
 
   errnum = 0;
   if (! *arg)
   {
-		printf_debug ("The current graphic mode is %d.\n",graphics_mode);
+		printf ("The current graphic mode is %d.\n",graphics_mode);
 		return graphics_mode;
   }
 
@@ -11775,13 +11704,19 @@ graphicsmode_func (char *arg, int flags)
   {
 		tmp_graphicsmode = 0x2ff;
   }
+  else if (grub_memcmp (arg, "--test", 6) == 0)
+  {
+		test = 1;
+		arg += 6;
+		goto transfer;
+  }
   else if (safe_parse_maxint (&arg, &tmp_graphicsmode))
   {
 		if ((unsigned int)tmp_graphicsmode == (unsigned int)-1) /* mode auto detect */
 		{
 			unsigned long long tmp_ll;
 			char *tmp_arg;
-
+transfer:
 			tmp_arg = arg = wee_skip_to (arg, 0);
 			if (! *arg)   //只有 -1
 				goto xyz_done;
@@ -11925,6 +11860,8 @@ xyz_done:
 
   if ((unsigned int)tmp_graphicsmode == (unsigned int)-1)
   {
+		if (test)
+			return 0;
     tmp_graphicsmode = 0x100;
     x = x0;
     y = y0;
@@ -11939,16 +11876,17 @@ xyz_done:
 	}
 	else if (tmp_graphicsmode == 3 && graphics_mode != 3)	//在控制台设置模式3会死机。
 	{
-    current_term->shutdown();	
+    cls();
     graphics_end ();
     current_term->chars_per_line = 80;
     current_term->max_lines = 25;
     graphics_mode = tmp_graphicsmode;
-    cls();
     goto ok;
 	}
 	else if (tmp_graphicsmode > 0xff)
 	{
+		if (test)
+			return tmp_graphicsmode;
     status = efi_call_2 (gop->set_mode, gop, tmp_graphicsmode & 0xff);	//gop设置模式
     if (status)	//失败
       goto bad_arg; 
@@ -11958,8 +11896,6 @@ xyz_done:
 		current_bytes_per_pixel = (z+7)/8;
 		current_phys_base = gop->mode->fb_base;
 		current_bytes_per_scanline = bytes_per_scanline;
-    current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
-    current_term->max_lines = current_y_resolution / (font_h + line_spacing);
     
     if (IMAGE_BUFFER)
       grub_free (IMAGE_BUFFER);
@@ -11989,14 +11925,14 @@ xyz_done:
       graphics_mode = tmp_graphicsmode;
       if (graphics_inited)	//如果在图形模式
       {
-				current_term->startup();//执行graphics_init，加载图像
+				current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
+				current_term->max_lines = current_y_resolution / (font_h + line_spacing);   
 			}
       else
       {
 				console_setcursor(0); //避免转到后图形模式后，在某一固定位置遗留一个文本模式的光标。
 				console_shutdown ();	//视乎不起作用。
 				graphics_init();
-				current_term->startup();
       }
     }
     cls();
@@ -12934,7 +12870,7 @@ unsigned char DateTime_enable;
 unsigned long long hotkey_color_64bit = 0;
 unsigned int hotkey_color = 0;
 #define MENU_BOX_X	((menu_border.menu_box_x > 2) ? menu_border.menu_box_x : 2)
-#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X * 2 - 1))
+#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X * 2)) //UEFI固件的右上角(0x2510)是宽字符
 
 static int setmenu_func(char *arg, int flags);
 static int
@@ -13225,10 +13161,10 @@ setmenu_func(char *arg, int flags)
 							menu_border.menu_box_x = val;
 							break;
 						case 'w':
-							if (val != 0)
+//							if (val != 0)
 								menu_border.menu_box_w = val;
-							else
-								menu_border.menu_box_w = current_term->chars_per_line - menu_border.menu_box_x * 2 + 1;
+//							else
+//								menu_border.menu_box_w = current_term->chars_per_line - menu_border.menu_box_x * 2 + 1;  //多余，影响w判断  2023-02-22
 							break;
 						case 'y':
 							menu_border.menu_box_y = val;
@@ -13336,14 +13272,6 @@ setmenu_func(char *arg, int flags)
 			menu_border.menu_box_h = graphic_row * graphic_list;
 			menu_border.border_w = 0;
 		}
-#if HOTKEY		//内置热键
-		else if (grub_memcmp (arg, "--hotkey", 8) == 0)	//--hotkey 参数
-		{
-			arg += 8;
-			arg = skip_to (0, arg);
-			hotkey_func(arg,flags | 0x100,800,0);
-		}
-#endif
     else if (grub_memcmp (arg, "--hotkey-color=", 15) == 0)   //--hotkey-color=COLOR 64位色
 		{
 			arg += 15;

@@ -84,7 +84,7 @@ typedef struct VHDFileControl { //VHD控制文件
 	unsigned int blockLBA;								//逻辑块
 	unsigned int blockSize;               //块尺寸
 	unsigned char blockSizeLog2;					//块尺寸2的幂
-	unsigned short blockBitmapSize;         //块位图尺寸
+	unsigned short blockBitmapSize;       //块位图尺寸
 	unsigned char diskType;               //磁盘类型
 	unsigned char	from_drive;							//from驱动器
 	unsigned char	to_drive;								//to驱动器
@@ -546,7 +546,7 @@ dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write)
     txLen = (rem < vhdfc_index->blockSize - offsetInBlock) ? rem : vhdfc_index->blockSize - offsetInBlock; //块内读尺寸
     vhdfc_index->blockLBA = *(grub_u32_t*)(vhdfc_index->blockAllocationTable + blockNumber * 4);           //块逻辑扇区
     bswap_32(&vhdfc_index->blockLBA);                                                                      //大尾转小尾
-
+#if 0
     if (vhdfc_index->diskType == VHD_DISKTYPE_DYNAMIC)   //如果是动态
     {
 			if (current_index != index || blockOffset != vhdfc_index->currentBlockOffset)
@@ -567,6 +567,7 @@ dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write)
 			grub_memmove64(buf, (grub_size_t)(vhdfc_index->blockData + offsetInBlock), txLen);
     }
     else   //如果是差分
+#endif
     {
 /*
 vhdfc_index：是用户最后生成的差分磁盘。由用户使用map映射，挂钩，分配驱动器号。

@@ -28,7 +28,6 @@
 #include <config.h>
 
 //UEFI 编译开关
-#define HOTKEY  0         //热键      0: 外置;    1: 内置
 #define GDPUP   0         //使用设备路径实用程序协议   低版本UEFI固件不支持
 #define UNMAP   1         //卸载映像
 
@@ -307,16 +306,16 @@
 #define ACS_DARROW	'v'
 
 /* Special graphics characters for IBM displays. */
-#define DISP_UL		(menu_border.disp_ul)
-#define DISP_UR		(menu_border.disp_ur)
-#define DISP_LL		(menu_border.disp_ll)
-#define DISP_LR		(menu_border.disp_lr)
-#define DISP_HORIZ	(menu_border.disp_horiz)
-#define DISP_VERT	(menu_border.disp_vert)
-#define DISP_LEFT	0x25c4		//0x1b
-#define DISP_RIGHT	0x25ba	//0x1a
-#define DISP_UP		0x25b2		//0x18
-#define DISP_DOWN	0x25bc		//0x19
+#define DISP_UL		0x250c
+#define DISP_UR		0x2510
+#define DISP_LL		0x2514
+#define DISP_LR		0x2518
+#define DISP_HORIZ	0x2500
+#define DISP_VERT		0x2502
+#define DISP_LEFT	0x2190		//0x1b
+#define DISP_RIGHT	0x2192	//0x1a
+#define DISP_UP		0x2191		//0x18
+#define DISP_DOWN	0x2193		//0x19
 
 /* Remap some libc-API-compatible function names so that we prevent
    circularararity. */
@@ -1378,13 +1377,8 @@ extern unsigned short row_space;
 extern char graphic_file[128];
 extern void clear_entry (int x, int y, int w, int h);
 extern void vbe_fill_color (unsigned int color);
-#if !HOTKEY		//外置热键
 //extern int (*hotkey_func)(char *titles,int flags,int flags1);
 extern int (*hotkey_func)(char *titles,int flags,int flags1,int key); //外置热键
-#else
-extern int hotkey_func (char *arg,int flags,int flags1,int key);
-extern int hotkey_func_enable;
-#endif
 extern unsigned long long hotkey_color_64bit;
 extern unsigned int hotkey_color;
 extern int font_func (char *arg, int flags);
@@ -2267,7 +2261,7 @@ extern struct grub_disk_data *get_device_by_drive (unsigned int drive, unsigned 
 extern struct grub_disk_data *disk_data;  //磁盘数据
 extern int big_to_little (char *filename, unsigned int n);
 extern void uninstall (unsigned int drive, struct grub_disk_data *d);
-
+extern int (*ext_timer)(char *arg, int flags);
 
 //##########################################################################################################################################
 
@@ -4569,7 +4563,7 @@ typedef struct grub_efi_ip6_config_manual_address grub_efi_ip6_config_manual_add
 #define BOXDRAW_HORIZONTAL 0x2500									//水平   ─		
 #define BOXDRAW_VERTICAL 0x2502										//垂直   │
 #define BOXDRAW_DOWN_RIGHT 0x250c									//左上角 ┌		uefi命名含义：绘画动作  从一点开始，向下画；再从这点向右画
-#define BOXDRAW_DOWN_LEFT 0x2510									//右上角 ┐
+#define BOXDRAW_DOWN_LEFT 0x2510									//右上角 ┐   UEFI固件的右上角(0x2510)是宽字符
 #define BOXDRAW_UP_RIGHT 0x2514										//左下角 └
 #define BOXDRAW_UP_LEFT 0x2518										//右下角 ┘
 #define BOXDRAW_VERTICAL_RIGHT 0x251c							//垂直右 ├
@@ -4621,7 +4615,9 @@ typedef struct grub_efi_ip6_config_manual_address grub_efi_ip6_config_manual_add
 *******************************************************
  EFI Required Arrow shapes		EFI所需箭头形状
 *******************************************************
+#define ARROW_LEFT 0x2190													//向左箭头 ←
 #define ARROW_UP 0x2191														//向上箭头 ↑
+#define ARROW_RIGHT 0x2192												//向右箭头 →
 #define ARROW_DOWN 0x2193													//向下箭头 ↓
 
 

@@ -40,8 +40,8 @@
 //extern unsigned long splashimage_loaded;
 
 /* constants to define the viewable area */
-unsigned int x1 = 80;
-unsigned int y1 = 30;
+//unsigned int x1 = 80;
+//unsigned int y1 = 30;
 unsigned int font_w = 8;
 unsigned int font_h = 16;
 unsigned char num_wide = (16+7)/8;
@@ -142,12 +142,12 @@ graphics_init (void)
 	 */
     if (graphics_mode > 0xFF) /* VBE */
     {
-	    current_term->chars_per_line = x1 = current_x_resolution / (font_w + font_spacing);
-	    current_term->max_lines = y1 = current_y_resolution / (font_h + line_spacing);
+			current_term = term_table + 1;	/* terminal graphics */ 
+	    current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
+	    current_term->max_lines = current_y_resolution / (font_h + line_spacing);
 
 	    /* here should read splashimage. */
 	    graphics_CURSOR = (void *)&vbe_cursor;
-			graphics_inited = 1;
     }
   }
 
@@ -157,13 +157,13 @@ graphics_init (void)
       {
         splashimage_loaded = (unsigned int)(grub_size_t)IMAGE_BUFFER;
         splashimage_loaded |= 2;
-//        *splashimage = 1;
+        *splashimage = 1;	//避免重复加载图像
       }
 
     vbe_fill_color(fill_color);
     fill_color = 0;
   }
-  else if (splashimage[0] && splashimage[0] != 0xd && splashimage[0] != 0xa)
+  else
   {
     if (! read_image ())  //如果加载图像失败
     {
@@ -171,7 +171,6 @@ graphics_init (void)
     }
   }
   
-  current_term = term_table + 1;	/* terminal graphics */  
   fontx = fonty = 0;
   graphics_inited = graphics_mode;
   return 1;
@@ -366,7 +365,14 @@ print_unicode (unsigned int max_width)
 	if (current_term != term_table)
 		return graphics_print_unicode (max_width);
 	else
+	{
+		if (unicode == 0x10)
+			unicode = 0x25ba;
+		else if (unicode == 0x11)
+			unicode = 0x25c4;
+		
 		console_print_unicode (unicode, max_width);
+	}
 
 	return invalid | (byte_SN << 8) | (unicode < 0x80 ? 1 : 2);
 }
@@ -1797,7 +1803,7 @@ static int read_image();
 static int read_image()
 {
 	char buf[16];
-#if 0
+
 	if (*splashimage == 1)
 		return 1;
 
@@ -1807,7 +1813,7 @@ static int read_image()
 		*splashimage = 1;
 		return 1;
 	}
-#endif
+
 	if (! grub_open(splashimage))
 	{
 		return 0;
@@ -1827,7 +1833,7 @@ static int read_image()
 		splashimage_loaded |= read_image_jpg(graphics_mode > 0xFF);
 	}
 
-//	*splashimage = 1;
+	*splashimage = 1;	//避免重复加载图像
 	grub_close();
 	return splashimage_loaded & 0xf;
 }
@@ -1901,7 +1907,15 @@ graphics_scroll (void)
 void rectangle(int left, int top, int length, int width, int line)
 {
 	unsigned char *lfb,*p;
-	int x,y,z,i;
+	int x,y,z,i,clear=0;
+	unsigned int source;
+
+	if (line & 0x80000000)	//清除线框及其内部区域，恢复菜单背景
+	{
+		clear = 1;
+		line &= 0x7fffffff;
+	}
+	
 	if (!graphics_inited || graphics_mode < 0xff || !line)
 		return;
 
@@ -1915,22 +1929,26 @@ void rectangle(int left, int top, int length, int width, int line)
 	if (!length)
 		goto vert;	
 	
+	source = current_color_64bit & 0xffffffff;
 	for (i=0;i<line;++i)
 	{
 		p = lfb + current_bytes_per_scanline*i;
 		for (x=0;x<length;++x)
 		{
+			if (clear && (splashimage_loaded & 2))	//清除操作，并且加载了背景图像。否则采用当前32位颜色。
+				source = *(unsigned int *)(p - (unsigned char *)(grub_size_t)current_phys_base + (unsigned char *)SPLASH_IMAGE);
+
 			if (z == 3)
 			{
-				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)current_color_64bit;
-				*(p+y+2) = *(p+2) = (unsigned char)(current_color_64bit>>16);
+				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)source;
+				*(p+y+2) = *(p+2) = (unsigned char)(source>>16);
 			}
 			else if(z == 4)
 			{
-				*(unsigned int *)(p+y) = *(unsigned int *)p = (unsigned int)current_color_64bit;
+				*(unsigned int *)(p+y) = *(unsigned int *)p = (unsigned int)source;
 			}
 			else
-				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)pixel_shift((unsigned int)current_color_64bit);
+				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)pixel_shift((unsigned int)source);
 			p += z;
 		}
 	}

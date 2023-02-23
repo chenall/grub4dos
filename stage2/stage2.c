@@ -44,7 +44,7 @@ read_from_preset_menu (char *buf, int max_len)
 }
 
 #define MENU_BOX_X	((menu_border.menu_box_x > 2) ? menu_border.menu_box_x : 2)
-#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X * 2 - 1))
+#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X * 2)) //UEFI固件的右上角(0x2510)是宽字符
 #define MENU_BOX_Y	(menu_border.menu_box_y)
 #define MENU_KEYHELP_Y_OFFSET  ((menu_border.menu_keyhelp_y_offset < 5) ? menu_border.menu_keyhelp_y_offset : 0)
 /* window height */
@@ -185,7 +185,7 @@ print_default_help_message (char *config_entries)
 if (menu_tab & 0x20)
 		i = grub_sprintf (buff,"\n按↑和↓选择菜单。");
 	else
-		i = grub_sprintf (buff,"\nUse the \xe2\x86\x91 and \xe2\x86\x93 keys to highlight an entry.");
+		i = grub_sprintf (buff,"\nUse the ↑ and ↓ keys to highlight an entry.");
       if (! auth && password_buf)
 	{
 		if (menu_tab & 0x20)
@@ -424,18 +424,12 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   if(!(menu_tab & 0x40))
 	{
 		gotoxy (MENU_BOX_X - 1, y);
-		if (graphics_inited && graphics_mode > 0xff)	//在图像模式
-			grub_putchar(highlight ? (menu_num_ctrl[2] = entryno, menu_cfg[0]) : ' ', 255);
-		else
-			grub_putstr(highlight ? (menu_num_ctrl[2] = entryno, "\xe2\x96\xba") : "\x20");
+		grub_putchar(highlight ? (menu_num_ctrl[2] = entryno, menu_cfg[0]) : ' ', 255);
 	}
 	else
 	{
 		gotoxy (MENU_BOX_E - 1, y);
-		if (graphics_inited && graphics_mode > 0xff)	//在图像模式
-			grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[1]) : ' ', 255);
-		else
-			grub_putstr(highlight ? (menu_num_ctrl[2] = entryno, "\xe2\x97\x84") : "\x20");
+		grub_putchar(highlight ? (menu_num_ctrl[2] = entryno,menu_cfg[1]) : ' ', 255);
 	}
   }
 graphic_mixing:
@@ -523,9 +517,13 @@ color:
       clo_tmp = current_color;
       current_color_64bit = hotkey_color_64bit;
       current_color = hotkey_color;
+			if (current_term == term_table)
+				console_setcolorstate (current_color | 0x100);
       ret = grub_putchar ((unsigned char)c, ret);
       current_color_64bit = clo64_tmp;
       current_color = clo_tmp; 
+			if (current_term == term_table)
+				current_term->setcolorstate (current_color | 0x100);
       goto hotkey_end;
     }
 color_no:    
@@ -609,9 +607,9 @@ print_entries (int first, int entryno, char *menu_entries)
     if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_BORDER);
   if (first)
-		grub_putstr ("\xe2\x86\x91");
+		console_print_unicode (DISP_UP, 255);
   else
-		grub_putstr ("\xe2\x94\x82");
+		console_print_unicode (DISP_VERT, 255);
   }
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_NORMAL);
@@ -630,9 +628,9 @@ print_entries (int first, int entryno, char *menu_entries)
     current_term->setcolorstate (COLOR_STATE_BORDER);
   char *last_entry = get_entry(menu_entries,first+MENU_BOX_H);
   if (last_entry && *last_entry)
-		grub_putstr ("\xe2\x86\x93");
+    console_print_unicode (DISP_DOWN, 255);
   else
-		grub_putstr ("\xe2\x94\x82");
+    console_print_unicode (DISP_VERT, 255);
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
 }
@@ -861,6 +859,11 @@ restart1:
   temp_num = 0;
 	font_spacing = menu_font_spacing;
 	line_spacing = menu_line_spacing;
+	if (graphics_mode > 0xff)		//含字符间隙时，需重新计算  2023-02-22
+	{
+		current_term->max_lines = current_y_resolution / (font_h + line_spacing);
+		current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
+	}
   /* Dumb terminal always use all entries for display 
      invariant for TERM_DUMB: first_entry == 0  */
   if (! (current_term->flags & TERM_DUMB))
@@ -1027,7 +1030,10 @@ restart1:
       j = font_h + line_spacing;
       x = (MENU_BOX_X - 2) * i + (i>>1);
       y = (MENU_BOX_Y)*j-(j>>1);
-      w = (MENU_BOX_W + 2) * i;
+			if (menu_border.menu_box_w)					//如果设置了w，保持			2023-02-22
+				w = (MENU_BOX_W + 2) * i;
+			else																//否则，重新计数。因为含间隙字符时，水平像素处以i可能有余数，导致菜单框右边偏大
+				w = current_x_resolution - (x<<1);
       if (graphic_type)
         h = (graphic_high+row_space) * graphic_row;
       else
@@ -1042,35 +1048,35 @@ restart1:
   
         /* upper-left corner */
       gotoxy (MENU_BOX_X - 2, MENU_BOX_Y - 1);
-      grub_putstr("\xe2\x94\x8c");	
+      console_print_unicode (DISP_UL, 255);
 
       /* top horizontal line */
       for (i = 0; i < MENU_BOX_W + 1; i++)
-        grub_putstr ("\xe2\x94\x80");
+      console_print_unicode (DISP_HORIZ, 255);
 
       /* upper-right corner */
-      grub_putstr ("\xe2\x94\x90");
+      console_print_unicode (DISP_UR, 255);
 
       for (i = 0; i < MENU_BOX_H; i++)
 	    {
 	      /* left vertical line */
 	      gotoxy (MENU_BOX_X - 2, MENU_BOX_Y + i);
-				grub_putstr ("\xe2\x94\x82");
+	      console_print_unicode (DISP_VERT, 255);
 	      /* right vertical line */
 	      gotoxy (MENU_BOX_E, MENU_BOX_Y + i);
-				grub_putstr ("\xe2\x94\x82");
+	      console_print_unicode (DISP_VERT, 255);
 	    }
 
       /* lower-left corner */
       gotoxy (MENU_BOX_X - 2, MENU_BOX_Y + MENU_BOX_H);
-      grub_putstr ("\xe2\x94\x94");
+      console_print_unicode (DISP_LL, 255);
 
       /* bottom horizontal line */
       for (i = 0; i < MENU_BOX_W + 1; i++)
-        grub_putstr ("\xe2\x94\x80");
+				console_print_unicode (DISP_HORIZ, 255);
 
       /* lower-right corner */
-      grub_putstr ("\xe2\x94\x98");
+      console_print_unicode (DISP_LR, 255);
     }
 
     if (current_term->setcolorstate)
@@ -1155,7 +1161,7 @@ restart1:
 	  
       grub_timeout--;
     }
-
+#if 0
     if (grub_timeout >= 0)
     {
       defer(1);
@@ -1164,6 +1170,7 @@ restart1:
       if (DateTime_enable)
         DateTime_refresh();
     }
+#endif
     /* Check for a keypress, however if TIMEOUT has been expired
       (GRUB_TIMEOUT == -1) relax in GETKEY even if no key has been pressed.  
       This avoids polling (relevant in the grub-shell and later on
@@ -1181,20 +1188,10 @@ restart1:
       else
         clear_delay_display (entryno);
       c = i;
-#if !HOTKEY		//外置热键
-//      if (config_entries && hotkey_func)
-      if (config_entries && *(int *)IMG(0x8260))
+      if (config_entries && hotkey_func)
       {
-        hotkey_func = (void *)(grub_size_t)(*(grub_size_t *)IMG(0x8260));
         //由于checkkey后，uefi键盘缓存已经清除，只能保存和使用其返回值i
-//        i = ((int (*)())(*(int *)IMG(0x8260)))(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
         i = (*hotkey_func)(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
-#else
-      if (config_entries && hotkey_func_enable)
-      {
-        //0x4b40 flags HK,
-        i = hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno,i);
-#endif
 //        putchar_hooked = 0;
         c = i;  
         if (i == -1)
@@ -1597,6 +1594,8 @@ done_key_handling:
           int new_num_entries = 0;
           i = 0;
           char *new_heap;
+					font_spacing = menu_font_spacing;			//恢复图形模式时需要  2023-02-22
+					line_spacing = menu_line_spacing;
           font_spacing = 0;
           line_spacing = 0;
 
@@ -1697,6 +1696,8 @@ done_key_handling:
         }
         if (((char)c) == 'c')
         {
+					font_spacing = menu_font_spacing;			//恢复图形模式时需要  2023-02-22
+					line_spacing = menu_line_spacing;
           font_spacing = 0;
           line_spacing = 0;
           animated_enable_backup = animated_enable;
@@ -1721,6 +1722,8 @@ boot_entry:
   if (current_term->setcolorstate)
     current_term->setcolorstate (COLOR_STATE_STANDARD);
   cls ();
+	font_spacing = menu_font_spacing;			//恢复图形模式时需要  2023-02-22
+	line_spacing = menu_line_spacing;
 	font_spacing = 0;
 	line_spacing = 0;
   fallbacked_entries = 0;
@@ -1816,7 +1819,7 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 	/* all other non-printable chars are illegal. */
 	if (c != '\n' && (unsigned char)c < ' ')
 	{
-	    pos = 0;
+//	    pos = 0;	2023-02-11  预置菜单最后一行没有回车符，会出错
 	    break;
 	}
 
@@ -1864,7 +1867,7 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 			info &= ~8; // not all hex digit
 	    }
 
-	    if (pos < (unsigned long long)max_len)
+	    if (pos < max_len)
 	    {
 		if (!(info & 4) && c == '=')
 		    c = ' ';
@@ -2288,615 +2291,9 @@ done_config_file:
     {
 	/* Run menu interface.  */
 	/* cur_entry point to the first menu item command. */
-#if !HOTKEY		//外置热键
-//	if (hotkey_func)
-  if (*(int *)IMG(0x8260))
-  {
-    hotkey_func = (void *)(grub_size_t)(*(grub_size_t *)IMG(0x8260));
-//    ((int (*)())(*(int *)IMG(0x8260)))(0,0,-1,0);
+	if (hotkey_func)
     (*hotkey_func)(0,0,-1,0);
-  }
-#else
-	if (hotkey_func_enable)
-		hotkey_func(0,0,-1,0);
-#endif
 	run_menu ((char *)titles, cur_entry, /*num_entries,*/ CONFIG_ENTRIES + config_len, default_entry);
     }
     goto restart2;
 }
-
-
-//----------------------------------------------------------------------------------------------------------------------
-//hotkey   chenall
-#if HOTKEY		//内置热键
-//extern int hotkey_func(char *titles,int flags,int flags1);		标题,标记,标记1=4B400000 | 第一入口*100 | 项目号
-//hotkey_func(0,0,-1);
-//hotkey_func(0,-1,(0x4B40<<16)|(first_entry << 8) | entryno);
-#define HOTKEY_MAGIC 0X79654B48						//魔术
-#define HOTKEY_FLAGS_AUTO_HOTKEY (1<<12)	//热键标志	自动热键		1000		-A参数		使用菜单首字母选择菜单
-#define HOTKEY_FLAGS_AUTO_HOTKEY1 (1<<11)	//热键标志	自动热键1		800
-#define HOTKEY_FLAGS_NOT_CONTROL (1<<13)	//热键标志	不控制			2000		-nc参数		阻止使用'c','p','e'等功能
-#define HOTKEY_FLAGS_NOT_BOOT	 (1<<14)		//热键标志	不启动			4000		-nb参数		按键热后只选择对应菜单项，不启动
-#define BUILTIN_CMDLINE		0x1	/* Run in the command-line.  	运行在命令行=1	*/
-#define BUILTIN_MENU			(1 << 1)/* Run in the menu.  			运行在菜单=2		*/
-
-typedef struct
-{
-  unsigned short code;	//键代码
-  char name[10];					//键名称
-} __attribute__ ((packed)) key_tab_t;	//键盘表
-
-typedef struct 
-{
-	unsigned short key_code;	//键代码
-	unsigned short title_num;	//标题号
-} __attribute__ ((packed)) hotkey_t;	//热键
-
-typedef struct
-{
-	int key_code;	//键代码
-	char *cmd;		//命令
-} hotkey_c;	//热键字符
-
-union
-{
-	int flags;
-	struct
-	{
-		unsigned char sel;		//选择 
-		unsigned char first;	//首先
-		unsigned short flag;	//标记
-	} k;
-} __attribute__ ((packed)) cur_menu_flag;	//当前菜单标记
-
-typedef struct
-{
-	int cmd_pos;					//命令位置
-	hotkey_c hk_cmd[64];	//热键字符数组
-	char cmd[4096];				//命令
-} hkey_data_t;	//热键数据
-
-static key_tab_t key_table[] = {						//键盘表
-  {0x0031, "1"},
-  {0x0032, "2"},
-  {0x0033, "3"},
-  {0x0034, "4"},
-  {0x0035, "5"},
-  {0x0036, "6"},
-  {0x0037, "7"},
-  {0x0038, "8"},
-  {0x0039, "9"},
-  {0x0030, "0"},
-  {0x002d, "-"},
-  {0x003d, "="},
-  {0x0071, "q"},
-  {0x0077, "w"},
-  {0x0065, "e"},
-  {0x0072, "r"},
-  {0x0074, "t"},
-  {0x0079, "y"},
-  {0x0075, "u"},
-  {0x0069, "i"},
-  {0x006f, "o"},
-  {0x0070, "p"},
-  {0x005b, "["},
-  {0x005d, "]"},
-  {0x0061, "a"},
-  {0x0073, "s"},
-  {0x0064, "d"},
-  {0x0066, "f"},
-  {0x0067, "g"},
-  {0x0068, "h"},
-  {0x006a, "j"},
-  {0x006b, "k"},
-  {0x006c, "l"},
-  {0x003b, ";"},
-  {0x0027, "'"},
-  {0x0060, "`"},
-  {0x005c, "\\"},
-  {0x007a, "z"},
-  {0x0078, "x"},
-  {0x0063, "c"},
-  {0x0076, "v"},
-  {0x0062, "b"},
-  {0x006e, "n"},
-  {0x006d, "m"},
-  {0x002c, ","},
-  {0x002e, "."},
-  {0x002f, "/"},
-  {0x3b00, "f1"},
-  {0x3c00, "f2"},
-  {0x3d00, "f3"},
-  {0x3e00, "f4"},
-  {0x3f00, "f5"},
-  {0x4000, "f6"},
-  {0x4100, "f7"},
-  {0x4200, "f8"},
-  {0x4300, "f9"},
-  {0x4400, "f10"},
-  {0x5200, "ins"},
-  {0x5300, "del"},
-  {0x8500, "f11"},
-  {0x8600, "f12"},
-  {0x0000, "\0"}
-};
-
-static unsigned short allow_key[9] = {	//方向键
-/*KEY_ENTER       */0x000D,
-/*KEY_HOME        */0x4700,
-/*KEY_UP          */0x4800,
-/*KEY_PPAGE       */0x4900,
-/*KEY_LEFT        */0x4B00,
-/*KEY_RIGHT       */0x4D00,
-/*KEY_END         */0x4F00,
-/*KEY_DOWN        */0x5000,
-/*KEY_NPAGE       */0x5100
-};
-
-static int my_app_id = 0;
-static char keyname_buf[16];
-static int get_keycode (char* key);
-static int check_hotkey(char **title,int flags);
-static char *get_keyname (int code);
-static int check_allow_key(unsigned short key);
-
-/* gcc treat the following as data only if a global initialization like the		gcc仅在发生与上述行类似的全局初始化时才将以下内容视为数据。
- * above line occurs.
- */
-static hkey_data_t hotkey_data = {0};	//HOTKEY 数据保留区
-//返回: -1=刷新;		2字节=热键项目号;		3字节&40=0/1=启动/检查更新
-int hotkey_func (char *arg,int flags,int flags1,int key);
-int hotkey_func (char *arg,int flags,int flags1,int key)
-{
-	int i;
-	char *base_addr;
-	static hotkey_t *hotkey;
-	unsigned short hotkey_flags;
-	unsigned short *p_hotkey_flags;
-  base_addr = menu_mem + 512;	//非压缩菜单在此
-	hotkey = (hotkey_t*)(menu_mem + 512);
-	p_hotkey_flags = (unsigned short*)(menu_mem + 512 + 508);
-	cur_menu_flag.flags = flags1;
-
-	if (flags == HOTKEY_MAGIC)	//如果标记=魔术
-	{
-		if (arg && *(int *)arg == 0x54494E49)	//INIT 初始数数据
-		{
-			hotkey_data.hk_cmd[0].cmd = hotkey_data.cmd;
-			hotkey_data.cmd_pos = 0;
-		}
-		return (int)(grub_size_t)&hotkey_data;
-	}
-
-	if (flags == -1)	//如果标记='-1'
-	{
-		int c;
-		hotkey_c *hkc = hotkey_data.hk_cmd;
-		if (my_app_id != HOTKEY_MAGIC/* || (!hotkey->key_code && !hkc->key_code)*/)
-		{
-			return key;
-		}
-		hotkey_flags = *p_hotkey_flags;
-		c = (key & 0xf00ffff);
-		if (!c || check_allow_key(c))	//检测当前的按键码是否方向键或回车键, 是则返回
-			return c;
-		for(i=0;i<64;++i)
-		{
-			if (!hkc[i].key_code)
-				break;
-			if (hkc[i].key_code == (unsigned short)c)
-			{
-				grub_error_t err_old = errnum;
-				if (hkc[i].cmd[0] == '@')		//静默方式运行(没有任何显示)
-			    builtin_cmd(NULL,hkc[i].cmd + 1,BUILTIN_CMDLINE);
-				else
-				{
-					putchar_hooked = 0;
-					setcursor (1); /* show cursor and disable splashimage */
-					if (current_term->setcolorstate)
-				    current_term->setcolorstate(COLOR_STATE_STANDARD);
-					cls();
-					if (debug > 0)
-				    printf(" Hotkey Boot: %s\n",hkc[i].cmd);
-			    builtin_cmd(NULL,hkc[i].cmd,BUILTIN_CMDLINE);
-				}
-				if (putchar_hooked == 0 && errnum > ERR_NONE && errnum < MAX_ERR_NUM)
-				{
-			    printf("\nError %u\n",errnum);
-			    getkey();
-				}
-				errnum = err_old;
-				return -1;
-			}
-		}
-		for (;hotkey->key_code;++hotkey)
-		{
-			if (hotkey->key_code == (unsigned short)c)
-				return (hotkey_flags|hotkey->title_num)<<16;
-		}
-		if ((hotkey_flags & HOTKEY_FLAGS_AUTO_HOTKEY) && (char)c > 0x20)
-		{
-			char h = tolower(c&0xff);	//小写
-			char *old_c_hotkey = (char*)(p_hotkey_flags+1);
-			char *old_t = old_c_hotkey + 1;
-			int find = -1,n = *old_t;
-			int cur_sel = -1;
-			char **titles1;
-			if (c >= 'A' && c <= 'Z')	//按下Shift键
-				return h;
-			if ((c & 0xf000000))	//如果按下Ctrl或Alt键
-			{
-				goto chk_control;
-			}
-			if (cur_menu_flag.k.flag == 0x4B40)
-				cur_sel = cur_menu_flag.k.sel + cur_menu_flag.k.first;
-			titles1 = (char **)(base_addr + 512);
-			if (*old_c_hotkey != h)
-			{//不同按键清除记录
-				*old_c_hotkey = h;
-				n = *old_t = 0;
-			}
-			for(i=0;i<256;++i)
-			{
-				if (!*titles1)
-					break;
-				if (check_hotkey(titles1,h))	//从菜单标题中提取热键代码
-				{//第几次按键跳到第几个匹配的菜单(无匹配转第一个)
-					if (cur_sel != -1)
-					{
-						if (cur_sel < i)
-						{
-							find = i;
-							break;
-						}
-					}
-					else if (n-- == 0)
-					{
-						find = i;
-						break;
-					}
-					if (find == -1) find = i;
-				}
-				++titles1;
-			}
-			if (find != -1)
-			{
-				if (find != i) *old_t = 1;
-				else (*old_t)++;
-				return (hotkey_flags|HOTKEY_FLAGS_NOT_BOOT|find)<<16;	//不启动
-			}
-			if (h > '9')
-				return 0;
-		}
-		chk_control:
-		if ((hotkey_flags & HOTKEY_FLAGS_NOT_CONTROL) || (c & 0xf000000))	//不控制, 或者按了控制键/上档键/替换键又没有查到
-			return 0;
-		return c;
-	}
-	else if (flags == 0)	//在菜单main中执行						//从菜单标题中提取热键代码
-	{
-		char **titles1;
-		titles1 = (char **)(base_addr + 512);	//标题
-
-		for(i=0;i<126;++i)
-		{
-			if (!*titles1)	//没有标题,退出
-				break;
-			if ((hotkey->key_code = check_hotkey(titles1,0)))	//如果键代码=从菜单标题中提取热键代码
-			{
-				hotkey->title_num = i;	//标题号
-				++hotkey;								//下一热键数组
-			}
-			++titles1;									//下一标题
-		}
-		hotkey->key_code = 0;				//结束符
-		return 1;
-	}
-	
-	if (debug > 0)
-		printf("Hotkey for grub4dos by chenall,%s\n",__DATE__);
-	if ((flags & BUILTIN_CMDLINE) && (!arg || !*arg))
-	{
-		printf("Usage:\n\thotkey -nb\tonly selected menu when press menu hotkey\n\thotkey -nc\tdisable control key\n\thotkey -A\tSelect the menu item with the first letter of the menu\n\thotkey [HOTKEY] \"COMMAND\"\tregister new hotkey\n\te.g.\n\t\t hotkey [F9] \"reboot\"\n\thotkey [HOTKEY]\tDisable Registered hotkey HOTKEY\n\n\tCommand keys such as p, b, c and e will only work if SHIFT is pressed when hotkey -A\n\n");
-	}
-	hotkey_flags = 1<<15;	//8000
-	while (*arg == '-')
-	{
-		++arg;
-		if (*(unsigned short*)arg == 0x626E) //nb not boot
-			hotkey_flags |= HOTKEY_FLAGS_NOT_BOOT;		//4000		不启动
-		else if (*(unsigned short*)arg == 0x636E) //nc not control
-			hotkey_flags |= HOTKEY_FLAGS_NOT_CONTROL;	//2000		不控制
-		else if (*arg == 'A')
-		{
-			hotkey_flags |= HOTKEY_FLAGS_AUTO_HOTKEY;	//1000
-		}
-		else if (*arg == 'u')
-		{
-			hotkey_func_enable = (int)0;
-			return builtin_cmd((char *)"delmod",(char *)"hotkey",flags);
-		}
-		arg = wee_skip_to(arg,0);
-	}
-	if (!hotkey_func_enable)	//原来在菜单加载热键时执行
-	{
-		*p_hotkey_flags = hotkey_flags;
-		//HOTKEY程序驻留内存，直接复制自身代码到指定位置。
-		my_app_id = HOTKEY_MAGIC;
-		//开启HOTKEY支持，即设置hotkey_func函数地址。
-		hotkey_func_enable = (int)1;
-		//获取程序执行时的路径的文件名。
-		i = hotkey_func((char *)"INIT",HOTKEY_MAGIC,0,0);//获取HOTKEY数据位置并作一些初使化????
-		if (debug > 0)
-		{
-			printf("Hotkey Installed!\n");
-		}
-	}
-	else
-		*p_hotkey_flags |= hotkey_flags;
-	if (arg)
-	{
-		hkey_data_t *hkd = (hkey_data_t *)(grub_size_t)hotkey_func(NULL,HOTKEY_MAGIC,0,0); //????
-		hotkey_c *hkc = hkd->hk_cmd;
-
-		while (*arg && *arg <= ' ')
-			++arg;
-		int key_code,cmd_len;
-		int exist_key = -1;
-		int disabled_key = -1;
-		if (*arg != '[')//显示当前已注册热键
-		{
-			if (!(flags & BUILTIN_CMDLINE) || debug < 1)//必须在命令行下并且DEBUG 非 OFF 模式才会显示
-		    return 1;
-			if (debug > 1)
-		    printf("hotkey_data_addr: 0x%X\n",hkd);
-			if (hkc->key_code)
-		    printf("Current registered hotkey:\n");
-			while(hkc->key_code)
-			{
-		    if (hkc->key_code != -1)
-		    {
-					if (debug > 1)
-						printf("0x%X ",hkc->cmd);
-					printf("%s=>%s\n",get_keyname(hkc->key_code),hkc->cmd);
-		    }
-		    ++hkc;
-			}
-			return -1;
-		}
-		key_code = check_hotkey(&arg,0);	//从菜单标题中提取热键代码
-
-		if (!key_code)
-			return 0;
-		while(*arg)
-		{
-			if (*arg++ == ']')
-		    break;
-		}
-		while (*arg && *arg <= ' ')
-			++arg;
-
-		if (*arg == '"')
-		{
-			cmd_len = strlen(arg);
-			++arg;
-			--cmd_len;
-			while(cmd_len--)
-			{
-		    if (arg[cmd_len] == '"')
-		    {
-    			arg[cmd_len] = 0;
-					break;
-		    }
-			}
-		}
-		cmd_len = strlen(arg) + 1;	
-		for(i=0;i<64;++i)
-		{
-			if (!hkc[i].key_code)
-		    break;
-			if (hkc[i].key_code == key_code)
-		    exist_key = i;
-			else if (hkc[i].key_code == -1)
-		    disabled_key = i;
-		}
-
-		if (disabled_key != -1 && exist_key == -1)
-		{//有禁用的热键,直接使用该位置
-			exist_key = disabled_key;
-			hkc[exist_key].key_code = key_code;
-		}
-
-		if (i==64 && exist_key == -1)
-		{
-			printf("Max 64 hotkey cmds limit!");
-			return 0;
-		}
-
-		if (exist_key != -1)//已经存在
-		{
-			if (strlen(hkc[exist_key].cmd) >= cmd_len)//新的命令长度没有超过旧命令长度
-				i = -1;
-		}
-		else//新增热键
-		{
-			exist_key = i;
-			hkc[i].key_code = key_code;
-		}
-  
-		if (cmd_len <= 1)//禁用热键
-		{
-			hkc[exist_key].key_code = -1;
-			return 1;
-		}
-
-		if (hkd->cmd_pos + cmd_len >= (int)sizeof(hkd->cmd))
-		{
-			printf("error: not enough space!\n");
-			return 0;
-		}
-	    
-		if (i >= 0)//需要更新地址
-		{
-			hkc[exist_key].cmd = hkd->cmd + hkd->cmd_pos;
-			hkd->cmd_pos += cmd_len;//命令数据区
-		}
-
-		memmove(hkc[exist_key].cmd,arg,cmd_len );
-		if (debug > 0)
-			printf("%d [%s] registered!\n",exist_key,get_keyname(key_code));
-		return 1;
-	}
-	return 0;
-}
-
-/*
-	检测当前的按键码是否方向键或回车键
-*/
-static int check_allow_key(unsigned short key);
-static int check_allow_key(unsigned short key)
-{
-	int i;
-	for (i=0;i<9;++i)
-	{
-		if (key == allow_key[i])
-			return key;
-	}
-	return 0;
-}
-
-
-/*
-	从菜单标题中提取热键代码
-	返回热键对应的按键码。
-	flags 非0 时判断菜单的首字母.-A参数.
-*/
-static int check_hotkey(char **title,int flags);
-static int check_hotkey(char **title,int flags)
-{
-	char *arg = *title;
-	unsigned short code;
-	while (*arg && *arg <= ' ')
-		++arg;
-
-	if (flags)	//如果标记非0
-		return tolower(*arg) == flags;
-	if (*arg == '^')
-	{
-		++arg;
-		sprintf(keyname_buf,"%.15s",arg);//最多复制15个字符
-		nul_terminate(keyname_buf);//在空格处截断
-		if ((code = (unsigned short)get_keycode(keyname_buf)))
-		{
-			//设置新的菜单标题位置
-			arg+=strlen(keyname_buf);
-			if (*arg == 0)
-				--arg;
-			*arg = *(*title);
-			*title = arg;
-			return code;
-		}
-	}
-	else if (*arg == '[')
-	{
-		int i;
-		++arg;
-		while (*arg == ' ' || *arg == '\t')
-			++arg;
-		for(i = 0;i<15;++arg)
-		{
-			if (!*arg || *arg == ' ' || *arg == ']' )
-			{
-				break;
-			}
-			keyname_buf[i++] = *arg;
-		}
-		while (*arg == ' ')
-			++arg;
-		if (*arg != ']')
-			return 0;
-		keyname_buf[i] = 0;
-		code = (unsigned short)get_keycode(keyname_buf);
-		return code;
-	}
-	return 0;
-}
-
-static int get_keycode (char *key);
-static int
-get_keycode (char *key)	//获得键代码
-{
-  int idx, i;
-  char *str;
-
-  if (*(unsigned short*)key == 0x7830)/* == 0x*/
-	{
-		unsigned long long code;
-		if (!safe_parse_maxint(&key,&code))
-			return 0;
-		return (((long long)code <= 0) || ((long long)code >= 0xFFFF)) ? 0 : (int)code;
-	}
-  str = key;
-  idx = 0;
-  if (!strnicmp (str, "shift", 5))
-	{
-		idx = 1;
-		str += 6;
-	}
-  else if (!strnicmp (str, "ctrl", 4))
-	{
-		idx = 2;
-		str += 5;
-	}
-  else if (!strnicmp (str, "alt", 3))
-	{
-		idx = 4;
-		str += 4;
-	}
-  for (i = 0; key_table[i].name[0]; i++)
-	{
-		if (!strncmpx(str,key_table[i].name,0,1))
-		{
-			return (int)key_table[i].code | idx << 24; 
-		}
-	}
-  return 0;
-}
-
-
-static char *get_keyname (int code);
-static char *
-get_keyname (int code)	//获得键名称
-{
-  int i;
-
-  for (i = 0; key_table[i].name; i++)
-	{
-		int j;
-
-			j = code & 0xf000000;
-	      char *p = 0;
-	      
-	      switch (j)
-				{
-					case 0:
-						p = (char *)"";
-						break;
-					case 1:
-						p = (char *)"Shift-";
-						break;
-					case 2:
-						p = (char *)"Ctrl-";
-						break;
-					case 4:
-						p = (char *)"Alt-";
-						break;
-				}
-	      sprintf (keyname_buf, "%s%s", p, key_table[i].name);
-	      return (char *)keyname_buf;
-	}
-
-  sprintf (keyname_buf, "0x%x", code);
-  return (char *)keyname_buf;
-}
-#endif

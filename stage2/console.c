@@ -357,6 +357,8 @@ repeat:
 	}
 	if (DateTime_enable)
 		DateTime_refresh();
+	if (ext_timer)
+		(*ext_timer)(0,-1);
 
 	if (!key)
 	{
