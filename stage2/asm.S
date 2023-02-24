@@ -125,12 +125,17 @@ VARIABLE(version_string)
 VARIABLE(config_file)
 	.string "/menu.lst"
 
-	. = EXT_C(main) + 0x34
+	. = EXT_C(main) + 0x34																									//0x8234    0x8238-0x8243  12å­—èŠ‚æœªä½¿ç”¨!!
 
 	.word	0x14C	/* CPU type for i386 and compatibles */
 	.word	1	/* there is 1 section */
+VARIABLE(ext_timer)																												//0x8238  å¤–éƒ¨å®šæ—¶å™¨  int*
+	.long 0
+	.long 0																																	//æœªä½¿ç”¨
+VARIABLE(grub_timeout)                                                    //0x8240  å€’è®¡æ—¶			int
+	.long	-1
 
-	. = EXT_C(main) + 0x44
+	. = EXT_C(main) + 0x44																									//0x8244	0x824e-0x8259  18å­—èŠ‚æœªä½¿ç”¨!!
 
 	.word	0x00	/* size of optional header */
 	.word	3	/* flags: "no relocation" and "valid executable" */
@@ -138,15 +143,18 @@ VARIABLE(config_file)
 	.word	0x7273
 	.word	0x63
 
+	. = EXT_C(main) + 0x60
+
+VARIABLE(hotkey_func)  //int*                                             //0x8260	å¤–ç½®çƒ­é”®åŠŸèƒ½
+  .long 0 
+
+	.long 0																																	//æœªä½¿ç”¨
+	.long	0																																	//æœªä½¿ç”¨
+	
 	/* Utilities may use this to locate the bss starting address,
 	 * where the "bootlace" signature is placed and preset-menu
 	 * follows.
 	 */
-	. = EXT_C(main) + 0x60
-
-VARIABLE(hotkey_func)  //int*                                             //0x8260	ÍâÖÃÈÈ¼ü¹¦ÄÜ
-  .long 0 
-
 	. = EXT_C(main) + 0x6C  #; bss starting address
 
 preset_menu_old:
@@ -345,7 +353,7 @@ VARIABLE(buf_track)
 	.long	0	/* buf_track will grow to 64-bit */
 VARIABLE(buf_drive)
 	.long	-1
-VARIABLE(current_x_resolution)	//0x834c  µ±Ç°Ë®Æ½ÏñËØ int
+VARIABLE(current_x_resolution)	//0x834c  å½“å‰æ°´å¹³åƒç´  int
 
 	. = EXT_C(main) + 0x150
 	
@@ -3198,10 +3206,10 @@ disk_address_packet_ready:
 	jc	3f		/* no sectors to transfer, fail */
 
 //			 To_count(0)			To_count(1)					To_count(2)					To_count(3)
-//		©À©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©à©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©È
+//		â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
 //To_start(0)		To_start(1)					To_start(2)					To_start(3)
 //																									Form_len
-//	 ©«©©©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©¨©À©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©È
+//	 â”‡â”…â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”„â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
 //	 0																		Form_statr
 
 	pushaw
@@ -3234,9 +3242,9 @@ disk_address_packet_ready:
 	xorl	%ecx, %ecx
 	xorl	%edx, %edx
 2:
-	addl	%cs:12(%bp,%di), %ecx	//¡ÆTo_count(0¡úi) + To_count(i+1)
+	addl	%cs:12(%bp,%di), %ecx	//âˆ‘To_count(0â†’i) + To_count(i+1)
 	adcl	%cs:16(%bp,%di), %edx
-	call	compare_64						//Form_statr <> ¡ÆTo_count(0¡úi)
+	call	compare_64						//Form_statr <> âˆ‘To_count(0â†’i)
 	jb	2f
 	addw	$16, %di
 //	cmpw	$(16*DRIVE_MAP_FRAGMENT), %di
@@ -3247,20 +3255,20 @@ disk_address_packet_ready:
 	adcl	%cs:16(%bp,%di), %ebx
 	addl	%cs:4(%bp,%di), %eax	//Form_statr + To_count(i) + To_start(i)
 	adcl	%cs:8(%bp,%di), %ebx
-	subl	%ecx, %eax						//Form_statr + To_count(i) + To_start(i) - ¡ÆTo_count(0¡úi)
+	subl	%ecx, %eax						//Form_statr + To_count(i) + To_start(i) - âˆ‘To_count(0â†’i)
 	sbbl	%edx, %ebx
 
-	subl	8(%si), %ecx						//¡ÆTo_count(0¡úi) - Form_statr
+	subl	8(%si), %ecx						//âˆ‘To_count(0â†’i) - Form_statr
 	sbbl	12(%si), %edx
-	movl	%eax, 8(%si)						//Form_statr - ¡ÆTo_count(0¡úi-1) + To_start(i)
+	movl	%eax, 8(%si)						//Form_statr - âˆ‘To_count(0â†’i-1) + To_start(i)
 	movl	%ebx, 12(%si)	
 	movzwl	2(%si), %eax				 	//Form_len
 	xorl	%ebx, %ebx
-	call	compare_64							//Form_len <> ¡ÆTo_count(0¡úi) - Form_statr
+	call	compare_64							//Form_len <> âˆ‘To_count(0â†’i) - Form_statr
 	jbe	2f
 
-	movw	%cx, 2(%si)						  //¡ÆTo_count(0¡úi) - Form_statr														
-	subw	%cx, %ax								//Form_len - (¡ÆTo_count(0¡úi) - Form_statr)
+	movw	%cx, 2(%si)						  //âˆ‘To_count(0â†’i) - Form_statr														
+	subw	%cx, %ax								//Form_len - (âˆ‘To_count(0â†’i) - Form_statr)
 	movw	%ax, %cs:(next_fragment_len - int13_handler)
 	addw	$16, %di
 	movw	%di, %cs:(next_fragment_offset - int13_handler)
@@ -14729,7 +14737,7 @@ ENTRY(console_putchar)
 
 	movb	%dl, %al
 	xorb	%bh, %bh
-
+#if 0		//é€šå¸¸ä»0åˆ—å¼€å§‹æ‰“å°ï¼Œä¸ä¼šå‡ºç°è¿™äº›æƒ…å†µ 2022-11-11
 	cmpb	$80, %cl
 	jb	5f
 	movb	$0, %cl
@@ -14751,6 +14759,7 @@ ENTRY(console_putchar)
 	popaw
 	decb	%ch
 	jmp	3f
+#endif
 5:
 	movw	%cx, %dx
 	pushaw
@@ -14833,6 +14842,10 @@ ENTRY(console_putchar)
 	int	$0x10
 	popaw
 	decb	%dh
+	movw	$0x0920, %ax	//åœ¨BIOSç¯å¢ƒä¸‹ï¼Œåœ¨VMæˆ–VBOXçš„æ§åˆ¶å°ä¸­ï¼Œå¦‚æœä¸€è¡Œé¦–å­—ç¬¦éæ ‡å‡†è‰²ï¼Œæ»šå±æ—¶ä¼šèŠ±å±ã€‚2022-11-11
+	movw	$80, %cx
+	movb	$0, %bl
+	int	$0x10
 	jmp	3f
 5:
 	pushaw
@@ -15035,11 +15048,21 @@ ENTRY(console_getkey)
   popl %eax
   cmpb $0, beep_enable
   je 2f
-  call beep_func
+	pushl $1
+	pushl beep_buf
+	call beep_func
+	addl $8, %esp
 2:
 	cmpb $0, DateTime_enable
 	je 2f
 	call DateTime_refresh
+2:
+	cmpl $0, ext_timer
+	je 2f
+	pushl $-1
+	pushl $0
+	call *ext_timer
+	addl $8, %esp
 2:
 	cmpl $0, graphics_inited
 	je 4b
@@ -15182,11 +15205,21 @@ ENTRY(console_checkkey)
 	popl %eax
 	cmpb $0, beep_enable
 	jz 2f
+	pushl $1
+	pushl beep_buf
 	call beep_func
+	addl $8, %esp
 2:
 	cmpb $0, DateTime_enable
 	je 2f
 	call DateTime_refresh
+2:
+	cmpl $0, ext_timer
+	je 2f
+	pushl $-1
+	pushl $0
+	call *ext_timer
+	addl $8, %esp
 2:
 	cmpl $0, graphics_inited
 	je 5f
@@ -17044,7 +17077,7 @@ VARIABLE(grub_putchar)
 	.long	ABS(EXT_C(open_device))
 	.long	ABS(EXT_C(real_open_partition))
 	.long	ABS(EXT_C(set_device))
-	.long 0				//reserved
+	.long ABS(EXT_C(run_line))
 	.long 0				//reserved
 	.long 0				//reserved
 	.long	ABS(EXT_C(parse_string))

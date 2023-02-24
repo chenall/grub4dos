@@ -299,7 +299,16 @@ int run_line (char *heap,int flags)
    int status = 0;
    int ret = 0;
    int arg_len = strlen(heap) + 1;
-
+#if 0
+   //吸收命令行尾部空格		会使得外部命令SISO、RUN列表文件时，扩展名只显示前2个！
+   char *p = heap;
+   while (*p++);
+   while (*(p - 2) == ' ' || *(p - 2) == '\t')
+   {
+     *(p - 2) = 0;
+     p--;
+   }
+#endif
    cmd_buffer += (arg_len + 0xf) & -0x10;
    memmove(cmdline_buf,heap,arg_len);
    heap = cmdline_buf;

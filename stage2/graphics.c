@@ -1,6 +1,6 @@
 /* graphics.c - graphics mode support for GRUB */
 /* Implemented as a terminal type by Jeremy Katz <katzj@redhat.com> based
- * on a patch by Paulo C�sar Pereira de Andrade <pcpa@conectiva.com.br>
+ * on a patch by Paulo C閟ar Pereira de Andrade <pcpa@conectiva.com.br>
  */
 /*
  *  GRUB  --  GRand Unified Bootloader
@@ -365,6 +365,7 @@ graphics_init (void)
 		return !(errnum = ERR_SET_VBE_MODE);
 	    }
 
+			current_term = term_table + 1;	/* terminal graphics */
 	    current_term->chars_per_line = x1 = current_x_resolution / (font_w + font_spacing);
 	    current_term->max_lines = y1 = current_y_resolution / (font_h + line_spacing);
 
@@ -463,7 +464,7 @@ success:
   else
   {
     *splashimage = 1;
-    splashimage_loaded = IMAGE_BUFFER;
+    splashimage_loaded = (unsigned long)IMAGE_BUFFER;
     splashimage_loaded |= 2;
   }
 
@@ -605,7 +606,8 @@ print_unicode (unsigned long max_width)
 	}
 	else if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
 #endif
-		if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
+//		if (*(unsigned long *)pat == narrow_char_indicator || unicode < 0x80)
+		if (((*(unsigned char *)(narrow_mem + unicode/8)) & (1 << (unicode&7))) == 0)		//宽字符指示器使用内存分配		2023-02-22
 		{
 			--char_width;
 			pat += num_wide*font_w;
@@ -1067,7 +1069,6 @@ vbe_fill_color (unsigned long color)
 
 
 int animated (void);
-extern int use_phys_base;
 int use_phys_base=0;
 unsigned long delay0, delay1, name_len;
 char num;
@@ -1122,6 +1123,7 @@ int animated (void)
       use_phys_base=1;
       sprintf(tmp,"--offset=%d=%d=%d %s",(animated_type & 0x80),animated_offset_x,animated_offset_y,animated_name);
       splashimage_func(tmp,1);
+      use_phys_base=0;
 
       p = &animated_name[name_len-5];
       while(*p>=0x30 && *p<=0x39) p--;
@@ -1290,7 +1292,6 @@ static int read_image_bmp(int type)
 		filepos += ((bmih.biWidth*bfbit&3)?(4-(bmih.biWidth*bfbit&3)):0);
 	}
 	background_transparent=0;
-	use_phys_base=0;
 	return 2;
 }
 
@@ -2185,7 +2186,6 @@ read_image_jpg(int type)
 		return 1;
 	Decode();
 	background_transparent=0;
-	use_phys_base=0;
 	return 2;
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2413,7 +2413,7 @@ static int read_image()
 	}
 	/* read header */
 	grub_read((unsigned long long)(unsigned int)(char*)&buf, 10, 0xedde0d90);
-	splashimage_loaded = IMAGE_BUFFER;
+	splashimage_loaded = (unsigned long)IMAGE_BUFFER;
 	if (*(unsigned short*)buf == 0x4d42) /*BMP */
 	{
 		splashimage_loaded |= read_image_bmp(graphics_mode > 0xFF);
@@ -2466,6 +2466,8 @@ graphics_scroll (void)
     unsigned long i;
     unsigned long old_state = cursor_state;
     cursor_state &= ~1;
+    unsigned long long clo64 = current_color_64bit;
+    unsigned int clo = current_color;
     if (graphics_mode <= 0xFF)
     {/* VGA */
 	bios_scroll_up ();
@@ -2481,8 +2483,13 @@ graphics_scroll (void)
 #endif
     }
 
+		if (current_term->setcolorstate)
+//			current_term->setcolorstate (COLOR_STATE_NORMAL);	//避免图形模式时，在命令行滚屏，第24行被有其他属性的空格清屏
+			current_term->setcolorstate (COLOR_STATE_STANDARD);	//避免图形模式时，在命令行滚屏，第24行被有其他属性的空格清屏  2022-12-15
     for (i=0;i<current_term->chars_per_line;++i)
 	graphics_putchar(' ',1);
+		current_color_64bit = clo64;
+		current_color = clo;
     gotoxy(0,fonty);
     cursor_state = old_state;
     return;
@@ -2491,7 +2498,15 @@ graphics_scroll (void)
 void rectangle(int left, int top, int length, int width, int line)
 {
 	unsigned char *lfb,*p;
-	int x,y,z,i;
+	int x,y,z,i,clear=0;
+	unsigned int source;
+
+	if (line & 0x80000000)	//清除线框及其内部区域，恢复菜单背景
+	{
+		clear = 1;
+		line &= 0x7fffffff;
+	}
+	
 	if (!graphics_inited || graphics_mode < 0xff || !line)
 		return;
 
@@ -2505,22 +2520,26 @@ void rectangle(int left, int top, int length, int width, int line)
 	if (!length)
 		goto vert;	
 	
+	source = current_color_64bit & 0xffffffff;
 	for (i=0;i<line;++i)
 	{
 		p = lfb + current_bytes_per_scanline*i;
 		for (x=0;x<length;++x)
 		{
+			if (clear && (splashimage_loaded & 2))	//清除操作，并且加载了背景图像。否则采用当前32位颜色。
+				source = *(unsigned int *)(p - (unsigned char *)current_phys_base + (unsigned char *)SPLASH_IMAGE);
+
 			if (z == 3)
 			{
-				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)current_color_64bit;
-				*(p+y+2) = *(p+2) = (unsigned char)(current_color_64bit>>16);
+				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)source;
+				*(p+y+2) = *(p+2) = (unsigned char)(source>>16);
 			}
 			else if(z == 4)
 			{
-				*(unsigned long *)(p+y) = *(unsigned long *)p = (unsigned long)current_color_64bit;
+				*(unsigned int *)(p+y) = *(unsigned int *)p = (unsigned int)source;
 			}
 			else
-				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)pixel_shift((unsigned long)current_color_64bit);
+				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)pixel_shift((unsigned int)source);
 			p += z;
 		}
 	}

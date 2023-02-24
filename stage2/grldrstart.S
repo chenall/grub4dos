@@ -2776,7 +2776,10 @@ Entry_exfat:
         xorl    %eax, %eax			//Initialize the checksum
         movw    $0x1600, %cx           		//Bytes volume boot record check
 1:
+        movl  %eax, %ebx
+        roll  $31, %ebx                        //"Checksum" Left Cycle 31 bit
         rorl    $1, %eax                        //"Checksum" right Cycle 1 bit
+        orl	%ebx, %eax
         movzbl  0x7e00(%si), %ebx               //Check items
         addl    %ebx, %eax			//(("Checksum" Left Cycle 31 bit) or ("Checksum" right Cycle 1 bit)) + Check items
 2:
@@ -2790,7 +2793,7 @@ Entry_exfat:
         cmpw    %cx, %si                        //index=Maximum?
         jb      1b			        //No, continue to
         //To determine the checksum
-        movw    $0x9400, %di
+        movw    $0x9400, %di    //0x7e00+0x1600
         cmpl    (%di), %eax
         je      1f   
         //Filling Checksum

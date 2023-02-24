@@ -1330,7 +1330,7 @@ and grub.exe. This may be convenient to developers who write installation or
 bootstrap or initialization programs.
 
 Certainly, grub.exe and the bootable disk image can also be loaded by a running
-GRUB or LILO or syslinux. Examples:
+GRUB, GRUB2, LILO or syslinux. Examples:
 
 1. Loaded by GRUB:
 
@@ -1338,14 +1338,25 @@ GRUB or LILO or syslinux. Examples:
 	initrd (hd0,0)/DOS.IMG
 	boot
 
-2. Loaded by LILO:
+2. Loaded by GRUB2:
+
+	g4d_cfg="map (rd) (fd0); map --hook; chainloader (fd0)+1; rootnoverify (fd0)"
+	linux (hd0,0)/grub.exe --config-file=$g4d_cfg
+	initrd (hd0,0)/DOS.IMG
+	boot
+
+	Note: The argument to --config-file must _not_ be in double quotes.
+	This implies that command lines with spaces should always be set to
+	a variable and use the variable (unquoted) as done above.
+
+3. Loaded by LILO:
 
 	image=/boot/grub.exe
 		label=grub.exe
 		initrd=/boot/DOS.IMG
 		append="--config-file=map (rd) (fd0); map --hook; chainloader (fd0)+1; rootnoverify (fd0)"
 
-3. Loaded by SYSLINUX:
+4. Loaded by SYSLINUX:
 
 	label grub.exe
 		kernel grub.exe

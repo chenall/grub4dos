@@ -69,7 +69,7 @@ lzma:
 }
 
 #define MENU_BOX_X	((menu_border.menu_box_x > 2) ? menu_border.menu_box_x : 2)
-#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X - 1))
+#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X * 2 + 1))
 #define MENU_BOX_Y	(menu_border.menu_box_y)
 #define MENU_KEYHELP_Y_OFFSET  ((menu_border.menu_keyhelp_y_offset < 5) ? menu_border.menu_keyhelp_y_offset : 0)
 /* window height */
@@ -98,7 +98,7 @@ extern int num_text_char(char *p);
 	unsigned char disp_horiz;
 	unsigned char disp_vert;
 	unsigned char menu_box_x; // line start 
-	unsigned char menu_box_w; // line width 
+	unsigned char c; // line width 
 	unsigned char menu_box_y; // first line number 
 	unsigned char menu_box_h;
 	unsigned char menu_box_b;
@@ -225,11 +225,13 @@ print_default_help_message (char *config_entries)
 	grub_u32_t	i;
 	char		buff[256];
 
-if (menu_tab & 0x20)
+	if (menu_tab & 0x20)							//中文
 		i = grub_sprintf (buff,"\n按↑和↓选择菜单。");
-	else
+	else if (graphics_mode < 0xff)		//英文  在文本模式
 		i = grub_sprintf (buff,"\nUse the %c and %c keys to highlight an entry.",
-		(unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
+				(unsigned long)(unsigned char)DISP_UP, (unsigned long)(unsigned char)DISP_DOWN);
+	else															//英文  在图形模式   2023-02-22
+		i = grub_sprintf (buff,"\nUse the \xe2\x86\x91 and \xe2\x86\x93 keys to highlight an entry.");
 
       if (! auth && password_buf)
 	{
@@ -379,7 +381,6 @@ num_text_char(char *p)
 /* Print an entry in a line of the menu box.  */
 extern char menu_cfg[];
 extern unsigned char menu_num_ctrl[];
-int use_phys_base;
 char graphic_file_shift[32];
 
 static void
@@ -921,7 +922,7 @@ run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *h
 	color_counting = 0;
 //  struct term_entry *prev_term = NULL;
 		  
-
+ 
   /*
    *  Main loop for menu UI.
    */
@@ -936,6 +937,11 @@ restart1:
   temp_num = 0;
 	font_spacing = menu_font_spacing;
 	line_spacing = menu_line_spacing;
+	if (graphics_mode > 0xff)		//含字符间隙时，需重新计算  2023-02-22
+	{
+		current_term->max_lines = current_y_resolution / (font_h + line_spacing);
+		current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
+	}
   /* Dumb terminal always use all entries for display 
      invariant for TERM_DUMB: first_entry == 0  */
   if (! (current_term->flags & TERM_DUMB))
@@ -1095,9 +1101,12 @@ restart1:
 		unsigned long x,y,w,h,i,j;
 		i = font_w + font_spacing;
 		j = font_h + line_spacing;
-		x = (MENU_BOX_X - 2) * i + (i>>1);
-		y = (MENU_BOX_Y)*j-(j>>1);
-		w = (MENU_BOX_W + 2) * i;
+		x = (MENU_BOX_X - 2) * i + (font_w >> 1);
+		y = (MENU_BOX_Y) * j - (font_h >> 1);
+		if (menu_border.menu_box_w)					//如果设置了w，保持			2023-02-22
+			w = (MENU_BOX_W + 2) * i;
+		else																//否则，重新计数。因为含间隙字符时，水平像素处以i可能有余数，导致菜单框右边偏大
+			w = current_x_resolution - (x<<1);
 		if (graphic_type)
 			h = (graphic_high+row_space) * graphic_row;
 		else
@@ -1241,7 +1250,7 @@ restart1:
 	  
 	  grub_timeout--;
 	}
-
+#if 0		//不需要  20023-02-22
 	if (grub_timeout >= 0)
 	{
 		defer(1);
@@ -1252,6 +1261,7 @@ restart1:
 		if (DateTime_enable)
 			DateTime_refresh();
 	}
+#endif
       /* Check for a keypress, however if TIMEOUT has been expired
 	 (GRUB_TIMEOUT == -1) relax in GETKEY even if no key has been
 	 pressed.  
@@ -1745,6 +1755,8 @@ done_key_handling:
 		  int new_num_entries = 0;
 		  int i = 0;
 		  char *new_heap;
+		  menu_font_spacing = font_spacing;			//恢复图形模式时需要  2023-02-22
+		  menu_line_spacing =	line_spacing;
 			font_spacing = 0;
 			line_spacing = 0;
 
@@ -1865,6 +1877,8 @@ done_key_handling:
 		}
 	      if (((char)c) == 'c')
 		{
+		  menu_font_spacing = font_spacing;			//恢复图形模式时需要  2023-02-22
+		  menu_line_spacing =	line_spacing;
 			font_spacing = 0;
 			line_spacing = 0;
 			animated_enable_backup = animated_enable;
@@ -1897,6 +1911,8 @@ done_key_handling:
 ////      (*current_term->shutdown)();
 ////      current_term = term_table; /* assumption: console is first */
 ////    }
+	menu_font_spacing = font_spacing;			//恢复图形模式时需要  2023-02-22
+	menu_line_spacing =	line_spacing;
 	font_spacing = 0;
 	line_spacing = 0;
   fallbacked_entries = 0;
@@ -2424,43 +2440,6 @@ get_line_from_config (char *cmdline, int max_len, int preset)
   
     while (1)
     {
-#if 0
-	/* Skip UTF-8 Byte Order Mark: EF BB BF */
-	{
-	    unsigned long menu_offset;
-
-	    menu_offset = read_from_file ? filepos : preset_menu_offset;
-	    if (menu_offset == 0)
-	    {
-		/* read 3 bytes, check UTF-8 Byte Order Mark: EF BB BF */
-		if (read_from_file)
-		{
-			if (3 != grub_read (&menu_offset, 3))
-			{
-				filepos = 0;
-				break;
-			}
-			if (menu_offset != 0xBFBBEF)
-			{
-				filepos = 0;
-			}
-		}
-		else
-		{
-			if (3 != read_from_preset_menu (&menu_offset, 3))
-			{
-				preset_menu_offset = 0;
-				break;
-			}
-			if (menu_offset != 0xBFBBEF)
-			{
-				preset_menu_offset = 0;
-			}
-		}
-	    }
-	}
-#endif
-
 	if (preset)
 	{
 	    if (! read_from_preset_menu (&c, 1))
@@ -2494,33 +2473,9 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 	/* all other non-printable chars are illegal. */
 	if (c != '\n' && (unsigned char)c < ' ')
 	{
-	    pos = 0;
+//	    pos = 0;	2023-02-11  压缩预置菜单最后一行没有回车符，会出错
 	    break;
 	}
-
-//	/* The previous is a backslash, then...  */
-//	if (info & 1)	/* bit 0 for literal */
-//	{
-//	    /* If it is a newline, replace it with a space and continue.  */
-//	    if (c == '\n')
-//	    {
-//		c = ' ';
-//
-//		/* Go back to overwrite a backslash.  */
-//		if (pos > 0)
-//		    pos--;
-//	    }
-//
-//	    info &= 0xFFFFFFFE;	//literal = 0;
-//	}
-//
-//	///* Replace semi-colon with LF.  */
-//	//if (c == ';')
-//	//    c = '\n';
-//
-//	/* translate characters first! */
-//	if (c == '\\')
-//	    info |= 1;	//literal = 1;
 
 	if (info & 2)	/* bit 1 for comment */
 	{
@@ -2565,9 +2520,6 @@ get_line_from_config (char *cmdline, int max_len, int preset)
 		    if ((c < '0' || c > '9') && (c < 'A' && c > 'F'))
 			info &= ~8; // not all hex digit
 	    }
-
-	   // if (!(info & 4) && ((c & 0x80) || pos > 31))	/* bit 2 for argument */
-		//break;
 
 	    if (pos < max_len)
 	    {
@@ -2683,10 +2635,11 @@ restart_config:
 	
 	/* This is necessary, because the menu must be overrided.  */
 	reset ();
-	//cmdline = (char *) CMDLINE_BUF;
-	  
-	putchar_hooked = (unsigned char*)1;/*stop displaying on screen*/
-
+#if 1 //值1表示:  从现在开始, 不在屏幕显示任何信息
+	putchar_hooked = (unsigned char*)1;/*stop displaying on screen*/  //禁止显示
+#else
+  putchar_hooked = 0; //允许显示
+#endif
 	while (get_line_from_config ((char *) CMDLINE_BUF, NEW_HEAPSIZE, is_preset))
 	{
 	    struct builtin *builtin = 0;

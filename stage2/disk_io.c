@@ -2277,11 +2277,6 @@ unsigned long long grub_read_step = 0x800000ULL; // 8MB
 unsigned long long
 grub_read (unsigned long long buf, unsigned long long len, unsigned long write)
 {
-//  if (write != 0x900ddeed && write != 0xedde0d90)
-//	return !(errnum = ERR_FUNC_CALL);
-
-//  if (filepos > filemax)
-//      filepos = filemax;
   if (filepos >= filemax)
       return 0;//!(errnum = ERR_FILELENGTH);
 

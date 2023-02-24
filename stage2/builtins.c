@@ -63,7 +63,7 @@ password_t password_type;
 /* The flag for indicating that the user is authoritative.  */
 int auth = 0;
 /* The timeout.  */
-int grub_timeout = -1;
+//int grub_timeout = -1;
 /* Whether to show the menu or not.  */
 int show_menu = 1;
 /* Don't display a countdown message for the hidden menu */
@@ -4217,7 +4217,7 @@ unsigned short animated_delay;
 unsigned char animated_last_num;
 unsigned short animated_offset_x;
 unsigned short animated_offset_y;
-char animated_name[57];
+char animated_name[128];
 unsigned long fill_color;
 int splashimage_func(char *arg, int flags);
 int background_transparent=0;
@@ -4261,6 +4261,7 @@ splashimage_func(char *arg, int flags)
 		{
       fill_color = val;
     vbe_fill_color(fill_color);
+    fill_color = 0;
     goto fill;
 		}
 		return 0;
@@ -4329,7 +4330,7 @@ splashimage_func(char *arg, int flags)
 	if (! animated_type && ! graphic_type )
 	graphics_end();
 fill:
-	current_term = term_table + 1;	/* terminal graphics */
+//	current_term = term_table + 1;	/* terminal graphics */
 	backup_x = fontx;
 	backup_y = fonty;
 	if (! graphics_init())
@@ -5366,7 +5367,6 @@ command_func (char *arg, int flags)
 				psp = (char *)((int)(program + prog_len + 16) & ~0x0F);
 			}
 		} else {//the old program
-#if 0
 			char *program1;
 			printf_warning ("\nWarning! The program is outdated!\n");
 			psp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len);
@@ -5379,8 +5379,6 @@ command_func (char *arg, int flags)
 			grub_memmove (program1, program, prog_len);
 			program = program1;
 			tmp = psp;
-#endif
-      return ! (errnum = ERR_EXEC_FORMAT);
 		}
 	}
 
@@ -6170,7 +6168,7 @@ ged_unifont_simp (unsigned long unicode)
 }
 
 //static unsigned long old_narrow_char_indicator = 0;
-#define	old_narrow_char_indicator	narrow_char_indicator
+//#define	old_narrow_char_indicator	narrow_char_indicator
 int font_func (char *arg, int flags);
 //unsigned char font_type;
 //unsigned char scan_mode;
@@ -6178,6 +6176,8 @@ int font_func (char *arg, int flags);
 int (*hotkey_func)(char *titles,int flags,int flags1);
 struct simp unifont_simp[]={{0,0xff,0},{0x2000,0x206f,0x1f00},{0x2190,0x21ff,0x2020},{0x2e80,0x303f,0x2ca0},{0x31c0,0x9fbf,0x2e20},{0xf900,0xfaff,0x8760},{0xfe30,0xffef,0x8a90}};
 unsigned char unifont_simp_on;
+unsigned char *UNIFONT_START = 0;
+unsigned char *narrow_mem = 0;
 
 /* font */
 /* load unifont to UNIFONT_START */
@@ -6191,12 +6191,12 @@ font_func (char *arg, int flags)
   unsigned long i, j, k;
   unsigned long len;
   unsigned long unicode;
-  unsigned long narrow_indicator;
+//  unsigned long narrow_indicator;
 //  unsigned char buf[80];
 	unsigned char buf[1024];	//64*64
   unsigned long valid_lines;
   unsigned long saved_filepos;
-  extern unsigned char *font8x16;
+//  extern unsigned char *font8x16;
 	unsigned long long val;
 	unsigned char num_narrow;
 	unsigned char tag[]={'d','o','t','s','i','z','e','='};
@@ -6211,10 +6211,10 @@ font_func (char *arg, int flags)
   errnum = 0;
   if (arg == NULL || *arg == '\0')
   {
-		if (font_h != 16)
+//		if (font_h != 16)
 			return 0;
-	valid_lines--;	// let valid_lines = -1, a non-zero value for TRUE.
-	goto build_default_VGA_font;
+//	valid_lines--;	// let valid_lines = -1, a non-zero value for TRUE.	已经预先加载英文字库  2023-02-22
+//	goto build_default_VGA_font;
   }
 
 	if (flags)
@@ -6222,39 +6222,6 @@ font_func (char *arg, int flags)
 		unifont_simp_on = 0;
 	for (; *arg && *arg != '/' && *arg != '(' && *arg != '\n' && *arg != '\r';)
 	{
-#if 0
-		if (grub_memcmp (arg, "--hex", 5) == 0)
-		{
-			arg += 5;
-			font_type = 0;
-		}
-		if (grub_memcmp (arg, "--bin", 5) == 0)
-		{
-			arg += 5;
-			font_type = 1;
-		}
-		else if (grub_memcmp (arg, "--horiz-scan", 12) == 0)
-		{
-			arg += 12;
-			scan_mode = 0;
-		}
-		else if (grub_memcmp (arg, "--verti-scan", 12) == 0)
-		{
-			arg += 12;
-			scan_mode = 1;
-		}
-		else if (grub_memcmp (arg, "--h-to-l", 8) == 0)
-		{
-			arg += 8;
-			store_mode = 0;
-		}
-		else if (grub_memcmp (arg, "--l-to-h", 8) == 0)
-		{
-			arg += 8;
-			store_mode = 1;
-		}
-		else if (grub_memcmp (arg, "--font-high=", 12) == 0)
-#endif
 		if (grub_memcmp (arg, "--font-high=", 12) == 0)
 		{
 			arg += 12;
@@ -6310,32 +6277,21 @@ font_func (char *arg, int flags)
 	{
 		current_term->max_lines = current_y_resolution / (font_h + line_spacing);
 		current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
-		if (hotkey_func)
-			memset ((char *)UNIFONT_START, 0, 0x600000);
-		else
-			memset ((char *)UNIFONT_START, 0, 0x800000);
+//		if (hotkey_func)
+//			memset ((char *)UNIFONT_START, 0, 0x600000);
+//		else
+//			memset ((char *)UNIFONT_START, 0, 0x800000);
+//		memset ((char *)UNIFONT_START, 0, UNIFONT_START_SIZE);	//字库位置使用内存分配		2023-02-22
 		
 		if (font_h == 16)
 			font_func (NULL, 0);
 	}	
-#if 0
-	if (font_type)
-	{
-		filepos =0;
-		len = grub_read((unsigned long long)(unsigned int)(char*)UNIFONT_START, filemax, 0xedde0d90);
-		grub_close();
-		return 1;
-	}
-#endif
 	}
 	
   if (filemax >> 32)	// file too long
 	return !(errnum = ERR_WONT_FIT);
 
-//  if (*(unsigned long *)UNIFONT_START)
-//	return !(errnum = ERR_UNIFONT_RELOAD);
-
-  memset ((char *)0x100000, 0, 0x10000);	/* clear 64K at 1M */
+//  memset ((char *)narrow_mem, 0, 0x10000);	/* clear 64K at 1M */		//宽字符指示器使用内存分配		2023-02-22
 
 	num_wide = (font_h+7)/8;
 	num_narrow = ((font_h/2+7)/8)<<1;
@@ -6363,34 +6319,26 @@ redo:
 	unicode |= (tmp << ((3 - i) << 2));
     }
 
+  if (!UNIFONT_START || font_h_old != font_h)		//宽字符指示器及字库使用内存分配		2023-02-22
+  {
+    font_h_old = font_h;
+    if (UNIFONT_START)
+      grub_free (UNIFONT_START);
+    UNIFONT_START = grub_zalloc (num_wide * font_h * 0x10000);
+    if (!UNIFONT_START)
+      return 0;
+    if (!narrow_mem)
+      narrow_mem = grub_zalloc(0x2000);  //宽窄字符指示器 0/1=窄/宽
+    else
+      grub_memset (narrow_mem, 0, 0x2000);
+    if (!narrow_mem)
+      return 0;
+  }
+
 //    if (buf[37] == '\n' || buf[37] == '\r')	/* narrow char */
 		if (buf[5+font_h*num_narrow] == '\n' || buf[5+font_h*num_narrow] == '\r')	/* narrow char */
     {
 	/* discard if it is a control char(we will re-map control chars) */
-//	if (unicode <= 0x1F)
-//	{
-	    //valid_lines++;
-//	    continue;
-//	}
-
-	/* simply put the 8x16 dot matrix at the right half */
-#if 0
-	for (j = 0; j < 8; j++)
-	{
-	    unsigned short tmp = 0;
-	    for (k = 0; k < 16; k++)
-	    {
-		unsigned long t = 0;
-		t = get_nibble (buf[5+(j>>2)+(k<<1)]);
-		if (errnum)
-		    goto close_file;
-		tmp |= ((t >> ((7-j) & 3)) & 1) << k;
-	    }
-	    ((unsigned short *)(UNIFONT_START + (unicode << 5) + 16))[j] = tmp;
-	}
-	/* set to the old_narrow_char_indicator */
-	*(unsigned long *)(UNIFONT_START + (unicode << 5)) = old_narrow_char_indicator;
-#endif
 		if (unifont_simp_on)
 			unicode = ged_unifont_simp (unicode);
 			for (j=0; j<font_w; j++)
@@ -6408,7 +6356,7 @@ redo:
 					((unsigned char *)(UNIFONT_START + unicode*num_wide*font_h + num_wide*font_h/2))[j*num_wide+k] = (dot_matrix >> k*8)&0xff;
 				/* the first integer is to be checked for narrow_char_indicator */
 			}
-			*(unsigned long *)(UNIFONT_START + unicode*num_wide*font_h) = old_narrow_char_indicator; 
+//			*(unsigned long *)(UNIFONT_START + unicode*num_wide*font_h) = old_narrow_char_indicator;  //使用其他方法甄别宽窄字符  2023-02-22
     }
     else
     {
@@ -6423,8 +6371,8 @@ redo:
 	}
 
 	/* discard if it is a normal ASCII char */
-	if (unicode <= 0x7F)
-	    continue;
+//	if (unicode <= 0x7F)		//0x7F以下也有宽字符！  2023-02-22
+//	    continue;
 
 	/* discard if it is internally used INVALID chars 0xDC80 - 0xDCFF */
 	if (unicode >= 0xDC80 && unicode <= 0xDCFF)
@@ -6432,32 +6380,10 @@ redo:
 	if (unifont_simp_on)
 		unicode = ged_unifont_simp (unicode);
 	/* set bit 0: this unicode char is a wide char. */
-	*(unsigned char *)(0x100000 + unicode) |= 1;	/* bit 0 */
+//	*(unsigned char *)(narrow_mem + unicode) |= 1;	/* bit 0 */
+  *(unsigned char *)((unsigned int)narrow_mem + unicode/8) |= (unsigned char)(1 << (unicode&7)); //采用新方法  2023-02-22
 
 	/* put the 16x16 dot matrix */
-#if 0
-	for (j = 0; j < 16; j++)
-	{
-	    unsigned short tmp = 0;
-	    for (k = 0; k < 16; k++)
-	    {
-		unsigned long t = 0;
-		t = get_nibble (buf[5+(j>>2)+(k<<2)]);
-		if (errnum)
-		    goto close_file;
-		tmp |= ((t >> ((15-j) & 3)) & 1) << k;
-	    }
-	    ((unsigned short *)(UNIFONT_START + (unicode << 5)))[j] = tmp;
-	    /* the first integer is to be checked for narrow_char_indicator */
-	    if (j == 0)
-	    {
-		/* set bit 4: this integer already used by this wide char, so
-		 * it will not be used as the narrow_char_indicator.
-		 */
-		*(unsigned char *)(0x100000 + tmp) |= 16;	/* bit 4 */
-	    }
-	}
-#endif
 			for (j=0; j<font_h; j++)
 			{
 				unsigned long long dot_matrix = 0;
@@ -6471,14 +6397,16 @@ redo:
 				}
 				for (k=0; k<num_wide; k++)
 					((unsigned char *)(UNIFONT_START + unicode*num_wide*font_h))[j*num_wide+k] = (dot_matrix >> k*8)&0xff;
+#if 0		//采用新方法  2023-02-22
 				/* the first integer is to be checked for narrow_char_indicator */
 				if (j == 0)
 				{
 					/* set bit 4: this integer already used by this wide char, so
 					* it will not be used as the narrow_char_indicator.
 					*/
-					*(unsigned char *)(0x100000 + (unsigned short)(dot_matrix & 0xffff)) |= 16;	/* bit 4 */
+					*(unsigned char *)(narrow_mem + (unsigned short)(dot_matrix & 0xffff)) |= 16;	/* bit 4 */
 				}
+#endif
 			}
     }
     valid_lines++;
@@ -6524,7 +6452,7 @@ close_file:
 					font_w = val>>1;
 					current_term->max_lines = current_y_resolution / (font_h + line_spacing);
 					current_term->chars_per_line = current_x_resolution / (font_w + font_spacing);
-					memset ((char *)UNIFONT_START, 0, 0x800000);
+//					memset ((char *)UNIFONT_START, 0, 0x800000);		//字库位置使用内存分配		2023-02-22
 					num_wide = (font_h+7)/8;
 					num_narrow = ((font_h/2+7)/8)<<1;
 					if ((p[1]|0x20)=='s' && (p[2]|0x20)=='i' && (p[3]|0x20)=='m' && (p[4]|0x20)=='p')
@@ -6537,7 +6465,7 @@ close_file:
   }
 
   grub_close();
-
+#if 0			//使用内置英文字库		2023-02-22
   if (! valid_lines)	// if no valid lines,
     return valid_lines;	// simply fail without loading ROM font.
 
@@ -6550,7 +6478,7 @@ loop:
   i++;
   if (i < 0x10000)
   {
-    if (((*(unsigned char *)(0x100000 + i)) & 16))
+		if (((*(unsigned char *)(narrow_mem + i)) & 16))	
 	goto loop; /* the i already used by a new wide char, failed */
     /* now the i is not used by all new wide chars */
     if (i == old_narrow_char_indicator)
@@ -6577,7 +6505,7 @@ loop:
   /* update narrow_char_indicator for each narrow char */
   for (i = 0xFFFF; (long)i >= 0; i--)
   {
-    if ((!((*(unsigned char *)(0x100000 + i)) & 1) /* not a new wide char */
+		if ((!((*(unsigned char *)(narrow_mem + i)) & 1) /* not a new wide char */
 //	&& (*(unsigned long *)(UNIFONT_START + (i << 5))
 	&& (*(unsigned long *)(UNIFONT_START + (i*num_wide*font_h))
 		 == old_narrow_char_indicator)	/* not an old wide char */
@@ -6591,7 +6519,7 @@ loop:
   }
 
   //old_narrow_char_indicator = narrow_indicator;
-#undef	old_narrow_char_indicator
+//#undef	old_narrow_char_indicator
 
   return valid_lines;	/* success */
 
@@ -6698,7 +6626,7 @@ ROM_font_loaded:
       ((unsigned short *)(UNIFONT_START + (i << 5) + 16))[j] = tmp;
     }
   }
-
+#endif
   return valid_lines;//!(errnum);
 }
 
@@ -11752,7 +11680,15 @@ void
 lba_to_chs (unsigned long lba, unsigned long *cl, unsigned long *ch, unsigned long *dh)
 {
       unsigned long cylinder, head, sector;
-
+      
+  if (lba >= 0xfb03ff) //如果超过8GB，则应将1023、254、63用于CHS。issues#374
+  {
+    sector = 63; 
+    head = 254;
+    cylinder = 1023;
+  }
+  else
+  {
       sector = lba % buf_geom.sectors + 1;
       head = (lba / buf_geom.sectors) % buf_geom.heads;
       cylinder = lba / (buf_geom.sectors * buf_geom.heads);
@@ -11762,7 +11698,7 @@ lba_to_chs (unsigned long lba, unsigned long *cl, unsigned long *ch, unsigned lo
       
       if (cylinder >= buf_geom.cylinders)
 	cylinder = buf_geom.cylinders - 1;
-      
+  }      
       *cl = sector | ((cylinder & 0x300) >> 2);
       *ch = cylinder & 0xFF;
       *dh = head;
@@ -11780,12 +11716,21 @@ partnew_func (char *arg, int flags)
   char *filename;
   unsigned long entry1, i;
   unsigned long active = -1;
+  int force = 0;
 
   errnum = 0;
+resume:
   if (grub_memcmp (arg, "--active", 8) == 0)
     {
       active = 0x80;
       arg = skip_to (0, arg);
+      goto resume;
+    }
+  if (grub_memcmp (arg, "--force", 7) == 0)
+    {
+      force = 1;
+      arg = skip_to (0, arg);
+      goto resume;
     }
 
   /* Get the drive and the partition.  */
@@ -11943,7 +11888,7 @@ partnew_func (char *arg, int flags)
   if (! rawread (current_drive, 0, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)mbr, 0xedde0d90))
     return 0;
 
-  if (current_drive_bak)	/* creating a partition from a file */
+  if (current_drive_bak && !force)	/* creating a partition from a file */
   {
 	/* if the entry is not empty, it should be a part of another
 	 * partition, that is, it should be covered by another partition. */
@@ -11963,7 +11908,7 @@ partnew_func (char *arg, int flags)
 	if (i >= 4)
 	{
 		/* not found */
-		printf_debug0 ("Cannot overwrite an independent partition.\n");
+		printf_debug0 ("Cannot overwrite an independent partition. Can use the parameter '--force' to enforce\n");
 		return ! (errnum = ERR_BAD_ARGUMENT);
 	}
     }
@@ -12053,10 +11998,11 @@ static struct builtin builtin_partnew =
   "partnew",
   partnew_func,
   BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_MENU | BUILTIN_HELP_LIST | BUILTIN_NO_DECOMPRESSION,
-  "partnew [--active] PART TYPE START [LEN]",
+  "partnew [--active] [--force] PART TYPE START [LEN]",
   "Create a primary partition at the starting address START with the"
   " length LEN, with the type TYPE. START and LEN are in sector units."
-  " If --active is used, the new partition will be active. START can be"
+  " If --active is used, the new partition will be active."
+  " If --force is used, can overwrite an independent partition. START can be"
   " a contiguous file that will be used as the content/data of the new"
   " partition, in which case the LEN parameter is ignored, and TYPE can"
   " be either 0x00 for auto or 0x10 for hidden-auto."
@@ -15221,7 +15167,90 @@ builtin_cmd (char *cmd, char *arg, int flags)
 	else
 		return command_func (cmd, flags);
 }
-
+
+/*
+计算原理：
+1. 二进制数字和
+0xn3n2n1n0 = n3*2^3 + n2*2^2 + n1*2^1 + n0*2^0 = 2(2(2(n3) + n2) + n1) + n0
+左移一位相当于乘以2。n3乘以3次，n2乘以2次，n1乘以1次，n0没有乘。
+2. 逐步重新计算被除数，即被除数逐步向左移位
+0xn3n2n1n0 = 2(n3) + n2 -> 2(2(n3) + n2) + n1 -> 2(2(2(n3) + n2) + n1) + n0
+3. 等号两边同乘一数仍然相等 
+被除数/除数=商 == 2被除数/除数=2商
+*/
+//N除以D，返回商，并将余数存储在*R中
+unsigned long long grub_divmod64 (unsigned long long n, unsigned long long d, unsigned long long *r);
+unsigned long long
+grub_divmod64 (unsigned long long n, unsigned long long d, unsigned long long *r) //64位除法(32位gcc编译不支持64位除法)
+{
+  /* This algorithm is typically implemented by hardware. The idea	该算法通常由硬件实现。
+     is to get the highest bit in N, 64 times, by keeping						其思想是通过保持上限（N*2^i）=（Q*D+M），
+     upper(N * 2^i) = (Q * D + M), where upper											获得N中的最高位64次，其中上限表示128位空间中的高64位。
+     represents the high 64 bits in 128-bits space.  */
+  unsigned char bits = 64;  //循环计数
+  unsigned long long q = 0; //商
+  unsigned long long m = 0; //余数
+  unsigned char q_sign = 0; //商符号   0/1=正/负
+  unsigned char m_sign = 0; //余数符号 0/1=正/负
+
+  /* ARM and IA64 don't have a fast 32-bit division.								ARM和IA64没有快速的32位除法。 
+     Using that code would just make us use software division routines, calling  使用该代码只会让我们使用软件划分例程，
+     ourselves indirectly and hence getting infinite recursion.			间接调用我们自己，从而获得无限递归。 
+  */
+#if 1
+  /* Skip the slow computation if 32-bit arithmetic is possible.  如果可以使用32位算法，则跳过慢速计算*/
+  if (n <= 0xffffffff && d <= 0xffffffff)
+  {
+    if (r)
+      *r = ((unsigned int)n) % (unsigned int)d;
+
+    return ((unsigned int)n) / (unsigned int)d;
+  }
+#endif
+  if ((n & (1ULL << 63)) != (d & (1ULL << 63))) //确定商的符号 正/正=正 负/负=正  正/负=负  负/正=负
+    q_sign = 1;
+  if (n & (1ULL << 63)) //如果被除数为负, 则取补数
+  {
+    n = ~n + 1;
+    m_sign = 1; //确定余数的符号
+  }
+  if (d & (1ULL << 63)) //如果除数为负, 则取补数
+    d = ~d + 1;
+
+  while (!(n & (1ULL << 63))) //把原始被除数首位1移动到最左(第63位)
+  {
+    bits--;
+    n <<= 1;
+  }
+
+  while (bits--)  //重复次数  连上面的总共64次
+  {
+    //重新计算的被除数及商同时乘以2
+    m <<= 1;      //重新计算的被除数乘以2
+    q <<= 1;      //商乘以2
+    //逐步重新计算被除数
+    if (n & (1ULL << 63)) //如果原始被除数首位为1，则参与运算
+      m |= 1;     //重新计算的被除数+1 
+    n <<= 1;      //原始被除数乘以2，为下一次计算做准备
+    //除法计算：使用减法求商。减除数，增加商
+    if (m >= d)   //如果重新计算的被除数>=除数
+    {
+      q |= 1;     //商+1
+      m -= d;     //重新计算的被除数-除数
+    }
+  }
+
+  if (q_sign) //如果商为负, 则商取补
+    q = ~q + 1;
+  if (m_sign) //如果余数为负, 则余数取补
+    m = ~m + 1;
+  
+  if (r)
+    *r = m;
+
+  return q;
+}
+
 static int read_val(char **str_ptr,long long *val)
 {
       char *p;
@@ -15245,6 +15274,7 @@ static int read_val(char **str_ptr,long long *val)
       return 1;
 }
 
+long long retval64;
 static long long
 s_calc (char *arg, int flags)
 {
@@ -15252,6 +15282,8 @@ s_calc (char *arg, int flags)
    long long val2 = 0;
    long long *p_result = &val1;
    char O;
+   unsigned long long r;
+   retval64 = 0;
    
   errnum = 0;
    if (*arg == '*')
@@ -15322,14 +15354,15 @@ s_calc (char *arg, int flags)
 		 val1 *= val2;
 		 break;
 	 case '/':
-		 if ((long)val2 == 0)
+		 if (val2 == 0)
 			return !(errnum = ERR_DIVISION_BY_ZERO);
-		 val1 = (long)val1 / (long)val2;
+		 val1 = (long long)grub_divmod64 (val1, val2, &r);
 		 break;
 	 case '%':
-		 if ((long)val2 == 0)
+		 if (val2 == 0)
 			return !(errnum = ERR_DIVISION_BY_ZERO);
-		 val1 = (long)val1 % (long)val2;
+		 grub_divmod64 (val1, val2, &r);
+		 val1 = (long long)r;
 		 break;
 	 case '&':
 		 val1 &= val2;
@@ -15354,6 +15387,7 @@ s_calc (char *arg, int flags)
    printf_debug0(" %ld (HEX:0x%lX)\n",val1,val1);
 	if (p_result != &val1)
 	   *p_result = val1;
+   retval64 = val1;
    return val1;
 }
 
@@ -15374,6 +15408,62 @@ static struct builtin builtin_calc =
   "\nNote: 1.this is a Simple Calculator and From left to right only."
   "\n      2.'^' is XOR function."
   "\n      3.operators '| % >>' are command operator,can not have space on both sides"
+};
+
+//0x20-0x7f及0x2191、0x2193(上下箭头)的16*16点阵字符。hex格式，lzma压缩。
+static char mini_font_lzma[] = {
+0x5D,0x00,0x00,0x80,0x00,0xAC,0x0E,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x19,0x0C,
+0x43,0x90,0x39,0x67,0xD5,0x47,0x76,0xE2,0x4A,0xFC,0x16,0xF6,0xCE,0x1E,0x52,0x1A,
+0x03,0x6A,0x5B,0x7B,0xE2,0x81,0x9A,0x24,0xEB,0x83,0x3C,0xB7,0xB8,0x17,0xFB,0x21,
+0x07,0xC9,0x9E,0x94,0x4F,0x3D,0x72,0x38,0x16,0x78,0xFA,0x10,0xA1,0xD2,0xD6,0x90,
+0x17,0x41,0xAE,0xBD,0x64,0x8B,0x23,0xD6,0xD0,0x09,0x00,0xEB,0x23,0x18,0x03,0x34,
+0x37,0x29,0x24,0xF7,0x38,0x0D,0x5F,0xE7,0x42,0x03,0xCA,0x49,0xE8,0x5D,0xB7,0x8D,
+0x76,0xAC,0x54,0x6D,0x3F,0x63,0x7E,0xE6,0x21,0xEA,0x9C,0x69,0x77,0xB2,0x8C,0x52,
+0xE7,0xB6,0x68,0xFD,0x2B,0xBC,0x06,0x00,0xB6,0xB1,0xE9,0x72,0xF6,0xB3,0x88,0x40,
+0xC2,0x22,0xAC,0xFF,0x50,0xFB,0x39,0xCC,0x0A,0x08,0x13,0xE0,0xE0,0x78,0xD1,0x7F,
+0xAB,0xFB,0xFF,0x9B,0x2C,0x49,0xA4,0xEF,0x71,0xE8,0xBE,0x43,0x41,0x8E,0x2B,0x6A,
+0xCA,0x7C,0x9F,0xF1,0xE0,0x11,0x91,0xE0,0xC6,0x38,0x0B,0xA4,0x9A,0xAE,0x5C,0x93,
+0x86,0xB2,0x35,0x77,0x20,0xED,0xD7,0x53,0x2B,0xE3,0xD0,0xFA,0x20,0x2E,0xE4,0x4E,
+0xF0,0x32,0xBE,0x05,0x40,0x96,0x94,0x24,0xF3,0x65,0x5F,0x73,0x07,0xF6,0x1A,0xEF,
+0xF9,0x47,0xBF,0x45,0x7B,0x21,0x6C,0x59,0xD6,0x77,0xD6,0xF5,0x8F,0x4F,0x66,0xE0,
+0x7E,0xF5,0x28,0x7F,0x73,0x88,0xD4,0xE1,0x76,0x7C,0xA3,0x54,0x09,0xF3,0x20,0xF5,
+0x63,0xFB,0x90,0x18,0xF8,0xDB,0x09,0x1A,0xE7,0x8E,0x46,0x88,0xF6,0x6C,0x75,0x47,
+0x5E,0x4A,0x79,0x02,0xFE,0x25,0x0A,0x6A,0x10,0x2B,0xB8,0x99,0x97,0x69,0x13,0x7D,
+0x1D,0x59,0x02,0x06,0x8C,0x21,0x2A,0x62,0x4C,0x34,0x8E,0x13,0xCC,0x4A,0x37,0xD3,
+0x95,0x02,0x90,0x45,0xE6,0xE6,0x35,0xA1,0x9D,0x1C,0x2C,0xAD,0xDD,0xCA,0xAA,0x5A,
+0xC5,0xC9,0xBE,0xA6,0x83,0xC6,0xB7,0xB1,0x18,0x0C,0x7F,0x3F,0x7C,0x70,0xEF,0x07,
+0x2F,0x24,0xE4,0x90,0x33,0xDF,0x29,0xDC,0x72,0x5B,0xCC,0x48,0xF6,0x7B,0x62,0x61,
+0xA9,0xB3,0x90,0x9E,0x17,0xBA,0x44,0x93,0x5F,0x29,0x5D,0x42,0xBC,0x18,0x82,0x55,
+0x9E,0xDA,0xF0,0xAC,0xA0,0xAC,0x1A,0xC0,0x82,0x16,0x3D,0x62,0x72,0xFE,0x90,0x0E,
+0x21,0x7E,0x89,0x6A,0x23,0x1D,0x89,0xE6,0x83,0x00,0x43,0x86,0xF7,0x0C,0x50,0x2D,
+0xBF,0xDC,0x70,0xB7,0xFC,0x9E,0x7C,0x8E,0x1E,0xA2,0x38,0xDF,0xCD,0x09,0x2B,0xAE,
+0x16,0x7A,0xB7,0xAC,0x9B,0xF4,0xDE,0xA1,0xE7,0xB2,0x13,0x3A,0x88,0x21,0x9E,0xBE,
+0x28,0x97,0x5B,0xAC,0x83,0xB0,0x00,0x48,0xC9,0x62,0x7F,0x07,0x21,0x2E,0x39,0xF3,
+0x67,0x8A,0x8E,0x70,0xB2,0x57,0x7B,0x34,0x1B,0xC9,0xF3,0x05,0x13,0xAB,0x43,0x4B,
+0x03,0xCB,0xC0,0x98,0xFD,0x5A,0x17,0xD4,0x7B,0xAA,0xEE,0x69,0xFC,0x94,0x52,0x4C,
+0x3A,0x5A,0x75,0x3A,0xC6,0x6B,0xB6,0x57,0x62,0xE8,0xCC,0xF1,0xC9,0xA6,0xE9,0x0A,
+0x92,0x09,0x39,0x8F,0x55,0x15,0x2C,0x87,0x41,0x4F,0xFE,0xE8,0xDF,0xDD,0x62,0x30,
+0x30,0xBA,0x0F,0x8F,0xAA,0xF9,0x44,0x0E,0xAC,0x5A,0x52,0x0D,0x3A,0x2E,0x5F,0x44,
+0x47,0xC5,0x0D,0x01,0x16,0x7D,0xA5,0x55,0xCE,0x29,0x4A,0xF2,0x27,0xE3,0x54,0x91,
+0xE8,0x1C,0x30,0x8C,0x48,0x7C,0x1D,0x78,0xB3,0x3A,0xF7,0xEB,0xB2,0xC9,0x8B,0xA1,
+0xE5,0x18,0x68,0xA3,0xCD,0x51,0x3B,0x52,0x60,0xF0,0xC6,0xD1,0x49,0xE8,0x1E,0xC7,
+0xE4,0x6C,0x36,0x71,0x14,0x07,0x9C,0xE9,0xE4,0x33,0xE4,0x44,0x1D,0xB6,0x78,0x95,
+0x6E,0x68,0x79,0xAF,0x88,0x2C,0xCC,0x56,0xC0,0x00,0x93,0xFF,0x8B,0x5B,0xB7,0x29,
+0xE4,0xEA,0x79,0x18,0xAE,0xA8,0xD1,0x9D,0x1F,0xBC,0x35,0x51,0x3F,0x05,0xB7,0x9E,
+0x05,0xE3,0x21,0xC5,0xB9,0x69,0xC3,0x24,0x9D,0x33,0x9C,0xEB,0x28,0xCF,0x0E,0x63,
+0x02,0x32,0xFE,0x80,0x53,0xB7,0x22,0x0C,0xCD,0x07,0x57,0x0F,0x5B,0x0C,0xD2,0x31,
+0xEA,0x53,0x70,0xF5,0xD5,0x2F,0x99,0x4E,0xA3,0xA6,0x36,0x6D,0x25,0x36,0x28,0x1E,
+0x49,0x74,0xC8,0x51,0xB9,0x0F,0x9B,0x22,0xF9,0xD8,0x27,0x9E,0xC6,0xC3,0x68,0x95,
+0x84,0x67,0x87,0xF2,0x95,0x0D,0x48,0xF4,0x96,0x31,0x61,0x68,0xDD,0x4A,0xEC,0x40,
+0x30,0x03,0x21,0x6D,0x58,0xC8,0x94,0x57,0x91,0x30,0x79,0x9C,0x28,0xB8,0x1E,0x04,
+0xBB,0x86,0xA8,0x3C,0x50,0xD0,0x5A,0xD7,0x38,0x15,0xC5,0x92,0xD6,0xE5,0xB6,0xE6,
+0x4D,0x8B,0xE4,0xC9,0xFB,0xA3,0xF5,0x27,0x21,0x9C,0x9B,0xBF,0x6D,0x11,0xD3,0x04,
+0x50,0x98,0xA5,0xD3,0x3F,0x95,0x5C,0x32,0x05,0xC9,0xD9,0xEA,0xED,0xF7,0x0A,0x31,
+0xD9,0x51,0xC5,0x46,0xD0,0xB8,0x67,0x58,0x80,0x06,0x8E,0x75,0x39,0x33,0x21,0x24,
+0x68,0x25,0x46,0xBE,0x09,0xCC,0x4F,0x0B,0x30,0x3C,0x04,0xD5,0x6A,0x54,0xD3,0xB8,
+0x0E,0x52,0x7D,0xD6,0x80,0x08,0xC8,0x71,0x06,0x3E,0xAF,0xC7,0xAA,0xF7,0x2D,0x76,
+0x9E,0x42,0x0F,0x43,0x63,0xBC,0x5B,0x20,0x27,0xE6,0xB7,0xBA,0xA3,0xD8,0xD4,0xF1,
+0x5A,0xE2,0x84,0xE7
 };
 
 /* graphicsmode */
@@ -15524,6 +15614,20 @@ xyz_done:
 	current_y_resolution = y;
 	current_bits_per_pixel = z;
 	current_bytes_per_pixel = (z+7)/8;
+	if (IMAGE_BUFFER)		//字库位置使用内存分配   2023-02-22
+		grub_free (IMAGE_BUFFER);
+	IMAGE_BUFFER = grub_malloc (current_x_resolution * current_y_resolution * current_bytes_per_pixel);//应当在加载图像前设置
+	if (!JPG_FILE)
+	{
+    JPG_FILE = grub_malloc (0x8000);
+	}
+	if (!UNIFONT_START)
+	{
+		//进入图形模式，加载袖珍字库，防止黑屏。这样也可以使防止加载精简中文字库(不包含英文字符)的问题。
+		grub_memmove ((char *)0x10000, mini_font_lzma, 820);
+		font_func ("(md)0x80+2", 1);  //如果是gz压缩格式，要明确压缩文件尺寸，如：font_func ("(md)0x80+2,820", 1);
+	}
+	
 #undef _X_
 #undef _Y_
 #undef _Z_
@@ -15540,11 +15644,13 @@ xyz_done:
 	if (current_term != term_table)		/* terminal console */
 		current_term = term_table;	/* terminal console */
       }
-      return old_graphics_mode;
+			graphics_mode = tmp_graphicsmode;
+//      return old_graphics_mode;
+			return graphics_mode;
     }
 enter_graphics_mode:
-    if (graphics_mode != (unsigned long)tmp_graphicsmode 
-	|| current_term != term_table + 1	/* terminal graphics */
+    if (graphics_mode != tmp_graphicsmode 
+	/*|| current_term != term_table + 1*/	/* terminal graphics */
 	)
     {
       graphics_mode = tmp_graphicsmode;
@@ -15585,7 +15691,8 @@ bad_arg:
     return 0;
   }
 
-  return old_graphics_mode;
+//  return old_graphics_mode;
+  return graphics_mode;
 #else
   return 0x12;
 #endif
@@ -15606,7 +15713,6 @@ struct builtin builtin_graphicsmode =
   "graphicsmode -1 100:1000 100:1000 24:32 (highest mode available below x/y = 1001/1001)\n"
   "graphicsmode -1 800 600 24:32 (switch to highest 800x600 graphics mode)"
 };
-
 
 char menu_init_script_file[32];
 
@@ -15629,7 +15735,6 @@ static struct builtin builtin_initscript =
   initscript_func,
   BUILTIN_MENU,
 };
-
 
 static int
 echo_func (char *arg,int flags)
@@ -15654,9 +15759,24 @@ echo_func (char *arg,int flags)
       {
 	 arg += 3;
 	 char c = 0;
+	 char s[5] = {0};
+	 char* p = s;
+	 unsigned long long length;
+	 int i=2, j=0;
 	 if (*arg == '-') c=*arg++;
-	 y = ((*arg++ - '0') & 15)*10;
-	 y += ((*arg++ - '0') & 15);
+	if (*arg == '0' && (arg[1]|32) == 'x')
+	{
+		if (arg[3] == '-' || (arg[4]|32) == 'x')
+			i = 3;
+		else
+			i = 4;
+	}
+	 while(i--)
+		s[j++] = *arg++;
+	 safe_parse_maxint (&p, &length);
+	 y = length;
+//	 y = ((*arg++ - '0') & 15)*10;
+//	 y += ((*arg++ - '0') & 15);
 	 if ( c != '\0' )
 	 {
 	    y = current_term->max_lines - y;
@@ -15664,9 +15784,10 @@ echo_func (char *arg,int flags)
 	 }
 
 	 if (*arg == '-') c = *arg++;
-	 
-	 x = ((*arg++ - '0') & 15)*10;
-	 x += ((*arg++ - '0') & 15);
+	 safe_parse_maxint (&arg, &length);
+	 x = length;
+//	 x = ((*arg++ - '0') & 15)*10;
+//	 x += ((*arg++ - '0') & 15);
 	 if (c != 0) x = current_term->chars_per_line - x;
 	 //saved_xy = getxy();
 	 saved_x = fontx;
@@ -15827,6 +15948,7 @@ echo_func (char *arg,int flags)
 		else
 		{
 			current_color_64bit = ull;
+			current_color = color_64_to_8 (current_color_64bit);
 		}
 		arg = p + 1;
             }
@@ -15852,9 +15974,10 @@ echo_func (char *arg,int flags)
          }
       }
       
-      grub_putchar((unsigned char)*arg, 255);
+//      grub_putchar((unsigned char)*arg, 255);		//移动到判断之后，避免打印‘\0’   2022-11-05
       if (!(*arg))
 				break;
+      grub_putchar((unsigned char)*arg, 255);
    }
    if (current_term->setcolorstate)
 	  current_term->setcolorstate (COLOR_STATE_STANDARD);
@@ -15874,6 +15997,7 @@ static struct builtin builtin_echo =
    BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
    "echo [-P:XXYY] [-h] [-e] [-n] [-v] [-rrggbb] [--mem=offset=length] [[$[ABCD]]MESSAGE ...] ",
    "-P:XXYY position control line(XX) and column(YY).\n"
+   "   XX(YY) are both 2 digit decimal or both 3/4 character hex. Can precede with - sign for position from end.\n"
    "-h      show a color panel.\n"
    "-n      do not output the trailing newline.\n"
    "-e      enable interpretation of backslash escapes.\n"
@@ -16150,6 +16274,8 @@ int envi_cmd(const char *var,char * const env,int flags)
 	    }
 	    else if (substring(ch,"@retval",1) == 0)
 		sprintf(p,"%d",*(int*)0x4CB00);
+	    else if (substring(ch,"@retval64",1) == 0)
+		sprintf(p,"%ld",retval64);
 	    #ifdef PATHEXT
 	    else if (substring(ch,"@pathext",1) == 0)
 		sprintf(p,"%s",PATHEXT);
@@ -16451,7 +16577,7 @@ unsigned char DateTime_enable;
 unsigned long long hotkey_color_64bit = 0;
 unsigned int hotkey_color = 0;
 #define MENU_BOX_X	((menu_border.menu_box_x > 2) ? menu_border.menu_box_x : 2)
-#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X - 1))
+#define MENU_BOX_W	((menu_border.menu_box_w && menu_border.menu_box_w < (current_term->chars_per_line - MENU_BOX_X - 1)) ? menu_border.menu_box_w : (current_term->chars_per_line - MENU_BOX_X * 2 + 1))
 
 static int
 setmenu_func(char *arg, int flags)
@@ -16737,10 +16863,10 @@ setmenu_func(char *arg, int flags)
 							menu_border.menu_box_x = val;
 							break;
 						case 'w':
-							if (val != 0)
+//							if (val != 0)
 								menu_border.menu_box_w = val;
-							else
-								menu_border.menu_box_w = current_term->chars_per_line - menu_border.menu_box_x * 2 + 1;
+//							else
+//								menu_border.menu_box_w = current_term->chars_per_line - menu_border.menu_box_x * 2 + 1;  //多余，影响w判断  2023-02-22
 							break;
 						case 'y':
 							menu_border.menu_box_y = val;
@@ -17412,7 +17538,16 @@ static int bat_run_script(char *filename,char *arg,int flags)
 				for (i = 1;i< 10;++i)
 				{
 					if (s[i][0])
+#if 1
 						p_cmd += sprintf(p_cmd,"%s ",s[i]);
+#else
+					{		//消除末尾的空格  2022-11-05    会使得外部命令SISO、RUN列表文件时，扩展名只显示前2个！  2022-12-15
+						if (i == 1)
+							p_cmd += sprintf(p_cmd,"%s",s[i]);
+						else
+							p_cmd += sprintf(p_cmd," %s",s[i]);
+					}
+#endif
 					else
 						break;
 				}
