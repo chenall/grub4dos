@@ -5507,14 +5507,14 @@ LDFLAGS="$save_LDFLAGS"
 if test "x$build_id_flag" = xyes; then
   LDFLAGS="$LDFLAGS -Wl,--build-id=none"
 fi
-#gcc 9 and newer has builded with enable-default-pie by defualt so we add -no-pie to linker flag
+#gcc 5 and newer has builded with enable-default-pie by defualt so we add -no-pie to linker flag
 
 # Check if gcc has enable pie by default
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether gcc has enable pie by default" >&5
 $as_echo_n "checking whether gcc has enable pie by default... " >&6; }
 save_LDFLAGS="$LDFLAGS"
 LDFLAGS="$LDFLAGS -no-pie"
-if [[ -n "`gcc -v -E 2>&1 | grep 'Configured with' | sed 's/--/\n--/g' | grep enable-default-pie`" ]]; then :
+if [[ -n "`$CC -v -E 2>&1 | grep 'Configured with' | sed 's/--/\n--/g' | grep enable-default-pie`" ]]; then :
   no_pie_linker_flag=yes
 else
   no_pie_linker_flag=no
@@ -5532,8 +5532,8 @@ fi
 # Check if gcc 10 or newer
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether gcc 10 or newer builded with -fno-common by defualt" >&5
 $as_echo_n "checking whether gcc 10 or newer builded with -fno-common by defualt... " >&6; }
-currentgccver="$(gcc -dumpversion)"
-gcc10="10.0.0"
+currentgccver="$($CC -dumpversion)"
+gcc10="9.9.0"
  
 if [ "$(printf '%s\n' "$gcc10" "$currentgccver" | sort -V | head -n1)" = "$gcc10" ]; then 
   fno_common_flag=yes
