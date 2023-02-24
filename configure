@@ -5526,6 +5526,26 @@ LDFLAGS="$save_LDFLAGS"
 if test "x$no_pie_linker_flag" = xyes; then
   LDFLAGS="$LDFLAGS -no-pie"
 fi
+#gcc newer than 4.8 required adding -fgnu89-inline in STAGE2_CFLAGS to disable warning: inline function
+
+# Check if gcc version newer than gcc 4.8 
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether gcc is newer than gcc 4.8 to disable warning about inline function" >&5
+$as_echo_n "checking whether gcc is newer than gcc 4.8 to disable warning about inline function... " >&6; }
+currentgccver="$($CC -dumpversion)"
+gcc48="4.8.0"
+ 
+if [ "$(printf '%s\n' "$gcc48" "$currentgccver" | sort -V | head -n1)" = "$gcc48" ]; then 
+  fgnu89_inline_flag=yes
+else
+  fgnu89_inline_flag=no
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $fgnu89_inline_flag" >&5
+$as_echo "$fgnu89_inline_flag" >&6; }
+
+if test "x$fgnu89_inline_flag" = xyes; then
+   STAGE2_CFLAGS="$STAGE2_CFLAGS -fgnu89-inline"
+fi
 
 #gcc 10 and newer has builded with -fno-common by defualt so we add -fcommon to STAGE2_CFLAGS
 
