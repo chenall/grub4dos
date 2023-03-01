@@ -352,6 +352,8 @@ void grub_free(void *ptr)
 	return;
 }
 
+#define MALLOC_ADDR_START	0x8000000
+#define MALLOC_ADDR_START_LENGTH	0x2000000
 /* This queries for BIOS information.  */
 void
 init_bios_info (void)
@@ -374,7 +376,8 @@ init_bios_info (void)
   mem_alloc_array_start[0].addr = free_mem_start;
   mem_alloc_array_start[1].addr = 0;	/* end the array */
   malloc_array_start = (struct malloc_array *)mem_alloc_array_start + 10;
-  malloc_array_start->addr = free_mem_start + 0x400000;
+//  malloc_array_start->addr = free_mem_start + 0x400000;
+  malloc_array_start->addr = MALLOC_ADDR_START;		//避开用户常用内存，且不位于内存高端(避免影响map)。  2023-03-01
   malloc_array_start->next = (struct malloc_array *)&free_mem_end;
   use_lba1sector = debug_boot & 2;
   debug_boot &= 1;

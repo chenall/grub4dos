@@ -6522,6 +6522,7 @@ loop:
 //#undef	old_narrow_char_indicator
 #endif
 
+	if (font_h != 16)			//迁就有的16*16字库不带0-0x7f字符(如SISO)		2023-03-01
   return valid_lines;	/* success */
 
 build_default_VGA_font:
