@@ -6333,6 +6333,7 @@ redo:
       grub_memset (narrow_mem, 0, 0x2000);
     if (!narrow_mem)
       return 0;
+		*(unsigned long *)(0x1800820) = 0;   //2023-03-05
   }
 
 //    if (buf[37] == '\n' || buf[37] == '\r')	/* narrow char */
@@ -6522,6 +6523,7 @@ loop:
 //#undef	old_narrow_char_indicator
 #endif
 
+	*(unsigned long *)(0x1800820) = 1;  //2023-03-05
 	if (font_h != 16)			//迁就有的16*16字库不带0-0x7f字符(如SISO)		2023-03-01
   return valid_lines;	/* success */
 
@@ -6530,6 +6532,8 @@ build_default_VGA_font:
     UNIFONT_START = grub_zalloc (2 * 16 * 0x10000);
 	if (!narrow_mem)
 		narrow_mem = grub_zalloc(0x2000);  //宽窄字符指示器 0/1=窄/宽
+	if (!UNIFONT_START || !narrow_mem)	 //2023-03-05
+		return 0;
 	grub_memset ((void*)UNIFONT_START, 0, 0x400);
   /* initialize ASCII chars with ROM 8x16 font. */
 
@@ -15596,7 +15600,7 @@ xyz_done:
     }
 enter_graphics_mode:
     if (graphics_mode != tmp_graphicsmode 
-	/*|| current_term != term_table + 1*/	/* terminal graphics */
+	|| current_term != term_table + 1	/* terminal graphics */  //恢复这一条件。据反馈意见，当来回切换菜单时，有可能进入控制台。  2023-03-02
 	)
     {
       graphics_mode = tmp_graphicsmode;
@@ -15859,6 +15863,22 @@ echo_func (char *arg,int flags)
 			}
 			return 1;
 		}
+		else if (grub_memcmp(arg,"--malloc",8) == 0)	//分配内存状况  2023-03-05
+		{
+			unsigned int num = 0;
+			unsigned int used;
+			struct malloc_array *p_memalloc_array = malloc_array_start;
+			
+			printf("num     used    addr          size\n");
+			for ( ; p_memalloc_array->addr != free_mem_end; p_memalloc_array = p_memalloc_array->next, num++)//find free mem array;
+			{
+				used = 0;
+				if (p_memalloc_array->addr & 1)//used mem
+					used = 1;
+				printf("%-8x%-8x%-14x%x\n",num, used, p_memalloc_array->addr & 0xfffffffe, p_memalloc_array->next->addr ? ((p_memalloc_array->next->addr & 0xfffffffe) - (p_memalloc_array->addr & 0xfffffffe)) : 0);	
+			}
+			return 1;
+		}
       else break;
    	 arg = skip_to (0,arg);
    }
@@ -15952,6 +15972,7 @@ static struct builtin builtin_echo =
    "-v      show version and memory information.\n"
 	 "-rrggbb show 24 bit colors.\n"
 	 "--mem=offset=length  hexdump.\n"
+   "--malloc  allocate memory statu.\n"
    "$[ABCD] the color for MESSAGE.(console only, 8 bit number)\n" 
    "A=bright background, B=bright characters, C=background color, D=Character color.\n"
    "$[0xCD] Sets the 8 or 64 bit numeric color for MESSAGE.\n"

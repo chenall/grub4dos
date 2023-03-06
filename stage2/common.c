@@ -956,6 +956,7 @@ DEBUG_SLEEP
 #ifdef SUPPORT_GRAPHICS
 extern int font_func (char *, int);
   font_func (NULL, 0);	/* clear the font */
+	*(unsigned long *)(0x1800820) = 0;   //2023-03-05
 #endif /* SUPPORT_GRAPHICS */
 
   /* Start main routine here.  */
