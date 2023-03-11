@@ -1,4 +1,11 @@
 ﻿更新说明：
+2023-03-11 (a1ive)
+  放弃使用 EFI Handover Protocol 启动 Linux，改用 LoadFile2 提供 initrd 加载功能。
+  Linux 6.2 将已废弃的 EFI Handover Protocol 设为可选项：
+    https://github.com/torvalds/linux/commit/cc3fdda2876e58a7e83e558ab51853cf106afb6a
+  不再支持 x64 UEFI 下启动 32 位内核 (或者反过来)。
+  不再支持 ntloader v1 版本，请使用 ntloader v2 版本。
+
 2023-02-23 (yaya)
   增加外部定时器。(应用之一，外部命令进度条ProgressBar)。
   修正菜单最后一行没有换行符而缺失的问题。

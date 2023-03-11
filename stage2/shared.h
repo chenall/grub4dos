@@ -2398,6 +2398,11 @@ extern int (*ext_timer)(char *arg, int flags);
   { 0x56EC3091, 0x954C, 0x11d2, \
     { 0x8E, 0x3F, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B } \
   }
+//LoadFile2 协议 https://github.com/u-boot/u-boot/commit/ec80b4735a593961fe701cc3a5d717d4739b0fd0
+#define GRUB_EFI_LOAD_FILE2_PROTOCOL_GUID \
+  { 0x4006c0c1, 0xfcb3, 0x403e, \
+    { 0x99, 0x6d, 0x4a, 0x6c, 0x87, 0x24, 0xe0, 0x6d } \
+  }
 //简单文件系统协议GUID 
 #define GRUB_EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID \
   { 0x0964e5b22, 0x6459, 0x11d2, \
@@ -4555,6 +4560,28 @@ struct grub_efi_ip6_config_manual_address {	//ip6配置手动地址
   grub_efi_uint8_t prefix_length;			//前缀长度
 };
 typedef struct grub_efi_ip6_config_manual_address grub_efi_ip6_config_manual_address_t;
+
+struct grub_efi_load_file2
+{
+  grub_efi_status_t (EFIAPI *load_file)(struct grub_efi_load_file2 this,
+                                        grub_efi_device_path_t file_path,
+                                        grub_efi_boolean_t boot_policy,
+                                        grub_efi_uintn_t *buffer_size,
+                                        void *buffer);
+};
+typedef struct grub_efi_load_file2 grub_efi_load_file2_t;
+
+#define LINUX_EFI_INITRD_MEDIA_GUID  \
+  { 0x5568e427, 0x68fc, 0x4f3d, \
+    { 0xac, 0x74, 0xca, 0x55, 0x52, 0x31, 0xcc, 0x68 } \
+  }
+
+struct initrd_media_device_path
+{
+  grub_efi_vendor_media_device_path_t  vendor;
+  grub_efi_device_path_t               end;
+} GRUB_PACKED;
+typedef struct initrd_media_device_path initrd_media_device_path_t;
 
 /*
 *******************************************************
