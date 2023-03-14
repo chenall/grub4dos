@@ -1346,13 +1346,13 @@ file:
 failure_exec_format:
 
   grub_close ();
-  
+
 failure_exec_format_0:
 
   if (errnum == ERR_NONE)
-	errnum = ERR_EXEC_FORMAT;
+    errnum = ERR_EXEC_FORMAT;
 
-	if (address)
+  if (address)
     efi_call_2 (b->free_pages, address, pages);	//释放页
 
   return 0;		/* return failure */
@@ -1902,7 +1902,7 @@ configfile_func (char *arg, int flags)
   {
 	/* Copy ARG to CONFIG_FILE.  */
 	while ((*new_config++ = *arg++));
-		grub_close ();
+	grub_close ();
   }
 
   /* Force to load the configuration file.  */
@@ -4521,11 +4521,11 @@ font_func (char *arg, int flags)
 	}	
 	
   if (filemax >> 32)	// file too long
-	return !(errnum = ERR_WONT_FIT);
+    return !(errnum = ERR_WONT_FIT);
 
-	num_wide = (font_h+7)/8;
-	num_narrow = ((font_h/2+7)/8)<<1;
-  
+  num_wide = (font_h+7)/8;
+  num_narrow = ((font_h/2+7)/8)<<1;
+
   if (font_h_old != font_h)
   {
     current_term->max_lines = current_y_resolution / (font_h + line_spacing);
@@ -5559,8 +5559,8 @@ skip_data_ref_object (const grub_uint8_t *ptr, const grub_uint8_t *end)
     {
       const grub_uint8_t *ptr0 = ptr;
       for (ptr++; ptr < end && *ptr; ptr++);
-        if (ptr == end)
-          return 0;
+      if (ptr == end)
+        return 0;
       return ptr - ptr0 + 1;
     }
     default:
@@ -9388,7 +9388,7 @@ pause_func (char *arg, int flags)
   /* Get current time.  */
   int ret = 1;
   while ((time2 = getrtsecs ()) == 0xFF);
-   while (wait != 0)
+  while (wait != 0)
    {
       /* Check if there is a key-press.  */
 			if ((ret = checkkey ()) != (int)-1)
@@ -10857,8 +10857,10 @@ setkey_func (char *arg, int flags)
 		      (char *) &ascii_key_map[i + 1],
 		      sizeof (unsigned int) * (KEY_MAP_SIZE - i));
       else
-		ascii_key_map[i].from_code = from_code;
-		ascii_key_map[i].to_code = to_code;
+	{
+	  ascii_key_map[i].from_code = from_code;
+	  ascii_key_map[i].to_code = to_code;
+	}
     }
       
   return 1;
@@ -11301,9 +11303,9 @@ s_calc (char *arg, int flags)
       p_result = (long long *)(grub_size_t)IMG((int)val1);  //取内存的值
     else
       p_result = (long long *)(grub_size_t)val1;
-      
-      val1 = *p_result;
-      while (*arg == ' ') arg++;
+
+    val1 = *p_result;
+    while (*arg == ' ') arg++;
    }
    else
    {

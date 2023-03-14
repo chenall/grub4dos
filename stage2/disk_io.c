@@ -740,7 +740,7 @@ redo:
       if (! rawread (next_partition_drive, *next_partition_offset, 0, SECTOR_SIZE, (unsigned long long)(grub_size_t)next_partition_buf, 0xedde0d90))
 	return 0;
 
-	if (pc_slice_no == (unsigned int)-1 && next_partition_buf[0x1C2] == '\xEE' && is_gpt_part())
+      if (pc_slice_no == (unsigned int)-1 && next_partition_buf[0x1C2] == '\xEE' && is_gpt_part())
 	{
 		if (next_partition_dest != 0xffffff)
 			pc_slice_no = (next_partition_dest>>16) - 1;
@@ -819,8 +819,8 @@ next_entry:
 		}
 	    }
 
-	if (next_partition_dest != 0xffffff)
-	  errnum = ERR_NO_PART;
+	  if (next_partition_dest != 0xffffff)
+		errnum = ERR_NO_PART;
 
 	  return 0;
 	}

@@ -597,10 +597,10 @@ enter_cmdline (char *heap, int forever)
       if (use_pager)
 	count_lines = 0;
 
-	errnum = errnum_old;
-	if (memcmp(heap,"clear",5))
-	    putchar('\n',255); 
-	run_line (heap , BUILTIN_CMDLINE);
+      errnum = errnum_old;
+      if (memcmp(heap,"clear",5))
+	putchar('\n',255);
+      run_line (heap , BUILTIN_CMDLINE);
       /* Finish the line count.  */
       count_lines = -1;
     }

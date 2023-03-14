@@ -2064,7 +2064,7 @@ sss:
 		{
 		    /* The next title is found.  */
 		    if (num_entries >= 256)
-			break;
+			  break;
 			bt += (CONFIG_ENTRIES[attr] & 1);
 		    num_entries++;	/* an entry is completed. */
 		    CONFIG_ENTRIES[config_len++] = 0;	/* finish the entry. */

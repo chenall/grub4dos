@@ -147,8 +147,8 @@ console_setcolor(unsigned int state,unsigned long long color[])
 	{
 		if (!(state & (1<<i)))
 			continue;
-			console_color[i] = color_64_to_8(color[i]);
-			console_color_64bit[i] = color[i];
+		console_color[i] = color_64_to_8(color[i]);
+		console_color_64bit[i] = color[i];
 	}
 	console_setcolorstate(COLOR_STATE_STANDARD);
 }

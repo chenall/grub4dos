@@ -3714,19 +3714,11 @@ struct grub_efi_boot_services   //引导服务
   //安装多协议接口	将一个或多个协议接口安装到启动服务环境中  
   grub_efi_status_t EFIAPI
   (*install_multiple_protocol_interfaces) (grub_efi_handle_t *handle,	//指向协议接口的指针
-					grub_efi_guid_t *guid,				//指向协议GUID的指针
-					grub_efi_device_path_t *dp,		//指向设备路径的指针
-					grub_efi_guid_t *blk_io_guid,	//指向io设备接口的指针
-					block_io_protocol_t *block_io,//指向block_io设备接口的指针
-					void* data);
+					...);
 
   grub_efi_status_t EFIAPI
   (*uninstall_multiple_protocol_interfaces)(grub_efi_handle_t *handle,	//指向协议接口的指针
-					grub_efi_guid_t *guid,				//指向协议GUID的指针
-					grub_efi_device_path_t *dp,		//指向设备路径的指针
-					grub_efi_guid_t *blk_io_guid,	//指向io设备接口的指针
-					block_io_protocol_t *block_io,//指向block_io设备接口的指针
-					void* data);
+					...);
 
   grub_efi_status_t EFIAPI
   (*calculate_crc32) (void *data,
@@ -4563,8 +4555,8 @@ typedef struct grub_efi_ip6_config_manual_address grub_efi_ip6_config_manual_add
 
 struct grub_efi_load_file2
 {
-  grub_efi_status_t (EFIAPI *load_file)(struct grub_efi_load_file2 this,
-                                        grub_efi_device_path_t file_path,
+  grub_efi_status_t (EFIAPI *load_file)(struct grub_efi_load_file2 *this,
+                                        grub_efi_device_path_t *file_path,
                                         grub_efi_boolean_t boot_policy,
                                         grub_efi_uintn_t *buffer_size,
                                         void *buffer);

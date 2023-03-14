@@ -436,7 +436,7 @@ grub_sprintf (char *buffer, const char *format, ...)
           }
           else
             accuracy = 0;
-            break;
+          break;
         case 'd': case 'x':	case 'X':  case 'u':
         {
 #if defined(__i386__)

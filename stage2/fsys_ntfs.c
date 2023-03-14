@@ -847,9 +847,9 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
 	if (dest)
 		grub_memmove64 (dest, (unsigned long long)(grub_size_t)(pa + valueat(pa,0x14,unsigned int) + ofs), len);
 	
-		disk_read_func = disk_read_hook;
-		devread(mft_start + valueat(cur_mft,0x2c,unsigned int) * mft_size, pa - cur_mft + valueat(pa,0x14,unsigned int), len, 0, GRUB_LISTBLK);
-		disk_read_func = NULL;
+	disk_read_func = disk_read_hook;
+	devread(mft_start + valueat(cur_mft,0x2c,unsigned int) * mft_size, pa - cur_mft + valueat(pa,0x14,unsigned int), len, 0, GRUB_LISTBLK);
+	disk_read_func = NULL;
 	return 1;
     }
 

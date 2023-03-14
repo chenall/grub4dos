@@ -1894,8 +1894,8 @@ graphics_scroll (void)
 	if (current_term->setcolorstate)
 //		current_term->setcolorstate (COLOR_STATE_NORMAL);	//避免图形模式时，在命令行滚屏，第24行被有其他属性的空格清屏  2022-11-28
 		current_term->setcolorstate (COLOR_STATE_STANDARD);	//避免图形模式时，在命令行滚屏，第24行被有其他属性的空格清屏  2022-12-15
-    for (i=0;i<current_term->chars_per_line;++i)
-	graphics_putchar(' ',1);	
+	for (i=0;i<current_term->chars_per_line;++i)
+		graphics_putchar(' ',1);
 	current_color_64bit = clo64;
 	current_color = clo;
     gotoxy(0,fonty);
