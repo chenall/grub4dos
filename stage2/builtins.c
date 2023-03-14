@@ -1302,24 +1302,16 @@ file:
 
   char *arg1 = arg;
   arg = skip_to(0,arg);	//标记=0/1/100/200=跳过"空格,回车,换行,水平制表符"/跳过等号/跳到下一行/使用'0'替换
-  if (*arg)	//如果有变量
+  if (*arg)	//如果有命令行
 	{
-		grub_efi_char16_t *p16;
-
-		cmdline_len = grub_strlen ((const char*)arg) + 1;
-		cmdline_len *= sizeof (grub_efi_char16_t);
-		cmdline = p16 = grub_malloc (cmdline_len);
+		// UTF-8 转为 UCS-2 编码命令行
+		grub_size_t len = grub_strlen ((const char*)arg) + 1;
+		cmdline = grub_malloc (cmdline_len);
 		if (! cmdline)
 			goto failure_exec_format;
-
-		char *p8;
-
-		p8 = arg;
-		while (*p8)
-			*(p16++) = *(p8++);
-
-		*(p16++) = ' ';
-		*(--p16) = 0;
+		len = grub_utf8_to_ucs2(cmdline, len, (grub_uint8_t *)arg, len, NULL);
+		cmdline[len] = 0;
+		cmdline_len = len * sizeof (grub_efi_char16_t);
 	}
 
   image_handle = grub_load_image (current_drive, arg1, boot_image, filemax, &dev_handle);

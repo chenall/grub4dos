@@ -4997,24 +4997,7 @@ typedef struct grub_efi_console_control_protocol grub_efi_console_control_protoc
 #define GRUB_UINT8_5_TRAILINGBITS 0x1f
 #define GRUB_UINT8_6_TRAILINGBITS 0x3f
 
-#define GRUB_MAX_UTF8_PER_UTF16 4
-/* You need at least one UTF-8 byte to have one UTF-16 word.
-   You need at least three UTF-8 bytes to have 2 UTF-16 words (surrogate pairs).
- */
-#define GRUB_MAX_UTF16_PER_UTF8 1
-#define GRUB_MAX_UTF8_PER_CODEPOINT 4
-
 #define GRUB_UCS2_LIMIT 0x10000
-#define GRUB_UTF16_UPPER_SURROGATE(code) \
-  (0xD800 | ((((code) - GRUB_UCS2_LIMIT) >> 10) & 0x3ff))
-#define GRUB_UTF16_LOWER_SURROGATE(code) \
-  (0xDC00 | (((code) - GRUB_UCS2_LIMIT) & 0x3ff))
-
-#define GRUB_UCS2_LIMIT 0x10000
-#define GRUB_UTF16_UPPER_SURROGATE(code) \
-  (0xD800 | ((((code) - GRUB_UCS2_LIMIT) >> 10) & 0x3ff))
-#define GRUB_UTF16_LOWER_SURROGATE(code) \
-  (0xDC00 | (((code) - GRUB_UCS2_LIMIT) & 0x3ff))
 	
 /* Process one character from UTF8 sequence. 
    At beginning set *code = 0, *count = 0. Returns 0 on failure and
@@ -5081,13 +5064,13 @@ grub_utf8_process (grub_uint8_t c, grub_uint32_t *code, int *count)
 }
 	
 /* Convert a (possibly null-terminated) UTF-8 string of at most SRCSIZE
-   bytes (if SRCSIZE is -1, it is ignored) in length to a UTF-16 string.
+   bytes (if SRCSIZE is -1, it is ignored) in length to a UCS-2 string.
    Return the number of characters converted. DEST must be able to hold
    at least DESTSIZE characters. If an invalid sequence is found, return -1.
    If SRCEND is not NULL, then *SRCEND is set to the next byte after the
    last byte used in SRC.  */
 static inline grub_size_t
-grub_utf8_to_utf16 (grub_uint16_t *dest, grub_size_t destsize,
+grub_utf8_to_ucs2 (grub_uint16_t *dest, grub_size_t destsize,
 		    const grub_uint8_t *src, grub_size_t srcsize,
 		    const grub_uint8_t **srcend)
 {
@@ -5115,13 +5098,11 @@ grub_utf8_to_utf16 (grub_uint16_t *dest, grub_size_t destsize,
 	continue;
       if (code == 0)
 	break;
-      if (destsize < 2 && code >= GRUB_UCS2_LIMIT)
-	break;
       if (code >= GRUB_UCS2_LIMIT)
 	{
-	  *p++ = GRUB_UTF16_UPPER_SURROGATE (code);
-	  *p++ = GRUB_UTF16_LOWER_SURROGATE (code);
-	  destsize -= 2;
+	  // 超出 UCS-2 范围
+	  *p++ = '?';
+	  destsize--;
 	}
       else
 	{
@@ -5136,8 +5117,7 @@ grub_utf8_to_utf16 (grub_uint16_t *dest, grub_size_t destsize,
 }
 //--------------------------------------------------------------------------------------------
 //
-#define GRUB_MAX_UTF16_PER_UTF8 1
-#define GRUB_MAX_UTF8_PER_UTF16 4
+
 #define GRUB_LOADER_FLAG_NORETURN 1
 extern grub_err_t EXPORT_VAR(grub_errno);
 

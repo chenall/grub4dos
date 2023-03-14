@@ -1,4 +1,8 @@
 ﻿更新说明：
+2023-03-14 (a1ive)
+  修正 setkey 函数。
+  chainloader 和 kernel 命令行支持非 ASCII 字符。
+
 2023-03-11 (a1ive)
   放弃使用 EFI Handover Protocol 启动 Linux，改用 LoadFile2 提供 initrd 加载功能。
   Linux 6.2 将已废弃的 EFI Handover Protocol 设为可选项：

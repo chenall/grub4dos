@@ -3668,11 +3668,11 @@ copy_file_path (grub_efi_file_path_device_path_t *fp,
   fp->header.type = GRUB_EFI_MEDIA_DEVICE_PATH_TYPE;
   fp->header.subtype = GRUB_EFI_FILE_PATH_DEVICE_PATH_SUBTYPE;
 
-  path_name = grub_malloc (len * GRUB_MAX_UTF16_PER_UTF8 * sizeof (*path_name));
+  path_name = grub_malloc (len * sizeof (grub_efi_char16_t));
   if (!path_name)
     return;
 
-  size = grub_utf8_to_utf16 (path_name, len * GRUB_MAX_UTF16_PER_UTF8,
+  size = grub_utf8_to_ucs2 (path_name, len,
 			     (const grub_uint8_t *) str, len, 0);
   for (p = path_name; p < path_name + size; p++)
     if (*p == '/')
@@ -3713,7 +3713,6 @@ grub_efi_file_device_path (grub_efi_device_path_t *dp, const char *filename)//�
   /* FIXME why we split path in two components?  修正为什么我们把路径分成两部分*/
   file_path = grub_malloc (size															//路径尺寸
 			   + ((grub_strlen (dir_start) + 2)										//+(文件名尺寸+2)*1*2
-			      * GRUB_MAX_UTF16_PER_UTF8									//*1
 			      * sizeof (grub_efi_char16_t))							//*2
 			   + sizeof (grub_efi_file_path_device_path_t) * 2);	//+(6)*2
   if (! file_path)
