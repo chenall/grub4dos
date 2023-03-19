@@ -1,4 +1,8 @@
 ﻿更新说明：
+2023-03-19 (a1ive)
+  支持多行 initrd 命令
+  支持 cpio newc initrd
+
 2023-03-14 (a1ive)
   修正 setkey 函数。
   chainloader 和 kernel 命令行支持非 ASCII 字符。

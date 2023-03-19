@@ -973,14 +973,6 @@ load_module (char *module, char *arg)
 extern int disable_map_info;
 struct linux_kernel_header *linux_header;
 unsigned int initrd_drver_block;
-void cpio_set_field(char *field,unsigned int value);
-
-void cpio_set_field(char *field,unsigned int value)
-{
-	char buf[9];
-	sprintf(buf,"%08x",value);
-	memcpy(field,buf,8);
-}
 
 int
 load_initrd (char *initrd)

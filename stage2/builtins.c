@@ -34,6 +34,7 @@
 #endif
 
 #include "freebsd.h"
+#include "cpio.h"
 
 /* The type of kernel loaded.  */
 kernel_t kernel_type;
@@ -1056,7 +1057,7 @@ fail_free_cache:
   }
 }
 
-static unsigned char *initrdefi_mem;
+static char *initrdefi_arg = NULL;
 static unsigned long long initrdefi_size;
 
 static grub_efi_handle_t initrdefi_lf2_handle = NULL;
@@ -1092,6 +1093,14 @@ static grub_efi_guid_t initrdefi_lf2_dp_guid = GRUB_EFI_DEVICE_PATH_GUID;
 
 #define BYTES_TO_PAGES(bytes)   (((bytes) + 0xfff) >> 12)
 
+static void
+cpio_set_field (char *field, unsigned int value)
+{
+  char buf[9];
+  sprintf (buf, "%08x", value);
+  memcpy (field, buf, 8);
+}
+
 static grub_efi_status_t EFIAPI
 initrdefi_lf2_func(grub_efi_load_file2_t *this,
                    grub_efi_device_path_t *device_path,
@@ -1099,7 +1108,9 @@ initrdefi_lf2_func(grub_efi_load_file2_t *this,
                    grub_efi_uintn_t *buffer_size,
                    void *buffer)
 {
-  grub_efi_status_t status = GRUB_EFI_SUCCESS;
+  char *name = initrdefi_arg;
+  errnum = 0;
+  grub_size_t size = 0;
 
   if (this != &initrdefi_lf2 || buffer_size == NULL)
     return GRUB_EFI_INVALID_PARAMETER;
@@ -1117,9 +1128,54 @@ initrdefi_lf2_func(grub_efi_load_file2_t *this,
     return GRUB_EFI_BUFFER_TOO_SMALL;
   }
 
-  grub_memcpy(buffer, initrdefi_mem, initrdefi_size);
+  printf ("INITRD: %s\n", initrdefi_arg);
 
-  return status;
+  while (*name && *name != ' ' && *name != '\t')
+  {
+    unsigned int c_namesize = 0;
+    char *c_name = NULL;
+    grub_size_t pad_size = 0;
+    if (*name == '@') // CPIO
+    {
+      c_name = &name[1];
+      name = skip_to (SKIP_WITH_TERMINATE | 1, name);
+      c_namesize = name - c_name; // including NUL
+    }
+    grub_open (name);
+    if (errnum)
+    {
+      printf_errinfo ("Failed to open %s\n", name);
+      grub_close ();
+      return GRUB_EFI_LOAD_ERROR;
+    }
+    if (c_name) // CPIO
+    {
+      struct cpio_header *cpio = (struct cpio_header *)((char *)buffer + size);
+      char *c_name_ptr = (char *) (cpio + 1);
+      grub_memset (cpio, '0', sizeof (struct cpio_header));
+      grub_memcpy (cpio->c_magic, CPIO_MAGIC, sizeof (cpio->c_magic));
+      cpio_set_field (cpio->c_mode, 0100644);
+      cpio_set_field (cpio->c_nlink, 1);
+      cpio_set_field (cpio->c_filesize, filemax);
+      cpio_set_field (cpio->c_namesize, c_namesize);
+      memcpy (c_name_ptr, c_name, c_namesize);
+      size += cpio_image_align (sizeof(struct cpio_header) + c_namesize);
+    }
+    if (grub_read ((unsigned long long)(grub_size_t)buffer + size,
+                   filemax, 0xedde0d90) != filemax)
+    {
+      printf_errinfo ("premature end of file %s", c_name);
+      grub_close ();
+      return GRUB_EFI_LOAD_ERROR;
+    }
+    size += filemax;
+    pad_size = ALIGN_UP (filemax, 4096) - filemax;
+    grub_memset ((char *)buffer + size, 0, pad_size);
+    size += pad_size;
+    grub_close ();
+    name = skip_to (0, name);
+  }
+  return GRUB_EFI_SUCCESS;
 }
 
 /* boot */
@@ -1133,7 +1189,7 @@ boot_func (char *arg, int flags)
 
   if (kernel_type == KERNEL_TYPE_LINUX)
   {
-    if (!initrdefi_lf2_handle && initrdefi_mem)
+    if (!initrdefi_lf2_handle && initrdefi_arg)
     {
       status = efi_call_6(b->install_multiple_protocol_interfaces,
                           &initrdefi_lf2_handle,
@@ -6136,46 +6192,15 @@ static struct builtin builtin_hiddenflag =
   " The default partition is the current root device."
 };
 
-static void *
-allocate_pages_max (grub_efi_physical_address_t max,
-                    grub_efi_uintn_t pages)
-{
-  grub_efi_status_t status;
-  grub_efi_boot_services_t *b;
-  grub_efi_physical_address_t address = max;
-  if (max > 0xffffffff)
-    return 0;
-  b = grub_efi_system_table->boot_services;
-  status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_MAX_ADDRESS,
-                       GRUB_EFI_LOADER_DATA, pages, &address);
-
-  if (status != GRUB_EFI_SUCCESS)
-    return 0;
-  if (address == 0)
-  {
-    /* Uggh, the address 0 was allocated... This is too annoying,
-     * so reallocate another one.  */
-    address = max;
-    status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_MAX_ADDRESS,
-                         GRUB_EFI_LOADER_DATA, pages, &address);
-    grub_efi_free_pages (0, pages);
-    if (status != GRUB_EFI_SUCCESS)
-	  return 0;
-  }
-  return (void *) ((grub_addr_t) address);
-}
-
 /* initrd */
 static int initrd_func (char *arg, int flags);
 static int
 initrd_func (char *arg, int flags)
 {
   char *name = arg;
+  grub_size_t arg_len = 0;
   errnum = 0;
   grub_size_t size = 0;
-  grub_efi_boot_services_t *b;
-  b = grub_efi_system_table->boot_services;
-  /* TODO: add support for multiple initrd files */
   if (kernel_type != KERNEL_TYPE_LINUX)
   {
     errnum = ERR_NEED_LX_KERNEL;
@@ -6183,10 +6208,18 @@ initrd_func (char *arg, int flags)
   }
   while (*name && *name != ' ' && *name != '\t')
   {
+    if (*name == '@') // CPIO
+    {
+      unsigned int c_namesize = 1;
+      char *c_name = &name[1];
+      name = skip_to (1, name);
+      c_namesize = name - c_name; // including NUL
+      size += cpio_image_align (sizeof(struct cpio_header) + c_namesize);
+    }
     grub_open (name);
     if (errnum)
     {
-      printf_errinfo ("Failed to open %s\n", arg);
+      printf_errinfo ("Failed to open %s\n", name);
       goto fail;
     }
     size += ALIGN_UP (filemax, 4096);
@@ -6198,40 +6231,35 @@ initrd_func (char *arg, int flags)
     printf_errinfo ("invalid initrd size\n");
     goto fail;
   }
-  initrdefi_mem = allocate_pages_max (0x3fffffff, BYTES_TO_PAGES(size));
-  if (!initrdefi_mem)
+  arg_len = grub_strlen (arg) + 1;
+  if (initrdefi_arg)
   {
-    printf_errinfo ("Failed to allocate initrd memory\n");
-    goto fail;
-  }
-  grub_memset (initrdefi_mem, 0, size);
-  name = arg;
-  size = 0;
-  while (*name && *name != ' ' && *name != '\t')
-  {
-    grub_open (name);
-    if (errnum)
+    grub_size_t orig_len = grub_strlen (initrdefi_arg) + 1;
+    char *str = grub_malloc (arg_len + orig_len);
+    if (!str)
     {
-      printf_errinfo ("Failed to open %s\n", arg);
+      printf_errinfo ("Failed to allocate initrd args\n");
       goto fail;
     }
-    if (grub_read ((unsigned long long)(grub_size_t)initrdefi_mem + size,
-                   filemax, 0xedde0d90) != filemax)
+    sprintf (str, "%s %s", initrdefi_arg, arg);
+    grub_free (initrdefi_arg);
+    initrdefi_arg = str;
+  }
+  else
+  {
+    initrdefi_arg = grub_malloc (arg_len);
+    if (!initrdefi_arg)
     {
-      printf_errinfo ("premature end of file %s", arg);
+      printf_errinfo ("Failed to allocate initrd args\n");
       goto fail;
     }
-    size += ALIGN_UP (filemax, 4096);
-    grub_close ();
-    name = skip_to (0, name);
+    strcpy (initrdefi_arg, arg);
   }
-  initrdefi_size = size;
-  grub_close ();
+
+  initrdefi_size += size;
   return 1;
 
 fail:
-  if (initrdefi_mem)
-    efi_call_2 (b->free_pages, (grub_size_t)initrdefi_mem, BYTES_TO_PAGES(size));
   grub_close ();
   return 0;
 }
