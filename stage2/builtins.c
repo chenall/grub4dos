@@ -148,7 +148,7 @@ unsigned long long initrd_start_sector;
 grub_efi_uint64_t	part_addr;
 grub_efi_uint64_t	part_size;
 grub_efi_uint32_t cd_boot_entry;
-grub_efi_uint16_t cd_boot_start;
+grub_efi_uint32_t cd_boot_start;
 grub_efi_uint32_t cd_boot_size;
 grub_efi_uint32_t cd_Image_part_start;
 grub_efi_uint32_t cd_Image_disk_size;
@@ -1911,9 +1911,9 @@ configfile_func (char *arg, int flags)
 		return sprintf(CMD_RUN_ON_EXIT,"\xEC configfile %.128s",arg);
 	}
   char *new_config = config_file;
+#if 0
 	if (*arg == 0 && *config_file)
 	{
-#if 0
 	    if	(pxe_restart_config == 0)
 	    {
 		if (configfile_in_menu_init == 0)
@@ -1925,10 +1925,8 @@ configfile_func (char *arg, int flags)
 	    saved_partition = install_partition;
 	    *saved_dir = 0;	/* clear saved_dir */
 	    arg = config_file;
-#else
-    return 1;
-#endif
 	}
+#endif
   if (grub_strlen(saved_dir) + grub_strlen(arg) + 20 >= (int)sizeof(chainloader_file_orig))
 	return ! (errnum = ERR_WONT_FIT);
 
@@ -2851,6 +2849,7 @@ fill:
 	}
 	fontx = backup_x;
 	fonty = backup_y;
+	menu_tab_ext |= 2;
   return 1;
 }
 
@@ -4728,6 +4727,9 @@ close_file:
     }
   }
   grub_close();
+  if (! valid_lines)	// if no valid lines,
+    return valid_lines;	
+  menu_tab_ext |= 4;
   //old_narrow_char_indicator = narrow_indicator;
 //#undef	old_narrow_char_indicator
 
@@ -11820,6 +11822,7 @@ xyz_done:
       //进入图形模式，加载袖珍字库，防止黑屏。这样也可以使防止加载精简中文字库(不包含英文字符)的问题。
       grub_memmove ((char *)0x10000, mini_font_lzma, 820);
       font_func ("(md)0x80+2", 1);  //如果是gz压缩格式，要明确压缩文件尺寸，如：font_func ("(md)0x80+2,820", 1);
+      menu_tab_ext &= 0xfb;
       }
     }
 
@@ -11843,6 +11846,10 @@ xyz_done:
   }	//else if (safe_parse_maxint (&arg, &tmp_graphicsmode))
 #endif
 ok:
+	if (graphics_mode > 0xFF)
+		menu_tab_ext |= 1;
+	else
+		menu_tab_ext &= 0xfe;
   return graphics_mode;
 bad_arg:
 	errnum = ERR_BAD_ARGUMENT;
@@ -12959,6 +12966,7 @@ setmenu_func(char *arg, int flags)
 		else if (grub_memcmp (arg, "--u", 3) == 0)
 		{
 			menu_tab = 0;
+			menu_tab_ext = 0;
 			num_string = 0;
 			DateTime_enable = 0;			
 			menu_font_spacing = 0;

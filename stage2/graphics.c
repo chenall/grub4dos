@@ -1925,11 +1925,11 @@ void rectangle(int left, int top, int length, int width, int line)
 		y = 0;
 	z = current_bytes_per_pixel;
 	lfb = (unsigned char *)(grub_size_t)(current_phys_base + top * current_bytes_per_scanline + left * z);
+	source = current_color_64bit & 0xffffffff;
 
 	if (!length)
 		goto vert;	
 	
-	source = current_color_64bit & 0xffffffff;
 	for (i=0;i<line;++i)
 	{
 		p = lfb + current_bytes_per_scanline*i;
@@ -1969,17 +1969,20 @@ vert:
 		p = lfb + z * i;
 		for (x=(length ? (line*2) : 0);x<width;++x)
 		{
+			if (clear && (splashimage_loaded & 2))	//清除操作，并且加载了背景图像。否则采用当前32位颜色。
+				source = *(unsigned int *)(p - (unsigned char *)(grub_size_t)current_phys_base + (unsigned char *)SPLASH_IMAGE);
+
 			if (z == 3)
 			{
-				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)current_color_64bit;
-				*(p+y+2) = *(p+2) = (unsigned char)(current_color_64bit>>16);
+				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)source;
+				*(p+y+2) = *(p+2) = (unsigned char)(source>>16);
 			}
 			else if(z == 4)
 			{
-				*(unsigned int *)(p+y) = *(unsigned int *)p = (unsigned int)current_color_64bit;
+				*(unsigned int *)(p+y) = *(unsigned int *)p = (unsigned int)source;
 			}
 			else
-				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)pixel_shift((unsigned int)current_color_64bit);
+				*(unsigned short *)(p+y) = *(unsigned short *)p = (unsigned short)pixel_shift((unsigned int)source);
 			p += current_bytes_per_scanline;
 		}
 	}

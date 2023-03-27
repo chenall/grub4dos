@@ -1359,6 +1359,7 @@ extern int quit_print;
 extern struct linux_kernel_header *linux_header;
 
 extern unsigned char menu_tab;
+extern unsigned char menu_tab_ext;
 extern unsigned char num_string;
 extern unsigned char menu_font_spacing;
 extern unsigned char menu_line_spacing;
@@ -1882,6 +1883,8 @@ extern int show_menu;
 extern int silent_hiddenmenu;
 extern char *mbr;
 extern int grub_timeout;
+extern unsigned char timeout_enable;
+extern void timeout_refresh(void);
 
 extern char *wee_skip_to (char *cmdline, int flags);
 extern char *skip_to (int flags, char *cmdline);
@@ -5818,7 +5821,7 @@ typedef struct grub_packed_guid grub_packed_guid_t;
 
 extern grub_packed_guid_t VDISK_GUID;
 extern grub_efi_uint32_t cd_boot_entry;
-extern grub_efi_uint16_t cd_boot_start;
+extern grub_efi_uint32_t cd_boot_start;
 extern grub_efi_uint32_t cd_boot_size;
 extern grub_efi_uint32_t cd_Image_part_start;
 extern grub_efi_uint32_t cd_Image_disk_size;

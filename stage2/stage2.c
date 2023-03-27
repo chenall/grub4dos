@@ -819,6 +819,7 @@ clear_delay_display (int entryno)
       current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 				
     grub_timeout = -1;
+    timeout_enable = 0;
     fallback_entryno = -1;
     if (! (current_term->flags & TERM_DUMB))
       gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
@@ -830,16 +831,29 @@ int new_menu;
 int new_hotkey;
 int color_counting;
 int password_x;
+unsigned char timeout_enable = 0;
+int time0 = 0, time1 = 0;
 static int fallbacked_entries;
 static int old_c;
 static int old_c_count;
 static int old_c_count_end;
 
+void timeout_refresh(void);
+void timeout_refresh(void)
+{
+	time0++;
+	if (time0 == 1000)
+	{
+		time0 = 0;
+		time1++;
+	}
+}
+
 static void run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *heap, int entryno);
 static void
 run_menu (char *menu_entries, char *config_entries, /*int num_entries,*/ char *heap, int entryno)
 {
-  int i, time1, time2 = -1, first_entry = 0;
+  int i, /*time1,*/ time2 = -1, first_entry = 0;
 	unsigned short c;
   char *cur_entry = 0;
   char *pass_config = 0;
@@ -885,8 +899,10 @@ restart1:
   if (! show_menu)
   {
     /* Get current time.  */
-    while ((time1 = getrtsecs ()) == 0xFF)
-    ;
+//    while ((time1 = getrtsecs ()) == 0xFF)
+//    ;
+		if (grub_timeout >= 0)
+			timeout_enable = 1;
   
     while (1)
     {
@@ -916,18 +932,20 @@ restart1:
 	      	}
 	      }
 	      grub_timeout = -1;
+				timeout_enable = 0;
 	      show_menu = 1;
 	      break;
 	    }
 
       /* If GRUB_TIMEOUT is expired, boot the default entry.  */
       if (grub_timeout >=0
-          && (time1 = getrtsecs ()) != time2
+//          && (time1 = getrtsecs ()) != time2
+					&& time1 != time2
 	      /* && time1 != 0xFF */)
 	    {
 	      if (grub_timeout <= 0)
         {
-          grub_timeout = -1;
+//          grub_timeout = -1;
           goto boot_entry;
         }
 	      
@@ -1093,7 +1111,9 @@ restart1:
   if (menu_init_script_file[0] != 0 )	
     command_func(menu_init_script_file,BUILTIN_MENU);
   /* XX using RT clock now, need to initialize value */
-  while ((time1 = getrtsecs()) == 0xFF);
+//  while ((time1 = getrtsecs()) == 0xFF);
+	if (grub_timeout >= 0)
+		timeout_enable = 1;
 
   old_c = 0;
   old_c_count = 0;
@@ -1105,11 +1125,13 @@ restart1:
   while (1)
   {
     /* Initialize to NULL just in case...  */
-    if (grub_timeout >= 0 && (time1 = getrtsecs()) != time2 /* && time1 != 0xFF */)
+//    if (grub_timeout >= 0 && (time1 = getrtsecs()) != time2 /* && time1 != 0xFF */)
+		if (grub_timeout >= 0 && time1 != time2 /* && time1 != 0xFF */)
     {
       if (grub_timeout <= 0)
 	    {
 	      grub_timeout = -1;
+				timeout_enable = 0;
 	      break;
 	    }
 
@@ -1715,6 +1737,13 @@ done_key_handling:
   
   /* Attempt to boot an entry. */
 boot_entry:
+	grub_timeout = -1;
+	timeout_enable = 0;
+	if (ext_timer)
+	{
+		grub_free (ext_timer);
+		ext_timer = 0;
+	}
   setcursor (1); /* show cursor and disable splashimage */
   animated_enable_backup = animated_enable;
   animated_enable = 0;
@@ -1901,6 +1930,7 @@ reset (void)
   fallback_entryno = -1;
   fallback_entries[0] = -1;
   grub_timeout = -1;
+  timeout_enable = 0;
   menu_num_ctrl[0] = 0;
 }
   

@@ -293,14 +293,24 @@ VARIABLE(iso_types)                                                       //byte
 
 VARIABLE(menu_tab)                                                        //0x8311 菜单标签  byte
   .byte 0
-//位2: 0/1=显示按键帮助/不显示按键帮助									04
-//位3: 0/1=侧边对齐/中心对齐														08
-//位4: 0/1=高亮项目背景短/满														10
-//位5: 0/1=英文/中文																		20
-//位6: 0/1=左对齐/右对齐																40
-//位7: 0/1=打印版本信息/不打印版本信息									80
-  .byte 0 //未使用
-  .byte 0 //未使用
+/*
+位2:  0/1=显示按键帮助/不显示按键帮助                  04
+位3:  0/1=侧边对齐/中心对齐                            08
+位4:  0/1=高亮项目背景短/满                            10
+位5:  0/1=英文/中文                                    20
+位6:  0/1=左对齐/右对齐                                40
+位7:  0/1=打印版本信息/不打印版本信息                  80
+*/
+
+VARIABLE(menu_tab_ext)                                                    //0x8312 菜单标签  byte
+  .byte 0
+/*
+位0:  1=已在图形模式                                   01
+位1:  1=已加载背景图像                                 02
+位2:  1=已加载字库                                     04
+*/
+	
+  .byte 0 																																//0x8313  未使用
 
 VARIABLE(errnum)																													//0x8314		错误号  grub_error_t  64位是8字节?
 	.long	0
@@ -625,7 +635,7 @@ VARIABLE(system_functions)                            //IMG(0x8300)
 	.extent	ABS(EXT_C(builtin_cmd))                       //44
 	.extent	ABS(EXT_C(get_datetime))                      //45
 	.extent	ABS(EXT_C(find_command))                      //46
-	.extent 0				                                      //47  reserved
+	.extent 0				                                      //47  reserved  g4d是get_mmap_entry
 	.extent ABS(EXT_C(grub_memalign))			                //48  void *
 	.extent	ABS(EXT_C(grub_zalloc))			                  //49  void *
 	.extent	ABS(EXT_C(grub_malloc))                       //50  void *

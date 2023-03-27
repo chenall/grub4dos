@@ -359,6 +359,8 @@ repeat:
 		DateTime_refresh();
 	if (ext_timer)
 		(*ext_timer)(0,-1);
+	if (timeout_enable)
+		timeout_refresh();
 
 	if (!key)
 	{

@@ -3879,7 +3879,7 @@ vdisk_install (int drive, int partition)	//安装虚拟磁盘(驱动器号)
   grub_efi_handle_t *handles;		//句柄集	api返回
   grub_efi_handle_t *handle;		//句柄
   grub_efi_uintn_t count0 = 0, count1 = 0;
-  struct grub_part_data *p;
+  struct grub_part_data *p = 0;
   struct grub_disk_data	*d = get_device_by_drive(drive,0);  //由驱动器号获得设备
   grub_efi_guid_t dp_guid = GRUB_EFI_DEVICE_PATH_GUID;	//设备路径GUID 
   grub_efi_guid_t blk_io_guid = GRUB_EFI_BLOCK_IO_GUID;	//块IO_GUID
@@ -4030,6 +4030,8 @@ vdisk_install (int drive, int partition)	//安装虚拟磁盘(驱动器号)
     }
   }
 
+	if (!p->part_handle)
+		return (errnum = 0x1234);		//设置错误号>=MAX_ERR_NUM，不打印err_list[errnum]，错误信息由相应程序处理。设置错误号，可以避免死机。 2023-03-15
 	return GRUB_EFI_SUCCESS;
 }
 
