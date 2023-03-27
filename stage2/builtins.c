@@ -4338,6 +4338,7 @@ fill:
 	//graphics_cls();
 	fontx = backup_x;
 	fonty = backup_y;
+	menu_tab_ext |= 2;
     return 1;
 }
 
@@ -6524,6 +6525,7 @@ loop:
 #endif
 
 	*(unsigned long *)(0x1800820) = 1;  //2023-03-05
+	menu_tab_ext |= 4;
 	if (font_h != 16)			//迁就有的16*16字库不带0-0x7f字符(如SISO)		2023-03-01
   return valid_lines;	/* success */
 
@@ -15642,6 +15644,10 @@ bad_arg:
   }
 
 //  return old_graphics_mode;
+	if (graphics_mode > 0xFF)
+		menu_tab_ext |= 1;
+	else
+		menu_tab_ext &= 0xfe;
   return graphics_mode;
 #else
   return 0x12;
@@ -16520,7 +16526,7 @@ static struct builtin builtin_setlocal =
 };
 
 
-unsigned char menu_tab = 0;
+//unsigned char menu_tab = 0;
 unsigned char num_string = 0;
 unsigned char menu_font_spacing = 0;
 unsigned char menu_line_spacing = 0;
@@ -16727,6 +16733,7 @@ setmenu_func(char *arg, int flags)
 		else if (grub_memcmp (arg, "--u", 3) == 0)
 		{
 			menu_tab = 0;
+			menu_tab_ext = 0;
 			num_string = 0;
 			DateTime_enable = 0;			
 			menu_font_spacing = 0;

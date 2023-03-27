@@ -787,6 +787,7 @@ extern unsigned long free_mem_start;
 extern unsigned long free_mem_end;
 
 extern unsigned char menu_tab;
+extern unsigned char menu_tab_ext;
 extern unsigned char num_string;
 extern unsigned char menu_font_spacing;
 extern unsigned char menu_line_spacing;
@@ -1389,6 +1390,8 @@ extern int show_menu;
 extern int silent_hiddenmenu;
 extern char *mbr;
 extern int grub_timeout;
+extern unsigned char timeout_enable;
+extern void timeout_refresh(void);
 
 char *wee_skip_to (char *cmdline, int flags);
 char *skip_to (int flags, char *cmdline);

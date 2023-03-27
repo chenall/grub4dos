@@ -131,7 +131,8 @@ VARIABLE(config_file)
 	.word	1	/* there is 1 section */
 VARIABLE(ext_timer)																												//0x8238  外部定时器  int*
 	.long 0
-	.long 0																																	//未使用
+VARIABLE(cursor_state)																										//0x823C	鼠标状态    int
+	.long 0																																	//  bit 0=1 show cursor,bit 1=1 show splashimage
 VARIABLE(grub_timeout)                                                    //0x8240  倒计时			int
 	.long	-1
 
@@ -301,10 +302,34 @@ VARIABLE(menu_cfg) /*char menu_cfg[]*/
 	.long 0x1110
 VARIABLE(iso_types)/*char iso_types*/
 	.byte 0xff
+  .byte 0																							//0x830D  未使用
+  .byte 0																							//0x830E  未使用
+  .byte 0																							//0x830F  未使用
 	. = EXT_C(main) + 0x110
 
-VARIABLE(addr_saved_dir)
-	.long	ABS(EXT_C(saved_dir))
+//VARIABLE(addr_saved_dir)
+//	.long	ABS(EXT_C(saved_dir))
+  .byte 0																							//0x8310  未使用
+VARIABLE(menu_tab)                                    //0x8311  菜单标签  byte
+  .byte 0
+/*
+位2:  0/1=显示按键帮助/不显示按键帮助                  04
+位3:  0/1=侧边对齐/中心对齐                            08
+位4:  0/1=高亮项目背景短/满                            10
+位5:  0/1=英文/中文                                    20
+位6:  0/1=左对齐/右对齐                                40
+位7:  0/1=打印版本信息/不打印版本信息                  80
+*/
+
+VARIABLE(menu_tab_ext)                                //0x8312  菜单标签  byte
+  .byte 0
+/*
+位0:  1=已在图形模式                                   01
+位1:  1=已加载背景图像                                 02
+位2:  1=已加载字库                                     04
+*/
+	
+  .byte 0																							//0x8313  未使用
 
 VARIABLE(errnum)
 	.long	0
@@ -15053,6 +15078,10 @@ ENTRY(console_getkey)
 	call beep_func
 	addl $8, %esp
 2:
+	cmpb $0, timeout_enable
+	je 2f
+	call timeout_refresh
+2:
 	cmpb $0, DateTime_enable
 	je 2f
 	call DateTime_refresh
@@ -15209,6 +15238,10 @@ ENTRY(console_checkkey)
 	pushl beep_buf
 	call beep_func
 	addl $8, %esp
+2:
+	cmpb $0, timeout_enable
+	je 2f
+	call timeout_refresh
 2:
 	cmpb $0, DateTime_enable
 	je 2f
@@ -15449,8 +15482,8 @@ ENTRY(console_beep)
  *                      %cl = cursor ending scanline
  */
 
-VARIABLE(cursor_state)
-	.long	0 //bit 0=1 show cursor,bit 1=1 show splashimage
+//VARIABLE(cursor_state)
+//	.long	0 //bit 0=1 show cursor,bit 1=1 show splashimage
 console_cursor_shape:
 	.word	0
 
@@ -17086,9 +17119,9 @@ VARIABLE(grub_putchar)
 	.long	ABS(EXT_C(builtin_cmd))
 	.long	ABS(EXT_C(get_datetime))
 	.long	ABS(EXT_C(find_command))
+	.long	ABS(EXT_C(get_mmap_entry))						//47
 	.long 0				//reserved
-	.long 0				//reserved
-	.long	ABS(EXT_C(get_mmap_entry))
+	.long ABS(EXT_C(grub_zalloc))								//49
 	.long	ABS(EXT_C(grub_malloc))
 	.long	ABS(EXT_C(grub_free))//51
 	.long  0             // list_partitions
