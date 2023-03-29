@@ -623,12 +623,17 @@ void vbe_fill_color (unsigned int color);
 void
 vbe_fill_color (unsigned int color)
 {
-  unsigned int i;
+//  unsigned int i;
+  unsigned int x, y;
   unsigned char *p;
   
-	for (i=0;i<(current_x_resolution*current_y_resolution);i++)
+//	for (i=0;i<(current_x_resolution*current_y_resolution);i++)
+	for(y=0;y<current_y_resolution;++y)
 	{
-		p = (unsigned char *)IMAGE_BUFFER + 16 + i*current_bytes_per_pixel;
+		for(x=0;x<current_x_resolution;++x)
+	{
+//		p = (unsigned char *)IMAGE_BUFFER + 16 + i*current_bytes_per_pixel;
+		p = (unsigned char *)IMAGE_BUFFER + 16 + x*current_bytes_per_pixel + y*current_bytes_per_scanline;
 		switch (current_bits_per_pixel)
 		{
 			case 32:
@@ -642,6 +647,7 @@ vbe_fill_color (unsigned int color)
 				*(unsigned short *)p = (unsigned short)pixel_shift(color);
 				break;
 		}
+	}
 	}
 }
 

@@ -3156,6 +3156,8 @@ partition_info_init (struct efidisk_data *devices)
       for (d1 = devices; d1; d1 = d1->next)
       {       
         d = get_device_by_drive (drive, 0);
+        if (!d)			//如果设备=0, 错误  2023-03-26
+          return;
         dp1 = grub_efi_get_device_path (d->device_handle);  //获得设备路径
         if (grub_efi_compare_device_paths (dp1, d1->device_path) == -1)
         {         
@@ -3171,6 +3173,7 @@ partition_info_init (struct efidisk_data *devices)
     if (get_efi_device_boot_path (drive, 0))
     {
       part_data = get_partition_info (drive, part_data->partition);
+      if (part_data)	//2023-03-26
       part_data->partition_boot = 1;
     }
 	}
@@ -3791,7 +3794,10 @@ vpart_install (int drive, struct grub_part_data *part) //安装虚拟分区
   grub_efi_boot_services_t *b;
   b = grub_efi_system_table->boot_services;
 //  int present;
-  struct grub_disk_data	*d = get_device_by_drive(drive,0);
+  struct grub_disk_data	*d;
+  d = get_device_by_drive(drive,0);
+  if (!d)			//如果设备=0, 错误  2023-03-26
+    return GRUB_EFI_NOT_FOUND;
   vpart = 0;
   vpart = grub_zalloc (sizeof(grub_efivdisk_t));
   if (vpart == 0)
@@ -3880,7 +3886,10 @@ vdisk_install (int drive, int partition)	//安装虚拟磁盘(驱动器号)
   grub_efi_handle_t *handle;		//句柄
   grub_efi_uintn_t count0 = 0, count1 = 0;
   struct grub_part_data *p = 0;
-  struct grub_disk_data	*d = get_device_by_drive(drive,0);  //由驱动器号获得设备
+  struct grub_disk_data	*d;
+  d = get_device_by_drive(drive,0);  //由驱动器号获得设备
+  if (!d)			//如果设备=0, 错误  2023-03-26
+    return GRUB_EFI_NOT_FOUND;
   grub_efi_guid_t dp_guid = GRUB_EFI_DEVICE_PATH_GUID;	//设备路径GUID 
   grub_efi_guid_t blk_io_guid = GRUB_EFI_BLOCK_IO_GUID;	//块IO_GUID
   vdisk = 0;
@@ -4153,7 +4162,10 @@ grub_load_image (unsigned int drive, const char *filename, void *boot_image, uns
   if (drive >= 0xa0)
   {
     //windows启动cdrom时，只启动第一个cdrom，因此如果有多个cdrom，必须把要启动的cdrom移动到第一位。
-    struct grub_disk_data *d = get_device_by_drive (drive,0);
+    struct grub_disk_data *d;
+    d = get_device_by_drive (drive,0);
+    if (!d)			//如果设备=0, 错误  2023-03-26
+      return NULL;
     saved_handle = d->device_handle; //不能使用“*devhandle”。启动WePE_64_V2.2.iso时错误提示：0xc000000f。可能对应的块IO驱动不对。
     if (!orig_locate_handle)
     {

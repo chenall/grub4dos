@@ -1206,6 +1206,8 @@ boot_func (char *arg, int flags)
   map_to_svbus(grub4dos_self_address); //为svbus复制插槽
   //不能释放，否则无法启动
   //grub_efi_fini ();
+	if (!image_handle)
+		return 0;
   printf_debug ("StartImage: %x\n", image_handle);				//开始映射
   status = efi_call_3 (b->start_image, image_handle, 0, NULL);			//启动映像
   printf_debug ("StartImage returned 0x%lx\n", (grub_size_t) status);	//开始映射返回
@@ -1323,6 +1325,8 @@ chainloader_func (char *arg, int flags)
       errnum = 0;
     } 
     image_handle = grub_load_image (current_drive, EFI_REMOVABLE_MEDIA_FILE_NAME, 0, 0, &dev_handle);	//虚拟磁盘启动
+		if (!image_handle)
+			goto failure_exec_format_0;
     if (debug > 1)
     {
       grub_efi_loaded_image_t *image0 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
@@ -1371,6 +1375,8 @@ file:
 	}
 
   image_handle = grub_load_image (current_drive, arg1, boot_image, filemax, &dev_handle);
+	if (!image_handle)
+		goto failure_exec_format_0;
   grub_efi_loaded_image_t *image1 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
   //UEFI固件已经设置了“image1->device_handle = d->handle”。他没有分区信息，启动不了某些bootmgfw.efi。必须在此填充对应分区的句柄。
 //  d = get_device_by_drive (current_drive,0);
@@ -6952,7 +6958,11 @@ add_part_data (int drive)
     {
       if (*next_partition_type == 0 || *next_partition_type == 5 || *next_partition_type == 0xf)
         continue;
-      
+      //如果分区已经存在，则跳过
+			p = get_partition_info (current_drive, *next_partition_partition); //2023-03-26
+			if (p && p->partition_start)
+				continue;
+			
       p = grub_zalloc (sizeof (*p));  //分配内存	
       if(! p)  //如果分配内存失败
         return;
@@ -6983,6 +6993,7 @@ add_part_data (int drive)
     if (get_efi_device_boot_path (drive, 1))
     {
       part_data = get_partition_info (drive, part_data->partition);
+      if (part_data)	//2023-03-26
       part_data->partition_boot = 1;
     }
 
@@ -7267,28 +7278,16 @@ struct drive_map_slot
         if (drive != INITRD_DRIVE && in_range (p, drive))	//如果驱动器不是0x22及0x23,并且排列存在
         {
           df = get_device_by_drive (drive,0);
+          if (!df)	//避免驱动器不存在时死机  2023-03-26
+            continue;
           if (df->drive == drive && df->sector_count) //是映射驱动器
           {
             //卸载碎片插槽
-            if (df && df->fragment == 1)  //有碎片
-            {
+            if (df->fragment == 1)  //有碎片
               unload_fragment_slot (drive);
-#if 0
-              q = (struct fragment_map_slot *)&disk_fragment_map;     //q=碎片映射插槽起始位置 *q=插槽尺寸 	b6e0
-              filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;          //碎片映射插槽终止位置
-              q = fragment_map_slot_find(q, drive);		                //q=from驱动器在碎片映射插槽起始位置
-              if (q)  		//0/1=没有找到驱动器/找到驱动器位置
-              {
-                void *start = filename - q->slot_len;
-                int len = q->slot_len;
-                grub_memmove (q, (char *)q + q->slot_len, filename - (char *)q - q->slot_len);
-                grub_memset (start, 0, len);
-              }
-#endif
-            }
+						//卸载映射磁盘,卸载映射分区
+						uninstall (drive, df);	//2023-03-28
           }
-          //卸载映射磁盘,卸载映射分区
-          uninstall (drive, df);
         } 
       }
 #endif
@@ -9018,6 +9017,27 @@ resume:
   if (! rawwrite (current_drive, 0, (unsigned long long)(grub_size_t)mbr))
     return 0;
 
+	if (new_type == 0 && new_start == 0 && new_len == 0)	//删除分区  2023-03-26
+	{
+		struct grub_part_data *p, *p_previous = 0;
+		for (p = partition_info; p; p_previous = p, p = p->next)
+		{
+			if (p->drive != current_drive || p->partition != current_partition)
+				continue;
+
+			if (p == partition_info)  //首位
+			{
+				if (p->next == 0)
+				  partition_info = 0;
+				else
+					partition_info = p->next;
+			}
+			else if (p_previous)  //其他
+				p_previous->next = p->next; 
+		}
+	}
+	else
+		add_part_data (current_drive);	//使立即生效  2023-03-26
   return 1;
 }
 
@@ -11805,7 +11825,9 @@ xyz_done:
     
     if (IMAGE_BUFFER)
       grub_free (IMAGE_BUFFER);
-    IMAGE_BUFFER = grub_malloc (current_x_resolution * current_y_resolution * current_bytes_per_pixel);//应当在加载图像前设置
+//    IMAGE_BUFFER = grub_malloc (current_x_resolution * current_y_resolution * current_bytes_per_pixel);//应当在加载图像前设置
+		//可能info->pixels_per_scanline >= info->width    2023-03-26
+		IMAGE_BUFFER = grub_malloc (current_bytes_per_scanline * current_y_resolution);//应当在加载图像前设置
     if (!JPG_FILE)
     {
     JPG_FILE = grub_malloc (0x8000);
@@ -11861,11 +11883,12 @@ struct builtin builtin_graphicsmode =
   "graphicsmode",
   graphicsmode_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST,
-  "graphicsmode [--info] [MODE] [-1 | RANGE_X_RESOLUTION]",
+  "graphicsmode [--info] [--test] [MODE] [-1 | RANGE_X_RESOLUTION]",
   "Examples:\n"
   "graphicsmode (display graphic information)\n"
   "graphicsmode ;; set /A GMODE=%@retval%  (get current mode)\n"
   "graphicsmode --info (Returns the currently supported graphics mode)\n"
+  "graphicsmode --test (Test whether the specified graphics mode exists)\n"
   "graphicsmode -1 (auto select mode)\n"
   "graphicsmode -1 800 (switch to highest mode for 800 pixel width)\n"
   "graphicsmode -1 100:1000 (The highest mode available in the range of x = 100-1000)"

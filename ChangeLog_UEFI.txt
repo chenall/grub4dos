@@ -1,4 +1,11 @@
 ﻿更新说明：
+2023-03-29 (yaya)
+  完善外部命令进度条。
+  改进ISO启动。
+  修正splashimage函数。issues #401
+  修正partnew函数。issues #402
+  修正map函数的unmap功能。issues #403
+
 2023-03-19 (a1ive)
   支持多行 initrd 命令
   支持 cpio newc initrd
