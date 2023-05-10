@@ -1,4 +1,12 @@
 ﻿更新说明：
+2023-05-10 (yaya)
+  修正udf光盘加载到2Gb以上内存失败的问题。
+  确定引导驱动器恒定为0x80。
+  支持 USB 逻辑单元设备。
+  kernel 函数增加 --handover 和 --loadfile2 参数，以便强制使用 EFI Handover Protocol 或 LoadFile2 协议。
+  增加打印路径的内部函数，以便不支持设备路径到文本协议的设备使用。
+  改进设备启动。issues #404, issues #405
+
 2023-03-29 (yaya)
   完善外部命令进度条。
   改进ISO启动。

@@ -152,6 +152,7 @@ grub_efi_uint32_t cd_boot_start;
 grub_efi_uint32_t cd_boot_size;
 grub_efi_uint32_t cd_Image_part_start;
 grub_efi_uint32_t cd_Image_disk_size;
+grub_efi_uint32_t cd_map_count = 0;
 struct grub_part_data *part_data;
 
 void set_full_path(char *dest, char *arg, grub_u32_t max_len);
@@ -916,7 +917,6 @@ complete:
   {
     cdrom_volume_descriptor_t *vol = (cdrom_volume_descriptor_t *)cache;
     eltorito_catalog0_t *catalog = NULL;
-    int no_open;
 
     if (get_diskinfo (drive, &tmp_geom, 0))	//获得当前驱动器的磁盘信息
     {
@@ -943,41 +943,33 @@ complete:
       goto fail_close_free_cache;
 
     catalog = (eltorito_catalog0_t *) cache;
-    filepos = *((grub_efi_uint32_t*) vol->boot_record_volume.elt_catalog) * 0x800;  //启动目录文件所在扇区*0x800
+    filepos = (grub_size_t)(*((grub_efi_uint32_t*) vol->boot_record_volume.elt_catalog)) * 0x800;  //启动目录文件所在扇区*0x800
     grub_read ((unsigned long long)(grub_size_t) catalog, 0x800, 0xedde0d90); //读启动目录文件扇区 
     if (catalog[0].indicator1 != ELTORITO_ID_CATALOG) //0x01
       goto fail_close_free_cache;
-
-    no_open = 1;
-    for (k = 0; catalog[k].indicator88 == ELTORITO_ID_SECTION_BOOTABLE; k++)
+    //查找UEFI启动入口
+    for (k = 0; k < 8; k++)
     {
+      if (catalog[k].indicator1 == 0x91 || catalog[k].platform_id == 0xEF || catalog[k].section_entries == 1)
+        break;
+    }
+    if (k >= 8)
+      k = 0;
+    if (catalog[k].indicator88 != ELTORITO_ID_SECTION_BOOTABLE)
+      goto fail_close_free_cache;
 #define	BS	((struct master_and_dos_boot_sector *)tmp)
-      if (!no_open)
-      {
-        no_open = 1;
-        if (flags)
-        {
-          if (!grub_open (chainloader_file_orig))   //二次打开，是由于map_func会破坏grub_open环境
-          goto fail_free_cache;
-        }
-        else
-        {
-          grub_sprintf (chainloader_file, "(0x%X)+0x%lX\0", drive, (unsigned long long)tmp_geom.total_sectors);
-          if (! grub_open (chainloader_file))
-            goto fail_free_cache;
-        }
-      }
-      filepos = catalog[k].lba * 0x800;
+      filepos = (grub_size_t)catalog[k].lba * 0x800;    //避免64位被截断   2023-04-24
       grub_read ((unsigned long long)(grub_size_t) tmp, 0x200, 0xedde0d90); //读启动映像mbr
       v_mbr = 1;
       v_bpb = 1;
+      putchar_hooked = (unsigned char*)1;   //不在屏幕显示信息
       v_mbr = probe_mbr (BS, 0, 1, 0);
       v_bpb = probe_bpb(BS);
+      putchar_hooked = 0;
 
       if (BS->boot_signature != 0xAA55                                             //没有磁盘签名
                 || (v_mbr && v_bpb))  //即无分区表，又无BPB表
-        continue;
-
+        goto fail_close_free_cache;
       if (!v_mbr || v_mbr == 4)  //如果有分区表(排除起始扇区为零)
       {
         for (i = 0; i < 4; i++) //
@@ -999,7 +991,8 @@ complete:
         cd_Image_part_start = 0;
       }
 
-//      alloc = grub_memalign (512, cd_Image_disk_size << 9);   //有时cd_Image_disk_size太大，分配不了内存
+    if (flags)  
+    {
       grub_efi_uintn_t pages;
       pages = (cd_Image_disk_size + 7) >> 3;
       status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,  
@@ -1011,24 +1004,13 @@ complete:
         goto fail_close_free_cache;
       }      
 
-      filepos = catalog[k].lba * 0x800;
+      filepos = (grub_size_t)catalog[k].lba * 0x800;    //避免64位被截断   2023-04-24
       grub_read (address, (unsigned long long)cd_Image_disk_size << 9 , 0xedde0d90);
       grub_close ();
-      grub_sprintf (chainloader_file, "(md)0x%lX+0x%lX (0x60)\0", (address >> 9) + cd_Image_part_start, cd_Image_disk_size - cd_Image_part_start); 
+      grub_sprintf (chainloader_file, "(md)0x%lX+0x%lX (0x%x)\0", (address >> 9) + cd_Image_part_start, cd_Image_disk_size - cd_Image_part_start, 0x60 + cd_map_count);
       map_func (chainloader_file, 1);
-      i = find_specified_file(0x60, 0xffffff, EFI_REMOVABLE_MEDIA_FILE_NAME); //搜索文件 bootx64.efi
-      efi_call_2 (b->free_pages, address, pages);	//释放页
-      if (i)
-        goto aaaa;
-
-      no_open = 0;
-#undef BS
     }
-    map_func ("--unmap=0x60", 1);
-    goto fail_free_cache;
-
-aaaa:
-    map_func ("--unmap=0x60", 1);
+#undef BS
     cd_boot_entry = k;
     cd_boot_start = catalog[k].lba;												//19*800=c800
 
@@ -1045,6 +1027,18 @@ aaaa:
     if (v_mbr && v_mbr != 4)
       cd_Image_disk_size = 0; //没有分区表，则清除
     grub_free (cache); 
+    for (p = partition_info; p && flags; p = p->next)
+    {
+      if (p->drive == drive)
+      {
+        p->boot_start = cd_boot_start;
+        p->boot_size = cd_boot_size;
+        p->boot_entry = k;
+        p->partition_start = cd_Image_part_start;
+        p->partition_size = cd_Image_disk_size;
+      }
+    }
+
     return 1;
   
 fail_close_free_cache:
@@ -1057,11 +1051,19 @@ fail_free_cache:
   }
 }
 
+#if 1 //2023-04-30
+static unsigned char *initrdefi_mem;
+static void *linuxefi_mem;
+static unsigned long long linuxefi_size;
+static unsigned int linuxefi_handover_offset;
+struct linux_kernel_params *linuxefi_params;
+static char *linuxefi_cmdline;
+#endif
 static char *initrdefi_arg = NULL;
 static unsigned long long initrdefi_size;
 
 static grub_efi_handle_t initrdefi_lf2_handle = NULL;
-
+#if 1 //2023-04-30
 static initrd_media_device_path_t initrdefi_lf2_dp =
 {
   {
@@ -1090,8 +1092,31 @@ static grub_efi_load_file2_t initrdefi_lf2 = { initrdefi_lf2_func };
 
 static grub_efi_guid_t initrdefi_lf2_guid = GRUB_EFI_LOAD_FILE2_PROTOCOL_GUID;
 static grub_efi_guid_t initrdefi_lf2_dp_guid = GRUB_EFI_DEVICE_PATH_GUID;
+#endif
 
 #define BYTES_TO_PAGES(bytes)   (((bytes) + 0xfff) >> 12)
+#if 1 //2023-04-30
+typedef void (*handover_func) (void *, grub_efi_system_table_t *, void *);
+
+static void linuxefi_boot (void *kernel_addr, grub_off_t offset, void *kernel_params);
+static void
+linuxefi_boot (void *kernel_addr, grub_off_t offset,
+		             void *kernel_params)
+{
+  grub_efi_loaded_image_t *loaded_image = NULL;
+  handover_func hf;
+  /*
+   * Since the EFI loader is not calling the LoadImage() and StartImage()
+   * services for loading the kernel and booting respectively, it has to
+   * set the Loaded Image base address.
+   */
+  loaded_image = grub_efi_get_loaded_image (grub_efi_image_handle);
+  if (loaded_image)
+    loaded_image->image_base = kernel_addr;
+  hf = (handover_func)((char *)kernel_addr + offset);
+  hf (grub_efi_image_handle, grub_efi_system_table, kernel_params);
+}
+#endif
 
 static void
 cpio_set_field (char *field, unsigned int value)
@@ -1179,6 +1204,9 @@ initrdefi_lf2_func(grub_efi_load_file2_t *this,
 }
 
 /* boot */
+int kernel_load_type;
+#define KERTNEL_LOAD_HANDOVER   1
+#define KERTNEL_LOAD_LOADFILE2  2
 static int boot_func (char *arg, int flags);
 static int
 boot_func (char *arg, int flags)
@@ -1189,7 +1217,28 @@ boot_func (char *arg, int flags)
 
   if (kernel_type == KERNEL_TYPE_LINUX)
   {
-    if (!initrdefi_lf2_handle && initrdefi_arg)
+    if (kernel_load_type == KERTNEL_LOAD_HANDOVER)
+    {
+    int offset = 0;
+#if !defined(__i386__)
+    offset = 512;
+#endif
+    __asm__ volatile ("cli");
+
+    linuxefi_boot (linuxefi_mem, linuxefi_handover_offset + offset, linuxefi_params);
+    /* should not return */
+    if (initrdefi_mem)
+      efi_call_2 (b->free_pages, (grub_size_t)initrdefi_mem,
+      BYTES_TO_PAGES(linuxefi_params->ramdisk_size));
+    if (linuxefi_cmdline)
+      efi_call_2 (b->free_pages, (grub_size_t)linuxefi_cmdline,
+      BYTES_TO_PAGES(linuxefi_params->cmdline_size + 1));
+    if (linuxefi_mem)
+      efi_call_2 (b->free_pages, (grub_size_t)linuxefi_mem, BYTES_TO_PAGES(linuxefi_size));
+    if (linuxefi_params)
+      efi_call_2 (b->free_pages, (grub_size_t)linuxefi_params, BYTES_TO_PAGES(16384));
+    }
+    else if (!initrdefi_lf2_handle && initrdefi_arg)
     {
       status = efi_call_6(b->install_multiple_protocol_interfaces,
                           &initrdefi_lf2_handle,
@@ -1280,7 +1329,6 @@ efi_open_protocol_wrapper (grub_efi_handle_t handle, grub_efi_guid_t *protocol,
 #endif
 static grub_efi_char16_t *cmdline;
 static grub_ssize_t cmdline_len;
-static grub_efi_handle_t dev_handle;
 
 /* chainloader */
 static int chainloader_func (char *arg, int flags);
@@ -1294,6 +1342,13 @@ chainloader_func (char *arg, int flags)
 	b = grub_efi_system_table->boot_services;		//引导服务
   static grub_efi_physical_address_t address;
   static grub_efi_uintn_t pages;
+  grub_efi_handle_t *handle=0, *handles;
+  struct grub_disk_data	*d = 0;
+  grub_efi_device_path_t *dp, *tmp_dp;
+  grub_efi_uintn_t count;
+  static grub_efi_guid_t block_io_guid = GRUB_EFI_BLOCK_IO_GUID;
+  image_handle = 0;
+  static grub_efi_handle_t temp;
   
   grub_memset(chainloader_file, 0, 256);
   set_full_path(chainloader_file,arg,sizeof(chainloader_file)); //设置完整路径(补齐驱动器号,分区号)  /efi/boot/bootx64.efi -> (hd0,0)/efi/boot/bootx64.efi
@@ -1314,6 +1369,7 @@ chainloader_func (char *arg, int flags)
   //虚拟盘类型
   if (! *filename)
 	{
+#if 0
     if (current_drive >= 0xa0)  //如果是光盘，并且存在“/EFI/BOOT/BOOTX64.EFI(BOOTIA32.EFI)”,则优先加载
     {
       if (find_specified_file(current_drive, 0, EFI_REMOVABLE_MEDIA_FILE_NAME) == 1) //
@@ -1324,19 +1380,68 @@ chainloader_func (char *arg, int flags)
       }
       errnum = 0;
     } 
-    image_handle = grub_load_image (current_drive, EFI_REMOVABLE_MEDIA_FILE_NAME, 0, 0, &dev_handle);	//虚拟磁盘启动
+#endif
+    part_data = 0;
+    if (current_partition == 0xFFFFFF)  //如果没有指定启动分区
+      part_data = get_boot_partition (current_drive);
+    else
+      part_data = get_partition_info (current_drive, current_partition);
+    if (!part_data)
+      return (!(errnum = ERR_NO_DISK));
+
+    printf_debug("0_part-handle=%x\n",part_data->part_handle);
+    if (!part_data->part_handle)
+      goto aaa;
+    dp = grub_efi_get_device_path (part_data->part_handle);
+    if (debug > 1)
+      grub_efi_print_device_path(dp);
+    image_handle = grub_load_image (dp, EFI_REMOVABLE_MEDIA_FILE_NAME, 0);	//虚拟磁盘启动
+aaa:
+    if (!image_handle)
+    {
+      d = get_device_by_drive (current_drive,0);
+      if (!d)
+        return (!(errnum = ERR_NO_DISK));    
+
+      printf_debug("1_dev-handle=%x\n",d->device_handle);
+      dp = grub_efi_get_device_path (d->device_handle);
+      if (debug > 1)
+        grub_efi_print_device_path(dp);
+
+      handles = grub_efi_locate_handle (GRUB_EFI_BY_PROTOCOL, &block_io_guid, 0, &count); //定位句柄  返回句柄集及句柄数
+      for (handle = handles; count--; handle++)
+      {
+        printf_debug("2_handle=%x\n",*handle);
+        tmp_dp = grub_efi_get_device_path (*handle);											//由句柄获得路径 
+        if (debug > 1)
+          grub_efi_print_device_path(tmp_dp);
+        if (!grub_efi_is_child_dp (tmp_dp, dp))														//如果相等,继续   返回: 0/1=不相等或包含/相等
+          continue;
+        image_handle = grub_load_image (tmp_dp, EFI_REMOVABLE_MEDIA_FILE_NAME, 0);	//虚拟磁盘启动
+        if (image_handle)																									//如果获得映像句柄, 退出
+          break;
+      }
+      if (!image_handle)
+      {
+        printf_debug("3_dev-handle=%x\n",d->device_handle);
+        dp = grub_efi_get_device_path (d->device_handle);
+        if (debug > 1)
+          grub_efi_print_device_path(dp);
+        image_handle = grub_load_image (dp, EFI_REMOVABLE_MEDIA_FILE_NAME, 0);	//虚拟磁盘启动
+      }
+    }
+
 		if (!image_handle)
 			goto failure_exec_format_0;
     if (debug > 1)
     {
       grub_efi_loaded_image_t *image0 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
-      printf_debug ("image=0x%x image_handle=%x",image0,image_handle);
+      printf_debug ("image=0x%x image_handle=%x\n",image0,image_handle);
     }
 		kernel_type = KERNEL_TYPE_CHAINLOADER;
 		return 1;
 	}
 
-file:
   //文件类型
   grub_open (arg);
   if (errnum)
@@ -1366,28 +1471,64 @@ file:
 	{
 		// UTF-8 转为 UCS-2 编码命令行
 		grub_size_t len = grub_strlen ((const char*)arg) + 1;
-		cmdline = grub_malloc (cmdline_len);
+//		cmdline = grub_malloc (cmdline_len);    //cmdline_len 未赋值，实测为0，产生内存溢出
+		cmdline = grub_malloc (len*2);  //避免产生内存溢出  2023-04-29
 		if (! cmdline)
 			goto failure_exec_format;
-		len = grub_utf8_to_ucs2(cmdline, len, (grub_uint8_t *)arg, len, NULL);
+		len = grub_utf8_to_ucs2(cmdline, len, (grub_uint8_t *)arg, len, NULL); //(ucs2地址，ucs2字节数，utf8地址，utf8字节数)
 		cmdline[len] = 0;
 		cmdline_len = len * sizeof (grub_efi_char16_t);
 	}
-
-  image_handle = grub_load_image (current_drive, arg1, boot_image, filemax, &dev_handle);
+#if 0
+  d = get_device_by_drive (current_drive,0);
+  if (!d)
+    return (!(errnum = ERR_NO_DISK));    
+  dp = grub_efi_get_device_path (d->device_handle);
+#else
+  if (current_partition == 0xFFFFFF)
+  {
+    d = get_device_by_drive (current_drive,0);
+    if (!d)
+      return (!(errnum = ERR_NO_DISK));    
+    dp = grub_efi_get_device_path (d->device_handle);
+    temp = d->device_handle;
+  }
+  else
+  {
+    part_data = get_partition_info (current_drive, current_partition);
+    if (!part_data)
+      return (!(errnum = ERR_NO_DISK));
+    dp = grub_efi_get_device_path (part_data->part_handle);
+    temp = part_data->part_handle;
+  }
+#endif
+  if (debug > 1)
+    grub_efi_print_device_path(dp);
+  image_handle = grub_load_image (dp, arg1, boot_image);
 	if (!image_handle)
 		goto failure_exec_format_0;
   grub_efi_loaded_image_t *image1 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
   //UEFI固件已经设置了“image1->device_handle = d->handle”。他没有分区信息，启动不了某些bootmgfw.efi。必须在此填充对应分区的句柄。
-//  d = get_device_by_drive (current_drive,0);
-//  image1->device_handle = d->handle;
-  image1->device_handle = dev_handle;
+//  image1->device_handle = dev_handle;
+#if 0
+  image1->device_handle = d->device_handle;
+#else
+  image1->device_handle = temp;
+#endif
   if (cmdline)
   {
 		image1->load_options = cmdline;	//加载选项
 		image1->load_options_size = cmdline_len;//加载选项尺寸
   }
-  printf_debug ("image=%x device_handle=%x",image1,dev_handle);//113b8e40,11b3d398
+  
+  //当从存储器加载图像时，LoadImage不设置设备处理程序，因此有必要在这里明确设置它。
+  image1 = grub_efi_get_loaded_image (image_handle);	//由映像句柄获得装载映像
+  if (! image1)
+  {
+    printf_errinfo ("no loaded image available\n");  //"没有可用的加载图像"
+    goto failure_exec_format;
+  }
+  printf_debug ("image=%x device_handle=%x\n",image1,image1->device_handle);
   grub_close ();	//关闭文件
 #if 0
   //拦截对OpenProtocol的调用
@@ -6209,12 +6350,14 @@ initrd_func (char *arg, int flags)
   grub_size_t arg_len = 0;
   errnum = 0;
   grub_size_t size = 0;
+  grub_efi_boot_services_t *b = grub_efi_system_table->boot_services;
+
   if (kernel_type != KERNEL_TYPE_LINUX)
   {
     errnum = ERR_NEED_LX_KERNEL;
     return 0;
   }
-  while (*name && *name != ' ' && *name != '\t')
+  while (*name && *name != ' ' && *name != '\t')  //确定参数占用空间
   {
     if (*name == '@') // CPIO
     {
@@ -6234,26 +6377,68 @@ initrd_func (char *arg, int flags)
     grub_close ();
     name = skip_to (0, name);
   }
-  if (!size)
+  if (!size)  //总尺寸
   {
     printf_errinfo ("invalid initrd size\n");
     goto fail;
   }
-  arg_len = grub_strlen (arg) + 1;
-  if (initrdefi_arg)
+  
+  if (kernel_load_type == KERTNEL_LOAD_HANDOVER)
   {
-    grub_size_t orig_len = grub_strlen (initrdefi_arg) + 1;
-    char *str = grub_malloc (arg_len + orig_len);
+    initrdefi_mem = grub_efi_allocate_any_pages (BYTES_TO_PAGES(size));
+    if (!initrdefi_mem)
+    {
+      printf_errinfo ("Failed to allocate initrd memory\n");
+      goto fail_old;
+    }
+    grub_memset (initrdefi_mem, 0, size);
+    name = arg;
+    size = 0;
+    while (*name && *name != ' ' && *name != '\t')
+    {
+      grub_open (name);
+      if (errnum)
+      {
+        printf_errinfo ("Failed to open %s\n", arg);
+        goto fail_old;
+      }
+      if (grub_read ((unsigned long long)(grub_size_t)initrdefi_mem + size,
+                   filemax, 0xedde0d90) != filemax)
+      {
+        printf_errinfo ("premature end of file %s", arg);
+        goto fail_old;
+      }
+      size += ALIGN_UP (filemax, 4096);
+      grub_close ();
+      name = skip_to (0, name);
+    }
+    linuxefi_params->ramdisk_size = size;
+    linuxefi_params->ramdisk_image = (grub_uint32_t)(grub_addr_t) initrdefi_mem;
+    grub_close ();
+    return 1;
+      
+fail_old:
+    if (initrdefi_mem)
+      efi_call_2 (b->free_pages, (grub_size_t)initrdefi_mem, BYTES_TO_PAGES(size));
+    grub_close ();
+    return 0;
+  }
+  
+  arg_len = grub_strlen (arg) + 1;  //参数尺寸
+  if (initrdefi_arg)  //如果内存盘已经存在
+  {
+    grub_size_t orig_len = grub_strlen ((const char *)initrdefi_arg) + 1; //内存盘尺寸
+    char *str = grub_malloc (arg_len + orig_len);           //重现分配内存盘地址
     if (!str)
     {
       printf_errinfo ("Failed to allocate initrd args\n");
       goto fail;
     }
-    sprintf (str, "%s %s", initrdefi_arg, arg);
-    grub_free (initrdefi_arg);
-    initrdefi_arg = str;
+    sprintf (str, "%s %s", initrdefi_arg, arg);             //复制新旧参数到新内存盘
+    grub_free (initrdefi_arg);                              //释放旧内存盘
+    initrdefi_arg = str;                                    //新内存盘地址
   }
-  else
+  else                //如果内存盘不存在
   {
     initrdefi_arg = grub_malloc (arg_len);
     if (!initrdefi_arg)
@@ -6262,10 +6447,9 @@ initrd_func (char *arg, int flags)
       goto fail;
     }
     strcpy (initrdefi_arg, arg);
+    initrdefi_size += size;
+    return 1;
   }
-
-  initrdefi_size += size;
-  return 1;
 
 fail:
   grub_close ();
@@ -6306,7 +6490,165 @@ static int kernel_func (char *arg, int flags);
 static int
 kernel_func (char *arg, int flags)
 {
-  int ret = chainloader_func (arg, flags);
+  int ret;
+  void *kernel = NULL;
+  grub_efi_status_t status;
+  grub_efi_boot_services_t *b;
+  struct linux_kernel_header lh;
+  grub_ssize_t len, start;
+  b = grub_efi_system_table->boot_services;
+  linuxefi_params = NULL;
+  linuxefi_cmdline = NULL;
+  linuxefi_mem = NULL;
+  linuxefi_size = 0;
+  linuxefi_handover_offset = 0;
+  initrdefi_mem = NULL;
+  kernel_load_type = 0;
+
+  if (grub_memcmp (arg, "--handover", 10) == 0)
+  {
+    kernel_load_type = KERTNEL_LOAD_HANDOVER;
+    arg = skip_to (0, arg);
+  }
+  else if (grub_memcmp (arg, "--loadfile2", 11) == 0)
+  {
+    arg = skip_to (0, arg);
+    goto loadfile2;
+  }
+
+  grub_open (arg);
+  if (errnum)
+  {
+    printf_errinfo ("Failed to open %s\n", arg);
+    goto failure_linuxefi;
+  }
+  status = efi_call_3 (b->allocate_pool, GRUB_EFI_LOADER_CODE,
+                       filemax, (void **)&kernel);
+  if (status != GRUB_EFI_SUCCESS)
+  {
+    printf_errinfo ("Failed to allocate kernel memory\n");
+    goto failure_linuxefi;
+  }
+  if (grub_read ((unsigned long long)(grub_size_t)kernel,
+                    filemax, 0xedde0d90) != filemax)
+  {
+    printf_errinfo ("premature end of file %s", arg);
+    goto failure_linuxefi;
+  }
+  linuxefi_params = grub_efi_allocate_any_pages (BYTES_TO_PAGES(16384));
+  if (!linuxefi_params)
+  {
+    printf_errinfo ("Failed to allocate kernel params\n");
+    goto failure_linuxefi;
+  }
+  memset (linuxefi_params, 0, 16384);
+  memcpy (&lh, kernel, sizeof (lh));
+  if (lh.boot_flag != 0xaa55)
+  {
+    printf_errinfo ("Invalid magic number\n");
+    goto failure_linuxefi;
+  }
+  if (lh.setup_sects > GRUB_LINUX_MAX_SETUP_SECTS)
+  {
+    printf_errinfo ("too many setup sectors\n");
+    goto failure_linuxefi;
+  }
+  printf_debug("EFI=%d, loadflags=%x, xloadflags=%x, handover_offset=%x, version=%x\n",*(char *)IMG(0x8272), lh.loadflags, lh.xloadflags, lh.handover_offset, lh.version);
+  //ubuntu-18.04.6，EFI=64，loadflags=1，xloadflags=3f，handover_offset=190，version=20d，只能使用旧装载方法(EFI Handover Protocol)
+  //ubuntu-22.04.2，EFI=64，loadflags=1，xloadflags=7f，handover_offset=190，version=20f，可以使用新旧装载方法(EFI Handover Protocol/LoadFile2)
+  if (kernel_load_type == KERTNEL_LOAD_HANDOVER)
+    goto EfiHandoverBoot;
+  if (lh.version < 0x020b)    //如果版本太低                                        由a1ive提供
+  {
+//    printf_errinfo ("kernel too old (0x%04x < 0x020b)\n",lh.version);
+//    goto failure_linuxefi;
+    goto LoadFile2Boot;
+  }
+  //如果是EFI32，并且内核支持EFI64 Handover协议，并且内核不支持EFI32 Handover协议    由a1ive提供
+  if (*(char *)IMG(0x8272) == 32 && (lh.xloadflags & LINUX_XLF_KERNEL_64) && !(lh.xloadflags & LINUX_XLF_EFI_HANDOVER_32))
+    goto LoadFile2Boot;
+  //如果是EFI64，并且内核不支持EFI64 Handover协议                                    由a1ive提供
+  if (*(char *)IMG(0x8272) == 64 && !(lh.xloadflags & LINUX_XLF_KERNEL_64))
+    goto LoadFile2Boot;
+  if (!lh.handover_offset)  //如果不支持 Handover 协议                               由a1ive提供
+  {
+//    printf_errinfo ("kernel doesn't support EFI handover\n");
+//    goto failure_linuxefi;
+    goto LoadFile2Boot;
+  }
+EfiHandoverBoot:
+  kernel_load_type = KERTNEL_LOAD_HANDOVER;
+#if defined(__i386__)
+  if ((lh.xloadflags & LINUX_XLF_KERNEL_64) &&
+      !(lh.xloadflags & LINUX_XLF_EFI_HANDOVER_32))
+  {
+    printf_errinfo ("kernel doesn't support 32-bit handover, xloadflags=0x%x\n",
+                    lh.xloadflags);
+    goto failure_linuxefi;
+  }
+#else
+  if (!(lh.xloadflags & LINUX_XLF_KERNEL_64))
+  {
+    printf_errinfo ("kernel doesn't support 64-bit CPUs, xloadflags=0x%x\n",
+	                lh.xloadflags);
+    goto failure_linuxefi;
+  }
+#endif
+
+  linuxefi_cmdline = grub_efi_allocate_any_pages (BYTES_TO_PAGES(lh.cmdline_size + 1));
+  if (!linuxefi_cmdline)
+  {
+    printf_errinfo ("Failed to allocate kernel cmdline\n");
+    goto failure_linuxefi;
+  }
+  grub_sprintf (linuxefi_cmdline, "%s%s", LINUX_IMAGE, arg);
+  lh.cmd_line_ptr = (grub_uint32_t)(grub_addr_t)linuxefi_cmdline;
+  printf ("cmdline: %s @0x%x\n", linuxefi_cmdline, lh.cmd_line_ptr);
+
+  linuxefi_handover_offset = lh.handover_offset;
+  start =  (lh.setup_sects + 1) * 512;
+  len = filemax - start;
+
+  linuxefi_size = lh.init_size;
+  linuxefi_mem = grub_efi_allocate_fixed (lh.pref_address, BYTES_TO_PAGES(linuxefi_size));
+  if (!linuxefi_mem)
+    linuxefi_mem = grub_efi_allocate_any_pages (BYTES_TO_PAGES(linuxefi_size));  
+  if (!linuxefi_mem)
+  {
+    printf_errinfo ("Failed to allocate kernel\n");
+    goto failure_linuxefi;
+  }
+  memcpy (linuxefi_mem, (char *)kernel + start, len);
+  /* loader_set */
+  lh.code32_start = (grub_uint32_t)(grub_addr_t) linuxefi_mem;
+  memcpy (linuxefi_params, &lh, 2 * 512);
+  linuxefi_params->type_of_loader = 0x21;
+
+  grub_close ();
+  efi_call_1 (b->free_pool, kernel);
+  kernel_type = KERNEL_TYPE_LINUX;
+  return 1;
+failure_linuxefi:
+  grub_close ();
+  if (kernel)
+    efi_call_1 (b->free_pool, kernel);
+  if (linuxefi_cmdline)
+    efi_call_2 (b->free_pages, (grub_size_t)linuxefi_cmdline,
+     BYTES_TO_PAGES(lh.cmdline_size + 1));
+  if (linuxefi_params)
+    efi_call_2 (b->free_pages, (grub_size_t)linuxefi_params, BYTES_TO_PAGES(16384));
+  if (linuxefi_mem)
+    efi_call_2 (b->free_pages, (grub_size_t)linuxefi_mem, BYTES_TO_PAGES(linuxefi_size));
+  return 0;
+
+LoadFile2Boot:
+  grub_close ();
+  if (kernel)
+    efi_call_1 (b->free_pool, kernel);
+
+loadfile2:
+  kernel_load_type = KERTNEL_LOAD_LOADFILE2;
+  ret = chainloader_func (arg, flags);
   if (ret)
     kernel_type = KERNEL_TYPE_LINUX;
   return ret;
@@ -6317,10 +6659,12 @@ static struct builtin builtin_kernel =
   "kernel",
   kernel_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING,
-  "kernel FILE [ARG ...]",
+  "kernel [--handover] FILE [ARG ...]",
   "Attempt to load the primary boot image from FILE. The rest of the"
   " line is passed verbatim as the \"kernel command line\".  Any modules"
-  " must be reloaded after using this command."
+  " must be reloaded after using this command.\n"
+  "--handover Using the 'EFI Handover Protocol' loading.\n"
+  "--loadfile2 Using the 'loadfile2' loading."
 };
 
 
@@ -6533,7 +6877,8 @@ print_bios_total_drives(void)
  
 unsigned int probed_total_sectors;
 unsigned int probed_total_sectors_round = 0x3f * 0xff * 0x3ff;
-unsigned int probed_sector_size;
+//unsigned int probed_sector_size;
+unsigned short probed_sector_size;
 unsigned int probed_heads;								//探测磁头数					在probe_bpb, probe_mbr赋值.
 unsigned int probed_sectors_per_track;		//探测每磁道扇区数		在probe_bpb, probe_mbr赋值.
 unsigned int probed_cylinders;						//探测柱面数					在probe_bpb, probe_mbr赋值.
@@ -6629,20 +6974,19 @@ failed_exfat_grldr:
   if (BS->media_descriptor < (unsigned char)0xF0)
 	return 1;
   if (! BS->root_dir_entries && ! BS->total_sectors_short && ! BS->sectors_per_fat) /* FAT32 or NTFS */
+  {
 	if (BS->number_of_fats && BS->total_sectors_long && BS->sectors_per_fat32)
-	{
 		filesystem_type = 3;
-	}
 	else if (! BS->number_of_fats && ! BS->total_sectors_long && ! BS->reserved_sectors && BS->total_sectors_long_long)
-	{
 		filesystem_type = 4;
-	} else
+  else
 		return 1;	/* unknown NTFS-style BPB */
+  }
   else if (BS->number_of_fats && BS->sectors_per_fat) /* FAT12 or FAT16 */
+  {
 	if ((probed_total_sectors - BS->reserved_sectors - BS->number_of_fats * BS->sectors_per_fat - (BS->root_dir_entries * 32 + BS->bytes_per_sector - 1) / BS->bytes_per_sector) / BS->sectors_per_cluster < 0x0ff8 )
-	{
 		filesystem_type = 1;
-	} else {
+  else
 		filesystem_type = 2;
 	}
   else
@@ -6931,6 +7275,9 @@ add_part_data (int drive)
 	unsigned int back_current_drive	=	current_drive;
 	unsigned int back_saved_partition	=	saved_partition;
 	unsigned int back_current_partition	=	current_partition;
+	struct grub_disk_data *d = get_device_by_drive(drive,0);
+	if (!d)
+    return;
  
   //查找分区数据结束
   dp = partition_info;
@@ -6977,7 +7324,11 @@ add_part_data (int drive)
       p->partition_entry = *next_partition_entry;
       p->partition_ext_offset = *next_partition_ext_offset;
       p->partition_activity_flag = partition_activity_flag;
-      grub_memcpy (&p->partition_signature, &partition_signature, 16);
+      if (p->partition_type == 0xee)
+        grub_memcpy (&p->partition_signature, &partition_signature, 16);
+      else
+        grub_memcpy (&p->partition_signature, &d->disk_signature, 16);
+
       p->next = 0;
       if (!partition_info)
       {
@@ -7007,24 +7358,27 @@ add_part_data (int drive)
     p = grub_zalloc (sizeof (*p));  //分配内存	
     if(! p)  //如果分配内存失败
       return;
-    get_efi_device_boot_path(drive, 1);
     p->drive = drive;
     p->partition = 0xffff;
-    p->partition_start = cd_Image_part_start;
-    p->partition_size = cd_Image_disk_size;
-    p->boot_start = cd_boot_start;
-    p->boot_size = cd_boot_size;
+//    p->partition_start = cd_Image_part_start;
+//    p->partition_size = cd_Image_disk_size;
+//    p->boot_start = cd_boot_start;
+//    p->boot_size = cd_boot_size;
     p->partition_boot = 1;
     p->next = 0;
     if (!partition_info) //使用 'if (!dp)' 会判断错误。 当 partition_info=bp=0 时，if (!partition_info) 返回1；而 if (!dp) 返回0。
       partition_info = p;
     else
       dp->next = p;
+    get_efi_device_boot_path(drive, 1);
   }
 }
 
 unsigned long long tmp;
 unsigned long long vhd_start_sector;
+unsigned int ext_num;
+unsigned int ext_start_lba;
+unsigned int ext_total_sectors;
 /* map */
 /* Map FROM_DRIVE to TO_DRIVE.  映射 FROM 驱动器到 TO 驱动器*/
 int map_func (char *arg, int flags);
@@ -7945,11 +8299,18 @@ map_whole_drive:
 	{
 		struct master_and_dos_boot_sector *mbr1 = (struct master_and_dos_boot_sector *)cache;
 		grub_efi_uint32_t active = -1;
+		ext_start_lba = 0;
 
 		for (k = 0; k < 4; k++)	//判断分区类型 mbr/gpt
 		{
 			if(mbr1->P[k].system_indicator == GRUB_PC_PARTITION_TYPE_GPT_DISK)			//如果系统标识是EFI分区
 				goto get_gpt_info;
+			else if (mbr1->P[k].system_indicator == 0x5 || mbr1->P[k].system_indicator == 0xf)     //获取扩展分区信息
+			{
+        ext_num = k;
+        ext_start_lba = mbr1->P[k].start_lba;
+        ext_total_sectors = mbr1->P[k].total_sectors;
+			}
       partmap_type = 1; //MBR
 		}
 		for (k = 0; k < 4; k++)	//查找活动分区
@@ -8448,7 +8809,7 @@ no_fragment:
       if (!part_data)
         return (int)(!(errnum = ERR_NO_DISK));
       current_partition = part_data->partition;
-      status = vdisk_install (current_drive, 0);  //安装虚拟磁盘
+      status = vdisk_install (current_drive, current_partition);  //安装虚拟磁盘
       if (status != GRUB_EFI_SUCCESS)							//如果安装失败
       {
         printf_errinfo ("Failed to install vdisk.(%x)\n",status);	//未能安装vdisk

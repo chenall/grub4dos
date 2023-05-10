@@ -162,7 +162,7 @@ VARIABLE(min_con_mem_size)                                                //0x82
 #if defined(__i386__) 
 	.byte 32                                                                //0x8272  bootia32.efi引导
 #else
-	.byte 64                                                                //        bootx64.efi引导
+	.byte 64                                                                //        bootx64.efi引导    (BIOS是0)
 #endif
 
 	. = EXT_C(main) + 0x73

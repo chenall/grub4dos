@@ -599,7 +599,8 @@ ssss:
 			name = (char *)(&udf_101->NameBaseAddress + udf_101->LengthofImplementationUse + udf_101->NameLength);
 			name += (((grub_size_t)name & 3) ? (4 - ((grub_size_t)name & 3)) : 0);
 			udf_101 = (struct udf_File_Identifier *)name;
-			int temp = 0;
+//			int temp = 0;
+			unsigned int temp = 0;	//内存大于2048Mb时出现错误  2023-04-09
 			if ((grub_size_t)name + 0x26 - (grub_size_t)UDF_IDENTIFIER < udf_BytePerSector)
 				temp = (grub_size_t)(&udf_101->NameBaseAddress + udf_101->LengthofImplementationUse + udf_101->NameLength);
 			if (temp && (temp - (grub_size_t)UDF_IDENTIFIER <= udf_BytePerSector))	

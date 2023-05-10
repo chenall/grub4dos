@@ -151,6 +151,125 @@ grub_putstr (char *str)
     grub_putchar ((unsigned char)*str++, 255);
 }
 
+/* Convert unicode filename to UTF-8 filename. N is the max UTF-16 characters
+ * to be converted. The caller should asure there is enough room in the UTF8
+ * buffer. Return the length of the converted UTF8 string.
+ * 将unicode文件名转换为UTF-8文件名。N是要转换的最大UTF-16字符数。
+ * 调用方应该测量UTF8缓冲区中是否有足够的空间。返回转换后的UTF8字符串的长度。
+ */
+unsigned int unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned int n);
+unsigned int
+unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned int n)
+{
+	unsigned short uni;
+	unsigned int j, k;
+
+	for (j = 0, k = 0; j < n && (uni = filename[j]); j++)
+	{
+		if (uni <= 0x007F)
+		{
+				utf8[k++] = uni;
+		}
+		else if (uni <= 0x07FF)
+		{
+			utf8[k++] = 0xC0 | (uni >> 6);
+			utf8[k++] = 0x80 | (uni & 0x003F);
+		}
+		else
+		{
+			utf8[k++] = 0xE0 | (uni >> 12);
+			utf8[k++] = 0x80 | ((uni >> 6) & 0x003F);
+			utf8[k++] = 0x80 | (uni & 0x003F);
+		}
+	}
+	utf8[k] = 0;
+	return k;
+}
+
+#if 0
+//unicode_to_utf8是这个函数的子集，比较简单一些。
+/* Convert UCS2 to UTF-8.  */
+grub_uint8_t *grub_ucs2_to_utf8 (const grub_uint16_t *src, grub_uint8_t *dest, grub_size_t size);
+grub_uint8_t *
+grub_ucs2_to_utf8 (const grub_uint16_t *src, grub_uint8_t *dest, grub_size_t size)
+{
+  grub_uint32_t code_high = 0;
+  grub_uint32_t code;
+  grub_uint8_t *dest_0 = dest;
+
+  while (size--)
+  {
+    code = *src++;
+    if (!code)
+    {
+      *dest == 0;
+      return (dest - dest_0);
+    }
+
+    if (code_high)
+    {
+      if (code >= 0xDC00 && code <= 0xDFFF)
+	    {
+	      /* Surrogate pair.  */
+	      code = ((code_high - 0xD800) << 10) + (code - 0xDC00) + 0x10000;
+
+	      *dest++ = (code >> 18) | 0xF0;
+	      *dest++ = ((code >> 12) & 0x3F) | 0x80;
+	      *dest++ = ((code >> 6) & 0x3F) | 0x80;
+	      *dest++ = (code & 0x3F) | 0x80;
+	    }
+      else
+	    {
+	      /* Error...  */
+	      *dest++ = '?';
+	      /* *src may be valid. Don't eat it.  */
+	      src--;
+	    }
+
+      code_high = 0;
+    }
+    else
+    {
+      if (code <= 0x007F)
+        *dest++ = code;
+      else if (code <= 0x07FF)
+      {
+	      *dest++ = (code >> 6) | 0xC0;
+	      *dest++ = (code & 0x3F) | 0x80;
+      }
+      else if (code >= 0xD800 && code <= 0xDBFF)
+      {
+	      code_high = code;
+	      continue;
+	    }
+      else if (code >= 0xDC00 && code <= 0xDFFF)
+	    {
+	      /* Error... */
+	      *dest++ = '?';
+	    }
+      else if (code < 0x10000)
+	    {
+	      *dest++ = (code >> 12) | 0xE0;
+	      *dest++ = ((code >> 6) & 0x3F) | 0x80;
+	      *dest++ = (code & 0x3F) | 0x80;
+	    }
+      else
+	    {
+	      *dest++ = (code >> 18) | 0xF0;
+	      *dest++ = ((code >> 12) & 0x3F) | 0x80;
+	      *dest++ = ((code >> 6) & 0x3F) | 0x80;
+	      *dest++ = (code & 0x3F) | 0x80;
+	    }
+    }
+  }
+
+//  return dest;
+  *dest == 0;
+  return (dest - dest_0);
+}
+#endif
+
+
 void grub_putstr_utf16(unsigned short *str);
 void
 grub_putstr_utf16(unsigned short *str)  //打印unicode16字符串

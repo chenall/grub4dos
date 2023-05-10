@@ -889,7 +889,7 @@ struct linux_kernel_header
   unsigned short boot_flag;		/* 0xAA55 magic number */
   unsigned short jump;			/* Jump instruction */
   unsigned int header;			/* Magic signature "HdrS" */
-  unsigned short version;		/* Boot protocol version supported */
+  unsigned short version;		/* Boot protocol version supported 支持的引导协议版本*/
   unsigned int realmode_swtch;		/* Boot loader hook */
   unsigned int start_sys;		/* Points to kernel version string */
   unsigned char type_of_loader;		/* Boot loader identifier */
@@ -906,11 +906,11 @@ struct linux_kernel_header
   unsigned int kernel_alignment;
   unsigned char relocatable;
   unsigned char min_alignment;
-#define LINUX_XLF_KERNEL_64                   (1<<0)
-#define LINUX_XLF_CAN_BE_LOADED_ABOVE_4G      (1<<1)
-#define LINUX_XLF_EFI_HANDOVER_32             (1<<2)
-#define LINUX_XLF_EFI_HANDOVER_64             (1<<3)
-#define LINUX_XLF_EFI_KEXEC                   (1<<4)
+#define LINUX_XLF_KERNEL_64                   (1<<0)  //1  64位内
+#define LINUX_XLF_CAN_BE_LOADED_ABOVE_4G      (1<<1)  //2  可加载4G以上
+#define LINUX_XLF_EFI_HANDOVER_32             (1<<2)  //4  支持 EFI32 Handover
+#define LINUX_XLF_EFI_HANDOVER_64             (1<<3)  //8  支持 EFI64 Handover
+#define LINUX_XLF_EFI_KEXEC                   (1<<4)  //16
   unsigned short xloadflags;
   unsigned int cmdline_size;
   unsigned int hardware_subarch;
@@ -1118,7 +1118,7 @@ struct linux_kernel_params
   unsigned long long setup_data;
   unsigned long long pref_address;
   unsigned int init_size;
-  unsigned int handover_offset;
+  unsigned int handover_offset;   //Handover 入口，没有那就不支持 Handover
   /* Linux setup header copy - END. */
 
   unsigned char _pad7[40];
@@ -1441,6 +1441,9 @@ extern void defer(unsigned short millisecond);
 extern unsigned short beep_duration;
 extern unsigned long long initrd_start_sector;
 extern int map_func (char *arg, int flags);
+extern unsigned int ext_num;
+extern unsigned int ext_start_lba;
+extern unsigned int ext_total_sectors;
 //#define DEBUG_SLEEP {debug_sleep(debug_boot,__LINE__,__FILE__);}
 //extern inline void debug_sleep(int debug_boot, int line, char *file);
 
@@ -1579,6 +1582,7 @@ extern int fsys_type;
 extern char vol_name[256];
 
 extern unsigned int unicode_to_utf8 (unsigned short *filename, unsigned char *utf8, unsigned int n);
+//extern grub_uint8_t *grub_ucs2_to_utf8 (grub_uint8_t *dest, const grub_uint16_t *src, grub_size_t size);
 
 struct simp
 {
@@ -2929,24 +2933,43 @@ typedef struct grub_efi_device_path grub_efi_device_path_t;
    It seems to be identical to EFI_DEVICE_PATH.  */
 typedef struct grub_efi_device_path grub_efi_device_path_protocol_t;
 
-#define GRUB_EFI_DEVICE_PATH_TYPE(dp)		((dp)->type & 0x7f)
-#define GRUB_EFI_DEVICE_PATH_SUBTYPE(dp)	((dp)->subtype)
-#define GRUB_EFI_DEVICE_PATH_LENGTH(dp)		((dp)->length)
+#define GRUB_EFI_DEVICE_PATH_TYPE(dp)		((dp)->type & 0x7f) //路径类型
+#define GRUB_EFI_DEVICE_PATH_SUBTYPE(dp)	((dp)->subtype)   //路径子类型
+#define GRUB_EFI_DEVICE_PATH_LENGTH(dp)		((dp)->length)    //路径尺寸
+#define GRUB_EFI_DEVICE_PATH_VALID(dp)		((dp) != NULL && GRUB_EFI_DEVICE_PATH_LENGTH (dp) >= 4) //路径有效   不为零并且尺寸>=4
 
 /* The End of Device Path nodes. 设备路径节点的结束 */
-#define GRUB_EFI_END_DEVICE_PATH_TYPE			(0xff & 0x7f)
+#define GRUB_EFI_END_DEVICE_PATH_TYPE			(0xff & 0x7f) //结束设备路径类型
 
-#define GRUB_EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE		0xff
-#define GRUB_EFI_END_THIS_DEVICE_PATH_SUBTYPE		0x01
+#define GRUB_EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE		0xff  //结束整个设备路径子类型
+#define GRUB_EFI_END_THIS_DEVICE_PATH_SUBTYPE		0x01    //结束这个设备路径子类型
 
 #define GRUB_EFI_END_ENTIRE_DEVICE_PATH(dp)	\
   (GRUB_EFI_DEVICE_PATH_TYPE (dp) == GRUB_EFI_END_DEVICE_PATH_TYPE \
    && (GRUB_EFI_DEVICE_PATH_SUBTYPE (dp) \
-       == GRUB_EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE))
+       == GRUB_EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE))     //判断是不是结束设备路径
 
 #define GRUB_EFI_NEXT_DEVICE_PATH(dp)	\
   ((grub_efi_device_path_t *) ((char *) (dp) \
-                               + GRUB_EFI_DEVICE_PATH_LENGTH (dp)))
+                               + GRUB_EFI_DEVICE_PATH_LENGTH (dp))) //获得下一设备路径
+															 
+typedef struct {
+  grub_uint8_t addr[4];
+} grub_efi_pxe_ipv4_address_t;
+
+typedef struct {
+  grub_uint8_t addr[16];
+} grub_efi_pxe_ipv6_address_t;
+
+typedef struct {
+  grub_uint8_t addr[32];
+} grub_efi_pxe_mac_address_t;
+
+typedef union {
+    grub_uint32_t addr[4];
+    grub_efi_pxe_ipv4_address_t v4;
+    grub_efi_pxe_ipv6_address_t v6;
+} grub_efi_pxe_ip_address_t;
 
 /* Hardware Device Path. 硬件设备路径类型 */
 #define GRUB_EFI_HARDWARE_DEVICE_PATH_TYPE		1
@@ -3102,19 +3125,6 @@ struct grub_efi_usb_device_path   //usb设备路径
   unsigned char usb_interface;       	//接口
 } __attribute__ ((packed));
 typedef struct grub_efi_usb_device_path grub_efi_usb_device_path_t;
-//USB类设备路径子类型 
-#define GRUB_EFI_USB_CLASS_DEVICE_PATH_SUBTYPE		15
-
-struct grub_efi_usb_class_device_path //USB类设备路径
-{
-  grub_efi_device_path_t header;		//设备路径表头
-  unsigned short vendor_id;					//厂商标识 
-  unsigned short product_id;       	//产品标识 
-  unsigned char device_class;     	//设备类
-  unsigned char device_subclass;  	//设备子类
-  unsigned char device_protocol;   	//设备协议
-} __attribute__ ((packed));
-typedef struct grub_efi_usb_class_device_path grub_efi_usb_class_device_path_t;
 //I2O设备路径子类型
 #define GRUB_EFI_I2O_DEVICE_PATH_SUBTYPE		6
 
@@ -3124,6 +3134,19 @@ struct grub_efi_i2o_device_path   //i2o设备路径
   unsigned int tid;
 } __attribute__ ((packed));
 typedef struct grub_efi_i2o_device_path grub_efi_i2o_device_path_t;
+//无限宽带设备路径子类型
+#define GRUB_EFI_INFINIBAND_DEVICE_PATH_SUBTYPE		9
+
+struct grub_efi_infiniband_device_path  //无限宽带设备路径
+{
+  grub_efi_device_path_t header;
+  unsigned int resource_flags;
+  unsigned char port_gid[16];
+  unsigned long long remote_id;
+  unsigned long long target_port_id;
+  unsigned long long device_id;
+} __attribute__ ((packed));
+typedef struct grub_efi_infiniband_device_path grub_efi_infiniband_device_path_t;
 //MAC地址设备路径子类型
 #define GRUB_EFI_MAC_ADDRESS_DEVICE_PATH_SUBTYPE	11
 
@@ -3140,13 +3163,15 @@ typedef struct grub_efi_mac_address_device_path grub_efi_mac_address_device_path
 struct grub_efi_ipv4_device_path  //ipv4设备路径
 {
   grub_efi_device_path_t header;
-  unsigned char local_ip_address;
-  unsigned char remote_ip_address;
-  unsigned short local_port;
-  unsigned short remote_port;
-  unsigned short protocol;
-  unsigned char static_ip_address;
-} __attribute__ ((packed));
+  grub_efi_ipv4_address_t local_ip_address;
+  grub_efi_ipv4_address_t remote_ip_address;
+  grub_efi_uint16_t local_port;
+  grub_efi_uint16_t remote_port;
+  grub_efi_uint16_t protocol;
+  grub_efi_uint8_t static_ip_address;
+  grub_efi_ipv4_address_t gateway_ip_address;
+  grub_efi_ipv4_address_t subnet_mask;
+} GRUB_PACKED;
 typedef struct grub_efi_ipv4_device_path grub_efi_ipv4_device_path_t;
 //IPV6设备路径子类型
 #define GRUB_EFI_IPV6_DEVICE_PATH_SUBTYPE		13
@@ -3154,27 +3179,16 @@ typedef struct grub_efi_ipv4_device_path grub_efi_ipv4_device_path_t;
 struct grub_efi_ipv6_device_path  //ipv6设备路径
 {
   grub_efi_device_path_t header;
-  unsigned short local_ip_address;
-  unsigned short remote_ip_address;
-  unsigned short local_port;
-  unsigned short remote_port;
-  unsigned short protocol;
-  unsigned char static_ip_address;
-} __attribute__ ((packed));
+  grub_efi_ipv6_address_t local_ip_address;
+  grub_efi_ipv6_address_t remote_ip_address;
+  grub_efi_uint16_t local_port;
+  grub_efi_uint16_t remote_port;
+  grub_efi_uint16_t protocol;
+  grub_efi_uint8_t static_ip_address;
+  grub_efi_uint8_t prefix_length;
+  grub_efi_ipv6_address_t gateway_ip_address;
+} GRUB_PACKED;
 typedef struct grub_efi_ipv6_device_path grub_efi_ipv6_device_path_t;
-//无限宽带设备路径子类型
-#define GRUB_EFI_INFINIBAND_DEVICE_PATH_SUBTYPE		9
-
-struct grub_efi_infiniband_device_path  //无限宽带设备路径
-{
-  grub_efi_device_path_t header;
-  unsigned int resource_flags;
-  unsigned char port_gid[16];
-  unsigned long long remote_id;
-  unsigned long long target_port_id;
-  unsigned long long device_id;
-} __attribute__ ((packed));
-typedef struct grub_efi_infiniband_device_path grub_efi_infiniband_device_path_t;
 //UART设备路径子类型
 #define GRUB_EFI_UART_DEVICE_PATH_SUBTYPE		14
 
@@ -3188,6 +3202,27 @@ struct grub_efi_uart_device_path    //uart设备路径
   unsigned char stop_bits;
 } __attribute__ ((packed));
 typedef struct grub_efi_uart_device_path grub_efi_uart_device_path_t;
+//USB类设备路径子类型 
+#define GRUB_EFI_USB_CLASS_DEVICE_PATH_SUBTYPE		15
+
+struct grub_efi_usb_class_device_path //USB类设备路径
+{
+  grub_efi_device_path_t header;		//设备路径表头
+  unsigned short vendor_id;					//厂商标识 
+  unsigned short product_id;       	//产品标识 
+  unsigned char device_class;     	//设备类
+  unsigned char device_subclass;  	//设备子类
+  unsigned char device_protocol;   	//设备协议
+} __attribute__ ((packed));
+typedef struct grub_efi_usb_class_device_path grub_efi_usb_class_device_path_t;
+#define GRUB_EFI_USB_LOGICAL_UNIT_DEVICE_PATH_SUBTYPE		17
+
+struct grub_efi_usb_logical_unit_device_path //USB逻辑单元设备路径
+{
+  grub_efi_device_path_t header;		//设备路径表头
+  unsigned char LUN;     	          //接口的逻辑单元号
+} __attribute__ ((packed));
+typedef struct grub_efi_usb_logical_unit_device_path grub_efi_usb_logical_unit_device_path_t;
 //SATA设备路径子类型
 #define GRUB_EFI_SATA_DEVICE_PATH_SUBTYPE		18
 
@@ -3199,6 +3234,25 @@ struct grub_efi_sata_device_path   //sata设备路径
   unsigned short lun;
 } __attribute__ ((packed));
 typedef struct grub_efi_sata_device_path grub_efi_sata_device_path_t;
+#if 1
+#define GRUB_EFI_URI_DEVICE_PATH_SUBTYPE		24
+
+struct grub_efi_uri_device_path
+{
+  grub_efi_device_path_t header;
+  grub_efi_uint8_t uri[0];
+} GRUB_PACKED;
+typedef struct grub_efi_uri_device_path grub_efi_uri_device_path_t;
+
+#define GRUB_EFI_DNS_DEVICE_PATH_SUBTYPE                31
+struct grub_efi_dns_device_path
+{
+  grub_efi_device_path_t header;
+  grub_efi_uint8_t is_ipv6;
+  grub_efi_pxe_ip_address_t dns_server_ip[0];
+} GRUB_PACKED;
+typedef struct grub_efi_dns_device_path grub_efi_dns_device_path_t;
+#endif
 //供应商信息设备路径子类型
 #define GRUB_EFI_VENDOR_MESSAGING_DEVICE_PATH_SUBTYPE	10
 
@@ -3994,24 +4048,6 @@ struct grub_efi_simple_text_output_interface  //简单文本输出接口
 typedef struct grub_efi_simple_text_output_interface grub_efi_simple_text_output_interface_t;		//g4d:占28
 
 //typedef unsigned char grub_efi_pxe_packet_t[1472];	//pxe包  0x5c0
-
-typedef struct {
-  grub_uint8_t addr[4];
-} grub_efi_pxe_ipv4_address_t;
-
-typedef struct {
-  grub_uint8_t addr[16];
-} grub_efi_pxe_ipv6_address_t;
-
-typedef struct {
-  grub_uint8_t addr[32];
-} grub_efi_pxe_mac_address_t;
-
-typedef union {
-    grub_uint32_t addr[4];
-    grub_efi_pxe_ipv4_address_t v4;
-    grub_efi_pxe_ipv6_address_t v6;
-} grub_efi_pxe_ip_address_t;
 
 typedef struct grub_efi_pxe_dhcpv4_packet	//引导播放器		备注: 在 ipxe->bootia32.efi 时, pxe_reply与dhcp_ack相同; bootp_yi_addr = c0 a8 38 06
 {																					//dhcp_discover				dhcp_ack				proxy_offer,pxe_discover,pxe_reply,pxe_bis_reply
@@ -5002,8 +5038,8 @@ typedef struct grub_efi_console_control_protocol grub_efi_console_control_protoc
 
 #define GRUB_UCS2_LIMIT 0x10000
 	
-/* Process one character from UTF8 sequence. 
-   At beginning set *code = 0, *count = 0. Returns 0 on failure and
+/* Process one character from UTF8 sequence.                        处理UTF8序列中的一个字符。在开始设置时，*code=0, *count=0。
+   At beginning set *code = 0, *count = 0. Returns 0 on failure and 失败时返回0，成功时返回1。count保存尾部字节数
    1 on success. *count holds the number of trailing bytes.  */
 static inline int
 grub_utf8_process (grub_uint8_t c, grub_uint32_t *code, int *count)
@@ -5066,16 +5102,16 @@ grub_utf8_process (grub_uint8_t c, grub_uint32_t *code, int *count)
   return 0;
 }
 	
-/* Convert a (possibly null-terminated) UTF-8 string of at most SRCSIZE
-   bytes (if SRCSIZE is -1, it is ignored) in length to a UCS-2 string.
-   Return the number of characters converted. DEST must be able to hold
-   at least DESTSIZE characters. If an invalid sequence is found, return -1.
-   If SRCEND is not NULL, then *SRCEND is set to the next byte after the
+/* Convert a (possibly null-terminated) UTF-8 string of at most SRCSIZE       将长度最多为 SRCSIZE 字节的UTF-8字符串(可能以null结尾)转换为UCS-2字符串
+   bytes (if SRCSIZE is -1, it is ignored) in length to a UCS-2 string.       (如果 SRCSIZE 为-1，则忽略该字符串)。
+   Return the number of characters converted. DEST must be able to hold       返回转换的字符数。如果发现无效序列，则返回-1。
+   at least DESTSIZE characters. If an invalid sequence is found, return -1.  DEST 必须至少能够容纳 DESTSIZE 字符。如果 SRCEND 不为NULL，
+   If SRCEND is not NULL, then *SRCEND is set to the next byte after the      则 *SRCEND 被设置为 SRC 中使用的最后一个字节之后的下一个字节。
    last byte used in SRC.  */
 static inline grub_size_t
-grub_utf8_to_ucs2 (grub_uint16_t *dest, grub_size_t destsize,
-		    const grub_uint8_t *src, grub_size_t srcsize,
-		    const grub_uint8_t **srcend)
+grub_utf8_to_ucs2 (grub_uint16_t *dest, grub_size_t destsize,   //ucs2地址，ucs2字节数
+		    const grub_uint8_t *src, grub_size_t srcsize,           //utf8地址，utf8字节数
+		    const grub_uint8_t **srcend)                            //如果SRCEND不为NULL，则是utf8最后一个字节之后的下一个字节
 {
   grub_uint16_t *p = dest;
   int count = 0;
@@ -5633,7 +5669,7 @@ struct grub_part_data  //efi分区数据	(硬盘)    注意外部命令兼容性
 	unsigned int boot_start;                //                                      光盘: 引导镜像在光盘的起始扇区(1扇区=2048字节)
 	unsigned int boot_size;                 //                                      光盘: 引导镜像的扇区数(1扇区=512字节)
 	grub_efi_handle_t part_handle;          //句柄
-  unsigned char partition_number;         //入口号           未使用
+	unsigned char boot_entry;               //                                      光盘: 入口号
 	unsigned char partition_boot;           //启动分区         /efi/boot/bootx64.efi文件所在分区
 } __attribute__ ((packed));
 
@@ -5692,7 +5728,7 @@ extern char *disk_buffer;
 //extern int drive_map_slot_empty (struct drive_map_slot item);
 extern struct fragment_map_slot *fragment_map_slot_find(struct fragment_map_slot *q, unsigned int from);
 extern int grub_SectorSequence_readwrite (int drive, struct fragment *data, unsigned char from_log2_sector, unsigned char to_log2_sector,
-			grub_disk_addr_t sector, grub_size_t size, char *buf, int read_write);
+			grub_disk_addr_t sector, grub_size_t size, char *buf, unsigned long long lba_byte, int read_write);
 
 
 #define CDVOL_TYPE_STANDARD 0x0
@@ -5793,7 +5829,7 @@ struct boot
 {
   grub_uint8_t  indicator1;       //入口号: 必须从1开始，0x91结束 
   grub_uint8_t  platform_id;      //平台类型: 0=Intel平台; 1=Power PC; 2=Mac; 0xEF=UEFI。
-  grub_uint16_t section_entries;
+  grub_uint16_t section_entries;  //分区入口
   grub_uint8_t  manufac_id[24];
   grub_uint16_t checksum;
   grub_uint16_t id55AA;
@@ -5825,6 +5861,7 @@ extern grub_efi_uint32_t cd_boot_start;
 extern grub_efi_uint32_t cd_boot_size;
 extern grub_efi_uint32_t cd_Image_part_start;
 extern grub_efi_uint32_t cd_Image_disk_size;
+extern grub_efi_uint32_t cd_map_count;
 extern grub_efi_uint64_t	part_addr;
 extern grub_efi_uint64_t	part_size;
 extern struct grub_part_data *part_data;
@@ -5833,11 +5870,13 @@ void file_read (grub_efi_boolean_t disk, void *file,
 grub_efi_uint64_t get_size (grub_efi_boolean_t disk, void *file);
 
 /* vboot */
-extern grub_efi_handle_t grub_load_image (unsigned int drive, const char *filename, void *boot_image, unsigned long long file_len, grub_efi_handle_t *devhandle);
+extern grub_efi_handle_t grub_load_image (grub_efi_device_path_t *path, const char *filename, void *boot_image);
+//extern grub_efi_handle_t grub_load_image (unsigned int drive, const char *filename, void *boot_image, unsigned long long file_len, grub_efi_handle_t *devhandle);
 /* vdisk */
 extern grub_efi_status_t vdisk_install  (int drive, int partition);
 /* vpart */
 extern grub_efi_status_t vpart_install (int drive, struct grub_part_data *part);
+//extern int uuid_increment;
 
 struct grub_efi_component_name2_protocol
 {
@@ -6023,6 +6062,8 @@ extern grub_efi_device_path_protocol_t*
 extern grub_efi_device_path_protocol_t*
 										grub_efi_append_device_node (const grub_efi_device_path_protocol_t *device_path,
                     const grub_efi_device_path_protocol_t *device_node);
+extern int grub_efi_is_child_dp (const grub_efi_device_path_t *child,
+                      const grub_efi_device_path_t *parent);
 extern grub_efi_boolean_t guidcmp (const grub_packed_guid_t *g1, const grub_packed_guid_t *g2);
 extern grub_packed_guid_t * guidcpy (grub_packed_guid_t *dst, const grub_packed_guid_t *src);
 

@@ -207,7 +207,7 @@ fill_vhdfc(int index, int vhd_start, VHDFooter *footer, VHDDynamicDiskHeader *dy
 	struct fragment *data = (struct fragment *)&q->fragment_data;
 
 	//读VHD页脚表。  动态及差分VHD，起始1扇区是VHD页脚表。
-	grub_SectorSequence_readwrite (current_drive, data, from_log2_sector, to_log2_sector, 0, sizeof(VHDFooter), (char *)footer, GRUB_READ);
+	grub_SectorSequence_readwrite (current_drive, data, from_log2_sector, to_log2_sector, 0, sizeof(VHDFooter), (char *)footer, 0, GRUB_READ);
   grub_u64_t* a = (grub_u64_t*)footer->cookie;
   if (*a!=VHD_FOOTER_COOKIE)	//比较VHD页脚表标记
 	{
@@ -241,7 +241,7 @@ fill_vhdfc(int index, int vhd_start, VHDFooter *footer, VHDDynamicDiskHeader *dy
 	//读VHD动态磁盘头。
 	filepos = footer->dataOffset;
 	grub_SectorSequence_readwrite (current_drive, data, from_log2_sector, to_log2_sector, filepos >> 9, 
-					sizeof(VHDDynamicDiskHeader), (char *)dynaheader, GRUB_READ);
+					sizeof(VHDDynamicDiskHeader), (char *)dynaheader, 0, GRUB_READ);
 
 bbb:	
 /*
@@ -293,7 +293,7 @@ bbb:
 	//读BAT结构
 	filepos = dynaheader->tableOffset;
 	grub_SectorSequence_readwrite (vhdfc->to_drive, data, from_log2_sector, to_log2_sector, filepos >> 9, batSize, 
-					vhdfc->blockAllocationTable, GRUB_READ);
+					vhdfc->blockAllocationTable, 0, GRUB_READ);
 
 	if (footer->diskType == VHD_DISKTYPE_DIFFERENCE)	//差分
 	{
@@ -558,7 +558,7 @@ dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write)
 					q = vhdfc_index->SectorSequence;
 					data = (struct fragment *)&q->fragment_data;
 					grub_SectorSequence_readwrite (vhdfc_index->to_drive, data, from_log2_sector, to_log2_sector, vhdfc_index->blockLBA, 
-									vhdfc_index->blockBitmapSize + vhdfc_index->blockSize, vhdfc_index->blockBitmapAndData, GRUB_READ);
+									vhdfc_index->blockBitmapSize + vhdfc_index->blockSize, vhdfc_index->blockBitmapAndData, 0, GRUB_READ);
 				}
 				
 				vhdfc_index->currentBlockOffset = blockOffset;
@@ -595,7 +595,7 @@ vhdfc_i：中间的磁盘都是差分磁盘。由本程序使用GetSectorSequenc
 						q = vhdfc_i->SectorSequence;
 						data = (struct fragment *)&q->fragment_data;
 						grub_SectorSequence_readwrite (vhdfc_i->to_drive, data, from_log2_sector, to_log2_sector, vhdfc_i->blockLBA, 
-										vhdfc_i->blockBitmapSize + vhdfc_i->blockSize, vhdfc_i->blockBitmapAndData, GRUB_READ);
+										vhdfc_i->blockBitmapSize + vhdfc_i->blockSize, vhdfc_i->blockBitmapAndData, 0, GRUB_READ);
 					}
 					else if (vhdfc_i->diskType == VHD_DISKTYPE_DYNAMIC)	//如果父类型是动态
 					{
