@@ -9,7 +9,7 @@ on:
 jobs:
   build-pr:
     if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
       with:
@@ -28,7 +28,7 @@ jobs:
           curl -X POST $URL -H "Content-Type: application/json" -H "Authorization: token $GITHUB_TOKEN" --data "{ \"body\": \"$transfer_url\" }"
   build-push:
     if: ${{ github.event_name == 'push' }}
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     environment: 
      name: PAGES
     env:
