@@ -9,9 +9,9 @@ on:
 jobs:
   build-pr:
     if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 10
     - uses: chenall/grub4dos-build@main
@@ -28,7 +28,7 @@ jobs:
           curl -X POST $URL -H "Content-Type: application/json" -H "Authorization: token $GITHUB_TOKEN" --data "{ \"body\": \"$transfer_url\" }"
   build-push:
     if: ${{ github.event_name == 'push' }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     environment: 
      name: PAGES
     env:
@@ -37,12 +37,12 @@ jobs:
     - name: 安装依赖项并进行环境变量配置
       run: sudo apt -y install p7zip-full
     - name: 下载源码
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         fetch-depth: 10
     - name: 下载 ipxe 源码
       if: ${{ contains(github.ref, '0.4.6') }}
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: ipxe/ipxe
         path: ipxe
@@ -68,7 +68,7 @@ jobs:
         AK: ${{ secrets.AK }}
         SK: ${{ secrets.SK }}
     - name: 下载发布站点代码
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
        repository:  chenall/grub4dos.site
        ref:  master
