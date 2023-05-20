@@ -26,6 +26,20 @@
 #define GRUB_SHARED_HEADER	1
 
 #include <config.h>
+/* Disable all gcc warnings */
+
+#if defined (__GNUC__) && defined (__GNUC_MINOR__) && ((__GNUC__ >= 4) && (__GNUC_MINOR__  > 8)) || (__GNUC__ >= 4)
+#pragma GCC diagnostic ignored "-Wunused-value"
+#endif
+
+#if defined (__GNUC__) && (__GNUC__ >= 6) 
+#pragma GCC diagnostic ignored "-Wmisleading-indentation"
+#endif
+
+#if defined (__GNUC__) && (__GNUC__ >= 10) 
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
 
 /* Add an underscore to a C symbol in assembler code if needed. */
 #ifdef HAVE_ASM_USCORE

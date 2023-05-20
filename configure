@@ -5507,6 +5507,66 @@ LDFLAGS="$save_LDFLAGS"
 if test "x$build_id_flag" = xyes; then
   LDFLAGS="$LDFLAGS -Wl,--build-id=none"
 fi
+#gcc 5 and newer has builded with enable-default-pie by defualt so we add -no-pie to linker flag
+
+# Check if gcc has enable pie by default
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether gcc has enable pie by default" >&5
+$as_echo_n "checking whether gcc has enable pie by default... " >&6; }
+save_LDFLAGS="$LDFLAGS"
+LDFLAGS="$LDFLAGS -no-pie"
+if [[ -n "`$CC -v -E 2>&1 | grep 'Configured with' | sed 's/--/\n--/g' | grep enable-default-pie`" ]]; then :
+  no_pie_linker_flag=yes
+else
+  no_pie_linker_flag=no
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $no_pie_linker_flag" >&5
+$as_echo "$no_pie_linker_flag" >&6; }
+LDFLAGS="$save_LDFLAGS"
+if test "x$no_pie_linker_flag" = xyes; then
+  LDFLAGS="$LDFLAGS -no-pie"
+fi
+#gcc newer than 4.8 required adding -fgnu89-inline in STAGE2_CFLAGS to disable warning: inline function
+
+# Check if gcc version newer than gcc 4.8 
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether gcc is newer than gcc 4.8 to disable warning about inline function" >&5
+$as_echo_n "checking whether gcc is newer than gcc 4.8 to disable warning about inline function... " >&6; }
+currentgccver="$($CC -dumpversion)"
+gcc48="4.8.0"
+ 
+if [ "$(printf '%s\n' "$gcc48" "$currentgccver" | sort -V | head -n1)" = "$gcc48" ]; then 
+  fgnu89_inline_flag=yes
+else
+  fgnu89_inline_flag=no
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $fgnu89_inline_flag" >&5
+$as_echo "$fgnu89_inline_flag" >&6; }
+
+if test "x$fgnu89_inline_flag" = xyes; then
+   STAGE2_CFLAGS="$STAGE2_CFLAGS -fgnu89-inline"
+fi
+
+#gcc 10 and newer has builded with -fno-common by defualt so we add -fcommon to STAGE2_CFLAGS
+
+# Check if gcc 10 or newer
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether gcc 10 or newer builded with -fno-common by defualt" >&5
+$as_echo_n "checking whether gcc 10 or newer builded with -fno-common by defualt... " >&6; }
+currentgccver="$($CC -dumpversion)"
+gcc10="9.9.0"
+ 
+if [ "$(printf '%s\n' "$gcc10" "$currentgccver" | sort -V | head -n1)" = "$gcc10" ]; then 
+  fno_common_flag=yes
+else
+  fno_common_flag=no
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $fno_common_flag" >&5
+$as_echo "$fno_common_flag" >&6; }
+
+if test "x$fno_common_flag" = xyes; then
+   STAGE2_CFLAGS="$STAGE2_CFLAGS -fcommon"
+fi
 
 if test "x$with_binutils" != x; then
   # Extract the first word of "objcopy", so it can be a program name with args.
@@ -5742,7 +5802,7 @@ for link_addr in 2000 8000 7C00; do
   else
     as_fn_error $? "${CC-cc} cannot link at address $link_addr" "$LINENO" 5
   fi
-  if { ac_try='${OBJCOPY-objcopy} -O binary conftest.exec conftest'
+  if { ac_try='${OBJCOPY-objcopy} --only-section=.text -O binary conftest.exec conftest'
   { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_try\""; } >&5
   (eval $ac_try) 2>&5
   ac_status=$?
