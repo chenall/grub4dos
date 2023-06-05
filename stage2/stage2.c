@@ -1260,15 +1260,15 @@ restart1:
 			else
 				current_color_64bit = timeout_color;
 		}
-		else
-				if (current_term->setcolorstate)
-					current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+    else
+      if (current_term->setcolorstate)
+        current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
 
-				grub_printf("%2d",grub_timeout);
-				if (current_term->setcolorstate)
-	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
+    grub_printf("%2d",grub_timeout);
+    if (current_term->setcolorstate)
+      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 				
-	      gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
+    gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
 	    }
 	  
 	  grub_timeout--;
@@ -2623,7 +2623,7 @@ restart_config:
 	unsigned long graphicsmode_in_menu_init = 0;
 	unsigned long debug_in_menu_init = 0;
 	//char *cmdline;
-	int is_preset;
+	int is_preset, flags0;
 	grub_memset (graphic_file_shift, 0, 32);
 	menu_init_script_file[0] = 0;
 	{
@@ -2675,11 +2675,15 @@ restart_config:
 	{
 	    struct builtin *builtin = 0;
 	    char *cmdline = (char *) CMDLINE_BUF;
+	    flags0 = 0;
 	  
 	    /* Get the pointer to the builtin structure.  */
 			if (*cmdline == ':' || *cmdline == '!' || *cmdline == '{' || *cmdline == '}')
 			{
-        builtin->flags = 8;
+//        builtin->flags = 8;
+        if (builtin)          //适应gcc高版本  2023-05-24
+          builtin->flags = 8;
+        flags0 = 8;           //适应gcc高版本  2023-05-24
         goto sss;
       }
 	    builtin = find_command (cmdline);
@@ -2688,7 +2692,8 @@ restart_config:
 		/* Unknown command. Just skip now.  */
 		continue;
 sss:	  
-	    if ((int)builtin != -1 && builtin->flags == 0)	/* title command */
+//	    if ((int)builtin != -1 && builtin->flags == 0)	/* title command */
+    if ((int)builtin != (int)-1 && builtin && builtin->flags == 0 && flags0 != 8)	/* title command */  //适应gcc高版本  2023-05-24
 	    {
 		if (builtin != &builtin_title)/*If title*/
 		{
@@ -2770,7 +2775,7 @@ sss:
 		    /* The next title is found.  */
 		    if (num_entries >= 256)
 			break;
-			bt += (config_entries[attr] & 1);
+		    bt += (config_entries[attr] & 1);
 		    num_entries++;	/* an entry is completed. */
 		    config_entries[config_len++] = 0;	/* finish the entry. */
 		    prev_config_len = config_len;

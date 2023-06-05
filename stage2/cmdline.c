@@ -581,7 +581,7 @@ enter_cmdline (char *heap, int forever)
       if (use_pager)
 	count_lines = 0;
 
-	errnum = errnum_old;
+      errnum = errnum_old;
 	if (memcmp(heap,"clear",5))
 	    putchar('\n',255);
 	run_line (heap , BUILTIN_CMDLINE);

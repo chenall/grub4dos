@@ -1839,8 +1839,8 @@ chainloader_func (char *arg, int flags)
   if (filename == 0)
 	filename = arg;
 	
-	if (! chainloader_edx_set)
-	{
+  if (! chainloader_edx_set)
+  {
 		#ifdef FSYS_FB
 		if (current_drive == 0xFFFF || current_drive == ram_drive)
 		{
@@ -3468,6 +3468,7 @@ configfile_func (char *arg, int flags)
   ///* Restart pre_stage2.  */
   //(*(char *)0x8205) |= 2;	/* disable keyboard intervention */
   //chain_stage1(0, 0x8200, boot_part_addr);
+#if 0
   /* Restart cmain.  */
   asm volatile ("movl $0x7000, %esp");	/* set stack to STACKOFF */
 #ifdef HAVE_ASM_USCORE
@@ -3476,6 +3477,9 @@ configfile_func (char *arg, int flags)
 #else
   asm volatile ("call cmain");
   asm volatile ("jmp stop");
+#endif
+#else
+  cmain();  //适应gcc高版本  2=23-05-24
 #endif
 
   /* Never reach here.  */
@@ -6343,8 +6347,8 @@ redo:
 	/* discard if it is a control char(we will re-map control chars) */
 		if (unifont_simp_on)
 			unicode = ged_unifont_simp (unicode);
-			for (j=0; j<font_w; j++)
-			{
+		for (j=0; j<font_w; j++)
+		{
 				unsigned long long dot_matrix = 0;
 				for (k=0; k<font_h; k++)
 				{
@@ -10055,7 +10059,7 @@ map_func (char *arg, int flags)
   if (! (to & 0x80) && in_situ)
 	return ! (errnum = ERR_IN_SITU_FLOPPY);
 
-	primeval_to = to;
+  primeval_to = to;
 	
   /* if mem device is used, assume the --mem option */
   if (to == 0xffff || to == ram_drive || from == ram_drive)
@@ -10661,13 +10665,16 @@ map_whole_drive:
 				if ((hooked_drive_map[i].to_cylinder & (1 << 10)) != 0)
 				{
 					q = (struct fragment_map_slot *)&hooked_fragment_map;
-					filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;
+//					filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;
+          unsigned int size = (unsigned int)&hooked_fragment_map + FRAGMENT_MAP_SLOT_SIZE;
 					q = fragment_map_slot_find(q, from);
 				if (q)
 				{
-					void *start = filename - q->slot_len;
+//					void *start = filename - q->slot_len;
+          void *start = (char *)size - q->slot_len;
 					int len = q->slot_len;
-					grub_memmove (q, (char *)q + q->slot_len,filename - (char *)q - q->slot_len);
+//					grub_memmove (q, (char *)q + q->slot_len,filename - (char *)q - q->slot_len);
+          grub_memmove (q, (char *)q + q->slot_len, (char *)size - (char *)q - q->slot_len);
 					grub_memset (start, 0, len);
 				}
 				}
@@ -10857,7 +10864,7 @@ map_whole_drive:
       if (map_mem_min < 0x100000ULL)
 	  map_mem_min = 0x100000ULL;
 	  //fix initrd error by chenall 2020-01-04 http://bbs.wuyou.net/forum.php?mod=viewthread&tid=417786&extra=page%3D1&page=5
-	  if (from == INITRD_DRIVE && to == 0xffff && tmp_mem_max > initrd_addr_max){ //INITRD_DRIVE
+      if (from == INITRD_DRIVE && to == 0xffff && tmp_mem_max > initrd_addr_max){ //INITRD_DRIVE
 			tmp_mem_max = initrd_addr_max;
 	  }
       if (mbi.flags & MB_INFO_MEM_MAP)
@@ -11377,13 +11384,16 @@ delete_drive_map_slot:
 	if ((hooked_drive_map[i].to_cylinder & (1 << 10)) != 0)
 	{
 		q = (struct fragment_map_slot *)&hooked_fragment_map;
-		filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;
+//		filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;
+    unsigned int size = (unsigned int)&hooked_fragment_map + FRAGMENT_MAP_SLOT_SIZE;
 		q = fragment_map_slot_find(q, from);
 	if (q)
 	{
-		void *start = filename - q->slot_len;
+//		void *start = filename - q->slot_len;
+    void *start = (char *)size - q->slot_len;
 		int len = q->slot_len;
-		grub_memmove (q, (char *)q + q->slot_len, filename - (char *)q - q->slot_len);
+//		grub_memmove (q, (char *)q + q->slot_len, filename - (char *)q - q->slot_len);
+    grub_memmove (q, (char *)q + q->slot_len, (char *)size - (char *)q - q->slot_len);
 		grub_memset (start, 0, len);
 	}
 	}
@@ -12260,8 +12270,8 @@ pause_func (char *arg, int flags)
   /* Get current time.  */
   int ret = 1;
   while ((time2 = getrtsecs ()) == 0xFF);
-   while (wait != 0)
-   {
+  while (wait != 0)
+  {
       /* Check if there is a key-press.  */
       if (checkkey () != -1)
       {
@@ -15617,9 +15627,10 @@ enter_graphics_mode:
       }
       else if (graphics_mode > 0xFF)
       {
-	current_term = term_table + 1;	/* terminal graphics */
-	if (current_term->startup)
-		current_term->startup();
+//	current_term = term_table + 1;	/* terminal graphics */
+//	if (current_term->startup)
+//		current_term->startup();
+        graphics_init();  //适应gcc高版本  2023-05-24
       }
       if (! errnum)
       {

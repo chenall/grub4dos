@@ -173,7 +173,7 @@ if test "x$grub_cv_cc_Wundef" = xyes; then
   CPPFLAGS="$CPPFLAGS -Wundef"
 fi
 
-#gcc 9 and newer has builded with enable-default-pie by defualt so we add -no-pie to linker flag
+#gcc 5 and newer has builded with enable-default-pie by defualt so we add -no-pie to linker flag
 AC_MSG_CHECKING([checking whether gcc has enable pie by default])
 saved_LDFLAGS="$LDFLAGS"
 LDFLAGS="-no-pie"

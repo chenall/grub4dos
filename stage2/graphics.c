@@ -1641,7 +1641,7 @@ static int DecodeElement()
 		if(codelen>16)
 			return 0;
 	}  //while
-	temp=thiscode-huf_min_value[HufTabIndex][codelen-1]+code_pos_table[HufTabIndex][codelen-1],HufTabIndex;
+	temp=(unsigned short)(thiscode-huf_min_value[HufTabIndex][codelen-1]+code_pos_table[HufTabIndex][codelen-1]);
 	hufexbyte=(unsigned char)code_value_table[HufTabIndex][temp];
 	rrun=(short)(hufexbyte>>4);
 	runsize=hufexbyte&0x0f;

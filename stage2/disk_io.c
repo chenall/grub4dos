@@ -250,7 +250,7 @@ rawdisk_read (unsigned long drive, unsigned long long sector, unsigned long nsec
     if (plast[0]!=BADDATA1 || plast[1]!=BADDATA1 || plast[2]!=BADDATA1 || plast[3]!=BADDATA1)
 	return 0; // not "BAD?", success
 
-	printf_warning("\nFatal! Inconsistent data read from (0x%X)%ld+%d\n",drive,sector,nsec);
+    printf_warning("\nFatal! Inconsistent data read from (0x%X)%ld+%d\n",drive,sector,nsec);
 	return -1; // error
 }
 
@@ -471,7 +471,7 @@ devread (unsigned long long sector, unsigned long long byte_offset, unsigned lon
 {
   unsigned long sector_size_bits = log2_tmp(buf_geom.sector_size);
   unsigned long rw_flag = write;
-
+#if 0   //太旧版本不再支持了  2023-05-24
   if (rw_flag != 0x900ddeed && rw_flag != 0xedde0d90 && rw_flag != GRUB_LISTBLK)
   {//for old devread with 32-bit byte_offset compatibility.
     rw_flag = *(unsigned long*)(&write - 1);
@@ -481,7 +481,7 @@ devread (unsigned long long sector, unsigned long long byte_offset, unsigned lon
     byte_len = *(unsigned long long*)(&write - 5);
     byte_offset = (unsigned long)byte_offset;
   }
-
+#endif
   if (emu_iso_sector_size_2048)
     {
       emu_iso_sector_size_2048 = 0;
@@ -844,7 +844,7 @@ redo:
       /* Read the MBR or the boot sector of the extended partition.  */
       if (! rawread (next_partition_drive, *next_partition_offset, 0, SECTOR_SIZE, (unsigned long long)(unsigned int)next_partition_buf, 0xedde0d90))
 	return 0;
-	if (pc_slice_no == -1 && next_partition_buf[0x1C2] == '\xEE' && is_gpt_part())
+      if (pc_slice_no == -1 && next_partition_buf[0x1C2] == '\xEE' && is_gpt_part())
 	{
 		if (next_partition_dest != 0xffffff)
 			pc_slice_no = (next_partition_dest>>16) - 1;

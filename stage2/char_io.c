@@ -119,7 +119,8 @@ print_error (void)
 }
 
 char *
-convert_to_ascii (char *buf, int c,...)
+//convert_to_ascii (char *buf, int c,...)
+convert_to_ascii (char *buf, int c, int lo, int hi) //适应gcc高版本  2023-05-24
 {
   union {
     unsigned long long ll;
@@ -140,8 +141,10 @@ convert_to_ascii (char *buf, int c,...)
   } num;
   char *ptr = buf;
 
-  num.hi = *(unsigned long *)((&c) + 2);
-  num.lo = *(unsigned long *)((&c) + 1);
+//  num.hi = *(unsigned long *)((&c) + 2);
+//  num.lo = *(unsigned long *)((&c) + 1);
+  num.hi = hi; //适应gcc高版本  2023-05-24
+  num.lo = lo; //适应gcc高版本  2023-05-24
 
   if (c == 'x' || c == 'X')	/* hex */
   {

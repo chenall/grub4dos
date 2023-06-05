@@ -436,7 +436,7 @@ int pxe_detect (int blksize, char *config)	//void pxe_detect (void)
 //	if (checkkey() == 0x11b) break;
     if (checkkey() != (int)-1)
       if (getkey() == 0x11b) break;
-      *(--pc) = 0;
+        *(--pc) = 0;
     } while (pc > pxe_tftp_name + MENU_DIR_NAME_LENGTH);
   grub_strcpy (pc, "default");
   grub_printf ("%s\n", pxe_tftp_open.FileName);
@@ -494,6 +494,7 @@ done:
 	///* Restart pre_stage2.  */
 	//(*(char *)0x8205) |= 2;	/* disable keyboard intervention */
 	//chain_stage1(0, 0x8200, boot_part_addr);
+#if 0
 	/* Restart cmain.  */
 	asm volatile ("movl $0x7000, %esp");	/* set stack to STACKOFF */
 #ifdef HAVE_ASM_USCORE
@@ -502,6 +503,9 @@ done:
 #else
 	asm volatile ("call cmain");
 	asm volatile ("jmp stop");
+#endif
+#else
+  cmain();  //适应gcc高版本  2=23-05-24
 #endif
 
 	/* Never reach here.  */
