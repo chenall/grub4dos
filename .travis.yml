@@ -1,6 +1,6 @@
 language: c
 sudo: enabled
-compiler: gcc-4.6
+compiler: gcc-11
 os:
   - linux
 addons:
@@ -9,7 +9,7 @@ addons:
     - git.coding.net
     - git.dev.tencent.com
   apt:
-    packages: [gcc-4.6,gcc-4.6-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
+    packages: [gcc-11,gcc-11-multilib,nasm,upx,p7zip-full,zip,autoconf,automake,make,patch,npm]
     sources: 
       - ubuntu-toolchain-r-test
     
