@@ -15,8 +15,6 @@ jobs:
       with:
         fetch-depth: 10
     - uses: chenall/grub4dos-build@main
-      with:
-        useQemu: 1
     - name: 上传文件到1 transfer.sh
       run: |
         echo transfer_url=`curl -H "Max-Downloads: 100" -H "Max-Days: 5" --upload-file ./$GRUB4DOS_BIN https://transfer.sh` >> $GITHUB_ENV
@@ -46,11 +44,8 @@ jobs:
       with:
         repository: ipxe/ipxe
         path: ipxe
-        ref: v1.21.1
     - name: 调用专用编译环境进行编译
       uses: chenall/grub4dos-build@main
-      with:
-          useQemu: 1
     - name: 发布到 github
       if: ${{ github.event_name == 'push' }}
       uses: marvinpinto/action-automatic-releases@latest
