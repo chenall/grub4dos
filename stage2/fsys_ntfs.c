@@ -819,7 +819,7 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
 {
     unsigned int vcn, blk_size;
     unsigned char log2_blk_size;
-    read_ctx cc, *ctx;
+    read_ctx cc={0}, *ctx;
     int ret=0;
 
     if (len == 0)
@@ -1474,7 +1474,7 @@ ntfs_read(unsigned long long buf, unsigned long long len, unsigned int write)
   cur_mft=cmft;
   if (valueat(cur_mft,0x16,unsigned short) & 2)
     goto error;
-    save_pos=1;
+  save_pos=1;
 
   if (! read_attr(cmft,buf,filepos,len,1,write))
     goto error;

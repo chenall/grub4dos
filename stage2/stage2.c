@@ -1170,15 +1170,15 @@ restart1:
           current_term->setcolorstate (color_64_to_8 (current_color_64bit & 0x00ffffffffffffff) | 0x100);
         }
         else
-				if (current_term->setcolorstate)
-					current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
+	  if (current_term->setcolorstate)
+	    current_term->setcolorstate (COLOR_STATE_HIGHLIGHT);
 
 				grub_printf("%2d",grub_timeout);
 
-				if (current_term->setcolorstate)
+	  if (current_term->setcolorstate)
 	      current_term->setcolorstate (COLOR_STATE_HELPTEXT);
 				
-	      gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
+	  gotoxy (MENU_BOX_E, MENU_BOX_Y + entryno);
 	    }
 	  
       grub_timeout--;
@@ -1975,7 +1975,7 @@ restart_config:
 	   STATE 2: In a entry after a title command.  
 	*/
 	int state = 0, prev_config_len = 0, bt = 0;
-	int is_preset;
+	int is_preset, flags0;
 	grub_memset (graphic_file_shift, 0, 32);
 	menu_init_script_file[0] = 0;
 	{
@@ -2022,21 +2022,25 @@ restart_config:
 #endif
 	while (get_line_from_config ((char *) CMDLINE_BUF, NEW_HEAPSIZE, is_preset))
 	{
-	    struct builtin *builtin = 0;
-	    char *cmdline = (char *) CMDLINE_BUF;  
+    struct builtin *builtin = 0;
+    char *cmdline = (char *) CMDLINE_BUF;  
+    flags0 = 0;
 	    /* Get the pointer to the builtin structure.  */
     if (*cmdline == ':' || *cmdline == '!' || *cmdline == '{' || *cmdline == '}')
     {
-      builtin->flags = 8;
+//        builtin->flags = 8;
+      if (builtin)          //适应gcc高版本  2023-05-24
+        builtin->flags = 8;
+      flags0 = 8;           //适应gcc高版本  2023-05-24
       goto sss;
     }
 	    builtin = find_command (cmdline);
 	    errnum = 0;
 	    if (! builtin)
-		/* Unknown command. Just skip now.  */
-		continue;
+        continue; /* Unknown command. Just skip now.  */
 sss:
-	    if ((grub_size_t)builtin != (grub_size_t)-1 && builtin->flags == (int)0)	/* title command */
+//	    if ((grub_size_t)builtin != (grub_size_t)-1 && builtin->flags == (int)0)	/* title command */
+	    if ((grub_size_t)builtin != (grub_size_t)-1 && builtin && builtin->flags == (int)0 && flags0 != 8)	/* title command */
 	    {
 		if (builtin != &builtin_title)/*If title*/
 		{
@@ -2087,7 +2091,7 @@ sss:
 				state |= 0x10;
 				continue;
 			}
-		}
+		}//if (builtin != &builtin_title)
 
 		/* Finish the menu init commands or previous menu items.  */
 		if (state & 2)
@@ -2133,7 +2137,7 @@ sss:
 		    ptr[len] = 0;
 		    while ((CONFIG_ENTRIES[config_len++] = *(ptr++)) != 0);
 		}
-	    }
+	    }//if ((grub_size_t)builtin != (grub_size_t)-1 && .....
 	    else if (state & 0x10) /*ignored menu by iftitle*/
       {
 		continue;

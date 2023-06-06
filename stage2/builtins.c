@@ -115,7 +115,7 @@ int envi_cmd(const char *var,char * const env,int flags);
 //extern int count_lines;
 //extern int use_pager;
 #if defined(__i386__)
-char *convert_to_ascii (char *buf, int c, ...);
+char * convert_to_ascii (char *buf, int c, int lo, int hi);
 #else
 char *convert_to_ascii (char *buf, int c, unsigned long long lo);
 #endif
@@ -1007,7 +1007,7 @@ complete:
       filepos = (grub_size_t)catalog[k].lba * 0x800;    //避免64位被截断   2023-04-24
       grub_read (address, (unsigned long long)cd_Image_disk_size << 9 , 0xedde0d90);
       grub_close ();
-      grub_sprintf (chainloader_file, "(md)0x%lX+0x%lX (0x%x)\0", (address >> 9) + cd_Image_part_start, cd_Image_disk_size - cd_Image_part_start, 0x60 + cd_map_count);
+      grub_sprintf (chainloader_file, "(md)0x%X+0x%X (0x%x)\0", (grub_size_t)((address >> 9) + cd_Image_part_start), cd_Image_disk_size - cd_Image_part_start, 0x60 + cd_map_count);
       map_func (chainloader_file, 1);
     }
 #undef BS
@@ -3926,7 +3926,7 @@ command_func (char *arg, int flags)
 		{
 			unsigned int *prog_start = (unsigned int *)(program + prog_len - 0x3c); //.text
 			unsigned int *bss_end = (unsigned int *)(program + prog_len - 0x24);    //end
-
+ 
 			if (prog_len != (*bss_end - *prog_start)){  //如果bss区有数据,外部命令尺寸是filemax+bss尺寸
 				grub_free(tmp);
         prog_len = *bss_end - *prog_start;
@@ -7188,18 +7188,21 @@ void
 unload_fragment_slot (unsigned int from)  //卸载碎片插槽
 {
   struct fragment_map_slot *q;
-  char *filename;
+//  char *filename;
   void *start;
   int len;
   
   q = (struct fragment_map_slot *)&disk_fragment_map;     //q=碎片映射插槽起始位置 *q=插槽尺寸 	b6e0
-  filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;          //碎片映射插槽终止位置
+//  filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;          //碎片映射插槽终止位置
+  grub_size_t size = (grub_size_t)&disk_fragment_map + FRAGMENT_MAP_SLOT_SIZE;
   q = fragment_map_slot_find(q, from);		                //q=from驱动器在碎片映射插槽起始位置
   if (q)  		//0/1=没有找到驱动器/找到驱动器位置
   {
-    start = filename - q->slot_len;
+//    start = filename - q->slot_len;
+    start = (char *)size - q->slot_len;
     len = q->slot_len;
-    grub_memmove (q, (char *)q + q->slot_len, filename - (char *)q - q->slot_len);
+//    grub_memmove (q, (char *)q + q->slot_len, filename - (char *)q - q->slot_len);
+    grub_memmove (q, (char *)q + q->slot_len, (char *)size - (char *)q - q->slot_len);
     grub_memset (start, 0, len);
   }
 }
@@ -8168,13 +8171,16 @@ map_whole_drive:
     if (df && df->fragment == 1)  //有碎片
     {
       q = (struct fragment_map_slot *)&disk_fragment_map;   //碎片插槽起始
-      filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;			  //碎片插槽结束
+//      filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;			  //碎片插槽结束
+      grub_size_t size = (grub_size_t)&disk_fragment_map + FRAGMENT_MAP_SLOT_SIZE;
       q = fragment_map_slot_find(q, from);		              //从碎片插槽查找from驱动器
       if (q)  		//q=0/非0=没有找到/from驱动器在碎片插槽位置
       {
-        void *start = filename - q->slot_len;
+//        void *start = filename - q->slot_len;
+        void *start = (char *)size - q->slot_len;
         int len = q->slot_len;
-        grub_memmove (q, (char *)q + q->slot_len,filename - (char *)q - q->slot_len);
+//        grub_memmove (q, (char *)q + q->slot_len,filename - (char *)q - q->slot_len);
+        grub_memmove (q, (char *)q + q->slot_len, (char *)size - (char *)q - q->slot_len);
         grub_memset (start, 0, len);
       }
     }

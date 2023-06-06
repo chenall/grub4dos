@@ -173,6 +173,17 @@ if test "x$grub_cv_cc_Wundef" = xyes; then
   CPPFLAGS="$CPPFLAGS -Wundef"
 fi
 
+#gcc 5 and newer has builded with enable-default-pie by defualt so we add -no-pie to linker flag
+AC_MSG_CHECKING([checking whether gcc has enable pie by default])
+saved_LDFLAGS="$LDFLAGS"
+LDFLAGS="-no-pie -fno-pic"
+AC_TRY_LINK(, , no_pie_linker_flag=yes, no_pie_linker_flag=no)
+AC_MSG_RESULT([$no_pie_linker_flag])
+LDFLAGS=$saved_LDFLAGS
+if test "x$no_pie_linker_flag" = xyes; then
+  LDFLAGS="$LDFLAGS -no-pie -fno-pic"
+fi
+
 # Check if build ID can be disabled in the linker
 AC_MSG_CHECKING([whether linker accepts `--build-id=none'])
 save_LDFLAGS="$LDFLAGS"

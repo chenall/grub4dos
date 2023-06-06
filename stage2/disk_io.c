@@ -348,7 +348,7 @@ int
 devread (unsigned long long sector, unsigned long long byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned int write)
 {
   unsigned int rw_flag = write;
-
+#if 0   //太旧版本不再支持了  2023-05-24
   if (rw_flag != 0x900ddeed && rw_flag != 0xedde0d90 && rw_flag != GRUB_LISTBLK)
   {//for old devread with 32-bit byte_offset compatibility.  为了兼容旧驱动器的32位byte_offset
     rw_flag = *(unsigned int*)(&write - 1);
@@ -358,7 +358,7 @@ devread (unsigned long long sector, unsigned long long byte_offset, unsigned lon
     byte_len = *(unsigned long long*)(&write - 5);
     byte_offset = (unsigned int)byte_offset;
   }
-
+#endif
   if (emu_iso_sector_size_2048)			//如果是读光盘
     {
       emu_iso_sector_size_2048 = 0;	//修改为每扇区0x200字节
@@ -4215,8 +4215,8 @@ grub_load_image (grub_efi_device_path_t *path, const char *filename, void *boot_
   }
   if (debug > 1)
     grub_efi_print_device_path(boot_file);
-    if (!boot_image)
-    {
+  if (!boot_image)
+  {
 		//加载映像	将EFI映像加载到内存中  要读磁盘
       status = efi_call_6 (b->load_image, TRUE, 			//启动策略. 如果为true，则表示请求来自引导管理器，并且引导管理器正尝试将设备路径作为引导选择加载 
                             grub_efi_image_handle,		//调用方的映像句柄. 此字段用于为正在加载的映像初始化EFI加载的映像协议的父句柄字段。

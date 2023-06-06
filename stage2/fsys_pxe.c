@@ -466,6 +466,7 @@ done:	//完成
 		current_slice = 0;
 
 	/* Restart cmain.  重新启动cmain*/
+#if 0
 		asm volatile ("movl $0x7000, %esp");	/* set stack to STACKOFF */
 #ifdef HAVE_ASM_USCORE
 		asm volatile ("call _cmain");
@@ -473,6 +474,9 @@ done:	//完成
 #else
 		asm volatile ("call cmain");
 		grub_halt();
+#endif
+#else
+  cmain();  //适应gcc高版本  2=23-05-24
 #endif
 
 	/* Never reach here.  永不到达这里*/

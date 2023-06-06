@@ -41,7 +41,7 @@ int substring (const char *s1, const char *s2, int case_insensitive);
 int nul_terminate (char *str);
 int grub_strlen (const char *str);
 int memcheck (unsigned long long addr, unsigned long long len);
-void *grub_memmove (void *to, const void *from, grub_size_t len);
+void *grub_memmove (void *to, const void *from, int len);
 void *grub_memset (void *start, int c, grub_size_t len);
 char *grub_strstr (const char *s1, const char *s2);
 char *grub_strtok (char *s, const char *delim);
@@ -279,9 +279,9 @@ grub_putstr_utf16(unsigned short *str)  //打印unicode16字符串
 }
 
 #if defined(__i386__)
-char * convert_to_ascii (char *buf, int c,...);
+char * convert_to_ascii (char *buf, int c, int lo, int hi);
 char *
-convert_to_ascii (char *buf, int c,...)
+convert_to_ascii (char *buf, int c, int lo, int hi) //适应gcc高版本  2023-05-24
 {
   union {
     unsigned long long ll;
@@ -302,8 +302,10 @@ convert_to_ascii (char *buf, int c,...)
   } num;
   char *ptr = buf;
 
-  num.hi = *(unsigned int *)((&c) + 2);
-  num.lo = *(unsigned int *)((&c) + 1);
+//  num.hi = *(unsigned int *)((&c) + 2);
+//  num.lo = *(unsigned int *)((&c) + 1);
+  num.hi = hi; //适应gcc高版本  2023-05-24
+  num.lo = lo; //适应gcc高版本  2023-05-24
 
   if (c == 'x' || c == 'X')	/* hex */
   {
@@ -2197,7 +2199,7 @@ static inline void _memset(void *dst, unsigned char data, unsigned int len)
 }
 
 void *
-grub_memmove (void *to, const void *from, grub_size_t len)
+grub_memmove (void *to, const void *from, int len)
 {
   char *t = (char*)to, *f = (char*)from;
   

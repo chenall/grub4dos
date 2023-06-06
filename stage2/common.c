@@ -185,9 +185,9 @@ int check_64bit_and_PAE ()
 	  "pushl %%edx; popfl;"	// restore original EFLAGS
 	  "xorl %%edx, %0; shrl $21, %%eax; and $1, %%eax;"	// check for bit 21 difference
 	: "=a"(has_cpuid_instruction) : : "%edx" );
-    if (!has_cpuid_instruction)
-	return 0;
-	unsigned int *sig = grub_malloc (0x20);
+  if (!has_cpuid_instruction)
+   return 0;
+  unsigned int *sig = grub_malloc (0x20);
     unsigned int maxfn,feature;
     int x=0;
     asm ("cpuid;"
@@ -1336,7 +1336,7 @@ again:
 	}
 
 fail:
-  printf_errinfo ("out of malloc memory");	//内存不足
+  printf_errinfo ("out of malloc memory\n");	//内存不足
   return 0;
 }
 
@@ -2153,7 +2153,7 @@ get_embed (void)		//获取嵌入数据
 
 //    preset_menu = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)preset_menu + 0x1ff) & 0xfffffffffffffe00);
       grub_memcpy (preset_menu, (char *) header + sizeof (struct grub_module_header), embed_menu_size);
-      grub_sprintf (preset_menu_path,"(md)0x%lx+0x%lx,0x%lx", ((grub_size_t) preset_menu) >> 9, 
+      grub_sprintf (preset_menu_path,"(md)0x%x+0x%x,0x%x", ((grub_size_t) preset_menu) >> 9, 
           (embed_menu_size + 0x1ff) >> 9, embed_menu_size);
       preset_menu = preset_menu_path;
     use_preset_menu = 1;
@@ -2169,7 +2169,7 @@ get_embed (void)		//获取嵌入数据
 
 //      embed_mod = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)embed_mod + 0x1ff) & 0xfffffffffffffe00);
       grub_memmove (embed_mod, (char *) header + sizeof (struct grub_module_header), embed_mod_size);
-      grub_sprintf (embed_mod_cmd, "insmod (md)0x%lx+0x%lx,0x%lx",
+      grub_sprintf (embed_mod_cmd, "insmod (md)0x%x+0x%x,0x%x",
             ((grub_size_t) embed_mod) >> 9, (embed_mod_size + 0x1ff) >> 9, embed_mod_size);
       run_line (embed_mod_cmd, 101);
       grub_free (embed_mod);
@@ -2185,7 +2185,7 @@ get_embed (void)		//获取嵌入数据
 
 //      embed_font = (char *)(grub_size_t)(((unsigned long long)(grub_size_t)embed_font + 0x1ff) & 0xfffffffffffffe00);
       grub_memmove (embed_font, (char *) header + sizeof (struct grub_module_header), embed_font_size);
-      grub_sprintf (embed_font_path, "(md)0x%lx+0x%lx,0x%lx",
+      grub_sprintf (embed_font_path, "(md)0x%x+0x%x,0x%x",
               ((grub_size_t) embed_font) >> 9, (embed_font_size + 0x1ff) >> 9, embed_font_size);         
       continue;
     }

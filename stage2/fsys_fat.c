@@ -236,7 +236,7 @@ fat_mount (void)
   if ((first_fat | 0xF) != (magic | 0xFF))
 	printf_warning ("Warning! Invalid first FAT entry(=0x%X)!\n", first_fat);
 
-	fats_type = FAT_SUPER->fat_type;
+  fats_type = FAT_SUPER->fat_type;
   FAT_SUPER->cached_fat = - 2 * FAT_CACHE_SIZE;
   return 1;
 
@@ -329,7 +329,7 @@ label_exfat:
     if (first_fat != 0xfffffff8)
   	printf_warning ("Warning! Invalid first FAT entry(=0x%X)!\n", first_fat);
 
-	fats_type = FAT_SUPER->fat_type;
+    fats_type = FAT_SUPER->fat_type;
   FAT_SUPER->cached_fat = - 2 * FAT_CACHE_SIZE;
   return 1;
 }

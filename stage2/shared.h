@@ -26,7 +26,22 @@
 #define GRUB_SHARED_HEADER	1
 
 #include <config.h>
+/* Disable all gcc warnings */
+#if 1  //调试时设置为0,显示警告信息
+#if defined (__GNUC__) && defined (__GNUC_MINOR__) && (((__GNUC__ == 4) && (__GNUC_MINOR__  > 8)) || (__GNUC__ >= 5))
+#pragma GCC diagnostic ignored "-Wunused-value"
+#endif
 
+#if defined (__GNUC__) && (__GNUC__ >= 6) 
+#pragma GCC diagnostic ignored "-Wmisleading-indentation"
+#endif
+
+#if defined (__GNUC__) && (__GNUC__ >= 10) 
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+#endif
+#endif
 //UEFI 编译开关
 #define GDPUP   0         //使用设备路径实用程序协议   低版本UEFI固件不支持
 #define UNMAP   1         //卸载映像
@@ -1929,7 +1944,7 @@ extern int grub_sprintf (char *buffer, const char *format, ...);
 extern int grub_tolower (int c);
 extern int grub_isspace (int c);
 extern int grub_strncat (char *s1, const char *s2, int n);
-extern void *grub_memmove (void *to, const void *from, grub_size_t len);
+extern void *grub_memmove (void *to, const void *from, int len);
 void *grub_memset (void *start, int c, grub_size_t len);
 extern char *grub_strstr (const char *s1, const char *s2);
 //char *grub_strtok (char *s, const char *delim);
@@ -1955,7 +1970,7 @@ extern unsigned int configfile_opened;
 void init_page (void);
 void print_error (void);
 #if defined(__i386__)
-extern char *convert_to_ascii (char *buf, int c, ...);
+extern char *convert_to_ascii (char *buf, int c, int lo, int hi);
 #else
 extern char *convert_to_ascii (char *buf, int c, unsigned long long lo);
 #endif
