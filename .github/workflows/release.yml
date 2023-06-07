@@ -47,10 +47,10 @@ jobs:
        ssh-key: "${{ secrets.DEPLOY_KEY }}"
     - name: 更新发布站
       run: |
-        cd grub4dos.site
         git config --global user.name "chenall"
         git config --global user.email "chenall.cn@gmail.com"
-        cp /home/runner/work/grub4dos/grub4dos/*.7z source/_posts/downloads/
+        cp *.7z source/_posts/downloads/
+        cd grub4dos.site
         git add source/_posts/downloads/*.7z
         git commit -m "`date -u +%Y-%m-%d` $GRUB4DOS_VER build from ${GITHUB_SHA:0:8} "
         git push
