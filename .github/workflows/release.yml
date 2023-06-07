@@ -5,7 +5,7 @@ on:
    branches: [ "master","efi","0.4.6a" ]
 
 jobs:
-  build:
+#  build:
     runs-on: ubuntu-22.04
     steps:
     - name: 安装依赖项并进行环境变量配置
