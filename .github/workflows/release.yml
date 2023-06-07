@@ -22,7 +22,7 @@ jobs:
         ref: efi
     - name: 编译
       run: |
-        make -j -C grub4dos
+        make -j -C chenall/grub4dos/efi
     - name: 发布到 github
       if: ${{ github.event_name == 'push' }}
       uses: marvinpinto/action-automatic-releases@latest
