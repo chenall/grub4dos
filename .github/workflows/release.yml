@@ -1,23 +1,21 @@
 name: grub4dos-build
 
-on: 
- push:
-   branches: [ "master","efi","0.4.6a" ]
+on:
+  push:
+    branches:
+      - efi
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04   //在ubuntu-22.04上运行
     steps:
-    - name: 安装依赖项并进行环境变量配置
-    run: |
+    - name:
+      uses: actions/checkout@v3
+    - name: 初始化
+      run: |
       sudo apt update
       sudo apt -y install gcc gcc-multilib nasm p7zip-full autoconf automake make patch binutils-dev liblzma-dev gcc-mingw-w64-i686
     - name: 下载源码
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 10
-    - name: 下载 ipxe 源码
-      if: ${{ contains(github.ref, '0.4.6') }}
       uses: actions/checkout@v3
       with:
         repository: chenall/grub4dos
