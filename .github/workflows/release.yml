@@ -24,7 +24,6 @@ jobs:
       run: |
         make -j -C /home/runner/work/grub4dos/grub4dos
     - name: 发布到 github
-      if: ${{ github.event_name == 'push' }}
       uses: marvinpinto/action-automatic-releases@latest
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
