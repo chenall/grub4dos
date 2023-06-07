@@ -29,7 +29,7 @@ jobs:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
         automatic_release_tag: "latest"
         prerelease: false
-        title: "${{ /home/runner/work/grub4dos/grub4dos.GRUB4DOS_BIN }}"
+        title: "latest"
         files: |
           *.7z
           *.zip
