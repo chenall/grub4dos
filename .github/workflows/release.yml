@@ -27,9 +27,9 @@ jobs:
       uses: marvinpinto/action-automatic-releases@latest
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: "latest"
+        automatic_release_tag: "for_UEFI"
         prerelease: false
-        title: "latest"
+        title: "for_UEFI"
         files: |
           *.7z
           *.zip
@@ -39,7 +39,7 @@ jobs:
         AK: ${{ secrets.AK }}
         SK: ${{ secrets.SK }}
     - name: 下载发布站点代码
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
        repository:  chenall/grub4dos.site
        ref:  master
