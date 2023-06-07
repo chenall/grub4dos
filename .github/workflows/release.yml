@@ -3,8 +3,6 @@ name: grub4dos-build
 on: 
  push:
    branches: [ "master","efi","0.4.6a" ]
- pull_request:
-   types: [ opened , synchronize ]
 
 jobs:
   build:
