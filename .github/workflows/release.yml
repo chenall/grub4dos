@@ -14,7 +14,7 @@ jobs:
     - name: 初始化
       run: |
         sudo apt update
-        sudo apt -y install gcc gcc-multilib nasm p7zip-full autoconf automake make patch binutils-dev liblzma-dev gcc-mingw-w64-i686
+        sudo apt install -y gcc gcc-multilib nasm upx upx-ucl p7zip-full autoconf automake make patch binutils-dev liblzma-dev syslinux isolinux genisoimage 
     - name: 下载源码
       uses: actions/checkout@v3
       with:
