@@ -37,7 +37,7 @@ jobs:
     - name: 安装依赖项并进行环境变量配置
 #      run: sudo apt -y install p7zip-full
       run: sudo apt update
-      run: sudo apt -y install gcc-11 gcc-11-multilib nasm p7zip-full autoconf automake make patch binutils-dev liblzma-dev gcc-mingw-w64-i686
+      run: sudo apt -y install gcc gcc-multilib nasm p7zip-full autoconf automake make patch binutils-dev liblzma-dev gcc-mingw-w64-i686
     - name: 下载源码
       uses: actions/checkout@v3
       with:
