@@ -22,7 +22,7 @@ jobs:
         ref: 0.4.6a
     - name: 编译
       run: |
-        make -j -C /home/runner/work/grub4dos/grub4dos
+        ./build /home/runner/work/grub4dos/grub4dos
     - name: 发布到 github
       uses: marvinpinto/action-automatic-releases@latest
       with:
