@@ -6,7 +6,6 @@ on:
 
 jobs:
   build:
-    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-22.04
     steps:
     - name: 安装依赖项并进行环境变量配置
