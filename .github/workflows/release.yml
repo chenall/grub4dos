@@ -14,12 +14,12 @@ jobs:
     - name: 初始化
       run: |
         sudo apt update
-        sudo apt -y install gcc gcc-multilib nasm p7zip-full autoconf automake make patch binutils-dev liblzma-dev gcc-mingw-w64-i686
+        sudo apt -y install gcc gcc-multilib nasm p7zip-full autoconf automake make patch binutils-dev liblzma-dev gcc-mingw-w32-i686
     - name: 下载源码
       uses: actions/checkout@v3
       with:
         repository: chenall/grub4dos
-        ref: efi
+        ref: 0.4.6a
     - name: 编译
       run: |
         make -j -C /home/runner/work/grub4dos/grub4dos
