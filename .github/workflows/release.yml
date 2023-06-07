@@ -7,9 +7,9 @@ on:
    types: [ opened , synchronize ]
 
 jobs:
-  build-pr:
-    if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-22.04
+#  build-pr:
+#    if: ${{ github.event_name == 'pull_request' }}
+#    runs-on: ubuntu-22.04
 #    steps:
 #    - uses: actions/checkout@v2
 #      with:
