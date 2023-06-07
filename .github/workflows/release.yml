@@ -7,35 +7,11 @@ on:
    types: [ opened , synchronize ]
 
 jobs:
-#  build-pr:
-#    if: ${{ github.event_name == 'pull_request' }}
-#    runs-on: ubuntu-22.04
-#    steps:
-#    - uses: actions/checkout@v2
-#      with:
-#        fetch-depth: 10
-#    - uses: chenall/grub4dos-build@main
-#      with:
-#        useQemu: 1
-#    - name: 上传文件到1 transfer.sh
-#      run: |
-#        echo transfer_url=`curl -H "Max-Downloads: 100" -H "Max-Days: 5" --upload-file ./$GRUB4DOS_BIN https://transfer.sh` >> $GITHUB_ENV
-#    - name: 发送本次 pr 的编译结果
-#      env:
-#        URL: ${{ github.event.pull_request.comments_url }}
-#        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#      run: |
-#          curl -X POST $URL -H "Content-Type: application/json" -H "Authorization: token $GITHUB_TOKEN" --data "{ \"body\": \"$transfer_url\" }"
   build-push:
     if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-22.04
-#    environment: 
-#     name: PAGES
-#    env:
-#      COMMIT_RANGE: "${{ github.event.before || github.event.pull_request.base.sha }}...${{ github.sha }}"
     steps:
     - name: 安装依赖项并进行环境变量配置
-#      run: sudo apt -y install p7zip-full
     run: |
       sudo apt update
       sudo apt -y install gcc gcc-multilib nasm p7zip-full autoconf automake make patch binutils-dev liblzma-dev gcc-mingw-w64-i686
@@ -47,16 +23,9 @@ jobs:
       if: ${{ contains(github.ref, '0.4.6') }}
       uses: actions/checkout@v3
       with:
-#        repository: ipxe/ipxe
-#        path: ipxe
-#        ref: v1.21.1
         repository: chenall/grub4dos
         ref: efi
-#    - name: 调用专用编译环境进行编译
     - name: 编译
-#      uses: chenall/grub4dos-build@main
-#      with:
-#        useQemu: 1
       run: |
         make -j -C chenall/grub4dos
     - name: 发布到 github
