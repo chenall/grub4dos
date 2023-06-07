@@ -27,7 +27,7 @@ jobs:
 #      run: |
 #          curl -X POST $URL -H "Content-Type: application/json" -H "Authorization: token $GITHUB_TOKEN" --data "{ \"body\": \"$transfer_url\" }"
 #  build-push:
-  build:
+ build:
 #    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-22.04
 #    environment: 
