@@ -27,7 +27,7 @@ jobs:
       uses: marvinpinto/action-automatic-releases@latest
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: "GRUB4DOS_for_UEFI-`date -u +%Y-%m-%d`"
+        automatic_release_tag: "for_UEFI"
         prerelease: false
         title: "GRUB4DOS_for_UEFI-`date -u +%Y-%m-%d`"
         files: |
