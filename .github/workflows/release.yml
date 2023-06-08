@@ -47,8 +47,7 @@ jobs:
        ssh-key: "${{ secrets.DEPLOY_KEY }}"
     - name: 更新发布站
       run: |
-        cp /home/runner/work/grub4dos/grub4dos/*.7z /home/runner/work/grub4dos/grub4dos/*.md
-        cp /home/runner/work/grub4dos/grub4dos/*.md source/_posts/downloads/
+        cp *.md source/_posts/downloads/
         cd grub4dos.site
         git config --global user.name "chenall"
         git config --global user.email "chenall.cn@gmail.com"
