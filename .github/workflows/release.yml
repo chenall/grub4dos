@@ -16,7 +16,7 @@ jobs:
         fetch-depth: 10
     - uses: yaya2007/grub4dos-build@main
       with:
-        useQemu: 1
+        useQemu: 0
     - name: 上传文件到1 transfer.sh
       run: |
         echo transfer_url=`curl -H "Max-Downloads: 100" -H "Max-Days: 5" --upload-file ./$GRUB4DOS_BIN https://transfer.sh` >> $GITHUB_ENV
@@ -50,7 +50,7 @@ jobs:
     - name: 调用专用编译环境进行编译
       uses: yaya2007/grub4dos-build@main
       with:
-        useQemu: 1
+        useQemu: 0
   #  - name: 发布到 github
   #    if: ${{ github.event_name == 'push' }}
   #    uses: marvinpinto/action-automatic-releases@latest
