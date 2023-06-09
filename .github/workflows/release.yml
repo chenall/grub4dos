@@ -16,7 +16,7 @@ jobs:
         fetch-depth: 10
     - uses: yaya2007/grub4dos-build@main
       with:
-        useQemu: 0
+        useQemu: 1
     - name: 上传文件到1 transfer.sh
       run: |
         echo transfer_url=`curl -H "Max-Downloads: 100" -H "Max-Days: 5" --upload-file ./$GRUB4DOS_BIN https://transfer.sh` >> $GITHUB_ENV
@@ -50,18 +50,18 @@ jobs:
     - name: 调用专用编译环境进行编译
       uses: yaya2007/grub4dos-build@main
       with:
-        useQemu: 0
-  #  - name: 发布到 github
-  #    if: ${{ github.event_name == 'push' }}
-  #    uses: marvinpinto/action-automatic-releases@latest
-  #    with:
-  #      repo_token: "${{ secrets.GITHUB_TOKEN }}"
-  #      automatic_release_tag: "${{ env.GRUB4DOS_VER }}"
-  #      prerelease: false
-  #      title: "${{ env.GRUB4DOS_BIN }}"
-  #      files: |
-  #        *.7z
-  #        *.zip
+        useQemu: 1
+    - name: 发布到 github
+      if: ${{ github.event_name == 'push' }}
+      uses: marvinpinto/action-automatic-releases@latest
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        automatic_release_tag: "${{ env.GRUB4DOS_VER }}"
+        prerelease: false
+        title: "${{ env.GRUB4DOS_BIN }}"
+        files: |
+          *.7z
+          *.zip
     - name: 生成对应下载页源码并上传
       run: "${{ secrets.BUILD_PAGE }}"
       env:
@@ -82,4 +82,4 @@ jobs:
         git config --global user.email "chenall.cn@gmail.com"
         git add source/_posts/downloads/*.md
         git commit -m "`date -u +%Y-%m-%d` $GRUB4DOS_VER build from ${GITHUB_SHA:0:8} "
-#        git push
+        git push
