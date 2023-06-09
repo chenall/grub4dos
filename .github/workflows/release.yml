@@ -64,7 +64,7 @@ jobs:
   #        *.zip
     - name: 生成对应下载页源码并上传
       run: "${{ secrets.BUILD_PAGE }}"
-      env:  //环境
+      env:
         AK: ${{ secrets.AK }}
         SK: ${{ secrets.SK }}
     - name: 下载发布站点代码
