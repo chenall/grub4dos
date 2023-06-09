@@ -1,35 +1,64 @@
 name: grub4dos-build
 
 on:
-  push:
-    branches:
-      - efi
+ push:
+   branches: [ "master","efi","0.4.6a" ]
+ pull_request:
+   types: [ opened , synchronize ]
 
 jobs:
-  build:
+  build-pr:
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-22.04
     steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 10
+    - uses: yaya2007/grub4dos-build@main
+      with:
+        useQemu: 1
+    - name: 上传文件到1 transfer.sh
+      run: |
+        echo transfer_url=`curl -H "Max-Downloads: 100" -H "Max-Days: 5" --upload-file ./$GRUB4DOS_BIN https://transfer.sh` >> $GITHUB_ENV
+    - name: 发送本次 pr 的编译结果
+      env:
+        URL: ${{ github.event.pull_request.comments_url }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+          curl -X POST $URL -H "Content-Type: application/json" -H "Authorization: token $GITHUB_TOKEN" --data "{ \"body\": \"$transfer_url\" }"
+  build-push:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-22.04
+    environment:
+     name: PAGES
+    env:
+      COMMIT_RANGE: "${{ github.event.before || github.event.pull_request.base.sha }}...${{ github.sha }}"
+    steps:
+    - name: 安装依赖项并进行环境变量配置
+      run: sudo apt -y install p7zip-full
     - name:
       uses: actions/checkout@v3
-    - name: 初始化
-      run: |
-        sudo apt update
-        sudo apt -y install gcc gcc-multilib nasm p7zip-full autoconf automake make patch binutils-dev liblzma-dev gcc-mingw-w64-i686
-    - name: 下载源码
+      with:
+        fetch-depth: 10
+    - name: 下载 ipxe 源码
+      if: ${{ contains(github.ref, '0.4.6') }}
       uses: actions/checkout@v3
       with:
-        repository: chenall/grub4dos
-        ref: efi
-    - name: 编译
-      run: |
-        make -j -C /home/runner/work/grub4dos/grub4dos
+        repository: ipxe/ipxe
+        path: ipxe
+        ref: v1.21.1
+    - name: 调用专用编译环境进行编译
+      uses: yaya2007/grub4dos-build@main
+      with:
+        useQemu: 1
     - name: 发布到 github
+      if: ${{ github.event_name == 'push' }}
       uses: marvinpinto/action-automatic-releases@latest
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: "GRUB4DOS_for_UEFI"
+        automatic_release_tag: "${{ env.GRUB4DOS_VER }}"
         prerelease: false
-        title: "GRUB4DOS_for_UEFI"
+        title: "${{ env.GRUB4DOS_BIN }}"
         files: |
           *.7z
           *.zip
