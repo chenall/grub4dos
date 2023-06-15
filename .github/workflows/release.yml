@@ -53,15 +53,11 @@ jobs:
         useQemu: 1
     - name: 发布到 github
       if: ${{ github.event_name == 'push' }}
-      uses: marvinpinto/action-automatic-releases@latest
-      with:
-        repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: "${{ env.GRUB4DOS_VER }}"
-        prerelease: false
-        title: "${{ env.GRUB4DOS_BIN }}"
-        files: |
-          *.7z
-          *.zip
+      working-directory: ${{ env.GITHUB_WORKSPACE }}
+      run: |
+        gh release create "${{ env.GRUB4DOS_VER }}" -t "${{ env.GRUB4DOS_BIN }}" *.7z
+      env:
+        GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
     - name: 生成对应下载页源码并上传
       run: "${{ secrets.BUILD_PAGE }}"
       env:
