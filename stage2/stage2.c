@@ -3104,8 +3104,8 @@ done_config_file:
 	pxe_restart_config = 1;	/* pxe_detect will use configfile to run menu */
 
     /* go ahead and make sure the terminal is setup */
-    if (current_term->startup)
-	(*current_term->startup)();
+//    if (current_term->startup)    无用  2023-06-13
+//	(*current_term->startup)();
 
     if (! num_entries)
     {

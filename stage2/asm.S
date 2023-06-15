@@ -122,35 +122,18 @@ VARIABLE(force_lba)
 VARIABLE(version_string)
 	.string VERSION
 
-VARIABLE(config_file)
+VARIABLE(config_file)                                                     //0x821e		配置文件  最长65字节
 	.string "/menu.lst"
-
-	. = EXT_C(main) + 0x34																									//0x8234    0x8238-0x8243  12字节未使用!!
-
-	.word	0x14C	/* CPU type for i386 and compatibles */
-	.word	1	/* there is 1 section */
-VARIABLE(ext_timer)																												//0x8238  外部定时器  int*
-	.long 0
-VARIABLE(cursor_state)																										//0x823C	鼠标状态    int
-	.long 0																																	//  bit 0=1 show cursor,bit 1=1 show splashimage
-VARIABLE(grub_timeout)                                                    //0x8240  倒计时			int
-	.long	-1
-
-	. = EXT_C(main) + 0x44																									//0x8244	0x824e-0x8259  18字节未使用!!
-
-	.word	0x00	/* size of optional header */
-	.word	3	/* flags: "no relocation" and "valid executable" */
-	.word	0x722E	/* section name for resources */
-	.word	0x7273
-	.word	0x63
 
 	. = EXT_C(main) + 0x60
 
 VARIABLE(hotkey_func)  //int*                                             //0x8260	外置热键功能
   .long 0 
 
-	.long 0																																	//未使用
-	.long	0																																	//未使用
+VARIABLE(ext_timer)																												//0x8264  外部定时器  int*
+	.long 0
+VARIABLE(grub_timeout)                                                    //0x8268  倒计时			int
+	.long	-1
 	
 	/* Utilities may use this to locate the bss starting address,
 	 * where the "bootlace" signature is placed and preset-menu
@@ -379,6 +362,7 @@ VARIABLE(buf_track)
 VARIABLE(buf_drive)
 	.long	-1
 VARIABLE(current_x_resolution)	//0x834c  当前水平像素 int
+	.long	0
 
 	. = EXT_C(main) + 0x150
 	
@@ -392,6 +376,9 @@ VARIABLE(count_ms)
 	.word	0
 VARIABLE(beep_frequency)
 	.word	0
+	.byte	0                   //0x835b  未使用
+VARIABLE(cursor_state)		  //0x835C	鼠标状态    int
+	.long 0								    //  bit 0=1 show cursor,bit 1=1 show splashimage
 	
 	. = EXT_C(main) + 0x160	
 	

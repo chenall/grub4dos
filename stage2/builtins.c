@@ -3370,15 +3370,17 @@ static struct builtin builtin_color =
   "If you omit HELPTEXT and/or HEADING, then NORMAL is used.\n"
   "1. Assign colors by target, the order can not be messed up.\n"
   "   The color can be replaced by a placeholder n.\n"
-	"e.g. color 0x888800000000 0x888800ffff00 0x888800880000 0x88880000ff00. (64 bit number.)\n"
+	"e.g. color 0x0000888800000000 0x0000888800ffff00 0x0000888800880000 0x000088880000ff00. (64 bit number."
+	" The upper 32 bits are the background color, and the lower 32 bits are the foreground color.)\n"
 	"2. Can assign colors to a specified target. NORMAL should be in the first place.\n"
-	"e.g. color normal=0x888800000000. (The rest is the same as NORMAL.)\n"
-	"e.g. color normal=0x4444440000ffff helptext=0xff0000 highlight=0x00ffff heading=0xffff00\n"
-	"     border=0x00ff00. (Background color from NORMAL.)\n"
-	"e.g. color standard=0xFFFFFF. (Change the console color.)\n"
+	"e.g. color normal=0x0000888800000000. (The rest is the same as NORMAL.)\n"
+	"e.g. color normal=0x004444440000ffff helptext=0xff0000 highlight=0x00ffff heading=0xffff00"
+	" border=0x0000ff00. (Background color from NORMAL.)\n"
+	"e.g. color standard=0x00FFFFFF. (Change the console color.)\n"
 	"e.g. color --64bit 0x30. (Make numbers less than 0x100 treated in 64-bit color.)\n"
 	"Display color list if no parameters.\n"
-	"Use 'echo -rrggbb' to view colors."
+	"Use 'echo -rrggbb' to view colors.\n"
+	"note that if in graphics hi-res mode, the background colour for normal text and help text will be ignored and will be set to transparent."
 };
 
 
@@ -3424,8 +3426,11 @@ configfile_func (char *arg, int flags)
   nul_terminate (arg);
 
   /* check possible filename overflow */
-  if (grub_strlen (arg) >= ((char *)0x8270 - new_config))
-	return ! (errnum = ERR_WONT_FIT);
+  if (grub_strlen (arg) >= 0x49)  //0x821e-0x825f
+  {
+    printf_errinfo ("The full path of the configuration file should be less than 73\n");
+    return ! (errnum = 0x1234);
+  }
   
   /* Check if the file ARG is present.  */
   if (! grub_open (arg))
