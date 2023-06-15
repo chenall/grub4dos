@@ -57,7 +57,7 @@ jobs:
       working-directory: ${{ env.GITHUB_WORKSPACE }}
       run: |
         gh release delete "${{ env.GRUB4DOS_VER }}" --cleanup-tag --yes
-        gh release create "${{ env.GRUB4DOS_VER }}" -t "${{ env.GRUB4DOS_BIN }}" *.7z
+        gh release create "${{ env.GRUB4DOS_VER }}" --target efi -t "${{ env.GRUB4DOS_BIN }}" *.7z
       env:
         GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
     - name: 生成对应下载页源码并上传
