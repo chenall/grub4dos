@@ -53,8 +53,10 @@ jobs:
         useQemu: 1
     - name: 发布到 github
       if: ${{ github.event_name == 'push' }}
+      continue-on-error: true
       working-directory: ${{ env.GITHUB_WORKSPACE }}
       run: |
+        gh release delete "${{ env.GRUB4DOS_VER }}" --cleanup-tag --yes
         gh release create "${{ env.GRUB4DOS_VER }}" -t "${{ env.GRUB4DOS_BIN }}" *.7z
       env:
         GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
