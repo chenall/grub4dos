@@ -51,7 +51,8 @@ unsigned long long console_color_64bit[COLOR_STATE_MAX] = {
   /* represents the user defined colors for heading line */
   [COLOR_STATE_HEADING] = 0xAAAAAA,
   /* represents the user defined colors for notes */
-  [COLOR_STATE_BORDER] = 0x3399
+//  [COLOR_STATE_BORDER] = 0x3399
+  [COLOR_STATE_BORDER] = 0xAAAAAA
 
 };
 

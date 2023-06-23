@@ -244,8 +244,10 @@ disk_read_print_func (unsigned long long sector, unsigned int offset, unsigned l
 
 extern int rawread_ignore_memmove_overflow; /* defined in disk_io.c */
 int query_block_entries;
-static unsigned long long map_start_sector[DRIVE_MAP_FRAGMENT];	
-static unsigned long long map_num_sectors[DRIVE_MAP_FRAGMENT];
+//static unsigned long long map_start_sector[DRIVE_MAP_FRAGMENT];	
+//static unsigned long long map_num_sectors[DRIVE_MAP_FRAGMENT];
+unsigned long long* map_start_sector=0;	
+unsigned long long* map_num_sectors;
 
 static unsigned long long blklst_start_sector;
 static unsigned long long blklst_num_sectors;
@@ -325,7 +327,6 @@ static int
 blocklist_func (char *arg, int flags)
 {
   char *dummy = NULL;
-  int i;
   unsigned long long err;
 #ifndef NO_DECOMPRESSION
   int no_decompression_bak = no_decompression;
@@ -335,13 +336,25 @@ blocklist_func (char *arg, int flags)
   blklst_num_sectors = 0;
   blklst_num_entries = 0;
   blklst_last_length = 0;
-
+  if (!map_start_sector)
+  {
+    map_start_sector = grub_zalloc(DRIVE_MAP_FRAGMENT);
+    map_num_sectors = grub_zalloc(DRIVE_MAP_FRAGMENT);
+  }
+  else
+  {
+    grub_memset (map_start_sector, 0, DRIVE_MAP_FRAGMENT);
+    grub_memset (map_num_sectors, 0, DRIVE_MAP_FRAGMENT);
+    
+  }
+#if 0
+ int i;
  for (i = 0; i < DRIVE_MAP_FRAGMENT; i++)
  {
 	map_start_sector[i] =0;
 	map_num_sectors[i] =0;
 	}
-
+#endif
   /* Open the file.  */
   if (! grub_open (arg))
     goto fail_open;
@@ -829,7 +842,7 @@ map_to_svbus (grub_efi_physical_address_t address)
 #endif
 
   //复制碎片插槽
-  grub_memmove ((char *)((char *)(grub_size_t)address + 0x148), (char *)&disk_fragment_map, 0x280);
+  grub_memmove ((char *)((char *)(grub_size_t)address + 0x148), (char *)&disk_fragment_map, FRAGMENT_MAP_SLOT_SIZE);
 }
 
 //使用于get_efi_device_boot_path，find_specified_file，chainloader_func，command_func，uuid_func
@@ -1009,6 +1022,7 @@ complete:
       grub_close ();
       grub_sprintf (chainloader_file, "(md)0x%X+0x%X (0x%x)\0", (grub_size_t)((address >> 9) + cd_Image_part_start), cd_Image_disk_size - cd_Image_part_start, 0x60 + cd_map_count);
       map_func (chainloader_file, 1);
+      efi_call_2 (b->free_pages, address, pages);
     }
 #undef BS
     cd_boot_entry = k;
@@ -2030,15 +2044,17 @@ static struct builtin builtin_color =
   "If you omit HELPTEXT and/or HEADING, then NORMAL is used.\n"
   "1. Assign colors by target, the order can not be messed up.\n"
   "   The color can be replaced by a placeholder n.\n"
-	"e.g. color 0x888800000000 0x888800ffff00 0x888800880000 0x88880000ff00. (64 bit number.)\n"
+	"e.g. color 0x0000888800000000 0x0000888800ffff00 0x0000888800880000 0x000088880000ff00. (64 bit number."
+	" The upper 32 bits are the background color, and the lower 32 bits are the foreground color.)\n"
 	"2. Can assign colors to a specified target. NORMAL should be in the first place.\n"
-	"e.g. color normal=0x888800000000. (The rest is the same as NORMAL.)\n"
-	"e.g. color normal=0x4444440000ffff helptext=0xff0000 highlight=0x00ffff heading=0xffff00\n"
-	"     border=0x00ff00. (Background color from NORMAL.)\n"
-	"e.g. color standard=0xFFFFFF. (Change the console color.)\n"
+	"e.g. color normal=0x00888800000000. (The rest is the same as NORMAL.)\n"
+	"e.g. color normal=0x004444440000ffff helptext=0x00ff0000 highlight=0x0000ffff heading=0xffff00"
+	" border=0x0000ff00. (Background color from NORMAL.)\n"
+	"e.g. color standard=0x00FFFFFF. (Change the console color.)\n"
 	"e.g. color --64bit 0x30. (Make numbers less than 0x100 treated in 64-bit color.)\n"
 	"Display color list if no parameters.\n"
-	"Use 'echo -rrggbb' to view colors."
+	"Use 'echo -rrggbb' to view colors.\n"
+	"note that if in graphics hi-res mode, the background colour for normal text and help text will be ignored and will be set to transparent."
 };
 
 
@@ -2084,9 +2100,11 @@ configfile_func (char *arg, int flags)
   arg = chainloader_file_orig;
   nul_terminate (arg);
   /* check possible filename overflow */
-	if (grub_strlen (arg) >= 0x49)  //0x8217-0x825f
-	return ! (errnum = ERR_WONT_FIT);
-
+	if (grub_strlen (arg) >= 0x49)  //0x821e-0x825f
+  {
+    printf_errinfo ("The full path of the configuration file should <= 72\n");
+    return ! (errnum = 0x1234);
+  }
   /* Check if the file ARG is present.  */
   if (! grub_open (arg))
   {
@@ -7327,10 +7345,7 @@ add_part_data (int drive)
       p->partition_entry = *next_partition_entry;
       p->partition_ext_offset = *next_partition_ext_offset;
       p->partition_activity_flag = partition_activity_flag;
-      if (p->partition_type == 0xee)
-        grub_memcpy (&p->partition_signature, &partition_signature, 16);
-      else
-        grub_memcpy (&p->partition_signature, &d->disk_signature, 16);
+      grub_memcpy (&p->partition_signature, &partition_signature, 16);
 
       p->next = 0;
       if (!partition_info)
@@ -7410,7 +7425,6 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
   int read_only = 0;					            //只读					若read_Only=1,则同时unsafe_boot=1
   unsigned char	from_log2_sector = 9;
   unsigned char	partmap_type = 0;
-  unsigned char disk_signature[16];
 //  unsigned long long sectors_per_track = -1ULL;
 //  unsigned long long heads_per_cylinder = -1ULL;
 //  int add_mbt = -1;
@@ -8353,8 +8367,6 @@ map_whole_drive:
 			if (probe_bpb(mbr1))	//没有bpb
         goto fail_close_free;
 		}
-    grub_memset (&disk_signature, 0, 16);
-    *(unsigned int *)disk_signature = PC_DISK_SIG (next_partition_buf);  //MBR磁盘签名
 		goto get_info_ok;
 		
 get_gpt_info:
@@ -8373,7 +8385,6 @@ get_gpt_info:
 			if (gpt->hdr_sig != GPT_HDR_SIG)	//如果签名不符
         goto fail_close_free;
 		}
-		grub_memmove(&disk_signature, &gpt->hdr_uuid, 16); //GPT磁盘签名
 		goto get_info_ok;
 	}
 	else	//软盘
@@ -8770,8 +8781,6 @@ no_fragment:
   d->fragment = (blklst_num_entries > 1);
   d->read_only = read_only;
   d->vhd_disk = vhd_disk;
-  if (from >= 0x80 && from <= 0x8f)
-    grub_memmove(&d->disk_signature, &disk_signature, 16); //磁盘签名
 	
 	if (vhd_file_name)
 	{

@@ -124,30 +124,14 @@ VARIABLE(force_lba)																												//0x8211 强制LBA  uefi未使用
 VARIABLE(version_string)                                                  //0x8212
 	.string VERSION                                                         //0.97\0(hd0,0)
 
-VARIABLE(config_file)																											//0x8217		配置文件  最长29字节
+VARIABLE(config_file)																											//0x821e		配置文件  最长72字节
 	.string "/efi/grub/menu.lst"
-																																					//G4D情况：0x8234占用
-																																					//G4D情况：0x8244占用		0x824e-0x8259  18字节未使用!!
-	. = EXT_C(main) + 0x38	
-VARIABLE(ext_timer)																												//0x8238  外部定时器  int*
-	.long	0
-	.long	0
-//	.extent	0
-//#if defined(__i386__)
-//	.long	0
-//#endif
-VARIABLE(grub_timeout)                                                    //0x8240  倒计时			int
-	.long	-1
 
 	. = EXT_C(main) + 0x60
 
 VARIABLE(hotkey_func)  //int*                                             //0x8260	外置热键功能
 	.long	0
 	.long	0
-//  .extent 0 
-//#if defined(__i386__)
-//	.long	0
-//#endif
 
 	. = EXT_C(main) + 0x68                                                  //0x8268
   
@@ -184,7 +168,8 @@ VARIABLE(menu_num_ctrl) //unsigned char menu_num_ctrl[4]  4字节
 #endif
 #undef GRUB4DOS_INT_VER
 
-	.long 0																																	//0x827c  未使用
+VARIABLE(grub_timeout)                                                    //0x827c  倒计时			int
+	.long	-1
   
 	. = EXT_C(main) + 0x80																									//0x8280
 
@@ -357,6 +342,12 @@ VARIABLE(current_x_resolution)                                            //0x83
 	.long	0
 
 	. = EXT_C(main) + 0x150																									//0x8350
+  
+VARIABLE(ext_timer)																												//0x8350  外部定时器  int*
+	.long	0
+	.long	0
+	.long	0                                                                 //未使用
+	.long	0                                                                 //未使用
 	
 	. = EXT_C(main) + 0x160																									//0x8360
 
@@ -381,17 +372,27 @@ VARIABLE(cdrom_orig)				                                              //光盘�
 VARIABLE(g4e_data)                                                        //0x8378 固定数据区  char *
 	.long	0, 0
 	
+	. = EXT_C(main) + 0x180																									//0x8380	
+  
 VARIABLE(preset_menu) 																									  //0x8380 预置菜单  char *   原0x307FFC
 	.long	0, 0
 
 VARIABLE(menu_mem) 																									      //0x8388 菜单  char *
 	.long	0, 0
+
+	. = EXT_C(main) + 0x190																									//0x8390
+
+	.long	0
+	.long	0 
+	.long	0
+	.long	0
   
   . = EXT_C(main) + 0x200                                                 //0x8400   以上预留
 	
-ENTRY(disk_fragment_map)	.space	FRAGMENT_MAP_SLOT_SIZE                  //映射碎片插槽  280
-
-	. = EXT_C(main) + 0x480																									//0x8680
+//ENTRY(disk_fragment_map)	.space	FRAGMENT_MAP_SLOT_SIZE                  //映射碎片插槽  800
+VARIABLE(disk_fragment_map)                                               //映射碎片插槽  char *
+	.long	0, 0
+//	. = EXT_C(main) + 0xa00																									//0x8c00
 		
 //ENTRY(disk_drive_map)	.space	[DRIVE_MAP_SIZE + 1] * DRIVE_MAP_SLOT_SIZE	//磁盘驱动器映射插槽  70*9=3c0
 

@@ -642,8 +642,8 @@ redo:
 
 	if (PI->starting_lba == 0LL /*|| PI->starting_lba > 0xFFFFFFFFL*/)
 	{
-//		errnum = ERR_NO_PART;
-		return 0;
+//		return 0;
+    goto redo;  //避免分区项空洞  2023-06-20
 	}
 
 	//skip MS_Reserved Partition
@@ -804,8 +804,8 @@ next_entry:
 	*next_partition_start = tmp_start;
 	*next_partition_type = PC_SLICE_TYPE (next_partition_buf, *next_partition_entry);
 	*next_partition_len = PC_SLICE_LENGTH (next_partition_buf, *next_partition_entry);
-//  grub_memset (&partition_signature, 0, 16);
-//  *(unsigned int *)partition_signature = PC_DISK_SIG (next_partition_buf);  //MBR分区签名
+  grub_memset (&partition_signature, 0, 16);
+  *(unsigned int *)partition_signature = PC_DISK_SIG (next_partition_buf);  //MBR分区签名
   partition_activity_flag = PC_SLICE_FLAG(next_partition_buf, *next_partition_entry);
 	/* if overflow ... */
 
@@ -3043,7 +3043,7 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 	if (df->fragment)
 	{
 		//从碎片插槽查找Form驱动器
-    q = &disk_fragment_map;
+    q = (struct fragment_map_slot *)&disk_fragment_map;
     q = fragment_map_slot_find (q, from_drive);
     //确定Form扇区起始在哪个碎片
     data = (struct fragment *)&q->fragment_data;
@@ -3149,10 +3149,7 @@ partition_info_init (struct efidisk_data *devices)
       p->partition_activity_flag = partition_activity_flag;
 			p->next = partition_info;															//0				dfb0110	dfb00e0	dfb00b0	dfb0080										dfb0050		dfaff90		dfaff60
 
-      if (p->partition_type == 0xee)
-        grub_memcpy (&p->partition_signature, &partition_signature, 16);
-      else
-        grub_memcpy (&p->partition_signature, &d->disk_signature, 16);
+			grub_memcpy (&p->partition_signature, &partition_signature, 16);
       //从efidisk_data中查找有关信息
       for (d1 = devices; d1; d1 = d1->next)
       {       

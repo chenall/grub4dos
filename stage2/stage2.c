@@ -2224,7 +2224,6 @@ sss:
 	 * menu-init command set.
 	 */
 	/* Run menu-specific commands before any other menu entry commands.  */
-;
 	{
 	    static char *old_entry = NULL;
 	    static char *heap = NULL; heap = CONFIG_ENTRIES + config_len;
@@ -2312,8 +2311,8 @@ done_config_file:
   use_preset_menu = 0;	/* Disable the preset menu.  */	//禁用预设菜单
 //	pxe_restart_config = 1;	/* pxe_detect will use configfile to run menu */
   /* go ahead and make sure the terminal is setup */	//继续前进，确保终端的安装
-	if (current_term->startup)
-		(*current_term->startup)();
+//	if (current_term->startup)    无用  2023-06-13
+//		(*current_term->startup)();
 
     if (! num_entries)
     {

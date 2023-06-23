@@ -2050,6 +2050,7 @@ copy_grub4dos_self_address (void)
   grub_efi_status_t status;     //状态
   grub_efi_boot_services_t *b;  //引导服务
   b = grub_efi_system_table->boot_services; //系统表->引导服务
+  grub_size_t i, address;
   
   if (min_con_mem_start > 0x9F000)
     return;
@@ -2058,6 +2059,14 @@ copy_grub4dos_self_address (void)
   else
     grub4dos_self_address = 0x9F000;
   
+  address = grub4dos_self_address;
+  for (i = grub4dos_self_address - 0x1000; i > 0x40000 ; i -= 0x1000)
+  {
+    if (*(unsigned long long *)(grub_size_t)(i + 0x100) == 0x4946453442555247) //"GRUB4EFI"
+      address = i;
+  }
+  //清除残留的钩子  避免测试中启动镜像后重启，热键失效。  注意不要碰触保留内存！  2023-06-21
+  grub_memset ((void *)address, 0, grub4dos_self_address - address + 0x1000);
   status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ADDRESS, 
           GRUB_EFI_RUNTIME_SERVICES_DATA, 1, &grub4dos_self_address); //(分配页,分配类型=指定地址,存储类型=运行时数据,页数=1,返回分配地址)
   if (status)
@@ -2212,6 +2221,7 @@ char *CMD_RUN_ON_EXIT;
 char *SCRATCHADDR;
 char *mbr;
 char *disk_buffer;
+struct fragment_map_slot *disk_fragment_map;
 //char *
 
 void grub_console_init (void);
@@ -2263,6 +2273,7 @@ grub_init (void)
 	SCRATCHADDR = grub_malloc (0x1000);       //临时
   mbr = grub_malloc (0x1000);               //mbr
   disk_buffer = grub_malloc (0x1000);       //磁盘缓存
+  disk_fragment_map = grub_zalloc (FRAGMENT_MAP_SLOT_SIZE);  //碎片插槽
 //buffer=grub_malloc (byte)  分配内存
 //buffer=grub_zalloc (byte)  分配内存, 并清零
 //buffer=grub_memalign (align,byte)  对齐分配内存

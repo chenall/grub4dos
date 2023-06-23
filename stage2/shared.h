@@ -113,9 +113,11 @@
 //#define DRIVE_MAP_SLOT_SIZE		0x70
 
 /* The fragment of the drive map.  */
-#define DRIVE_MAP_FRAGMENT		0x27
+//#define DRIVE_MAP_FRAGMENT		0x27
+#define DRIVE_MAP_FRAGMENT		0x7E
 
-#define FRAGMENT_MAP_SLOT_SIZE		0x280
+//#define FRAGMENT_MAP_SLOT_SIZE		0x280
+#define FRAGMENT_MAP_SLOT_SIZE		0x800
 
 /* The size of the key map.  */
 #define KEY_MAP_SIZE		128
@@ -5737,7 +5739,8 @@ struct fragment
 
 //extern struct drive_map_slot	vpart_drive_map[DRIVE_MAP_SIZE + 1];
 //extern struct drive_map_slot	disk_drive_map[DRIVE_MAP_SIZE + 1];
-extern struct fragment_map_slot	disk_fragment_map;
+//extern struct fragment_map_slot	disk_fragment_map;
+extern struct fragment_map_slot	*disk_fragment_map;
 //extern char disk_buffer[0x1000];
 extern char *disk_buffer;
 //extern int drive_map_slot_empty (struct drive_map_slot item);
