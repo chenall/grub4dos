@@ -781,8 +781,9 @@ redo:
 	P_GPT_ENT PI = (P_GPT_ENT)(unsigned int)next_partition_buf;
 	if (PI->starting_lba == 0LL /*|| PI->starting_lba > 0xFFFFFFFFL*/)
 	{
-		errnum = ERR_NO_PART;
-		return 0;
+//		errnum = ERR_NO_PART;
+//		return 0;
+    goto redo;  //避免分区项空洞  2023-06-20
 	}
 	//skip MS_Reserved Partition
 	if (memcmp(PI->type.raw,"\x16\xE3\xC9\xE3\x5C\x0B\xB8\x4D\x81\x7D\xF9\x2D\xF0\x02\x15\xAE",16) == 0 && next_partition_dest == 0xffffff)
@@ -1342,7 +1343,7 @@ sane_partition (void)
   return 0;
 }
 
-
+static char cdrom_orig = 0;
 /* Parse a device string and initialize the global parameters. */
 char *
 set_device (char *device)
@@ -1426,8 +1427,13 @@ set_device (char *device)
 	  else
 #endif /* FSYS_FB */
 	    {
-	      if (ch == 'c' && cdrom_drive != GRUB_INVALID_DRIVE && *device == ')')
-		current_drive = cdrom_drive;
+//	      if (ch == 'c' && cdrom_drive != GRUB_INVALID_DRIVE && *device == ')')
+//		current_drive = cdrom_drive;
+	      if (ch == 'c' && *(device+1) == 'd' && *(device+2) == ')')	//(cd)
+				{
+          device += 2;
+          current_drive = (unsigned char)(0xa0 + cdrom_orig++);
+				}
 	      else if (ch == 'm')
 	      {
 		current_drive = 0xffff;
@@ -1459,6 +1465,21 @@ set_device (char *device)
 		{
 		  unsigned long long ull;
 
+      if (ch == 'c' && *(device+1) == 'd')	//(cd)
+      {
+        device += 2;
+        if (*device == '-' && *(device+1) == '1')
+        {
+          current_drive = 0xa0 + cdrom_orig - 1;
+          device += 2;
+        }
+        else
+        {
+          safe_parse_maxint (&device, &ull);
+          current_drive = 0xa0 + ull;
+        }
+        goto aaa;
+      }
 		  safe_parse_maxint (&device, &ull);
 		  current_drive = ull;
 		  disk_choice = 0;
@@ -1478,14 +1499,14 @@ set_device (char *device)
 		  //  if (cdrom_drives[current_drive] != GRUB_INVALID_DRIVE)
 		  //	    current_drive = cdrom_drives[current_drive];
 		  //}
-		  else if (ch == 'c' && atapi_dev_count && current_drive < (unsigned long)atapi_dev_count)
-		  {
-		    current_drive += min_cdrom_id;
-		  }
+//		  else if (ch == 'c' && atapi_dev_count && current_drive < (unsigned long)atapi_dev_count)
+//		  {
+//		    current_drive += min_cdrom_id;
+//		  }
 		}
 	    }
 	}
-
+aaa:
       if (errnum)
 	return 0;
 

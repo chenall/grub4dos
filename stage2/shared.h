@@ -189,9 +189,11 @@
 #define DRIVE_MAP_SLOT_SIZE	24
 
 /* The fragment of the drive map.  */
-#define DRIVE_MAP_FRAGMENT		32
+//#define DRIVE_MAP_FRAGMENT		32
+#define DRIVE_MAP_FRAGMENT		0x7E
 
-#define FRAGMENT_MAP_SLOT_SIZE		0x280
+//#define FRAGMENT_MAP_SLOT_SIZE		0x280
+#define FRAGMENT_MAP_SLOT_SIZE		0x800
 
 /* The size of the key map.  */
 #define KEY_MAP_SIZE		128

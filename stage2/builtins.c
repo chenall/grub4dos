@@ -275,10 +275,10 @@ disk_read_print_func (unsigned long long sector, unsigned long offset, unsigned 
 
 extern int rawread_ignore_memmove_overflow; /* defined in disk_io.c */
 long query_block_entries;
-//unsigned long map_start_sector;
-//static unsigned long map_num_sectors = 0;
-static unsigned long long map_start_sector[DRIVE_MAP_FRAGMENT];	
-static unsigned long long map_num_sectors[DRIVE_MAP_FRAGMENT];
+//static unsigned long long map_start_sector[DRIVE_MAP_FRAGMENT];	
+//static unsigned long long map_num_sectors[DRIVE_MAP_FRAGMENT];
+unsigned long long* map_start_sector=0;	
+unsigned long long* map_num_sectors;
 
 static unsigned long long blklst_start_sector;
 static unsigned long long blklst_num_sectors;
@@ -358,7 +358,6 @@ static int
 blocklist_func (char *arg, int flags)
 {
   char *dummy = NULL;
-  int i;
   unsigned long long err;
 #ifndef NO_DECOMPRESSION
   int no_decompression_bak = no_decompression;
@@ -370,14 +369,24 @@ blocklist_func (char *arg, int flags)
   blklst_num_entries = 0;
   blklst_last_length = 0;
 
-//  map_start_sector = 0;
-//	map_num_sectors = 0;
+  if (!map_start_sector)
+  {
+    map_start_sector = grub_zalloc(DRIVE_MAP_FRAGMENT);
+    map_num_sectors = grub_zalloc(DRIVE_MAP_FRAGMENT);
+  }
+  else
+  {
+    grub_memset (map_start_sector, 0, DRIVE_MAP_FRAGMENT);
+    grub_memset (map_num_sectors, 0, DRIVE_MAP_FRAGMENT);    
+  }
+#if 0
+  int i;
  for (i = 0; i < DRIVE_MAP_FRAGMENT; i++)
  {
 	map_start_sector[i] =0;
 	map_num_sectors[i] =0;
 	}
-
+#endif
   /* Open the file.  */
   if (! grub_open (arg))
     goto fail_open;
@@ -3428,7 +3437,7 @@ configfile_func (char *arg, int flags)
   /* check possible filename overflow */
   if (grub_strlen (arg) >= 0x49)  //0x821e-0x825f
   {
-    printf_errinfo ("The full path of the configuration file should be less than 73\n");
+    printf_errinfo ("The full path of the configuration file should <= 72\n");
     return ! (errnum = 0x1234);
   }
   
@@ -5994,12 +6003,35 @@ find_func (char *arg, int flags)
 				break;
 #endif
 			case 'c':/*Only search first cdrom*/
+#if 0
 				if (cdrom_drive != GRUB_INVALID_DRIVE)
 					current_drive = cdrom_drive;
 				else if (atapi_dev_count)
 					current_drive = min_cdrom_id;
 				else
 					continue;
+#endif
+        int i;
+        for (drive = 0xa0; drive <= 0xff; drive++)
+        {
+          for (i = 0; i < DRIVE_MAP_SIZE; i++)
+          {
+            if (drive_map_slot_empty (bios_drive_map[i]))
+              break;
+            if (bios_drive_map[i].from_drive == drive)
+            {
+              current_drive = drive; 
+              if (tmp_drive != current_drive && find_check(filename,builtin1,arg,flags) == 1)
+							{
+								tmp_drive = current_drive;
+								got_file = 1;
+								if (set_root)
+									goto found;
+							}
+              errnum = ERR_NONE;
+            }
+          }
+        }
 				break;
 			case 'h':
 			case 'f':
@@ -6535,7 +6567,9 @@ loop:
 
 	*(unsigned long *)(0x1800820) = 1;  //2023-03-05
 	menu_tab_ext |= 4;
-	if (font_h != 16)			//迁就有的16*16字库不带0-0x7f字符(如SISO)		2023-03-01
+//	if (font_h != 16)			//迁就有的16*16字库不带0-0x7f字符(如SISO)		2023-03-01
+  if (font_h == 16 && *(unsigned long *)(UNIFONT_START+0x820+0x14) == 0)  //16*16字库不带0-0x7f字符(优先使用自带字库)  2023-06-22
+    goto build_default_VGA_font;
   return valid_lines;	/* success */
 
 build_default_VGA_font:

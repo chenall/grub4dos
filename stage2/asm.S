@@ -119,10 +119,10 @@ VARIABLE(force_lba)
 	/* bit 2=0 enable single-key-selection feature. */
 	.byte	0x04
 
-VARIABLE(version_string)
-	.string VERSION
+VARIABLE(version_string)                                                  //0x8212
+	.string VERSION                                                         //0.97\0(hd0,0)
 
-VARIABLE(config_file)                                                     //0x821e		配置文件  最长65字节
+VARIABLE(config_file)                                                     //0x821e		配置文件  最长72字节
 	.string "/menu.lst"
 
 	. = EXT_C(main) + 0x60
@@ -372,11 +372,11 @@ VARIABLE(usb_drive_num)
 	.byte	0,0,0,0
 VARIABLE(usb_md_address)
 	.word	0
-VARIABLE(count_ms)
+  .byte	0                   //0x8357  未使用
+VARIABLE(count_ms)          //0x8358
 	.word	0
 VARIABLE(beep_frequency)
 	.word	0
-	.byte	0                   //0x835b  未使用
 VARIABLE(cursor_state)		  //0x835C	鼠标状态    int
 	.long 0								    //  bit 0=1 show cursor,bit 1=1 show splashimage
 	
@@ -7960,6 +7960,7 @@ ENTRY(defer)
 	.code16
 
 	movw %bx, %ax
+	xorl %ecx, %ecx
 2:
 	movw %dx, %cx
 3:
@@ -7972,8 +7973,8 @@ ENTRY(defer)
 	inw %dx, %ax
 	popw %ax
 	popw %dx
-	decw %cx
-	cmpw $0, %cx
+	decl %ecx
+	cmpl $0, %ecx
 	jne 3b
 	decw %ax
 	jne 2b
@@ -15055,8 +15056,8 @@ ENTRY(console_getkey)
 
 	cmpl	$0xFFFFFFFF, %edx
 	jne	1f
-  pushl $1
-  call defer;
+  pushl $20
+  call defer
   popl %eax
   cmpb $0, beep_enable
   je 2f
@@ -15216,7 +15217,7 @@ ENTRY(console_checkkey)
 9:
 	cmpl	$0xFFFFFFFF, %edx
 	jne 3f
-	pushl $1
+	pushl $20
 	call defer
 	popl %eax
 	cmpb $0, beep_enable
