@@ -60,6 +60,19 @@ dec_lz4_close(void)
 	if (lz4dec.dic) { grub_free(lz4dec.dic); lz4dec.dic = 0; }
 }
 
+/*
+header:
+00000000   04 22 4D 18 6C 70 00 40  60 00 00 00 00 00 4C 55
+00000010   80 0B 00 F0 6C 33 C0 8E  D0 BC 00 7C FB 50 07 50
+偏移  字节  描述
+0     4     LZ4_MAGIC_NUMBER           魔法编号
+4     1     lz4dec.flg                 属性
+5     1     lz4dec.bd                  块最大尺寸=1,保留=0
+6     8     lz4dec.content_size        未压缩尺寸
+e     1     lz4dec.hc
+f     4     lz4dec.nextBlockSize       下一块尺寸
+*/
+
 int dec_lz4_open(void);
 int
 dec_lz4_open(void)
@@ -149,9 +162,9 @@ dec_lz4_open(void)
 	}
 	decomp_type = DECOMP_TYPE_LZ4;
 	compressed_file = 1;
-	filemax = lz4dec.ufilemax;
-	filepos = lz4dec.ufilepos;
-	gzip_filemax = lz4dec.cfilemax;
+	filemax = lz4dec.ufilemax;      //返回未压缩文件尺寸
+	filepos = lz4dec.ufilepos;      //返回0指针
+	gzip_filemax = lz4dec.cfilemax; //返回压缩文件尺寸
 	lz4dec.inpSize = 0;
 	lz4dec.inpPos = 0;
 	lz4dec.dicPos = LZ4_DICPOSSTART;

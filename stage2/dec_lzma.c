@@ -62,10 +62,11 @@ typedef unsigned short UInt16;
 typedef int Int32;
 typedef unsigned int UInt32;
 
-typedef long long int Int64;
-typedef unsigned long long int UInt64;
+typedef long long Int64;
+typedef unsigned long long UInt64;
 
-typedef UInt32 SizeT;
+//typedef UInt32 SizeT;
+typedef grub_size_t SizeT;
 typedef int ptrdiff_t;
 
 typedef int Bool;
@@ -1163,7 +1164,15 @@ SRes LzmaDec_DecodeToDic(CLzmaDec *p, SizeT dicLimit, const Byte *src, SizeT *sr
 #define cfm lzmadec.filec.fmax
 
 CLzmaDec lzmadec;
-
+/*
+header:
+00000000   5D 00 00 80 00 00 40 60  00 00 00 00 00 00 19 B0
+00000010   0D CD 06 0E 84 A2 6A 77  49 06 59 69 9D 7A E3 10
+偏移  字节  描述
+0     1     lzmadec.prop.lc，lp，pb    属性
+1     4     lzmadec.prop.dicSize       字典尺寸
+5     8     filemax                    未压缩尺寸
+*/
 int dec_lzma_open (void);
 int
 dec_lzma_open (void)
@@ -1182,12 +1191,12 @@ dec_lzma_open (void)
     {
 	// check header
 	lzmadec.prop.dicSize = ReadUnalignedUInt32 (header + 1);
-	if (lzmadec.prop.dicSize == 0 || (0x80000000 % lzmadec.prop.dicSize))
+	if (lzmadec.prop.dicSize == 0 || (0x80000000 % lzmadec.prop.dicSize)) //如果字典尺寸为零，或者字典尺寸大于2G，错误
 	{
 	    //grub_printf("Dictionary Size in LZMA header must be 2^n.\n");
 	    goto fail;
 	}
-	if (lzmadec.prop.dicSize < LZMA_DIC_MIN)
+	if (lzmadec.prop.dicSize < LZMA_DIC_MIN)  //如果字典尺寸小于4k，错误
 	{
 	    //lzmadec.prop.dicSize = LZMA_DIC_MIN;
 	    goto fail;
@@ -1199,8 +1208,8 @@ dec_lzma_open (void)
 	    lzmadec.prop.lc = d % 9; d /= 9;
 	    lzmadec.prop.lp = d % 5;
 	    lzmadec.prop.pb = d / 5;
-	    ufm = ReadUnalignedUInt64 (header + 5);
-	    if (ufm == -1ULL)
+	    ufm = ReadUnalignedUInt64 (header + 5); //未压缩尺寸
+	    if (ufm == -1ULL) //如果未压缩尺寸=-1,错误   新的linux版本此参数就是-1!!!
 	    {
 		goto fail;
 	    }
@@ -1221,11 +1230,13 @@ dec_lzma_open (void)
 			lzmadec.inpPos = 0;
 			lzmadec.inpSize = 0;
 			LzmaDec_Init(&lzmadec);
-			decomp_type = DECOMP_TYPE_LZMA;
-			compressed_file = 1;
-			cfm = filemax; filemax = ufm;
-			cfp = filepos; filepos = ufp;
-			gzip_filemax = cfm;
+			decomp_type = DECOMP_TYPE_LZMA; //压缩类型
+			compressed_file = 1;            //压缩文件标记
+			cfm = filemax;  //保存压缩文件尺寸
+			filemax = ufm;  //返回未压缩文件尺寸
+			cfp = filepos;  //保存当前指针
+			filepos = ufp;  //返回0指针
+			gzip_filemax = cfm; //返回压缩文件尺寸
 			errnum = 0;
 			return 1;
 		    }

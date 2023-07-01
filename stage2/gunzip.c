@@ -294,7 +294,7 @@ gunzip_test_header (void)
    *  (other than a real error with the disk) then we don't think it
    *  is a compressed file, and simply mark it as such.
    */
-  gzip_filemax = filemax;
+  gzip_filemax = filemax; //返回压缩文件尺寸
   if (no_decompression
       || grub_read ((unsigned long long)(grub_size_t)(char *)buf, 10, 0xedde0d90) != 10
       || ((*((unsigned short *) buf) != GZIP_HDR_LE)

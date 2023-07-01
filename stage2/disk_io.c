@@ -665,6 +665,10 @@ static int is_gpt_part(void);
 static int is_gpt_part(void)
 {
 	GPT_HDR hdr;
+	struct grub_disk_data *d=0;	//磁盘数据
+	d = get_device_by_drive (current_drive,0);
+	if (!d)
+		return 0;
 	if (! rawread (next_partition_drive, 1, 0, sizeof(hdr), (unsigned long long)(grub_size_t)&hdr, 0xedde0d90))
 		return 0;
 	if (hdr.hdr_sig != GPT_HDR_SIG) /* Signature ("EFI PART") */
@@ -680,6 +684,7 @@ static int is_gpt_part(void)
 	*next_partition_entry = hdr.hdr_lba_table;/* Partition entries starting LBA */
 	gpt_part_max = hdr.hdr_entries;/* Number of partition entries */
 	partition_table_type = PC_SLICE_TYPE_GPT;
+	grub_memmove(&d->disk_signature, &hdr.hdr_uuid, 16); //GPT磁盘GUID
 	return 1;
 }
 
