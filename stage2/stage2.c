@@ -978,10 +978,8 @@ restart1:
   if (! show_menu)
     {
       /* Get current time.  */
-//      while ((time1 = getrtsecs ()) == 0xFF)
-//	;
-		if (grub_timeout >= 0)
-			timeout_enable = 1;
+      while ((time1 = getrtsecs ()) == 0xFF)
+	;
 
       while (1)
 	{
@@ -1018,9 +1016,7 @@ restart1:
 
 	  /* If GRUB_TIMEOUT is expired, boot the default entry.  */
 	  if (grub_timeout >=0
-//	      && (time1 = getrtsecs ()) != time2
-				&& time1 != time2
-	      /* && time1 != 0xFF */)
+	      && (time1 = getrtsecs ()) != time2)
 	    {
 	      if (grub_timeout <= 0)
 		{
@@ -1187,8 +1183,9 @@ restart1:
    if (menu_init_script_file[0] != 0 )	
 	 command_func(menu_init_script_file,BUILTIN_MENU);
   /* XX using RT clock now, need to initialize value */
-//  while ((time1 = getrtsecs()) == 0xFF);
-	if (grub_timeout >= 0)
+  if (!ext_timer)
+    while ((time1 = getrtsecs()) == 0xFF);
+  else if (grub_timeout >= 0)
 		timeout_enable = 1;
 
   old_c = 0;
@@ -1202,9 +1199,9 @@ restart1:
       /* Initialize to NULL just in case...  */
       //cur_entry = NULL;
 	//cur_entry = menu_entries; /* for modified menu */
-
-//      if (grub_timeout >= 0 && (time1 = getrtsecs()) != time2 /* && time1 != 0xFF */)
-		if (grub_timeout >= 0 && time1 != time2 /* && time1 != 0xFF */)
+    if (grub_timeout >= 0 && 
+        ((!ext_timer && ((time1 = getrtsecs()) != time2)) ||
+        (ext_timer && time1 != time2)))
 	{
 	  if (grub_timeout <= 0)
 	    {

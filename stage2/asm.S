@@ -15056,7 +15056,7 @@ ENTRY(console_getkey)
 
 	cmpl	$0xFFFFFFFF, %edx
 	jne	1f
-  pushl $20
+  pushl $1
   call defer
   popl %eax
   cmpb $0, beep_enable
@@ -15217,7 +15217,7 @@ ENTRY(console_checkkey)
 9:
 	cmpl	$0xFFFFFFFF, %edx
 	jne 3f
-	pushl $20
+	pushl $1
 	call defer
 	popl %eax
 	cmpb $0, beep_enable
