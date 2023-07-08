@@ -809,8 +809,11 @@ next_entry:
 	*next_partition_start = tmp_start;
 	*next_partition_type = PC_SLICE_TYPE (next_partition_buf, *next_partition_entry);
 	*next_partition_len = PC_SLICE_LENGTH (next_partition_buf, *next_partition_entry);
-  grub_memset (&partition_signature, 0, 16);
-  *(unsigned int *)partition_signature = PC_DISK_SIG (next_partition_buf);  //MBR分区签名
+  if (pc_slice_no == -1)
+  {
+    grub_memset (&partition_signature, 0, 16);
+    *(unsigned int *)partition_signature = PC_DISK_SIG (next_partition_buf);  //MBR分区签名(使用磁盘签名)   逻辑分区的PC_DISK_SIG (next_partition_buf)无效
+  }
   partition_activity_flag = PC_SLICE_FLAG(next_partition_buf, *next_partition_entry);
 	/* if overflow ... */
 
