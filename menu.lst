@@ -26,7 +26,7 @@ default 1
 #if %a%>=801 && font --font-high=40 /efi/grub/menu40.hex 
 #if %a%<=800 && font /efi/grub/unifont.hex.gz && splashimage /efi/grub/lt.jpg
 
-#判断启动环境：calc *0x8277 > nul ;; set 启动环境=%@retval%     启动环境：0/32/64=bios/uefi_x86/uefi_x64
+#判断启动环境：if %@uefi%==64    0/32/64=bios/uefi_x86/uefi_x64
 
 #设置菜单框
 #setmenu --box x=4 w=60 y=6 h=9 l=2
@@ -117,19 +117,18 @@ uuid (hdx,y)
 chainloader /efi/grub/ext/ntloader initrd=/efi/grub/ext/initrd.lz1 uuid=%?%
 
 title 使用外部命令 NTBOOT 启动 WIM/VHD (方案1)
-map --mem --no-hook /efi/grub/ext/NTBOOT (hd)
-(hd-1,0)/setbcd (hdx,y)/boot/imgs/winpe.wim
+find /efi/grub/ext/ntboot | set bd=
+find --set-root /boot/imgs/winpe.wim
+%bd%/efi/grub/ext/ntboot  /boot/imgs/winpe.wim
 boot
 
 title 使用外部命令 NTBOOT 启动 WIM/VHD (方案2)
-map --mem --no-hook /efi/grub/ext/NTBOOT (hd)
-find --set-root /boot/imgs/winpe.vhd
-(hd-1,0)/setbcd /boot/imgs/winpe.vhd winload=/windows/system32/boot/winload.efi minint=1
+find /boot/imgs/winpe.vhd | set bd=
+/efi/grub/ext/ntboot  %bd%/boot/imgs/winpe.vhd winload=/Windows/System32/boot/winload.efi minint=1
 boot
 
 title 使用外部命令 NTBOOT 启动 Windows 系统
-map --mem --no-hook /efi/grub/ext/NTBOO (hd)
-(hd-1,0)/setbcd (hdx,y)/.win
+/efi/grub/ext/ntboot  (hdx,y)/win
 boot
 
 title 命令行

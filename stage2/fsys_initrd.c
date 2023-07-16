@@ -44,13 +44,13 @@ static int test_file(const char *dirname)
 {
 	if (print_possibilities)
 	{
-		if (substring (dirname,(const char*)(grub_size_t)cur_file.name, 1) <= 0)
+		if (substring (dirname,(const char*)cur_file.name, 1) <= 0)
 		{
-			print_a_completion ((char*)(grub_size_t)cur_file.name + path_len, 1);
+			print_a_completion ((char*)cur_file.name + path_len, 1);
 			return 1;
 		}
 	}
-	else if (substring (dirname, (const char*)(grub_size_t)cur_file.name, 1) == 0)
+	else if (substring (dirname, (const char*)cur_file.name, 1) == 0)
 	{
 		filemax = cur_file.size;
 		return 2;
@@ -71,8 +71,8 @@ static grub_u32_t cpio_file(struct cpio_header *hdr)
 		return 0;
 	}
 	hdr_sz = cpio_image_align(sizeof(struct cpio_header) + namesize);
-	cur_file.base = (grub_u32_t)(grub_size_t)hdr + hdr_sz;
-	cur_file.name = (grub_u32_t)(grub_size_t)hdr + sizeof(struct cpio_header);
+	cur_file.base = (grub_size_t)hdr + hdr_sz;
+	cur_file.name = (grub_size_t)hdr + sizeof(struct cpio_header);
 	cur_file.isdir &= CPIO_MODE_DIR;
 	cur_file.name_size = namesize;
 
@@ -200,7 +200,7 @@ int initrdfs_dir (char *dirname)
 		while(pos < initrdfs_size)
 		{
 			cur_file.base = initrdfs_base + pos;
-			cur_file.size = (*(grub_u32_t*)(grub_size_t)cur_file.base == BAT_SIGN)?grub_strlen((char*)(grub_size_t)cur_file.base):initrdfs_size - pos;
+			cur_file.size = (*(grub_u32_t*)cur_file.base == BAT_SIGN)?grub_strlen((char*)cur_file.base):initrdfs_size - pos;
 			test = test_file(dirname);
 			if (test) found = 1;
 			if (test == 2) break;

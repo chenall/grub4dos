@@ -3897,10 +3897,7 @@ command_func (char *arg, int flags)
 	}
 
 //	program = (char *)((grub_size_t)(tmp + 4095) & ~4095); /* 4K align the program 4K对齐程序*/   //程序缓存
-//	psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F); //psp地址  向上舍入，否则覆盖program数据
 	program = tmp;
-	psp = (char *)((grub_size_t)(program + prog_len + 16 + 512) & ~0x0F); //psp地址  向上舍入，否则覆盖program数据
-	unsigned long long *end_signature = (unsigned long long *)(program + filemax - (unsigned long long)8);  //程序结束签名地址
 	if (p_exec == NULL)
 	{
 		/* read file to buff and check exec signature. 读取文件到程序缓存并检查exec签名*/
@@ -3909,6 +3906,42 @@ command_func (char *arg, int flags)
 			if (! errnum)
 				errnum = ERR_EXEC_FORMAT;
 		}
+    //如果不是批处理
+    if (*(unsigned int *)program != BAT_SIGN
+          && (*(unsigned long long *)program & 0xFFFFFFFFFFFFFFULL) != UTF8_BAT_SIGN)
+    {
+      char *p = program;
+      unsigned long long size = filemax;
+      //查找外部命令签名
+      while ((long long)size > 0)
+      {
+        if (*(unsigned long long *)p == 0xBCBAA7BA03051805ULL)
+          break;  //查到
+
+        size -= sizeof(grub_size_t);
+        p += sizeof(grub_size_t);
+      }
+
+      unsigned long long len = p - program;
+      if ((long long)size <= 0) //没有签名，失败
+      {
+        errnum = ERR_EXEC_FORMAT;
+      }
+      else if (len > 8) //存在尾续文件
+      {
+        bat_md_start = (grub_size_t)(program + len + 8);  //尾续文件起始
+        bat_md_count = filemax - (len + 8);               //尾续文件尺寸
+        bat_md_count = (bat_md_count + 511) & (-512);     //对齐512
+        char *tmp0 = grub_memalign(512, bat_md_count);    //给尾续文件分配新地址
+        grub_memmove64((unsigned long long)(grub_size_t)tmp0,bat_md_start,bat_md_count); //复制(未解压缩)尾续文件到新地址
+        bat_md_start = (unsigned long long)(grub_size_t)tmp0 >> 9;
+        bat_md_count >>= 9;
+
+        filemax = len + 8;  //修正外部命令尺寸
+        prog_len = filemax; //修正
+      }
+    }
+#if 0
 		else if (*end_signature == 0x85848F8D0C010512ULL)
 		{
 			if (filemax < 512 || filemax > 0x80000)
@@ -3925,7 +3958,7 @@ command_func (char *arg, int flags)
 		{
 			errnum = ERR_EXEC_FORMAT;
 		}
-
+#endif
 		grub_close ();
 		if (errnum)
 		{
@@ -3937,6 +3970,11 @@ command_func (char *arg, int flags)
 	{
 		grub_memmove(program,p_exec->data,prog_len);
 	}
+
+//	psp = (char *)((grub_size_t)(program + prog_len + 16) & ~0x0F); //psp地址  向上舍入，否则覆盖program数据
+	psp = (char *)((grub_size_t)(program + prog_len + 16 + 512) & ~0x0F); //psp地址  向上舍入，否则覆盖program数据
+	unsigned long long *end_signature = (unsigned long long *)(program + filemax - (unsigned long long)8);  //程序结束签名地址
+
 	if (*end_signature == 0xBCBAA7BA03051805ULL)
 	{
 //		if (*(unsigned long long *)(program + prog_len - 0x20) == 0x646E655F6E69616D) //bios模式：新版本标记 main_end
@@ -14636,7 +14674,7 @@ static int grub_exec_run(char *program, char *psp, int flags)
 		grub_memmove((void *)bat_md_start,(void *)(program + size),PI->proglen - size);
 		sprintf(p_bat_array->md,"(md,0x%x,0x%x)",bat_md_start,bat_md_count);
 		bat_md_start >>= 9;
-		bat_md_count >>= 9;
+		bat_md_count = ((bat_md_count + 511) & (-512)) >> 9;
 		}
 
 		//判断回车换行模式
