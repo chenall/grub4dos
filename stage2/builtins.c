@@ -7329,7 +7329,7 @@ void
 add_part_data (int drive)
 {
 	struct grub_part_data *p;	//efi分区数据
-	struct grub_part_data *dp;	//efi分区数据
+	struct grub_part_data *p_final;	//efi分区数据
 	unsigned int back_saved_drive = saved_drive;
 	unsigned int back_current_drive	=	current_drive;
 	unsigned int back_saved_partition	=	saved_partition;
@@ -7339,9 +7339,9 @@ add_part_data (int drive)
     return;
  
   //查找分区数据结束
-  dp = partition_info;
-  while (dp->next)
-    dp = dp->next;
+  p_final = partition_info;
+  while (p_final->next)
+    p_final = p_final->next;
   
   if (drive < 0x90)
   {
@@ -7389,12 +7389,12 @@ add_part_data (int drive)
       if (!partition_info)
       {
         partition_info = p;
-        dp = p;
+        p_final = p;
       }
       else
       {
-      dp->next = p;
-      dp = dp->next;
+        p_final->next = p;
+        p_final = p;
       }
     }
     if (get_efi_device_boot_path (drive, 1))
@@ -7422,10 +7422,10 @@ add_part_data (int drive)
 //    p->boot_size = cd_boot_size;
     p->partition_boot = 1;
     p->next = 0;
-    if (!partition_info) //使用 'if (!dp)' 会判断错误。 当 partition_info=bp=0 时，if (!partition_info) 返回1；而 if (!dp) 返回0。
+    if (!partition_info) //使用 'if (!p_final)' 会判断错误。 当 partition_info=bp=0 时，if (!partition_info) 返回1；而 if (!p_final) 返回0。
       partition_info = p;
     else
-      dp->next = p;
+      p_final->next = p;
     get_efi_device_boot_path(drive, 1);
   }
 }
@@ -11229,6 +11229,10 @@ int
 remap_ascii_char (int key)
 {
 	int i;
+  
+  //一些有bug的UEFI固件返回了每个SHIFT+键组合，如大写字母Q返回0x1000051而不是0x0051。为了适应这个bug。2023-08-09
+  if ((key & 0x1000000) && (key & 0xffffff) < 0x7f)
+    key = key & 0xff;
 	for (i=0; ascii_key_map[i].from_code; i++)
 	{
 		if (ascii_key_map[i].from_code == key)

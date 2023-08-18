@@ -104,7 +104,7 @@ part_choice;
 //char *mbr = (char *)0x8000; /* 512-byte buffer for any use. */
 
 static unsigned int dest_partition;
-static unsigned int entry;
+//static unsigned int entry;
 
 static unsigned int bsd_part_no;
 static unsigned int pc_slice_no;
@@ -1054,7 +1054,8 @@ real_open_partition (int flags)
 	    {				
 	      if (! do_completion)
 				{
-					int active = (PC_SLICE_FLAG (mbr, entry) == PC_SLICE_FLAG_BOOTABLE);
+//					int active = (PC_SLICE_FLAG (mbr, entry) == PC_SLICE_FLAG_BOOTABLE);
+          int active = q->partition_activity_flag;
 					grub_printf ("   Partition num: %d%s, ",
 						(unsigned int)(unsigned char)(current_partition >> 16), (active ? ", active": ""));
 
@@ -3105,6 +3106,7 @@ partition_info_init (struct efidisk_data *devices)
   struct grub_disk_data *d;
   struct efidisk_data *d1;
 	struct grub_part_data *p;
+	struct grub_part_data *p_final;
   grub_efi_device_path_t *dp = 0, *ldp = 0, *dp1;	//路径
 	int drive;
 	unsigned int back_saved_drive = saved_drive;
@@ -3155,7 +3157,18 @@ partition_info_init (struct efidisk_data *devices)
 			p->partition_entry = *next_partition_entry;						//2				2				2				2				0				1					2				0					0					0
 			p->partition_ext_offset = *next_partition_ext_offset;	//0				0				0				0				0				0					0				a0029cc		a0029cc		a0029cc
       p->partition_activity_flag = partition_activity_flag;
-			p->next = partition_info;															//0				dfb0110	dfb00e0	dfb00b0	dfb0080										dfb0050		dfaff90		dfaff60
+//			p->next = partition_info;															//0				dfb0110	dfb00e0	dfb00b0	dfb0080										dfb0050		dfaff90		dfaff60
+      p->next = 0;
+      if (!partition_info)  //执行find时，分区顺序为0,1,2....    2023-07-24
+      {
+        partition_info = p;
+        p_final = p;
+      }
+      else
+      {
+        p_final->next = p;
+        p_final = p;
+      }
 
 			grub_memcpy (&p->partition_signature, &partition_signature, 16);
       //从efidisk_data中查找有关信息
@@ -3174,7 +3187,7 @@ partition_info_init (struct efidisk_data *devices)
         }
       }
       
-			partition_info = p;																		//dfb0110	dfb00e0 dfb00b0	dfb0080	dfb0050										dfaff90		dfaff60		dfaff30
+//      partition_info = p;																		//dfb0110	dfb00e0 dfb00b0	dfb0080	dfb0050										dfaff90		dfaff60		dfaff30
 		}
     if (get_efi_device_boot_path (drive, 0))
     {
@@ -3210,8 +3223,18 @@ partition_info_init (struct efidisk_data *devices)
     p->partition_start = 0;
     p->partition_size = 0;
     p->partition_boot = 1;
-    p->next = partition_info;
-    partition_info = p;
+//    p->next = partition_info;
+//    partition_info = p;
+    if (!partition_info)  //执行find时，分区顺序为0,1,2....    2023-07-24
+    {
+      partition_info = p;
+      p_final = p;
+    }
+    else
+    {
+      p_final->next = p;
+      p_final = p;
+    }
 
     for (d1 = devices; d1; d1 = d1->next)
     {
