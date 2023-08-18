@@ -5067,7 +5067,7 @@ sb:
 	call	8f	/* linux_print */
 
 10:
-	cmpb	$0xff, PRE(cs)ABS(gpt)
+	cmpl	$0xff, PRE(cs)ABS(gpt)
 	jnz	10f
 	stc
 	jmp	2f

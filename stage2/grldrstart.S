@@ -1620,8 +1620,10 @@ Entry_12_16:
 	jnc	1f
 	addb	$0x10, %dh	/* overflow. Add 0x1000 to segment value */
 1:
-	cmpw	$0x3231, 0x39(%bp)
-	jne     3f
+//	cmpw	$0x3231, 0x39(%bp)
+//	jne     3f
+	cmpw	$0, 0x13(%bp)
+  je  3f
 	/******** FAT12 ********/
 
 	addw	%ax, %si	/* multiply cluster number by 3 ... */
@@ -5098,11 +5100,15 @@ NextCluster_12_64_ext:
         testb   $2, 02(%bp)                                     /* fat16? */
         jne     2f                                              /* yes */
         /* fat32/exfat Computing bytes per cluster */
-        shll    $2, %eax                                        /* 4 bytes per cluster */     
-        jmp     1f                               
+//        shll    $2, %eax                                      /* 4 bytes per cluster */   //当簇>=0x40000000时溢出  2023-08-18
+//        jmp     1f 
+        movl    $4, %edx                                        /* 4 bytes per cluster */
+        mull    %edx
+        jmp     4f
 2:      
         /* fat16 Computing bytes per cluster */
-        shlw    $1, %ax                                         /* 2 bytes per cluster */ 
+//        shlw    $1, %ax                                        /* 2 bytes per cluster */   //当簇>=0x8000时溢出  2023-08-18
+        shll    $1, %eax                                         /* 2 bytes per cluster */
         jmp     1f                
 3:              
         /* fat12 Computing bytes per cluster */
@@ -5113,6 +5119,7 @@ NextCluster_12_64_ext:
 1:              
         /* Computing cluster in the FAT table sector offset / byte offset */ 
         xorl    %edx, %edx
+4:
         movzwl  0x0b(%bp), %ecx                                 /* Bytes per sector */
         divl    %ecx                                            /* eax=sector offset, edx=byte offset */      
         /* Calculate the absolute sector of clusters */
@@ -6232,11 +6239,17 @@ fat:
         //fat12/16
 				cmpl    $0x31544146, 0x36(%si)  /* fat12/16 Partition? */
         jne     1f                      /* not */
+#if 0
         cmpl    $0x20202032, 0x3a(%si)  /* fat12 Partition? */
         je      4f                      /* yes */
 				//fat16
         cmpl    $0x20202036, 0x3a(%si)  /* fat16 Partition? */
         je      5f                      /* yes */
+#endif
+        cmpl    $0, 0x20(%si)           /* fat12 Partition? */
+        je      4f                      /* yes */
+        //fat16
+        jmp     5f
 3:      
         cmpl    $0x20202020, 07(%si)    /* ntfs Partition? */
         jne     1f                      /* not */

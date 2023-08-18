@@ -1,4 +1,9 @@
 ﻿更新说明：
+2023-08-18 (yaya)
+  修正2023-06-15补丁引入的bug，bootmgr不能加载grldr。
+  改进grldr.mbr及grldr.pbr对FAT12/FAT16分区的判断。
+  修正grldr.mbr溢出，避免grldr靠后时无法加载的问题。 issues #424
+
 2023-07-01 (yaya)
   修正 timeout 函数。issues #418
 

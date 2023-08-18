@@ -122,9 +122,24 @@ VARIABLE(force_lba)
 VARIABLE(version_string)                                                  //0x8212
 	.string VERSION                                                         //0.97\0(hd0,0)
 
-VARIABLE(config_file)                                                     //0x821e		配置文件  最长72字节
+VARIABLE(config_file)                                                     //0x821e		配置文件  最长28字节(不考虑bootmgr，则最长72字节)
 	.string "/menu.lst"
+  
+	. = EXT_C(main) + 0x34
+//----------------------------------------------------------------------
+//以下bootmgr加载grldr、grldr.mbr需要
+	.word	0x14C	/* CPU type for i386 and compatibles */
+	.word	1	/* there is 1 section */
 
+	. = EXT_C(main) + 0x44
+
+	.word	0x00	/* size of optional header */
+	.word	3	/* flags: "no relocation" and "valid executable" */
+	.word	0x722E	/* section name for resources */
+	.word	0x7273
+	.word	0x63
+//以上bootmgr加载grldr、grldr.mbr需要
+//----------------------------------------------------------------------
 	. = EXT_C(main) + 0x60
 
 VARIABLE(hotkey_func)  //int*                                             //0x8260	外置热键功能
