@@ -4356,7 +4356,7 @@ fill:
 	//graphics_cls();
 	fontx = backup_x;
 	fonty = backup_y;
-	menu_tab_ext |= 2;
+	menu_tab_ext |= 2;  //已加载背景图像
     return 1;
 }
 
@@ -6565,7 +6565,7 @@ loop:
 #endif
 
 	*(unsigned long *)(0x1800820) = 1;  //2023-03-05
-	menu_tab_ext |= 4;
+	menu_tab_ext |= 4;  //已加载字库
 //	if (font_h != 16)			//迁就有的16*16字库不带0-0x7f字符(如SISO)		2023-03-01
   if (font_h == 16 && *(unsigned long *)(UNIFONT_START+0x820+0x14) == 0)  //16*16字库不带0-0x7f字符(优先使用自带字库)  2023-06-22
     goto build_default_VGA_font;
@@ -15622,10 +15622,10 @@ xyz_done:
 	current_bytes_per_pixel = (z+7)/8;
 	if (IMAGE_BUFFER)		//字库位置使用内存分配   2023-02-22
 		grub_free (IMAGE_BUFFER);
-	IMAGE_BUFFER = grub_malloc (current_x_resolution * current_y_resolution * current_bytes_per_pixel);//应当在加载图像前设置
+	IMAGE_BUFFER = grub_zalloc (current_x_resolution * current_y_resolution * current_bytes_per_pixel);//应当在加载图像前设置  使用grub_malloc，切换分辨率可能花屏。2023-08-24
 	if (!JPG_FILE)
 	{
-    JPG_FILE = grub_malloc (0x8000);
+    JPG_FILE = grub_zalloc (0x8000);  //使用grub_malloc，切换分辨率可能花屏。2023-08-24
 	}
 	
 #undef _X_
@@ -15694,9 +15694,9 @@ bad_arg:
 
 //  return old_graphics_mode;
 	if (graphics_mode > 0xFF)
-		menu_tab_ext |= 1;
-	else
-		menu_tab_ext &= 0xfe;
+		menu_tab_ext |= 1;    //已在图形模式
+//	else
+//		menu_tab_ext &= 0xfe; //不在图形模式
   return graphics_mode;
 #else
   return 0x12;
@@ -16782,7 +16782,7 @@ setmenu_func(char *arg, int flags)
 		else if (grub_memcmp (arg, "--u", 3) == 0)
 		{
 			menu_tab = 0;
-			menu_tab_ext = 0;
+			menu_tab_ext = 0;       //初始化
 			num_string = 0;
 			DateTime_enable = 0;			
 			menu_font_spacing = 0;

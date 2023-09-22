@@ -245,7 +245,7 @@ disk_serial_number_structure_end:
 #if 1
 	ljmp	$GRLDR_CS, $(1f - _start1)
 #else
-	pushw	%ss		/* 0x9400 */
+	pushw	%ss		/* 0x2000 */
 
 	//pushw	$(1f - _start1)
 	.byte	0x6A, (1f - _start1)
@@ -6133,6 +6133,7 @@ helper_start:
 	je 1f
 	orb $0x80, 02(%si)    /* force LBA */
 1:
+	/* First, check for ext2 filesystem */
 	cmpw $0xEF53, 0x438		/* Magic signature */
 	jnz fat
 	
@@ -6251,8 +6252,8 @@ fat:
         //fat16
         jmp     5f
 3:      
-        cmpl    $0x20202020, 07(%si)    /* ntfs Partition? */
-        jne     1f                      /* not */
+//        cmpl    $0x20202020, 07(%si)    /* ntfs Partition? */
+//        jne     1f                      /* not */
         
 
 	/* NTFS */
@@ -6432,15 +6433,18 @@ fat:
 				movw $(filename_12_64_ext - _start1), %di
 				pushw %cs
 				popw %es
-				testb $7, 02
+//				testb $7, 02
 				pushw %cs
 				popw %ds
-				jne 101f
-				
+//				jne 101f	
+				pushw %di  
+				movb  $0x20, %al
 				movw $12, %cx
-				repz movsb
-				jmp 105f
-101:				
+				repz stosb
+				popw %di
+//				repz movsb
+//				jmp 105f
+//101:				
 				pushw %di
 102:				
 				movsb

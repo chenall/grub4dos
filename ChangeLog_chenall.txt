@@ -1,4 +1,11 @@
 ﻿更新说明：
+2023-09-22 (yaya)
+  修正切换分辨率花屏问题。
+  修正grldr.mbr。 issues #427
+  增加变量menu_tab_ext，避免重入主菜单时重复加载背景图及字库。
+  例如：calc *0x8312&2 > nul || splashimage /boot/grub/lt.jpg
+        calc *0x8312&4 > nul || font /boot/grub/unifont.hex.gz
+
 2023-08-18 (yaya)
   修正2023-06-15补丁引入的bug，bootmgr不能加载grldr。
   改进grldr.mbr及grldr.pbr对FAT12/FAT16分区的判断。
