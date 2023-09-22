@@ -1501,6 +1501,33 @@ grub_efi_drop_alloc (grub_efi_physical_address_t address,
 	}
 }
 #endif
+
+grub_efi_status_t grub_efi_allocate_pool (grub_efi_memory_type_t pool_type,
+                        grub_efi_uintn_t buffer_size, void **buffer);
+grub_efi_status_t
+grub_efi_allocate_pool (grub_efi_memory_type_t pool_type,
+                        grub_efi_uintn_t buffer_size, void **buffer)  //分配池
+{
+  grub_efi_boot_services_t *b;
+  grub_efi_status_t status;
+
+  b = grub_efi_system_table->boot_services;
+  status = efi_call_3 (b->allocate_pool, pool_type, buffer_size, buffer);
+  return status;
+}
+
+grub_efi_status_t grub_efi_free_pool (void *buffer);
+grub_efi_status_t
+grub_efi_free_pool (void *buffer) //释放池
+{
+  grub_efi_boot_services_t *b;
+  grub_efi_status_t status;
+
+  b = grub_efi_system_table->boot_services;
+  status = efi_call_1 (b->free_pool, buffer);
+  return status;
+}
+
 //第一次分配页时,会多分配一页,用于记录分配结构. 似乎每一结构占用0x80字节(实际结构每一这么大).此页不会释放.
 //分配页后,紧接分配池.并记录分配结构.
 /* Allocate pages. Return the pointer to the first of allocated pages. 分配页面。返回指向第一个分配页面的指针 */

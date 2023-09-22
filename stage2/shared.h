@@ -1959,7 +1959,8 @@ extern int strncmpx(const char *s1,const char *s2, unsigned int n, int case_inse
 #define strnicmp(s1,s2,n) strncmpx(s1,s2,n,1)
 #define strncmpi strnicmp
 extern int grub_strlen (const char *str);
-char *grub_strcpy (char *dest, const char *src);
+extern char *grub_strcpy (char *dest, const char *src);
+extern char *grub_strncpy (char *dest, const char *src, int c);
 
 extern unsigned long long grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len);
 extern unsigned long long grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long len);
@@ -4976,6 +4977,9 @@ EXPORT_FUNC (grub_efi_compare_device_paths) (const grub_efi_device_path_t *dp1,
 extern void (*EXPORT_VAR(grub_efi_net_config)) (grub_efi_handle_t hnd, 
 						char **device,
 						char **path);
+extern grub_efi_status_t grub_efi_allocate_pool (grub_efi_memory_type_t pool_type,
+                        grub_efi_uintn_t buffer_size, void **buffer);
+extern grub_efi_status_t grub_efi_free_pool (void *buffer);
 
 #if defined(__arm__) || defined(__aarch64__)
 extern void *EXPORT_FUNC(grub_efi_get_firmware_fdt)(void);
@@ -5179,8 +5183,37 @@ extern grub_err_t EXPORT_VAR(grub_errno);
 
 #define GRUB_PE32_SIGNATURE_SIZE 4
 #define GRUB_PE32_MSDOS_STUB_SIZE	0x80
+#define GRUB_PE32_PE32_MAGIC	0x10b
+#define GRUB_PE32_PE64_MAGIC	0x20b
+#define GRUB_PE32_MACHINE_I386			0x14c
+#define GRUB_PE32_MACHINE_X86_64		0x8664
+#define GRUB_PE32_SCN_MEM_DISCARDABLE		0x02000000
+#define GRUB_PE32_SCN_CNT_UNINITIALIZED_DATA	0x00000080
+#define GRUB_PE32_REL_BASED_ABSOLUTE	0
+#define GRUB_PE32_REL_BASED_HIGH	1
+#define GRUB_PE32_REL_BASED_LOW		2
+#define GRUB_PE32_REL_BASED_HIGHLOW	3
+#define GRUB_PE32_REL_BASED_HIGHADJ	4
+#define GRUB_PE32_REL_BASED_MIPS_JMPADDR 5
+#define GRUB_PE32_REL_BASED_ARM_MOV32A  5
+#define GRUB_PE32_REL_BASED_RISCV_HI20	5
+#define GRUB_PE32_REL_BASED_SECTION	6
+#define GRUB_PE32_REL_BASED_REL		7
+#define GRUB_PE32_REL_BASED_ARM_MOV32T  7
+#define GRUB_PE32_REL_BASED_RISCV_LOW12I 7
+#define GRUB_PE32_REL_BASED_RISCV_LOW12S 8
+#define GRUB_PE32_REL_BASED_IA64_IMM64	9
+#define GRUB_PE32_REL_BASED_DIR64	10
+#define GRUB_PE32_REL_BASED_HIGH3ADJ	11
 
 //grub/efi/pe32.h
+struct grub_pe32_fixup_block
+{
+  grub_uint32_t page_rva;
+  grub_uint32_t block_size;
+  grub_uint16_t entries[0];
+};
+
 struct grub_pe32_data_directory
 {
   unsigned int rva;  //RVA
@@ -5267,23 +5300,6 @@ struct grub_pe32_coff_header            //COFF文件头
   unsigned short characteristics;       //特点          020e
 };
 
-struct grub_pe32_header   //PE32 头
-{
-  /* This should be filled in with GRUB_PE32_MSDOS_STUB. 这应该用GRUB_PE32_MSDOS_STUB */
-  unsigned char msdos_stub[GRUB_PE32_MSDOS_STUB_SIZE]; //[80] 根尺寸
-
-  /* This is always PE\0\0. 这总是PE\0\0 */
-  char signature[GRUB_PE32_SIGNATURE_SIZE]; //[4] 签名长度
-
-  /* The COFF file header. COFF文件头 */
-  struct grub_pe32_coff_header coff_header; //COFF文件头 占0x14字节
-
-  /* The Optional header.  */
-  struct grub_pe64_optional_header optional_header; //可选头部  a0000000020b
-};
-
-
-
 struct grub_pe32_optional_header          //可选头部
 {
   unsigned short magic;                    //魔术          020b
@@ -5339,6 +5355,58 @@ struct grub_pe32_optional_header          //可选头部
   struct grub_pe32_data_directory com_runtime_header;     //COM运行时报头
   struct grub_pe32_data_directory reserved_entry;         //保留条目
 };
+
+struct grub_pe32_header   //PE32 头
+{
+  /* This should be filled in with GRUB_PE32_MSDOS_STUB. 这应该用GRUB_PE32_MSDOS_STUB */
+  unsigned char msdos_stub[GRUB_PE32_MSDOS_STUB_SIZE]; //[80] 根尺寸
+
+  /* This is always PE\0\0. 这总是PE\0\0 */
+  char signature[GRUB_PE32_SIGNATURE_SIZE]; //[4] 签名长度
+
+  /* The COFF file header. COFF文件头 */
+  struct grub_pe32_coff_header coff_header; //COFF文件头 占0x14字节
+
+  /* The Optional header.  */
+  struct grub_pe64_optional_header optional_header; //可选头部  a0000000020b
+};
+
+struct grub_pe32_header_32
+{
+  char signature[GRUB_PE32_SIGNATURE_SIZE];
+  struct grub_pe32_coff_header coff_header;
+  struct grub_pe32_optional_header optional_header;
+};
+
+struct grub_pe32_header_64
+{
+  char signature[GRUB_PE32_SIGNATURE_SIZE];
+  struct grub_pe32_coff_header coff_header;
+  struct grub_pe64_optional_header optional_header;
+};
+
+typedef union			//pe句柄
+{
+  struct grub_pe32_header_32 pe32;
+  struct grub_pe32_header_64 pe32plus;
+} grub_pe_header_t;
+
+struct pe_coff_loader_image_context		//pe-coff加载程序图像上下文
+{
+  grub_efi_uint64_t image_address;
+  grub_efi_uint64_t image_size;
+  grub_efi_uint64_t entry_point;
+  grub_efi_uintn_t size_of_headers;
+  grub_efi_uint16_t image_type;
+  grub_efi_uint16_t number_of_sections;
+  grub_efi_uint32_t section_alignment;
+  struct grub_pe32_section_table *first_section;
+  struct grub_pe32_data_directory *reloc_dir;
+  struct grub_pe32_data_directory *sec_dir;
+  grub_efi_uint64_t number_of_rva_and_sizes;
+  grub_pe_header_t *pe_hdr;
+};
+typedef struct pe_coff_loader_image_context pe_coff_loader_image_context_t;
 
 /* The start point of the C code.  */
 void grub_main (void) __attribute__ ((noreturn));
@@ -5675,7 +5743,7 @@ struct grub_part_data  //efi分区数据	(硬盘)    注意外部命令兼容性
 	struct grub_part_data *next;  				  //下一个
 	unsigned char	drive;									  //驱动器
 	unsigned char	partition_type;					  //MBR分区ID         EE是gpt分区类型     光盘:
-	unsigned char	partition_activity_flag;  //MBR分区活动标志   80活动              光盘:
+	unsigned char	partition_activity_flag;  //MBR分区活动标志   80活动              光盘: 启动镜像驱动器号
 	unsigned char partition_entry;				  //分区入口                              光盘: 启动目录确认入口   
 	unsigned int partition_ext_offset;		  //扩展分区偏移                          光盘: 启动目录扇区地址
 	unsigned int partition;							    //当前分区                              光盘: ffff

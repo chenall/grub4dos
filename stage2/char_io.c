@@ -2240,6 +2240,18 @@ grub_strcpy (char *dest, const char *src)
   return dest;
 }
 
+char *grub_strncpy (char *dest, const char *src, int c);
+char *
+grub_strncpy (char *dest, const char *src, int c)
+{
+  char *p = dest;
+
+  while ((*p++ = *src++) != '\0' && --c)
+    ;
+
+  return dest;
+}
+
 /* The strtok.c comes from reactos. It follows GPLv2. */
 
 /* Copyright (C) 1994 DJ Delorie, see COPYING.DJ for details */

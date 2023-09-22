@@ -1341,8 +1341,9 @@ efi_open_protocol_wrapper (grub_efi_handle_t handle, grub_efi_guid_t *protocol,
   return 0;
 }
 #endif
-static grub_efi_char16_t *cmdline;
-static grub_ssize_t cmdline_len;
+extern grub_efi_char16_t *cmdline;
+extern grub_ssize_t cmdline_len;
+extern grub_efi_handle_t dev_handle;
 
 /* chainloader */
 static int chainloader_func (char *arg, int flags);
@@ -1383,18 +1384,6 @@ chainloader_func (char *arg, int flags)
   //虚拟盘类型
   if (! *filename)
 	{
-#if 0
-    if (current_drive >= 0xa0)  //如果是光盘，并且存在“/EFI/BOOT/BOOTX64.EFI(BOOTIA32.EFI)”,则优先加载
-    {
-      if (find_specified_file(current_drive, 0, EFI_REMOVABLE_MEDIA_FILE_NAME) == 1) //
-      {
-        sprintf (chainloader_file, "(%d)%s\0", current_drive, EFI_REMOVABLE_MEDIA_FILE_NAME);
-        arg = chainloader_file;
-        goto file;
-      }
-      errnum = 0;
-    } 
-#endif
     part_data = 0;
     if (current_partition == 0xFFFFFF)  //如果没有指定启动分区
       part_data = get_boot_partition (current_drive);
@@ -1493,12 +1482,7 @@ aaa:
 		cmdline[len] = 0;
 		cmdline_len = len * sizeof (grub_efi_char16_t);
 	}
-#if 0
-  d = get_device_by_drive (current_drive,0);
-  if (!d)
-    return (!(errnum = ERR_NO_DISK));    
-  dp = grub_efi_get_device_path (d->device_handle);
-#else
+
   if (current_partition == 0xFFFFFF)
   {
     d = get_device_by_drive (current_drive,0);
@@ -1515,9 +1499,10 @@ aaa:
     dp = grub_efi_get_device_path (part_data->part_handle);
     temp = part_data->part_handle;
   }
-#endif
+
   if (debug > 1)
     grub_efi_print_device_path(dp);
+  dev_handle = temp;
   image_handle = grub_load_image (dp, arg1, boot_image);
 	if (!image_handle)
 		goto failure_exec_format_0;
@@ -3886,7 +3871,7 @@ command_func (char *arg, int flags)
 	unsigned int psp_len;
 	unsigned int prog_len;
 	char *program;
-	char *tmp;
+	char *tmp, *tmp0;
 	prog_len = filemax; //程序(文件)尺寸
 	psp_len = ((arg_len + strlen(file_path)+ 16) & ~0xF) + 0x10 + 0x20; //psp尺寸
 //	tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len + 512);  //缓存
@@ -3932,7 +3917,12 @@ command_func (char *arg, int flags)
         bat_md_start = (grub_size_t)(program + len + 8);  //尾续文件起始
         bat_md_count = filemax - (len + 8);               //尾续文件尺寸
         bat_md_count = (bat_md_count + 511) & (-512);     //对齐512
-        char *tmp0 = grub_memalign(512, bat_md_count);    //给尾续文件分配新地址
+        tmp0 = grub_memalign(512, bat_md_count);    //给尾续文件分配新地址
+        if (tmp0 == NULL)
+        {
+          grub_free(tmp);
+          goto fail;
+        }
         grub_memmove64((unsigned long long)(grub_size_t)tmp0,bat_md_start,bat_md_count); //复制(未解压缩)尾续文件到新地址
         bat_md_start = (unsigned long long)(grub_size_t)tmp0 >> 9;
         bat_md_count >>= 9;
@@ -4039,6 +4029,7 @@ command_func (char *arg, int flags)
 	pid = grub_exec_run(program, psp, flags);
 	/* on exit, release the memory. */
 	grub_free(tmp);
+	grub_free(tmp0);
 	if (!(--prog_pid) && *CMD_RUN_ON_EXIT)//errnum = -1 on exit run.
 	{
 		errnum = 0;
@@ -7420,6 +7411,7 @@ add_part_data (int drive)
 //    p->partition_size = cd_Image_disk_size;
 //    p->boot_start = cd_boot_start;
 //    p->boot_size = cd_boot_size;
+    p->partition_activity_flag = 0x60 + cd_map_count; //光盘启动镜像的驱动器号
     p->partition_boot = 1;
     p->next = 0;
     if (!partition_info) //使用 'if (!p_final)' 会判断错误。 当 partition_info=bp=0 时，if (!partition_info) 返回1；而 if (!p_final) 返回0。
@@ -12245,10 +12237,10 @@ xyz_done:
       grub_free (IMAGE_BUFFER);
 //    IMAGE_BUFFER = grub_malloc (current_x_resolution * current_y_resolution * current_bytes_per_pixel);//应当在加载图像前设置
 		//可能info->pixels_per_scanline >= info->width    2023-03-26
-		IMAGE_BUFFER = grub_malloc (current_bytes_per_scanline * current_y_resolution);//应当在加载图像前设置
+		IMAGE_BUFFER = grub_zalloc (current_bytes_per_scanline * current_y_resolution);//应当在加载图像前设置  使用grub_malloc，切换分辨率可能花屏。2023-08-24
     if (!JPG_FILE)
     {
-    JPG_FILE = grub_malloc (0x8000);
+    JPG_FILE = grub_zalloc (0x8000);  //使用grub_malloc，切换分辨率可能花屏。2023-08-24
     }	
     if (!UNIFONT_START)
     {

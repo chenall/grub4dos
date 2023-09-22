@@ -1,4 +1,11 @@
 ﻿更新说明：
+2023-09-22 (yaya)
+  修正切换分辨率花屏问题。
+  增加从入口点启动方法。
+  增加变量menu_tab_ext，避免重入主菜单时重复加载背景图及字库。
+  例如：calc *0x8312&2 > nul || splashimage /boot/grub/lt.jpg
+        calc *0x8312&4 > nul || font /boot/grub/unifont.hex.gz
+
 2023-08-18 (yaya)
   改进find函数的查找分区顺序为0,1,2....
   改进有些UEFI固件返回大写字母无法识别的问题。 issues #423

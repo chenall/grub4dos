@@ -4224,13 +4224,544 @@ locate_handle_wrapper (grub_efi_locate_search_type_t search_type,
   return status;
 }
 
+static int image_is_64_bit (grub_pe_header_t *pe_hdr);
+static int
+image_is_64_bit (grub_pe_header_t *pe_hdr)	//映像是64位
+{
+  /* .Magic is the same offset in all cases 魔法在所有情况下都是相同的偏移*/
+  if (pe_hdr->pe32plus.optional_header.magic == GRUB_PE32_PE64_MAGIC)		//0x20b
+    return 1;
+  return 0;
+}
+
+static grub_efi_boolean_t read_header (void *data, grub_efi_uint32_t size,
+	     pe_coff_loader_image_context_t *context);
+static grub_efi_boolean_t
+read_header (void *data, grub_efi_uint32_t size,
+	     pe_coff_loader_image_context_t *context)		//读取标头
+{
+  char *msdos = (char *) data;
+  grub_pe_header_t *pe_hdr = (grub_pe_header_t *)data;
+
+  if (size < sizeof (*pe_hdr))
+  {
+    printf_errinfo ("Invalid image\n");
+    return 0;
+  }
+
+  if (grub_memcmp (msdos, "MZ", 2) == 0)
+  {
+    grub_uint32_t off = *((grub_uint32_t *) (msdos + 0x3c));
+    pe_hdr = (grub_pe_header_t *) ((char *)data + off);
+  }
+
+  if (grub_memcmp (pe_hdr->pe32plus.signature, "PE\0\0", 4) != 0 ||
+#if defined(__x86_64__)
+      ! image_is_64_bit (pe_hdr) ||
+      pe_hdr->pe32plus.coff_header.machine != GRUB_PE32_MACHINE_X86_64)
+#else
+      image_is_64_bit (pe_hdr) ||
+      pe_hdr->pe32.coff_header.machine != GRUB_PE32_MACHINE_I386)
+#endif
+  {
+    printf_errinfo ("Not supported image\n");
+    return 0;
+  }
+
+#if defined(__x86_64__)
+  context->number_of_rva_and_sizes = pe_hdr->pe32plus.optional_header.num_data_directories;
+  context->size_of_headers = pe_hdr->pe32plus.optional_header.header_size;
+  context->image_size = pe_hdr->pe32plus.optional_header.image_size;
+  context->image_address = pe_hdr->pe32plus.optional_header.image_base;
+  context->entry_point = pe_hdr->pe32plus.optional_header.entry_addr;
+  context->reloc_dir = &pe_hdr->pe32plus.optional_header.base_relocation_table;
+  context->sec_dir = &pe_hdr->pe32plus.optional_header.certificate_table;
+  context->number_of_sections = pe_hdr->pe32plus.coff_header.num_sections;
+  context->pe_hdr = pe_hdr;
+  context->first_section = (struct grub_pe32_section_table *)((char *)(&pe_hdr->pe32plus.optional_header) + pe_hdr->pe32plus.coff_header.optional_header_size);
+#else
+  context->number_of_rva_and_sizes = pe_hdr->pe32.optional_header.num_data_directories;
+  context->size_of_headers = pe_hdr->pe32.optional_header.header_size;
+  context->image_size = pe_hdr->pe32.optional_header.image_size;
+  context->image_address = pe_hdr->pe32.optional_header.image_base;
+  context->entry_point = pe_hdr->pe32.optional_header.entry_addr;
+  context->reloc_dir = &pe_hdr->pe32.optional_header.base_relocation_table;
+  context->sec_dir = &pe_hdr->pe32.optional_header.certificate_table;
+  context->number_of_sections = pe_hdr->pe32.coff_header.num_sections;
+  context->pe_hdr = pe_hdr;
+  context->first_section = (struct grub_pe32_section_table *)((char *)(&pe_hdr->pe32.optional_header) + pe_hdr->pe32.coff_header.optional_header_size);
+#endif
+  return 1;
+}
+
+static void* image_address (void *image, grub_efi_uint64_t sz, grub_efi_uint64_t adr);
+static void*
+image_address (void *image_, grub_efi_uint64_t sz, grub_efi_uint64_t adr)	//映像地址
+{
+  if (adr > sz)
+    return NULL;
+
+  return ((grub_uint8_t*)image_ + adr);
+}
+
+static grub_efi_status_t (*entry_point) (grub_efi_handle_t image_handle, grub_efi_system_table_t *system_table);
+static grub_efi_status_t
+relocate_coff (pe_coff_loader_image_context_t *context,
+	       struct grub_pe32_section_table *section,
+	       void *orig, void *data)	//重新定位coff
+{
+  struct grub_pe32_data_directory *reloc_base, *reloc_base_end;
+  grub_efi_uint64_t adjust;
+  struct grub_pe32_fixup_block *reloc, *reloc_end;
+  char *fixup, *fixup_base, *fixup_data = NULL;
+  grub_efi_uint16_t *fixup_16;
+  grub_efi_uint32_t *fixup_32;
+  grub_efi_uint64_t *fixup_64;
+  grub_efi_uint64_t size = context->image_size;
+  void *image_end = (char *)orig + size;
+  int n = 0;
+
+  if (image_is_64_bit (context->pe_hdr))
+    context->pe_hdr->pe32plus.optional_header.image_base =
+          (grub_uint64_t)(unsigned long)data;
+  else
+    context->pe_hdr->pe32.optional_header.image_base =
+          (grub_uint32_t)(unsigned long)data;
+
+  /* Alright, so here's how this works:
+   *
+   * context->reloc_dir gives us two things:
+   * - the VA the table of base relocation blocks are (maybe) to be
+   *   mapped at (reloc_dir->rva)
+   * - the virtual size (reloc_dir->size)
+   *
+   * The .reloc section (section here) gives us some other things:
+   * - the name! kind of. (section->name)
+   * - the virtual size (section->virtual_size), which should be the same
+   *   as RelocDir->Size
+   * - the virtual address (section->virtual_address)
+   * - the file section size (section->raw_data_size), which is
+   *   a multiple of optional_header->file_alignment.  Only useful for image
+   *   validation, not really useful for iteration bounds.
+   * - the file address (section->raw_data_offset)
+   * - a bunch of stuff we don't use that's 0 in our binaries usually
+   * - Flags (section->characteristics)
+   *
+   * and then the thing that's actually at the file address is an array
+   * of struct grub_pe32_fixup_block structs with some values packed behind
+   * them.  The block_size field of this structure includes the
+   * structure itself, and adding it to that structure's address will
+   * yield the next entry in the array.
+   */
+
+  reloc_base = image_address (orig, size, section->raw_data_offset);
+  reloc_base_end = image_address (orig, size, section->raw_data_offset
+				  + section->virtual_size);
+
+  printf_debug ("chain: relocate_coff(): reloc_base %x reloc_base_end %x\n",
+          reloc_base, reloc_base_end);  //9b77000 9b7c000;
+
+  if (!reloc_base && !reloc_base_end)
+    return GRUB_EFI_SUCCESS;
+
+  if (!reloc_base || !reloc_base_end)
+  {
+    printf_errinfo ("Reloc table overflows binary\n");
+    return GRUB_EFI_UNSUPPORTED;
+  }
+
+  adjust = (grub_uint64_t)(grub_efi_uintn_t)data - context->image_address;
+  if (adjust == 0)
+    return GRUB_EFI_SUCCESS;
+
+  while (reloc_base < reloc_base_end)
+  {
+    grub_uint16_t *entry;
+    reloc = (struct grub_pe32_fixup_block *)((char*)reloc_base);
+
+    if ((reloc_base->size == 0) ||
+            (reloc_base->size > context->reloc_dir->size))
+    {
+      printf_errinfo ("Reloc %x block size %x is invalid\n", reloc_base->size);
+      return GRUB_EFI_UNSUPPORTED;
+    }
+
+    entry = &reloc->entries[0];
+    reloc_end = (struct grub_pe32_fixup_block *)((char *)reloc_base + reloc_base->size);
+
+    if ((void *)reloc_end < orig || (void *)reloc_end > image_end)
+    {
+      printf_errinfo ("Reloc entry %x overflows binary\n");
+      return GRUB_EFI_UNSUPPORTED;
+    }
+
+    fixup_base = image_address(data, size, reloc_base->rva);
+
+    if (!fixup_base)
+    {
+      printf_errinfo ("Reloc %x Invalid fixupbase\n");
+      return GRUB_EFI_UNSUPPORTED;
+    }
+
+    while ((void *)entry < (void *)reloc_end)
+    {
+      fixup = fixup_base + (*entry & 0xFFF);
+      switch ((*entry) >> 12)
+      {
+        case GRUB_PE32_REL_BASED_ABSOLUTE:
+          break;
+        case GRUB_PE32_REL_BASED_HIGH:
+          fixup_16 = (grub_uint16_t *)fixup;
+          *fixup_16 = (grub_uint16_t)(*fixup_16 + ((grub_uint16_t)((grub_uint32_t)adjust >> 16)));
+          if (fixup_data != NULL)
+          {
+            *(grub_uint16_t *) fixup_data = *fixup_16;
+            fixup_data = fixup_data + sizeof (grub_uint16_t);
+          }
+          break;
+        case GRUB_PE32_REL_BASED_LOW:
+          fixup_16 = (grub_uint16_t *)fixup;
+          *fixup_16 = (grub_uint16_t) (*fixup_16 + (grub_uint16_t)adjust);
+          if (fixup_data != NULL)
+          {
+            *(grub_uint16_t *) fixup_data = *fixup_16;
+            fixup_data = fixup_data + sizeof (grub_uint16_t);
+          }
+          break;
+        case GRUB_PE32_REL_BASED_HIGHLOW:
+          fixup_32 = (grub_uint32_t *)fixup;
+          *fixup_32 = *fixup_32 + (grub_uint32_t)adjust;
+          if (fixup_data != NULL)
+          {
+            fixup_data = (char *)ALIGN_UP ((grub_addr_t)fixup_data, sizeof (grub_uint32_t));
+            *(grub_uint32_t *) fixup_data = *fixup_32;
+            fixup_data += sizeof (grub_uint32_t);
+          }
+          break;
+        case GRUB_PE32_REL_BASED_DIR64:
+          fixup_64 = (grub_uint64_t *)fixup;
+          *fixup_64 = *fixup_64 + (grub_uint64_t)adjust;
+          if (fixup_data != NULL)
+          {
+            fixup_data = (char *)ALIGN_UP ((grub_addr_t)fixup_data, sizeof (grub_uint64_t));
+            *(grub_uint64_t *) fixup_data = *fixup_64;
+            fixup_data += sizeof (grub_uint64_t);
+          }
+          break;
+        default:
+          printf_errinfo ("Reloc %x unknown relocation type %x\n", (*entry) >> 12);
+          return GRUB_EFI_UNSUPPORTED;
+      }
+      entry += 1;
+    }
+    reloc_base = (struct grub_pe32_data_directory *)reloc_end;
+    n++;
+  }
+
+  return GRUB_EFI_SUCCESS;
+}
+
+static grub_efi_device_path_t *
+grub_efi_get_media_file_path (grub_efi_device_path_t *dp)	//获取媒体文件路径
+{
+  while (1)
+  {
+    grub_efi_uint8_t type = GRUB_EFI_DEVICE_PATH_TYPE (dp);				//路径
+    grub_efi_uint8_t subtype = GRUB_EFI_DEVICE_PATH_SUBTYPE (dp);	//子路径
+
+    if (type == GRUB_EFI_END_DEVICE_PATH_TYPE)                    //(0xff & 0x7f)
+      break;
+    else if (type == GRUB_EFI_MEDIA_DEVICE_PATH_TYPE							//4
+            && subtype == GRUB_EFI_FILE_PATH_DEVICE_PATH_SUBTYPE) //4
+      return dp;	//找到
+
+    dp = GRUB_EFI_NEXT_DEVICE_PATH (dp);	//下一路径
+  }
+
+  return NULL;	//没有找到
+}
+
+grub_efi_device_path_t *boot_file = NULL;
+grub_efi_char16_t *cmdline;
+grub_ssize_t cmdline_len;
+grub_efi_handle_t dev_handle;
+
+static grub_efi_boolean_t handle_image (void *data, grub_efi_uint32_t datasize);
+static grub_efi_boolean_t
+handle_image (void *data, grub_efi_uint32_t datasize)		//句柄映像
+{
+  grub_efi_loaded_image_t *li, li_bak;
+  grub_efi_status_t efi_status;
+  void *buffer = NULL;
+  char *buffer_aligned = NULL;
+  grub_efi_uint32_t i;
+  struct grub_pe32_section_table *section;
+  char *base, *end;
+  pe_coff_loader_image_context_t context;
+  grub_uint32_t section_alignment;
+  grub_uint32_t buffer_size;
+  int found_entry_point = 0;
+
+  if (read_header (data, datasize, &context))		//读取标头
+	{
+		printf_debug ("chain: Succeed to read header\n");	//"读取标头成功"
+	}
+  else
+	{
+		printf_debug ("chain: Failed to read header\n");  //"读取标头失败"
+		goto error_exit;
+	}
+
+  /*
+   * The spec says, uselessly, of SectionAlignment: 										规范中无用地提到了截面对齐：
+   * =====
+   * The alignment (in bytes) of sections when they are loaded into			节加载到内存中时的对齐方式(以字节为单位)。它必须大于或等于FileAlignment。
+   * memory. It must be greater than or equal to FileAlignment. The			默认值是体系结构的页面大小。
+   * default is the page size for the architecture.
+   * =====
+   * Which doesn't tell you whose responsibility it is to enforce the		这并不能告诉你谁有责任强制执行“违约”，或者何时执行。
+   * "default", or when.  It implies that the value in the field must		这意味着字段中的值必须是>FileAlignment（定义也很差），
+   * be > FileAlignment (also poorly defined), but it appears visual
+   * studio will happily write 512 for FileAlignment (its default) and	但visual studio似乎很乐意为FileAlignment（默认值）写512，
+   * 0 for SectionAlignment, intending to imply PAGE_SIZE.							为SectionAlignment写0，这意味着PAGE_SIZE。
+   *
+   * We only support one page size, so if it's zero, nerf it to 4096.		我们只支持一个页面大小，所以如果它为零，请将其缩小到4096。
+   */
+  section_alignment = context.section_alignment;
+  if (section_alignment == 0)		//如果区段对齐=0
+    section_alignment = 4096;
+
+  buffer_size = context.image_size + section_alignment;		        //缓存尺寸=映像尺寸+区段对齐
+  printf_debug ("chain: image size is %08lx, datasize is %08x\n",	//"映像大尺寸67000，数据尺寸为67000"
+	       (long unsigned)context.image_size, datasize);
+
+  efi_status = grub_efi_allocate_pool (GRUB_EFI_LOADER_DATA, buffer_size, &buffer);	//分配池
+
+  if (efi_status != GRUB_EFI_SUCCESS)		//失败
+  {
+    printf_errinfo ("out of memory\n");		//"内存不足"
+    goto error_exit;
+  }
+
+  buffer_aligned = (char *)ALIGN_UP ((grub_addr_t)buffer, section_alignment);		//向上对齐缓存
+
+  if (!buffer_aligned)	//失败
+	{
+		printf_errinfo ("out of memory\n");		//"内存不足"
+		goto error_exit;
+	}
+
+  grub_memcpy (buffer_aligned, data, context.size_of_headers);	//复制数据
+  
+  entry_point = image_address (buffer_aligned, context.image_size,
+			       context.entry_point);	//EFI映像入口点
+
+  printf_debug ("chain: entry_point: %x\n", entry_point);	//"入口点: 9a47000"
+  if (!entry_point)	//失败
+	{
+		printf_errinfo ("invalid entry point\n");	//"无效入口点"
+		goto error_exit;
+	}
+
+  char *reloc_base, *reloc_base_end;
+  
+  reloc_base = image_address (buffer_aligned, context.image_size,
+			      context.reloc_dir->rva);		//重新定位基准
+  /* RelocBaseEnd here is the address of the last byte of the table   RelocBaseEnd这里是表的最后一个字节的地址*/
+  reloc_base_end = image_address (buffer_aligned, context.image_size,
+				  context.reloc_dir->rva
+				  + context.reloc_dir->size - 1);
+  printf_debug ("chain: reloc_base: %x reloc_base_end: %x\n",	//"重定位基准：9aa8000, 重定位基准结束：9aacfff"
+          reloc_base, reloc_base_end);
+  struct grub_pe32_section_table *reloc_section = NULL;
+
+  section = context.first_section;
+  for (i = 0; i < context.number_of_sections; i++, section++)
+	{
+		char name[9];
+
+		base = image_address (buffer_aligned, context.image_size,
+          section->virtual_address);														//基地址
+		end = image_address (buffer_aligned, context.image_size,
+          section->virtual_address + section->virtual_size -1);	//结束地址
+
+		grub_strncpy(name, section->name, 9);		//复制字符串
+		name[8] = '\0';
+		printf_debug ("chain: Section %x \"%s\" at %x..%x\n", i,
+          name, base, end);
+//第0".text节,第9a47000...9a86fff页;
+//第1".data节,第9a87000...9aa6fff页;
+//第2"mods节,第9aa7000...9aa7fff页;
+//第3".rtloc节,第9aa8000...9aacfff页;
+		if (end < base)
+		{
+			printf_errinfo ("chain: base is %x but end is %x... bad.\n",	//"底部是%x，但末端是%x...令人不快的"
+          base, end);
+			printf_errinfo ("Image has invalid negative size\n");		//"映像的负尺寸无效"
+			goto error_exit;
+		}
+
+		if (section->virtual_address <= context.entry_point &&
+				(section->virtual_address + section->raw_data_size - 1)
+				> context.entry_point)
+		{
+			found_entry_point++;
+			printf_debug ("chain: section contains entry point\n");	//"部分包含入口点"
+		}
+
+		/* We do want to process .reloc, but it's often marked		我们确实想处理.reloc，但它通常被标记为可丢弃，所以我们不想记住它
+		 * discardable, so we don't want to memcpy it. */
+		if (grub_memcmp (section->name, ".reloc\0\0", 8) == 0)
+		{
+			if (reloc_section)
+	    {
+	      printf_errinfo ("Image has multiple relocation sections\n");	//映像有多个重新定位节
+	      goto error_exit;
+	    }
+
+			/* If it has nonzero sizes, and our bounds check				如果它的大小为非零，并且我们的边界检查是有意义的，
+			* made sense, and the VA and size match RelocDir's			并且VA和大小与RelocDir的版本匹配，那么我们相信这个节表
+			* versions, then we believe in this section table. */
+			if (section->raw_data_size && section->virtual_size &&
+            base && end && reloc_base == base && reloc_base_end == end)
+	    {
+	      printf_debug ("chain: section is relocation section\n");		//"节是重新定位节"
+				reloc_section = section;
+	    }
+      else
+	    {
+	      printf_debug ("chain: section is not reloc section?\n");  //"区段不是重新定位区段？"
+	      printf_debug ("chain: rds: 0x%08x, vs: %08x\n",						//"rds: 0x%08x, vs: %08x"
+						section->raw_data_size, section->virtual_size);
+	      printf_debug ("chain: base: %x end: %x\n", base, end);
+	      printf_debug ("chain: reloc_base: %x reloc_base_end: %x\n",
+						reloc_base, reloc_base_end);
+	    }
+		}
+
+		printf_debug ("chain: Section characteristics are %08x\n", section->characteristics); //60000020; c0000040; c0000040; 42000040;
+		printf_debug ("chain: Section virtual size: %08x\n", section->virtual_size);          //40000;    20000;    1000;     5000;
+		printf_debug ("chain: Section raw_data size: %08x\n", section->raw_data_size);        //40000;    20000;    1000;     5000;
+		if (section->characteristics & GRUB_PE32_SCN_MEM_DISCARDABLE)
+		{
+			printf_debug ("chain: Discarding section\n");	//"丢弃节"
+			continue;
+    }
+
+		if (!base || !end)
+		{
+			printf_errinfo ("Invalid section size\n");      //"无效的节大小"
+			goto error_exit;
+		}
+
+		if (section->characteristics & GRUB_PE32_SCN_CNT_UNINITIALIZED_DATA)
+		{
+      if (section->raw_data_size != 0)
+        printf_debug ("chain: UNINITIALIZED_DATA section has data?\n");	//"UNINITIALIZED_DATA部分是否有数据？"
+		}
+		else if (section->virtual_address < context.size_of_headers ||
+	       section->raw_data_offset < context.size_of_headers)
+		{
+			printf_errinfo ("Section %x is inside image headers\n", i);		//"第%d节在映像标题内"
+			goto error_exit;
+		}
+
+		if (section->raw_data_size > 0)
+    {
+			printf_debug ("chain: copying 0x%08x bytes to %x\n",
+					section->raw_data_size, base);  //40000 to 9a47000; 20000 to 9a87000; 10000 to 9aa5000;
+			grub_memcpy (base,
+		       (grub_efi_uint8_t*)data + section->raw_data_offset,
+		       section->raw_data_size);		//复制
+		}
+
+		if (section->raw_data_size < section->virtual_size)
+		{
+			printf_debug ("chain: padding with 0x%08x bytes at %x\n",	//"在%x处填充0x%08x字节"
+					section->virtual_size - section->raw_data_size,
+					base + section->raw_data_size);
+			grub_memset (base + section->raw_data_size, 0,
+		       section->virtual_size - section->raw_data_size);
+		}
+
+		printf_debug ("chain: finished section %s\n", name);		//已完成节.text;  .data;  mods;
+	}
+  /* 5 == EFI_IMAGE_DIRECTORY_ENTRY_BASERELOC   映像目录条目BASEREL*/
+  if (context.number_of_rva_and_sizes <= 5)
+	{
+		printf_debug ("chain: image has no relocation entry\n");		//"映像没有重新定位条目"
+		goto error_exit;
+	}
+
+  if (context.reloc_dir->size && reloc_section)
+	{
+		/* run the relocation fixups   运行重新定位修复程序*/
+		efi_status = relocate_coff (&context, reloc_section, data,
+				  buffer_aligned);
+		if (efi_status != GRUB_EFI_SUCCESS)
+		{
+			printf_errinfo ("relocation failed\n");	//"重新定位失败"
+			goto error_exit;
+		}
+	}
+
+  if (!found_entry_point)
+	{
+		printf_errinfo ("entry point is not within sections\n");		//"入口点不在区间内"
+		goto error_exit;
+  }
+
+  if (found_entry_point > 1)
+	{
+		printf_errinfo ("%d sections contain entry point\n",				//"%d节包含入口点"
+            found_entry_point);
+		goto error_exit;
+	}
+
+  li = grub_efi_get_loaded_image (grub_efi_image_handle);     //fc71040;
+  if (!li)
+	{
+		printf_errinfo ("no loaded image available\n");	//"没有可用的加载映像"
+		goto error_exit;
+	}
+
+  grub_memcpy (&li_bak, li, sizeof (grub_efi_loaded_image_t));
+  li->image_base = buffer_aligned;
+  li->image_size = context.image_size;
+  li->load_options = cmdline;
+  li->load_options_size = cmdline_len;
+  li->file_path = grub_efi_get_media_file_path (boot_file);
+  li->device_handle = dev_handle;
+
+  if (!li->file_path)
+	{
+		printf_errinfo ("no matching file path found\n");	//"没有匹配的文件路径foun"
+		goto error_exit;
+	}
+
+  printf_debug ("chain: booting via entry point\n");		//"通过入口点引导"
+  efi_status = efi_call_2 (entry_point, grub_efi_image_handle,
+			   grub_efi_system_table);  //EFI映像输入点
+
+  printf_debug ("chain: entry_point returned %lx\n", (long int) efi_status);		//"返回入口点%ld"
+  grub_memcpy (li, &li_bak, sizeof (grub_efi_loaded_image_t));
+  efi_status = grub_efi_free_pool (buffer);		//释放池
+  return 1;
+
+error_exit:
+  printf_debug ("chain: error_exit: errnum: %x\n", errnum);		//"错误退出：errnum:%d"
+  if (buffer)
+    grub_efi_free_pool (buffer);
+
+  return 0;
+}
+
 //定位句柄缓冲,获得文件设备路径,加载映像
 grub_efi_handle_t grub_load_image (grub_efi_device_path_t *path, const char *filename, void *boot_image);	//虚拟磁盘引导
 grub_efi_handle_t
 grub_load_image (grub_efi_device_path_t *path, const char *filename, void *boot_image)	//虚拟磁盘引导
 {
   grub_efi_status_t status;
-  grub_efi_device_path_t *boot_file = NULL;
   grub_efi_handle_t boot_image_handle = NULL;
   grub_efi_boot_services_t *b;
   b = grub_efi_system_table->boot_services;	//系统表->引导服务
@@ -4252,22 +4783,84 @@ grub_load_image (grub_efi_device_path_t *path, const char *filename, void *boot_
                             NULL, 										//缓存指针. 如果不为空，则是指向包含要加载的映像副本的内存位置的指针。
                             0,												//缓存字节尺寸。如果缓存为空，则忽略
                             &boot_image_handle);			//指向成功加载映像时创建的返回映像句柄的指针。(void **)
-    }
-    else
-    {
-      status = efi_call_6 (b->load_image, 0,
+  }
+  else
+  {
+    status = efi_call_6 (b->load_image, 0,
                             grub_efi_image_handle,
                             boot_file,
                             boot_image,
                             filemax,
                             &boot_image_handle);	//调用(装载镜像,0,镜像句柄,文件路径,引导镜像,尺寸,镜像句柄地址)
-    }
+  }
 
-    if (status != GRUB_EFI_SUCCESS)	//失败
+  if (status == GRUB_EFI_SECURITY_VIOLATION)   //违反安全规定   移植自grub2   2023-09-15
+  {
+    /* If it failed with security violation while not in secure boot mode,    如果它在不处于安全引导模式时由于安全违规而失败，
+      the firmware might be broken. We try to workaround on that by forcing   固件可能已损坏。我们试图通过强制使用SB方法来解决这个问题！
+      the SB method! (bsc#887793) */
+    printf_debug ("LoadImage failed with EFI_SECURITY_VIOLATION.\n");  //"LoadImage因EFI安全违规而失败"
+
+    if (boot_image)
     {
-      printf_errinfo ("Failed to load virtual disk image.(%x)\n",status);
-      boot_image_handle = NULL;
+      handle_image ((void *)(unsigned long)boot_image, filemax);      //成功后不返回
+      return 0;
     }
+    else
+    {
+      grub_efi_physical_address_t address;
+      grub_efi_uintn_t pages;
+      char arg[64] = {0};
+      
+      if (current_drive < 0xa0) //硬盘
+      {
+        part_data = get_boot_partition (current_drive);
+        if (!part_data)
+          return 0;
+        sprintf (arg, "(%d,%d)%s\0", current_drive, part_data->partition >> 16, EFI_REMOVABLE_MEDIA_FILE_NAME);
+      }
+      else                      //光盘
+      {
+        sprintf (arg, "(%d)%s\0", part_data->partition_activity_flag, EFI_REMOVABLE_MEDIA_FILE_NAME);
+      }
+      dev_handle = part_data->part_handle;
+
+      grub_open (arg);
+      if (errnum)
+        return 0;
+
+      pages = ((filemax + ((1 << 12) - 1)) >> 12);	//计算页
+      status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,
+              GRUB_EFI_LOADER_CODE,
+              pages, &address);	//调用(分配页面,分配类型->任意页面,存储类型->装载程序代码(1),分配页,地址)
+      if (status != GRUB_EFI_SUCCESS)	//失败退出
+      {
+        printf_errinfo ("Failed to allocate %u pages\n",(unsigned int) pages);
+        grub_close ();
+        return 0;
+      }
+
+      boot_image = (void *) ((grub_addr_t) address);	//引导镜像地址
+      if (grub_read ((unsigned long long)(grub_size_t)boot_image, filemax, 0xedde0d90) != filemax)
+      {
+        printf_errinfo ("premature end of file %s",arg);
+        grub_close ();
+        return 0;
+      }
+      grub_close ();
+
+      handle_image ((void *)(unsigned long)boot_image, filemax);      //成功后不返回
+      return 0;
+    }
+    return 0;
+  }
+
+  if (status != GRUB_EFI_SUCCESS)	//失败
+  {
+    printf_errinfo ("Failed to load virtual disk image.(%x)\n",status);
+    boot_image_handle = NULL;
+  }
+
 //  *devhandle = *handle;
   if (current_drive >= 0xa0)
   {
