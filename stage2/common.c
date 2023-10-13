@@ -604,7 +604,7 @@ grub_efi_device_path_to_str (grub_efi_device_path_t *dp)
           case GRUB_EFI_EXPANDED_ACPI_DEVICE_PATH_SUBTYPE:
           {
             grub_efi_expanded_acpi_device_path_t *eacpi = (grub_efi_expanded_acpi_device_path_t *) dp;
-						grub_printf ("/ACPI");
+						grub_printf ("/ACPI(");
 
             if (GRUB_EFI_EXPANDED_ACPI_HIDSTR (dp)[0] == '\0')
               grub_printf ("%x,", (unsigned) eacpi->hid);

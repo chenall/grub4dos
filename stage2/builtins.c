@@ -1439,7 +1439,7 @@ aaa:
     if (debug > 1)
     {
       grub_efi_loaded_image_t *image0 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
-      printf_debug ("image=0x%x image_handle=%x\n",image0,image_handle);
+      printf_debug ("image=%x image_handle=%x\n",image0,image_handle);
     }
 		kernel_type = KERNEL_TYPE_CHAINLOADER;
 		return 1;
@@ -1483,6 +1483,8 @@ aaa:
 		cmdline_len = len * sizeof (grub_efi_char16_t);
 	}
 
+  if (current_drive >= 0xa0)  //使用光盘启动镜像的句柄和路径  2023-10-14
+    current_partition = 0xffff;
   if (current_partition == 0xFFFFFF)
   {
     d = get_device_by_drive (current_drive,0);
@@ -1506,7 +1508,13 @@ aaa:
   image_handle = grub_load_image (dp, arg1, boot_image);
 	if (!image_handle)
 		goto failure_exec_format_0;
+  //当从存储器加载图像时，LoadImage不设置设备处理程序，因此有必要在这里明确设置它
   grub_efi_loaded_image_t *image1 = grub_efi_get_loaded_image (image_handle);  //通过映像句柄,获得加载映像
+  if (! image1)
+  {
+    printf_errinfo ("no loaded image available\n");  //"没有可用的加载图像"
+    goto failure_exec_format;
+  }
   //UEFI固件已经设置了“image1->device_handle = d->handle”。他没有分区信息，启动不了某些bootmgfw.efi。必须在此填充对应分区的句柄。
 //  image1->device_handle = dev_handle;
 #if 0
@@ -1514,20 +1522,12 @@ aaa:
 #else
   image1->device_handle = temp;
 #endif
+  printf_debug ("image=%x device_handle=%x\n",image1,image1->device_handle);
   if (cmdline)
   {
 		image1->load_options = cmdline;	//加载选项
 		image1->load_options_size = cmdline_len;//加载选项尺寸
   }
-  
-  //当从存储器加载图像时，LoadImage不设置设备处理程序，因此有必要在这里明确设置它。
-  image1 = grub_efi_get_loaded_image (image_handle);	//由映像句柄获得装载映像
-  if (! image1)
-  {
-    printf_errinfo ("no loaded image available\n");  //"没有可用的加载图像"
-    goto failure_exec_format;
-  }
-  printf_debug ("image=%x device_handle=%x\n",image1,image1->device_handle);
   grub_close ();	//关闭文件
 #if 0
   //拦截对OpenProtocol的调用
@@ -2999,7 +2999,7 @@ fill:
 	}
 	fontx = backup_x;
 	fonty = backup_y;
-	menu_tab_ext |= 2;
+	menu_tab_ext |= 2;  //已加载背景图像
   return 1;
 }
 
@@ -4884,6 +4884,8 @@ close_file:
     i=0;
     while ((len = grub_read((unsigned long long)(grub_size_t)(char*)&buf, 1, 0xedde0d90)))
     {
+      if (buf[0] == '#')  //避免注释中含有'DotSize='字符串，清除已安装字库  2023-09-30
+        while (grub_read((unsigned long long)(grub_size_t)(char*)&buf, 1, 0xedde0d90) && buf[0] != '\n');	//跳过注释
       if (buf[0] == '\n' || buf[0] == '\r')
       {
         goto redo;	/* try the new line */
@@ -4923,7 +4925,7 @@ close_file:
   grub_close();
   if (! valid_lines)	// if no valid lines,
     return valid_lines;	
-  menu_tab_ext |= 4;
+  menu_tab_ext |= 4;  //已加载字库
   //old_narrow_char_indicator = narrow_indicator;
 //#undef	old_narrow_char_indicator
 
@@ -6552,12 +6554,12 @@ kernel_func (char *arg, int flags)
   initrdefi_mem = NULL;
   kernel_load_type = 0;
 
-  if (grub_memcmp (arg, "--handover", 10) == 0)
+  if (grub_memcmp (arg, "--handover", 10) == 0) //强制使用移交协议
   {
     kernel_load_type = KERTNEL_LOAD_HANDOVER;
     arg = skip_to (0, arg);
   }
-  else if (grub_memcmp (arg, "--loadfile2", 11) == 0)
+  else if (grub_memcmp (arg, "--loadfile2", 11) == 0) //强制使用加载文件2协议
   {
     arg = skip_to (0, arg);
     goto loadfile2;
@@ -6603,23 +6605,23 @@ kernel_func (char *arg, int flags)
   printf_debug("EFI=%d, loadflags=%x, xloadflags=%x, handover_offset=%x, version=%x\n",*(char *)IMG(0x8272), lh.loadflags, lh.xloadflags, lh.handover_offset, lh.version);
   //ubuntu-18.04.6，EFI=64，loadflags=1，xloadflags=3f，handover_offset=190，version=20d，只能使用旧装载方法(EFI Handover Protocol)
   //ubuntu-22.04.2，EFI=64，loadflags=1，xloadflags=7f，handover_offset=190，version=20f，可以使用新旧装载方法(EFI Handover Protocol/LoadFile2)
-  if (kernel_load_type == KERTNEL_LOAD_HANDOVER)
+  if (kernel_load_type == KERTNEL_LOAD_HANDOVER) //强制使用移交协议
     goto EfiHandoverBoot;
-  if (lh.version < 0x020b)    //如果版本太低                                        由a1ive提供
+  if (lh.version < 0x020b)    //如果版本太低，不能使用移交协议，更不能使用加载文件2协议
   {
-//    printf_errinfo ("kernel too old (0x%04x < 0x020b)\n",lh.version);
-//    goto failure_linuxefi;
-    goto LoadFile2Boot;
+    printf_errinfo ("kernel too old (0x%04x < 0x020b)\n",lh.version);
+    goto failure_linuxefi;
+//    goto LoadFile2Boot;
   }
-  //如果是EFI32，并且内核支持EFI64 Handover协议，并且内核不支持EFI32 Handover协议    由a1ive提供
-  if (*(char *)IMG(0x8272) == 32 && (lh.xloadflags & LINUX_XLF_KERNEL_64) && !(lh.xloadflags & LINUX_XLF_EFI_HANDOVER_32))
+  //如果CPU是32位，并且内核不支持EFI32 Handover协议，尝试使用加载文件2协议                由a1ive提供
+  if (*(char *)IMG(0x8272) == 32 && !(lh.xloadflags & LINUX_XLF_EFI_HANDOVER_32))
     goto LoadFile2Boot;
-  //如果是EFI64，并且内核不支持EFI64 Handover协议                                    由a1ive提供
-  if (*(char *)IMG(0x8272) == 64 && !(lh.xloadflags & LINUX_XLF_KERNEL_64))
+  //如果CPU是64位，并且内核不支持EFI64 Handover协议，尝试使用加载文件2协议                由a1ive提供
+  if (*(char *)IMG(0x8272) == 64 && !(lh.xloadflags & LINUX_XLF_EFI_HANDOVER_64))
     goto LoadFile2Boot;
-  if (!lh.handover_offset)  //如果不支持 Handover 协议                               由a1ive提供
+  if (!lh.handover_offset)  //如果不支持 Handover 协议，尝试使用加载文件2协议             由a1ive提供
   {
-//    printf_errinfo ("kernel doesn't support EFI handover\n");
+    printf_debug ("kernel doesn't support EFI handover\n");
 //    goto failure_linuxefi;
     goto LoadFile2Boot;
   }
@@ -6627,14 +6629,14 @@ EfiHandoverBoot:
   kernel_load_type = KERTNEL_LOAD_HANDOVER;
 #if defined(__i386__)
   if ((lh.xloadflags & LINUX_XLF_KERNEL_64) &&
-      !(lh.xloadflags & LINUX_XLF_EFI_HANDOVER_32))
+      !(lh.xloadflags & LINUX_XLF_EFI_HANDOVER_32))   //如果CPU是32位，内核是EFI64，并且不支持EFI32移交协议
   {
     printf_errinfo ("kernel doesn't support 32-bit handover, xloadflags=0x%x\n",
                     lh.xloadflags);
     goto failure_linuxefi;
   }
 #else
-  if (!(lh.xloadflags & LINUX_XLF_KERNEL_64))
+  if (!(lh.xloadflags & LINUX_XLF_KERNEL_64))        //如果CPU是64位，内核不是EFI64，或者不支持EFI64移交协议
   {
     printf_errinfo ("kernel doesn't support 64-bit CPUs, xloadflags=0x%x\n",
 	                lh.xloadflags);
@@ -6650,7 +6652,7 @@ EfiHandoverBoot:
   }
   grub_sprintf (linuxefi_cmdline, "%s%s", LINUX_IMAGE, arg);
   lh.cmd_line_ptr = (grub_uint32_t)(grub_addr_t)linuxefi_cmdline;
-  printf ("cmdline: %s @0x%x\n", linuxefi_cmdline, lh.cmd_line_ptr);
+  printf_debug ("cmdline: %s @0x%x\n", linuxefi_cmdline, lh.cmd_line_ptr);
 
   linuxefi_handover_offset = lh.handover_offset;
   start =  (lh.setup_sects + 1) * 512;
@@ -6688,6 +6690,7 @@ failure_linuxefi:
     efi_call_2 (b->free_pages, (grub_size_t)linuxefi_mem, BYTES_TO_PAGES(linuxefi_size));
   return 0;
 
+//使用加载文件2协议
 LoadFile2Boot:
   grub_close ();
   if (kernel)
@@ -12237,7 +12240,13 @@ xyz_done:
       grub_free (IMAGE_BUFFER);
 //    IMAGE_BUFFER = grub_malloc (current_x_resolution * current_y_resolution * current_bytes_per_pixel);//应当在加载图像前设置
 		//可能info->pixels_per_scanline >= info->width    2023-03-26
-		IMAGE_BUFFER = grub_zalloc (current_bytes_per_scanline * current_y_resolution);//应当在加载图像前设置  使用grub_malloc，切换分辨率可能花屏。2023-08-24
+//		IMAGE_BUFFER = grub_zalloc (current_bytes_per_scanline * current_y_resolution);//应当在加载图像前设置  使用grub_malloc，切换分辨率可能花屏。2023-08-24
+    IMAGE_BUFFER = grub_malloc (current_bytes_per_scanline * current_y_resolution); //如果设置了返回主菜单不重新加载背景图，背景图会被清除。2023-09-25
+    if (graphics_mode != (unsigned int)tmp_graphicsmode)  //如果当前图形模式与设置的不同
+    {
+      menu_tab_ext &= 0xfd;   //清除背景图已加载标记
+      grub_memset (IMAGE_BUFFER, 0, current_bytes_per_scanline * current_y_resolution); //清除背景图，避免切换分辨率可能花屏  2023-09-25
+    }
     if (!JPG_FILE)
     {
     JPG_FILE = grub_zalloc (0x8000);  //使用grub_malloc，切换分辨率可能花屏。2023-08-24
@@ -12248,13 +12257,14 @@ xyz_done:
       {
         font_func (embed_font_path, 1);
         grub_free (embed_font);
+        menu_tab_ext &= 0xfb;   //清除字库已加载标记
       }
       else
       {
       //进入图形模式，加载袖珍字库，防止黑屏。这样也可以使防止加载精简中文字库(不包含英文字符)的问题。
       grub_memmove ((char *)0x10000, mini_font_lzma, 820);
       font_func ("(md)0x80+2", 1);  //如果是gz压缩格式，要明确压缩文件尺寸，如：font_func ("(md)0x80+2,820", 1);
-      menu_tab_ext &= 0xfb;
+      menu_tab_ext &= 0xfb;   //清除字库已加载标记
       }
     }
 
@@ -12279,9 +12289,9 @@ xyz_done:
 #endif
 ok:
 	if (graphics_mode > 0xFF)
-		menu_tab_ext |= 1;
-	else
-		menu_tab_ext &= 0xfe;
+		menu_tab_ext |= 1;    //已在图形模式
+//	else
+//		menu_tab_ext &= 0xfe; //清除图形模式标记
   return graphics_mode;
 bad_arg:
 	errnum = ERR_BAD_ARGUMENT;
@@ -13399,7 +13409,7 @@ setmenu_func(char *arg, int flags)
 		else if (grub_memcmp (arg, "--u", 3) == 0)
 		{
 			menu_tab = 0;
-			menu_tab_ext = 0;
+			menu_tab_ext = 0;       //初始化
 			num_string = 0;
 			DateTime_enable = 0;			
 			menu_font_spacing = 0;

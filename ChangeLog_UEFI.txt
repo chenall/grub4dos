@@ -1,9 +1,14 @@
 ﻿更新说明：
+2023-10-14 (yaya)
+  修正增加变量menu_tab_ext引入的问题。
+  修正font函数。
+
 2023-09-22 (yaya)
   修正切换分辨率花屏问题。
   增加从入口点启动方法。
-  增加变量menu_tab_ext，避免重入主菜单时重复加载背景图及字库。
-  例如：calc *0x8312&2 > nul || splashimage /boot/grub/lt.jpg
+  增加变量menu_tab_ext，避免重入主菜单时重复设置图形模式、加载背景图及字库。
+  例如：calc *0x8312&1 > nul || graphicsmode -1 800
+        calc *0x8312&2 > nul || splashimage /boot/grub/lt.jpg
         calc *0x8312&4 > nul || font /boot/grub/unifont.hex.gz
 
 2023-08-18 (yaya)

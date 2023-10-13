@@ -2186,6 +2186,7 @@ sss:
         {
           graphicsmode_func ("-1 800", 0);
         }
+        menu_tab_ext &= 0xfb;   //清除字库已加载标记
       }
     }
     grub_close ();
@@ -2193,7 +2194,8 @@ sss:
   else
 	{
 	    grub_close ();
-      font_func (config_file, 0);
+      if (font_func (config_file, 0))
+        menu_tab_ext &= 0xfb;   //清除字库已加载标记
 	    /* before showing menu, try loading font in the tail of config_file */
 	}
   use_preset_menu = 0;	/* Disable preset menu.  */  //禁用预置菜单
