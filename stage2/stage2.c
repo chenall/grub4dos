@@ -2870,6 +2870,7 @@ extern int graphicsmode_func (char *, int);
 			menu = "(md)0x880+0x200";
 		if (font_func (menu, 0))
 		{
+      menu_tab_ext &= 0xfb;   //清除字库已加载标记
 		    /* font exists, automatically enter graphics mode. */
 		    if (! graphicsmode_in_menu_init)
 		    {
@@ -2897,7 +2898,8 @@ extern int graphicsmode_func (char *, int);
 	    //font_func (NULL, 0);	/* clear the font */
 	    /* Clear the narrow_char_indicator for the NULL char only. */
 //	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.
-	    font_func (config_file, 0);
+	    if (font_func (config_file, 0))
+        menu_tab_ext &= 0xfb;   //清除字库已加载标记
 	    //font_func (NULL, 0);	/* clear the font */
 	    /* Clear the narrow_char_indicator for the NULL char only. */
 //	    *(unsigned long *)UNIFONT_START = 0; // Enable next font command.

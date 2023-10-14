@@ -6468,11 +6468,10 @@ close_file:
 	i=0;
 	while ((len = grub_read((unsigned long long)(unsigned int)(char*)&buf, 1, 0xedde0d90)))
 	{
+    if (buf[0] == '#')  //避免注释中含有'DotSize='字符串，清除已安装字库  2023-09-30
+      while (grub_read((unsigned long long)(unsigned int)(char*)&buf, 1, 0xedde0d90) && buf[0] != '\n');	//跳过注释
 		if (buf[0] == '\n' || buf[0] == '\r')
-		{
-//printf ("goto valid_lines=%d, buf=%s\n", valid_lines, buf);
 			goto redo;	/* try the new line */
-		}
 		if (buf[0] == '\0')	/* NULL encountered ? */
 			break;		/* yes, end */
 
@@ -15622,7 +15621,13 @@ xyz_done:
 	current_bytes_per_pixel = (z+7)/8;
 	if (IMAGE_BUFFER)		//字库位置使用内存分配   2023-02-22
 		grub_free (IMAGE_BUFFER);
-	IMAGE_BUFFER = grub_zalloc (current_x_resolution * current_y_resolution * current_bytes_per_pixel);//应当在加载图像前设置  使用grub_malloc，切换分辨率可能花屏。2023-08-24
+//	IMAGE_BUFFER = grub_zalloc (current_x_resolution * current_y_resolution * current_bytes_per_pixel);//应当在加载图像前设置  使用grub_malloc，切换分辨率可能花屏。2023-08-24
+  IMAGE_BUFFER = grub_malloc (current_bytes_per_scanline * current_y_resolution); //如果设置了返回主菜单不重新加载背景图，背景图会被清除。2023-09-25
+  if (graphics_mode != (unsigned int)tmp_graphicsmode)  //如果当前图形模式与设置的不同
+  {
+    menu_tab_ext &= 0xfd;   //清除背景图已加载标记
+    grub_memset (IMAGE_BUFFER, 0, current_bytes_per_scanline * current_y_resolution); //清除背景图，避免切换分辨率可能花屏  2023-09-25
+  }
 	if (!JPG_FILE)
 	{
     JPG_FILE = grub_zalloc (0x8000);  //使用grub_malloc，切换分辨率可能花屏。2023-08-24
