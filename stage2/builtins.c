@@ -1483,8 +1483,10 @@ aaa:
 		cmdline_len = len * sizeof (grub_efi_char16_t);
 	}
 
-  if (current_drive >= 0xa0)  //使用光盘启动镜像的句柄和路径  2023-10-14
-    current_partition = 0xffff;
+  printf_debug("current_drive=%x, current_partition=%x\n",current_drive,current_partition);
+//  if (current_drive >= 0xa0)  //使用光盘启动镜像的句柄和路径  2023-10-14
+//    current_partition = 0xffff;
+  //如果当前设备是(cd-1)，使用光盘的路径；如果当前设备是(cd-1,0)，使用光盘启动镜像的路径。 2023-10-16
   if (current_partition == 0xFFFFFF)
   {
     d = get_device_by_drive (current_drive,0);
@@ -6607,11 +6609,11 @@ kernel_func (char *arg, int flags)
   //ubuntu-22.04.2，EFI=64，loadflags=1，xloadflags=7f，handover_offset=190，version=20f，可以使用新旧装载方法(EFI Handover Protocol/LoadFile2)
   if (kernel_load_type == KERTNEL_LOAD_HANDOVER) //强制使用移交协议
     goto EfiHandoverBoot;
-  if (lh.version < 0x020b)    //如果版本太低，不能使用移交协议，更不能使用加载文件2协议
+  if (lh.version < 0x020b)    //如果版本太低，不能使用移交协议，尝试使用加载文件2协议
   {
-    printf_errinfo ("kernel too old (0x%04x < 0x020b)\n",lh.version);
-    goto failure_linuxefi;
-//    goto LoadFile2Boot;
+    printf_debug ("kernel too old (0x%04x < 0x020b)\n",lh.version);
+//    goto failure_linuxefi;
+    goto LoadFile2Boot;   //居然有内核版本低于0x020b，不支持移交协议却支持文件2协议的，真是不可思议！  2023-10-16
   }
   //如果CPU是32位，并且内核不支持EFI32 Handover协议，尝试使用加载文件2协议                由a1ive提供
   if (*(char *)IMG(0x8272) == 32 && !(lh.xloadflags & LINUX_XLF_EFI_HANDOVER_32))
@@ -6673,6 +6675,7 @@ EfiHandoverBoot:
   memcpy (linuxefi_params, &lh, 2 * 512);
   linuxefi_params->type_of_loader = 0x21;
 
+  printf_debug("Using Handover boot.\n");
   grub_close ();
   efi_call_1 (b->free_pool, kernel);
   kernel_type = KERNEL_TYPE_LINUX;
@@ -6692,6 +6695,7 @@ failure_linuxefi:
 
 //使用加载文件2协议
 LoadFile2Boot:
+  printf_debug("Using LoadFile2 boot.\n");
   grub_close ();
   if (kernel)
     efi_call_1 (b->free_pool, kernel);
