@@ -3052,7 +3052,8 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 	if (df->fragment)
 	{
 		//从碎片插槽查找Form驱动器
-    q = (struct fragment_map_slot *)&disk_fragment_map;
+//    q = (struct fragment_map_slot *)&disk_fragment_map;
+    q = (struct fragment_map_slot *)disk_fragment_map;
     q = fragment_map_slot_find (q, from_drive);
     //确定Form扇区起始在哪个碎片
     data = (struct fragment *)&q->fragment_data;
@@ -5028,7 +5029,8 @@ EFI_STATUS grub_hook_1st_cdrom_stop(VOID)  //钩第一光盘结束
 }
 #endif
 
-
+grub_efi_handle_t pd_handle;
+grub_efi_device_path_t *pd_dp;
 //void GRUB_MOD_INIT_efinet(void);
 //int force_pxe_as_boot_device = 0;
 void grub_efidisk_init (void);
@@ -5116,6 +5118,8 @@ grub_efidisk_init (void)  //efidisk初始化
 			run_line((char *)"set ?_BOOT=%@root%",1);
 //			QUOTE_CHAR = '\"';	
 			*saved_dir = 0;
+			pd_handle = image->device_handle; //2023-11-24
+			pd_dp = dp;
 			cmain ();
 			return;
 		}

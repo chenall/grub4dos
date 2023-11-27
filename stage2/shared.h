@@ -923,7 +923,7 @@ struct linux_kernel_header
   unsigned int kernel_alignment;
   unsigned char relocatable;
   unsigned char min_alignment;
-#define LINUX_XLF_KERNEL_64                   (1<<0)  //1  64位内
+#define LINUX_XLF_KERNEL_64                   (1<<0)  //1  64位内内核
 #define LINUX_XLF_CAN_BE_LOADED_ABOVE_4G      (1<<1)  //2  可加载4G以上
 #define LINUX_XLF_EFI_HANDOVER_32             (1<<2)  //4  支持 EFI32 Handover
 #define LINUX_XLF_EFI_HANDOVER_64             (1<<3)  //8  支持 EFI64 Handover
@@ -2243,7 +2243,7 @@ extern int is64bit;
 
 extern int errorcheck;
 extern unsigned int pxe_restart_config;
-extern char *efi_pxe_buf;
+extern grub_size_t *efi_pxe_buf;
 extern unsigned int saved_pxe_ip;
 extern unsigned char saved_pxe_mac[6];
 
@@ -4229,14 +4229,16 @@ typedef struct grub_efi_pxe
 			    grub_efi_pxe_base_code_tftp_opcode_t operation,		//运作方式  要执行的操作类型。
 			    char *buffer_ptr,																	//指向数据缓冲区的指针。 如果dont_use_buffer为TRUE，则忽略读取文件。
 			    grub_efi_boolean_t overwrite,											//覆盖，仅用于写文件操作。 如果可以覆盖远程服务器上的文件，则为TRUE。
-			    grub_efi_uint64_t *buffer_size,										//缓冲区尺寸  对于获得文件尺寸操作，*buffer_size返回所请求文件的尺寸。对于读文件和写文件操作，
+			    grub_efi_uint64_t *buffer_size,										//缓冲区尺寸  对于获取文件尺寸操作，*buffer_size返回所请求文件的尺寸。对于读文件和写文件操作，
 																														//此参数设置为指定的缓冲区尺寸。 对于读取文件操作，如果返回EFI_BUFFER_TOO_SMALL，则*buffer_size返回所请求文件的尺寸。	
 			    grub_efi_uintn_t *block_size,											//块尺寸  在TFTP传输期间要使用的请求块尺寸。 该字段必须至少为512。
 																														//如果此字段为NULL，则将使用实现支持的最大块大小。
-			    grub_u32_t *server_ip,																		//TFTP/MTFTP服务器IP地址
+			    grub_u32_t *server_ip,													  //TFTP/MTFTP服务器IP地址
 			    char *filename,																		//文件名  以Null结尾的ASCII字符串，用于指定目录名称或文件名。 MTFTP读取目录会忽略此内容。
 			    grub_efi_pxe_base_code_mtftp_info_t *info,				//指向MTFTP信息的指针。 启动或加入多播TFTP会话需要此信息。
 			    grub_efi_boolean_t dont_use_buffer);							//对于正常的TFTP和MTFTP读取文件操作，设置为FALSE。
+//TFTP读取目录操作返回的数据格式是一个以null结尾的文件名，后跟一个以null结尾的信息字符串，格式为“尺寸 年-月-日 时:分:秒”
+//(即%d%d-%d-%d:%d:%f-注意秒字段可以是十进制数字)，其中日期和时间为UTC。
   void (*udpwrite) (void);				//udp写 将UDP数据包写入网络接口。
   void (*udpread) (void);					//udp读 从网络接口读取UDP数据包。
   void (*setipfilter) (void);			//设置过滤器  更新网络设备的IP接收筛选器。
@@ -4249,7 +4251,7 @@ typedef struct grub_efi_pxe
   struct grub_efi_pxe_mode *mode;	//模式  指向此设备的EFI_PXE_BASE_CODE_MODE数据的指针。
 } grub_efi_pxe_t;
 
-
+extern int tftp_write (const char *name);
 
 #define GRUB_EFI_BLACK        0x00			//前景黑
 #define GRUB_EFI_BLUE         0x01			//前景蓝
@@ -5763,6 +5765,8 @@ extern struct grub_part_data *partition_info;
 extern struct grub_disk_data *previous_struct;
 extern struct grub_part_data *get_boot_partition (int drive);
 extern void renew_part_data (void);
+extern grub_efi_handle_t pd_handle;
+extern grub_efi_device_path_t *pd_dp;
 
 struct drive_map_slot
 {

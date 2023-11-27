@@ -382,6 +382,8 @@ VARIABLE(menu_mem) 																									      //0x8388 菜单  char *
 
 	. = EXT_C(main) + 0x190																									//0x8390
 
+VARIABLE(efi_pxe_buf) 																									  //char *  2023-11-24
+	.long	0, 0
 	.long	0
 	.long	0 
 	.long	0
@@ -618,7 +620,7 @@ VARIABLE(system_functions)                            //IMG(0x8300)
 	.extent	ABS(EXT_C(grub_read))                         //27
 	.extent	ABS(EXT_C(grub_close))                        //28
 	.extent ABS(EXT_C(get_device_by_drive)) 				      //29  grub_disk_data *
-	.extent 0				                                      //30  reserved
+	.extent ABS(EXT_C(tftp_write))                        //30  int
   VARIABLE(disk_read_hook)
   .extent 0                                             //31
 	.extent	ABS(EXT_C(devread))                           //32

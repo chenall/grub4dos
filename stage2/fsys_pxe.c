@@ -101,7 +101,6 @@ static unsigned int pxe_saved_pos, pxe_cur_ofs, pxe_read_ofs;	//保存的指针,
 extern PXENV_TFTP_OPEN_t pxe_tftp_open;	/* now it is defined in asm.S 现在它在asm.S中定义*/			//TFTP打开
 static char filename[128];
 static char *pxe_tftp_name = filename;
-char *efi_pxe_buf = 0;
 
 //extern unsigned int ROM_int15;
 //extern unsigned int ROM_int13;
@@ -109,11 +108,13 @@ char *efi_pxe_buf = 0;
 extern struct drive_map_slot bios_drive_map[DRIVE_MAP_SIZE + 1];
 
 static int pxe_open (char* name);
+int pxe_dir (char *dirname);
 grub_u32_t pxe_read_blk (grub_u32_t buf, grub_u32_t num);
 
 static int tftp_open(const char *dirname);
 static grub_u32_t tftp_get_size(void);
 static grub_u32_t tftp_read_blk (grub_u32_t buf, grub_u32_t num);
+int tftp_write (const char *name);
 static void tftp_close (void);
 static void tftp_unload(void);
 
@@ -217,7 +218,8 @@ BOOTPLAYER *discover_reply = 0;		//引导播放器
 static void set_basedir(char *config);
 static void set_basedir(char *config)	//设置基本目录 
 {
-	unsigned int n;
+//	unsigned int n;
+	int n;  //2023-11-24
 	grub_u8_t path_sep = (cur_pxe_type == PXE_FILE_TYPE_TFTP && server_is_dos) ? '\\' : '/';	//路径分隔
 	n = grub_strlen (config);	//字符串尺寸
 
@@ -735,18 +737,17 @@ pxe_read (unsigned long long buf, unsigned long long len, unsigned int write)	//
    FILEMAX. return 1 if succeed, 0 if fail.  */		//获取尺寸并将其保存在FILEMAX中。 如果成功则返回1，如果失败则返回0
 struct pxe_dir_info	//目录信息
 {
-	char path[512];			//路径
-	char *dir[512];			//目录
-	char data[];				//数据
-} *P_DIR_INFO = NULL;
+	char path[512];			//路径 尺寸0x200    e3d64c0  /boot/dir.txt
+	char *dir[512];			//目录 尺寸0x1000   e3d66c0  e3d76c0 e3d76c5 e3d76d2 ...    
+	char data[];				//数据 尺寸0x2e00   e3d76c0  bcd\0\a bcdedit.exe\0\a boot.sdi\0\a bootmgr.exe\0\a wimboot\0\a
+} *P_DIR_INFO = NULL;//尺寸0x4000
 
-int pxe_dir (char *dirname);
 int pxe_dir (char *dirname)	//pxe查目录
 {
   int ret;
   char ch;
   ret = 1;
-  ch = nul_terminate (dirname);		//用"0"替换"\0"
+  ch = nul_terminate (dirname);		//以00替换止字符串的空格,回车,换行,水平制表符
 
 	if (print_possibilities)	//如果存在打印可能性
 	{
@@ -771,16 +772,17 @@ int pxe_dir (char *dirname)	//pxe查目录
 		{
 			int i;
 			char *p = P_DIR_INFO->data;
+			memset(P_DIR_INFO,0,16384);
 			if (substring(dir_tmp,P_DIR_INFO->path,1) != 0)	//判断子字符串
 			{
-				memset(P_DIR_INFO,0,16384);
 				grub_strcpy(P_DIR_INFO->path,dir_tmp);
 				if (pxe_open(dir_tmp))
 				{
-					if (pxe_read((unsigned long long)(grub_size_t)P_DIR_INFO->data,13312,GRUB_READ))
+//					if (pxe_read((unsigned long long)(grub_size_t)P_DIR_INFO->data,13312,GRUB_READ))  //13312计算错误
+					if (pxe_read((unsigned long long)(grub_size_t)P_DIR_INFO->data,filemax,GRUB_READ))  //替换filemax，是因为读长了会把后面无用的字符串读入  2023-11-24
 					{
 						P_DIR_INFO->dir[0] = P_DIR_INFO->data;
-						for (i = 1;i < 512 && (p = skip_to(0x100,p));++i)
+						for (i = 1;i < 512 && (p = skip_to(0x100,p));++i) //遇到首个"回车,换行",使用'\0'替换.然后跳过之后的"回车,换行,空格,水平制表符",
 						{
 							P_DIR_INFO->dir[i] = p;
 						}
@@ -838,7 +840,7 @@ static int tftp_open(const char *name)		//tftp打开
   if (!tftp_get_size())
 		return 0;
 
-  tftp_close ();
+//  tftp_close ();  //2023-11-24
   status = efi_call_3 (b->allocate_pool, GRUB_EFI_BOOT_SERVICES_DATA, //启动服务数据        4
                            filemax + 0x200, (void**)&efi_pxe_buf); //(分配池,存储器类型->装载数据,分配字节,返回分配地址}
   if (status != GRUB_EFI_SUCCESS)		//失败
@@ -846,11 +848,12 @@ static int tftp_open(const char *name)		//tftp打开
 		printf_errinfo ("Couldn't allocate pool.");
     return 0;
 	}
+	memset(efi_pxe_buf,0,filemax);  //2023-11-24
 
 	status = efi_call_10 (pxe_entry->mtftp,				//tftp功能
 				pxe_entry,															//pxe结构
 				GRUB_EFI_PXE_BASE_CODE_TFTP_READ_FILE,	//TFTP读文件
-				efi_pxe_buf,														//缓存
+				(char *)efi_pxe_buf,                    //缓存
 				0,
 				(grub_efi_uint64_t *)(grub_size_t)&filemax,//缓存尺寸
 				NULL,																		//块尺寸
@@ -896,13 +899,35 @@ static grub_u32_t tftp_get_size(void)			//TFTP获得文件尺寸
 	return filemax;
 }
 
-static grub_u32_t tftp_read_blk (grub_u32_t buf, grub_u32_t num);
 static grub_u32_t tftp_read_blk (grub_u32_t buf, grub_u32_t num)
 {
 	return 0;
 }
 
-static void tftp_close (void);
+int tftp_write (const char *name)		//tftp写  2023-11-24
+{
+	grub_efi_status_t status;
+
+	status = efi_call_10 (pxe_entry->mtftp,				//tftp功能
+				pxe_entry,															//pxe结构
+				GRUB_EFI_PXE_BASE_CODE_TFTP_WRITE_FILE, //TFTP写文件
+				(char *)efi_pxe_buf,                    //缓存
+				1,                                      //可以覆盖服务器上的文件
+				(grub_efi_uint64_t *)(grub_size_t)&filemax,//缓存尺寸
+				NULL,																		//块尺寸
+				(IP4 *)(grub_size_t)&pxe_sip,					  //服务器IP
+				(char *)name,													  //文件名
+				NULL,
+				0);
+  if (status != GRUB_EFI_SUCCESS)		//失败
+	{
+		printf_errinfo ("Couldn't open file.");
+    return 0;
+	}
+
+  return 1;
+}
+
 static void tftp_close (void)		//tftp关闭
 {
   grub_efi_boot_services_t *b;  //引导服务
@@ -913,7 +938,6 @@ static void tftp_close (void)		//tftp关闭
 	efi_pxe_buf = 0;
 }
 
-static void tftp_unload(void);
 static void tftp_unload(void)		//tftp卸载
 {
   if (! pxe_entry)

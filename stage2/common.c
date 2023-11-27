@@ -2248,7 +2248,7 @@ char *CMD_RUN_ON_EXIT;
 char *SCRATCHADDR;
 char *mbr;
 char *disk_buffer;
-struct fragment_map_slot *disk_fragment_map;
+//struct fragment_map_slot *disk_fragment_map;
 //char *
 
 void grub_console_init (void);

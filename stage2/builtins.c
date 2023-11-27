@@ -842,7 +842,8 @@ map_to_svbus (grub_efi_physical_address_t address)
 #endif
 
   //复制碎片插槽
-  grub_memmove ((char *)((char *)(grub_size_t)address + 0x148), (char *)&disk_fragment_map, FRAGMENT_MAP_SLOT_SIZE);
+//  grub_memmove ((char *)((char *)(grub_size_t)address + 0x148), (char *)&disk_fragment_map, FRAGMENT_MAP_SLOT_SIZE);
+  grub_memmove ((char *)((char *)(grub_size_t)address + 0x148), (char *)disk_fragment_map, FRAGMENT_MAP_SLOT_SIZE);
 }
 
 //使用于get_efi_device_boot_path，find_specified_file，chainloader_func，command_func，uuid_func
@@ -1484,6 +1485,13 @@ aaa:
 	}
 
   printf_debug("current_drive=%x, current_partition=%x\n",current_drive,current_partition);
+  if (current_drive == 0x21)  //2023-11-24
+  {
+    dp = pd_dp;       //网起设备路径
+    temp = pd_handle; //网起设备句柄
+  }
+  else
+  {
 //  if (current_drive >= 0xa0)  //使用光盘启动镜像的句柄和路径  2023-10-14
 //    current_partition = 0xffff;
   //如果当前设备是(cd-1)，使用光盘的路径；如果当前设备是(cd-1,0)，使用光盘启动镜像的路径。 2023-10-16
@@ -1502,6 +1510,7 @@ aaa:
       return (!(errnum = ERR_NO_DISK));
     dp = grub_efi_get_device_path (part_data->part_handle);
     temp = part_data->part_handle;
+  }
   }
 
   if (debug > 1)
@@ -7246,9 +7255,11 @@ unload_fragment_slot (unsigned int from)  //卸载碎片插槽
   void *start;
   int len;
   
-  q = (struct fragment_map_slot *)&disk_fragment_map;     //q=碎片映射插槽起始位置 *q=插槽尺寸 	b6e0
+//  q = (struct fragment_map_slot *)&disk_fragment_map;     //q=碎片映射插槽起始位置 *q=插槽尺寸 	b6e0
+  q = (struct fragment_map_slot *)disk_fragment_map;     //q=碎片映射插槽起始位置 *q=插槽尺寸 	b6e0
 //  filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;          //碎片映射插槽终止位置
-  grub_size_t size = (grub_size_t)&disk_fragment_map + FRAGMENT_MAP_SLOT_SIZE;
+//  grub_size_t size = (grub_size_t)&disk_fragment_map + FRAGMENT_MAP_SLOT_SIZE;
+  grub_size_t size = (grub_size_t)disk_fragment_map + FRAGMENT_MAP_SLOT_SIZE;
   q = fragment_map_slot_find(q, from);		                //q=from驱动器在碎片映射插槽起始位置
   if (q)  		//0/1=没有找到驱动器/找到驱动器位置
   {
@@ -8221,9 +8232,11 @@ map_whole_drive:
     df = get_device_by_drive (from,1);
     if (df && df->fragment == 1)  //有碎片
     {
-      q = (struct fragment_map_slot *)&disk_fragment_map;   //碎片插槽起始
+//      q = (struct fragment_map_slot *)&disk_fragment_map;   //碎片插槽起始
+      q = (struct fragment_map_slot *)disk_fragment_map;   //碎片插槽起始
 //      filename = (char *)q + FRAGMENT_MAP_SLOT_SIZE;			  //碎片插槽结束
-      grub_size_t size = (grub_size_t)&disk_fragment_map + FRAGMENT_MAP_SLOT_SIZE;
+//      grub_size_t size = (grub_size_t)&disk_fragment_map + FRAGMENT_MAP_SLOT_SIZE;
+      grub_size_t size = (grub_size_t)disk_fragment_map + FRAGMENT_MAP_SLOT_SIZE;
       q = fragment_map_slot_find(q, from);		              //从碎片插槽查找from驱动器
       if (q)  		//q=0/非0=没有找到/from驱动器在碎片插槽位置
       {
@@ -8493,14 +8506,15 @@ get_info_ok:
 		if (to == ram_drive)		  //如果to=rd
 			start_byte += rd_base;  //起始字节+rd基址
 /////////////////////////////////////////////////////////////////////////////////////////////////////以下插入分配内存
-
-    if (to == 0x21) //网络驱动器
+#if 0   //2023-11-24
+    if (to == 0x21) //网络驱动器  
     {
 //      disk_drive_map[i].start_sector = ((unsigned long long)(grub_size_t)(char*)efi_pxe_buf | 0x200) & 0xfffffffffffffe00;  //此处是内存起始字节!!!
       start_sector = ((unsigned long long)(grub_size_t)(char*)efi_pxe_buf | 0x200) & 0xfffffffffffffe00;  //此处是内存起始字节!!!
       efi_pxe_buf = 0;
     }
     else  //其他
+#endif
     {
       if (prefer_top) //分配4GB以上内存
       {
@@ -8690,7 +8704,8 @@ mem_ok:
       grub_memmove64 ((unsigned long long)(grub_size_t)p1, (unsigned long long)(grub_size_t)map_start_sector, DRIVE_MAP_FRAGMENT * 8);
       grub_memmove64 ((unsigned long long)(grub_size_t)p2, (unsigned long long)(grub_size_t)map_start_sector, DRIVE_MAP_FRAGMENT * 8);
       //查找父插槽To_
-			q = (struct fragment_map_slot *)&disk_fragment_map;
+//			q = (struct fragment_map_slot *)&disk_fragment_map;
+      q = (struct fragment_map_slot *)disk_fragment_map;
 			q = fragment_map_slot_find(q, primeval_to);
 			struct fragment *to_ = (struct fragment *)&q->fragment_data; 
       
@@ -8755,7 +8770,8 @@ set_ok:
 			goto no_fragment;
 		}
     //查找空槽
-		q = (struct fragment_map_slot *)&disk_fragment_map;
+//		q = (struct fragment_map_slot *)&disk_fragment_map;
+    q = (struct fragment_map_slot *)disk_fragment_map;
 		filename = (char *)q;
 		q = fragment_map_slot_empty(q);
     //出界检查
