@@ -1375,7 +1375,7 @@ set_device (char *device)
 #ifdef FSYS_PXE
 	      || (*device == 'p' && pxe_entry)
 #endif /* FSYS_PXE */
-	      || (*device == 'c' && (cdrom_drive != GRUB_INVALID_DRIVE || atapi_dev_count)))
+	      || (*device == 'c' /*&& (cdrom_drive != GRUB_INVALID_DRIVE || atapi_dev_count)*/))  //清除无效参数带来的干扰   2023-11-10 
 	    {
 	      /* user has given '([fhn]', check for resp. add 'd' and
 		 let disk_choice handle what disks we have */
@@ -1404,7 +1404,7 @@ set_device (char *device)
 #ifdef FSYS_FB
               || (*device == 'u' && fb_status)
 #endif
-	      || (*device == 'c' && (cdrom_drive != GRUB_INVALID_DRIVE || atapi_dev_count)))
+	      || (*device == 'c' /*&& (cdrom_drive != GRUB_INVALID_DRIVE || atapi_dev_count)*/))  //清除无效参数带来的干扰   2023-11-10  
 	      && *(++device, device++) != 'd')
 	    errnum = ERR_NUMBER_PARSING;
 
@@ -1429,9 +1429,8 @@ set_device (char *device)
 	    {
 //	      if (ch == 'c' && cdrom_drive != GRUB_INVALID_DRIVE && *device == ')')
 //		current_drive = cdrom_drive;
-	      if (ch == 'c' && *(device+1) == 'd' && *(device+2) == ')')	//(cd)
+				if (ch == 'c' && *device == ')')	  //解析map /boot/imgd/zb40.iso (cd)"之类   2023-11-10
 				{
-          device += 2;
           current_drive = (unsigned char)(0xa0 + cdrom_orig++);
 				}
 	      else if (ch == 'm')
@@ -1465,21 +1464,6 @@ set_device (char *device)
 		{
 		  unsigned long long ull;
 
-      if (ch == 'c' && *(device+1) == 'd')	//(cd)
-      {
-        device += 2;
-        if (*device == '-' && *(device+1) == '1')
-        {
-          current_drive = 0xa0 + cdrom_orig - 1;
-          device += 2;
-        }
-        else
-        {
-          safe_parse_maxint (&device, &ull);
-          current_drive = 0xa0 + ull;
-        }
-        goto aaa;
-      }
 		  safe_parse_maxint (&device, &ull);
 		  current_drive = ull;
 		  disk_choice = 0;
@@ -1499,14 +1483,40 @@ set_device (char *device)
 		  //  if (cdrom_drives[current_drive] != GRUB_INVALID_DRIVE)
 		  //	    current_drive = cdrom_drives[current_drive];
 		  //}
-//		  else if (ch == 'c' && atapi_dev_count && current_drive < (unsigned long)atapi_dev_count)
-//		  {
-//		    current_drive += min_cdrom_id;
-//		  }
+#if 0
+		  else if (ch == 'c' && atapi_dev_count && current_drive < (unsigned long)atapi_dev_count)
+		  {
+		    current_drive += min_cdrom_id;
+		  }
+#endif
+		  else if (ch == 'c')
+		  {
+				if ((long long)ull < 0)	  //解析chainloader (cd-1)"之类   2023-11-10
+				{
+					if ((-ull) <= (unsigned long long)cdrom_orig)
+						current_drive = (unsigned char)(0xa0 + cdrom_orig + current_drive);
+					else
+						return (char *)!(errnum = ERR_DEV_FORMAT);
+				}
+				else                  	  //解析chainloader (cd0)"之类   2023-11-10
+          current_drive |= 0xa0;
+		  }
+      else if (ch == 'f')
+		  {
+				if ((long long)ull < 0)
+				{
+					if ((-ull) <= (unsigned long long)((*(char*)0x410 & 1)?(*(char*)0x410 >> 6) + 1 : 0))
+						current_drive = (unsigned char)(((*(char*)0x410 & 1)?(*(char*)0x410 >> 6) + 1 : 0) + current_drive);
+					else
+						return (char *)!(errnum = ERR_DEV_FORMAT);
+				}
+				else
+					current_drive |= 0;
+		  }
 		}
 	    }
 	}
-aaa:
+
       if (errnum)
 	return 0;
 

@@ -318,15 +318,15 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	        {
 		  if (blklst_last_length == 0)
 		    grub_printf ("%s0x%lx+0x%lx", (blklst_num_entries ? "," : ""),
-			     (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
+			     (unsigned long long)(blklst_start_sector/* - part_start*/), blklst_num_sectors);
 		  else if (blklst_num_sectors > 1)
 		    grub_printf ("%s0x%lx+0x%lx,0x%lx[0-0x%x]", (blklst_num_entries ? "," : ""),
-			     (unsigned long long)(blklst_start_sector - part_start), (blklst_num_sectors-1),
-			     (unsigned long long)(blklst_start_sector + blklst_num_sectors-1 - part_start),
+			     (unsigned long long)(blklst_start_sector/* - part_start*/), (blklst_num_sectors-1),
+			     (unsigned long long)(blklst_start_sector + blklst_num_sectors-1/* - part_start*/),
 			     blklst_last_length);
 		  else
 		    grub_printf ("%s0x%lx[0-0x%x]", (blklst_num_entries ? "," : ""),
-			     (unsigned long long)(blklst_start_sector - part_start), blklst_last_length);
+			     (unsigned long long)(blklst_start_sector/* - part_start*/), blklst_last_length);
 	        }
 	        else if (blklst_last_length == 0 && blklst_num_entries < DRIVE_MAP_FRAGMENT)
 		{
@@ -342,7 +342,7 @@ disk_read_blocklist_func (unsigned long long sector, unsigned long offset, unsig
 	{
 	  if (query_block_entries >= 0)
 			grub_printf("%s0x%lx[0x%x-0x%x]", (blklst_num_entries ? "," : ""),
-				(unsigned long long)(sector - part_start), offset, (offset + length));
+				(unsigned long long)(sector/* - part_start*/), offset, (offset + length));
 	  blklst_num_entries++;
 	}
       else
@@ -435,7 +435,7 @@ blocklist_func (char *arg, int flags)
     {
       if (query_block_entries >= 0)
         grub_printf ("%s0x%lx+0x%lx", (blklst_num_entries ? "," : ""),
-		 (unsigned long long)(blklst_start_sector - part_start), blklst_num_sectors);
+		 (unsigned long long)(blklst_start_sector/* - part_start*/), blklst_num_sectors);
       else if (blklst_num_entries < DRIVE_MAP_FRAGMENT)
 	{
 		map_start_sector[blklst_num_entries] = blklst_start_sector;
@@ -6010,7 +6010,7 @@ find_func (char *arg, int flags)
 					current_drive = min_cdrom_id;
 				else
 					continue;
-#endif
+#else
         for (drive = 0xa0; drive <= 0xff; drive++)
         {
           for (i = 0; i < DRIVE_MAP_SIZE; i++)
@@ -6022,7 +6022,7 @@ find_func (char *arg, int flags)
               current_drive = drive; 
               if (tmp_drive != current_drive && find_check(filename,builtin1,arg,flags) == 1)
 							{
-								tmp_drive = current_drive;
+//								tmp_drive = current_drive;
 								got_file = 1;
 								if (set_root)
 									goto found;
@@ -6031,6 +6031,7 @@ find_func (char *arg, int flags)
             }
           }
         }
+#endif
 				break;
 			case 'h':
 			case 'f':
@@ -6100,6 +6101,7 @@ find_func (char *arg, int flags)
 			default:
 				continue;
 		}
+#if 0
 		if (tmp_drive == current_drive)
 			continue;
 		if (find_check(filename,builtin1,arg,flags) == 1)
@@ -6108,6 +6110,7 @@ find_func (char *arg, int flags)
 			if (set_root)
 				goto found;
 		}
+#endif
 	}
 	saved_drive = tmp_drive;
 	saved_partition = tmp_partition;
@@ -9319,7 +9322,8 @@ fragment_map_slot_empty(struct fragment_map_slot *q)
     if (!q->slot_len)
       return q;
     n -= q->slot_len;
-    q += q->slot_len;
+//    q += q->slot_len;
+    q = (struct fragment_map_slot *)((char *)q + q->slot_len);  //2023-11-14
   }
   return 0;
 }
@@ -9335,7 +9339,8 @@ fragment_map_slot_find(struct fragment_map_slot *q, unsigned long from)
     if (q->from == (char)from)
       return q;
     n -= q->slot_len;
-    q += q->slot_len;
+//    q += q->slot_len;
+    q = (struct fragment_map_slot *)((char *)q + q->slot_len);  //2023-11-14
   }
   return 0;
 }
@@ -13072,12 +13077,14 @@ print_root_device (char *buffer,int flag)
 			break;
 	#endif /* PXE drive. */
 		default:
+#if 0
 			if (tmp_drive == cdrom_drive)
 			{
 				grub_printf("(cd)");
-				break;
 			}
-			else if (tmp_drive == 0xFFFF)
+			else 
+#endif
+			if (tmp_drive == 0xFFFF)
 			{
 				grub_printf("(md");
 				if (md_part_base) grub_printf(",0x%lx,0x%lx",md_part_base,md_part_size);
