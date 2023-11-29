@@ -2243,7 +2243,7 @@ extern int is64bit;
 
 extern int errorcheck;
 extern unsigned int pxe_restart_config;
-extern grub_size_t *efi_pxe_buf;
+extern char *efi_pxe_buf; //2023-11-28
 extern unsigned int saved_pxe_ip;
 extern unsigned char saved_pxe_mac[6];
 
