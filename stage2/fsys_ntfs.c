@@ -1369,13 +1369,14 @@ int ntfs_mount (void)
 
   if (valueat(mmft,0x16,unsigned short) != 0)
     return 0;
-
+#if 0
+//使用'Macrorit Partition Expert'格式化，BPB的0x18、0x1A，0x1C为零！ 2024-02-19
   if ((unsigned short)(valueat(mmft,0x18,unsigned short) - 1) > 62)
     return 0;
 
   if ((unsigned short)(valueat(mmft,0x1A,unsigned short) - 1) > 255)
     return 0;
-
+#endif
   if (valueat(mmft,0x20,unsigned int) != 0)
     return 0;
 

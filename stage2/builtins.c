@@ -1014,7 +1014,7 @@ complete:
 			      pages, &address);	//调用(分配页面,分配类型->任意页面,存储类型->运行时服务数据(6),分配页,地址)
       if (status != GRUB_EFI_SUCCESS)	//如果失败
       {
-        printf_errinfo ("out of map memory: %x\n",status);
+        printf_errinfo ("out of map memory: %d\n",(int)status);
         goto fail_close_free_cache;
       }      
 
@@ -5152,7 +5152,8 @@ yyyyy:
 		}
 		saved_drive = current_drive = drive;
     struct grub_part_data *q;
-    for (i=-1; i < 16 ; i++)
+    int max_partition = 255;
+    for (i=-1; i < max_partition ; i++)
     {
       if (i == -1)
         if (open_device ())
@@ -5180,14 +5181,20 @@ qqqqqq:
           }
           if (! *arg)
           {
-            grub_printf ("(%s%d%c%c%c%c):", ((drive<(unsigned int)0x80)?"fd":(drive>=(unsigned int)0xa0)?"cd":"hd"),((drive<(unsigned int)0x80)?drive:((drive<(unsigned int)0xa0)?(drive-0x80):(drive-0xa0))), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
+            if (drive < 0xa0)
+              grub_printf ("(%s%d%c%d%c%c):", ((drive<0x80)?"fd":"hd"),((drive<0x80)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)? '\0' :pc_slice), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));//2024-01-12 支持10个以上的分区
+            else
+              grub_printf ("(0x%x):", drive);
             if (*uuid_found || debug)
               grub_printf("%s%s is \"%s\".\n\t", " ", p, ((*uuid_found) ? uuid_found : "(unsupported)"));
             print_fsys_type();													
           }
           else if (substring((char*)uuid_found,arg,1) == 0)
           {
-            grub_sprintf(root_found,"(%s%d%c%c%c%c)", ((drive<(unsigned int)0x80)?"fd":(drive<(unsigned int)0xa0)?"hd":"cd"),((drive<(unsigned int)0x80)?drive:((drive<(unsigned int)0xa0)?(drive-0x80):(drive-0xa0))), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
+            if (drive < 0xa0)
+              grub_sprintf(root_found,"(%s%d%c%d%c%c)", ((drive<0x80)?"fd":"hd"),((drive<0x80)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)? '\0' :pc_slice), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));//2024-01-12 支持10个以上的分区
+            else
+              grub_sprintf(root_found, "(0x%x):", drive);
             goto found;
           }
         }
@@ -8548,7 +8555,7 @@ get_info_ok:
       
       if (status != GRUB_EFI_SUCCESS)	//如果失败
       {
-        printf_errinfo ("out of map memory: %x\n",status);
+        printf_errinfo ("out of map memory: %d\n",(int)status);
         return 0;
       }
     }
@@ -8880,7 +8887,7 @@ no_fragment:
       status = vdisk_install (current_drive, current_partition);  //安装虚拟磁盘
       if (status != GRUB_EFI_SUCCESS)							//如果安装失败
       {
-        printf_errinfo ("Failed to install vdisk.(%x)\n",status);	//未能安装vdisk
+        printf_errinfo ("Failed to install vdisk.(%d)\n",(int)status);	//未能安装vdisk
         return 0;
       }
     }
@@ -10449,10 +10456,10 @@ print_root_device (char *buffer,int flag)
 				grub_printf("(fd%d", tmp_drive);
 			}
 
-			if ((tmp_partition & 0xFF0000) != 0xFF0000 && !no_partition)
+			if (tmp_drive < 0x9f && (tmp_partition & 0xFF0000) != 0xFF0000 && !no_partition)
 				grub_printf(",%d", (unsigned int)(unsigned char)(tmp_partition >> 16));
 
-			if ((tmp_partition & 0x00FF00) != 0x00FF00)
+			if (tmp_drive < 0x9f && (tmp_partition & 0x00FF00) != 0x00FF00)
 				grub_printf(",%c", (unsigned int)(unsigned char)((tmp_partition >> 8) + 'a'));
 
 			putchar(')',1);
