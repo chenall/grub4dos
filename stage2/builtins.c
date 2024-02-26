@@ -6848,8 +6848,8 @@ uuid_func (char *argument, int flags)
       unsigned long part = 0xFFFFFF;
       unsigned long long start, len, offset;
       unsigned long type, entry1, ext_offset1;
-		int bsd_part;
-		int pc_slice;
+		int bsd_part = 0xff;
+		int pc_slice = 0xff;
 
 //		if ((drive > 10 && drive < 0x80) || (drive > (*((char *)0x475) + 0x80) && drive < 0x9f))
 //			continue;
@@ -6920,14 +6920,21 @@ qqqqqq:
 			}
                       if (! *arg)
                         {
-						grub_printf ("(%s%d%c%c%c%c):", ((drive<0x80)?"fd":(drive>=0x9f)?"":"hd"),((drive<0x80 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
+						if (drive < 0x9f)
+						  grub_printf ("(%s%d%c%d%c%c):", ((drive<0x80)?"fd":"hd"),((drive<0x80)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)? '\0' :pc_slice), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));//2024-01-12 支持10个以上的分区
+						else
+						  grub_printf ("(0x%x):", drive);
+
 						if (*uuid_found || debug)
 							grub_printf("%s%s is \"%s\".\n\t", ((drive<0x80)?"   ":(drive>=0x9f)?"   ":" "), p, ((*uuid_found) ? uuid_found : "(unsupported)"));
 						print_fsys_type();
 		          }
                       else if (substring((char*)uuid_found,arg,1) == 0)
                         {
-                         grub_sprintf(root_found,"(%s%d%c%c%c%c)", ((drive<0x80)?"fd":(drive>=0x9f)?"":"hd"),((drive<0x80 || drive>=0x9f)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)?'\0' :(pc_slice + '0')), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));
+                         if (drive < 0x9f)
+                           grub_sprintf(root_found,"(%s%d%c%d%c%c)", ((drive<0x80)?"fd":"hd"),((drive<0x80)?drive:(drive-0x80)), ((pc_slice==0xff)?'\0':','),((pc_slice==0xff)? '\0' :pc_slice), ((bsd_part == 0xFF) ? '\0' : ','), ((bsd_part == 0xFF) ? '\0' : (bsd_part + 'a')));//2024-01-12 支持10个以上的分区
+                         else
+                           grub_sprintf(root_found, "(0x%x):", drive);
                          goto found;
                         }
 		}
