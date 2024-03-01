@@ -1044,6 +1044,7 @@ Entry_32:
 	movb	$0x41, %ah
 	movw	$0x55AA, %bx
 	int	$0x13
+	movl	0x8(%si), %eax	/* partition_table_entry.start_sector_ofs (LBA) */
 	popw	%ds
 	jc	1f		/* No EBIOS */
 	cmpw	$0xAA55, %bx
@@ -1052,6 +1053,7 @@ Entry_32:
 	jnc	1f              /* No EBIOS */
 	/* EBIOS supported */
 	movb	$0x42, (ebios_32 - 1 - Entry_32 + 0x7c00)
+	movl	%eax, 0x1c(%bp)	/* copy partition_table_entry.start_sector_ofs to hidden sectors */
 1:
 //	movb	(Loadusb_32 - Entry_32 + 0x7c00 +1), %al
 //	decb %al				//al=1,When dl = 00 load
@@ -1473,6 +1475,7 @@ Entry_12_16:
 	movw	$0x7c00, %bp
 	movw	%bp, %sp        
 	movw	%ax, %ss	/* stack and BP-relative moves up, too */
+	pushl	0x8(%si)	/* partition_table_entry.start_sector_ofs (LBA) */
 	movw	%ax, %ds
 	movw	%ax, %es
 	sti			/* after stack setup, we can use stack */ 
@@ -1487,6 +1490,7 @@ Entry_12_16:
 	int	$0x13
 	popw	%es
 	popw	%ds
+	popl	%eax		/* partition_table_entry.start_sector_ofs (LBA) */
 	jc	1f		/* No EBIOS */
 	cmpw	$0xAA55, %bx
 	jne	1f		/* No EBIOS */
@@ -1494,6 +1498,7 @@ Entry_12_16:
 	jnc	1f              /* No EBIOS */
 	/* EBIOS supported */
 	movb	$0x42, (ebios_12_16 - 1 - Entry_12_16 + 0x7c00)
+	movl	%eax, 0x1c(%bp)	/* copy partition_table_entry.start_sector_ofs to hidden sectors */
 1:
 	/* GET DRIVE PARMS: Calculate start of some disk areas */
 	movzwl	0x0e(%bp), %ebx	/* reserved sectors */
@@ -2722,8 +2727,8 @@ Entry_exfat:
 //	movw	%ax, %ds
 //	movw	%ax, %es
         movw    %bp, %sp                        /* ss:sp=0000:7c00 */
+	pushl	0x8(%si)	                /* partition_table_entry.start_sector_ofs (LBA) */
 	sti
-	pushw	%ax
 
 	movw	%dx, 0x24(%bp)	/* BIOS passes drive number in DL */
 	
@@ -2735,10 +2740,12 @@ Entry_exfat:
 	movb	$0x41, %ah
 	movw	$0x55AA, %bx
 	int	$0x13
+	popl	%eax		                /* partition_table_entry.start_sector_ofs (LBA) */
 	jc	1f		# No EBIOS
 	rorb	%cl   	        # ror cl: D0 C9
 	jnc	1f		# No EBIOS
 	orb	$0x80, 0x16(%bp)  /* EBIOS supported */
+	movl    %eax, 0x40(%bp)	               /* copy partition_table_entry.start_sector_ofs to hidden sectors */
 	jmp	2f
 1:
 	movb		$0x08, %ah
@@ -2747,6 +2754,7 @@ Entry_exfat:
 	andb    $0x3f, %cl
 	movb    %cl, 0x18(%bp)
 2:
+	pushw	%ss
 	popw	%ds
 	        			
 	movl    0x50(%bp), %eax
@@ -3249,7 +3257,7 @@ FAT_Address:
 #define NT_FG_GPOS	8
 
 #define nt_boot_drive	-2(%bp)
-#define nt_blocksize	-4(%bp)
+#define nt_blocksize	0xb(%bp)
 #define nt_spc		-5(%bp)
 #define nt_mft_size	-6(%bp)
 #define nt_idx_size	-7(%bp)
@@ -3330,7 +3338,8 @@ nt_part_ofs:
 	movw	$0x7c00, %bp
 
 	movw	%ax, %ss	/* stack and BP-relative moves up, too */
-	leaw	-0x20(%bp), %sp
+	leaw	-0x20(%bp), %sp	/* We need 0x20 bytes for the local variables nt_boot_drive etc. */
+	pushl	0x8(%si)	/* partition_table_entry.start_sector_ofs (LBA) */
 	sti
 
 	movw	%dx, nt_boot_drive
@@ -3343,6 +3352,7 @@ nt_part_ofs:
 	int	$0x13
 
 	popw	%ds		/* DS=0 */
+	popl	%eax		/* partition_table_entry.start_sector_ofs (LBA) */
 
 	jc	1f		/* No EBIOS */
 	cmpw	$0xAA55, %bx
@@ -3353,6 +3363,7 @@ nt_part_ofs:
 	jnc	1f		# No EBIOS
 	/* EBIOS supported */
 	movb	$0x42, (ebios_nt - 1 - Entry_nt)(%bp)
+	movl	%eax, 0x1c(%bp)	/* copy partition_table_entry.start_sector_ofs to hidden sectors */
 1:
 
 	pushw	%ss		/* SS=0 */
@@ -3369,9 +3380,7 @@ nt_part_ofs:
 	call	readDisk_nt
 1:
 
-	xorl	%eax, %eax
-	movw	0xb(%bp), %ax		// Bytes per sector (blocksize)
-	movw	%ax, nt_blocksize
+	movzwl	nt_blocksize, %eax	// Bytes per sector (blocksize)
 
 	call	convert_to_power_2
 	movb	%cl, %bl
@@ -3543,6 +3552,8 @@ readDisk_nt:
 	pushw	%bx		/* buffer offset */
 	pushw	$1		/* 1 sector to read */
 	pushw	$16		/* size of this parameter block */
+	cmpb	$0x42, (ebios_nt - 1 - Entry_nt)(%bp)
+	je      9f		/* skip both of division by 0 below, avoiding crash caused by fatal interrupt */
 
 	xorl	%ecx, %ecx
 	pushl	0x18(%bp)	/* lo:sectors per track, hi:number of heads */
@@ -3563,6 +3574,7 @@ readDisk_nt:
 	shlb	$6, %ah		/* hi 2bit cylinder ... */
 	orb	%ah, %cl	/* ... should be in CL */
 
+9:
 	movw	$0x201, %ax	/* read 1 sector */
 ebios_nt: /* ebios_nt - 1 points to 0x02 that can be changed to 0x42 */
 
@@ -3599,15 +3611,6 @@ NTFS_Error:
 	jmp	disk_error_nt
 
 
-// Kernel load address, located at 0x1E8
-//	. = Entry_nt + 0x1e8
-
-//nt_boot_image_end:
-
-nt_loadseg_off:
-	.word	0
-	.word	LOADSEG_NT
-
 // Boot image offset and length, located at 0x1EE
 // Lower 11 bit is offset, higher 5 bit is length
 //	. = Entry_nt + 0x1ec
@@ -3634,13 +3637,8 @@ print_ntfs:
 	int	$0x10		/* via TTY mode */
 	cmpb	$0, %al		/* end of string? */
 	jne	1b		/* until done */
-
-	/* The caller will change this to
-	 *	ljmp	$0x9400, $(try_next_partition - _start1)
-	 */
-	jmp 1f
-
-        . = Entry_nt + 0x1e0
+2:
+	jmp 2b
 
 msg_NTFS_Not_Found_Error:
 	.ascii "No "
@@ -3651,17 +3649,15 @@ nt_boot_image:
 msg_DiskReadError_nt:
 	.ascii	"0\0" 
 
-	. = Entry_nt + 0x1f4
-	
-error_go_back:
-1:
-	jmp	1b
-	
 	. = Entry_nt + 0x1fc
 
 	.word	0, 0xAA55
 
 // Here starts sector #2
+
+nt_loadseg_off:
+	.word	0
+	.word	LOADSEG_NT
 
 // Input:
 //     DI - current mft
