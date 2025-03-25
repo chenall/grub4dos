@@ -331,7 +331,7 @@ typedef struct {
 	int (*open)(void);												            //打开			tftp_open				ipxe_open
 //	grub_u32_t (*getsize)(void);													//获得尺寸	tftp_get_size		ipxe_get_size
 //	grub_u32_t (*readblk)(grub_u32_t buf,grub_u32_t num);	//读				tftp_read_blk		ipxe_read_blk
-  grub_size_t (*read)(char *buf,grub_u64_t num);	  //读
+  unsigned long long (*read)(char *buf,grub_u64_t num);	  //读
 //	void (*close)(void);																	//关闭 			tftp_close			ipxe_close
 //	void (*unload)(void);																	//卸载			tftp_unload			ipxe_unload
 } s_PXE_FILE_FUNC;																			//pxe文件功能

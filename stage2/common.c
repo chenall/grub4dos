@@ -365,7 +365,7 @@ void grub_reboot (void);
 void
 grub_reboot (void)  //重新启动
 {
-  grub_machine_fini ();
+//  grub_machine_fini ();
   efi_call_4 (grub_efi_system_table->runtime_services->reset_system,	//系统表->运行时服务->重置系统
 //              GRUB_EFI_RESET_WARM, GRUB_EFI_SUCCESS, 0, NULL);				//热复位,成功 ,0,NULL
               GRUB_EFI_RESET_COLD, GRUB_EFI_SUCCESS, 0, NULL);				//冷复位,成功 ,0,NULL
@@ -376,7 +376,7 @@ void grub_halt (void);
 void
 grub_halt (void)  //关机
 {
-  grub_machine_fini ();
+//  grub_machine_fini ();
   efi_call_4 (grub_efi_system_table->runtime_services->reset_system,	//系统表->运行时服务->重置系统
               GRUB_EFI_RESET_SHUTDOWN, GRUB_EFI_SUCCESS, 0, NULL);				//关机,成功 ,0,NULL
   for (;;) ;
@@ -1402,6 +1402,7 @@ grub_realloc (void *ptr, grub_size_t size)
 #endif
 
 /////////////////////////////////////////////////////////////////////////////////////////
+#if 0
 #define GRUB_UCS2_LIMIT 0x10000
 #define GRUB_UTF16_UPPER_SURROGATE(code) \
   (0xD800 | ((((code) - GRUB_UCS2_LIMIT) >> 10) & 0x3ff))
@@ -1465,7 +1466,7 @@ grub_utf8_to_utf16 (grub_uint16_t *dest, grub_size_t destsize,
     *srcend = src;
   return p - dest;
 }
-
+#endif
 /* Convert UTF-16 to UTF-8.  */
 grub_uint8_t *grub_utf16_to_utf8 (grub_uint8_t *dest, const grub_uint16_t *src, grub_size_t size);
 grub_uint8_t *
@@ -2427,15 +2428,9 @@ grub_init (void)
 	free_mem_lower_start = 0;
 	grub_console_init ();
 
-  if ((i = checkkey ()) == 0x075200 || i == 0x0071) //按Insert键或者q键，进入调试模式
-  {
-    debug = 3;
-//    getkey();
-  }
-
   image = grub_efi_get_loaded_image (grub_efi_image_handle);  //通过映像句柄,获得加载映像grub_efi_loaded_image结构
 	grub_image = image->image_base;	//通过加载映像,获得BOOIA32.EFI映像基址 	前部是映像头		struct grub_pe32_header   //PE32 头
-																	//grub_image偏移400是grldr起始,也就是bios模式的8200处.可使用*((char *)(grub_image)+0x508))取单字节的值.
+																	//grub_image偏移1000是grldr起始,也就是bios模式的8200处.可使用*((char *)(grub_image)+0x508))取单字节的值.
   g4e_data = grub_image + (grub_size_t)(*(unsigned int *)(grub_image + (grub_size_t)(*(unsigned int *)(grub_image + 0x3c)) + 0x28));
 
 	grub_efi_mm_init ();  //内存管理初始化
@@ -2458,8 +2453,8 @@ grub_init (void)
   mbr = grub_malloc (0x1000);               //mbr
   disk_buffer = grub_malloc (0x1000);       //磁盘缓存
   disk_fragment_map = grub_zalloc (FRAGMENT_MAP_SLOT_SIZE);  //碎片插槽
-  map_start_sector = grub_zalloc(DRIVE_MAP_FRAGMENT); //(*(grub_size_t **)IMG(0x8308))[36]
-  map_num_sectors = grub_zalloc(DRIVE_MAP_FRAGMENT);
+  map_start_sector = grub_zalloc(DRIVE_MAP_FRAGMENT * 8); //(*(grub_size_t **)IMG(0x8308))[36]
+  map_num_sectors = grub_zalloc(DRIVE_MAP_FRAGMENT * 8);
 //buffer=grub_malloc (byte)  分配内存
 //buffer=grub_zalloc (byte)  分配内存, 并清零
 //buffer=grub_memalign (align,byte)  对齐分配内存
@@ -2468,6 +2463,13 @@ grub_init (void)
 	efi_call_4 (grub_efi_system_table->boot_services->set_watchdog_timer,   //引导服务->设置看门狗定时器  避免设备5分钟就重启.
 	      0, 0, 0, NULL);
 				
+  if ((i = checkkey ()) == 0x075200 || i == 0x0071 || (*(char *)(g4e_data + 5) & 0x40)) //按Insert键或者q键，或者8205位6置1，进入调试模式  
+  {
+    debug = 3;
+    printf ("Enter debugging mode!\n");
+    getkey();
+  }
+
 	grub_efidisk_init ();  //efidisk初始化
   get_embed();
   displaymem_func ((char *)"-init ", 1);  //获得内存信息

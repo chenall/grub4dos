@@ -262,13 +262,15 @@ rawread (unsigned int drive, unsigned long long sector, unsigned int byte_offset
     if (buf_track == (unsigned long long)-1 || sector < buf_track || sector >= (buf_track + num_sect))
     {
 			buf_track = sector & ~((0x1000 >> buf_geom.log2_sector_size) - 1);  //4k对齐
-
+#if VHD_DIFFERENCE
 			if (buf_geom.vhd_disk & 1)
 			{
 				filepos = buf_track << 9;
 				dec_vhd_read ((unsigned long long)(grub_size_t)BUFFERADDR,BUFFERLEN,0xedde0d90);
 			}
-      else if (grub_efidisk_readwrite (buf_drive, buf_track, BUFFERLEN, BUFFERADDR, 0xedde0d90))
+      else 
+#endif        
+      if (grub_efidisk_readwrite (buf_drive, buf_track, BUFFERLEN, BUFFERADDR, 0xedde0d90))
       {
         buf_track = -1;		/* invalidate the buffer */     
         return !(errnum = ERR_READ);
@@ -1509,11 +1511,14 @@ setup_part (char *filename)
 static int set_filename(char *filename);
 static int set_filename(char *filename)
 {
-	char ch = nul_terminate(filename);
+	char ch;
+	if (current_drive != 0x21)
+    ch = nul_terminate(filename);  //以00替换止字符串的空格,回车,换行,水平制表符
 	int i = grub_strlen(filename);
 	int j = grub_strlen(saved_dir);
 	int k;
 
+	grub_memset (open_filename, 0, 512);
 	if (i >= (int)sizeof(open_filename) || (relative_path && grub_strlen(saved_dir)+i >= (int)sizeof(open_filename)))
 		return !(errnum = ERR_WONT_FIT);
 
@@ -1524,14 +1529,14 @@ static int set_filename(char *filename)
 
 	for (k = 0; filename[k]; k++)
 	{
-		if (filename[k] == '"' || filename[k] == '\\' )
+		if (current_drive != 0x21 && (filename[k] == '"' || filename[k] == '\\'))
 			continue;
 		else
 			open_filename[j++] = filename[k];
 	}	
-	open_filename[j] = 0;
-	filename[i] = ch;
-
+//	open_filename[j] = 0;
+  if (current_drive != 0x21)
+    filename[i] = ch;
 	return 1;
 }
 
@@ -1539,10 +1544,16 @@ int dir (char *dirname);
 int
 dir (char *dirname)
 {
-  int ret;
+  int ret, test = 0;
 #ifndef NO_DECOMPRESSION
   compressed_file = 0;
 #endif /* NO_DECOMPRESSION */
+  if (grub_memcmp (dirname, "--test", 6) == 0)  //ls --test /efi/grub/menu.lst   探测文件存在否。不打印信息，存在返回1，否则0.
+  {
+    test = 1;
+    dirname += 6;
+    dirname = skip_to (0, dirname);
+  }
 
   if (!(dirname = setup_part (dirname)))
     return 0;
@@ -1558,9 +1569,16 @@ dir (char *dirname)
 
   /* set "dir" function to list completions */
   print_possibilities = 1;
-
+  if (test)
+    putchar_hooked = (unsigned char*)1; //不打印ls_func信息
   ret = (*(fsys_table[fsys_type].dir_func)) (open_filename);
   if (!ret && !errnum) errnum = ERR_FILE_NOT_FOUND;
+  if (test)
+  {
+    errnum = 0;
+    putchar_hooked = 0;
+  }
+
   return ret;
 }
 
@@ -1884,6 +1902,10 @@ grub_open (char *filename)
 #endif /* NO_DECOMPRESSION */
 
   errnum = 0;
+  if (*(char *)IMG(0x8205) & 0x08)
+    cur_pxe_type = 1;   //默认网起使用http。即'/'使用http。如果使用tftp，必需指明，即(tftp)/
+  else
+    cur_pxe_type = 0;   //默认网起使用tftp。即'/'使用tftp。如果使用http，必需指明，即(http)/
 
   /* if any "dir" function uses/sets filepos, it must
      set it to zero before returning if opening a file! */
@@ -2248,7 +2270,9 @@ get_diskinfo (unsigned int drive, struct geometry *geometry, unsigned int partit
 //		geometry->total_sectors = p->sector_count;
 		geometry->total_sectors = p->total_sectors;
 		geometry->log2_sector_size = p->from_log2_sector;
+#if VHD_DIFFERENCE
 		geometry->vhd_disk = p->vhd_disk;
+#endif
 		return 0; //成功
 	}
 
@@ -2985,8 +3009,9 @@ grub_SectorSequence_readwrite (int drive, struct fragment *data, unsigned char f
   }
   return 1;
 }
-
+#if VHD_DIFFERENCE
 int vhd_read = 0;
+#endif
 //由磁盘读,磁盘写调用
 //efi磁盘读写(驱动器号,扇区号,读字节数,缓存区,读/写)		返回: 0/1=成功/失败
 //1. 磁盘数据对齐
@@ -3058,6 +3083,7 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 		if (!df)
 			return 1;
 	}
+#if VHD_DIFFERENCE
 	//动态vhd处理
 	if (df->vhd_disk & 1 && !vhd_read)	//vhd不加载到内存，并且不是dec_vhd读磁盘
 	{
@@ -3066,7 +3092,7 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 		dec_vhd_read ((unsigned long long)(grub_size_t)buf, (unsigned long long)size, read_write);
 		return 0;
 	}
-	
+#endif	
   //判断是原生磁盘还是映射磁盘
   from_drive = drive;
   dm = get_device_by_drive (from_drive,1);
@@ -3346,7 +3372,7 @@ void
 grub_efidisk_fini (void)		//efidisk结束		
 {
   free_disk_data (disk_data);  //释放设备 光盘
-  disk_data = 0;
+//  disk_data = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3791,8 +3817,9 @@ copy_file_path (grub_efi_file_path_device_path_t *fp,
   if (!path_name)
     return;
 
-  size = grub_utf8_to_ucs2 (path_name, len,
-			     (const grub_uint8_t *) str, len, 0);
+//  size = grub_utf8_to_ucs2 (path_name, len,
+//			     (const grub_uint8_t *) str, len, 0);
+  size = utf8_to_multimode ((void *)path_name, (unsigned char *)str, len, 1);
   for (p = path_name; p < path_name + size; p++)
     if (*p == '/')
       *p = '\\';
@@ -5093,20 +5120,14 @@ grub_efidisk_init (void)  //efidisk初始化
 
   if (! dp)	//如果为零, 错误
     return;
+  printf_debug("grub_efidisk_init:\n");
+  ldp = grub_efi_find_last_device_path (dp);	//查找最后设备路径
   if (debug > 1)
   {
-    grub_printf("grub_efidisk_init: \n");
-    grub_efi_print_device_path(dp);
+    grub_efi_print_device_path(ldp);
   }
-
-//03 0b 25 00 00 0c 29 8d - cc d9 00 00 00 00 00 00	网络
-//00 00 00 00 00 00 00 00 - 00 00 00 00 00 00 00 00
-//00 00 00 00 00 7f ff 04 - 00 
-//
-
-  ldp = grub_efi_find_last_device_path (dp);	//查找最后设备路径
-
-//03 0b 25 00 00 0c 29 8d - cc d9 00 00 00 00 00 00	网络
+  printf_debug("PATH_TYPE=%x, PATH_SUBTYPE=%x\n",GRUB_EFI_DEVICE_PATH_TYPE (ldp),GRUB_EFI_DEVICE_PATH_SUBTYPE (ldp));
+//03 0b 25 00 00 0c 29 83 - 7a 6b 00 00 00 00 00 00	网络
 //00 00 00 00 00 00 00 00 - 00 00 00 00 00 00 00 00
 //00 00 00 00 00 7f ff 04 - 00 
 //硬盘
@@ -5121,38 +5142,29 @@ grub_efidisk_init (void)  //efidisk初始化
 //04 01 2a 00 01 00 00 00 - 00 08 00 00 00 00 00 00 - 00 00 04 00 00 00 00 00 - b4 02 50 fc 4d 3c 8c 43 - bc 04 aa ef 87 c0 ae 24 - 02 02 7f ff 04 00
 
 //#ifdef FSYS_PXE
-	if (GRUB_EFI_DEVICE_PATH_TYPE (ldp) == GRUB_EFI_MESSAGING_DEVICE_PATH_TYPE								//如果最后设备路径类型是通讯设备路径 3
-				&& GRUB_EFI_DEVICE_PATH_SUBTYPE (ldp) == GRUB_EFI_MAC_ADDRESS_DEVICE_PATH_SUBTYPE)	//并且最后设备路径子类型是MAC地址设备子路径 11
+	if (GRUB_EFI_DEVICE_PATH_TYPE (ldp) == GRUB_EFI_MESSAGING_DEVICE_PATH_TYPE)								//如果最后设备路径类型是通讯设备路径 3
 	{
 		if (! ((*(char *)IMG(0x8205)) & 0x01))	/* if it is not disable pxe 如果没有禁用pxe */
 		{
+			printf_debug ("pxe_init:\n");
 			pxe_init ();
-#if 0
-#ifdef FSYS_IPXE
-		ipxe_init();
-#endif
-#endif
 		/* on pxe boot, we only use preset_menu 在pxe启动时，我们只使用预设菜单*/
 			boot_drive = PXE_DRIVE;	//0x21
-#if 0
-#ifdef FSYS_IPXE
-		char *ch = grub_strstr((char*)discover_reply->bootfile,":");
-		if (ch && ((grub_u32_t)ch - (grub_u32_t)discover_reply->bootfile) < 10)
-				install_partition = IPXE_PART;	//0x45585069
-		else
-#endif
-#endif
+			printf_debug ("boot_drive=%x\n", boot_drive);
 			saved_drive = boot_drive;
 			current_drive = boot_drive;
 			install_partition = 0xFFFFFF;
 			saved_partition = install_partition;
 			current_partition = install_partition;
 			run_line((char *)"set ?_BOOT=%@root%",1);
-//			QUOTE_CHAR = '\"';	
 			*saved_dir = 0;
 			pd_handle = image->device_handle; //2023-11-24
 			pd_dp = dp;
-			cmain ();
+			printf_debug ("cmain: About to enter the menu.\n");
+			if (debug > 1)
+        getkey();
+      
+			run_line((char *)"configfile /efi/grub/menu.lst",1);
 			return;
 		}
 	}
@@ -5227,11 +5239,5 @@ grub_efidisk_init (void)  //efidisk初始化
   run_line((char *)"set ?_BOOT=%@root%",1);
 //  QUOTE_CHAR = '\"';	
   *saved_dir = 0;
-#if 0
-	run_line((char *)"errorcheck off",1);
-  run_line((char *)"configfile /efi/grub/menu.lst",1);
-	run_line((char *)"errorcheck on",1);
-  cmain ();
-#endif
   return;
 }

@@ -1,4 +1,13 @@
 ﻿更新说明：
+2025-03-26 (yaya)
+  改进http网起。
+  支持 FAT/12/16/32 分区类型的 img 软盘仿真为硬盘。例如：map /imgs/fdd.img (hd)
+  函数 ls 增加参数 --test，用于测试文件、文件夹是否存在，文件夹是否为空。例如： ls --test (hd0,0)/imgs/fdd.img
+  修复启动失败回滚时菜单的图像及中文字库丢失。
+  修复碎片插槽数量。
+  网起文件名支持中文及空格。需加载外部文件gbk2uni。例如：set gbk2uni=/efi/grub/ext/gbk2uni
+  如果在网起dir.txt专用文件内部，文件名小写，文件夹大写，这样显示时文件夹会高亮(与其他文件系统相同)。
+
 2024-12-16 (yaya)
   支持http网起。
   例如：map (http)/imgs/pe.iso (cd)

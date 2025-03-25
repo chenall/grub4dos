@@ -73,6 +73,7 @@ typedef struct VHDDynamicDiskHeader {   //VHD动态磁盘头  尺寸1024
 	unsigned char reserved2[256];         //保留
 } __attribute__ ((packed)) VHDDynamicDiskHeader;
 
+#if VHD_DIFFERENCE
 typedef struct VHDFileControl { //VHD控制文件
 	struct VHDFileControl *next;					//下一个
 	char *blockAllocationTable;						//BAT指针
@@ -95,6 +96,29 @@ typedef struct VHDFileControl { //VHD控制文件
 	unsigned char fill1;
 } __attribute__ ((packed)) VHDFileControl;
 
+typedef struct VHDFileControl VHDFileControl;
+struct VHDFileControl *parentVHDFC;
+#else
+typedef struct VHDFileControl {
+	unsigned long long cFileMax;
+	unsigned long long volumeSize;
+	unsigned long long tableOffset;
+	unsigned int  diskType;
+	unsigned long blockSize;
+	unsigned int  blockSizeLog2;
+	unsigned long batEntries;
+	unsigned long blockBitmapSize;
+	unsigned char *blockAllocationTable;
+	unsigned char *blockBitmapAndData;
+	unsigned char *blockData;
+	unsigned long currentBlockOffset;
+} __attribute__ ((packed)) VHDFileControl;
+
+typedef struct VHDFileControl VHDFileControl;
+struct VHDFileControl *vhdfc = 0;
+#endif
+
+#if VHD_DIFFERENCE
 struct fragment_map_slot *SectorSequence;
 VHDFileControl *vhdfc_data;
 int start;
@@ -149,12 +173,56 @@ void vhd_header_in(VHDDynamicDiskHeader *header)  //VHD动态磁盘头in
 	bswap_32(&header->maxTableEntries);   //BAT条目的最大值
 	bswap_32(&header->blockSize);         //块尺寸
 }
+#else
+
+unsigned int log2pot32(unsigned long x);
+grub_u32_t bswap_32(grub_u32_t *x);
+void bswap_64(grub_u64_t *x);
+void vhd_footer_in(VHDFooter *footer);
+void vhd_header_in(VHDDynamicDiskHeader *header);
+
+unsigned int log2pot32(unsigned long x) {
+	// x must be power of two
+	return ((x & 0xFFFF0000) ? 16 : 0) | ((x & 0xFF00FF00) ? 8 : 0) | ((x & 0xF0F0F0F0) ? 4 : 0) | ((x & 0xCCCCCCCC) ? 2 : 0) | ((x & 0xAAAAAAAA) ? 1 : 0);
+}
+
+grub_u32_t bswap_32(grub_u32_t *x)
+{
+  grub_u32_t i = *x;
+  *x = ((i & 0xFF000000) >> 24) |
+       ((i & 0x00FF0000) >> 8)  |
+       ((i & 0x0000FF00) << 8)  |
+       ((i & 0x000000FF) << 24);
+   return *x;
+}
+
+void bswap_64(grub_u64_t *x)
+{
+  grub_u32_t hi = (grub_u32_t)*x;
+  grub_u32_t lo = (grub_u32_t)(*x >> 32);
+  *x = ((grub_u64_t)bswap_32(&hi)<<32)|bswap_32(&lo);
+}
+
+void vhd_footer_in(VHDFooter *footer)
+{
+	bswap_64(&footer->dataOffset);
+	bswap_64(&footer->currentSize);
+	bswap_32(&footer->diskType);
+}
+
+void vhd_header_in(VHDDynamicDiskHeader *header)
+{
+	bswap_64(&header->tableOffset);
+	bswap_32(&header->maxTableEntries);
+	bswap_32(&header->blockSize);
+}
+#endif
 
 void dec_vhd_close(void);
 void
 dec_vhd_close(void)
 {
-#if 0
+#if VHD_DIFFERENCE
 	if (vhdfc) {
 		if (vhdfc->blockAllocationTable) {
 			grub_free(vhdfc->blockAllocationTable);
@@ -180,9 +248,21 @@ dec_vhd_close(void)
 		grub_free(parentVHDFC);
     parentVHDFC = 0;
 	}
+#else
+	if (vhdfc) {
+		if (vhdfc->blockAllocationTable) {
+			grub_free(vhdfc->blockAllocationTable);
+		}
+		if (vhdfc->blockBitmapAndData) {
+			grub_free(vhdfc->blockBitmapAndData);
+		}
+		grub_free(vhdfc);
+    vhdfc = 0;
+	}
 #endif
 }
 
+#if VHD_DIFFERENCE
 VHDFileControl *get_vhdfc_by_index(int index);
 VHDFileControl *
 get_vhdfc_by_index(int index)
@@ -308,15 +388,17 @@ ccc:
 quit:
 	return 0;
 }
+#endif
 
 int dec_vhd_open(void);
 int
 dec_vhd_open(void)
 /* return 1=success or 0=failure */
 {
+#if VHD_DIFFERENCE
 	int diskType;
 	struct grub_disk_data *d;	//磁盘数据
-	VHDFileControl *v, *vhdfc;   //VHD控制文件
+	VHDFileControl *v/*, *vhdfc*/;   //VHD控制文件
 	VHDFooter *footer = 0;
 	VHDDynamicDiskHeader *dynaheader = 0;
 	footer = grub_zalloc (sizeof(VHDFooter));		//分配页脚表
@@ -332,12 +414,9 @@ dec_vhd_open(void)
 	   Make sure previously allocated memory blocks is freed.       确保先前分配的内存块已释放。
 	   Don't need this line if grub_close is called for every openned file before grub_open is called for next file. */
      //如果在为下一个文件调用grub_open之前为每个打开的文件调用grub_close，则不需要此行。
-		 
+
 	if (vhd_file_name == 0)
 		goto quit;
-
-//  if (vhdfc[0]) //如果子VHD打开过 
-//		goto normalP;
 
 	char *filename = vhd_file_name;
 	skip_to(0x200,filename);
@@ -420,20 +499,88 @@ aaa:
 		}
 	}
 
-//normalP:  
 	compressed_file = 1;            //压缩文件
-	decomp_type = DECOMP_TYPE_VHD;  //解压缩类型VHD 
-	filemax = vhdfc->volumeSize;	//修改filemax
+	decomp_type = DECOMP_TYPE_VHD;  //解压缩类型: VHD 
+	filemax = vhdfc->volumeSize;	  //压缩文件尺寸
 
 quit:
 	filepos = 0;
-	grub_free(parentName);
-	grub_free(dynaheader);
+//	grub_free(parentName);
+//	grub_free(dynaheader);
 	grub_free(footer);
 	errnum = ERR_NONE;
 	return compressed_file;
+#else
+	VHDFooter footer;
+	VHDDynamicDiskHeader dynaheader;
+
+  if (filemax < 0x10000) return 0;//file is to small
+	/* Now it does not support openning more than 1 file at a time. 
+	   Make sure previously allocated memory blocks is freed. 
+	   Don't need this line if grub_close is called for every openned file before grub_open is called for next file. */
+//	dec_vhd_close();
+
+	memset(&footer, 0, sizeof(footer));
+	memset(&dynaheader, 0, sizeof(dynaheader));
+
+	grub_read((unsigned long long)(grub_size_t)&footer, 8, 0xedde0d90);
+//printf ("dec_vhd_open-1,%x\n",*(grub_u64_t*)&footer.cookie);//786974...
+	if (*(grub_u64_t*)&footer.cookie!=VHD_FOOTER_COOKIE) {
+		// grub_printf("cookie %lX != %lX\n", footer.cookie, VHD_FOOTER_COOKIE);
+		goto quit;
+	}
+
+  filepos = 0;
+  grub_read((unsigned long long)(grub_size_t)&footer, 0x200, 0xedde0d90);
+  vhd_footer_in(&footer);
+//printf ("dec_vhd_open-2,%x\n",footer.diskType);
+	if (footer.diskType != VHD_DISKTYPE_DYNAMIC) {
+		/* Differencing disk and unknown diskType are not supported */
+		goto quit;
+	}
+//printf ("dec_vhd_open-3,%x,%x,%x\n",footer.dataOffset,sizeof(dynaheader),filemax);
+  if (footer.dataOffset + sizeof(dynaheader) > filemax) {
+			// grub_printf("footer dataOffset %lX\n", dataOffset);
+			goto quit;
+  }
+  filepos = footer.dataOffset;
+  grub_read((unsigned long long)(grub_size_t)&dynaheader, sizeof(dynaheader), 0xedde0d90);
+
+	vhdfc = (VHDFileControl*) grub_malloc(sizeof(VHDFileControl));
+	if (!vhdfc) {
+		goto quit;
+	}
+//printf ("dec_vhd_open-4\n");
+	memset(vhdfc, 0, sizeof(VHDFileControl));
+	vhd_header_in(&dynaheader);
+	vhdfc->cFileMax = filemax;
+	vhdfc->volumeSize = footer.currentSize;
+	vhdfc->diskType = footer.diskType;
+	vhdfc->tableOffset = dynaheader.tableOffset;
+	vhdfc->blockSize = dynaheader.blockSize;
+	vhdfc->blockSizeLog2 = log2pot32(vhdfc->blockSize);
+	vhdfc->batEntries = dynaheader.maxTableEntries;
+	unsigned long batSize = (vhdfc->batEntries * 4 + 511)&(-512LL);
+	vhdfc->blockAllocationTable = grub_malloc(batSize);
+	vhdfc->blockBitmapSize = vhdfc->blockSize / (512 * 8);
+	vhdfc->blockBitmapAndData = grub_malloc(vhdfc->blockBitmapSize + vhdfc->blockSize);
+	vhdfc->blockData = vhdfc->blockBitmapAndData + vhdfc->blockBitmapSize;
+	filepos = vhdfc->tableOffset;
+	grub_read((unsigned long long)(grub_size_t)vhdfc->blockAllocationTable, batSize, GRUB_READ);
+	vhdfc->currentBlockOffset = -1LL;
+	compressed_file = 1;
+	decomp_type = DECOMP_TYPE_VHD;
+	filemax = vhdfc->volumeSize;
+//printf ("dec_vhd_open-ok,%x\n",compressed_file);
+quit:
+	filepos = 0;
+//printf ("dec_vhd_open-end,%x\n",compressed_file);
+	errnum = ERR_NONE;
+	return compressed_file;
+#endif
 }
 
+#if VHD_DIFFERENCE
 static void read_differ_itself (int index1, int index2);
 static void
 read_differ_itself (int index1, int index2)
@@ -476,12 +623,14 @@ read_differ_itself (int index1, int index2)
 		}
 	}
 }
+#endif
 
 int current_index = -1;
 unsigned long long dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write);
 unsigned long long
 dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write)
 {
+#if VHD_DIFFERENCE
 	unsigned long long ret = 0;
 	int i, index = 0, parent = 0;
 	struct grub_disk_data *d;
@@ -635,6 +784,58 @@ vhdfc_i：中间的磁盘都是差分磁盘。由本程序使用GetSectorSequenc
 //	compressed_file = 1;
 //	filemax = vhdfc->volumeSize;
 	return ret;
+#else
+//printf ("dec_vhd_read-0\n");
+	unsigned long long ret = 0;
+	compressed_file = 0;
+	filemax = vhdfc->cFileMax;
+	if (filepos + len > vhdfc->volumeSize)
+		len = (filepos <= vhdfc->volumeSize) ? vhdfc->volumeSize - filepos : 0;
+  // VHD_DISKTYPE_DYNAMIC
+  if (write == GRUB_WRITE) {
+    errnum = ERR_WRITE_GZIP_FILE;
+    return 0;
+  }
+//printf ("dec_vhd_read-1\n");
+  unsigned long long uFilePos = filepos;
+  if (len > vhdfc->volumeSize - uFilePos)
+    len = vhdfc->volumeSize - uFilePos;
+  errnum = ERR_NONE;
+  unsigned long long rem = len;
+  while (rem) {
+			unsigned long blockNumber = (unsigned long)(uFilePos >> vhdfc->blockSizeLog2);
+			unsigned long long blockOffset = (unsigned long long)blockNumber << vhdfc->blockSizeLog2;
+			unsigned long offsetInBlock = (unsigned long)(uFilePos - blockOffset);
+			unsigned long txLen = (rem < vhdfc->blockSize - offsetInBlock) ? rem : vhdfc->blockSize - offsetInBlock;
+			grub_u32_t blockLBA = *(grub_u32_t*)(vhdfc->blockAllocationTable + blockNumber * 4);
+			bswap_32(&blockLBA);
+
+			if (blockLBA == 0xFFFFFFFF) {
+				// unused block on dynamic VHD. read zero
+				grub_memset64(buf, 0, txLen);
+			}
+			else {
+				if (blockOffset != vhdfc->currentBlockOffset) {
+					filepos = blockLBA * 512;
+
+					unsigned long long nread = grub_read((unsigned long long)(grub_size_t)vhdfc->blockBitmapAndData, vhdfc->blockBitmapSize + vhdfc->blockSize, GRUB_READ);
+					if (nread < vhdfc->blockBitmapSize + vhdfc->blockSize)
+						break;
+					vhdfc->currentBlockOffset = blockOffset;
+				}
+				grub_memmove64(buf, (unsigned long)(vhdfc->blockData + offsetInBlock), txLen);
+			}
+			buf += txLen;
+			uFilePos += txLen;
+			rem -= txLen;
+			ret += txLen;
+  }
+//printf ("dec_vhd_read-end\n");
+  filepos = uFilePos;
+	compressed_file = 1;
+	filemax = vhdfc->volumeSize;
+	return ret;
+#endif
 }
 
 #endif /* ! NO_DECOMPRESSION */

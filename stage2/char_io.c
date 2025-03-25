@@ -48,6 +48,9 @@ char *grub_strtok (char *s, const char *delim);
 unsigned long long grub_memmove64(unsigned long long dst_addr, unsigned long long src_addr, unsigned long long len);
 unsigned long long grub_memset64(unsigned long long dst_addr, unsigned int data, unsigned long long len);
 int grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned long long len);
+unsigned short *_gbk2utf16_2;
+#define _gbk2utf16_2_size 0x7930
+grub_u32_t gbk = 0;
 
 
 
@@ -2656,3 +2659,274 @@ grub_strrchr (const char *s, int c)	//在字符串中查找字符   查到,返�
 
   return p;
 }
+
+/*
+mode=0，utf8_to_gbk
+mode=1，utf8_to_utf16
+mode=2，utf8_to_url
+url可以理解为双字节表示的单字节流
+比如：字符串：ab%20中  ascii码：63 64 25 32 30 d6 d0 00   url码：63 00 64 00 25 00 32 00 30 00 d6 00 d0 00 00 00
+返回：to尺寸
+*/
+int utf8_to_multimode (void *to, unsigned char *from, unsigned int from_len, int mode);
+int
+utf8_to_multimode (void *to, unsigned char *from, unsigned int from_len, int mode)
+{
+  unsigned char *to_gbk;
+  unsigned short *to_utf16;
+	unsigned i_from = 0;
+	unsigned i_to = 0;
+  int i;
+  unsigned short tmp_utf16,tmp_gbk;
+#if 0  
+  if (!mode && !gbk)
+  {
+    printf_errinfo ("Please load GBK.\n");
+    return 0;
+  }
+#endif
+  if (!mode)
+    to_gbk = (unsigned char *)to;
+  else
+    to_utf16 = (unsigned short *)to;
+
+	if (from_len == 0 || from == NULL || (to == NULL))
+		return 0;
+
+	for (i_from = 0; i_from < from_len; )
+	{
+		if (from[i_from] < 0x80)       //0-7f    单字节ASCII码  0-7f
+		{
+      if (from[i_from] == '\\')
+      {
+        if (mode == 0 || mode == 1)
+          i_from++;
+        else if (mode == 2)
+        {
+          i_from += 2;
+          to_utf16[i_to ++] = '%';
+          to_utf16[i_to ++] = '2';
+          to_utf16[i_to ++] = '0';
+          goto aaa;
+        }
+      }
+      if (!mode)
+        to_gbk[i_to ++] = from[i_from ++];
+      else
+        to_utf16[i_to ++] = from[i_from ++];
+aaa:
+		}
+		else if (from[i_from] < 0xC2)  //80-c1   错误  舍弃
+		{
+			i_from ++;
+		}
+		else if (from[i_from] < 0xE0)  //c2-df   双字节    80-7ff
+		{
+			if (i_from >= from_len - 1) break;  //超过from尺寸
+
+      tmp_utf16 = ((from[i_from] & 0x1F) << 6) | (from[i_from + 1] & 0x3F);
+
+      if (mode == 1)
+        to_utf16[i_to ++] = tmp_utf16;
+
+			i_from += 2;
+		}
+		else if (from[i_from] < 0xF0)  //e0-ef   三字节    800-ffff
+		{
+			if (i_from >= from_len - 2) break;
+
+      tmp_utf16 = ((from[i_from] & 0x0F) << 12) | ((from[i_from + 1] & 0x3F) << 6) | (from[i_from + 2] & 0x3F); //utf8 -> utf16
+      if (gbk)
+      {
+//        for (i = 0; i < sizeof(_gbk2utf16_2) / sizeof(short); i += 2) //utf16 -> gbk
+        for (i = 0; i < (_gbk2utf16_2_size / sizeof(short)); i += 2) //utf16 -> gbk
+        {
+          if (_gbk2utf16_2[i+1] == tmp_utf16)
+          {
+            tmp_gbk = _gbk2utf16_2[i];
+            break;
+          }
+        }
+      }
+
+      if (!mode)
+			{
+				to_gbk[i_to ++] = tmp_gbk >> 8;
+				to_gbk[i_to ++] = tmp_gbk & 0xFF;
+			}
+      else if (mode == 1)
+        to_utf16[i_to ++] = tmp_utf16;
+      else if (mode == 2 && gbk)
+      {
+				to_utf16[i_to ++] = tmp_gbk >> 8;
+				to_utf16[i_to ++] = tmp_gbk & 0xFF;
+      }
+      else
+      {
+        to_utf16[i_to ++] = '?';
+				to_utf16[i_to ++] = '?';
+      }
+
+			i_from += 3;
+		}
+		else if (from[i_from] < 0xF5)  //f0-f4    四字节   10000-10FFFF    第二平面，舍弃
+		{
+			i_from += 4;
+		}
+    else                           //f5-ff    错误  舍弃
+		{
+			i_from ++;
+		}
+	}
+
+  if (!mode)
+    to_gbk[i_to] = 0;
+  else
+    to_utf16[i_to] = 0;
+
+	return i_to;
+}
+#if 0
+/*
+mode=0，utf16_to_gbk
+mode=1，utf16_to_utf8
+mode=2，utf16_to_url
+url可以理解为双字节表示的单字节流
+比如：字符串：ab%20中  ascii码：63 64 25 32 30 d6 d0 00   url码：63 00 64 00 25 00 32 00 30 00 d6 00 d0 00 00 00
+返回：to尺寸
+*/
+int utf16_to_multimode (void *to, unsigned short *from, unsigned int from_len, int mode);
+int
+utf16_to_multimode (void *to, unsigned short *from, unsigned int from_len, int mode)
+{
+  unsigned char *to_utf8;
+  unsigned short *to_url;
+	unsigned i_from = 0;
+	unsigned i_to = 0;
+  grub_uint32_t i, code_high = 0;
+  unsigned short tmp_gbk;
+#if 0  
+  if (!mode && !gbk)
+  {
+    printf_errinfo ("Please load GBK.\n");
+    return 0;
+  }
+#endif  
+  if (mode == 0 || mode == 1)
+    to_utf8 = (unsigned char *)to;
+  else
+    to_url = (unsigned short *)to;
+
+	if (from_len == 0 || from == NULL || (to == NULL))
+		return 0;
+
+	for (i_from = 0; i_from < from_len; )
+	{
+    grub_uint32_t code = *from++;
+    if (!code)
+      return i_to;
+
+    if (code_high)
+    {
+      if (code >= 0xDC00 && code <= 0xDFFF)  //D800-DBFF
+	    {
+	      /* Surrogate pair.  */
+	      code = ((code_high - 0xD800) << 10) + (code - 0xDC00) + 0x10000;
+        if (!mode)
+        {
+          to_utf8[i_to ++] = (code >> 18) | 0xF0;
+          to_utf8[i_to ++] = ((code >> 12) & 0x3F) | 0x80;
+          to_utf8[i_to ++] = ((code >> 6) & 0x3F) | 0x80;
+          to_utf8[i_to ++] = (code & 0x3F) | 0x80;
+        }
+	    }
+      else
+	    {
+	      /* Error...  */
+        if (!mode)
+          to_utf8[i_to ++] = '?';
+	      /* *src may be valid. Don't eat it.  */
+	      from--;
+	    }
+
+      code_high = 0;
+    }
+    else
+    {
+      if (code <= 0x007F)                         //0-7f    单字节ASCII码
+      {
+        if (mode == 2)
+          to_url[i_to ++] = code;
+        else
+          to_utf8[i_to ++] = code;
+      }
+      else if (code <= 0x07FF)                    //80-7ff
+	    {
+        if (mode == 1)
+        {
+          to_utf8[i_to ++] = (code >> 6) | 0xC0;
+          to_utf8[i_to ++] = (code & 0x3F) | 0x80;
+        }
+	    }
+      else if (code >= 0xD800 && code <= 0xDBFF)  //D800-DBFF
+	    {
+	      code_high = code;
+	      continue;
+	    }
+      else if (code >= 0xDC00 && code <= 0xDFFF)  //DC00-DFFF
+	    {
+	      /* Error... */
+        if (mode == 1)
+          to_utf8[i_to ++] = '?';
+	    }
+      else if (code < 0x10000  && gbk)            //800-d7ff e000-ffff  双字节
+	    {
+        if (mode != 1)
+        {
+          for (i = 0; i < sizeof(_gbk2utf16_2) / sizeof(short); i += 2) //utf16 -> gbk
+          {
+            if (_gbk2utf16_2[i+1] == code)
+            {
+              tmp_gbk = _gbk2utf16_2[i];
+              break;
+            }
+          }
+          if (mode == 0)
+          {
+            to_utf8[i_to ++] = tmp_gbk >> 8;
+            to_utf8[i_to ++] = tmp_gbk & 0xFF;
+          }
+          else
+          {
+            to_url[i_to ++] = tmp_gbk >> 8;
+            to_url[i_to ++] = tmp_gbk & 0xFF;
+          }
+        }
+        else
+        {
+          to_utf8[i_to ++] = (code >> 12) | 0xE0;
+          to_utf8[i_to ++] = ((code >> 6) & 0x3F) | 0x80;
+          to_utf8[i_to ++] = (code & 0x3F) | 0x80;
+        }
+	    }
+      else                                        //10000以上   三字节
+	    {
+        if (!mode)
+        {
+          to_utf8[i_to ++] = (code >> 18) | 0xF0;
+          to_utf8[i_to ++] = ((code >> 12) & 0x3F) | 0x80;
+          to_utf8[i_to ++] = ((code >> 6) & 0x3F) | 0x80;
+          to_utf8[i_to ++] = (code & 0x3F) | 0x80;
+        }
+	    }
+    }
+  }
+
+  if (mode == 0 || mode == 1)
+    to_utf8[i_to] = 0;
+  else
+    to_url[i_to] = 0;
+
+	return i_to;
+}
+#endif

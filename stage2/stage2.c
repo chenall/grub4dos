@@ -2194,7 +2194,7 @@ sss:
   else
 	{
 	    grub_close ();
-      if (font_func (config_file, 0))
+      if (current_drive != 0x21 && font_func (config_file, 0))
         menu_tab_ext &= 0xfb;   //清除字库已加载标记
 	    /* before showing menu, try loading font in the tail of config_file */
 	}

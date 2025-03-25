@@ -79,11 +79,13 @@ ENTRY(main)
 	 * bit 0 = 1: disable pxe																								//禁用PXE
 	 * bit 1 = 1: disable keyboard intervention in boot process							//禁用键盘干预引导过程中
 	 * bit 2 = 1: disable the "unconditional command-line entrance" feature	//禁用“无条件命令行入口”功能
-	 * bit 3 = 1: disable geometry tune																			//禁用几何协调
+	 * bit 3 = 1:                                                           //默认网起模式 0/1=tftp/nttp
 	 * bit 4 = 1: disable startup cdrom drive look-up.											//禁止启动光盘驱动器查找。
 	 * bit 5 = 1: enable HLT instruction for checkkey idle loop.						//使能HLT指令，当执行checkkey空闲循环时。
+	 * bit 6 = 1: enable debug = 3.                                         //启动时进入调试模式
+	 * bit 7 = 1: 将HTTP文件读取到指定内存                                   //将HTTP文件读取到指定内存
 	 */
-	.byte	0
+	.byte	8
 
 	. = EXT_C(main) + 0x6																										//0x8206  修改为保存DX  uefi未使用
 
