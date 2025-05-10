@@ -48,6 +48,10 @@
   #define extent quad
 #endif
 
+#VARIABLE(变量名称)             //变量的地址在此
+#	.extent	0
+#	.extent	ABS(EXT_C(变量名称))  //变量的地址不在此处，是一种映射关系
+
 	.file	"asm.S"
 
 	.text
@@ -79,7 +83,7 @@ ENTRY(main)
 	 * bit 0 = 1: disable pxe																								//禁用PXE
 	 * bit 1 = 1: disable keyboard intervention in boot process							//禁用键盘干预引导过程中
 	 * bit 2 = 1: disable the "unconditional command-line entrance" feature	//禁用“无条件命令行入口”功能
-	 * bit 3 = 1:                                                           //默认网起模式 0/1=tftp/nttp
+	 * bit 3 = 1:                                                           //默认网起模式 0/1=tftp/http
 	 * bit 4 = 1: disable startup cdrom drive look-up.											//禁止启动光盘驱动器查找。
 	 * bit 5 = 1: enable HLT instruction for checkkey idle loop.						//使能HLT指令，当执行checkkey空闲循环时。
 	 * bit 6 = 1: enable debug = 3.                                         //启动时进入调试模式
@@ -727,7 +731,6 @@ VARIABLE(filesystem_type)               //13  int
 	.extent	0
 //VARIABLE(query_block_entries)
 	.extent	ABS(EXT_C(grub_efi_image_handle))   //14  void *
-//VARIABLE(map_start_sector)
 	.extent	ABS(EXT_C(grub_efi_system_table))   //15  grub_efi_system_table *
 	.extent	ABS(EXT_C(buf_geom))            //16  geometry
 	.extent	ABS(EXT_C(tmp_geom))            //17  geometry
@@ -768,7 +771,8 @@ VARIABLE(map_start_sector)                //36  unsigned long long*
 	.extent	0
 VARIABLE(map_num_sectors)                 //37  unsigned long long*
 	.extent	0
-	.extent	0                               //38  reserved
+VARIABLE(query_block_entries)             //38  int
+	.extent	0
 	.extent	0                               //39  reserved
 	.extent	0                               //40  reserved
 	.extent	0                               //41  reserved

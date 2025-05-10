@@ -71,7 +71,7 @@ static void pxe_configure (void);
 static void http_configure (void);
 //static grub_efi_ip6_config_manual_address_t *efi_ip6_config_manual_address (grub_efi_ip6_config_protocol_t *ip6_config);
 //static grub_efi_ip4_config2_manual_address_t * efi_ip4_config_manual_address (grub_efi_ip4_config2_protocol_t *ip4_config);
-static grub_err_t efihttp_request (grub_efi_http_t *http, char *server, char *name, int use_https, int headeronly, grub_off_t *file_size, int part);
+static grub_err_t efihttp_request (grub_efi_http_t *http, char *server, char *name, int use_https, int headeronly, grub_off_t *file_size, grub_u64_t range_start, grub_u64_t range_end);
 unsigned long grub_strtoul (const char * restrict str, const char ** const restrict end, int base);
 //static inline char *grub_lltoa (char *str, int c, unsigned long long n);
 //grub_size_t grub_utf8_to_utf16 (grub_uint16_t *dest, grub_size_t destsize, const grub_uint8_t *src, grub_size_t srcsize, const grub_uint8_t **srcend);
@@ -242,15 +242,7 @@ pxe_read (unsigned long long buf, unsigned long long len, unsigned int write)	//
   if (write == GRUB_LISTBLK)
     return 0;
 
-  if (!cur_pxe_type && pxe_need_read && !filepos ) //tftp
-  {
-    pxe_need_read = 0;
-    if (!(*(char *)IMG(0x8205) & 0x80)) //如果8205位7置1，使用efi_pxe_buf，不要分配内存
-      pxe_allocate(); //分配内存
-    pxe_file_func[cur_pxe_type]->read(efi_pxe_buf, filemax);
-  }
-
-  if (cur_pxe_type && pxe_need_read && (filepos + len > 20))  //http
+  if (pxe_need_read)
   {
     pxe_need_read = 0;
     if (!(*(char *)IMG(0x8205) & 0x80)) //如果8205位7置1，使用efi_pxe_buf，不要分配内存
@@ -432,25 +424,9 @@ grub_efi_http_response_callback (grub_efi_event_t event __attribute__ ((unused))
 static int http_open(void)   //http打开
 {
   int err;
-  unsigned long long len;
 
-  err = efihttp_request (net_devices->http, (char *)default_server, (char *)pxe_name, 0, 1, &filemax, 0);  //请求头部，返回尺寸
+  err = efihttp_request (net_devices->http, (char *)default_server, (char *)pxe_name, 0, 1, &filemax, 0, 0);  //请求头部，返回尺寸
   if (err)
-    return 0;
-
-  if (!(*(char *)IMG(0x8205) & 0x80)) //如果8205位7置1，使用efi_pxe_buf，不要分配内存
-    pxe_allocate(); //分配内存
-
-  if (map_pd || (*(char *)IMG(0x8205) & 0x80))
-  {
-    pxe_need_read = 0;
-    len = filemax;
-  }
-  else
-    len = 20;
-
-  err = http_read (efi_pxe_buf, len);
-  if (!err)
     return 0;
 
 	filepos = 0;
@@ -482,19 +458,15 @@ http_read (char *buf, grub_u64_t len)  //efi读
   grub_size_t sum = 0;                      //和
   grub_efi_boot_services_t *b = grub_efi_system_table->boot_services; //引导服务
   grub_efi_http_t *http = net_devices->http;        //http入口
-  int err, count = 0, part;
+  int err, count = 0;
   grub_u64_t back_len = len;
   char *back_buf = buf;
+  grub_u64_t range_start = 0, range_end = len-1;
 
 repeat:
   http_configure();   //配置网络接口
 
-  if (len == 20)
-    part = 1;
-  else
-    part = 0;
-
-  err = efihttp_request (net_devices->http, (char *)default_server, (char *)pxe_name, 0, 0, 0, part); //请求获得
+  err = efihttp_request (net_devices->http, (char *)default_server, (char *)pxe_name, 0, 0, 0, range_start, range_end); //请求获得
   if (err)
     return 0;
 
@@ -536,8 +508,17 @@ repeat:
     status = efi_call_2 (http->response, http, &response_token);  //响应
     if (status != GRUB_EFI_SUCCESS) //失败
     {
+      printf_errinfo ("Fail to http->response! status=%x,len=%x,\n", (int)status,len);   //f 拒绝访问;  68  通信对等体已关闭连接，并且实例的接收缓冲区中没有更多数据。
+      if (status == GRUB_EFI_CONNECTION_FIN)
+      {
+        efi_call_1 (b->close_event, response_token.event);   //关闭事件
+        efi_call_2 (http->cancel, http, NULL);
+        errnum = 0;
+        range_start = sum;
+        range_end = filemax-1;
+        goto repeat;
+      }
       efi_call_1 (b->close_event, response_token.event);    //关闭事件
-      printf_errinfo ("Fail to http->response! status=%x\n", (int)status);   //错误!状态=f 拒绝访问
       return 0;
     }
 //    efi_call_1 (grub_efi_system_table->boot_services->stall, 1);  //延时1微妙  必要
@@ -550,19 +531,19 @@ repeat:
       qqq--;
       if (qqq <= 0)
       {
+        printf_errinfo ("Fail to http->poll!，%x, %x, %x,\n",response_message.body_length,response_token.status,sum);
         efi_call_1 (b->close_event, response_token.event);   //关闭事件
-//        efi_call_1 (grub_efi_system_table->boot_services->stall, 100);  //延时100微妙
         efi_call_2 (http->cancel, http, NULL);
-//        efi_call_1 (grub_efi_system_table->boot_services->stall, 100);  //延时100微妙
         if (count < 2)
         {
           count++;
           len = back_len;
           buf = back_buf;
           errnum = 0;
+          range_start = 0;
+          range_end = len-1;
           goto repeat;
         }
-        printf_errinfo ("Fail to http->poll!，%x, %x, %x,\n",response_message.body_length,response_token.status,sum);
         errnum = 0x1234;
         return 0;
       }
@@ -662,13 +643,13 @@ http_configure (void)  //http配置
 }
 
 static grub_err_t
-efihttp_request (grub_efi_http_t *http, char *server, char *name, int use_https, int headeronly, grub_off_t *file_size, int part) //http请求
+efihttp_request (grub_efi_http_t *http, char *server, char *name, int use_https, int headeronly, grub_off_t *file_size, grub_u64_t range_start, grub_u64_t range_end) //http请求
 {
   grub_efi_http_header_t request_headers[3];
- // grub_efi_http_header_t request_headers[4];
   grub_efi_status_t status;
   grub_efi_boot_services_t *b = grub_efi_system_table->boot_services;
   char url[128];
+  char range[32];
 
   //请求标头
   request_headers[0].field_name = (grub_efi_char8_t *)"Host";               //请求标头.字段名称   主机，服务机
@@ -729,11 +710,12 @@ gbk->utf8_to_multimode(2)                           /ab中国cd.iso   ok!
   request_data.method = (headeronly > 0) ? GRUB_EFI_HTTPMETHODHEAD : GRUB_EFI_HTTPMETHODGET;  //头朝前?头:获得
   //请求信息
   request_message.data.request = &request_data; //请求信息.数据请求
-  if (!headeronly && part)
+  if (!headeronly)
   {
     request_message.header_count = 4;             //请求信息.标头计数
-    request_headers[3].field_name = (grub_efi_char8_t *)"Range";              //请求标头.字段名称   范围        
-    request_headers[3].field_value = (grub_efi_char8_t *)"bytes=0-20";        //请求标头.字段值     字节范围
+    request_headers[3].field_name = (grub_efi_char8_t *)"Range";              //请求标头.字段名称   范围
+    grub_sprintf (range, "%d-%d", range_start, range_end);
+    request_headers[3].field_value = (grub_efi_char8_t *)&range;              //请求标头.字段值     字节范围
   }
   else
   {
@@ -1164,8 +1146,8 @@ grub_efi_service_binding (grub_efi_handle_t dev, grub_efi_guid_t *service_bindin
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //net\drivers\efi\efinet.c
 
-static void grub_efinet_findcards (void);
-static void
+static int grub_efinet_findcards (void);
+static int
 grub_efinet_findcards (void)	//查找支持简单网络接口的卡  初始化tftp
 {
   grub_efi_uintn_t num_handles;
@@ -1177,7 +1159,7 @@ grub_efinet_findcards (void)	//查找支持简单网络接口的卡  初始化tf
   handles = grub_efi_locate_handle (GRUB_EFI_BY_PROTOCOL, &net_io_guid,
 				    0, &num_handles);	//定位句柄
   if (! handles)	//失败
-    return;
+    return 1;
   printf_debug ("handles=%x, num_handles=%x\n",handles,num_handles);//e59bd80,3
 
   //查找MAC消息设备
@@ -1237,7 +1219,7 @@ grub_efinet_findcards (void)	//查找支持简单网络接口的卡  初始化tf
   pxe_entry = grub_efi_open_protocol (image->device_handle, &pxe_io_guid,
 				  GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
   if (! pxe_entry)	//失败
-    return;
+    return 1;
   printf_debug ("pxe_entry=%x\n",pxe_entry);
 
   //从引导播放器获取IP地址
@@ -1259,12 +1241,12 @@ grub_efinet_findcards (void)	//查找支持简单网络接口的卡  初始化tf
   
   if (debug > 1)
     getkey();
-  return;
+  return 0;
  }
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void pxe_init (void);
-void
+int pxe_init (void);
+int
 pxe_init (void)
 {
 //  debug = 3;
@@ -1273,13 +1255,16 @@ pxe_init (void)
   image = grub_efi_get_loaded_image (grub_efi_image_handle);
   printf_debug ("UEFI revision: %x\n",grub_efi_system_table->hdr.revision);
 
-  grub_efinet_findcards ();		//查找支持简单网络接口的卡  初始化tftp
+  err = grub_efinet_findcards ();		//查找支持简单网络接口的卡  初始化tftp
+  if (err)
+    return 1;
   err = grub_efi_net_find_cards (); //查找支持ip4配置2的卡  初始化http
   if (err)
   {
     only_tftp = 1;
     printf_debug ("only_tftp!\n");
   }
+  return 0;
 }
 
 #endif	//ifdef FSYS_PXE

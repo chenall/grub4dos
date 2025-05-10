@@ -1466,7 +1466,7 @@ extern unsigned long long* map_num_sectors;
 extern unsigned int ext_num;
 extern unsigned int ext_start_lba;
 extern unsigned int ext_total_sectors;
-//extern int query_block_entries;
+extern int query_block_entries;
 //#define DEBUG_SLEEP {debug_sleep(debug_boot,__LINE__,__FILE__);}
 //extern inline void debug_sleep(int debug_boot, int line, char *file);
 
@@ -2273,7 +2273,7 @@ extern unsigned int pxe_inited;
 extern unsigned int pxe_scan(void);
 extern int pxe_detect(int, char *);
 extern void pxe_unload(void);
-extern void pxe_init (void);
+extern int pxe_init (void);
 int pxe_func(char* arg,int flags);
 #ifdef FSYS_IPXE
 extern grub_u32_t has_ipxe;
@@ -2923,13 +2923,23 @@ typedef enum grub_efi_reset_type grub_efi_reset_type_t;
 #define GRUB_EFI_END_OF_FILE    GRUB_EFI_ERROR_CODE (31)      //已到达文件的末尾
 #define GRUB_EFI_INVALID_LANGUAGE   GRUB_EFI_ERROR_CODE (32)  //指定的语言无效
 #define GRUB_EFI_COMPROMISED_DATA   GRUB_EFI_ERROR_CODE (33)  //数据的安全状态未知或已损坏，必须更新或替换数据才能恢复有效的安全状态。
-#define GRUB_EFI_IP_ADDRESS_CONFLICT    GRUB_EFI_ERROR_CODE (34) //存在地址冲突地址分配
+#define GRUB_EFI_IP_ADDRESS_CONFLICT  GRUB_EFI_ERROR_CODE (34)//存在地址冲突地址分配
 #define GRUB_EFI_HTTP_ERROR   GRUB_EFI_ERROR_CODE (35)        //网络操作过程中发生HTTP错误
 
-#define GRUB_EFI_WARN_UNKNOWN_GLYPH	GRUB_EFI_WARNING_CODE (1)				//警告		未知字形
-#define GRUB_EFI_WARN_DELETE_FAILURE	GRUB_EFI_WARNING_CODE (2)			//警告		删除失败
-#define GRUB_EFI_WARN_WRITE_FAILURE	GRUB_EFI_WARNING_CODE (3)				//警告		写失败
-#define GRUB_EFI_WARN_BUFFER_TOO_SMALL	GRUB_EFI_WARNING_CODE (4)		//警告		缓存太小
+#define GRUB_EFI_NETWORK_UNREACHABLE   GRUB_EFI_ERROR_CODE (100)  //网络不可访问
+#define GRUB_EFI_HOST_UNREACHABLE   GRUB_EFI_ERROR_CODE (101)     //主机无法访问
+#define GRUB_EFI_PROTOCOL_UNREACHABLE   GRUB_EFI_ERROR_CODE (102) //协议不可访问
+#define GRUB_EFI_PORT_UNREACHABLE   GRUB_EFI_ERROR_CODE (103)     //端口无法访问
+#define GRUB_EFI_CONNECTION_FIN  GRUB_EFI_ERROR_CODE (104)        //接收操作失败，因为通信对等体已关闭连接，并且实例的接收缓冲区中没有更多数据。
+#define GRUB_EFI_CONNECTION_RESET  GRUB_EFI_ERROR_CODE (105)      //接收或传输操作失败，因为此连接被实例本身或通信对等体重置。
+#define GRUB_EFI_CONNECTION_REFUSED  GRUB_EFI_ERROR_CODE (106)    //此连接被拒绝，接收或传输操作失败。
+
+#define GRUB_EFI_WARN_UNKNOWN_GLYPH GRUB_EFI_WARNING_CODE (1)     //警告    未知字形
+#define GRUB_EFI_WARN_DELETE_FAILURE  GRUB_EFI_WARNING_CODE (2)   //警告    删除失败
+#define GRUB_EFI_WARN_WRITE_FAILURE GRUB_EFI_WARNING_CODE (3)     //警告    写失败
+#define GRUB_EFI_WARN_BUFFER_TOO_SMALL  GRUB_EFI_WARNING_CODE (4) //警告    缓存太小
+#define GRUB_EFI_WARN_STALE_DATA  GRUB_EFI_WARNING_CODE (5)       //警告    过期数据
+#define GRUB_EFI_WARN_FILE_SYSTEM GRUB_EFI_WARNING_CODE (6)       //警告    文件系统
 
 
 typedef void *grub_efi_event_t;

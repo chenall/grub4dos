@@ -234,11 +234,11 @@ disk_read_print_func (unsigned long long sector, unsigned int offset, unsigned l
 }
 
 extern int rawread_ignore_memmove_overflow; /* defined in disk_io.c */
-int query_block_entries;  //小于0，填充map_start_sector/map_num_sectors，不打印信息。大于等于0，只打印信息。
+//int query_block_entries;  //小于0，填充map_start_sector/map_num_sectors，不打印信息。大于等于0，只打印信息。
 //static unsigned long long map_start_sector[DRIVE_MAP_FRAGMENT];	
 //static unsigned long long map_num_sectors[DRIVE_MAP_FRAGMENT];
-unsigned long long* map_start_sector;	
-unsigned long long* map_num_sectors;
+//unsigned long long* map_start_sector;	
+//unsigned long long* map_num_sectors;
 
 static unsigned long long blklst_start_sector;
 static unsigned long long blklst_num_sectors;
@@ -2077,12 +2077,28 @@ configfile_func (char *arg, int flags)
   auth = 0;
   
   saved_entryno = 0;
+#if 0
   /* should not clear saved_dir. see issue 109 reported by ruymbeke. */
   if (current_drive != 0xFFFF && (current_drive != ram_drive || filemax != rd_size))
   {
     boot_drive = current_drive;
     install_partition = current_partition;
   }
+#else
+  if (boot_drive == 0xFFFFFFFF)
+  {
+    if (current_drive != 0xFFFFFFFF)
+    {
+      boot_drive = current_drive;
+      install_partition = current_partition;
+    }
+    else
+    {
+      boot_drive = saved_drive;
+      install_partition = saved_partition;
+    }
+  }
+#endif
   if (animated_type)
     splashimage_func("\0",1); //切换菜单时.避免动画背景残留
 

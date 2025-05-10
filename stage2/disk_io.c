@@ -5147,7 +5147,11 @@ grub_efidisk_init (void)  //efidisk初始化
 		if (! ((*(char *)IMG(0x8205)) & 0x01))	/* if it is not disable pxe 如果没有禁用pxe */
 		{
 			printf_debug ("pxe_init:\n");
-			pxe_init ();
+			int err = pxe_init ();
+			printf_debug ("pxe_init_err=%x\n",err);
+			if (err)
+        goto aaa;
+        
 		/* on pxe boot, we only use preset_menu 在pxe启动时，我们只使用预设菜单*/
 			boot_drive = PXE_DRIVE;	//0x21
 			printf_debug ("boot_drive=%x\n", boot_drive);
@@ -5168,6 +5172,7 @@ grub_efidisk_init (void)  //efidisk初始化
 			return;
 		}
 	}
+aaa:
 //#endif /* FSYS_PXE */
   for (; ! GRUB_EFI_END_ENTIRE_DEVICE_PATH (dp); dp = GRUB_EFI_NEXT_DEVICE_PATH (dp))
   {
