@@ -77,7 +77,7 @@ int debug_ptrace = 0;
 //static int debug_pid = 0;
 //static int debug_check_memory = 0;
 static grub_u8_t msg_password[]="Password: ";
-unsigned int pxe_restart_config = 0;
+//unsigned int pxe_restart_config = 0;
 unsigned int configfile_in_menu_init = 0;
 
 /* The first sector of stage2 can be reused as a tmp buffer.
@@ -2045,38 +2045,42 @@ configfile_func (char *arg, int flags)
 {
   errnum = 0;
 	graphic_type = 0;
-
-	if (flags & BUILTIN_USER_PROG)  //内置用户程序
+  //标记为用户程序,则将配置文件保存到CMD_RUN_ON_EXIT
+	if (flags & BUILTIN_USER_PROG)
 	{
 		if (! grub_open (arg))
 				return 0;
 		grub_close();
 		return sprintf(CMD_RUN_ON_EXIT,"\xEC configfile %.128s",arg);
 	}
+  //1.其他标记,则将配置文件保存到config_file
   char *new_config = config_file;
-  if (grub_strlen(saved_dir) + grub_strlen(arg) + 20 >= (int)sizeof(chainloader_file_orig))
+  if (grub_strlen(saved_dir) + grub_strlen(arg) + 20 >= (int)sizeof(chainloader_file_orig)) //避免出界
 	return ! (errnum = ERR_WONT_FIT);
 
   grub_memset(chainloader_file_orig, 0, 256);
-  set_full_path(chainloader_file_orig,arg,sizeof(chainloader_file_orig));
+  set_full_path(chainloader_file_orig,arg,sizeof(chainloader_file_orig)); //把配置文件保存到chainloader_file_orig
 
   //chainloader_file_orig[sizeof(chainloader_file_orig) - 1] = 0;
-  arg = chainloader_file_orig;
-  nul_terminate (arg);
+  arg = chainloader_file_orig;  //arg重定向
+  nul_terminate (arg);          //用NUL终止字符串
   /* check possible filename overflow */
-	if (grub_strlen (arg) >= 0x49)  //0x821e-0x825f
+	if (grub_strlen (arg) >= 0x49)  //0x821e-0x825f  避免出界
   {
     printf_errinfo ("The full path of the configuration file should <= 72\n");
     return ! (errnum = 0x1234);
   }
 	/* Copy ARG to CONFIG_FILE.  */
-	while ((*new_config++ = *arg++));
+	while ((*new_config++ = *arg++)); //把修改后的配置文件保存到config_file
   /* Force to load the configuration file.  */
-  use_config_file = 1;
+  //2.在main中使用配置文件
+//  use_config_file = 1;
   /* Make sure that the user will not be authoritative.  */
+  //3.用户权限最低
   auth = 0;
-  
+  //4.保存的项目归零
   saved_entryno = 0;
+  //5.设置引导驱动器及引导分区
 #if 0
   /* should not clear saved_dir. see issue 109 reported by ruymbeke. */
   if (current_drive != 0xFFFF && (current_drive != ram_drive || filemax != rd_size))
@@ -2084,8 +2088,8 @@ configfile_func (char *arg, int flags)
     boot_drive = current_drive;
     install_partition = current_partition;
   }
-#else
-  if (boot_drive == 0xFFFFFFFF)
+#endif
+  if (boot_drive == 0xFFFFFFFF) //如果引导驱动器未设置
   {
     if (current_drive != 0xFFFFFFFF)
     {
@@ -2098,10 +2102,9 @@ configfile_func (char *arg, int flags)
       install_partition = saved_partition;
     }
   }
-#endif
   if (animated_type)
     splashimage_func("\0",1); //切换菜单时.避免动画背景残留
-
+  //6.进入菜单
   cmain ();
   /* Never reach here.  */
   return 1;
@@ -3849,7 +3852,7 @@ command_func (char *arg, int flags)
 	unsigned int psp_len;
 	unsigned int prog_len;
 	char *program;
-	char *tmp, *tmp0;
+	char *tmp = 0, *tmp0 = 0;
 	prog_len = filemax; //程序(文件)尺寸
 	psp_len = ((arg_len + strlen(file_path)+ 16) & ~0xF) + 0x10 + 0x20; //psp尺寸
 //	tmp = (char *)grub_malloc(prog_len + 4096 + 16 + psp_len + 512);  //缓存
@@ -4006,8 +4009,10 @@ command_func (char *arg, int flags)
 	++prog_pid;
 	pid = grub_exec_run(program, psp, flags);
 	/* on exit, release the memory. */
-	grub_free(tmp);
-	grub_free(tmp0);
+  if (tmp)
+    grub_free(tmp);
+  if (tmp0)
+    grub_free(tmp0);
 	if (!(--prog_pid) && *CMD_RUN_ON_EXIT)//errnum = -1 on exit run.
 	{
 		errnum = 0;
@@ -7010,7 +7015,6 @@ failed_exfat_grldr:
 		filesystem_type = 8;		
 		return 0;
 	}		
-
 	/* Second, check FAT12/16/32/NTFS grldr boot sector */
   probed_total_sectors = BS->total_sectors_short ? BS->total_sectors_short : (BS->total_sectors_long ? BS->total_sectors_long : (unsigned int)BS->total_sectors_long_long);
   if (! BS->sectors_per_cluster || 128 % BS->sectors_per_cluster)
@@ -7276,7 +7280,9 @@ aaa:
   *SectorSeq = grub_zalloc (((blklst_num_entries + 1) << 4) + 4); 
   struct fragment_map_slot* q = *SectorSeq;
 
-  struct fragment *p = (struct fragment *)&q->fragment_data;
+//  struct fragment *p = (struct fragment *)&q->fragment_data;
+  int offse = offsetof(struct fragment_map_slot, fragment_data);
+  struct fragment *p = (struct fragment *)((char *)q + offse);
   if (!p)
     return 0;
   for (i = 0; i < blklst_num_entries; i++)
@@ -7812,7 +7818,7 @@ struct drive_map_slot
 			break;
     arg = skip_to (0, arg); //跳到空格后
   }		//入口参数处理完毕
-  
+  //1. 初始化from、to、pd驱动器
   to_drive = arg;                 //to驱动器地址
   from_drive = skip_to (0, arg);	//from驱动器地址
   set_device (from_drive);  //设置from驱动器的当前驱动器号  返回: 0/非0=失败/成功
@@ -7844,7 +7850,7 @@ struct drive_map_slot
   to = current_drive;						  //to=当前驱动器
 	primeval_to = to;               //保存原始to
   /* if mem device is used, assume the --mem option  如果使用mem驱动器,假设--mem已选择*/
-//printf ("from-0,%x,%x,%x,%x\n",from,to,current_drive,saved_drive);
+printf ("from-0,%x,%x,%x,%x\n",from,to,current_drive,saved_drive);
 //a0,21,21,21;  60,ffff,ffff,21;  map (http)/imgs/ifu352.iso (cd)
 //a0,21,21,21;  60,ffff,ffff,21;  map --mem (http)/imgs/ifu352.iso (cd)
 //81,ffff,ffff.21;  82,7f,7f,81;  ntboot (http)/imgs/boot.wim
@@ -7857,46 +7863,6 @@ struct drive_map_slot
   if ((current_partition == 0xFFFFFF || (to >= 0x80 && to <= 0xFF)) && filename && (*filename == 0x20 || *filename == 0x09))
 	{
     return 0;
-#if 0
-		if (to == 0xffff /* || to == ram_drive */)
-		{
-			if (((long long)mem) <= 0)
-			{
-				return ! (errnum = ERR_MD_BASE);
-			}
-			start_sector = (unsigned long long)mem;		//起始扇区=mem
-			sector_count = 1;													//扇区计数=1  to=md
-		}
-		else if (to == ram_drive)
-		{
-			/* always consider this to be a fixed memory mapping   总是认为to是固定内存映像*/
-			if ((rd_base & 0x1ff) || ! rd_base)		//如果(rd_base & 0x1ff)不为零,或者rd_base为零
-				return ! (errnum = ERR_RD_BASE);		//则返回错误
-			to = 0xffff;													//to=md
-			mem = (rd_base >> 9);				          //mem=rd_base/0x200
-			start_sector = (unsigned long long)mem;	//起始扇区=mem
-			sector_count = 1;												//扇区计数=1  to=rd
-		}
-		else
-		{
-        /* when whole drive is mapped, the mem option should not be specified. 				//当映射整体驱动器时,mem选项应当没有指定.
-         * but when we delete a drive map slot, the mem option means force.						//但是当我们删除驱动器映像插槽时,mem选项意味着强制.
-         */
-//			if (mem != -1ULL && to != from)		      //如果加载到内存,并且to不等于from       //mem=0/-1=加载到内存/不加载到内存
-//				return ! (errnum = ERR_SPECIFY_MEM);	//则返回错误  不应该指定内存
-//			sectors_per_track = 1;/* 1 means the specified geometry will be ignored. */	  //每磁道扇区数=1,意味着指定几何探测将被忽略。
-//			heads_per_cylinder = 1;/* can be any value but ignored since #sectors==1. */	//每柱面磁头数=1,可以是任何值，但被忽略了因为每磁道扇区数=1。
-        /* Note: if the user do want to specify geometry for whole drive map, then
-         * use a command like this:	                            //注意: 如果用户不希望指定几何探测整个驱动器映射,则使用命令行: 使每磁道扇区数>1
-         * 
-         * map --heads=H --sectors-per-track=S (hd0)+1 (hd1)
-         * 
-         * where S > 1
-         */
-//			goto map_whole_drive; //转到映射整体驱动器
-      return 0; //不允许执行类似的操作: map (4) (4);  map (0x80) (0x81);
-		}
-#endif
 	}
 #if VHD_DIFFERENCE
 	//保存to驱动器的路径文件名
@@ -7929,12 +7895,12 @@ struct drive_map_slot
     rd_size = (unsigned long long)filemax;
     to_drive = "(rd)+1";  //将获得的文件映射为rd, 作为to驱动器  
 //    efi_pxe_buf = 0;
-    if (!compressed_file)
-      no_alloc = 1;
+    if (!compressed_file) //如果未压缩
+      no_alloc = 1;       //则使用efi_pxe_buf,不再分配内存
     grub_close ();
   }
 
-    //判断是否连续(填充碎片信息)
+  //2. 获取to驱动器扇区序列(填充碎片信息)
     query_block_entries = -1; /* query block list only   仅请求块列表*/
 		int c = compressed_file;
 		k = no_decompression;
@@ -7958,11 +7924,12 @@ struct drive_map_slot
 //a0,21,7f,21;  60,ffff,ffff,21;
 //a0,21,7f,21;  60,ffff,ffff,21;
 //81,ffff,ffff.21;  82,7f,7f,81;
-      //第二次读to驱动器，建立form驱动器映射
+  //3. 获取to驱动器参数
+      //第二次读获取，建立form驱动器映射
       if (! grub_open (to_drive))	//打开to驱动器
         goto  fail_free;
 
-    if (mem == -1ULL && (compressed_file || (query_block_entries > DRIVE_MAP_FRAGMENT)))		//如果不加载到内存，并且是压缩文件, 或者碎片太多
+    if (mem == -1ULL && (compressed_file || (query_block_entries > DRIVE_MAP_FRAGMENT)))		//如果不加载到内存，并且是压缩文件, 或者碎片太多，强制加载到内存
     {
       mem = 0;
       if (compressed_file) //如果是压缩文件
@@ -8012,7 +7979,7 @@ struct drive_map_slot
 #endif
     //此处又修改sector_count
     sector_count -= skip_sectors;  //扇区计数=扇区计数-跳过扇区
-
+#if 0 //重名from前面已经排除，现在的from还没有建立。
   if (from != ram_drive)		//如果from不等于rd
   {
     df = get_device_by_drive (from,1);
@@ -8030,7 +7997,7 @@ struct drive_map_slot
       }
     }
 	}
-
+#endif
 //检查to是否存在父映射   在 disk_drive_map 查找from，是否等于当前to
   /* check whether TO is being mapped */
 	if (mem == -1ULL)  //如果不加载到内存
@@ -8072,7 +8039,7 @@ struct drive_map_slot
 //a0,21,7f,21;  60,ffff,ffff,21;
 //a0,21,7f,21;  60,ffff,ffff,21;
 //81,ffff,ffff.21;  82,7f,7f,81;
-  //探测及设置from参数
+  //4. 探测及设置from参数
   if (from != ram_drive && from != 0xffff && !alloc_only)
   {
   //获取to驱动器,虚拟分区信息
@@ -8209,6 +8176,7 @@ get_info_ok:
 //a0,21,7f,21;  60,ffff,ffff,21;
 //a0,21,7f,21;  60,ffff,ffff,21;
 //81,ffff,ffff.21;  82,7f,7f,81;
+  //5. 处理加载到内存
   if (mem != -1ULL && !no_alloc)		  //如果加载到内存
 	{
 		unsigned long long start_byte;		//起始字节
@@ -8396,7 +8364,7 @@ mem_ok:
 					errnum = ERR_READ;
 				return 0;
 			}				
-      blklst_num_entries = 1; //如果文件有碎片，加载到内存后就连续了。避免后续设置碎片。     
+      blklst_num_entries = 1; //如果文件有碎片，加载到内存后就连续了。避免后续设置碎片。
 		}
     
     if (add_mbt)
@@ -8443,6 +8411,7 @@ mem_ok:
 	//加载到内存结束
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ buf_geom 是 primeval_to 的信息
+  //6. 处理不加载到内存
   if (primeval_to != to)
     if (get_diskinfo (to, &buf_geom, 0))	//如果'获得磁盘信息'返回非0, 错误
       return !(errnum = ERR_NO_DISK);
@@ -8479,8 +8448,10 @@ mem_ok:
       //查找父插槽To_
       q = (struct fragment_map_slot *)disk_fragment_map;
 			q = fragment_map_slot_find(q, primeval_to);
-			struct fragment *to_ = (struct fragment *)&q->fragment_data; 
       
+//			struct fragment *to_ = (struct fragment *)&q->fragment_data;
+      int offse = offsetof(struct fragment_map_slot, fragment_data);
+      struct fragment *to_ = (struct fragment *)((char *)q + offse);
       for (m = 0; *map_start_sector_back && m < DRIVE_MAP_FRAGMENT; map_start_sector_back += 8, map_num_sectors_back += 8)
       {
         unsigned long long Virtual_sector = 0;											//虚拟扇区终点(假设扇区连续)  以To_start(0)为起点，把各碎片依序逐次拼接的终端值。
@@ -8550,7 +8521,9 @@ set_ok:
     //建立碎片映射
 		q->from = from;
 		q->to = to;
-		struct fragment *f = (struct fragment *)&q->fragment_data;
+//		struct fragment *f = (struct fragment *)&q->fragment_data;
+		int offse = offsetof(struct fragment_map_slot, fragment_data);
+		struct fragment *f = (struct fragment *)((char *)q + offse);
 		for (k = 0; map_start_sector[k] != 0; k++)
 		{
 			f[k].start_sector = map_start_sector[k];
@@ -8565,6 +8538,7 @@ no_fragment:
 #undef	BS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  //7. 填充映射结构
 	buf_drive = -1;
 	buf_track = -1;
   struct grub_disk_data	*d;
@@ -8628,10 +8602,12 @@ no_fragment:
 		for (; d1->next; d1 = d1->next);
 		d1->next = d;
   }
+
   if (d->drive >= 0x80)
   {
     //第三次读to驱动器，探测引导扇区  
-		add_part_data (d->drive);
+		add_part_data (d->drive); //填充分区数据
+  //8. 安装虚拟磁盘
     if (!no_hook)
     {
       current_drive = d->drive;
@@ -12921,7 +12897,8 @@ static struct builtin builtin_set =
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_IFTITLE,
   "set [/p] [/a|/A] [/l|/u] [VARIABLE=[STRING]]",
   "/p,Get a line of input;l|/u,lower/upper case;/a|/A,numerical expression that is evaluated(use calc)."
-  "/a,set value to a Decimal;/A  to a HEX."
+  "/a,set value to a Decimal;/A  to a HEX.\n"
+  "set [tftp|http]" 
 };
 
 typedef struct _SETLOCAL {

@@ -36,7 +36,7 @@ static int pxe_opened = 0;
 static char filename[128];
 static char *pxe_name = filename;
 grub_u32_t pxe_http_type = 0; //0/1=http/https
-static int pxe_need_read = 0; //0/1=不用读/需要读
+//static int pxe_need_read = 0; //0/1=不用读/需要读
 int is_ip6 = 0;
 static char default_server[128];  //默认服务器IPv4  http使用
 //static grub_efi_net_interface_t *net_interface;
@@ -97,7 +97,7 @@ static grub_efi_guid_t net_io_guid = GRUB_EFI_SIMPLE_NETWORK_GUID;	//简单网�
 static int pxe_open (char* name)	//pxe打开
 {
   grub_strcpy (pxe_name, name);
-  pxe_need_read = 1;
+//  pxe_need_read = 1;
 
   if (only_tftp)
   {
@@ -165,12 +165,14 @@ int pxe_dir (char *dirname)	//pxe查目录
 			ret = 0;
 
 		grub_strcpy(&dir_tmp[ret],"/dir.txt");//追加"/dir.txt"
-		if (P_DIR_INFO || (P_DIR_INFO = (struct pxe_dir_info*)grub_zalloc(16384)))	//建立目录信息缓存
+//		if (P_DIR_INFO || (P_DIR_INFO = (struct pxe_dir_info*)grub_zalloc(16384)))	//建立目录信息缓存
+    if (P_DIR_INFO || (P_DIR_INFO = (struct pxe_dir_info*)grub_malloc(16384)))	//建立目录信息缓存
 		{
 			int i;
 			char *p = P_DIR_INFO->data;
 			if (substring(dir_tmp,P_DIR_INFO->path,1) != 0)	//判断子字符串
 			{
+        memset(P_DIR_INFO,0,16384);
 				grub_strcpy(P_DIR_INFO->path,dir_tmp);
 				if (pxe_open(dir_tmp))
 				{
@@ -241,21 +243,18 @@ pxe_read (unsigned long long buf, unsigned long long len, unsigned int write)	//
 
   if (write == GRUB_LISTBLK)
     return 0;
-
+#if 0
   if (pxe_need_read)
   {
     pxe_need_read = 0;
-    if (!(*(char *)IMG(0x8205) & 0x80)) //如果8205位7置1，使用efi_pxe_buf，不要分配内存
+    if (!(*(char *)IMG(0x8205) & 0x80)) //如果8205位7置1，pxe_open不要分配内存，使用efi_pxe_buf即可。
       pxe_allocate(); //分配内存
     pxe_file_func[cur_pxe_type]->read(efi_pxe_buf, filemax);
   }
-  
-  if (!len)
-    return filemax;
-
-    grub_memmove64 (buf, (unsigned long long)(grub_size_t)(char*)(efi_pxe_buf + filepos), len);
-    filepos += len;
-    return len;
+#endif
+  grub_memmove64 (buf, (unsigned long long)(grub_size_t)(char*)(efi_pxe_buf + filepos), len);
+  filepos += len;
+  return len;
 }
 
 void pxe_close (void)	//pxe关闭		grub_pxe_close (struct grub_net_card *dev __attribute__ ((unused)))
@@ -263,7 +262,7 @@ void pxe_close (void)	//pxe关闭		grub_pxe_close (struct grub_net_card *dev __a
 	if (pxe_opened)
 	{
     pxe_http_type = 0; //0/1=http/https
-    pxe_need_read = 0; //0/1=不用读/需要读
+//    pxe_need_read = 0; //0/1=不用读/需要读
 	}
 }
 
@@ -280,6 +279,9 @@ int pxe_allocate(void) //分配内存
   grub_efi_boot_services_t *b;  //引导服务
   b = grub_efi_system_table->boot_services; //系统表->引导服务
   unsigned long long bytes_needed;
+
+  if ((*(char *)IMG(0x8205) & 0x80))
+    return 1;
 
   if (map_pd) //不释放内存
   {
@@ -316,6 +318,7 @@ int pxe_allocate(void) //分配内存
 static int tftp_open(void)		//tftp打开
 {
 	grub_efi_status_t status;
+  unsigned long long tmp;
 
   //将 UTF-8 转为 GBK 编码
 /*
@@ -342,6 +345,14 @@ static int tftp_open(void)		//tftp打开
 		printf_errinfo ("Couldn't get file size\n");
     return !(errnum = 0x1234);
 	}
+
+  if (!no_decompression) //如果no_decompression=1，仅获取文件尺寸
+  {
+    pxe_allocate(); //分配内存
+    tmp = tftp_read (efi_pxe_buf, filemax);
+    if (!tmp)
+      return 0;
+  }
 
 	filepos = 0;
 	return 1;
@@ -424,10 +435,19 @@ grub_efi_http_response_callback (grub_efi_event_t event __attribute__ ((unused))
 static int http_open(void)   //http打开
 {
   int err;
+  unsigned long long tmp;
 
   err = efihttp_request (net_devices->http, (char *)default_server, (char *)pxe_name, 0, 1, &filemax, 0, 0);  //请求头部，返回尺寸
   if (err)
     return 0;
+
+  if (!no_decompression) //如果no_decompression=1，仅获取文件尺寸
+  {
+    pxe_allocate(); //分配内存
+    tmp = http_read (efi_pxe_buf, filemax);
+    if (!tmp)
+      return 0;
+  }
 
 	filepos = 0;
   return 1;
@@ -458,10 +478,13 @@ http_read (char *buf, grub_u64_t len)  //efi读
   grub_size_t sum = 0;                      //和
   grub_efi_boot_services_t *b = grub_efi_system_table->boot_services; //引导服务
   grub_efi_http_t *http = net_devices->http;        //http入口
-  int err, count = 0;
+  int err;
+  grub_u64_t range_start = 0, range_end = len-1;
+#if 0
+  int count = 0;
   grub_u64_t back_len = len;
   char *back_buf = buf;
-  grub_u64_t range_start = 0, range_end = len-1;
+#endif
 
 repeat:
   http_configure();   //配置网络接口
@@ -534,6 +557,14 @@ repeat:
         printf_errinfo ("Fail to http->poll!，%x, %x, %x,\n",response_message.body_length,response_token.status,sum);
         efi_call_1 (b->close_event, response_token.event);   //关闭事件
         efi_call_2 (http->cancel, http, NULL);
+        errnum = 0;
+        range_start = sum;
+        range_end = filemax-1;
+        goto repeat;
+
+#if 0
+        efi_call_1 (b->close_event, response_token.event);   //关闭事件
+        efi_call_2 (http->cancel, http, NULL);
         if (count < 2)
         {
           count++;
@@ -546,6 +577,7 @@ repeat:
         }
         errnum = 0x1234;
         return 0;
+#endif
       }
     }
 
@@ -645,7 +677,7 @@ http_configure (void)  //http配置
 static grub_err_t
 efihttp_request (grub_efi_http_t *http, char *server, char *name, int use_https, int headeronly, grub_off_t *file_size, grub_u64_t range_start, grub_u64_t range_end) //http请求
 {
-  grub_efi_http_header_t request_headers[3];
+  grub_efi_http_header_t request_headers[4];
   grub_efi_status_t status;
   grub_efi_boot_services_t *b = grub_efi_system_table->boot_services;
   char url[128];
@@ -658,6 +690,8 @@ efihttp_request (grub_efi_http_t *http, char *server, char *name, int use_https,
   request_headers[1].field_value = (grub_efi_char8_t *)"*/*";               //请求标头.字段值
   request_headers[2].field_name = (grub_efi_char8_t *)"User-Agent";         //请求标头.字段名称   用户代理
   request_headers[2].field_value = (grub_efi_char8_t *)"UefiHttpBoot/1.1";  //请求标头.字段值
+  request_headers[3].field_name = (grub_efi_char8_t *)"";                   //请求标头.字段名称   范围        
+  request_headers[3].field_value = (grub_efi_char8_t *)"";                  //请求标头.字段值     字节范围
 
   {
     grub_efi_char16_t *ucs2_url;        //ucs2网址
@@ -720,8 +754,6 @@ gbk->utf8_to_multimode(2)                           /ab中国cd.iso   ok!
   else
   {
     request_message.header_count = 3;             //请求信息.标头计数
-    request_headers[3].field_name = (grub_efi_char8_t *)"";              //请求标头.字段名称   范围        
-    request_headers[3].field_value = (grub_efi_char8_t *)"";        //请求标头.字段值     字节范围
   }
 
   request_message.headers = request_headers;    //请求信息.标头

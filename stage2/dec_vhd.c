@@ -205,16 +205,28 @@ void bswap_64(grub_u64_t *x)
 
 void vhd_footer_in(VHDFooter *footer)
 {
-	bswap_64(&footer->dataOffset);
-	bswap_64(&footer->currentSize);
-	bswap_32(&footer->diskType);
+//	bswap_64(&footer->dataOffset);
+//	bswap_64(&footer->currentSize);
+//	bswap_32(&footer->diskType);
+  int offse1 = offsetof(VHDFooter, dataOffset);
+  int offse2 = offsetof(VHDFooter, currentSize);
+  int offse3 = offsetof(VHDFooter, diskType);
+	bswap_64((grub_u64_t *)((char *)footer + offse1));
+	bswap_64((grub_u64_t *)((char *)footer + offse2));
+	bswap_32((grub_u32_t *)((char *)footer + offse3));
 }
 
 void vhd_header_in(VHDDynamicDiskHeader *header)
 {
-	bswap_64(&header->tableOffset);
-	bswap_32(&header->maxTableEntries);
-	bswap_32(&header->blockSize);
+//	bswap_64(&header->tableOffset);
+//	bswap_32(&header->maxTableEntries);
+//	bswap_32(&header->blockSize);
+  int offse1 = offsetof(VHDDynamicDiskHeader, tableOffset);
+  int offse2 = offsetof(VHDDynamicDiskHeader, maxTableEntries);
+  int offse3 = offsetof(VHDDynamicDiskHeader, blockSize);
+	bswap_64((grub_u64_t *)((char *)header + offse1));
+	bswap_32((grub_u32_t *)((char *)header + offse2));
+	bswap_32((grub_u32_t *)((char *)header + offse3));
 }
 #endif
 
@@ -249,13 +261,12 @@ dec_vhd_close(void)
     parentVHDFC = 0;
 	}
 #else
-	if (vhdfc) {
-		if (vhdfc->blockAllocationTable) {
+	if (vhdfc)
+  {
+		if (vhdfc->blockAllocationTable)
 			grub_free(vhdfc->blockAllocationTable);
-		}
-		if (vhdfc->blockBitmapAndData) {
+		if (vhdfc->blockBitmapAndData)
 			grub_free(vhdfc->blockBitmapAndData);
-		}
 		grub_free(vhdfc);
     vhdfc = 0;
 	}

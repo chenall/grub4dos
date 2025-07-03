@@ -83,17 +83,17 @@ ENTRY(main)
 	 * bit 0 = 1: disable pxe																								//禁用PXE
 	 * bit 1 = 1: disable keyboard intervention in boot process							//禁用键盘干预引导过程中
 	 * bit 2 = 1: disable the "unconditional command-line entrance" feature	//禁用“无条件命令行入口”功能
-	 * bit 3 = 1:                                                           //默认网起模式 0/1=tftp/http
+	 * bit 3 = 1: 默认http网起模式(0/1=tftp/http)
 	 * bit 4 = 1: disable startup cdrom drive look-up.											//禁止启动光盘驱动器查找。
 	 * bit 5 = 1: enable HLT instruction for checkkey idle loop.						//使能HLT指令，当执行checkkey空闲循环时。
 	 * bit 6 = 1: enable debug = 3.                                         //启动时进入调试模式
-	 * bit 7 = 1: 将HTTP文件读取到指定内存                                   //将HTTP文件读取到指定内存
+	 * bit 7 = 1: 将HTTP文件读取到指定内存
 	 */
-	.byte	8
+	.byte	0
 
-	. = EXT_C(main) + 0x6																										//0x8206  修改为保存DX  uefi未使用
+	. = EXT_C(main) + 0x6																										//0x8206  uefi未使用
 
-	.byte	COMPAT_VERSION_MAJOR, COMPAT_VERSION_MINOR
+	.byte	0, 0
 
 	. = EXT_C(main) + 0x8                                                   //0x8208
 
@@ -121,11 +121,8 @@ VARIABLE(saved_entryno) //int
 VARIABLE(stage2_id)																												//stage2 id  00
 	.byte	STAGE2_ID
 
-VARIABLE(force_lba)																												//0x8211 强制LBA  uefi未使用
-	/* only bit 0 is now used for force_lba. */
-	/* bit 1=1 means we are booting as a Linux kernel. */
-	/* bit 2=0 enable single-key-selection feature. */
-	.byte	0x04
+VARIABLE(force_lba)																												//0x8211  uefi未使用
+  .byte	0
 
 VARIABLE(version_string)                                                  //0x8212
 	.string VERSION                                                         //0.97\0(hd0,0)
@@ -182,10 +179,10 @@ VARIABLE(grub_timeout)                                                    //0x82
 VARIABLE(boot_drive)                                                      //引导驱动器 int
 	.long	0xFFFFFFFF	/* can be setup by external programs. */
 
-VARIABLE(use_config_file)   //int
-	.long	1
+//VARIABLE(use_config_file)   //int  uefi未使用
+	.long	0
   
-VARIABLE(configfile_opened) //int
+//VARIABLE(configfile_opened) //int  uefi未使用
 	.long	0
 
 VARIABLE(saved_pxe_ip)      //int

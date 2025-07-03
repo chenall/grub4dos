@@ -458,10 +458,10 @@ int fb_dir (char *dirname)
 	if (substring (dirname, tmp_name/*cur_file->name*/, 1) == 0)
 	  {
 	    found = 1;
-//			filemax = cur_file->data_size;
-      unsigned long long *a = (unsigned long long *)&cur_file->data_size;
+//      unsigned long long *a = (unsigned long long *)&cur_file->data_size;
+      int offse = offsetof(struct fbm_file, data_size);
+      unsigned long long *a = (unsigned long long *)((char *)cur_file + offse);
 	    filemax = (ver_min==6)?cur_file->data_size:(*a);
-//	    filemax = (ver_min==6)?cur_file->data_size:(*(unsigned long long *)(&cur_file->data_size));
 	    break;
 	  }
 

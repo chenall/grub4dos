@@ -1511,7 +1511,7 @@ setup_part (char *filename)
 static int set_filename(char *filename);
 static int set_filename(char *filename)
 {
-	char ch;
+	char ch = 0;
 	if (current_drive != 0x21)
     ch = nul_terminate(filename);  //以00替换止字符串的空格,回车,换行,水平制表符
 	int i = grub_strlen(filename);
@@ -1903,9 +1903,9 @@ grub_open (char *filename)
 
   errnum = 0;
   if (*(char *)IMG(0x8205) & 0x08)
-    cur_pxe_type = 1;   //默认网起使用http。即'/'使用http。如果使用tftp，必需指明，即(tftp)/
+    cur_pxe_type = PXE_FILE_TYPE_HTTP;   //默认网起使用http。即'/'使用http。如果使用tftp，必需指明，即(tftp)/
   else
-    cur_pxe_type = 0;   //默认网起使用tftp。即'/'使用tftp。如果使用http，必需指明，即(http)/
+    cur_pxe_type = PXE_FILE_TYPE_TFTP;   //默认网起使用tftp。即'/'使用tftp。如果使用http，必需指明，即(http)/
 
   /* if any "dir" function uses/sets filepos, it must
      set it to zero before returning if opening a file! */
@@ -2047,7 +2047,7 @@ not_block_file:
 #ifdef NO_DECOMPRESSION
       return 1;
 #else
-      if (no_decompression)
+      if (no_decompression)    //如果no_decompression=1，仅获取文件尺寸)
 	return 1;
 #if 0
       int i;
@@ -2754,9 +2754,16 @@ uninstall (unsigned int drive, struct grub_disk_data *d)  //释放磁盘映射
 
   if (d->vdisk || !d->sector_count) //是映射磁盘,并且挂载，或者是原生磁盘
   {
+#if defined(__i386__)
+    int offse = offsetof(struct grub_disk_data, device_handle);
+#endif
     dp = grub_efi_get_device_path (d->device_handle);    //获得设备路径
     efi_call_6 (b->install_multiple_protocol_interfaces,	//安装多协议接口
+#if defined(__i386__)
+                (void **)((char *)d + offse),
+#else
                 &d->device_handle,                        //指向协议接口的指针(如果要分配新句柄，则指向NULL的指针)
+#endif
                 &dp_guid,                                 //指向协议GUID的指针
 //                d->device_path,										        //指向设备路径的指针
                 dp,                                       //指向设备路径的指针
@@ -3115,7 +3122,9 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
     q = (struct fragment_map_slot *)disk_fragment_map;
     q = fragment_map_slot_find (q, from_drive);
     //确定Form扇区起始在哪个碎片
-    data = (struct fragment *)&q->fragment_data;
+//    data = (struct fragment *)&q->fragment_data;
+    int offse = offsetof(struct fragment_map_slot, fragment_data);
+    data = (struct fragment *)((char *)q + offse);
 	}
 	status = grub_SectorSequence_readwrite (from_drive, data, 0, 0, sector, size, buf, lba_byte, read_write);
 	return status;
@@ -3166,7 +3175,7 @@ partition_info_init (struct efidisk_data *devices)
   struct grub_disk_data *d;
   struct efidisk_data *d1;
 	struct grub_part_data *p;
-	struct grub_part_data *p_final;
+	struct grub_part_data *p_final = 0;
   grub_efi_device_path_t *dp = 0, *ldp = 0, *dp1;	//路径
 	int drive;
 	unsigned int back_saved_drive = saved_drive;
@@ -5168,7 +5177,7 @@ grub_efidisk_init (void)  //efidisk初始化
 			if (debug > 1)
         getkey();
       
-			run_line((char *)"configfile /efi/grub/menu.lst",1);
+//			run_line((char *)"configfile /efi/grub/menu.lst",1);
 			return;
 		}
 	}

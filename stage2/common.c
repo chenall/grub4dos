@@ -2083,6 +2083,7 @@ grub_efi_memory_fini (void) //内存结束
   int drive;
   struct grub_disk_data *d;
   grub_efi_boot_services_t *b;
+  b = grub_efi_system_table->boot_services;  //系统表->引导服务
   for (drive = 0xFF; drive >= 0; drive--)    //从0xff到0
   {
     d = get_device_by_drive (drive,0);

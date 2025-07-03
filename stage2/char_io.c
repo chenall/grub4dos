@@ -2083,23 +2083,23 @@ substring (const char *s1, const char *s2, int case_insensitive)
       ch1 = *(s1++);
       ch2 = *(s2++);
       
-      if (case_insensitive)
+      if (case_insensitive) //为1，不区分大小写
       {
 	ch1 = tolower(ch1);
 	ch2 = tolower(ch2);
       }
 
-      if (! ch1)	/* S1 is a substring of S2, or they match exactly */
+      if (! ch1)	/* S1 is a substring of S2, or they match exactly  S1是S2的子字符串，或者它们完全匹配*/
 	return ch2 ? -1 : 0;
       
       if (ch1 != ch2)
-	return 1;	/* S1 isn't a substring of S2 */
+	return 1;	/* S1 isn't a substring of S2  S1不是S2的子字符串*/
     }
 }
 
 /* Terminate the string STR with NUL.  用NUL终止字符串STR*/
 int
-nul_terminate (char *str)		//用"0"替换"\0"
+nul_terminate (char *str)
 {
   int ch;
 
@@ -2672,12 +2672,12 @@ int utf8_to_multimode (void *to, unsigned char *from, unsigned int from_len, int
 int
 utf8_to_multimode (void *to, unsigned char *from, unsigned int from_len, int mode)
 {
-  unsigned char *to_gbk;
-  unsigned short *to_utf16;
+  unsigned char *to_gbk = 0;
+  unsigned short *to_utf16 = 0;
 	unsigned i_from = 0;
 	unsigned i_to = 0;
   int i;
-  unsigned short tmp_utf16,tmp_gbk;
+  unsigned short tmp_utf16,tmp_gbk = 0;
 #if 0  
   if (!mode && !gbk)
   {
@@ -2707,14 +2707,15 @@ utf8_to_multimode (void *to, unsigned char *from, unsigned int from_len, int mod
           to_utf16[i_to ++] = '%';
           to_utf16[i_to ++] = '2';
           to_utf16[i_to ++] = '0';
-          goto aaa;
+//          goto aaa;
+          continue;
         }
       }
       if (!mode)
         to_gbk[i_to ++] = from[i_from ++];
       else
         to_utf16[i_to ++] = from[i_from ++];
-aaa:
+//aaa:
 		}
 		else if (from[i_from] < 0xC2)  //80-c1   错误  舍弃
 		{

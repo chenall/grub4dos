@@ -25,7 +25,7 @@ unsigned int is_highlight = 0;
 
 static int open_preset_menu (void);	
 static int
-open_preset_menu (void)		
+open_preset_menu (void)   //打开预置菜单
 {
   if (! use_preset_menu)	//如果不存在预置菜单
     return 0;							//返回0
@@ -35,9 +35,9 @@ open_preset_menu (void)
 
 static int read_from_preset_menu (char *buf, int max_len);
 static int
-read_from_preset_menu (char *buf, int max_len)
+read_from_preset_menu (char *buf, int max_len)  //从预设菜单读取(缓存，尺寸)
 {
-  if (! use_preset_menu)	//if (preset_menu == 0)
+  if (! use_preset_menu)	//如果不存在预置菜单
     return 0;
 
   return grub_read ((unsigned long long)(grub_size_t)buf, max_len, 0xedde0d90);
@@ -1812,7 +1812,7 @@ boot_entry:
 
 static int get_line_from_config (char *cmdline, int max_len, int preset);
 static int
-get_line_from_config (char *cmdline, int max_len, int preset)
+get_line_from_config (char *cmdline, int max_len, int preset) //从配置中获取行(命令行，尺寸，是预置菜单)
 {
     unsigned int pos = 0, info = 0;//literal = 0, comment = 0;
     char c;  /* since we're loading it a byte at a time! */
@@ -1821,7 +1821,7 @@ get_line_from_config (char *cmdline, int max_len, int preset)
     {
 	if (preset)
 	{
-    if (! read_from_preset_menu (&c, 1))
+    if (! read_from_preset_menu (&c, 1))  //从预设菜单读取
       break;
 	}
 	else
@@ -1944,6 +1944,7 @@ void cmain (void);
 void
 cmain (void)
 {
+  //分配菜单内存
   if (!menu_mem)
   {
     menu_mem = grub_zalloc (0x40e00);     //分配内存, 并清零
@@ -1954,44 +1955,47 @@ cmain (void)
   }
 //  else
 //    grub_memset (menu_mem, 0, 0x40e00 - 0x200);
-
+  //初始化
     saved_entryno = 0;
 	new_menu = 0;
 	new_hotkey = 0;
-    /* Never return.  */
+    /* Never return.  永不回头 */
 restart2:
-    reset ();       
-    /* Here load the configuration file.  */
-    if (! use_config_file)
-	goto done_config_file;
+    reset (); //重置
+    /* Here load the configuration file.  在这里加载配置文件。*/
+//    if (! use_config_file)  //如果不使用配置文件,跳转   在asm,configfile_func置1
+//	goto done_config_file;
 
-    pxe_restart_config = 0;
-
-restart_config:
-
+//    pxe_restart_config = 0;
+//使用预置菜单重新配置
+//restart_config:
     {
-	/* STATE 0: Menu init, i.e., before any title command.
-	   STATE 1: In a title command.
-	   STATE 2: In a entry after a title command.  
+	/* STATE 0: Menu init, i.e., before any title command.  菜单初始化，即在任何标题命令之前
+	   STATE 1: In a title command.                         在标题命令中
+	   STATE 2: In a entry after a title command.           在标题命令后的条目中
 	*/
+  //初始化
 	int state = 0, prev_config_len = 0, bt = 0;
 	int is_preset, flags0;
 	grub_memset (graphic_file_shift, 0, 32);
 	menu_init_script_file[0] = 0;
+  //打开预置菜单或者配置文件
 	{
 	    int is_opened;
 	    is_preset = is_opened = 0;
 	    /* Try command-line menu first if it is specified. */
-    if (use_preset_menu)
+    //如果存在预置菜单，首先尝试使用他。如果成功，则不再打开配置文件
+    if (use_preset_menu)  //在get_embed置1 (如果grub4efi有内置菜单,则置1)
     {
-      is_opened = is_preset = open_preset_menu ();
+      is_opened = is_preset = open_preset_menu ();  //打开预置菜单
     }
-    if (! is_opened)
+    //如果没有预置菜单或者打开预置菜单失败,则尝试打开配置文件
+    if (! is_opened)    //如果没有打开预置菜单,尝试使用配置文件
     {
-		if (*config_file)
+		if (*config_file)   //如果存在配置文件
 		{
-			is_opened = (configfile_opened || grub_open (config_file));
-      if (! is_opened)
+			is_opened = (/*configfile_opened || */grub_open (config_file)); //打开配置文件   configfile_opened=0,而且没有文件设置他
+      if (! is_opened)  //如果打开配置文件失败,转不使用配置文件
         goto done_config_file;
 			#ifdef FSYS_IPXE
 //			if (is_opened && current_drive == PXE_DRIVE && current_partition == IPXE_PART)
@@ -2000,32 +2004,39 @@ restart_config:
 		}
     }
 	    errnum = 0;
-	    configfile_opened = 0;         
+//	    configfile_opened = 0;
+#if 0
+      //如果没有配置文件,再次尝试打开预置菜单(因为可能use_preset_menu为0)
 	    if (! is_opened)
 	    { 
-		if (pxe_restart_config)
-			goto original_config;
+//		if (pxe_restart_config)
+//			goto original_config;
 		/* Try the preset menu. This will succeed at most once,
 		 * because the preset menu will be disabled(see below).  */ 
-      is_opened = is_preset = open_preset_menu ();
+     //尝试使用预设菜单。这最多只会成功一次，因为预设菜单将被禁用（见下文）
+      is_opened = is_preset = open_preset_menu ();  //打开预置菜单
 	    }
-	    if (! is_opened)
+#endif
+	    if (! is_opened)    //如果打开失败,不再处理
 		goto done_config_file;
 	}
  	
 	/* This is necessary, because the menu must be overrided.  */
-	reset ();
+  //这是必要的，因为菜单必须被覆盖
+	reset (); //重置
 #if 1 //值1表示:  从现在开始, 不在屏幕显示任何信息
 	putchar_hooked = (unsigned char*)1;/*stop displaying on screen*/  //禁止显示
 #else
   putchar_hooked = 0; //允许显示
 #endif
-	while (get_line_from_config ((char *) CMDLINE_BUF, NEW_HEAPSIZE, is_preset))
+  //处理预置菜单或者配置文件
+	while (get_line_from_config ((char *) CMDLINE_BUF, NEW_HEAPSIZE, is_preset))  //从配置中获取行
 	{
     struct builtin *builtin = 0;
     char *cmdline = (char *) CMDLINE_BUF;  
     flags0 = 0;
 	    /* Get the pointer to the builtin structure.  */
+    //获取指向内置结构的指针
     if (*cmdline == ':' || *cmdline == '!' || *cmdline == '{' || *cmdline == '}')
     {
 //        builtin->flags = 8;
@@ -2034,14 +2045,16 @@ restart_config:
       flags0 = 8;           //适应gcc高版本  2023-05-24
       goto sss;
     }
-	    builtin = find_command (cmdline);
+	    builtin = find_command (cmdline); //查找命令
 	    errnum = 0;
-	    if (! builtin)
+	    if (! builtin)  //如果没有找到,跳过
         continue; /* Unknown command. Just skip now.  */
 sss:
 //	    if ((grub_size_t)builtin != (grub_size_t)-1 && builtin->flags == (int)0)	/* title command */
+      //如果是标题命令
 	    if ((grub_size_t)builtin != (grub_size_t)-1 && builtin && builtin->flags == (int)0 && flags0 != 8)	/* title command */
 	    {
+		//如果不是内置标题
 		if (builtin != &builtin_title)/*If title*/
 		{
 			unsigned int tmp_filpos;
@@ -2050,12 +2063,15 @@ sss:
 			unsigned int rp;
 			cmdline = skip_to(1, cmdline);
 			/* save original file position. */
+      //保存原始文件位置
 			tmp_filpos = /*(is_preset && preset_menu == (const char *)0x800) ?
 					preset_menu_offset : */filepos;
 			/* close the already opened file for safety, in case 
 			 * the builtin->func() below would call
 			 * grub_open(). */
-				grub_close ();
+      //为了安全起见，请关闭已打开的文件，以防下面的builtin->func（）调用grub_open（）。
+				grub_close ();  //关闭
+      //执行命令
 			rp = builtin->func(cmdline,BUILTIN_IFTITLE);
 			saved_drive = tmp_drive;
 			saved_partition = tmp_partition;
@@ -2064,14 +2080,15 @@ sss:
 			/* re-open the config_file which is still in use by
 			 * get_line_from_config(), and restore file position
 			 * with the saved value. */
-      if (is_preset)  //是预设
+      //重新打开get_line_from_config（）仍在使用的configfile，并使用保存的值恢复文件位置
+      if (is_preset)  //如果是预置菜单
       {
-        open_preset_menu ();
+        open_preset_menu ();  //打开预置菜单
         filepos = (unsigned long long)tmp_filpos;
       }
-      else
+      else            //如果是配置文件
 			{
-				if (! grub_open (config_file))
+				if (! grub_open (config_file))  //打开配置文件
 				{
 					printf ("  Fatal! Re-open %s failed!\n", config_file);
 					print_error ();
@@ -2079,7 +2096,7 @@ sss:
 				filepos = (unsigned long long)tmp_filpos;
 			}
 
-			if (rp)
+			if (rp) //如果命令执行成功
 			{
 				cmdline += rp;
 			}
@@ -2087,37 +2104,39 @@ sss:
 			{
 				int i;
 				for (i = num_entries + ((state & 0xf) ? 1 : 0); i < 32; i++)
-					graphic_file_shift[i] += 1;
+					graphic_file_shift[i] += 1; //图形文件移位
 				state |= 0x10;
 				continue;
 			}
 		}//if (builtin != &builtin_title)
 
 		/* Finish the menu init commands or previous menu items.  */
-		if (state & 2)
+    //完成菜单初始化命令或之前的菜单项
+		if (state & 2)  //如果是步骤2
 		{
 		    /* The next title is found.  */
+        //找到下一个标题
 		    if (num_entries >= 256)
 			  break;
 			bt += (CONFIG_ENTRIES[attr] & 1);
-		    num_entries++;	/* an entry is completed. */
-		    CONFIG_ENTRIES[config_len++] = 0;	/* finish the entry. */
+		    num_entries++;	/* an entry is completed. 条目已完成*/
+		    CONFIG_ENTRIES[config_len++] = 0;	/* finish the entry. 完成条目*/
 		    prev_config_len = config_len;
 		}
-		else if (state & 1)		/* state == 1 */
+		else if (state & 1)		//如果是步骤1
 		{
-		    /* previous is an invalid title, overwrite it.  */
+		    /* previous is an invalid title, overwrite it.  上一个标题无效，请覆盖它*/
 		    config_len = prev_config_len;
 		}
-		else			/* state == 0 */
+		else			//如果是步骤0
 		{
-		    /* The first title. So finish the menu init commands. */
+		    /* The first title. So finish the menu init commands. 第一个标题。因此，完成菜单初始化命令*/
 		    CONFIG_ENTRIES[config_len++] = 0;
 		}
-		/* Reset the state.  */
+		/* Reset the state.  重置状态*/
 		state = 1;
 
-		/* Copy title into config area.  */
+		/* Copy title into config area.  将标题复制到配置区域*/
 		{
 		    int len;
 		    char *ptr = cmdline;
@@ -2138,11 +2157,11 @@ sss:
 		    while ((CONFIG_ENTRIES[config_len++] = *(ptr++)) != 0);
 		}
 	    }//if ((grub_size_t)builtin != (grub_size_t)-1 && .....
-	    else if (state & 0x10) /*ignored menu by iftitle*/
+	    else if (state & 0x10) /*ignored menu by iftitle  被iftitle忽略的菜单*/
       {
 		continue;
       }
-	    else if (! state)			/* menu init command */
+	    else if (! state)			/* menu init command  菜单初始化命令*/
 	    {
 		if ((grub_size_t)builtin == (grub_size_t)-1 || builtin->flags & BUILTIN_MENU)
 		{
@@ -2152,13 +2171,13 @@ sss:
 		    prev_config_len = config_len;
 		}
 		else
-		    /* Ignored.  */
+		    /* Ignored.  忽视*/
 		    continue;
 	    }
-	    else				/* menu item command */
+	    else				/* menu item command  菜单项命令*/
 	    {
 		state = 2;
-		/* Copy config file data to config area.  */
+		/* Copy config file data to config area.  将配置文件数据复制到配置区域*/
 		{
 		    char *ptr = cmdline;
 		    while ((CONFIG_ENTRIES[config_len++] = *ptr++) != 0);
@@ -2174,14 +2193,15 @@ sss:
 	putchar_hooked = 0;
 	/* file must be closed here, because the menu-specific commands
 	 * below may also use the GRUB_OPEN command.  */
+  //必须在此处关闭文件，因为下面特定于菜单的命令也可能使用GRUB_OPEN命令。
   if (is_preset)
   {
     if (use_preset_menu/* != (const char *)0x800*/)
     {
-      /* load the font embedded in preset menu. */			//载入预置菜单中的字体。
+      /* load the font embedded in preset menu. 载入预置菜单中的字体。*/
       if (font_func (preset_menu, 0))  //0   如果字体加载成功
       {
-        /* font exists, automatically enter graphics mode. */  //字体存在，自动进入图形模式。
+        /* font exists, automatically enter graphics mode. 字体存在，自动进入图形模式。*/
         if (! IMAGE_BUFFER)  //如果不在图形模式，尝试设置图形模式
         {
           graphicsmode_func ("-1 800", 0);
@@ -2196,85 +2216,88 @@ sss:
 	    grub_close ();
       if (current_drive != 0x21 && font_func (config_file, 0))
         menu_tab_ext &= 0xfb;   //清除字库已加载标记
-	    /* before showing menu, try loading font in the tail of config_file */
+	    /* before showing menu, try loading font in the tail of config_file  在显示菜单之前，尝试在configfile的尾部加载字体*/
 	}
-  use_preset_menu = 0;	/* Disable preset menu.  */  //禁用预置菜单
+  use_preset_menu = 0;	/* Disable preset menu.  禁用预置菜单 */
 	if (state & 2)
 	{
 	    if (num_entries < 256)
-	        num_entries++;	/* the last entry is completed. */
+	        num_entries++;	/* the last entry is completed.  最后一个条目已完成 */
 	}
 	else// if (state)
 	{
 	    config_len = prev_config_len;
 	}
 
-	/* Finish the last entry or the menu init commands.  */
+	/* Finish the last entry or the menu init commands.  完成最后一个条目或菜单初始化命令 */
 	CONFIG_ENTRIES[config_len++] = 0;
 	title_boot[num_entries] = -1;
 	if (num_entries < 256)
 		titles[num_entries] = 0;
-	/* old MENU_BUF is not used any more. So MENU_BUF is a temp area,
-	 * and can be moved to elsewhere. */
+	/* old MENU_BUF is not used any more. So MENU_BUF is a temp area,   不再使用旧的MENU_BUF。所以MENU_BUF是一个临时区域，可以移动到其他地方
+	 * and can be moved to elsewhere.   */
 
-	/* CONFIG_ENTRIES contains these:
-	 * 1. The array of menu init commands.
-	 * 2. The array of menu item commands with leading titles.
+	/* CONFIG_ENTRIES contains these:                           CONFIG_ENTRIES包含以下内容：
+	 * 1. The array of menu init commands.                      1.菜单初始化命令数组。
+	 * 2. The array of menu item commands with leading titles.  2.带有前导标题的菜单项命令数组。
 	 */
 
-	/* Display this info if the debug command is not present in the
+	/* Display this info if the debug command is not present in the   如果调试命令不在菜单init命令集中，则显示此信息。
 	 * menu-init command set.
 	 */
-	/* Run menu-specific commands before any other menu entry commands.  */
+	/* Run menu-specific commands before any other menu entry commands.  在任何其他菜单项命令之前运行特定于菜单的命令。 */
 	{
 	    static char *old_entry = NULL;
 	    static char *heap = NULL; heap = CONFIG_ENTRIES + config_len;
 
-	    /* Initialize the data.  */
+	    /* Initialize the data.  初始化数据*/
 	    current_drive = GRUB_INVALID_DRIVE;
 	    count_lines = -1;
 	    kernel_type = KERNEL_TYPE_NONE;
 	    errnum = 0;
 	    while (1)
 	    {
-		pxe_restart_config = 0;
+//		pxe_restart_config = 0;
 
 #ifdef SUPPORT_GFX
 //		*graphics_file = 0;
 #endif
 		//DEBUG_SLEEP  /* Only uncomment if you want to pause before processing every menu.lst line */
+    //仅当您想在处理每个菜单前暂停时才取消注释。第一行
 		/* Copy the first string in CUR_ENTRY to HEAP.  */
+    //将CUR_ENTRY中的第一个字符串复制到HEAP。
 		old_entry = cur_entry;
 		while (*cur_entry++);
 
 		grub_memmove (heap, old_entry, (grub_size_t) cur_entry - (grub_size_t) old_entry);
 		if (! *heap)
 		{
-		    /* If there is no more command in SCRIPT...  */
-		    /* If no kernel is loaded, just exit successfully.  */
+		    /* If there is no more command in SCRIPT...  如果SCRIPT中没有更多命令。*/
+		    /* If no kernel is loaded, just exit successfully.  如果没有加载内核，只需成功退出*/
 		    if (kernel_type == KERNEL_TYPE_NONE)
 			break;
 
-		    /* Otherwise, the command boot is run implicitly.  */
+		    /* Otherwise, the command boot is run implicitly.  否则，命令boot将隐式运行。*/
 		    grub_memmove (heap, "boot", 5);
 		}
 		run_line (heap , BUILTIN_MENU);
 
 		/* if the INSERT key was pressed at startup, debug is not allowed to be turned off. */
-		if (pxe_restart_config)
-			goto restart_config;
-original_config:
+    //如果在启动时按下了INSERT键，则不允许关闭调试
+//		if (pxe_restart_config)
+//			goto restart_config;
+//original_config:
 		if (! *old_entry)
 		    break;
 	    } /* while (1) */
 
 	    kernel_type = KERNEL_TYPE_NONE;
-	} /* while (1) */
+	}
 
-	/* End of menu-specific commands.  */
+	/* End of menu-specific commands.  菜单特定命令结束 */
 
 	errnum = 0;
-	/* Make sure that all fallback entries are valid.  */
+	/* Make sure that all fallback entries are valid.  确保所有回退条目都有效。*/
 	if (fallback_entryno >= 0)
 	{
 	    int i;
@@ -2295,6 +2318,7 @@ original_config:
 	}
 	/* Check if the default entry is present. Otherwise reset it to
 	   fallback if fallback is valid, or to DEFAULT_ENTRY if not.  */
+  //检查是否存在默认条目。否则，如果回退有效，则将其重置为回退，否则重置为DEFAULT_ENTRY。
 	if (default_entry >= num_entries)
 	{
 	    if (fallback_entryno >= 0)
@@ -2307,12 +2331,12 @@ original_config:
 	    else
 		default_entry = 0;
 	}
-    }
-
+    }//restart_config
+//不使用配置文件，或者打开预置菜单以及配置文件失败
 done_config_file:
-  use_preset_menu = 0;	/* Disable the preset menu.  */	//禁用预设菜单
-//	pxe_restart_config = 1;	/* pxe_detect will use configfile to run menu */
-  /* go ahead and make sure the terminal is setup */	//继续前进，确保终端的安装
+  use_preset_menu = 0;	/* Disable the preset menu.  禁用预设菜单 */
+//	pxe_restart_config = 1;	/* pxe_detect will use configfile to run menu  pxe_tect将使用configfile运行菜单*/
+  /* go ahead and make sure the terminal is setup   继续前进，确保终端的安装 */
 //	if (current_term->startup)    无用  2023-06-13
 //		(*current_term->startup)();
 
@@ -2320,12 +2344,13 @@ done_config_file:
     {
 	/* no config file, goto command-line, starting heap from where the
 	   config entries would have been stored if there were any.  */
+  //没有配置文件，goto命令行，从哪里开始堆如果有的话，配置条目也会被存储。
 	enter_cmdline (CONFIG_ENTRIES, 1);
     }
     else
     {
-	/* Run menu interface.  */
-	/* cur_entry point to the first menu item command. */
+	/* Run menu interface.  运行菜单界面 */
+	/* cur_entry point to the first menu item command. cur_entry指向第一个菜单项命令 */
 	if (hotkey_func)
     (*hotkey_func)(0,0,-1,0);
 	run_menu ((char *)titles, cur_entry, /*num_entries,*/ CONFIG_ENTRIES + config_len, default_entry);

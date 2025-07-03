@@ -27,7 +27,7 @@
 
 #include <config.h>
 /* Disable all gcc warnings */
-#if 1  //调试时设置为0,显示警告信息
+#if 0  //调试时设置为0,显示警告信息
 #if defined (__GNUC__) && defined (__GNUC_MINOR__) && (((__GNUC__ == 4) && (__GNUC_MINOR__  > 8)) || (__GNUC__ >= 5))
 #pragma GCC diagnostic ignored "-Wunused-value"
 #endif
@@ -573,7 +573,7 @@ OPTIONAL  将数据传递给函数是可选的，如果未提供该值，则可�
 CONST     基准是只读的。
 EFIAPI    定义UEFI接口的调用约定。
 */
-
+#define offsetof(TYPE, MEMBER) ((grub_size_t) &((TYPE *)0)->MEMBER) 
 //=============================================================================
 
 # define PRIxGRUB_UINT32_T	"x"
@@ -1448,7 +1448,7 @@ struct malloc_array *malloc_array_start;
 
 /* If not using config file, this variable is set to zero,
    otherwise non-zero.  */
-extern int use_config_file;
+//extern int use_config_file;
 /* print debug message on startup if the DEBUG_KEY is pressed. */
 //extern int debug_boot;
 extern int console_beep (void);
@@ -1851,16 +1851,16 @@ void stop_floppy (void);
 /* Command-line interface functions. */
 
 /* The flags for the builtins.  */
-#define BUILTIN_CMDLINE		0x1	/* Run in the command-line.  */
-#define BUILTIN_MENU			(1 << 1)/* Run in the menu.  */
-#define BUILTIN_IFTITLE		(1 << 2)	/* Only for the command title.  */
-#define BUILTIN_SCRIPT		(1 << 3)/* Run in the script.  */
-#define BUILTIN_NO_ECHO		(1 << 4)	/* Don't print command on booting. */
-#define BUILTIN_HELP_LIST	(1 << 5)/* Show help in listing.  */
-#define BUILTIN_BOOTING		(1 << 6)	/* The command is boot-sensitive.  */
-#define BUILTIN_BAT_SCRIPT	(1 << 7)
-#define BUILTIN_USER_PROG	(1 << 8)
-#define BUILTIN_NO_DECOMPRESSION (1 << 9)
+#define BUILTIN_CMDLINE           0x1       /* Run in the command-line.  */
+#define BUILTIN_MENU              (1 << 1)  /* Run in the menu.  */
+#define BUILTIN_IFTITLE           (1 << 2)  /* Only for the command title.  */
+#define BUILTIN_SCRIPT            (1 << 3)  /* Run in the script.  */
+#define BUILTIN_NO_ECHO           (1 << 4)  /* Don't print command on booting. */
+#define BUILTIN_HELP_LIST         (1 << 5)  /* Show help in listing.  */
+#define BUILTIN_BOOTING           (1 << 6)  /* The command is boot-sensitive.  */
+#define BUILTIN_BAT_SCRIPT        (1 << 7)  /* 在BAT脚本中运行 */
+#define BUILTIN_USER_PROG         (1 << 8)  /* 在用户程序中运行 */
+#define BUILTIN_NO_DECOMPRESSION  (1 << 9)  /* 未减压 */
 
 #define BAT_SIGN 0x54414221UL		//!BAT
 extern grub_size_t bat_md_start;
@@ -1975,7 +1975,7 @@ extern unsigned long long grub_memset64(unsigned long long dst_addr, unsigned in
 extern int grub_memcmp64(unsigned long long str1addr, unsigned long long str2addr, unsigned long long len);
 int mem64 (int func, unsigned long long dest, unsigned long long src, unsigned long long len);
 
-extern unsigned int configfile_opened;
+//extern unsigned int configfile_opened;
 
 /* misc */
 void init_page (void);
@@ -2250,7 +2250,7 @@ extern int is64bit;
 #define IS64BIT_AMD64 2
 
 extern int errorcheck;
-extern unsigned int pxe_restart_config;
+//extern unsigned int pxe_restart_config;
 extern char *efi_pxe_buf; //2023-11-28
 extern unsigned int saved_pxe_ip;
 extern unsigned char saved_pxe_mac[6];

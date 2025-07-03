@@ -139,9 +139,9 @@ cp stage2/pre_stage2.exec $GRUB4DOS_TEMP/x86_64-efi/kernel.img
 platform=`uname -m`
 if [ $platform = 'x86_64' ]
 then
-    $SOURCE_DIR/mkimage -d $GRUB4DOS_TEMP/x86_64-efi -p /efi/grub -o BOOTX64.EFI -O x86_64-efi -c preset_menu.lst
+    $SOURCE_DIR/mkimage -d $GRUB4DOS_TEMP/x86_64-efi -p /efi/grub -o BOOTX64.EFI -O x86_64-efi
 else
-    $SOURCE_DIR/mkimage.i386 -d $GRUB4DOS_TEMP/x86_64-efi -p /efi/grub -o BOOTX64.EFI -O x86_64-efi -c preset_menu.lst
+    $SOURCE_DIR/mkimage.i386 -d $GRUB4DOS_TEMP/x86_64-efi -p /efi/grub -o BOOTX64.EFI -O x86_64-efi
 fi
 
 #**********************************************
@@ -160,9 +160,9 @@ mkdir $GRUB4DOS_TEMP/i386-efi
 cp stage2/pre_stage2.exec $GRUB4DOS_TEMP/i386-efi/kernel.img
 if [ $platform = 'x86_64' ]
 then
-    $SOURCE_DIR/mkimage -d $GRUB4DOS_TEMP/i386-efi -p /efi/grub -o BOOTIA32.EFI -O i386-efi -c preset_menu.lst
+    $SOURCE_DIR/mkimage -d $GRUB4DOS_TEMP/i386-efi -p /efi/grub -o BOOTIA32.EFI -O i386-efi
 else
-    $SOURCE_DIR/mkimage.i386 -d $GRUB4DOS_TEMP/i386-efi -p /efi/grub -o BOOTIA32.EFI -O i386-efi -c preset_menu.lst
+    $SOURCE_DIR/mkimage.i386 -d $GRUB4DOS_TEMP/i386-efi -p /efi/grub -o BOOTIA32.EFI -O i386-efi
 fi
 
 #转到源目录
