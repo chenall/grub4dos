@@ -2389,6 +2389,45 @@ get_embed (void)		//获取嵌入数据
   return 1;
 }
 
+
+//堆栈
+grub_size_t __stack_chk_guard;
+
+//构造堆栈值
+static __attribute__ (( noinline )) grub_size_t make_cookie ( void ) {
+	union {
+		struct {
+			unsigned int eax;
+			unsigned int edx;
+		} __attribute__ (( packed ));
+		unsigned long long raw;
+	} u;
+	grub_size_t cookie;
+
+  //我们没有可行的熵来源。使用CPU时间戳计数器，在我们被调用时，它的低位至少有一些最小的随机性。
+#if defined(__i386__) || defined(__x86_64__)
+	__asm__ ( "rdtsc" : "=a" ( u.eax ), "=d" ( u.edx ) );
+#elif defined(__aarch64__)
+	__asm__ ( "mrs %0, CNTVCT_EL0\n\t" : "=r" ( u.raw ) );
+#endif
+	cookie = u.raw;
+
+  //以充当失控的字符串终止符。使用移位而不是掩码来构造NUL，以避免在低阶比特中丢失有价值的熵。
+	cookie <<= 8;
+
+	return cookie;
+}
+
+  //初始化堆栈cookie
+  //此函数本身不得使用堆栈保护
+void init_cookie ( void ) {
+
+	///设置堆栈cookie值
+	//此函数本身不得使用堆栈保护，因为堆栈保护值的更改会触发误报。
+  //遗憾的是，无法对函数进行注释以排除堆栈保护的使用。因此，我们必须依靠正确预测编译器对使用堆栈保护的决定。
+	__stack_chk_guard = make_cookie();
+}
+
 char *grub_image;
 //char *g4e_data;
 char *PAGING_TABLES_BUF;
@@ -2427,6 +2466,8 @@ grub_init (void)
 	saved_mem_upper = 0;
 	saved_mem_lower = 0;
 	free_mem_lower_start = 0;
+  
+	init_cookie();  //初始化堆栈
 	grub_console_init ();
 
   image = grub_efi_get_loaded_image (grub_efi_image_handle);  //通过映像句柄,获得加载映像grub_efi_loaded_image结构

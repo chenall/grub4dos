@@ -7850,7 +7850,7 @@ struct drive_map_slot
   to = current_drive;						  //to=当前驱动器
 	primeval_to = to;               //保存原始to
   /* if mem device is used, assume the --mem option  如果使用mem驱动器,假设--mem已选择*/
-printf ("from-0,%x,%x,%x,%x\n",from,to,current_drive,saved_drive);
+//printf ("from-0,%x,%x,%x,%x\n",from,to,current_drive,saved_drive);
 //a0,21,21,21;  60,ffff,ffff,21;  map (http)/imgs/ifu352.iso (cd)
 //a0,21,21,21;  60,ffff,ffff,21;  map --mem (http)/imgs/ifu352.iso (cd)
 //81,ffff,ffff.21;  82,7f,7f,81;  ntboot (http)/imgs/boot.wim
@@ -9634,7 +9634,7 @@ static struct builtin builtin_pause =
   "--test-key display keyboard code."	
 };
 
-#if 0
+#if 1
 #ifdef FSYS_PXE
 /* pxe */
 static struct builtin builtin_pxe =
@@ -9642,8 +9642,9 @@ static struct builtin builtin_pxe =
   "pxe",
   pxe_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING | BUILTIN_IFTITLE,
-  "pxe [cmd] [parameters]",
-  "Call PXE command."
+  "pxe     #Return network interface information.\n",
+  "pxe open /path/file    #Open files using HTTP.\n"
+  "pxe read /path/file range_start - range_end    #Read files using HTTP."
 };
 #endif
 #endif
@@ -12750,11 +12751,13 @@ static int set_func(char *arg, int flags)
   else if (grub_memcmp (arg, "tftp", 4) == 0)
   {
     *(char *)IMG(0x8205) &= 0xf7;
+    cur_pxe_type = 0;
     return 1;
   }
   else if (grub_memcmp (arg, "http", 4) == 0)
   {
     *(char *)IMG(0x8205) |= 0x08;
+    cur_pxe_type = 1;
     return 1;
   }
   else if (grub_memcmp (arg, "gbk2uni=", 8) == 0)
@@ -14717,7 +14720,7 @@ struct builtin *builtin_table[] =
   &builtin_password,
   &builtin_pause,
 #ifdef FSYS_PXE
-//  &builtin_pxe,
+  &builtin_pxe,
 #endif
 #ifndef NO_DECOMPRESSION
   &builtin_raw,

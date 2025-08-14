@@ -2275,6 +2275,7 @@ extern int pxe_detect(int, char *);
 extern void pxe_unload(void);
 extern int pxe_init (void);
 int pxe_func(char* arg,int flags);
+extern grub_u32_t cur_pxe_type;
 #ifdef FSYS_IPXE
 extern grub_u32_t has_ipxe;
 int ipxe_func(char* arg,int flags);
@@ -7610,6 +7611,8 @@ enum
 			__unsigned_mul_overflow(a, b, d))
 
 #endif
+
+extern void init_cookie ( void );
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #if 0
 static const unsigned short _gbk2utf16_2[] =
