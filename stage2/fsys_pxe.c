@@ -501,7 +501,7 @@ http_read (char *buf, grub_u64_t len)  //efi读
   else
     r = http_range;
    
-  printf ("Copy data from the network via HTTP, please wait......\n");
+  printf ("Copy data from the network via HTTP, please wait......\r");
 repeat:
   printf_debug ("read_range: %s;    read_len: %x\n",r,len);
   http_configure();   //配置网络接口
@@ -1398,16 +1398,14 @@ pxe_func (char *arg, int flags)
   {
 /* 用法：pxe open /path/file */
     char *p = pxe_name;
-    no_decompression = 1;
     
     arg = skip_to (0, arg);
     while (*arg != ' ')
       *p++ = *arg++;
     *p = 0;
 
-    *(char *)IMG(0x8205) |= 0x08; //使用http
-    http_configure();   //网络接口
-    http_open ();
+    no_decompression = 1; //不读
+    pxe_open (pxe_name);
     printf ("filemax=%x\n",filemax);
     return 1;
   }
@@ -1428,11 +1426,17 @@ pxe_func (char *arg, int flags)
     char *buf = grub_zalloc (256);  //分配内存, 并清零;
 
     arg = skip_to (0, arg);
-    while (*arg != ' ')
+    while (*arg != ' ' && *arg != 0)
       *p++ = *arg++;
     *p = 0;
 
     arg = skip_to (0, arg);
+    if (*arg == 0)
+    {
+      grub_sprintf (range, "bytes=0-");
+      goto aaa;
+    }
+
     if (*arg != '-')
     {
       safe_parse_maxint (&arg, &range_start);
@@ -1456,10 +1460,17 @@ pxe_func (char *arg, int flags)
       else
        return 0; 
     }
-
-    *(char *)IMG(0x8205) |= 0x08; //使用http
-    http_configure();   //网络接口
-    http_read (buf, 256);
+aaa:
+    if (cur_pxe_type)
+    {
+      http_configure();   //网络接口
+      http_read (buf, 256);
+    }
+    else
+    {
+      pxe_configure();   //网络接口
+      tftp_read (buf, 256); //文件尺寸大于256会出错
+    }
     grub_sprintf (tmp, "echo --mem=%d=%d", buf, 256);
     run_line (tmp,flags);
     http_range = 0;

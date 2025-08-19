@@ -940,7 +940,7 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
 	(! read_block (ctx, 0ULL, ((vcn - ctx->target_vcn) << log2_spc) >> 3, 0, 0xedde0d90)))
 	return 0;
 
-    if ((cached) && (valueat(pa,0xC,unsigned short) & (FLAG_COMPRESSED + FLAG_SPARSE))==0)
+    if ((cached)/* && (valueat(pa,0xC,unsigned short) & (FLAG_COMPRESSED + FLAG_SPARSE))==0*/)  //解除NTFS文件系统对压缩与稀疏文件读挂钩的限制  2025-08-19
 	disk_read_func = disk_read_hook;
     else if (write == 0x900ddeed)	/* write */
     {
