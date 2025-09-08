@@ -28,10 +28,13 @@ grub_u32_t cur_pxe_type;
 int map_pd;
 int only_tftp = 0;
 struct grub_efi_pxe *pxe_entry;
-IP4 pxe_sip;        //服务器IP  tftp使用
-IP4 pxe_yip;        //自己的IP
-IP4 station_ip;     //站IP
-IP4 subnet_mask;	 	//子网掩码
+grub_u32_t pxe_sip;        //服务器IP  tftp使用
+grub_u32_t pxe_yip;        //自己的IP
+grub_u32_t station_ip;     //站IP
+grub_u32_t subnet_mask;	 	//子网掩码
+grub_u8_t *bootfile;
+MAC_ADDR pxe_mac;
+static void print_ip (grub_u32_t ip);
 static int pxe_opened = 0;
 static char filename[128];
 static char *pxe_name = filename;
@@ -43,7 +46,7 @@ int is_ip6 = 0;
 static char default_server[128];  //默认服务器IPv4  http使用
 //static grub_efi_net_interface_t *net_interface;
 struct grub_efi_net_device *net_devices = 0;
-BOOTPLAYER *discover_reply = 0;		//引导播放器
+grub_efi_pxe_dhcpv4_packet_t *discover_reply = 0;		//引导播放器
 unsigned int max_packet_size;  //最大包尺寸
 unsigned long long hex;
 
@@ -93,6 +96,27 @@ static grub_efi_guid_t http_service_binding_guid = GRUB_EFI_HTTP_SERVICE_BINDING
 static grub_efi_guid_t http_guid = GRUB_EFI_HTTP_PROTOCOL_GUID;
 static grub_efi_guid_t pxe_io_guid = GRUB_EFI_PXE_GUID;
 static grub_efi_guid_t net_io_guid = GRUB_EFI_SIMPLE_NETWORK_GUID;	//简单网络
+
+static char* pxe_outhex (char* pc, unsigned char c);
+static char* pxe_outhex (char* pc, unsigned char c)		//pxe十六进制
+{
+  int i;
+
+  pc += 2;
+  for (i = 1; i <= 2; i++)
+    {
+      unsigned char t;
+
+      t = c & 0xF;
+      if (t >= 10)
+        t += 'A' - 10;
+      else
+        t += '0';
+      *(pc - i) = t;
+      c = c >> 4;
+    }
+  return pc;
+}
 
 //对于tftp，判断是否首次打开文件名，确定是否必须读
 //配置tftp/http
@@ -339,8 +363,8 @@ static int tftp_open(void)		//tftp打开
 	    0,
 			(grub_efi_uint64_t *)(grub_size_t)&filemax, //缓存尺寸
 	    NULL,																				//块尺寸
-	    (IP4 *)(grub_size_t)&pxe_sip,						    //服务器IP
-	    pxe_name,															//文件名
+	    (grub_u32_t *)(grub_size_t)&pxe_sip,			  //服务器IP
+	    pxe_name,															      //文件名
 	    NULL,
 	    0);
   if (status != GRUB_EFI_SUCCESS)		//失败
@@ -374,8 +398,8 @@ tftp_read (char *buf, grub_u64_t len)  //efi读
 				0,
 				(grub_efi_uint64_t *)(grub_size_t)&len,//缓存尺寸
 				NULL,																		//块尺寸
-				(IP4 *)(grub_size_t)&pxe_sip,					  //服务器IP
-				pxe_name,												  //文件名
+				(grub_u32_t *)(grub_size_t)&pxe_sip,	  //服务器IP
+				pxe_name,												        //文件名
 				NULL,
 				0);
   if (status != GRUB_EFI_SUCCESS)		//失败
@@ -399,7 +423,7 @@ int tftp_write (const char *name)		//tftp写  2023-11-24
 				1,                                      //可以覆盖服务器上的文件
 				(grub_efi_uint64_t *)(grub_size_t)&filemax,//缓存尺寸
 				NULL,																		//块尺寸
-				(IP4 *)(grub_size_t)&pxe_sip,					  //服务器IP
+				(grub_u32_t *)(grub_size_t)&pxe_sip,    //服务器IP
 				(char *)name,													  //文件名
 				NULL,
 				0);
@@ -512,11 +536,8 @@ repeat:
 
   //如果客户端读尺寸不等于服务器写尺寸，会搞乱通讯指针。使得下一次读取错误。
   //len不能大于filesize。但是len可以小于filesize，由tem_buf吸收多余部分。
-  if (partial_content && len != filesize) //len是客户端读尺寸，filesize是服务器写尺寸。
-  {
-    if (len > filesize)
-      len = filesize;
-  }
+  if (len > filesize) //len是客户端读尺寸，filesize是服务器写尺寸。
+    len = filesize;
 
   if (partial_content)
     printf_debug ("206: ");
@@ -932,7 +953,7 @@ gbk->utf8_to_multimode(2)                           /ab中国cd.iso   ok!
     return (errnum = 0x1234);  
   }
 
-aaa:
+aaa:;
     int i;
     //从ContentLength标头解析文件的长度
     for (i = 0; i < (int)response_message.header_count; ++i)
@@ -1106,7 +1127,7 @@ grub_efi_net_find_cards (void)   //查找支持ip4配置2的卡  初始化http
   printf_debug ("ip4_handles=%x, num_handles=%x\n",handles,num_handles);
   if (!handles)
   {
-    printf ("Does not support EFI_IP4FHIR G2-POTOCOL!\n");
+    printf_errinfo ("Does not support EFI_IP4FHIR G2-POTOCOL!\n");
     return 1;
   }
 
@@ -1141,8 +1162,8 @@ grub_efi_net_find_cards (void)   //查找支持ip4配置2的卡  初始化http
     printf_debug ("http=%x\n",http);
     if (!http)
     {
-      printf ("Does not support EFI_HTTP_PROTOCOL!\n");
-      goto err;;
+      printf_errinfo ("Does not support EFI_HTTP_PROTOCOL!\n");
+      goto err;
     }
 
     d = grub_malloc (sizeof (*d));  //分配内存
@@ -1179,19 +1200,18 @@ grub_efi_net_find_cards (void)   //查找支持ip4配置2的卡  初始化http
   grub_efi_status_t status;
   grub_efi_net_ip_manual_address_t net_ip;
   grub_efi_ip4_config2_manual_address_t *address = &net_ip.ip4;
-  printf_debug ("station_ip=%x\n",station_ip);//272a8c0
-  printf_debug ("subnet_mask=%x\n",subnet_mask);//ffffff
+  printf_debug ("station_ip=%x\n",station_ip);
+  printf_debug ("subnet_mask=%x\n",subnet_mask);
 
   *(int*)net_ip.ip4.address = station_ip;
   *(int*)net_ip.ip4.subnet_mask = subnet_mask;
   net_ip.is_ip6 = 0;
-  
   status = efi_call_4 (net_devices->ip4_config->set_data, net_devices->ip4_config,
 		    GRUB_EFI_IP4_CONFIG2_DATA_TYPE_MANUAL_ADDRESS,  //手动地址
 		    sizeof(*address), address);
   printf_debug ("status=%x\n",status);
   if (status != GRUB_EFI_SUCCESS)
-    goto err;;
+    goto err;
 
   if (debug > 1)
     getkey();
@@ -1260,6 +1280,46 @@ grub_efi_service_binding (grub_efi_handle_t dev, grub_efi_guid_t *service_bindin
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //net\drivers\efi\efinet.c
 
+grub_u32_t get_dhcp_option_66(grub_efi_pxe_dhcpv4_packet_t *bp);
+grub_u32_t get_dhcp_option_66(grub_efi_pxe_dhcpv4_packet_t *bp)  //选项66支持   由江南一根葱提供
+{
+  unsigned char *option_ptr = bp->dhcp_options;
+
+//01 客户端子网掩码; 03 路由器IP; 05 名称服务器IP; 06 DNS服务器IP; 12(0c) 指定客户端主机名; 15(0f) DNS域名; 28(1c) 广播地址;
+//51(33) IP地址租用时间; 54(36) 标识服务器IP; 55(37) 客户端请求特定选项; 61(3d) 客户端硬件类型+MAC地址; 66(42) 标识TFTP服务器名称;
+//67(43) 指定引导文件名; 150(96) TFTP服务器地址;
+//TinyPXEServe dhcp
+//63 82 53 63 35 01 05 36 - 04 c0 a8 58 01 3c 09 50   36:192.168.88.1
+//58 45 43 6c 69 65 6e 74 - 61 11 00 56 4d 5c a3 70
+//77 b7 3a 9b 4a 2b 44 b7 - 83 7a 6b 01 04 ff ff ff   01:255.255.255.0
+//00 03 04 c0 a8 58 01 06 - 04 c0 a8 58 01 33 04 00   03:192.168.88.1   06:192.168.88.1   33:0.1.81.128
+//01 51 80 ff 00 00 00 00
+//TinyPXEServe proxy
+//63 82 53 63 35 01 05 36 - 04 c0 a8 58 fe 33 04 00   36:192.168.88.254
+//00 07 08 01 04 ff ff ff - 00 03 04 c0 a8 58 02 06   03:192.168.88.2   06:192.168.88.2
+//04 c0 a8 58 02 0f 0b 6c - 6f 63 61 6c 64 6f 6d 61   1c:192.168.88.255
+//69 6e 1c 04 c0 a8 58 ff - 3a 04 00 00 03 84 3b 04
+//00 00 06 27 ff 00 00 00
+
+  //如果存在魔术饼干则跳过(0x63825363)
+//  if (option_ptr[0] == 0x63 && option_ptr[1] == 0x82 && option_ptr[2] == 0x53 && option_ptr[3] == 0x63)
+//    option_ptr += 4;
+  while (*option_ptr != 0xFF) //循环到结束选项(0xFF)
+  {
+    unsigned char option_code = *option_ptr;
+    unsigned char option_len = *(option_ptr + 1);
+    if (option_code == 0x42) { //选项66：下一个服务器IP地址
+      if (option_len == 4) //确保它是IPv4地址
+        return *(grub_u32_t *)(option_ptr + 2);
+  }
+    option_ptr += (2 + option_len); //移动到下一个选项（代码+长度+值）
+    //基本健全性检查，防止对格式错误的数据包进行无限循环
+    if (option_ptr >= (unsigned char *)bp + sizeof(grub_efi_pxe_dhcpv4_packet_t))
+      break;
+  }
+  return 0; //没有找到
+}
+
 static int grub_efinet_findcards (void);
 static int
 grub_efinet_findcards (void)	//查找支持简单网络接口的卡  初始化tftp
@@ -1276,6 +1336,7 @@ grub_efinet_findcards (void)	//查找支持简单网络接口的卡  初始化tf
     return 1;
   printf_debug ("handles=%x, num_handles=%x\n",handles,num_handles);//e59bd80,3
 
+  struct grub_efi_pxe *pxe = 0;
   //查找MAC消息设备
   for (handle = handles; num_handles--; handle++)
 	{
@@ -1290,6 +1351,20 @@ grub_efinet_findcards (void)	//查找支持简单网络接口的卡  初始化tf
 			continue;
     if (debug > 1)
       grub_efi_print_device_path(dp); //打印路径
+
+    //尝试打开pxe协议
+    if (!pxe)
+    {
+      pxe = grub_efi_open_protocol (*handle, &pxe_io_guid,  //VM在MAC，QEMU在MAC/IPV4
+          GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);  
+      if (pxe)	//失败
+      {
+        pxe_entry = pxe;
+        pd_handle = *handle;
+        pd_dp = dp;
+        printf_debug ("pxe_entry=%x\n",pxe_entry);
+      }
+    }
 
 		for (; ! GRUB_EFI_END_ENTIRE_DEVICE_PATH (dp); dp = GRUB_EFI_NEXT_DEVICE_PATH (dp))
 		{
@@ -1307,7 +1382,7 @@ grub_efinet_findcards (void)	//查找支持简单网络接口的卡  初始化tf
 			continue;
 
     //通过句柄打开网络协议.
-		net = grub_efi_open_protocol (*handle, &net_io_guid,
+		net = grub_efi_open_protocol (*handle, &net_io_guid,  //VM及QEMU都在MAC
 				GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
 		if (! net)	//失败
 			continue;
@@ -1330,37 +1405,121 @@ grub_efinet_findcards (void)	//查找支持简单网络接口的卡  初始化tf
 	}
   grub_free (handles);	//释放
   
-  //打开pxe协议
+#if 0
+  //通过启动句柄打开pxe协议
   pxe_entry = grub_efi_open_protocol (image->device_handle, &pxe_io_guid,
 				  GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
+#endif
   if (! pxe_entry)	//失败
     return 1;
-  printf_debug ("pxe_entry=%x\n",pxe_entry);
 
+  if (!*(grub_u32_t *)&pxe_entry->mode->station_ip.v4)   //非网起时，开启网络功能
+  {
+    printf ("Running DHCP request IP, please wait ......\n");
+    grub_efi_status_t status;
+    status = efi_call_2 (pxe_entry->start,  //启动pxe
+	    pxe_entry, 0);
+    
+    status = efi_call_2 (pxe_entry->dhcp,   //尝试完成DHCPv4(发现/提供/请求/确认)
+	    pxe_entry, 0);
+    if (status == GRUB_EFI_SUCCESS)
+      printf_debug ("dhcp ok\n");
+    else
+      printf_debug ("dhcp failure\n");
+  }
+
+  // ===================== PROXY DHCP MODIFICATION START =====================
+  //由江南一根葱提供
   //从引导播放器获取IP地址
   struct grub_efi_pxe_mode *pxe_mode = pxe_entry->mode;	//模式
-  discover_reply = (BOOTPLAYER *)((char *)&pxe_mode->dhcp_ack.dhcpv4);	//引导播放器
-  pxe_sip = discover_reply->sip;	      //服务器IP
-  pxe_yip = discover_reply->yip;        //自己的IP
-  station_ip = *(int*)pxe_mode->station_ip.v4;    //站IP
-  subnet_mask = *(int*)pxe_mode->subnet_mask.v4;  //子网掩码
-  printf_debug ("pxe_sip=%x, pxe_yip=%x\n",pxe_sip,pxe_yip);//901a8c0,b01a8c0
-  printf_debug ("station_ip=%x, subnet_mask=%x\n",station_ip,subnet_mask);
-  
+  //添加循环以等待PXE回复
+  int i;
+  for (i = 0; i < 5; i++) //尝试5次
+  {
+    if (pxe_entry->mode->pxe_reply_received)  //pxe收到回复
+      break;
+    efi_call_1(grub_efi_system_table->boot_services->stall, 1000000); //延时1秒
+  }
+
+  //从引导播放器获取IP地址
+  //首先，将 discover_reply 指向 dhcp_ack，这是基础信息源
+  discover_reply = (grub_efi_pxe_dhcpv4_packet_t *)((char *)&pxe_entry->mode->dhcp_ack.dhcpv4);	//引导播放器
+
+  //始终使用EFI PXE协议栈确定的客户端IP
+  pxe_yip = *(grub_u32_t *)&pxe_entry->mode->station_ip.v4;    //站IP
+  station_ip = *(int*)pxe_entry->mode->station_ip.v4;   //站IP
+  subnet_mask = *(int*)pxe_entry->mode->subnet_mask.v4; //子网掩码
+  grub_memmove (&pxe_mac, &discover_reply->bootp_hw_addr, 6);   //MAC
+
+  //添加调试信息
+  printf_debug("DHCP ACK received: %u\n", pxe_mode->dhcp_ack_received);       //收到dhcp ack
+  printf_debug("Proxy Offer received: %u\n", pxe_mode->proxy_offer_received); //收到代理报文
+
+  // <<< 这是实现 Proxy DHCP 支持的核心逻辑 >>>
+  //检查是否收到了 Proxy Offer，并且主 DHCP ACK 中没有提供启动文件
+  if (pxe_entry->mode->proxy_offer_received && discover_reply->bootp_boot_file[0] == '\0')
+  {
+    //从Proxy Offer中复制启动文件名。
+    grub_memcpy(discover_reply->bootp_boot_file, pxe_entry->mode->proxy_offer.dhcpv4.bootp_boot_file, sizeof(discover_reply->bootp_boot_file)); //代理提供
+    
+    //从Proxy Offer中获取服务器IP。
+    pxe_sip = pxe_entry->mode->proxy_offer.dhcpv4.bootp_si_addr; 
+    printf_debug("Use proxy offer information. %x,(%x)\n",pxe_sip,discover_reply->bootp_si_addr);
+  }
+  else
+  {
+    //如果没有 Proxy Offer，或者主 DHCP ACK 已经包含了启动信息，则直接使用 dhcp_ack 的信息
+    pxe_sip = discover_reply->bootp_si_addr;
+    printf_debug("Use standard DHCP ACK information. %x,(%x)\n",pxe_sip,pxe_entry->mode->proxy_offer.dhcpv4.bootp_si_addr);
+  }
+
+  //最后的 fallback：如果 pxe_sip 仍然是0，尝试从 DHCP 选项66 获取
+  if (pxe_sip == 0)
+  {
+    printf_debug("Server IP is empty, try DHCP option 66...\n");
+    grub_u32_t next_server_ip = get_dhcp_option_66(discover_reply);
+    if (next_server_ip)
+    {
+      pxe_sip = next_server_ip;
+      printf_debug("Use DHCP option 66 information.. %x\n",pxe_sip);
+    }
+    else
+      return 0;
+  }
+
+  //显式调用 pxe_entry->set_station_ip 函数，将DHCP分配的客户端IP和子网掩码传递给EFI PXE协议栈
+  grub_efi_status_t status = efi_call_3(pxe_entry->set_station_ip, pxe_entry,
+                                        (grub_u32_t *)(grub_size_t)&station_ip,
+                                        (grub_u32_t *)(grub_size_t)&subnet_mask);
+  if (status != GRUB_EFI_SUCCESS)
+    printf_errinfo("Failed to set the IP address for the PXE station: %x\n", (int)status);
+
+  // ===================== PROXY DHCP MODIFICATION END =====================
+
+  bootfile = discover_reply->bootp_boot_file;
   grub_sprintf (default_server,  "%d.%d.%d.%d",
 	     ((grub_uint8_t *) &pxe_sip)[0],
 	     ((grub_uint8_t *) &pxe_sip)[1],
 	     ((grub_uint8_t *) &pxe_sip)[2],
 	     ((grub_uint8_t *) &pxe_sip)[3]);
-  printf_debug ("default_server=%s\n",default_server);
-  
+  // 打印最终结果用于调试
   if (debug > 1)
+  {
+    printf("YIP : ");
+    print_ip (pxe_yip) ;
+    printf("\nSIP : ");
+    print_ip (pxe_sip);
+    printf("\n");
+    printf("default_server=%s\n",default_server);
+    printf("bootfile: %s\n",bootfile);
     getkey();
+  }
+
   return 0;
  }
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-static void print_ip (IP4 ip);
-static void print_ip (IP4 ip)
+
+static void print_ip (grub_u32_t ip)
 {
   int i;
 
@@ -1376,16 +1535,39 @@ int pxe_func (char *arg, int flags);
 int
 pxe_func (char *arg, int flags)
 {
+  if (grub_memcmp(arg, "init", 4) == 0)
+  {
+    pxe_init ();
+    saved_drive = PXE_DRIVE;
+    current_drive = PXE_DRIVE;
+    saved_partition = 0xFFFFFF;
+    current_partition = 0xFFFFFF;
+
+    return 1;
+  }
+
   if (! pxe_entry)
     return 0;
 
   if (*arg == 0)
   {
+    char buf[4], *pc;
+    int i;
+
     grub_printf ("client ip     : ");
     print_ip (pxe_yip);
     grub_printf ("\nserver ip     : ");
     print_ip (pxe_sip);
     grub_printf ("\npacket_size   : %d",max_packet_size);
+    grub_printf ("\nmac           : ");
+    for (i = 0; i < 6; i++)
+    {
+      pc = buf;
+      pc = pxe_outhex (pc, pxe_mac[i]);
+      *pc = 0;
+      grub_printf ("%s%c", buf, ((i == 5) ? ' ' : '-'));
+    }
+    grub_printf ("\nbootfile      : %s",bootfile);
     grub_printf ("\npxe_type      : ");
     if (cur_pxe_type)
       grub_printf ("http\n");
@@ -1487,7 +1669,6 @@ pxe_init (void)
 //  debug = 3;
   int err;
   
-  image = grub_efi_get_loaded_image (grub_efi_image_handle);
   printf_debug ("UEFI revision: %x\n",grub_efi_system_table->hdr.revision);
 
   err = grub_efinet_findcards ();		//查找支持简单网络接口的卡  初始化tftp

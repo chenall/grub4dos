@@ -2266,7 +2266,7 @@ extern grub_u8_t pxe_mac_len, pxe_mac_type;
 extern MAC_ADDR pxe_mac;
 extern grub_u32_t pxe_yip, pxe_sip, pxe_gip;
 extern unsigned int pxe_keep;
-extern BOOTPLAYER *discover_reply;
+//extern grub_efi_pxe_dhcpv4_packet_t *discover_reply;
 extern unsigned short pxe_basemem, pxe_freemem;
 extern struct grub_efi_pxe *pxe_entry;
 extern unsigned int pxe_inited;
@@ -4111,30 +4111,31 @@ struct grub_efi_simple_text_output_interface  //简单文本输出接口
 };
 typedef struct grub_efi_simple_text_output_interface grub_efi_simple_text_output_interface_t;		//g4d:占28
 
-//typedef unsigned char grub_efi_pxe_packet_t[1472];	//pxe包  0x5c0
 
 typedef struct grub_efi_pxe_dhcpv4_packet	//引导播放器		备注: 在 ipxe->bootia32.efi 时, pxe_reply与dhcp_ack相同; bootp_yi_addr = c0 a8 38 06
-{																					//dhcp_discover				dhcp_ack				proxy_offer,pxe_discover,pxe_reply,pxe_bis_reply
-  grub_efi_uint8_t bootp_opcode;					//01									02							全部0
-  grub_efi_uint8_t bootp_hwtype;					//01
-  grub_efi_uint8_t bootp_hwaddr_len;			//06
+{																					//            dhcp_discover				dhcp_ack				proxy_offer,pxe_discover,pxe_reply,pxe_bis_reply
+  grub_efi_uint8_t bootp_opcode;					//操作码	      01									02							全部0
+  grub_efi_uint8_t bootp_hwtype;					//硬件类型    01
+  grub_efi_uint8_t bootp_hwaddr_len;			//硬件地址长度06
   grub_efi_uint8_t bootp_gate_hops;				//00
-  grub_efi_uint32_t bootp_ident;					//59 6b 5d 13					07 6c 4a a1
-  grub_efi_uint16_t bootp_seconds;				//00 00	
-  grub_efi_uint16_t bootp_flags;					//80 00
-  grub_efi_uint8_t bootp_ci_addr[4];			//00 00 00 00
-  grub_efi_uint8_t bootp_yi_addr[4];			//00 00 00 00					c0 a8 38 02
-  grub_efi_uint8_t bootp_si_addr[4];			//00 00 00 00					c0 a8 38 01
-  grub_efi_uint8_t bootp_gi_addr[4];			//00 00 00 00
-  grub_efi_uint8_t bootp_hw_addr[16];			//00 0c 29 8d cc d9
-  grub_efi_uint8_t bootp_srv_name[64];		//0										PC-201311212111
-  grub_efi_uint8_t bootp_boot_file[128];	//0										bootia32.EFI
-  grub_efi_uint32_t dhcp_magik;						//63 82 53 63
-  grub_efi_uint8_t dhcp_options[56];			//35 01 01 39 02 05 c0 37 - 23 01 02 03 04 05 06 0c - 0d 0f 11 12 16 17 1c 28 - 29 2a 2b 32 33 36 3a 3b
-																					//3c 42 43 61 80 81 82 83 - 84 85 86 87 61 11 00 56 - 4d dc 4a a9 a8 2f 94 73 - 61 65 d5 98 8d cc d9 5e
-																					//03 01 03 10 5d 02 00 06 - 3c 20 50 58 45 43 6c 69 - 65 6e 74 3a 41 72 63 68 - 3a 30 30 30 30 36 3a 55
-																					//4e 44 49 3a 30 30 33 30 - 31 36 ff 00
+  grub_efi_uint32_t bootp_ident;					//随机数      59 6b 5d 13					07 6c 4a a1
+  grub_efi_uint16_t bootp_seconds;				//引导以来秒数00 00	
+  grub_efi_uint16_t bootp_flags;					//标记        80 00
+  grub_u32_t bootp_ci_addr;               //客户IP      00 00 00 00
+  grub_u32_t bootp_yi_addr;               //你的IP      00 00 00 00					c0 a8 38 02
+  grub_u32_t bootp_si_addr;               //服务器IP    00 00 00 00					c0 a8 38 01
+  grub_u32_t bootp_gi_addr;               //网关IP      00 00 00 00
+  grub_efi_uint8_t bootp_hw_addr[16];     //客户硬件地址00 0c 29 8d cc d9
+  grub_efi_uint8_t bootp_srv_name[64];		//服务器的主机名										PC-201311212111
+  grub_efi_uint8_t bootp_boot_file[128];	//引导文件名  0									  bootia32.EFI
+  grub_efi_uint32_t dhcp_magik;           //魔术        63 82 53 63
+  grub_efi_uint8_t dhcp_options[56];			//选项  35 01 01 39 02 05 c0 37 - 23 01 02 03 04 05 06 0c - 0d 0f 11 12 16 17 1c 28 - 29 2a 2b 32 33 36 3a 3b
+																					//      3c 42 43 61 80 81 82 83 - 84 85 86 87 61 11 00 56 - 4d dc 4a a9 a8 2f 94 73 - 61 65 d5 98 8d cc d9 5e
+																					//      03 01 03 10 5d 02 00 06 - 3c 20 50 58 45 43 6c 69 - 65 6e 74 3a 41 72 63 68 - 3a 30 30 30 30 36 3a 55
+																					//      4e 44 49 3a 30 30 33 30 - 31 36 ff 00
 } grub_efi_pxe_dhcpv4_packet_t;
+
+extern grub_efi_pxe_dhcpv4_packet_t *discover_reply;
 
 struct grub_efi_pxe_dhcpv6_packet
 {
@@ -4246,7 +4247,7 @@ typedef struct grub_efi_pxe_mode  //pxe模式
   grub_efi_ip_address_t station_ip;		 	//站IP									c0 a8 38 02		c0 a8 38 06
   grub_efi_ip_address_t subnet_mask;	 	//子网掩码							ff ff ff 00
   grub_efi_pxe_packet_t dhcp_discover;	//dhcp发现							
-  grub_efi_pxe_packet_t dhcp_ack;				//dhcp_ack	引导播放器
+  grub_efi_pxe_packet_t dhcp_ack;				//dhcp_ack
   grub_efi_pxe_packet_t proxy_offer;		//代理提供
   grub_efi_pxe_packet_t pxe_discover;		//pxe发现
   grub_efi_pxe_packet_t pxe_reply;			//pxe回复
@@ -4261,6 +4262,60 @@ typedef struct grub_efi_pxe_mode  //pxe模式
 } grub_efi_pxe_mode_t;
 
 
+//*******************************************************
+// Bootstrap Types  引导类型
+//*******************************************************
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_BOOTSTRAP 0         //自举
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_MS_WINNT_RIS 1
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_INTEL_LCM 2
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_DOSUNDI 3
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_NEC_ESMPRO 4
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_IBM_WSoD 5
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_IBM_LCCM 6
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_CA_UNICENTER_TNG 7
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_HP_OPENVIEW 8
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_ALTIRIS_9 9
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_ALTIRIS_10 10
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_ALTIRIS_11 11
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_NOT_USED_12 12      //未使用
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_REDHAT_INSTALL 13   //红帽安装
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_REDHAT_BOOT 14      //红帽引导
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_REMBO 15
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_BEOBOOT 16
+//
+// Values 17 through 32767 are reserved.                保留值17到32767
+// Values 32768 through 65279 are for vendor use.       值32768到65279供供应商使用
+// Values 65280 through 65534 are reserved.             保留值65280到65534
+//
+#define EFI_PXE_BASE_CODE_BOOT_TYPE_PXETEST 65535       //PXE试验
+#define EFI_PXE_BASE_CODE_BOOT_LAYER_MASK 0x7FFF        //层蒙版
+#define EFI_PXE_BASE_CODE_BOOT_LAYER_INITIAL 0x0000     //层初始
+
+//*******************************************************
+// EFI_PXE_BASE_CODE_SRVLIST  Ip列表
+//*******************************************************
+typedef struct grub_efi_srvlist
+{
+ grub_u16_t     Type;
+ grub_int8_t    AcceptAnyResponse;
+ grub_int8_t    reserved;
+ grub_uint16_t  IpAddr;
+} grub_efi_srvlist_t;
+
+//*******************************************************
+// EFI_PXE_BASE_CODE_DISCOVER_INFO  发现信息
+//*******************************************************
+typedef struct grub_efi_discover_info
+{
+ grub_int8_t UseMCast;    //使用MCast   通过多播进行发现
+ grub_int8_t UseBCast;    //使用BCast   通过广播进行发现，但仅适用于IPv4
+ grub_int8_t UseUCast;    //使用UCast   通过单播进行发现
+ grub_int8_t MustUseList; //必须使用列表
+ grub_uint16_t ServerMCastIp;  //服务器MCastIp
+ grub_uint16_t IpCnt;        //Ip计数
+ grub_efi_srvlist_t SrvList[8];  //Ip列表
+} grub_efi_discover_info_t;
+
 typedef struct grub_efi_pxe
 {
   grub_uint64_t rev;							//版本
@@ -4269,7 +4324,11 @@ typedef struct grub_efi_pxe
   void (*stop) (void);						//停止	停止PXE基本代码协议。 该功能不会改变模式结构信息。 在重新启动基本代码之前，不会运行任何基本代码协议功能。
   grub_efi_status_t (*dhcp) (struct grub_efi_pxe *this,
 			    grub_efi_boolean_t sort_offers);								//dhcp  尝试完成DHCPv4 D.O.R.A. （发现/提供/请求/确认）或DHCPv6 S.A.R.R（请求/发布/请求/回复）序列。
-  void (*discover) (void);				//发现  尝试完成PXE引导服务器和/或引导映像发现序列。
+  grub_efi_status_t (*discover) (struct grub_efi_pxe *this,	//发现  尝试完成PXE引导服务器和/或引导映像发现序列。
+          grub_u16_t type,
+          grub_u16_t *layer,
+          char usebis,
+          grub_efi_discover_info_t *Info);
 	//执行TFTP和MTFTP服务。
   grub_efi_status_t (*mtftp) (struct grub_efi_pxe *this,		//指向EFI_PXE_BASE_CODE_PROTOCOL实例的指针
 			    grub_efi_pxe_base_code_tftp_opcode_t operation,		//运作方式  要执行的操作类型。
@@ -6540,25 +6599,6 @@ typedef struct grub_net_network_level_address
   grub_dns_option_t option;
 } grub_net_network_level_address_t;
 
-struct grub_net_bootp_packet		//引导播放器
-{
-  grub_uint8_t opcode;		//操作码												01
-  grub_uint8_t hw_type;		//硬件类型											01
-  grub_uint8_t hw_len;		//件地址长度										06
-  grub_uint8_t gate_hops;	//归零													00
-  grub_uint32_t ident;		//客户选择的随机数							59 6b 5d 13 
-  grub_uint16_t seconds;	//自初始引导以来的秒数					00 00
-  grub_uint16_t flags;		//标记													80 00
-  grub_uint32_t	client_ip;	//客户IP											00 00 00 00
-  grub_uint32_t your_ip;		//你的IP											00 00 00 00
-  grub_uint32_t	server_ip;	//服务器IP										00 00 00 00
-  grub_uint32_t	gateway_ip;	//网关IP											00 00 00 00
-  grub_net_bootp_mac_addr_t mac_addr;	//客户端硬件地址		00 0c 29 8d cc d9 00 00 - 00 00 00 00 00 00 00 00
-  char server_name[64];			//服务器的主机名							0
-  char boot_file[128];			//引导文件名									0
-  grub_uint8_t vendor[0];		//供应商
-} GRUB_PACKED;
-
 struct grub_net_network_level_interface
 {
   struct grub_net_network_level_interface *next;
@@ -6568,7 +6608,7 @@ struct grub_net_network_level_interface
   grub_net_network_level_address_t address;
   grub_net_link_level_address_t hwaddress;
   grub_net_interface_flags_t flags;
-  struct grub_net_bootp_packet *dhcp_ack;
+  grub_efi_pxe_dhcpv4_packet_t *dhcp_ack;
   grub_size_t dhcp_acklen;
   grub_uint16_t vlantag;
   void *data;
@@ -6595,15 +6635,15 @@ typedef struct grub_efi_service_binding
 typedef struct grub_efi_dhcp4_protocol grub_efi_dhcp4_protocol_t;
 
 enum grub_efi_dhcp4_state {
-  GRUB_EFI_DHCP4_STOPPED,
-  GRUB_EFI_DHCP4_INIT,
-  GRUB_EFI_DHCP4_SELECTING,
-  GRUB_EFI_DHCP4_REQUESTING,
-  GRUB_EFI_DHCP4_BOUND,
-  GRUB_EFI_DHCP4_RENEWING,
-  GRUB_EFI_DHCP4_REBINDING,
-  GRUB_EFI_DHCP4_INIT_REBOOT,
-  GRUB_EFI_DHCP4_REBOOTING
+  GRUB_EFI_DHCP4_STOPPED,    //已停止
+  GRUB_EFI_DHCP4_INIT,       //初始化
+  GRUB_EFI_DHCP4_SELECTING,  //正在选择
+  GRUB_EFI_DHCP4_REQUESTING, //正在请求
+  GRUB_EFI_DHCP4_BOUND,      //形成
+  GRUB_EFI_DHCP4_RENEWING,   //正在更新
+  GRUB_EFI_DHCP4_REBINDING,  //重新绑定
+  GRUB_EFI_DHCP4_INIT_REBOOT,//初始化重新启动
+  GRUB_EFI_DHCP4_REBOOTING   //重新启动
 };
 
 typedef enum grub_efi_dhcp4_state grub_efi_dhcp4_state_t;
@@ -6627,13 +6667,13 @@ struct grub_efi_dhcp4_header {
 
 typedef struct grub_efi_dhcp4_header grub_efi_dhcp4_header_t;
 
-struct grub_efi_dhcp4_packet {
-  grub_efi_uint32_t size;
-  grub_efi_uint32_t length;
+struct grub_efi_dhcp4_packet {        //数据包
+  grub_efi_uint32_t size;             //缓冲尺寸     数据包缓冲区的大小
+  grub_efi_uint32_t length;           //数据包尺寸   从标头的第一个字节开始的数据包长度
   struct {
-    grub_efi_dhcp4_header_t header;
-    grub_efi_uint32_t magik;
-    grub_efi_uint8_t option[1];
+    grub_efi_dhcp4_header_t header;   //数据包报头
+    grub_efi_uint32_t magik;          //魔术
+    grub_efi_uint8_t option[1];       //选项数据
   } dhcp4;
 } GRUB_PACKED;
 
@@ -6710,41 +6750,55 @@ struct grub_efi_dhcp4_config_data {
 typedef struct grub_efi_dhcp4_config_data grub_efi_dhcp4_config_data_t;
 
 struct grub_efi_dhcp4_mode_data {
-  grub_efi_dhcp4_state_t state;
-  grub_efi_dhcp4_config_data_t config_data;
-  grub_efi_ipv4_address_t client_address;
-  grub_efi_mac_address_t client_mac_address;
-  grub_efi_ipv4_address_t server_address;
-  grub_efi_ipv4_address_t router_address;
-  grub_efi_ipv4_address_t subnet_mask;
-  grub_efi_uint32_t lease_time;
-  grub_efi_dhcp4_packet_t *reply_packet;
+  grub_efi_dhcp4_state_t state;               //状态
+  grub_efi_dhcp4_config_data_t config_data;   //配置数据
+  grub_efi_ipv4_address_t client_address;     //客户端IP地址
+  grub_efi_mac_address_t client_mac_address;  //客户MAC地址
+  grub_efi_ipv4_address_t server_address;     //服务器IP地址
+  grub_efi_ipv4_address_t router_address;     //路由器IP地址
+  grub_efi_ipv4_address_t subnet_mask;        //子网掩码
+  grub_efi_uint32_t lease_time;               //IP地址的租用时间
+  grub_efi_dhcp4_packet_t *reply_packet;      //回复数据包指针
 };
 
 typedef struct grub_efi_dhcp4_mode_data grub_efi_dhcp4_mode_data_t;
 
 struct grub_efi_dhcp4_protocol {
-  grub_efi_status_t (*get_mode_data) (grub_efi_dhcp4_protocol_t *this,
+  //返回EFI DHCPv4协议驱动程序的当前操作模式和缓存数据包。
+  grub_efi_status_t (*get_mode_data) (grub_efi_dhcp4_protocol_t *this,      //获取模式数据
 	      grub_efi_dhcp4_mode_data_t *dhcp4_mode_data);
-  grub_efi_status_t (*configure) (grub_efi_dhcp4_protocol_t *this,
+/*初始化、更改或重置EFI DHCPv4协议驱动程序的操作设置
+  只有当以下两个条件都为真时，才能成功调用此函数：
+  •此EFI DHCPv4协议驱动程序实例处于Dhcp4Stopped、Dhcp4Init、Dhcp4NitReboot或Dhcp4Bound状态。 
+  •此EFI DHCPv4服务绑定协议驱动程序实例控制的其他EFI DHCPv4协议驱动程序示例均未配置此EFI DHCPv4协议驱动程序。
+  当此驱动程序处于Dhcp4Stop状态时，它可以转换为以下两种可能的初始状态之一：
+• Dhcp4Init
+• Dhcp4InitReboot
+  驱动程序可以通过使用非NULL的Dhcp4CfgData调用Configure（）来转换到这些状态。
+  驱动程序将根据ClientAddress参数中提供的客户端网络地址和OptionList参数中的DHCP选项转换到适当的状态，如RFC 2131所述。
+  当在Dhcp4CfgData设置为NULL的情况下成功调用Configure（）时，EFI DHCPv4协议驱动程序中的默认配置数据将被重置，
+  EFI DHCPv4协议驱动程序的状态将不会改变。如果一个实例希望使另一个实例能够配置EFI DHCPv4协议驱动程序，
+  则必须在Dhcp4CfgData设置为NULL的情况下调用此函数。
+*/
+  grub_efi_status_t (*configure) (grub_efi_dhcp4_protocol_t *this,          //配置
 	      grub_efi_dhcp4_config_data_t *dhcp4_cfg_data);
-  grub_efi_status_t (*start) (grub_efi_dhcp4_protocol_t *this,
+  grub_efi_status_t (*start) (grub_efi_dhcp4_protocol_t *this,              //开始
 	      grub_efi_event_t completion_event);
-  grub_efi_status_t (*renew_rebind) (grub_efi_dhcp4_protocol_t *this,
+  grub_efi_status_t (*renew_rebind) (grub_efi_dhcp4_protocol_t *this,       //重新绑定
 	      grub_efi_boolean_t rebind_request,
 	      grub_efi_event_t completion_event);
-  grub_efi_status_t (*release) (grub_efi_dhcp4_protocol_t *this);
-  grub_efi_status_t (*stop) (grub_efi_dhcp4_protocol_t *this);
-  grub_efi_status_t (*build) (grub_efi_dhcp4_protocol_t *this,
+  grub_efi_status_t (*release) (grub_efi_dhcp4_protocol_t *this);           //释放
+  grub_efi_status_t (*stop) (grub_efi_dhcp4_protocol_t *this);              //停止
+  grub_efi_status_t (*build) (grub_efi_dhcp4_protocol_t *this,              //构建
 	      grub_efi_dhcp4_packet_t *seed_packet,
 	      grub_efi_uint32_t delete_count,
 	      grub_efi_uint8_t *delete_list,
 	      grub_efi_uint32_t append_count,
 	      grub_efi_dhcp4_packet_option_t *append_list[],
 	      grub_efi_dhcp4_packet_t **new_packet);
-  grub_efi_status_t (*transmit_receive) (grub_efi_dhcp4_protocol_t *this,
+  grub_efi_status_t (*transmit_receive) (grub_efi_dhcp4_protocol_t *this,   //发送接收
 	      grub_efi_dhcp4_transmit_receive_token_t *token);
-  grub_efi_status_t (*parse) (grub_efi_dhcp4_protocol_t *this,
+  grub_efi_status_t (*parse) (grub_efi_dhcp4_protocol_t *this,              //解析
 	      grub_efi_dhcp4_packet_t *packet,
 	      grub_efi_uint32_t *option_count,
 	      grub_efi_dhcp4_packet_option_t *packet_option_list[]);

@@ -5106,6 +5106,8 @@ void
 grub_efidisk_init (void)  //efidisk初始化		
 {
 //  debug = 3;  //启动调试
+  if ((*(char *)IMG(0x8205) & 0x40))
+    debug = 3;
 	grub_efidisk_fini();
   enumerate_disks (); //枚举磁盘
 
@@ -5161,7 +5163,6 @@ grub_efidisk_init (void)  //efidisk初始化
 			if (err)
         goto aaa;
         
-		/* on pxe boot, we only use preset_menu 在pxe启动时，我们只使用预设菜单*/
 			boot_drive = PXE_DRIVE;	//0x21
 			printf_debug ("boot_drive=%x\n", boot_drive);
 			saved_drive = boot_drive;
@@ -5177,7 +5178,6 @@ grub_efidisk_init (void)  //efidisk初始化
 			if (debug > 1)
         getkey();
       
-//			run_line((char *)"configfile /efi/grub/menu.lst",1);
 			return;
 		}
 	}

@@ -212,7 +212,7 @@ typedef struct grub_net_network_level_netaddress
     } ipv6;
   };
 } grub_net_network_level_netaddress_t;
-
+#if 0
 typedef struct {
   grub_u8_t		opcode;		//操作码																												00
   grub_u8_t		Hardware;	/* hardware type 硬件类型*/																		//00
@@ -240,7 +240,7 @@ typedef struct {
     } v;
   } vendor;		//供应商
 } PACKED BOOTPLAYER;		//引导播放器
-
+#endif
 
 #define GRUB_NET_BOOTP_MAC_ADDR_LEN	16
 

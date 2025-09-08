@@ -9643,8 +9643,9 @@ static struct builtin builtin_pxe =
   pxe_func,
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING | BUILTIN_IFTITLE,
   "pxe     #Return network interface information.\n",
-  "pxe open /path/file    #Open files using HTTP.\n"
-  "pxe read /path/file range_start - range_end    #Read files using HTTP."
+  "pxe init    #Enable network functionality.\n"  
+  "pxe open /path/file    #Open files.\n"
+  "pxe read /path/file range_start - range_end    #Read files."
 };
 #endif
 #endif
