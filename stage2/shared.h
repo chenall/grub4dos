@@ -2027,6 +2027,7 @@ struct decomp_entry
 extern struct decomp_entry decomp_table[NUM_DECOM];
 extern int decomp_type;
 
+extern unsigned char dec_header[20];
 int gunzip_test_header (void);
 void gunzip_close (void);
 unsigned long long gunzip_read (unsigned long long buf, unsigned long long len, unsigned int write);
@@ -2255,6 +2256,7 @@ extern char *efi_pxe_buf; //2023-11-28
 extern unsigned int saved_pxe_ip;
 extern unsigned char saved_pxe_mac[6];
 extern grub_u32_t cur_pxe_type;
+extern grub_u32_t http_feature;
 extern grub_u32_t pxe_http_type;
 extern grub_u32_t gbk;
 extern int map_pd;
@@ -2274,8 +2276,9 @@ extern unsigned int pxe_scan(void);
 extern int pxe_detect(int, char *);
 extern void pxe_unload(void);
 extern int pxe_init (void);
-int pxe_func(char* arg,int flags);
-extern grub_u32_t cur_pxe_type;
+extern int only_tftp;
+extern int pxe_func (char *arg, int flags);
+extern unsigned long long pxe_read (unsigned long long buf, unsigned long long len, unsigned int write);
 #ifdef FSYS_IPXE
 extern grub_u32_t has_ipxe;
 int ipxe_func(char* arg,int flags);
@@ -3695,7 +3698,17 @@ struct grub_efi_boot_services   //引导服务
 
   grub_efi_status_t EFIAPI
   (*close_event) (grub_efi_event_t event);  //关闭事件
-
+/*
+函数检查事件是否处于信号状态。如果Event的类型为EVT_NOTIFY_SIGNAL，则返回EFI_INVALID_PARAMETER。否则，有三种可能性：
+•如果事件处于信号状态，则清除它并返回EFI_SUCCESS。 
+•如果Event未处于信号状态且没有通知功能，则返回EFI_not_READY。
+•如果事件未处于信号状态，但具有通知功能，则通知功能将按事件的通知任务优先级排队。如果通知函数的执行导致事件被发出信号，
+ 则信号状态被清除，并返回EFI_SUCCESS；如果事件未发出信号，则返回EFI_not_READY。
+ 返回状态代码
+ EFI_SUCCESS 事件处于信号状态(0正常)。
+ EFI_NOT_READY 事件未处于信号状态(6还没准备好)。
+ EFI_INVALID_PARAMETER 事件的类型为EVT_NOTIFY_SIGNAL(2无效参数)
+*/
   grub_efi_status_t EFIAPI
   (*check_event) (grub_efi_event_t event);  //检查事件
 
@@ -4113,26 +4126,26 @@ typedef struct grub_efi_simple_text_output_interface grub_efi_simple_text_output
 
 
 typedef struct grub_efi_pxe_dhcpv4_packet	//引导播放器		备注: 在 ipxe->bootia32.efi 时, pxe_reply与dhcp_ack相同; bootp_yi_addr = c0 a8 38 06
-{																					//            dhcp_discover				dhcp_ack				proxy_offer,pxe_discover,pxe_reply,pxe_bis_reply
-  grub_efi_uint8_t bootp_opcode;					//操作码	      01									02							全部0
-  grub_efi_uint8_t bootp_hwtype;					//硬件类型    01
-  grub_efi_uint8_t bootp_hwaddr_len;			//硬件地址长度06
-  grub_efi_uint8_t bootp_gate_hops;				//00
-  grub_efi_uint32_t bootp_ident;					//随机数      59 6b 5d 13					07 6c 4a a1
-  grub_efi_uint16_t bootp_seconds;				//引导以来秒数00 00	
-  grub_efi_uint16_t bootp_flags;					//标记        80 00
-  grub_u32_t bootp_ci_addr;               //客户IP      00 00 00 00
-  grub_u32_t bootp_yi_addr;               //你的IP      00 00 00 00					c0 a8 38 02
-  grub_u32_t bootp_si_addr;               //服务器IP    00 00 00 00					c0 a8 38 01
-  grub_u32_t bootp_gi_addr;               //网关IP      00 00 00 00
-  grub_efi_uint8_t bootp_hw_addr[16];     //客户硬件地址00 0c 29 8d cc d9
-  grub_efi_uint8_t bootp_srv_name[64];		//服务器的主机名										PC-201311212111
-  grub_efi_uint8_t bootp_boot_file[128];	//引导文件名  0									  bootia32.EFI
-  grub_efi_uint32_t dhcp_magik;           //魔术        63 82 53 63
-  grub_efi_uint8_t dhcp_options[56];			//选项  35 01 01 39 02 05 c0 37 - 23 01 02 03 04 05 06 0c - 0d 0f 11 12 16 17 1c 28 - 29 2a 2b 32 33 36 3a 3b
-																					//      3c 42 43 61 80 81 82 83 - 84 85 86 87 61 11 00 56 - 4d dc 4a a9 a8 2f 94 73 - 61 65 d5 98 8d cc d9 5e
-																					//      03 01 03 10 5d 02 00 06 - 3c 20 50 58 45 43 6c 69 - 65 6e 74 3a 41 72 63 68 - 3a 30 30 30 30 36 3a 55
-																					//      4e 44 49 3a 30 30 33 30 - 31 36 ff 00
+{                                         //                dhcp_discover				dhcp_ack        dhcp_offer  dhcp_request  proxy同dhcp
+  grub_efi_uint8_t  bootp_opcode;         //00  操作码       01                  02              02          01
+  grub_efi_uint8_t  bootp_hwtype;         //01  硬件类型     01
+  grub_efi_uint8_t  bootp_hwaddr_len;     //02  硬件地址长度 06
+  grub_efi_uint8_t  bootp_gate_hops;      //03
+  grub_efi_uint32_t bootp_ident;          //04  随机数       59 6b 5d 13         07 6c 4a a1
+  grub_efi_uint16_t bootp_seconds;        //08  引导以来秒数 00 00	
+  grub_efi_uint16_t bootp_flags;          //0a  标记         80 00
+  grub_u32_t  bootp_ci_addr;              //0c  客户IP       00 00 00 00
+  grub_u32_t  bootp_yi_addr;              //10  你的IP       00 00 00 00        c0 a8 38 02
+  grub_u32_t  bootp_si_addr;              //14  服务器IP     00 00 00 00        c0 a8 38 01
+  grub_u32_t  bootp_gi_addr;              //18  网关IP       00 00 00 00
+  grub_efi_uint8_t  bootp_hw_addr[16];    //1c  客户硬件地址 00 0c 29 8d cc d9
+  grub_efi_uint8_t  bootp_srv_name[64];   //2c  服务器的主机名										PC-201311212111
+  grub_efi_uint8_t  bootp_boot_file[128]; //6c  引导文件件名 0									  bootia32.EFI
+  grub_efi_uint32_t dhcp_magik;           //ec  魔术        63 82 53 63
+  grub_efi_uint8_t  dhcp_options[56];     //f0  选项  35 01 01 39 02 05 c0 37 - 23 01 02 03 04 05 06 0c - 0d 0f 11 12 16 17 1c 28 - 29 2a 2b 32 33 36 3a 3b
+                                          //    3c 42 43 61 80 81 82 83 - 84 85 86 87 61 11 00 56 - 4d dc 4a a9 a8 2f 94 73 - 61 65 d5 98 8d cc d9 5e
+                                          //    03 01 03 10 5d 02 00 06 - 3c 20 50 58 45 43 6c 69 - 65 6e 74 3a 41 72 63 68 - 3a 30 30 30 30 36 3a 55
+                                          //    4e 44 49 3a 30 30 33 30 - 31 36 ff 00
 } grub_efi_pxe_dhcpv4_packet_t;
 
 extern grub_efi_pxe_dhcpv4_packet_t *discover_reply;

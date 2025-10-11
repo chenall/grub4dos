@@ -24,7 +24,8 @@
 #include "pxe.h"
 #include "term.h"
 
-grub_u32_t cur_pxe_type;
+grub_u32_t cur_pxe_type = 0;  //当前传输协议类型  0/1=tftp/http
+grub_u32_t http_feature;  //1=支持断点续传
 int map_pd;
 int only_tftp = 0;
 struct grub_efi_pxe *pxe_entry;
@@ -38,10 +39,10 @@ static void print_ip (grub_u32_t ip);
 static int pxe_opened = 0;
 static char filename[128];
 static char *pxe_name = filename;
-static int partial_content;  //支持断点续传
+static int read_status;
 static char *http_range = 0;
 grub_u32_t pxe_http_type = 0; //0/1=http/https
-//static int pxe_need_read = 0; //0/1=不用读/需要读
+static int pxe_need_read = 0; //0/1=不用读/需要读
 int is_ip6 = 0;
 static char default_server[128];  //默认服务器IPv4  http使用
 //static grub_efi_net_interface_t *net_interface;
@@ -63,21 +64,11 @@ static int tftp_open(void);
 static unsigned long long  tftp_read (char *buf, grub_u64_t len);
 int tftp_write (const char *name);
 
-static int http_open(void);
 static unsigned long long http_read (char *buf, grub_u64_t len);
-
-s_PXE_FILE_FUNC tftp_file_func = {tftp_open,tftp_read};
-s_PXE_FILE_FUNC http_file_func = {http_open,http_read};
-s_PXE_FILE_FUNC *pxe_file_func[2]={
-	&tftp_file_func,
-  &http_file_func,
-};
-
 static void pxe_configure (void);
 static void http_configure (void);
 //static grub_efi_ip6_config_manual_address_t *efi_ip6_config_manual_address (grub_efi_ip6_config_protocol_t *ip6_config);
 //static grub_efi_ip4_config2_manual_address_t * efi_ip4_config_manual_address (grub_efi_ip4_config2_protocol_t *ip4_config);
-static grub_err_t efihttp_request (grub_efi_http_t *http, char *server, char *name, int use_https, int headeronly, char *range);
 unsigned long grub_strtoul (const char * restrict str, const char ** const restrict end, int base);
 //static inline char *grub_lltoa (char *str, int c, unsigned long long n);
 //grub_size_t grub_utf8_to_utf16 (grub_uint16_t *dest, grub_size_t destsize, const grub_uint8_t *src, grub_size_t srcsize, const grub_uint8_t **srcend);
@@ -124,8 +115,9 @@ static char* pxe_outhex (char* pc, unsigned char c)		//pxe十六进制
 static int pxe_open (char* name)	//pxe打开
 {
   grub_strcpy (pxe_name, name);
-//  pxe_need_read = 1;
 
+  pxe_need_read = 1;
+#if 0
   if (only_tftp)
   {
     printf_warning ("The system does not support the HTTP protocol.\n");
@@ -135,17 +127,26 @@ static int pxe_open (char* name)	//pxe打开
   }
 
   if (!cur_pxe_type)
+  {
     pxe_configure ();   //网络接口
+    pxe_opened = tftp_open();
+  }
   else
+  {
     http_configure();   //网络接口
+    pxe_opened = http_open();
+  }
 
 only_tftp:
-	pxe_opened = pxe_file_func[cur_pxe_type]->open();
-	if (!pxe_opened)
-	{
-    printf_errinfo ("PXE cann't open %s.\n",name);
-		return 0;
-	}
+//	pxe_opened = pxe_file_func[cur_pxe_type]->open();
+  
+#endif
+  int back = cur_pxe_type;
+  cur_pxe_type = 0;
+//  pxe_configure ();   //网络接口
+  tftp_open();
+  cur_pxe_type = back;
+
   return 1;
 }
 
@@ -267,19 +268,38 @@ pxe_read (unsigned long long buf, unsigned long long len, unsigned int write)	//
 {
   if (write == GRUB_WRITE)	//如果写, 则错误
     return !(errnum = ERR_WRITE);
-
   if (write == GRUB_LISTBLK)
     return 0;
-#if 0
-  if (pxe_need_read)
+
+  if (only_tftp)
+  {
+    printf_warning ("The system does not support the HTTP protocol.\n");
+    printf_warning ("Now enable TFTP protocol.\n");
+    cur_pxe_type = 0;
+  }
+  else if (cur_pxe_type)
+    http_configure();   //http配置  必须每次读以前开启通道
+
+  if (pxe_need_read && (!cur_pxe_type || !http_feature))  //tftp或者http_200
   {
     pxe_need_read = 0;
-    if (!(*(char *)IMG(0x8205) & 0x80)) //如果8205位7置1，pxe_open不要分配内存，使用efi_pxe_buf即可。
-      pxe_allocate(); //分配内存
-    pxe_file_func[cur_pxe_type]->read(efi_pxe_buf, filemax);
+    pxe_allocate(); //分配内存
+//    pxe_file_func[cur_pxe_type]->read(efi_pxe_buf, filemax);
+    if (!cur_pxe_type)
+      tftp_read(efi_pxe_buf, filemax);
+    else
+      http_read(efi_pxe_buf, filemax);
+    printf_debug ("pxe_read: efi_pxe_buf, %x,%x\n",efi_pxe_buf,filemax);
   }
-#endif
+  else if (cur_pxe_type && http_feature)  //http_206
+  {
+    http_read ((char *)(grub_size_t)buf, len);
+    printf_debug ("pxe_read: buf, %x,%x\n",buf,len);
+    goto aaa;
+  }
+  printf_debug ("pxe_read: memmove, %x,%x,%x\n",buf,(efi_pxe_buf + filepos),len);
   grub_memmove64 (buf, (unsigned long long)(grub_size_t)(char*)(efi_pxe_buf + filepos), len);
+aaa:
   filepos += len;
   return len;
 }
@@ -307,7 +327,7 @@ int pxe_allocate(void) //分配内存
   b = grub_efi_system_table->boot_services; //系统表->引导服务
   unsigned long long bytes_needed;
 
-  if ((*(char *)IMG(0x8205) & 0x80))
+  if ((*(char *)IMG(0x8205) & 0x80)) //如果8205位7置1，pxe_open不要分配内存，使用efi_pxe_buf即可。
     return 1;
 
   if (map_pd) //不释放内存
@@ -345,7 +365,6 @@ int pxe_allocate(void) //分配内存
 static int tftp_open(void)		//tftp打开
 {
 	grub_efi_status_t status;
-  unsigned long long tmp;
 
   //将 UTF-8 转为 GBK 编码
 /*
@@ -372,7 +391,7 @@ static int tftp_open(void)		//tftp打开
 		printf_errinfo ("Couldn't get file size\n");
     return !(errnum = 0x1234);
 	}
-
+#if 0
   if (!no_decompression) //如果no_decompression=1，仅获取文件尺寸
   {
     pxe_allocate(); //分配内存
@@ -380,7 +399,7 @@ static int tftp_open(void)		//tftp打开
     if (!tmp)
       return 0;
   }
-
+#endif
 	filepos = 0;
 	return 1;
 }
@@ -474,33 +493,9 @@ static grub_efi_http_token_t response_token;         //响应令牌
 static grub_efi_http_message_t request_message;      //请求消息
 static grub_efi_http_request_data_t request_data;    //请求数据
 static grub_efi_http_token_t request_token;          //请求令牌
-//返回filemax, filepos置0
-//读filemax字节尺寸到efi_pxe_buf
-static int http_open(void)   //http打开
-{
-  int err;
-  unsigned long long tmp;
-  printf_debug ("http_open,%s\n",pxe_name);
-  request_message.header_count = 3;             //请求信息.标头计数
-  err = efihttp_request (net_devices->http, (char *)default_server, (char *)pxe_name, 0, 1, 0);  //请求头部，返回尺寸
-  if (err)
-    return 0;
-
-  printf_debug ("filemax=%x, no_decompression=%x\n",filemax,no_decompression);
-  if (!no_decompression) //如果no_decompression=1，仅获取文件尺寸
-  {
-    pxe_allocate(); //分配内存
-    tmp = http_read (efi_pxe_buf, filemax);
-    if (!tmp)
-      return 0;
-  }
-
-	filepos = 0;
-  return 1;
-}
 
 //读len字节尺寸到buf
-static unsigned long long 
+static unsigned long long
 http_read (char *buf, grub_u64_t len)  //efi读
 {
   grub_efi_status_t status;                 //状态
@@ -509,10 +504,15 @@ http_read (char *buf, grub_u64_t len)  //efi读
   grub_efi_http_t *http = net_devices->http;        //http入口
   grub_u64_t back_len = len;
   char *back_buf = buf;
-  char range[32];
-  char *r = range, *tem_buf = 0;
-  int err, tem_buf_Enable = 0;
-  
+  char r[32];
+  char *range = r;
+#if 0
+  //用于响应回调函数不执行的情况
+  grub_u64_t range_len = len;
+#endif
+  grub_u64_t range_end = filepos+len-1;  //len在下面的循环中会改变
+
+  printf_debug ("http_read: %x, %x, %x\n",buf,len,filepos);
   if (!len) //尺寸为零
   {
     printf_errinfo ("Invalid arguments to EFI HTTP Read\n");  //EFI HTTP读取的参数无效
@@ -521,25 +521,260 @@ http_read (char *buf, grub_u64_t len)  //efi读
 
   request_message.header_count = 4;             //请求信息.标头计数
   if (!http_range)
-    grub_sprintf (r, "bytes=0-");
+  {
+    if (!http_feature)
+      grub_sprintf (range, "bytes=0-");
+    else
+      grub_sprintf (range, "bytes=%d-%d",filepos, range_end);
+  }
   else
-    r = http_range;
-   
-  printf ("Copy data from the network via HTTP, please wait......\r");
+    range = http_range;
+
+  if (!http_feature)
+    printf ("Copy data from the network via HTTP, please wait......\r");
+
 repeat:
   printf_debug ("read_range: %s;    read_len: %x\n",r,len);
-  http_configure();   //配置网络接口
+//---------------------------------------------------------------------------------------------------------------
+  grub_efi_http_header_t request_headers[4];
+  char *url = grub_malloc (128);
+  read_status = 200;  //不支持断点续传
 
-  err = efihttp_request (net_devices->http, (char *)default_server, (char *)pxe_name, 0, 0, r); //请求获得
-  if (err)
+  //请求标头
+  request_headers[0].field_name = (grub_efi_char8_t *)"Host";               //请求标头.字段名称   主机，服务机
+  request_headers[0].field_value = (grub_efi_char8_t *)default_server;      //请求标头.字段值      "192.168.114.1" 
+  request_headers[1].field_name = (grub_efi_char8_t *)"Accept";             //请求标头.字段名称   接受
+  request_headers[1].field_value = (grub_efi_char8_t *)"*/*";               //请求标头.字段值
+  request_headers[2].field_name = (grub_efi_char8_t *)"User-Agent";         //请求标头.字段名称   用户代理
+  request_headers[2].field_value = (grub_efi_char8_t *)"UefiHttpBoot/1.1";  //请求标头.字段值
+  request_headers[3].field_name = (grub_efi_char8_t *)"";                   //请求标头.字段名称   连接        
+  request_headers[3].field_value = (grub_efi_char8_t *)"";                  //请求标头.字段值     状态
+  request_headers[3].field_name = (grub_efi_char8_t *)"Range";             //请求标头.字段名称   范围
+  request_headers[3].field_value = (grub_efi_char8_t *)range;              //请求标头.字段值     字节范围
+
+  grub_efi_char16_t *ucs2_url;        //ucs2网址
+  grub_size_t url_len, ucs2_url_len;  //网址尺寸, ucs2网址尺寸
+
+  if (is_ip6)  //是ip6
+    grub_sprintf (url, "%s://[%s]%s", "http", default_server, pxe_name);   //协议,服务器,名称
+  else  //ip4地址   
+    grub_sprintf (url, "%s://%s%s", "http", default_server, pxe_name);
+
+  url_len = grub_strlen (url);                        //网址尺寸
+  ucs2_url_len = url_len + url_len/2;   //ucs2网址尺寸
+  ucs2_url = grub_zalloc ((ucs2_url_len + 1) * 2);
+  if (!ucs2_url)
+  {
+    grub_free (url);
     return 0;
+  }
 
-  //如果客户端读尺寸不等于服务器写尺寸，会搞乱通讯指针。使得下一次读取错误。
-  //len不能大于filesize。但是len可以小于filesize，由tem_buf吸收多余部分。
+  //将 UTF-8 转为 URL 编码
+  ucs2_url_len = utf8_to_multimode ((void *)ucs2_url, (unsigned char *)url, url_len, 2); //2024-12-30
+  grub_free (url);
+  ucs2_url[ucs2_url_len] = 0;                 //结束符
+  request_data.url = ucs2_url;                //请求信息.url
+/*
+空格探测
+    /ifu+352.iso
+2f 00 69 00 66 00 75 00 - 2b 00 33 00 35 00 32 00
+2e 00 69 00 73 00 6f 00 - 00 00                     服务器：/ifu 352.iso   http状态码：35(内部服务器错误)
+    /ifu\+352.iso
+2f 00 69 00 66 00 75 00 - 5c 00 2b 00 33 00 35 00
+32 00 2e 00 69 00 73 00 - 6f 00 00 00               服务器：/ifu/ 352.iso  http状态码：35(内部服务器错误)
+    /ifu%'2''0'352.iso
+2f 00 69 00 66 00 75 00 - 25 00 32 00 30 00 33 00
+35 00 32 00 2e 00 69 00 - 73 00 6f 00 00 00         服务器：/ifu 352.iso   http状态码：3(ok)
+
+中文探测 
+gbk       /ab中国cd.iso                             服务器没有请求文件
+2f 61 62 d6 d0 b9 fa 63 - 64 2e 69 73 6f 00
+utf16     /ab中国cd.iso                             /ab-齝d.iso
+2f 00 61 00 62 00 2d 4e - fd 56 63 00 64 00 2e 00
+69 00 73 00 6f 00 00 00
+gbk->utf8_to_multimode(2)                           /ab中国cd.iso   ok!
+61 00 62 00 d6 00 d0 00 - b9 00 fa 00 63 00
+64 00 2e 00 69 00 73 00 - 6f 00 00 00
+结论：
+1. linux的url采用utf16方法表示。
+2. url中中文使用gbk码，一般使用两字节表示。在url里，中文的两字节要分别放在两个utf16中。
+3. 空格使用 %20 表示。即 25 00 32 00 30 00
+*/
+  //请求数据.方法
+  request_data.method = GRUB_EFI_HTTPMETHODGET; //获得
+  //请求信息
+  request_message.data.request = &request_data; //请求信息.数据请求
+  request_message.headers = request_headers;    //请求信息.标头
+  request_message.body_length = 0;              //请求信息.体尺寸
+  request_message.body = NULL;                  //请求信息.体
+  //请求令牌
+  request_token.event = NULL;                   //请求令牌.事件
+  request_token.status = GRUB_EFI_NOT_READY;    //请求令牌.状态  未准备好
+  request_token.message = &request_message;     //请求令牌.消息
+
+  request_callback_done = 0;                    //请求回调完成=0
+  status = efi_call_5 (b->create_event,                  //创建事件
+                       GRUB_EFI_EVT_NOTIFY_SIGNAL,       //事件的类型       通知信号
+//使用GRUB_EFI_TPL_CALLBACK(回调)优先级别时，执行b->connect_controller、b->load_image、b->start_image时，回调函数不执行
+//                       GRUB_EFI_TPL_CALLBACK,            //事件的优先级     回调
+                       GRUB_EFI_TPL_NOTIFY,              //事件的优先级     通知
+                       grub_efi_http_request_callback,   //事件处理函数     请求回调
+                       NULL,                             //传递给事件处理函数的参数
+                       &request_token.event);
+  if (status != GRUB_EFI_SUCCESS) //失败
+  {
+    grub_free (request_data.url);
+    printf_errinfo ("Fail to create an event status=%x\n", status);
+    return 0;
+  }
+
+  status = efi_call_2 (http->request, http, &request_token); //请求       有时莫名其妙地死在这里，必须重新启动虚拟机!!!!
+  if (status != GRUB_EFI_SUCCESS) //失败
+  {
+    efi_call_1 (b->close_event, request_token.event);   //关闭事件
+    grub_free (request_data.url);
+    printf_errinfo ("Fail to send a request status=%x\n", status); //12超时  f拒绝访问
+    return 0;
+  }
+  /* TODO: Add Timeout */
+  int qqq = 0;
+  while (!request_callback_done)  //等待请求回调完成
+  {
+    efi_call_1(http->poll, http); //获得
+    qqq++;
+    if (qqq >= 0xff)
+    {
+      printf_debug ("request_poll,%x\n",qqq);
+      break;
+    }
+  }
+  //响应数据
+  response_data.status_code = GRUB_EFI_HTTP_STATUS_UNSUPPORTED_STATUS;  //响应数据.状态代码  0=不受支持的状态
+  //响应消息
+  response_message.data.response = &response_data;  //响应数据.数据响应
+  //herader_count将由HTTP驱动程序在响应时更新
+  response_message.header_count = 0;                //响应数据.标头计数
+  //标头将由驱动程序在响应时填充
+  response_message.headers = NULL;                  //响应数据.标头
+  //使用零BodyLength仅接收响应标头
+  response_message.body_length = 0;                 //响应数据.体尺寸
+  response_message.body = NULL;                     //响应数据.体
+  //响应令牌.事件
+  response_token.event = NULL;
+
+  status = efi_call_5 (b->create_event,         //创建事件
+              GRUB_EFI_EVT_NOTIFY_SIGNAL,       //事件的类型       通知信号
+//              GRUB_EFI_TPL_CALLBACK,            //事件的优先级     回调
+              GRUB_EFI_TPL_NOTIFY,              //事件的优先级     通知
+              grub_efi_http_response_callback,  //事件处理函数     响应回调
+              NULL,                             //传递给事件处理函数的参数
+              &response_token.event);
+  if (status != GRUB_EFI_SUCCESS)
+  {
+    efi_call_1 (b->close_event, request_token.event);   //关闭事件
+    grub_free (request_data.url);
+    printf_errinfo ("Fail to create an event\n status=%x\n", status);
+    return 0;
+  }
+  //响应令牌
+  response_token.status = GRUB_EFI_SUCCESS;   //响应令牌.状态  成功
+  response_token.message = &response_message; //响应令牌.消息
+
+  //等待HTTP响应
+  response_callback_done = 0;   //响应回调完成=0
+  status = efi_call_2 (http->response, http, &response_token);  //响应
+  if (status != GRUB_EFI_SUCCESS)
+  {
+    efi_call_1 (b->close_event, response_token.event);   //关闭事件
+    efi_call_1 (b->close_event, request_token.event);   //关闭事件
+    grub_free (request_data.url);
+    printf_errinfo ("Fail to receive a response! status=%x\n", status); //12超时
+    return 0;  
+  }
+
+  /* TODO: Add Timeout */
+  qqq = 0;
+  while (!response_callback_done)   //等待响应回调完成
+  {
+    efi_call_1 (http->poll, http);  //获得
+    qqq++;
+    if (qqq >= 0xff)
+    {
+      printf_debug ("response_poll,%x\n",qqq);
+      break;
+    }
+  }
+
+  //返回部分内容，是我们请求了范围，不是错误
+  if (response_message.data.response->status_code == GRUB_EFI_HTTP_STATUS_206_PARTIAL_CONTENT)
+  {
+    read_status = 206;  //支持断点续传
+    goto aaa;
+  }
+
+  if (response_message.data.response->status_code != GRUB_EFI_HTTP_STATUS_200_OK)
+  {
+    grub_efi_http_status_code_t status_code = response_message.data.response->status_code;
+
+    if (response_message.headers)
+      efi_call_1 (b->free_pool, response_message.headers);
+    efi_call_1 (b->close_event, response_token.event);   //关闭事件
+    efi_call_1 (b->close_event, request_token.event);   //关闭事件
+    grub_free (request_data.url);
+    if (status_code == GRUB_EFI_HTTP_STATUS_404_NOT_FOUND)  //未找到
+      printf_errinfo ("404: file `%s' not found\n", pxe_name);  
+    else if (status_code == GRUB_EFI_HTTP_STATUS_416_REQUESTED_RANGE_NOT_SATISFIED) //范围不满足要求
+      printf_errinfo ("416: The scope does not meet the requirements\n");
+    else
+      printf_errinfo ("unsupported uefi http status code %d\n", status_code); //不支持的uefi http
+
+    return 0; 
+  }
+
+aaa:;
+  int i;
+  //从ContentLength标头解析文件的长度
+  for (i = 0; i < (int)response_message.header_count; ++i)
+  {
+//Connection          close                         连接:         关闭
+//Content-Type        application/octet-stream      内容类型:     应用程序/八位字节流
+//Content-Length      6637568                       内容尺寸:     6637568(ASCII码)
+//Server              Indy/9.00.10                  服务器:       Indy/9.00.10
+//Range               0-1023                        范围:         0-1023字节
+//Last-Modified       Thu, 30 Jun 2022 08:53:38 GMT 最后修改时间: Thu, 30 Jun 2022 08:53:38 GMT
+    if (!grub_strcmp((const char*)response_message.headers[i].field_name, "Content-Length"))
+    {
+      safe_parse_maxint ((char**)&response_message.headers[i].field_value, &hex);
+      if (read_status == 200)
+        filemax = hex;
+      filesize = hex;
+    }
+    else if (!grub_strcmp((const char*)response_message.headers[i].field_name, "Content-Range"))
+    {
+      char *value = (char *)response_message.headers[i].field_value;
+      while (*value != '/')
+      value++;
+      value++;
+      safe_parse_maxint (&value, &filemax);
+    }
+  }
+
+  if (response_message.headers)
+    efi_call_1 (b->free_pool, response_message.headers);
+  efi_call_1 (b->close_event, response_token.event);   //关闭事件
+  efi_call_1 (b->close_event, request_token.event);   //关闭事件
+  grub_free (request_data.url);
+//----------------------------------------------------------------------------------------------------------------------------------
+
+/* 
+1.如果客户端读尺寸不等于服务器写尺寸，会搞乱通讯指针。使得下一次读取错误。
+  len不能大于filesize。在这里判断及纠正。
+2.len也不能小于filesize，在调用http_read或者pxe_read前，需获得filemax。
+*/
   if (len > filesize) //len是客户端读尺寸，filesize是服务器写尺寸。
     len = filesize;
 
-  if (partial_content)
+  if (http_feature)
     printf_debug ("206: ");
   else
     printf_debug ("200: ");
@@ -548,24 +783,30 @@ repeat:
   response_token.event = NULL;  //增加
   status = efi_call_5 (b->create_event,         //创建事件
               GRUB_EFI_EVT_NOTIFY_SIGNAL,       //事件的类型       通知信号
-              GRUB_EFI_TPL_CALLBACK,            //事件的优先级     回调
+//              GRUB_EFI_TPL_CALLBACK,            //事件的优先级     回调
+              GRUB_EFI_TPL_NOTIFY,              //事件的优先级     通知
               grub_efi_http_response_callback,  //事件处理函数     响应回调
               NULL,                             //传递给事件处理函数的参数
               &response_token.event);           //创建的事件
   if (status != GRUB_EFI_SUCCESS) //失败
   {
-    printf_errinfo ("Fail to create an event status=%x\n", status);
+    printf_errinfo ("Fail to create an event_response, status=%x\n", status);
     return 0;
   }
 
 //  efi_call_1 (grub_efi_system_table->boot_services->stall, 10000);  //延时10毫秒
-  while (len)
+  while ((long long)len > 0)
   {
     //响应消息
     response_message.data.response = NULL;      //响应消息.数据.响应
     response_message.header_count = 0;          //响应消息.标头计数
     response_message.headers = NULL;            //响应消息.标头
-    response_message.body_length = len;         //响应消息.体长   设置为654800，他实际读5b4，
+#if 0
+    //用于响应回调函数不执行的情况
+    response_message.body_length = range_len;   //响应消息.体长   设置为654800，他实际读5b4，
+#else
+    response_message.body_length = len;         //响应消息.体长
+#endif
     response_message.body = (void *)(grub_size_t)buf; //响应消息.体
 
     //响应令牌
@@ -576,7 +817,7 @@ repeat:
     status = efi_call_2 (http->response, http, &response_token);  //响应
     if (status != GRUB_EFI_SUCCESS) //失败
     {
-      printf_errinfo ("Fail to http->response! status=%x,len=%x,sum=%x\n", (int)status,len,sum);   //f 拒绝访问;  68  通信对等体已关闭连接，并且实例的接收缓冲区中没有更多数据。
+      printf_warning ("Fail to http->response! status=%x,len=%x,sum=%x\n", (int)status,len,sum);   //f 拒绝访问;  68  通信对等体已关闭连接，并且实例的接收缓冲区中没有更多数据。
 //printf ("111,%d,%d,%d\n",response_message.body_length,len,sum);
 //68,1b1800;              f,d69eab5;
 //1b1800,4a3000,654800;   d69eab5,55af024,12c4dad9
@@ -587,10 +828,11 @@ repeat:
         efi_call_1 (b->close_event, response_token.event);   //关闭事件
         efi_call_2 (http->cancel, http, NULL);
         errnum = 0;
-        if (partial_content)  //支持断点续传
+        if (http_feature)  //支持断点续传
         {
-          //不常用"bytes=%d-"，是为了照顾TinyPXEServer-1.0.0.23自带http服务(Indy/9.00.10)
-          grub_sprintf (r, "bytes=%d-%d", sum, sum + len - 1);
+          //不采用"bytes=%d-"，是为了照顾TinyPXEServer-1.0.0.23自带http服务(Indy/9.00.10)
+//          grub_sprintf (r, "bytes=%d-%d", sum, sum + len - 1);
+          grub_sprintf (r, "bytes=%d-%d", filepos + sum, range_end);  //不考虑http_range存在的情况
         }
         else
         {
@@ -598,8 +840,10 @@ repeat:
           len = back_len;
           grub_sprintf (r, "bytes=0-");
         }
+
         if (debug > 1)
           getkey();
+        http_configure();   //配置网络接口
         goto repeat;
       }
       if (status == GRUB_EFI_ACCESS_DENIED)
@@ -609,22 +853,49 @@ repeat:
     }
 //    efi_call_1 (grub_efi_system_table->boot_services->stall, 1);  //延时1微妙  必要
 
-    int qqq = 0xffff;
-    while (!response_callback_done) //等待回调完成
+    qqq = 0;
+    grub_u64_t first = 0;
+    while (!response_callback_done)
     {
       efi_call_1(http->poll, http); //获得
-      //试图失败后重新开始。
-      qqq--;
-      if (qqq <= 0)
+      qqq++;
+#if 0
+      //以下用于响应回调函数不执行的情况
+      if (qqq == 1)
       {
-        printf_errinfo ("Fail to http->poll!! len=%x, body_length=%x, status=%x, sum=%x.\n",len,response_message.body_length,(int)response_token.status,sum);
+        if (response_message.body_length != filesize)
+          break;
+        first = response_message.body_length;
+      }
+      else if (qqq < 0xfff)
+      {
+        if (response_message.body_length != first)
+        {
+          printf_debug ("read_poll,%x,%x,%x\n",qqq,response_message.body_length,first);
+          //257,5d4,800;  4,5d4,1000;  vm
+          break;
+        }
+      }
+      else
+#endif
+      if (qqq >= 0xfff)
+      {
+        printf_debug ("read_poll,%x,%x,%x,%x,%x,%x,%x\n",qqq,filepos,response_message.body_length,len,filesize,first,sum);
+//fff,2abe000,100000,d8000,100000,100000,2800;   qemu
+//fff,0,800,800,800,800,0;  fff,8000,800,800,800,800,0;  vm
+//1a800,20000,9da0,20000,20000,16260
+//3a800,20000,9da0,20000,20000,16260
+//5a800,20000,9da0,20000,20000,16260
+//7a800,20000,9da0,20000,20000,16260
+//9a800,20000,9da0,20000,20000,16260
+//0,800,800,800,800,0
         efi_call_1 (b->close_event, response_token.event);   //关闭事件
         efi_call_2 (http->cancel, http, NULL);
         errnum = 0;
-        if (partial_content)  //支持断点续传
+        if (http_feature)  //支持断点续传
         {
-          //不常用"bytes=%d-"，是为了照顾TinyPXEServer-1.0.0.23自带http服务(Indy/9.00.10)
-          grub_sprintf (r, "bytes=%d-%d", sum, sum + len - 1);
+          //不采用"bytes=%d-"，是为了照顾TinyPXEServer-1.0.0.23自带http服务(Indy/9.00.10)
+          grub_sprintf (r, "bytes=%d-%d", filepos + sum, range_end);
         }
         else
         {
@@ -632,17 +903,23 @@ repeat:
           len = back_len;
           grub_sprintf (r, "bytes=0-");
         }
+
         if (debug > 1)
           getkey();
+        http_configure();   //配置网络接口
         goto repeat;
       }
     }
 
+#if 0
+    //用于响应回调函数不执行的情况
     //修正下一次参数
+    if (response_message.body_length > len)
+      response_message.body_length = len;
+#endif
     sum += response_message.body_length;  //和
     len -= response_message.body_length;  //剩余尺寸
-    if (!tem_buf_Enable)
-      buf += response_message.body_length;  //缓存
+    buf += response_message.body_length;  //缓存
 
     sum1 += response_message.body_length;  //打印计数
     if (sum1 >= 0x800000) // 8MB打印一次
@@ -650,29 +927,23 @@ repeat:
       grub_printf("[%ldM/%ldM]\r",sum>>20,filesize>>20);
       sum1 -= 0x800000;
     }
-    //如果客户端读尺寸不等于服务器写尺寸，会搞乱通讯指针。使得下一次读取错误。
-    //但是len可以小于filesize，由
-    //这里，把大于len的部分打印到tem_buf。
-    if (!len && !tem_buf_Enable && back_len < filesize)
-    {
-      len = filesize - back_len;
-      tem_buf = grub_malloc(5000);
-      buf = tem_buf;
-      tem_buf_Enable = 1;
-      printf_debug ("tem_buf_Enable=1, len=%x\n",len);
-    }
-    if (debug == 6)   //使用qemu虚拟机，启动ifu352.iso，可以产生"Fail to http->response!68"，用于测试断点续传。
-      printf ("000,%d,%d,%d\n",response_message.body_length,len,sum);
-//5a0,1b2625,4a21db
-//b40,1b1ae5,4a2d1b
-//2e5,1b1800,4a3000
 
-//5a0,b40,10e0, zemu
-//5b4, vm
+/* 使用qemu虚拟机，启动ifu352.iso，可以产生"Fail to http->response!68"，用于测试断点续传。//
+    if (debug == 0)
+      printf ("000,%x,%x,%x\n",response_message.body_length,len,sum);
+5a0,1b2625,4a21db
+b40,1b1ae5,4a2d1b
+2e5,1b1800,4a3000
+
+5a0,b40,10e0, zemu
+5b4, vm
+
+read_poll,f,5a0,654800;
+1440,6479397,158171;
+read_poll,fff,0,654800,62de25,654800,654800,269db;
+6637568,-158171,6795739;
+*/
   }
-  
-  if (tem_buf_Enable && tem_buf)
-    grub_free(tem_buf);
 
 //  efi_call_1 (grub_efi_system_table->boot_services->stall, 10000);  //延时10毫秒  必需，否则只能持续读3个文件
   efi_call_1 (b->close_event, response_token.event);   //关闭事件
@@ -760,245 +1031,6 @@ http_configure (void)  //http配置
     return;
   }
 }
-
-static grub_err_t
-efihttp_request (grub_efi_http_t *http, char *server, char *name, int use_https, int headeronly, char *range) //http请求
-{
-  grub_efi_http_header_t request_headers[4];
-  grub_efi_status_t status;
-  grub_efi_boot_services_t *b = grub_efi_system_table->boot_services;
-  char url[128];
-  partial_content = 0;  //不支持断点续传
-
-  //请求标头
-  request_headers[0].field_name = (grub_efi_char8_t *)"Host";               //请求标头.字段名称   主机，服务机
-  request_headers[0].field_value = (grub_efi_char8_t *)server;              //请求标头.字段值      "192.168.114.1" 
-  request_headers[1].field_name = (grub_efi_char8_t *)"Accept";             //请求标头.字段名称   接受
-  request_headers[1].field_value = (grub_efi_char8_t *)"*/*";               //请求标头.字段值
-  request_headers[2].field_name = (grub_efi_char8_t *)"User-Agent";         //请求标头.字段名称   用户代理
-  request_headers[2].field_value = (grub_efi_char8_t *)"UefiHttpBoot/1.1";  //请求标头.字段值
-  request_headers[3].field_name = (grub_efi_char8_t *)"";                   //请求标头.字段名称   连接        
-  request_headers[3].field_value = (grub_efi_char8_t *)"";                  //请求标头.字段值     状态
-//  request_headers[4].field_name = (grub_efi_char8_t *)"";                   //请求标头.字段名称   范围        
-//  request_headers[4].field_value = (grub_efi_char8_t *)"";                  //请求标头.字段值     字节范围
-
-  {
-    grub_efi_char16_t *ucs2_url;        //ucs2网址
-    grub_size_t url_len, ucs2_url_len;  //网址尺寸, ucs2网址尺寸
-    const char *protocol = (use_https == 1) ? "https" : "http";   //协议
-
-    if (is_ip6)  //是ip6
-      grub_sprintf (url, "%s://[%s]%s", protocol, server, name); //协议,服务器,名称
-    else  //ip4地址   
-      grub_sprintf (url, "%s://%s%s", protocol, server, name);
-
-    url_len = grub_strlen (url);                        //网址尺寸
-    ucs2_url_len = url_len + url_len/2;   //ucs2网址尺寸
-    ucs2_url = grub_zalloc ((ucs2_url_len + 1) * 2);
-    if (!ucs2_url)
-      return errnum = 0x1234;
-
-    //将 UTF-8 转为 URL 编码
-    ucs2_url_len = utf8_to_multimode ((void *)ucs2_url, (unsigned char *)url, url_len, 2); //2024-12-30
-    ucs2_url[ucs2_url_len] = 0;                 //结束符
-    request_data.url = ucs2_url;                //请求信息.url
-/*
-空格探测
-    /ifu+352.iso
-2f 00 69 00 66 00 75 00 - 2b 00 33 00 35 00 32 00
-2e 00 69 00 73 00 6f 00 - 00 00                     服务器：/ifu 352.iso   http状态码：35(内部服务器错误)
-    /ifu\+352.iso
-2f 00 69 00 66 00 75 00 - 5c 00 2b 00 33 00 35 00
-32 00 2e 00 69 00 73 00 - 6f 00 00 00               服务器：/ifu/ 352.iso  http状态码：35(内部服务器错误)
-    /ifu%'2''0'352.iso
-2f 00 69 00 66 00 75 00 - 25 00 32 00 30 00 33 00
-35 00 32 00 2e 00 69 00 - 73 00 6f 00 00 00         服务器：/ifu 352.iso   http状态码：3(ok)
-
-中文探测 
-gbk       /ab中国cd.iso                             服务器没有请求文件
-2f 61 62 d6 d0 b9 fa 63 - 64 2e 69 73 6f 00
-utf16     /ab中国cd.iso                             /ab-齝d.iso
-2f 00 61 00 62 00 2d 4e - fd 56 63 00 64 00 2e 00
-69 00 73 00 6f 00 00 00
-gbk->utf8_to_multimode(2)                           /ab中国cd.iso   ok!
-61 00 62 00 d6 00 d0 00 - b9 00 fa 00 63 00
-64 00 2e 00 69 00 73 00 - 6f 00 00 00
-结论：
-1. linux的url采用utf16方法表示。
-2. url中中文使用gbk码，一般使用两字节表示。在url里，中文的两字节要分别放在两个utf16中。
-3. 空格使用 %20 表示。即 25 00 32 00 30 00
-*/
-  }
-  //请求数据.方法
-  request_data.method = (headeronly > 0) ? GRUB_EFI_HTTPMETHODHEAD : GRUB_EFI_HTTPMETHODGET;  //头朝前?头:获得
-  //请求信息
-  request_message.data.request = &request_data; //请求信息.数据请求
-
-  if (request_message.header_count == 4)
-  {
-    request_headers[3].field_name = (grub_efi_char8_t *)"Range";             //请求标头.字段名称   范围
-    request_headers[3].field_value = (grub_efi_char8_t *)range;              //请求标头.字段值     字节范围
-//    request_headers[4].field_name = (grub_efi_char8_t *)"Connection";        //请求标头.字段名称   连接
-//    request_headers[4].field_value = (grub_efi_char8_t *)"Keep-Alive";       //请求标头.字段值     保持活力/关闭
-  }
-
-  request_message.headers = request_headers;    //请求信息.标头
-  request_message.body_length = 0;              //请求信息.体尺寸
-  request_message.body = NULL;                  //请求信息.体
-
-  //请求令牌
-  request_token.event = NULL;                   //请求令牌.事件
-  request_token.status = GRUB_EFI_NOT_READY;    //请求令牌.状态  未准备好
-  request_token.message = &request_message;     //请求令牌.消息
-
-  request_callback_done = 0;                    //请求回调完成=0
-  status = efi_call_5 (b->create_event,                  //创建事件
-                       GRUB_EFI_EVT_NOTIFY_SIGNAL,       //事件的类型       通知信号
-                       GRUB_EFI_TPL_CALLBACK,            //事件的优先级     回调
-                       grub_efi_http_request_callback,   //事件处理函数     请求回调
-                       NULL,                             //传递给事件处理函数的参数
-                       &request_token.event);
-  if (status != GRUB_EFI_SUCCESS) //失败
-  {
-    grub_free (request_data.url);
-    printf_errinfo ("Fail to create an event status=%x\n", status);
-    return (errnum = 0x1234);
-  }
-
-//  efi_call_1 (grub_efi_system_table->boot_services->stall, 50000);  //延时50毫秒
-
-  status = efi_call_2 (http->request, http, &request_token); //请求       有时莫名其妙地死在这里，必须重新启动虚拟机!!!!
-  if (status != GRUB_EFI_SUCCESS) //失败
-  {
-    efi_call_1 (b->close_event, request_token.event);   //关闭事件
-    grub_free (request_data.url);
-    printf_errinfo ("Fail to send a request status=%x\n", status); //12超时  f拒绝访问
-    return (errnum = 0x1234);
-  }
-  /* TODO: Add Timeout */
-  while (!request_callback_done)  //等待请求回调完成
-    efi_call_1(http->poll, http); //获得
-  //响应数据
-  response_data.status_code = GRUB_EFI_HTTP_STATUS_UNSUPPORTED_STATUS;  //响应数据.状态代码  0=不受支持的状态
-  //响应消息
-  response_message.data.response = &response_data;  //响应数据.数据响应
-  //herader_count将由HTTP驱动程序在响应时更新
-  response_message.header_count = 0;                //响应数据.标头计数
-  //标头将由驱动程序在响应时填充
-  response_message.headers = NULL;                  //响应数据.标头
-  //使用零BodyLength仅接收响应标头
-  response_message.body_length = 0;                 //响应数据.体尺寸
-  response_message.body = NULL;                     //响应数据.体
-  //响应令牌.事件
-  response_token.event = NULL;
-
-  status = efi_call_5 (b->create_event,         //创建事件
-              GRUB_EFI_EVT_NOTIFY_SIGNAL,       //事件的类型       通知信号
-              GRUB_EFI_TPL_CALLBACK,            //事件的优先级     回调
-              grub_efi_http_response_callback,  //事件处理函数     响应回调
-              NULL,                             //传递给事件处理函数的参数
-              &response_token.event);
-  if (status != GRUB_EFI_SUCCESS)
-  {
-    efi_call_1 (b->close_event, request_token.event);   //关闭事件
-    grub_free (request_data.url);
-    printf_errinfo ("Fail to create an event\n status=%x\n", status);
-    return (errnum = 0x1234);
-  }
-  //响应令牌
-  response_token.status = GRUB_EFI_SUCCESS;   //响应令牌.状态  成功
-  response_token.message = &response_message; //响应令牌.消息
-
-//  efi_call_1 (grub_efi_system_table->boot_services->stall, 50000);  //延时50毫秒
-
-  //等待HTTP响应
-  response_callback_done = 0;   //响应回调完成=0
-  status = efi_call_2 (http->response, http, &response_token);  //响应
-  if (status != GRUB_EFI_SUCCESS)
-  {
-    efi_call_1 (b->close_event, response_token.event);   //关闭事件
-    efi_call_1 (b->close_event, request_token.event);   //关闭事件
-    grub_free (request_data.url);
-    printf_errinfo ("Fail to receive a response! status=%x\n", status); //12超时
-    return (errnum = 0x1234);    
-  }
-
-  /* TODO: Add Timeout */
-  while (!response_callback_done)   //等待响应回调完成
-    efi_call_1 (http->poll, http);  //获得
-
-  //返回部分内容，是我们请求了范围，不是错误
-  if (response_message.data.response->status_code == GRUB_EFI_HTTP_STATUS_206_PARTIAL_CONTENT)
-  {
-    partial_content = 1;  //支持断点续传
-    goto aaa;
-  }
-
-  if (response_message.data.response->status_code != GRUB_EFI_HTTP_STATUS_200_OK)
-  {
-    grub_efi_http_status_code_t status_code = response_message.data.response->status_code;
-
-    if (response_message.headers)
-      efi_call_1 (b->free_pool, response_message.headers);
-    efi_call_1 (b->close_event, response_token.event);   //关闭事件
-    efi_call_1 (b->close_event, request_token.event);   //关闭事件
-    grub_free (request_data.url);
-    if (status_code == GRUB_EFI_HTTP_STATUS_404_NOT_FOUND)  //未找到
-      printf_errinfo ("404: file `%s' not found\n", name);  
-    else if (status_code == GRUB_EFI_HTTP_STATUS_416_REQUESTED_RANGE_NOT_SATISFIED) //范围不满足要求
-      printf_errinfo ("416: The scope does not meet the requirements\n");
-    else
-      printf_errinfo ("unsupported uefi http status code %d\n", status_code); //不支持的uefi http
-
-    return (errnum = 0x1234);  
-  }
-
-aaa:;
-    int i;
-    //从ContentLength标头解析文件的长度
-    for (i = 0; i < (int)response_message.header_count; ++i)
-    {
-//Connection          close                         连接:         关闭
-//Content-Type        application/octet-stream      内容类型:     应用程序/八位字节流
-//Content-Length      6637568                       内容尺寸:     6637568(ASCII码)
-//Server              Indy/9.00.10                  服务器:       Indy/9.00.10
-//Range               0-1023                        范围:         0-1023字节
-//Last-Modified       Thu, 30 Jun 2022 08:53:38 GMT 最后修改时间: Thu, 30 Jun 2022 08:53:38 GMT
-      if (!grub_strcmp((const char*)response_message.headers[i].field_name, "Content-Length"))
-	    {
-        safe_parse_maxint ((char**)&response_message.headers[i].field_value, &hex);
-        if (!partial_content)
-          filemax = hex;
-        filesize = hex;
-	    }
-      else if (!grub_strcmp((const char*)response_message.headers[i].field_name, "Content-Range"))
-      {
-        char *value = (char *)response_message.headers[i].field_value;
-        while (*value != '/')
-          value++;
-        value++;
-        safe_parse_maxint (&value, &filemax);
-      }
-    }
-
-//  efi_call_1 (grub_efi_system_table->boot_services->stall, 1000);  //延时1毫秒
-  if (response_message.headers)
-    efi_call_1 (b->free_pool, response_message.headers);
-  efi_call_1 (b->close_event, response_token.event);   //关闭事件
-  efi_call_1 (b->close_event, request_token.event);   //关闭事件
-  grub_free (request_data.url);
-  
-  if (!filemax) //很不幸，dhcpsrv2.5.2自带的http服务(dhcpsrv)，执行HEAD操作，返回filemax=0！
-  {
-    char tmp[4] = {0};
-    char range0[16] = {0};
-    http_range = range0;
-    grub_sprintf (range0, "bytes=1-1");
-    http_read (tmp, 1);
-    http_range = 0;
-  }
-  return GRUB_ERR_NONE;
-}
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //net/efi/pxe.c
 static void
@@ -1015,10 +1047,8 @@ pxe_configure (void) //pxe配置
     if (status != GRUB_EFI_SUCCESS) //失败
       printf_debug ("Couldn't start PXE\n"); //无法启动PXE
   }
-
-  printf_debug ("PXE: %x\n", pxe);                         //PXE指针
-  printf_debug ("PXE STARTED: %u\n", mode->started);       //PXE状态 0/1/2=停止/已启动/已初始化
-  printf_debug ("PXE USING IPV6: %u\n", mode->using_ipv6); //PXE使用ipv4/ipv6=0/1
+  //PXE指针    PXE状态 0/1/2=停止/已启动/已初始化    PXE使用ipv4/ipv6=0/1
+  printf_debug ("PXE: %x    PXE STARTED: %u    PXE USING IPV6: %u\n", pxe,mode->started,mode->using_ipv6);
 #if 0
   if (mode->using_ipv6) //如果使用ipv6
   {
@@ -1163,6 +1193,7 @@ grub_efi_net_find_cards (void)   //查找支持ip4配置2的卡  初始化http
     if (!http)
     {
       printf_errinfo ("Does not support EFI_HTTP_PROTOCOL!\n");
+      errnum = 0x1234;
       goto err;
     }
 
@@ -1237,9 +1268,8 @@ set_ip_policy_to_static (void) //将ip策略设置为静态
             GRUB_EFI_IP4_CONFIG2_DATA_TYPE_POLICY,                                  //策略
             sizeof (ip4_policy), &ip4_policy) != GRUB_EFI_SUCCESS)
       printf_debug ("could not set GRUB_EFI_IP4_CONFIG2_POLICY_STATIC on dev `%s'\n", dev->card_name);  //无法在dev上设置GRUBEFI_IP4_CONFIG2_POLICY_STATIC
-
-    printf_debug ("ip6_config=%x\n",dev->ip6_config);
 #if 0
+    printf_debug ("ip6_config=%x\n",dev->ip6_config);
     if (dev->ip6_config)
     {
       grub_efi_ip6_config_policy_t ip6_policy = GRUB_EFI_IP6_CONFIG_POLICY_MANUAL;
@@ -1538,6 +1568,8 @@ pxe_func (char *arg, int flags)
   if (grub_memcmp(arg, "init", 4) == 0)
   {
     pxe_init ();
+    if (!only_tftp)
+      cur_pxe_type = 1;
     saved_drive = PXE_DRIVE;
     current_drive = PXE_DRIVE;
     saved_partition = 0xFFFFFF;
@@ -1549,10 +1581,12 @@ pxe_func (char *arg, int flags)
   if (! pxe_entry)
     return 0;
 
-  if (*arg == 0)
+  if (*arg == 0)  //获得PXE信息
   {
     char buf[4], *pc;
     int i;
+    grub_efi_pxe_t *pxe = pxe_entry;
+    grub_efi_pxe_mode_t *mode = pxe->mode;
 
     grub_printf ("client ip     : ");
     print_ip (pxe_yip);
@@ -1570,28 +1604,16 @@ pxe_func (char *arg, int flags)
     grub_printf ("\nbootfile      : %s",bootfile);
     grub_printf ("\npxe_type      : ");
     if (cur_pxe_type)
-      grub_printf ("http\n");
+      grub_printf ("http");
     else
-      grub_printf ("tftp\n");
-
-    return 1;
-  }
-  else if (grub_memcmp(arg, "open", 4) == 0)
-  {
-/* 用法：pxe open /path/file */
-    char *p = pxe_name;
+      grub_printf ("tftp");
+    grub_printf ("\nhttp_type     : %d\n",(http_feature ? 206 : 200));
     
-    arg = skip_to (0, arg);
-    while (*arg != ' ')
-      *p++ = *arg++;
-    *p = 0;
+    grub_printf ("mode->started  : %d\n",mode->started);   //PXE状态 0/1/2=停止/已启动/已初始化
 
-    no_decompression = 1; //不读
-    pxe_open (pxe_name);
-    printf ("filemax=%x\n",filemax);
     return 1;
   }
-  else if (grub_memcmp(arg, "read", 4) == 0)
+  else if (grub_memcmp(arg, "read", 4) == 0)  //读取文件
   {
 /*
 用法：pxe read /path/file range_start - range_end
@@ -1612,14 +1634,16 @@ pxe_func (char *arg, int flags)
       *p++ = *arg++;
     *p = 0;
 
+    //获取文件尺寸
+    pxe_open (pxe_name);
+    printf ("filemax=%x\n",filemax);
+
     arg = skip_to (0, arg);
     if (*arg == 0)
     {
       grub_sprintf (range, "bytes=0-");
-      goto aaa;
     }
-
-    if (*arg != '-')
+    else if (*arg != '-')
     {
       safe_parse_maxint (&arg, &range_start);
       arg = skip_to (0, arg);
@@ -1642,17 +1666,9 @@ pxe_func (char *arg, int flags)
       else
        return 0; 
     }
-aaa:
-    if (cur_pxe_type)
-    {
-      http_configure();   //网络接口
-      http_read (buf, 256);
-    }
-    else
-    {
-      pxe_configure();   //网络接口
-      tftp_read (buf, 256); //文件尺寸大于256会出错
-    }
+
+    pxe_read ((unsigned long long)(grub_size_t)buf, 256, GRUB_READ);
+
     grub_sprintf (tmp, "echo --mem=%d=%d", buf, 256);
     run_line (tmp,flags);
     http_range = 0;
@@ -1680,6 +1696,30 @@ pxe_init (void)
     only_tftp = 1;
     printf_debug ("only_tftp!\n");
   }
+  else
+  {
+    //测试是否支持断点续传
+    http_feature = 0;
+    if (!only_tftp)
+      cur_pxe_type = 1;
+    else
+      goto aaa;
+
+    http_range = "bytes=0-";
+    pxe_name = "/efi/grub/menu.lst";
+    pxe_open (pxe_name);
+    char *buf = grub_zalloc (filemax);
+    http_configure();   //http配置
+    http_read (buf, filemax);
+    if (read_status == 206)
+      http_feature = 1;  //支持断点续传
+    grub_free (buf);
+    http_range = 0;
+  }
+aaa:
+  cur_pxe_type = 0;   //默认网起使用tftp。即'/'使用tftp。如果使用http，必需指明，即(http)/。或者使用 "set http"。
+  pxe_configure ();   //pxe配置  只要不以外关闭，设置一次即可。
+
   return 0;
 }
 

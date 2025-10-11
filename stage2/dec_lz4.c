@@ -72,13 +72,14 @@ header:
 e     1     lz4dec.hc
 f     4     lz4dec.nextBlockSize       下一块尺寸
 */
-
+unsigned char dec_header[20];
 int dec_lz4_open(void);
 int
 dec_lz4_open(void)
 /* return 1=success or 0=failure */
 {
-	unsigned char header[20];
+//	unsigned char header[20];
+  unsigned char *header = dec_header;
 
 	if (no_decompression) return 0;
 
@@ -87,7 +88,8 @@ dec_lz4_open(void)
 	   Don't need this line if grub_close is called for every openned file before grub_open is called for next file. */
 	dec_lz4_close();
 	filepos = 0;
-	int bytestoread = (filemax<20) ? (int)filemax : 20;
+//	int bytestoread = (filemax<20) ? (int)filemax : 20;
+  int bytestoread = 20;
 	int bytesread = (int)grub_read((unsigned long long)(grub_size_t)(char *)header, bytestoread, GRUB_READ);
 	/* check header */
   grub_u32_t* a = (grub_u32_t*)&header;

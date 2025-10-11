@@ -500,7 +500,8 @@ static int
 cat_func (char *arg, int flags)
 {
   unsigned char c;
-  unsigned char s[128];
+//  unsigned char s[128];
+  char *s;
   unsigned long long Hex = 0;
   unsigned int len, i, j;
   char *p;
@@ -740,18 +741,22 @@ cat_func (char *arg, int flags)
   }else if (Hex == (++ret))	/* a trick for (ret = 1, Hex == 1) */
   {
     j = 16/* - (skip & 0xF)*/;
+    s = grub_malloc (128);
 
     if (j > length)
       j = length;
-    while ((len = grub_read ((unsigned long long)(grub_size_t)&s, j, 0xedde0d90)))
+//    while ((len = grub_read ((unsigned long long)(grub_size_t)&s, j, 0xedde0d90)))
+    while ((len = grub_read ((unsigned long long)(grub_size_t)s, j, 0xedde0d90)))
     {
-      hexdump(skip,(char*)&s,len);
+//      hexdump(skip,(char*)&s,len);
+      hexdump(skip,s,len);
       if (quit_print)
         break;
       skip += len;
       length -= len;
       j = (length >= 16)?16:length;
     }
+    grub_free (s);
   }else
     for (j = 0; j < length && grub_read ((unsigned long long)(grub_size_t)&c, 1, 0xedde0d90) && c; j++)
     {
@@ -855,7 +860,8 @@ int
 get_efi_device_boot_path (int drive, int flags)  //获得硬盘/光盘启动分区(入口)
 {
   struct grub_part_data *p;
-  char tmp[512];
+//  char tmp[512];
+  char *tmp;
   char *cache = 0;
   int self_locking = 0;
   int k = 0;
@@ -909,6 +915,7 @@ complete:
   {
     cdrom_volume_descriptor_t *vol = (cdrom_volume_descriptor_t *)cache;
     eltorito_catalog0_t *catalog = NULL;
+    tmp = grub_malloc (512);
 
     if (get_diskinfo (drive, &tmp_geom, 0))	//获得当前驱动器的磁盘信息
     {
@@ -1000,9 +1007,9 @@ complete:
       filepos = (grub_size_t)catalog[k].lba * 0x800;    //避免64位被截断   2023-04-24
       grub_read (address, (unsigned long long)cd_Image_disk_size << 9 , 0xedde0d90);
       grub_close ();
-      grub_sprintf (chainloader_file, "(md)0x%X+0x%X (0x%x)\0", (grub_size_t)((address >> 9) + cd_Image_part_start), cd_Image_disk_size - cd_Image_part_start, 0x60 + cd_map_count);
-      map_func (chainloader_file, 1);
-      efi_call_2 (b->free_pages, address, pages);
+//      grub_sprintf (chainloader_file, "(md)0x%X+0x%X (0x%x)\0", (grub_size_t)((address >> 9) + cd_Image_part_start), cd_Image_disk_size - cd_Image_part_start, 0x60 + cd_map_count);
+//      map_func (chainloader_file, 1);
+//      efi_call_2 (b->free_pages, address, pages);
     }
 #undef BS
     cd_boot_entry = k;
@@ -1028,11 +1035,14 @@ complete:
         p->boot_start = cd_boot_start;
         p->boot_size = cd_boot_size;
         p->boot_entry = k;
-        p->partition_start = cd_Image_part_start;
-        p->partition_size = cd_Image_disk_size;
+//        p->partition_start = cd_Image_part_start;
+        p->partition_start = (address >> 9) + cd_Image_part_start;
+//        p->partition_size = cd_Image_disk_size;
+        p->partition_size = cd_Image_disk_size - cd_Image_part_start;
       }
     }
 
+    grub_free (tmp);
     return 1;
   
 fail_close_free_cache:
@@ -1040,6 +1050,7 @@ fail_close_free_cache:
 
 fail_free_cache:
     grub_free (cache); 
+    grub_free (tmp);
     printf_warning("bootx64.efi not found\n");
     return 0;    
   }
@@ -1255,6 +1266,7 @@ boot_func (char *arg, int flags)
 	if (!image_handle)
 		return 0;
   printf_debug ("StartImage: %x\n", image_handle);				//开始映射
+  //此函数要读磁盘
   status = efi_call_3 (b->start_image, image_handle, 0, NULL);			//启动映像
   printf_debug ("StartImage returned 0x%lx\n", (grub_size_t) status);	//开始映射返回
   status = efi_call_1 (b->unload_image, image_handle);		//卸载映射
@@ -3270,7 +3282,7 @@ displaymem_func (char *arg, int flags)
   status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,
 			      GRUB_EFI_LOADER_CODE, mmap_size >> 11, (grub_efi_physical_address_t *)&memory_map);	//调用(分配页面,分配类型->任意页面,存储类型->装载程序代码(1),分配页,地址)
   if (status) //如果失败
-    printf_errinfo ("cannot allocate memory\n");	//无法分配内存 
+    printf_warning ("cannot allocate memory\n");	//无法分配内存 
 
   mm_status = grub_efi_get_memory_map (&mmap_size, memory_map, 0, &desc_size, 0);  //获得内存映射(映射尺寸,映射页,0,描述尺寸,0)  返回1/0/-1=成功/部分/失败
                                                                                   //获得内存描述符尺寸desc_size, 获得可用内存描述符集地址偏移map_size
@@ -3281,13 +3293,13 @@ displaymem_func (char *arg, int flags)
     status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,
             GRUB_EFI_LOADER_CODE, mmap_size >> 11, (grub_efi_physical_address_t *)&memory_map);	//调用(分配页面,分配类型->任意页面,存储类型->装载程序代码(1),分配页,地址)
 		if (! memory_map) //如果失败
-			printf_errinfo ("cannot allocate memory\n");	//无法分配内存 
+			printf_warning ("cannot allocate memory\n");	//无法分配内存 
 
 		mm_status = grub_efi_get_memory_map (&mmap_size, memory_map, 0,	&desc_size, 0);  //获得内存映射
 	}
 	
   if (mm_status < 0)  //如果失败
-    printf_errinfo ("cannot get memory map\n");	//无法分配内存
+    printf_warning ("cannot get memory map\n");	//无法分配内存
 
   grub_efi_get_memory_map (&mmap_size, memory_map, 0, &desc_size, 0);
 
@@ -4214,9 +4226,12 @@ static int find_check(char *filename,struct builtin *builtin1,char *arg,int flag
 {
 	saved_drive = current_drive;
 	saved_partition = current_partition;
+	int back = no_decompression;
+	no_decompression = 1; //无减压 执行打开命令，不探测压缩文件，即不产生读行为。
 	if (filename == NULL || (open_device() && grub_open (filename)))
 	{
 		grub_close ();
+		no_decompression = back; //恢复
 		if (builtin1)
 		{
 			int ret = strlen(arg) + 1;
@@ -4238,7 +4253,7 @@ static int find_check(char *filename,struct builtin *builtin1,char *arg,int flag
 		}
 		return 1;
 	}
-
+	no_decompression = back; //恢复
 	errnum = ERR_NONE;
 	return 0;
 }
@@ -4677,7 +4692,8 @@ font_func (char *arg, int flags)
   unsigned int len;
   unsigned int unicode=0;
 //  unsigned int narrow_indicator;
-	unsigned char buf[870];	//48*48
+//	unsigned char buf[870];	//48*48
+  char *buf;
   unsigned int valid_lines;
   unsigned long long saved_filepos;
 	unsigned long long val;
@@ -4763,7 +4779,9 @@ font_func (char *arg, int flags)
   }
 
 redo:
-	while	(((saved_filepos = filepos), (len = grub_read((unsigned long long)(grub_size_t)(char*)&buf, 6+font_h*num_narrow, 0xedde0d90))))
+  buf  = grub_malloc (870);	//48*48
+//	while	(((saved_filepos = filepos), (len = grub_read((unsigned long long)(grub_size_t)(char*)&buf, 6+font_h*num_narrow, 0xedde0d90))))
+  while	(((saved_filepos = filepos), (len = grub_read((unsigned long long)(grub_size_t)(char*)buf, 6+font_h*num_narrow, 0xedde0d90))))
   {
 		if (len != 6+font_h*num_narrow || buf[4] != ':')
     {
@@ -4789,13 +4807,15 @@ redo:
       grub_free (UNIFONT_START);
     UNIFONT_START = grub_zalloc (num_wide * font_h * 0x10000);
     if (!UNIFONT_START)
-      return 0;
+//      return 0;
+      goto err;
     if (!narrow_mem)
       narrow_mem = grub_zalloc(0x2000);  //宽窄字符指示器 0/1=窄/宽
     else
       grub_memset (narrow_mem, 0, 0x2000);
     if (!narrow_mem)
-      return 0;
+//      return 0;
+      goto err;
   }
 
 		if (buf[5+font_h*num_narrow] == '\n' || buf[5+font_h*num_narrow] == '\r')	/* narrow char */
@@ -4871,10 +4891,12 @@ close_file:
   {
 		filepos = saved_filepos;  //从失败处重新开始查找字库
     i=0;
-    while ((len = grub_read((unsigned long long)(grub_size_t)(char*)&buf, 1, 0xedde0d90)))
+//    while ((len = grub_read((unsigned long long)(grub_size_t)(char*)&buf, 1, 0xedde0d90)))
+    while ((len = grub_read((unsigned long long)(grub_size_t)(char*)buf, 1, 0xedde0d90)))
     {
       if (buf[0] == '#')  //避免注释中含有'DotSize='字符串，清除已安装字库  2023-09-30
-        while (grub_read((unsigned long long)(grub_size_t)(char*)&buf, 1, 0xedde0d90) && buf[0] != '\n');	//跳过注释
+//        while (grub_read((unsigned long long)(grub_size_t)(char*)&buf, 1, 0xedde0d90) && buf[0] != '\n');	//跳过注释
+        while (grub_read((unsigned long long)(grub_size_t)(char*)buf, 1, 0xedde0d90) && buf[0] != '\n');	//跳过注释
       if (buf[0] == '\n' || buf[0] == '\r')
       {
         goto redo;	/* try the new line */
@@ -4888,7 +4910,8 @@ close_file:
         i=0;
       if (i==8)
       {
-        grub_read((unsigned long long)(grub_size_t)(char*)&buf, 10, 0xedde0d90);
+//        grub_read((unsigned long long)(grub_size_t)(char*)&buf, 10, 0xedde0d90);
+        grub_read((unsigned long long)(grub_size_t)(char*)buf, 10, 0xedde0d90);
         char *p = (char *)buf;
         i=0;
         unifont_simp_on = 0;
@@ -4912,6 +4935,7 @@ close_file:
     }
   }
   grub_close();
+  grub_free (buf);
   if (! valid_lines)	// if no valid lines,
     return valid_lines;	
   menu_tab_ext |= 4;  //已加载字库
@@ -4919,6 +4943,10 @@ close_file:
 //#undef	old_narrow_char_indicator
 
   return valid_lines;	/* success */
+
+err:
+  grub_free (buf);
+  return 0;
 }
 
 static struct builtin builtin_font =
@@ -5360,7 +5388,8 @@ static void
 get_vol (char* vol_found, int flags)
 {
 	int i, j, n = 0xedde0d90;
-	unsigned char uni[256]={0};
+//	unsigned char uni[256]={0};
+  char *uni = grub_zalloc (256);
 
 	if (flags)
 		n = 0x900ddeed;
@@ -5495,7 +5524,10 @@ pri:
 				if (*pa == 0xff || (i > pa[4] && *pa == 0x60))
 				{
 					if (i - pa[4] + *(unsigned int *)(BUFFER + 0x18) > *(unsigned int *)(BUFFER + 0x1c))
-						return;			
+					{
+						grub_free (uni);
+						return;	
+					}            
 					if (*pa == 0xFF)
 					{
 						grub_memset(pa, 0, i);
@@ -5546,7 +5578,10 @@ pri:
 		saved_drive = back_drive;
 		saved_partition = back_partition;
 		if (!i && ((*(unsigned int *)(SUPERBLOCK+0x14)) ? ((filepos-32) >= *(unsigned int *)(SUPERBLOCK+0x14)) : (((filepos-32)&((1<<*(unsigned int *)(SUPERBLOCK+0x34))-1)) == 0)))
+		{
+			grub_free (uni);
 			return;
+		}
 		
 		if (flags)
 			n = 0x900ddeed;
@@ -5560,7 +5595,10 @@ pri:
 			vol_found[11] = 8;
 			devread (*(unsigned long long *)(SUPERBLOCK+0x58)+(filepos>>9), filepos&0x1ff, 12, (unsigned long long)(grub_size_t)vol_found, n);
 			if (flags)
+			{
+				grub_free (uni);
 				return;
+			}
 			vol_found[11] = 0;
 			for (i=10; i>=0; i--)
 			{
@@ -5603,6 +5641,8 @@ pri:
 	}
 	else if (flags)
 		grub_printf("Warning: No Volume in %s filesystem type.",fsys_table[fsys_type].name);
+  
+	grub_free (uni);
 	return;
 }
 
@@ -7438,6 +7478,11 @@ unsigned long long vhd_start_sector;
 unsigned int ext_num;
 unsigned int ext_start_lba;
 unsigned int ext_total_sectors;
+/*
+网起:
+1. 如果执行http协议(cur_pxe_type=1)，并且支持断点续传(http_feature=1)，则可以不加载到内存。要加载到内存，使用 --mem 参数，并且在本模块分配内存。
+2. 如果执行tftp协议(cur_pxe_type=0)，或者不支持断点续传(http_feature=0)，则强制加载到内存，使用固定缓存(efi_pxe_buf)，不在本模块分配内存。
+*/
 
 //映射 FROM 驱动器到 TO 驱动器
 int
@@ -7854,7 +7899,7 @@ struct drive_map_slot
 //a0,21,21,21;  60,ffff,ffff,21;  map (http)/imgs/ifu352.iso (cd)
 //a0,21,21,21;  60,ffff,ffff,21;  map --mem (http)/imgs/ifu352.iso (cd)
 //81,ffff,ffff.21;  82,7f,7f,81;  ntboot (http)/imgs/boot.wim
-  if (to == 0xffff || to == ram_drive || from == ram_drive || to == 0x21)		//如果to=md,或to=rd,或from=rd,或网络驱动器
+  if (to == 0xffff || to == ram_drive || from == ram_drive || (to == 0x21 && (!cur_pxe_type || !http_feature)))		//如果to=md,或to=rd,或from=rd,或网络驱动器
   {
 		if (mem == -1ULL)		//如果mem=-1ULL=0xffffffffffffffff   不加载到内存
 			mem = 0;					//则为零  修改为加载到内存   to=md,或to=rd,或from=rd,则一定是mem=0,即一定加载到内存
@@ -7886,7 +7931,7 @@ struct drive_map_slot
 //a0,21,21,21;  60,ffff,ffff,21;
 //a0,21,21,21;  60,ffff,ffff,21;
 //81,ffff,ffff.21;  82,7f,7f,81;
-  if (to == 0x21)
+  if (to == 0x21 && (!cur_pxe_type || !http_feature))
   {
     map_pd = 1;
     if (! grub_open (to_drive))	//从服务器复制文件到efi_pxe_buf
@@ -7905,8 +7950,10 @@ struct drive_map_slot
 		int c = compressed_file;
 		k = no_decompression;
 		no_decompression = 1;
+    putchar_hooked = (unsigned char*)1;  //禁止显示
     //第一次读to驱动器，建立扇区序列
     blocklist_func (to_drive, flags);	//请求块列表   执行成功后,将设置query_block_entries=1,设置errnum=0
+    putchar_hooked = 0;
 		no_decompression = k;
 		compressed_file = c;
     if (errnum)
@@ -8199,7 +8246,7 @@ get_info_ok:
     start_byte = start_sector << buf_geom.log2_sector_size;		//起始字节
 		if (to == ram_drive)		  //如果to=rd
 			start_byte += rd_base;  //起始字节+rd基址
-    if (to == 0x21) //网络驱动器  
+    if (to == 0x21 && (!cur_pxe_type || !http_feature)) //网络驱动器  
     {
       start_sector = ((unsigned long long)(grub_size_t)(char*)efi_pxe_buf);  //此处是内存起始字节!!!
       start_byte = rd_base;
@@ -8301,12 +8348,12 @@ mem_ok:
 //a0,21,7f,21;  60,ffff,ffff,21;
 //a0,21,7f,21;  60,ffff,ffff,21;
 //81,ffff,ffff.21;
-	  if ((to == 0xffff || to == ram_drive || to == 0x21) && !compressed_file) //如果映像在内存中，并且没有压缩，我们可以简单地移动它。
+	  if ((to == 0xffff || to == ram_drive/* || (to == 0x21 && type != 260)*/) && !compressed_file) //如果映像在内存中，并且没有压缩，我们可以简单地移动它。
 		{
         printf ("Copying data from memory, please wait......\n");
         grub_memmove64 (alloc, start_byte, filemax);
 		}
-    else if (!compressed_file)  //如果映像不在内存，而且没有压缩(img,iso,静态vhd)，使用读碎片块方法  2024-09-01  加快静态vhd的读取速度
+    else if (!compressed_file && to != 0x21)  //如果映像不在内存，而且没有压缩(img,iso,静态vhd)，使用读碎片块方法  2024-09-01  加快静态vhd的读取速度
     {
       //在QEMU虚拟机测试qbus_gd.vhd，716Mb，用时94秒。如果使用grub_read函数，用时167秒。94/167=56%
       //在QEMU虚拟机测试qbus_dt.vhd，642Mb，用时93秒。
@@ -9231,7 +9278,8 @@ static struct builtin builtin_partnew =
 #define GPT_HDR_SIZE 			(0x5C)
 static int gpt_set_crc(P_GPT_HDR hdr)
 {
-	char data[SECTOR_SIZE];
+//	char data[SECTOR_SIZE];
+  char *data = grub_malloc (SECTOR_SIZE);
 	int crc;
 	int errnum_bak = errnum;
 
@@ -9241,7 +9289,11 @@ static int gpt_set_crc(P_GPT_HDR hdr)
 	sprintf(data,"(0x%X)0x%lx+%u,%u",current_drive,hdr->hdr_lba_table,32,hdr->hdr_entries * hdr->hdr_entsz);
 	crc = grub_crc32(data,0);
 	if (errnum)
+	{
+		grub_free (data);
 		return 0;
+	}
+  grub_free (data);
 	hdr->hdr_crc_table = crc;
 	hdr->hdr_crc_self = 0;
 	crc = grub_crc32((char*)hdr,GPT_HDR_SIZE);
@@ -9257,33 +9309,57 @@ static int gpt_set_crc(P_GPT_HDR hdr)
 
 static int gpt_set_attr(P_GPT_HDR hdr,grub_u32_t part,grub_u64_t attr)
 {
-	GPT_ENT ent;
-	if (! rawread (current_drive, hdr->hdr_lba_table + (part >> 2), (part & 3) * sizeof(GPT_ENT), sizeof(GPT_ENT), (unsigned long long)(grub_size_t)&ent, GRUB_READ))
+//	GPT_ENT ent;
+  GPT_ENT *ent = grub_malloc (sizeof(GPT_ENT));
+//	if (! rawread (current_drive, hdr->hdr_lba_table + (part >> 2), (part & 3) * sizeof(GPT_ENT), sizeof(GPT_ENT), (unsigned long long)(grub_size_t)&ent, GRUB_READ))
+	if (! rawread (current_drive, hdr->hdr_lba_table + (part >> 2), (part & 3) * sizeof(GPT_ENT), sizeof(GPT_ENT), (unsigned long long)(grub_size_t)ent, GRUB_READ))
+	{
+		grub_free (ent);
 		return 0;
+	}
 
 	if (attr & 0xFF00)
-		ent.ms_attr.gpt_att = (unsigned short)attr;
+//		ent.ms_attr.gpt_att = (unsigned short)attr;
+		ent->ms_attr.gpt_att = (unsigned short)attr;
 	else
-		ent.attributes = attr;
+//		ent.attributes = attr;
+		ent->attributes = attr;
 
 	buf_track = -1;
-	if (! rawread (current_drive, hdr->hdr_lba_table + (part >> 2), (part & 3) * sizeof(GPT_ENT), sizeof(GPT_ENT), (unsigned long long)(grub_size_t)&ent, GRUB_WRITE))
+//	if (! rawread (current_drive, hdr->hdr_lba_table + (part >> 2), (part & 3) * sizeof(GPT_ENT), sizeof(GPT_ENT), (unsigned long long)(grub_size_t)&ent, GRUB_WRITE))
+	if (! rawread (current_drive, hdr->hdr_lba_table + (part >> 2), (part & 3) * sizeof(GPT_ENT), sizeof(GPT_ENT), (unsigned long long)(grub_size_t)ent, GRUB_WRITE))
+	{
+		grub_free (ent);
 		return 0;
+	}
+  
+  grub_free (ent);
 	return gpt_set_crc(hdr);
 }
 
 static unsigned int gpt_slic_set_attr(grub_u32_t part,grub_u64_t attr)
 {
-	char data[SECTOR_SIZE];
+//	char data[SECTOR_SIZE];
+	char *data = grub_malloc (SECTOR_SIZE);
 	int crc1,crc2;
 	if (! rawread (current_drive, 1, 0, sizeof(GPT_HDR), (unsigned long long)(grub_size_t)data, GRUB_READ))
+	{
+		grub_free (data);
 		return 0;
+	}
 	P_GPT_HDR hdr = (P_GPT_HDR)data;
 	crc1 = gpt_set_attr(hdr,part,attr);
 	if (!crc1)
+	{
+		grub_free (data);
 		return 0;
+	}
 	if (! rawread (current_drive, hdr->hdr_lba_alt, 0, sizeof(GPT_HDR), (unsigned long long)(grub_size_t)data, GRUB_READ))
+	{
+		grub_free (data);
 		return 0;
+	}
+	grub_free (data);
 	crc2 = gpt_set_attr(hdr,part,attr);
 	if (!crc2)
 		return 0;
@@ -11876,7 +11952,7 @@ xyz_done:
 					break;
 
 				default:
-					return printf_errinfo ("unsupported video mode");
+					return printf_warning ("unsupported video mode");
 			}
 			
 			if (tmp_graphicsmode == 0x2ff)
@@ -12743,6 +12819,7 @@ static void case_convert(char *ch,int flag)
 	}
 }
 
+static char value[512];
 static int set_func(char *arg, int flags);
 static int set_func(char *arg, int flags)
 {
@@ -12751,14 +12828,14 @@ static int set_func(char *arg, int flags)
 		return reset_env_all();   //envi_cmd(NULL, NULL, 3)
   else if (grub_memcmp (arg, "tftp", 4) == 0)
   {
-    *(char *)IMG(0x8205) &= 0xf7;
-    cur_pxe_type = 0;
+    if (cur_pxe_type)
+      cur_pxe_type = 0;
     return 1;
   }
   else if (grub_memcmp (arg, "http", 4) == 0)
   {
-    *(char *)IMG(0x8205) |= 0x08;
-    cur_pxe_type = 1;
+    if (!cur_pxe_type && !only_tftp)
+      cur_pxe_type = 1;
     return 1;
   }
   else if (grub_memcmp (arg, "gbk2uni=", 8) == 0)
@@ -12799,7 +12876,7 @@ static int set_func(char *arg, int flags)
 	    else
 		return printf("BASE:%X,%X,VARS:%d",(grub_size_t)var_ex,(grub_size_t)var_ex_value,var_ex_size);
 	}
-	char value[512];
+//	char value[512];
 	int convert_flag=0;
 	unsigned long long wait_t = 0xffffff00;
 	while (*arg)

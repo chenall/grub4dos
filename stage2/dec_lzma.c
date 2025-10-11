@@ -1178,7 +1178,8 @@ int
 dec_lzma_open (void)
 // return 1=success or 0=failure
 {
-    unsigned char header[13];
+//    unsigned char header[13];
+    unsigned char *header = dec_header;
     unsigned char d;
     if (no_decompression) return 0;
 
@@ -1186,8 +1187,9 @@ dec_lzma_open (void)
     // Make sure previously allocated memory blocks is freed. 
     // Don't need this line if grub_close is called for every openned file before grub_open is called for next file.
     dec_lzma_close();
-    filepos = 0;
-    if (grub_read ((unsigned long long)(grub_size_t)(char *)header, 13, 0xedde0d90) == 13) 
+//    filepos = 0;
+    filepos = 13;
+//    if (grub_read ((unsigned long long)(grub_size_t)(char *)header, 13, 0xedde0d90) == 13) 
     {
 	// check header
 	lzmadec.prop.dicSize = ReadUnalignedUInt32 (header + 1);
@@ -1262,12 +1264,14 @@ dec_lzma_open (void)
 	    //grub_printf("LZMA allocate memory\n");
 	    errnum = ERR_BAD_GZIP_HEADER;
 	}
+  goto aaa;
     }
-    else
+//    else
     {
 fail:
 	errnum = ERR_BAD_GZIP_HEADER;
     }
+aaa:
     filepos = 0;
     return 0;
 }

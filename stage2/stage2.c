@@ -180,9 +180,10 @@ static void
 print_default_help_message (char *config_entries)
 {
 	grub_u32_t	i;
-	char		buff[256];
+//	char		buff[256];
+	char *buff = grub_malloc (256);
 
-if (menu_tab & 0x20)
+  if (menu_tab & 0x20)
 		i = grub_sprintf (buff,"\n按↑和↓选择菜单。");
 	else
 		i = grub_sprintf (buff,"\nUse the ↑ and ↓ keys to highlight an entry.");
@@ -223,6 +224,7 @@ if (menu_tab & 0x20)
 	}
 	print_help_message(buff,0);
 	default_help_message_destoyed = 0;
+	grub_free (buff);
 }
 
 // ADDED By STEVE6375
@@ -369,7 +371,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
   is_highlight = highlight;
 	if (graphic_type)
 	{
-		char tmp[128];
+//		char tmp[128];
 		int file_len=grub_strlen(graphic_file);
 		int www = (font_w * MENU_BOX_W) / graphic_list;
 		int graphic_x_offset, graphic_y_offset, text_x_offset;
@@ -390,6 +392,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		}
 		else
 		{
+		char *tmp = grub_malloc (128);
 		graphic_file[file_len-6] = ((entryno + graphic_file_shift[entryno]) / 10) | 0x30;
 		graphic_file[file_len-5] = ((entryno + graphic_file_shift[entryno]) % 10) | 0x30;
 		sprintf(tmp,"--offset=%d=%d=%d %s",0,graphic_x_offset,graphic_y_offset,graphic_file);
@@ -398,6 +401,7 @@ print_entry (int y, int highlight,int entryno, char *config_entries)
 		splashimage_func(tmp,1);
 		graphic_enable = 0;
 		use_phys_base=0;
+		grub_free (tmp);
 		if ((graphic_type & 4) && highlight)
 			rectangle(graphic_x_offset,graphic_y_offset,graphic_wide,graphic_high,3);
 		}

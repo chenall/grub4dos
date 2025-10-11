@@ -1248,13 +1248,15 @@ set_device (char *device)
     {
       if (grub_memcmp(device,"tftp",4) == 0)
       {
-        cur_pxe_type = PXE_FILE_TYPE_TFTP;
+        if (cur_pxe_type)
+          cur_pxe_type = 0;
         current_drive = PXE_DRIVE;	//0x21
         device += 4;
       }
       else if (grub_memcmp(device,"http",4) == 0)
       {
-        cur_pxe_type = PXE_FILE_TYPE_HTTP;
+        if (!cur_pxe_type && !only_tftp)
+          cur_pxe_type = 1;
         current_drive = PXE_DRIVE;	//0x21
         device += 4;
         if (*(device + 4) == 's')
@@ -1589,11 +1591,14 @@ void print_a_completion (char *filename, int case_insensitive);
 void
 print_a_completion (char *name, int case_insensitive)
 {
-	char tem[256];
-	char *p = tem;
+//	char tem[256];
+//	char *p = tem;
   /* If NAME is "." or "..", do not count it.  */
   if (grub_strcmp (name, ".") == 0 || grub_strcmp (name, "..") == 0)
     return;
+
+  char *tem = grub_malloc (256);
+  char *p = tem;
 
 	while (*name)
 	{
@@ -1630,6 +1635,7 @@ print_a_completion (char *name, int case_insensitive)
     grub_printf (" %s", name);
 
   unique++;
+  grub_free (tem);
 }
 
 /*
@@ -1902,10 +1908,6 @@ grub_open (char *filename)
 #endif /* NO_DECOMPRESSION */
 
   errnum = 0;
-  if (*(char *)IMG(0x8205) & 0x08)
-    cur_pxe_type = PXE_FILE_TYPE_HTTP;   //默认网起使用http。即'/'使用http。如果使用tftp，必需指明，即(tftp)/
-  else
-    cur_pxe_type = PXE_FILE_TYPE_TFTP;   //默认网起使用tftp。即'/'使用tftp。如果使用http，必需指明，即(http)/
 
   /* if any "dir" function uses/sets filepos, it must
      set it to zero before returning if opening a file! */
@@ -1935,7 +1937,10 @@ grub_open (char *filename)
 #endif
 #endif
     if (current_drive == 0x21) //2024-12-12
+    {
+      fsys_type = 0;
       goto not_block_file;
+    }
 #ifdef NO_BLOCK_FILES
       return !(errnum = ERR_BAD_FILENAME);
 #else
@@ -2041,7 +2046,8 @@ not_block_file:
   print_possibilities = 0;
   if (!set_filename(filename))
 	return 0;
-
+  if (current_drive == 0x21)
+    fsys_type = 0;
   if (!errnum && (*(fsys_table[fsys_type].dir_func)) (open_filename))
     {
 #ifdef NO_DECOMPRESSION
@@ -2150,19 +2156,22 @@ unsigned long long
 grub_read (unsigned long long buf, unsigned long long len, unsigned int write)
 {
   if (filepos >= filemax)
-      return 0;//!(errnum = ERR_FILELENGTH);
+      return !(errnum = ERR_FILELENGTH);
 
   if (len > filemax - filepos)
       len = filemax - filepos;
 
   /* if target file position is past the end of
      the supported/configured filesize, then
-     there is an error */
+     there is an error 
+     如果目标文件位置超过了支持/配置的文件大小的末尾，则存在错误
+  */
   if (filepos + len > fsmax)
       return !(errnum = ERR_FILELENGTH);
 
   errnum = 0;
   unsigned long long (*read_func) (unsigned long long _buf, unsigned long long _len, unsigned int _write);
+  //1. 确定读方法
 #ifndef NO_DECOMPRESSION
   if (compressed_file)
   {
@@ -2185,24 +2194,22 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned int write)
     return !(errnum = ERR_FSYS_MOUNT);
   else
     read_func = fsys_table[fsys_type].read_func;
-  /* Now, read_func is ready. */
-  if ((!buf) || (len < grub_read_loop_threshold)
-#if 0
-#ifdef FSYS_IPXE
-     || fsys_table[fsys_type].read_func == pxe_read
-#endif
-#endif
+
+  //2.读文件
+  if ((!buf)                                        //缓存为零
+     || (len < grub_read_loop_threshold)            //尺寸小于8MB
+     || fsys_table[fsys_type].read_func == pxe_read //网起
 #ifndef NO_DECOMPRESSION
-      || (compressed_file && decomp_type == DECOMP_TYPE_LZMA)
+      || (compressed_file && decomp_type == DECOMP_TYPE_LZMA) //压缩文件并且是LZMA类型
 #endif /* NO_DECOMPRESSION */
   )
   {
-    /* Do whole request at once. */
+    /* Do whole request at once.  一次性完成全部请求。*/
       return read_func(buf, len, write);
   }
   else 
   {
-    /* Transfer small amount of data at a time and print progress. */
+    /* Transfer small amount of data at a time and print progress.  一次传输少量数据并打印进度。*/
     unsigned long long byteread = 0;
     unsigned long long remaining = len;
     while (remaining)
@@ -2217,11 +2224,7 @@ grub_read (unsigned long long buf, unsigned long long len, unsigned int write)
 	buf += ret1;		/* Don't do this if buf is 0 */
 	remaining -= ret1;
     }
-#if 0
-    if (remaining)
-		grub_printf("\r[%ldM/%ldM]\n",byteread>>20,len>>20);
-    else
-#endif
+
 		grub_printf("\r                        \r");
     return byteread;
   }
@@ -3044,10 +3047,24 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
   if ((drive & 0xffff00) == 0xffff00)
   {
     int partition = (drive >> 8) & 0x0fffff;
-    int cd_count = drive >> 28;
+//    int cd_count = drive >> 28;
     drive &= 0xff;
     if (drive >= 0xa0)
-      drive = 0x60 + cd_count;
+    {
+//      drive = 0x60 + cd_count;
+      dp = get_partition_info (drive, 0);
+      if (!dp)
+        return 1;
+      lba_byte = (sector << 9) + size + (dp->partition_start << 11); 
+
+      if (read_write == 0x900ddeed) //写
+        grub_memmove64 (lba_byte, (unsigned long long)(grub_size_t)buf, size);
+      else
+        grub_memmove64 ((unsigned long long)(grub_size_t)buf, lba_byte, size);
+		
+      return 0;
+    }
+
     if (drive >= 0x80)
     {
       df = get_device_by_drive (drive,0);
@@ -3057,6 +3074,16 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
       if (!dp)
         return 1;
       lba_byte = (sector + dp->partition_start) << df->from_log2_sector; 
+      //网起
+      if (df->to_drive == 0x21)
+      {
+        int back = current_drive;
+        current_drive = 0x21;
+        filepos = lba_byte;
+        pxe_read((unsigned long long)(grub_size_t)buf, size, GRUB_READ);
+        current_drive = back;
+        return 0;
+      }
     }
   }
   //md或者rd
@@ -3089,6 +3116,16 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
 		df = get_device_by_drive (drive,0);
 		if (!df)
 			return 1;
+    //网起
+    if (df->to_drive == 0x21)
+    {
+      int back = current_drive;
+      current_drive = 0x21;
+      filepos = sector << df->from_log2_sector; //14000
+      pxe_read((unsigned long long)(grub_size_t)buf, size, GRUB_READ);  //81920-83967,800
+      current_drive = back;
+      return 0;
+    }
 	}
 #if VHD_DIFFERENCE
 	//动态vhd处理
@@ -3995,14 +4032,14 @@ vpart_install (int drive, struct grub_part_data *part) //安装虚拟分区
                        &blk_io_guid, &vpart->block_io, NULL);	//指向io设备接口的指针,指向block_io设备接口的指针,NULL 
   if(status != GRUB_EFI_SUCCESS)
   {
-    printf_errinfo ("failed to install virtual partition: install_multiple_protocol_interfaces.(%x)\n",status);	//无法安装虚拟分区
+    printf_warning ("failed to install virtual partition: install_multiple_protocol_interfaces.(%x)\n",status);	//无法安装虚拟分区
 //    return GRUB_EFI_NOT_FOUND;
   }
 	//此函数要读磁盘
   status = efi_call_4 (b->connect_controller, vpart->from_handle, NULL, NULL, TRUE);	//引导服务->连接控制器,要连接驱动程序的控制器的句柄,驱动程序绑定协议的有序列表句柄的指针,指向设备路径的指针,如果为true则递归调用ConnectController（），
   if(status != GRUB_EFI_SUCCESS)
   {
-    printf_errinfo ("failed to install virtual partition: connect_controller.(%d)\n",(int)status);	//无法安装虚拟分区
+    printf_warning ("failed to install virtual partition: connect_controller.(%d)\n",(int)status);	//无法安装虚拟分区
 //    return GRUB_EFI_NOT_FOUND;
   }
 
@@ -4926,7 +4963,7 @@ grub_load_image (grub_efi_device_path_t *path, const char *filename, void *boot_
 
   if (status != GRUB_EFI_SUCCESS)	//失败
   {
-    printf_errinfo ("Failed to load virtual disk image.(%d)\n",(int)status);
+    printf_warning ("Failed to load virtual disk image.(%d)\n",(int)status);
     boot_image_handle = NULL;
   }
 

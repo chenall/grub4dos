@@ -277,8 +277,9 @@ int gunzip_test_header (void);
 int
 gunzip_test_header (void)
 {
-  unsigned char buf[10];
-
+//  unsigned char buf[10];
+  unsigned char *buf;
+  buf = dec_header;
   /* check lz4 */
   if (dec_lz4_open ())
 	goto test_dec;
@@ -296,7 +297,7 @@ gunzip_test_header (void)
    */
   gzip_filemax = filemax; //返回压缩文件尺寸
   if (no_decompression
-      || grub_read ((unsigned long long)(grub_size_t)(char *)buf, 10, 0xedde0d90) != 10
+//      || grub_read ((unsigned long long)(grub_size_t)(char *)buf, 10, 0xedde0d90) != 10
       || ((*((unsigned short *) buf) != GZIP_HDR_LE)
 	  && (*((unsigned short *) buf) != OLD_GZIP_HDR_LE)))
     {
@@ -309,6 +310,8 @@ gunzip_test_header (void)
    *  problem occurs from here on, then we have corrupt or otherwise
    *  bad data, and the error should be reported to the user.
    */
+   
+  filepos = 10;
   if (buf[2] != DEFLATED
       || (buf[3] & UNSUPP_FLAGS)
       || ((buf[3] & EXTRA_FIELD)
