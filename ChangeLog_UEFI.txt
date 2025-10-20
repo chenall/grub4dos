@@ -1,4 +1,7 @@
 ﻿更新说明：
+2025-10-20 (yaya)
+  支持ipxe启动g4e传入参数： chain /bootg4e.efi ipxe=${proxydhcp/next-server}
+
 2025-10-11 (yaya)
   如果HTTP服务支持断点续传，则采用分块传输(即不整体加载到内存)。
   函数"find --set-root"，网起时不再读文件到内存。

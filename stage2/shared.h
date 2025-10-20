@@ -4236,7 +4236,7 @@ typedef struct {
 #define GRUB_EFI_PXE_BASE_CODE_MAX_ARP_ENTRIES 8
 #define GRUB_EFI_PXE_BASE_CODE_MAX_ROUTE_ENTRIES 8
 
-typedef struct grub_efi_pxe_mode  //pxe模式
+typedef struct grub_efi_pxe_mode  //pxe模式  尺寸=0x28b8
 {																			//									bootia32.efi				ipxe->bootia32.efi			
   grub_efi_boolean_t started;					//开始了									01	-
   grub_efi_boolean_t ipv6_available;	//ipv6可用								00
