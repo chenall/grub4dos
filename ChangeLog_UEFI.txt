@@ -1,6 +1,10 @@
 ﻿更新说明：
+2025-10-29 (yaya)
+  消除http断点续传时连续读一字节。
+  网起时，http服务优先。
+
 2025-10-20 (yaya)
-  支持ipxe启动g4e传入参数： chain /bootg4e.efi ipxe=${proxydhcp/next-server}
+  支持ipxe启动g4e传入参数： chain /bootg4e.efi proxy=${proxydhcp/next-server}
 
 2025-10-11 (yaya)
   如果HTTP服务支持断点续传，则采用分块传输(即不整体加载到内存)。

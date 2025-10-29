@@ -830,7 +830,6 @@ clear_delay_display (int entryno)
   }
 }
 
-unsigned short beep_buf[256];
 int new_menu;
 int new_hotkey;
 int color_counting;
