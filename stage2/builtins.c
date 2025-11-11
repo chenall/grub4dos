@@ -1039,6 +1039,7 @@ complete:
         p->partition_start = (address >> 9) + cd_Image_part_start;
 //        p->partition_size = cd_Image_disk_size;
         p->partition_size = cd_Image_disk_size - cd_Image_part_start;
+        *(unsigned int *)(grub_size_t)(address + (cd_Image_part_start << 9) + 0x1c) = 0;
       }
     }
 
@@ -7460,7 +7461,7 @@ add_part_data (int drive)
 //    p->partition_size = cd_Image_disk_size;
 //    p->boot_start = cd_boot_start;
 //    p->boot_size = cd_boot_size;
-    p->partition_activity_flag = 0x60 + cd_map_count; //光盘启动镜像的驱动器号
+//    p->partition_activity_flag = 0x60 + cd_map_count; //光盘启动镜像的驱动器号
     p->partition_boot = 1;
     p->next = 0;
     if (!partition_info) //使用 'if (!p_final)' 会判断错误。 当 partition_info=bp=0 时，if (!partition_info) 返回1；而 if (!p_final) 返回0。

@@ -319,7 +319,7 @@ bbb:
     }
     //如果指针不在缓存范围
     goto bbb;
-#undef BUFLEN	4000
+#undef BUFLEN
   }
 
   grub_memmove64 (buf, (unsigned long long)(grub_size_t)(char*)(efi_pxe_buf + filepos), len);
@@ -412,7 +412,7 @@ static int tftp_open(void)		//tftp打开
 	    0);
   if (status != GRUB_EFI_SUCCESS)		//失败
 	{
-		printf_errinfo ("Couldn't get file size. %d\n",(int)status);
+		printf_errinfo ("Couldn't get file size. %d\n",(unsigned int)status);
 		return 0;
 	}
 
@@ -975,7 +975,7 @@ repeat:
     sum1 += response_message.body_length;  //打印计数
     if (sum1 >= 0x800000) // 8MB打印一次
     {
-      grub_printf("[%ldM/%ldM]\r",sum>>20,filesize>>20);
+      grub_printf("[%ldM/%ldM]\r",sum>>20,back_len>>20);  //不能使用filesize，在读失败调整后跳转到repeat时，filesize值会变小。
       sum1 -= 0x800000;
     }
 

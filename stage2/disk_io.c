@@ -192,7 +192,7 @@ unsigned int emu_iso_sector_size_2048 = 0;
 //1. 如果缓存驱动器号≠驱动器号, 获取磁盘信息
 //2. 处理读列表块, 处理磁盘读挂钩
 //3. 处理写磁盘
-//4. 将字节长度分解为4k(1000字节)片段，磁盘每次读4k尺寸
+//4. 将字节长度分解为64k(10000字节)片段，磁盘每次读64k尺寸
 //5. 首先从磁盘读数据到临时缓存BUFFERADDR, 然后复制到目标缓存buf
 int rawread (unsigned int drive, unsigned long long sector, unsigned int byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned int write);
 int
@@ -3055,8 +3055,9 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
       dp = get_partition_info (drive, 0);
       if (!dp)
         return 1;
-      lba_byte = (sector << 9) + size + (dp->partition_start << 11); 
 
+//      lba_byte = (sector << 9) + size + (dp->partition_start << 11);
+      lba_byte = (sector + dp->partition_start) << 9;
       if (read_write == 0x900ddeed) //写
         grub_memmove64 (lba_byte, (unsigned long long)(grub_size_t)buf, size);
       else
