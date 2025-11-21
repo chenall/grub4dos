@@ -5566,6 +5566,26 @@ $as_echo "$fno_common_flag" >&6; }
 if test "x$fno_common_flag" = xyes; then
    STAGE2_CFLAGS="$STAGE2_CFLAGS -fcommon"
 fi
+#gcc 15 and newer has built with -std=gnu23 by default so we add -std=gnu17 to CFLAGS
+# Check if gcc 15 or newer
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether gcc 15 or newer built with -std=gnu23 by default" >&5
+$as_echo_n "checking whether gcc 15 or newer built with -std=gnu23 by default... " >&6; }
+currentgccver="$($CC -dumpversion)"
+gcc15="14.9.0"
+
+if [ "$(printf '%s\n' "$gcc15" "$currentgccver" | sort -V | head -n1)" = "$gcc15" ]; then 
+  C17_common_flag=yes
+else
+  C17_common_flag=no
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $C17_common_flag" >&5
+$as_echo "$C17_common_flag" >&6; }
+
+if test "x$C17_common_flag" = xyes; then
+  CFLAGS="-std=gnu17 $CFLAGS"
+fi
+
 if test "x$with_binutils" != x; then
   # Extract the first word of "objcopy", so it can be a program name with args.
 set dummy objcopy; ac_word=$2
