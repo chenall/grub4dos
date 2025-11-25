@@ -8742,7 +8742,10 @@ md5crypt_func (char *arg, int flags)
   grub_memmove (crypted, "$1$", 3);
 
   /* Create the length of a salt.  */
-  seed = *(unsigned int *)0x46C;
+//  seed = *(unsigned int *)0x46C;  //0x46C是DOS系统的时间滴答  1滴答= 1/18.2秒     此处一般为零。
+  struct grub_datetime datetime;
+  get_datetime (&datetime);
+  seed = (datetime.day << 24) | (datetime.hour << 16) | (datetime.minute << 8) | datetime.second;
 
   /* Generate a salt.  */
   for (i = 0; i < 8 && seed; i++)

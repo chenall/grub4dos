@@ -286,6 +286,7 @@ gunzip_test_header (void)
   /* check lzma */
   if (dec_lzma_open ())
 	goto test_dec;
+  errnum = 0;
   if (dec_vhd_open())
 	goto test_dec;
   /* "compressed_file" is already reset to zero by this point */

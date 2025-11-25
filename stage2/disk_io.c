@@ -2156,7 +2156,8 @@ unsigned long long
 grub_read (unsigned long long buf, unsigned long long len, unsigned int write)
 {
   if (filepos >= filemax)
-      return !(errnum = ERR_FILELENGTH);
+//      return !(errnum = ERR_FILELENGTH);
+      return 0;
 
   if (len > filemax - filepos)
       len = filemax - filepos;

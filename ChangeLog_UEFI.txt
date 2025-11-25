@@ -1,4 +1,9 @@
 ﻿更新说明：
+2025-11-25 (yaya)
+  支持gcc-15(由memoarfaa提供)。
+  修正RUN失效。
+  修正md5crypt函数。
+
 2025-11-11 (yaya)
   修正iso映射。
 
