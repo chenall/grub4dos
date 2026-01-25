@@ -88,33 +88,33 @@ initrd /porteus/initrd.xz
 title 使用外部命令 ntloader 启动 WIM/VHD (kernel方案1)
 uuid (hdx,y)
 kernel /efi/grub/ext/ntloader uuid=%?% file=/boot/imgs/winpe.wim
-initrd /efi/grub/ext/initrd.lz1
+initrd /efi/grub/ext/initrd.cpio
 
 title 使用外部命令 ntloader 启动 WIM/VHD (kernel 方案2)
 find --set-root /boot/imgs/winpe.wim
 uuid ()
 find --set-root /efi/grub/ext/ntloader
 kernel /efi/grub/ext/ntloader uuid=%?% file=/boot/imgs/winpe.wim
-initrd /efi/grub/ext/initrd.lz1
+initrd /efi/grub/ext/initrd.cpio
 
 title 使用外部命令 ntloader 启动 WIM/VHD (chainloader 方案1)
 uuid (hdx,y)
-chainloader /efi/grub/ext/ntloader initrd=/efi/grub/ext/initrd.lz1 uuid=%?% file=/boot/imgs/winpe.wim
+chainloader /efi/grub/ext/ntloader initrd=/efi/grub/ext/initrd.cpio uuid=%?% file=/boot/imgs/winpe.wim
 
 title 使用外部命令 ntloader 启动 WIM/VHD (chainloader 方案2)
 find --set-root /boot/imgs/winpe.wim
 uuid ()
 find --set-root /efi/grub/ext/ntloader
-chainloader /efi/grub/ext/ntloader initrd=/efi/grub/ext/initrd.lz1 uuid=%?% file=/boot/imgs/winpe.wim
+chainloader /efi/grub/ext/ntloader initrd=/efi/grub/ext/initrd.cpio uuid=%?% file=/boot/imgs/winpe.wim
 
 title 使用外部命令 ntloader 启动 Windows 系统 (kernel 方案)
 uuid (hdx,y)
 kernel /efi/grub/ext/ntloader uuid=%?%
-initrd /efi/grub/ext/initrd.lz1
+initrd /efi/grub/ext/initrd.cpio
 
 title 使用外部命令 ntloader 启动 Windows 系统 (chainloader 方案)
 uuid (hdx,y)
-chainloader /efi/grub/ext/ntloader initrd=/efi/grub/ext/initrd.lz1 uuid=%?%
+chainloader /efi/grub/ext/ntloader initrd=/efi/grub/ext/initrd.cpio uuid=%?%
 
 title 使用外部命令 NTBOOT 启动 WIM/VHD (方案1)
 find /efi/grub/ext/ntboot | set bd=
