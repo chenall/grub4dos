@@ -2259,6 +2259,7 @@ extern grub_u32_t cur_pxe_type;
 extern grub_u32_t http_feature;
 extern grub_u32_t pxe_http_type;
 extern grub_u32_t gbk;
+extern grub_u32_t keep_alive;
 extern int map_pd;
 
 #ifdef FSYS_PXE

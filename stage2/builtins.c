@@ -9724,8 +9724,7 @@ static struct builtin builtin_pxe =
   BUILTIN_MENU | BUILTIN_CMDLINE | BUILTIN_SCRIPT | BUILTIN_HELP_LIST | BUILTIN_BOOTING | BUILTIN_IFTITLE,
   "pxe     #Return network interface information.\n",
   "pxe init    #Enable network functionality.\n"  
-  "pxe open /path/file    #Open files.\n"
-  "pxe read /path/file range_start - range_end    #Read files."
+  "pxe read /path/file range_start-range_end    #Read files."
 };
 #endif
 #endif
@@ -12842,6 +12841,14 @@ static int set_func(char *arg, int flags)
       cur_pxe_type = 1;
     return 1;
   }
+  else if (grub_memcmp (arg, "keep=", 5) == 0)
+  {
+    arg += 5;
+    unsigned long long val;
+		if (safe_parse_maxint (&arg, &val))
+			keep_alive = val;
+    return 1;
+  }
   else if (grub_memcmp (arg, "gbk2uni=", 8) == 0)
   {
     gbk = 1;
@@ -12983,7 +12990,7 @@ static struct builtin builtin_set =
   "set [/p] [/a|/A] [/l|/u] [VARIABLE=[STRING]]",
   "/p,Get a line of input;l|/u,lower/upper case;/a|/A,numerical expression that is evaluated(use calc)."
   "/a,set value to a Decimal;/A  to a HEX.\n"
-  "set [tftp|http]" 
+  "set [tftp|http|keep=]" 
 };
 
 typedef struct _SETLOCAL {
