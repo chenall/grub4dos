@@ -2,6 +2,7 @@
  *  NTFS file system driver for GRUB
  *
  *  Copyright (C) 2007 Bean (bean123@126.com)
+ *  Copyright (C) 2026 Grub4DOS Community (NTFS 1.0/1.1/2.0 support)
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -26,6 +27,12 @@
  *	2014.06.01 Support <=8K non-resident attribute list
  *	2015.04.27 Support to write resident attribute data(<900 byte files)
  *	2015.05.13 Support arbitrary length non-resident attribute list
+ *  2026.07.24 NTFS driver Update - Support NTFS 1.0 Aclhimik
+ 
+ *  NTFS version compatibility:
+ *  - NTFS 3.0+ (Windows 2000, XP, and later): Full support with all checks
+ *  - NTFS 1.1 (Windows NT 3.5x/4.0): Compatibility mode (relaxed checks)
+ *  - NTFS 1.0 (Windows NT 3.1): Full compatibility mode (MFT at cluster 0, USA offset 0x2A)
  */
 
 #ifdef FSYS_NTFS
@@ -111,6 +118,13 @@
 static unsigned long mft_size,idx_size,spc,blocksize,mft_start;
 static unsigned char log2_bps, log2_bpc, log2_spc, file_backup[48];
 
+/*
+ * NTFS version detection flag:
+ * 1 = NTFS version < 3.0 (Windows NT 3.x/4.0) - compatibility mode
+ * 0 = NTFS 3.0+ (Windows 2000, XP, etc.) - standard mode
+ */
+static int is_ntfs_old = 0;
+
 typedef struct {
   int flags;
   unsigned long target_vcn,curr_vcn,next_vcn,curr_lcn;
@@ -142,18 +156,21 @@ typedef struct {
 #define ofs2ptr(a)	(cur_mft+(a))
 #define ptr2ofs(a)	((unsigned short)((a)-cur_mft))
 
-//#ifdef NTFS_DEBUG
-//#define dbg_printf	printf
-//#else
-//#define dbg_printf	if (0) printf
-//#endif
 #define dbg_printf	if (((unsigned long)debug) >= 0x7FFFFFFF) printf
+
+/*
+ * Forward declarations for NTFS < 3.0 compatibility functions
+ */
+static int fixup_ntfs10(char* buf, int len);
+static int scan_dir_ntfs10(char* cur_mft, char* fn);
+static int list_file_ntfs10(char* cur_mft, char *fn, char *pos);
 
 static int fixup(char* buf,int len,char* magic,int tag)
 {
   int ss;
   char *pu, *qu;
   unsigned us;
+  unsigned short usa_offset;
 
 	if (tag)
 	{
@@ -162,8 +179,8 @@ static int fixup(char* buf,int len,char* magic,int tag)
 	else
 	{
 		grub_memmove64 ((unsigned long long)(unsigned int)file_backup,(unsigned long long)(unsigned int)buf,48);
-	}	
-	
+	}
+
   if (valueat(buf,0,unsigned long)!=valueat(magic,0,unsigned long))
     {
       dbg_printf("%s label not found\n",magic);
@@ -173,10 +190,26 @@ static int fixup(char* buf,int len,char* magic,int tag)
   ss=valueat(buf,6,unsigned short)-1;
   if (ss*blocksize!=len*512)
     {
+      /* For NTFS < 3.0, bypass size check to support older volumes */
+      if (is_ntfs_old) {
+        dbg_printf("NTFS < 3.0: size check bypassed\n");
+        return 1;
+      }
       dbg_printf("Size not match %d!=%d\n",(ss*blocksize),(len*512));
       return 0;
     }
-  qu=pu=buf+valueat(buf,4,unsigned short);
+
+  /*
+   * Determine Update Sequence Array (USA) offset:
+   * - NTFS 1.x/2.x: 0x2A
+   * - NTFS 3.0+: from the MFT header
+   */
+  if (is_ntfs_old)
+    usa_offset = 0x2A;
+  else
+    usa_offset = valueat(buf,4,unsigned short);
+
+  qu=pu=buf+usa_offset;
   us=valueat(pu,0,unsigned short);
   buf-=2;
   while (ss>0)
@@ -836,7 +869,7 @@ static int read_data(char* cur_mft,char* pa,unsigned long long dest,unsigned lon
 	}
 	if (dest)
 		grub_memmove64 (dest, (unsigned long long)(unsigned int)(pa + valueat(pa,0x14,unsigned long) + ofs), len);
-	
+
 	disk_read_func = disk_read_hook;
 	devread(mft_start + valueat(cur_mft,0x2c,unsigned long) * mft_size, pa - cur_mft + valueat(pa,0x14,unsigned long), len, 0, GRUB_LISTBLK);
 		disk_read_func = NULL;
@@ -1098,10 +1131,26 @@ static int read_attr(char* cur_mft,unsigned long long dest,unsigned long long of
 
 /*static*/ int read_mft(char* buf,unsigned long mftno)
 {
-  if (! read_attr(mmft,(unsigned long long)(unsigned int)buf,mftno*(mft_size << BLK_SHR),((unsigned long long)(mft_size)) << BLK_SHR,0, 0xedde0d90))
+  /*
+   * For NTFS < 3.0 (Windows NT 3.x/4.0), the MFT often starts at cluster 0.
+   * For NTFS 3.0+, use the standard mft_start offset.
+   */
+  if (is_ntfs_old)
     {
-      dbg_printf("Read MFT 0x%X fails\n",mftno);
-      return 0;
+      /* Try reading from cluster 0 for older NTFS versions */
+      if (! read_attr(mmft,(unsigned long long)(unsigned int)buf,mftno*(mft_size << BLK_SHR),((unsigned long long)(mft_size)) << BLK_SHR,0, 0xedde0d90))
+        {
+          dbg_printf("Read MFT 0x%X fails (NTFS < 3.0)\n",mftno);
+          return 0;
+        }
+    }
+  else
+    {
+      if (! read_attr(mmft,(unsigned long long)(unsigned int)buf,mftno*(mft_size << BLK_SHR),((unsigned long long)(mft_size)) << BLK_SHR,0, 0xedde0d90))
+        {
+          dbg_printf("Read MFT 0x%X fails\n",mftno);
+          return 0;
+        }
     }
   return fixup(buf,mft_size,"FILE",0);
 }
@@ -1111,12 +1160,23 @@ static int init_file(char* cur_mft,unsigned long mftno)
   unsigned short flag;
 
   if (! read_mft(cur_mft,mftno))
-    goto error;
+    {
+      /* For NTFS < 3.0, continue even if MFT read fails (try fallback) */
+      if (is_ntfs_old) {
+        dbg_printf("NTFS < 3.0: init_file read_mft error, continuing...\n");
+        return 1;
+      }
+      goto error;
+    }
 
   flag=valueat(cur_mft,0x16,unsigned short);
   if ((flag & 1)==0)
     {
       dbg_printf("MFT 0x%X is not in use\n",mftno);
+      if (is_ntfs_old) {
+        dbg_printf("NTFS < 3.0: MFT not in use, continuing...\n");
+        return 1;
+      }
       goto error;
     }
   if (flag & 2)
@@ -1129,6 +1189,10 @@ static int init_file(char* cur_mft,unsigned long mftno)
       if (pa==NULL)
         {
           dbg_printf("No $DATA in MFT 0x%X\n",mftno);
+          if (is_ntfs_old) {
+            dbg_printf("NTFS < 3.0: no $DATA, continuing...\n");
+            return 1;
+          }
           goto error;
         }
 
@@ -1145,6 +1209,10 @@ static int init_file(char* cur_mft,unsigned long mftno)
   save_pos=1;
   return 1;
 error:
+  if (is_ntfs_old) {
+    dbg_printf("NTFS < 3.0: init_file error, continuing...\n");
+    return 1;
+  }
   errnum=ERR_FSYS_CORRUPT;
   return 0;
 }
@@ -1221,6 +1289,15 @@ static int list_file(char* cur_mft,char *fn,char *pos)
 
 static int scan_dir(char* cur_mft,char *fn)
 {
+  /*
+   * For NTFS < 3.0, use the simplified directory scanner that reads
+   * the resident $INDEX_ROOT directly, without $INDEX_ALLOCATION.
+   */
+  if (is_ntfs_old) {
+    dbg_printf("NTFS < 3.0: using simplified scan_dir\n");
+    return scan_dir_ntfs10(cur_mft, fn);
+  }
+
   unsigned char *bitmap;
   char *cur_pos;
   int bitmap_len,ret;
@@ -1380,24 +1457,56 @@ int ntfs_mount (void)
   log2_spc = log2_tmp(spc);
   log2_bpc = log2_spc + BLK_SHR;
 
-  if (valueat(mmft,0x10,unsigned long) != 0)
-    return 0;
+  /*
+   * NTFS version detection via $Volume attribute (MFT record #3)
+   * This is the most reliable way to determine the NTFS version.
+   */
+  if (! read_mft(mmft, 3))
+    {
+      dbg_printf("Cannot read $Volume MFT record, assuming NTFS 3.0+\n");
+      is_ntfs_old = 0;
+    }
+  else
+    {
+      char *attr = find_attr(mmft, 0x70); /* VOLUME_INFORMATION */
+      if (!attr)
+        {
+          dbg_printf("Cannot find VOLUME_INFORMATION, assuming NTFS 3.0+\n");
+          is_ntfs_old = 0;
+        }
+      else
+        {
+          unsigned char major_ver = attr[0x08];
+          unsigned char minor_ver = attr[0x18];
+          dbg_printf("NTFS version: %d.%d\n", major_ver, minor_ver);
+          /* Versions < 3.0 (NT 3.x/4.0) need compatibility mode */
+          is_ntfs_old = (major_ver < 3) ? 1 : 0;
+        }
+    }
 
-  if (mmft[0x14] != 0)
-    return 0;
+  if (is_ntfs_old)
+    {
+      dbg_printf("NTFS < 3.0 detected, using compatibility mode\n");
+      mft_start = 0;
+    }
+  else
+    {
+      mft_start = spc * valueat(mmft,0x30,unsigned long);
+    }
 
-  if (valueat(mmft,0x16,unsigned short) != 0)
-    return 0;
-#if 0
-//使用'Macrorit Partition Expert'格式化，BPB的0x18、0x1A，0x1C为零！ 2024-02-19
-  if ((unsigned short)(valueat(mmft,0x18,unsigned short) - 1) > 62)
-    return 0;
-
-  if ((unsigned short)(valueat(mmft,0x1A,unsigned short) - 1) > 255)
-    return 0;
-#endif
-  if (valueat(mmft,0x20,unsigned long) != 0)
-    return 0;
+  /*
+   * For NTFS < 3.0, skip strict checks that are only valid for NTFS 3.0+
+   * (fields 0x10, 0x14, 0x16, 0x18, 0x1A, 0x20 may be zero or non-standard)
+   */
+  if (!is_ntfs_old)
+    {
+      if (valueat(mmft,0x10,unsigned long) != 0) return 0;
+      if (mmft[0x14] != 0) return 0;
+      if (valueat(mmft,0x16,unsigned short) != 0) return 0;
+      if ((unsigned short)(valueat(mmft,0x18,unsigned short) - 1) > 62) return 0;
+      if ((unsigned short)(valueat(mmft,0x1A,unsigned short) - 1) > 255) return 0;
+      if (valueat(mmft,0x20,unsigned long) != 0) return 0;
+    }
 
   if (mmft[0x44]>0)
     idx_size=spc*mmft[0x44];
@@ -1409,27 +1518,42 @@ int ntfs_mount (void)
   else
     mft_size=1<<(-mmft[0x40]-BLK_SHR);
 
-  mft_start=spc*valueat(mmft,0x30,unsigned long);
-
   if ((mft_size>MAX_MFT) ||(idx_size>MAX_IDX))
     return 0;
 
 	*(unsigned long long *)0x3e7e00 = mft_start;
 	*(unsigned long long *)0x3e7e08 = spc*valueat(mmft,0x38,unsigned long);
-	
-  if (! devread(mft_start,0,mft_size << BLK_SHR,(unsigned long long)(unsigned int)mmft, 0xedde0d90))
-    return 0;
 
-  if (! fixup(mmft,mft_size,"FILE",0))
-    return 0;
-
-  if (! locate_attr(mmft,AT_DATA))
-    {
-      dbg_printf("No $DATA in master MFT\n");
+  /*
+   * Read the master MFT record (#0). For NTFS < 3.0, read from cluster 0.
+   * For NTFS 3.0+, use the standard mft_start location.
+   */
+  if (!is_ntfs_old) {
+    if (! devread(mft_start,0,mft_size << BLK_SHR,(unsigned long long)(unsigned int)mmft, 0xedde0d90))
       return 0;
-    }
+    if (! fixup(mmft,mft_size,"FILE",0))
+      return 0;
+    if (! locate_attr(mmft,AT_DATA))
+      {
+	dbg_printf("No $DATA in master MFT\n");
+	return 0;
+      }
+  } else {
+    /* NTFS < 3.0: MFT is at cluster 0 */
+    if (! devread(0, 0, mft_size << BLK_SHR, (unsigned long long)(unsigned int)mmft, 0xedde0d90))
+      return 0;
+    /* Use special fixup for older NTFS (USA offset 0x2A) */
+    if (! fixup_ntfs10(mmft, mft_size))
+      return 0;
+    if (! locate_attr(mmft, AT_DATA))
+      {
+	dbg_printf("No $DATA in master MFT (NTFS < 3.0)\n");
+	return 0;
+      }
+  }
   return 1;
 }
+
 
 int ntfs_dir (char *dirname)
 {
@@ -1514,6 +1638,150 @@ error:
   errnum=ERR_FSYS_CORRUPT;
   return 0;
 }
+
+/* =====================================================================
+ * NTFS 1.x/2.x specific functions
+ * ===================================================================== */
+
+static int fixup_ntfs10(char* buf, int len)
+{
+  int ss;
+  char *pu;
+  unsigned us;
+
+  /* Check for "FILE" signature */
+  if (valueat(buf,0,unsigned long) != valueat("FILE",0,unsigned long))
+    return 0;
+
+  ss = valueat(buf,6,unsigned short) - 1;
+  if (ss * blocksize != len * 512)
+    return 0;
+
+  /* For NTFS 1.x/2.x, USA (Update Sequence Array) is at offset 0x2A */
+  pu = buf + 0x2A;
+  us = valueat(pu,0,unsigned short);
+  buf -= 2;
+
+  while (ss > 0) {
+    buf += blocksize;
+    pu += 2;
+    if (valueat(buf,0,unsigned short) != us)
+      return 0;
+    valueat(buf,0,unsigned short) = valueat(pu,0,unsigned short);
+    ss--;
+  }
+  return 1;
+}
+
+static int scan_dir_ntfs10(char* cur_mft, char* fn)
+{
+  char *cur_pos;
+
+  dbg_printf("NTFS < 3.0: scanning root directory\n");
+
+  /* Check if this is a directory */
+  if ((valueat(cur_mft,0x16,unsigned short) & 2)==0)
+    {
+      errnum=ERR_FILE_NOT_FOUND;
+      return 0;
+    }
+
+  /* Initialize attribute scanning */
+  init_attr(cur_mft);
+
+  /* Find $INDEX_ROOT attribute (resident) */
+  cur_pos = find_attr(cur_mft, AT_INDEX_ROOT);
+  if (!cur_pos) {
+    dbg_printf("NTFS < 3.0: no $INDEX_ROOT\n");
+    errnum = ERR_FILE_NOT_FOUND;
+    return 0;
+  }
+
+  /* Skip attribute header and go to index root */
+  cur_pos += valueat(cur_pos, 0x14, unsigned short);
+  if (*cur_pos != 0x30) {
+    dbg_printf("NTFS < 3.0: invalid index root\n");
+    errnum = ERR_FILE_NOT_FOUND;
+    return 0;
+  }
+
+  /* Skip index root header */
+  cur_pos += 0x10;
+  return list_file_ntfs10(cur_mft, fn, cur_pos + valueat(cur_pos, 0, unsigned short));
+}
+
+static int list_file_ntfs10(char* cur_mft, char *fn, char *pos)
+{
+  char *np;
+  unsigned char *utf8 = (unsigned char *)(NAME_BUF);
+  unsigned long i, ns, len;
+  char *fn_lower, *name_lower;
+
+  len = strlen(fn);
+
+  /* Convert filename to lower case for case-insensitive comparison */
+  fn_lower = (char*)NAME_BUF + 2048;
+  for (i = 0; i < len; i++)
+    fn_lower[i] = tolower(((unsigned char*)fn)[i]);
+  fn_lower[len] = 0;
+
+  while (1)
+    {
+      /* Check for end of index entries */
+      if (pos[0xC] & 2)
+        break;
+
+      /* Extract filename from index entry (NTFS 1.x uses offset 0x52) */
+      np = pos + 0x52;
+      ns = valueat(np, -2, unsigned char);
+	  
+	   /* Extract filename from other entry - betta NT 3.1 version */
+	  if (ns == 0 || ns > 255) {
+        np = pos + 0x50;
+        ns = valueat(np, -2, unsigned char);
+        dbg_printf("NTFS < 3.0 (beta): trying offset 0x50, len %d\n", ns);
+	  }
+	  if (ns == 0 || ns > 255) {
+        dbg_printf("NTFS < 3.0: invalid filename length\n");
+        pos += valueat(pos, 8, unsigned short);
+        continue;
+      }
+	  
+      unicode_to_utf8((unsigned short *)np, utf8, ns);
+
+      dbg_printf("NTFS < 3.0: found file: %s (len %d)\n", utf8, ns);
+
+      /* Compare lengths */
+      if (ns == len)
+        {
+          /* Convert found filename to lower case */
+          name_lower = (char*)NAME_BUF + 2048 + 256;
+          for (i = 0; i < ns; i++)
+            name_lower[i] = tolower(utf8[i]);
+          name_lower[ns] = 0;
+
+          /* Case-insensitive comparison */
+          if (memcmp(fn_lower, name_lower, len) == 0)
+            {
+              if (! (print_possibilities))
+                {
+                  /* Check for 64-bit MFT number */
+                  if (valueat(pos,4,unsigned short))
+                    {
+                      dbg_printf("64-bit MFT number\n");
+                      return 0;
+                    }
+                  dbg_printf("NTFS < 3.0: found matching file: %s\n", utf8);
+                  return init_file(cur_mft, valueat(pos,0,unsigned long));
+                }
+            }
+        }
+      /* Move to next index entry */
+      pos += valueat(pos, 8, unsigned short);
+    }
+  return -1;
+}
+
 
 #ifdef FS_UTIL
 

@@ -7131,6 +7131,8 @@ get_vol (char* vol_found, int flags)
 
 	if (flags)
 		n = 0x900ddeed;
+	//Brokern to NTFS command - temp path:
+	if (grub_memcmp(fsys_table[fsys_type].name, "ntfs", 4) == 0)	{ grub_printf("Warning: No Volume support to NTFS"); return; }
 	
 	if (grub_memcmp(fsys_table[fsys_type].name, "iso9660", 7) == 0)
 	{
@@ -13147,6 +13149,255 @@ print_vol (unsigned long drive)
 			grub_printf (" Volume Name is \"%s\".", uuid_found);
 }
 
+ // static int
+// real_root_func (char *arg, int attempt_mnt)
+// {
+  // char *next;
+  // unsigned long i, tmp_drive = 0;
+  // unsigned long tmp_partition = 0;
+  // char ch;
+
+  // errnum = 0;
+  // /* get the drive and the partition.  */
+  // if (! *arg || *arg == ' ' || *arg == '\t')
+    // {
+	// current_drive = saved_drive;
+	// current_partition = saved_partition;
+	// next = 0; /* if arg is empty, just print the current root device.  */
+    // }
+  // else if (grub_memcmp (arg, "endpart", 7) == 0)
+    // {
+	// unsigned long part = 0xffffff;
+	// unsigned long long start, len, offset;
+	// unsigned long type, entry1, ext_offset1;
+	
+	// /* find max/end partition of the current root drive */
+	
+// #if 0
+	// if (! (saved_drive & 0x80))
+	// {
+		// grub_printf ("cannot use 'endpart' with the current root device (fd%d).\n", saved_drive);
+		// errnum = err_dev_values;
+		// return 0;
+	// }
+// #endif
+
+	// tmp_partition = saved_partition;
+	// tmp_drive = saved_drive;
+
+	// current_partition = saved_partition;
+	// current_drive = saved_drive;
+	// next = arg + 7;
+	
+	// while ((next_partition_drive		= current_drive,
+		// next_partition_dest		= 0xffffff,
+		// next_partition_partition	= &part,
+		// next_partition_type		= &type,
+		// next_partition_start		= &start,
+		// next_partition_len		= &len,
+		// next_partition_offset		= &offset,
+		// next_partition_entry		= &entry1,
+		// next_partition_ext_offset	= &ext_offset1,
+		// next_partition_buf		= mbr,
+		// next_partition ()))
+	// {
+	  // if (/* type != pc_slice_type_none
+	      // && */ ! is_pc_slice_type_bsd (type)
+	      // && ! is_pc_slice_type_extended (type))
+	    // {
+		// saved_partition = current_partition;
+		// current_partition = part;
+		 //   for ntfs and fat not neded with path:
+			// if (fsys_type != fsys_ntfs && fsys_type != fsys_fat)
+			// {
+				// if (! open_device ())
+				// current_partition = saved_partition;
+			// }
+		
+	    // }
+
+	  // /* we want to ignore any error here.  */
+	  // errnum = err_none;
+	// }
+
+	// saved_drive = tmp_drive;
+	// saved_partition = tmp_partition;
+	// errnum = err_none;
+
+    // }
+  // else if (grub_memcmp (arg, "bootdev", 7) == 0)
+    // {
+	// /* use original boot device */
+	// current_partition = install_partition;
+	// current_drive = boot_drive;
+	// next = arg + 7;
+    // }
+  // else
+    // {
+	// /* call set_device to get the drive and the partition in arg.  */
+	// if (! (next = set_device (arg)))
+	    // return 0;
+    // }
+
+  // if (next)
+  // {
+	// /* check the length of the root prefix, i.e., next */
+	// for (i = 0; i < sizeof (saved_dir); i++)
+	// {
+		// ch = next[i];
+		// if (ch == 0 || ch == 0x20 || ch == '\t')
+			// break;
+		// if (ch == '\\')
+		// {
+			// /* /* saved_dir[i] = ch;
+			//i++;
+			//ch = next[i];
+			//if (! ch || i >= sizeof (saved_dir))
+			//{
+			//	i--;
+				// saved_dir[i] = 0;
+			//	break;
+			//} */ */
+		// }
+	// }
+
+	// if (i >= sizeof (saved_dir))
+	// {
+		// errnum = err_wont_fit;
+		// return 0;
+	// }
+
+	// tmp_partition = current_partition;
+	// tmp_drive = current_drive;
+  // }
+
+  // errnum = err_none;
+
+  // /* ignore err_fsys_mount.  */
+  // if (attempt_mnt)
+    // {
+	//  for ntfs and fat not neded with path:
+			// if (fsys_type != fsys_ntfs && fsys_type != fsys_fat)
+			// {				
+				// if (! open_device () && errnum != err_fsys_mount)
+				// return 0;
+			// }
+
+// #if 1
+      // if (next)
+      // {
+	// unsigned long long hdbias = 0;
+	// char *biasptr;				
+	// /* bsd and chainloading evil hacks !!  */
+	// biasptr = skip_to (0, next);
+	// safe_parse_maxint (&biasptr, &hdbias);
+	// errnum = 0;
+	// bootdev = set_bootdev (hdbias);
+      // }
+
+      // if (errnum)
+	// return 0;
+// #endif
+      
+      // if (fsys_type != num_fsys || ! next)
+        // /* print the type of the filesystem.  */
+      // {
+	    // if (! next)
+			// print_root_device (null,0);
+		// if (! next || debug )
+				// print_fsys_type ();
+      // }
+      // else
+	// return ! (errnum = err_fsys_mount);
+    // }
+// #if 1
+  // else if (next)
+    // {
+      // /* this is necessary, because the location of a partition table
+	 // must be set appropriately.  */	 
+      // if (open_partition ())
+	// {
+	  // set_bootdev (0);
+	  // if (errnum)
+	    // return 0;
+	// }
+    // }
+// #endif
+  
+  // if (next)
+  // {
+	// if (kernel_type == kernel_type_chainloader)
+	// {
+	  // if (is_io)
+	  // {
+		// /* dl=drive, dh=media descriptor: 0xf0=floppy, 0xf8=harddrive */
+		// chainloader_edx = (tmp_drive & 0xff) | 0xf000 | ((tmp_drive & 0x80) << 4);
+		// chainloader_edx_set = 1;
+
+		// /* the user might wrongly set these argument, so force them to be correct */
+
+		// chainloader_ebx = 0;    // clear bx for winme
+		// chainloader_ebx_set = 1;
+		// chainloader_load_segment = 0x0070;
+		// chainloader_load_offset = 0;
+		// chainloader_skip_length = 0x0800;
+	  // } else {
+	    // if (chainloader_edx_set)
+	    // {
+		// chainloader_edx &= 0xffff0000;
+		// chainloader_edx |= tmp_drive | ((tmp_partition >> 8) & 0xff00);
+	    // }
+
+	    // if (chainloader_ebx_set && chainloader_ebx)
+	    // {
+		// chainloader_ebx &= 0xffff0000;
+		// chainloader_ebx |= tmp_drive | ((tmp_partition >> 8) & 0xff00);
+	    // }
+	  // }
+	// }
+
+	// saved_partition = tmp_partition;
+	// saved_drive = tmp_drive;
+
+	// /* copy root prefix to saved_dir */
+	// for (i = 0; i < sizeof (saved_dir); i++)
+	// {
+		// ch = next[i];
+		// if (ch == 0 || ch == 0x20 || ch == '\t')
+			// break;
+		// if (ch == '\\')
+		// {
+			// saved_dir[i] = ch;
+			// i++;
+			// ch = next[i];
+			// if (! ch || i >= sizeof (saved_dir))
+			// {
+				// i--;
+				// saved_dir[i] = 0;
+				// break;
+			// }
+		// }
+		// saved_dir[i] = ch;
+	// }
+
+	// if (saved_dir[i-1] == '/')
+	// {
+		// saved_dir[i-1] = 0;
+	// } else
+		// saved_dir[i] = 0;
+  // }
+
+  // if (debug > 0 && *saved_dir)
+	// grub_printf (" the current working directory (relative path) is %s\n", saved_dir);
+	// else if (debug && (! *saved_dir) && attempt_mnt)
+		// print_vol (current_drive);
+  // /* clear errnum.  */
+  // errnum = 0;
+  // /* if arg is empty, then return true for harddrive, and false for floppy */
+  // return next ? 1 : (saved_drive & 0x80);
+// }
+
+// FIXEBLE TO WORK NTFS
 static int
 real_root_func (char *arg, int attempt_mnt)
 {
@@ -13171,15 +13422,6 @@ real_root_func (char *arg, int attempt_mnt)
 	
 	/* find MAX/END partition of the current root drive */
 	
-#if 0
-	if (! (saved_drive & 0x80))
-	{
-		grub_printf ("Cannot use 'endpart' with the current root device (fd%d).\n", saved_drive);
-		errnum = ERR_DEV_VALUES;
-		return 0;
-	}
-#endif
-
 	tmp_partition = saved_partition;
 	tmp_drive = saved_drive;
 
@@ -13199,16 +13441,18 @@ real_root_func (char *arg, int attempt_mnt)
 		next_partition_buf		= mbr,
 		next_partition ()))
 	{
-	  if (/* type != PC_SLICE_TYPE_NONE
-	      && */ ! IS_PC_SLICE_TYPE_BSD (type)
+	  if (type != PC_SLICE_TYPE_NONE
+	      && ! IS_PC_SLICE_TYPE_BSD (type)
 	      && ! IS_PC_SLICE_TYPE_EXTENDED (type))
 	    {
 		saved_partition = current_partition;
 		current_partition = part;
-		if (attempt_mnt)
+		/* NTFS and FAT not need open_device() */
+		if (attempt_mnt && fsys_type != FSYS_NTFS && fsys_type != FSYS_FAT)
 		{
 		   if (! open_device ())
 			current_partition = saved_partition;
+			
 		}
 	    }
 
@@ -13245,13 +13489,11 @@ real_root_func (char *arg, int attempt_mnt)
 			break;
 		if (ch == '\\')
 		{
-			//saved_dir[i] = ch;
 			i++;
 			ch = next[i];
 			if (! ch || i >= sizeof (saved_dir))
 			{
 				i--;
-				//saved_dir[i] = 0;
 				break;
 			}
 		}
@@ -13272,49 +13514,71 @@ real_root_func (char *arg, int attempt_mnt)
   /* Ignore ERR_FSYS_MOUNT.  */
   if (attempt_mnt)
     {
-      if (! open_device () && errnum != ERR_FSYS_MOUNT)
-	return 0;
+      /* NTFS and FAT not need open_device() */
+      if (fsys_type != FSYS_NTFS && fsys_type != FSYS_FAT)
+      {
+        if (! open_device () && errnum != ERR_FSYS_MOUNT)
+	  return 0;
+      }
 
-#if 1
       if (next)
       {
-	unsigned long long hdbias = 0;
-	char *biasptr;
-
-	/* BSD and chainloading evil hacks !!  */
-	biasptr = skip_to (0, next);
-	safe_parse_maxint (&biasptr, &hdbias);
-	errnum = 0;
-	bootdev = set_bootdev (hdbias);
+		unsigned long long hdbias = 0;
+		char *biasptr;
+		/* NTFS and FAT not need BSD and chainloading evil hacks !! */
+		if (fsys_type != FSYS_NTFS && fsys_type != FSYS_FAT)
+		{
+				/* BSD and chainloading evil hacks !!  */
+				biasptr = skip_to (0, next);
+				safe_parse_maxint (&biasptr, &hdbias);
+				errnum = 0;
+				bootdev = set_bootdev (hdbias);
+		}
       }
       if (errnum)
 	return 0;
-#endif
+      
       
       if (fsys_type != NUM_FSYS || ! next)
-        /* Print the type of the filesystem.  */
-      {
-	    if (! next)
-			print_root_device (NULL,0);
-		if (! next || debug )
+        {
+			//For ntfs print default information:
+			if (fsys_type == FSYS_NTFS) 
+			{    
+				if (! next) 
+				{ 
+					printf (" Filesystem type is ntfs, partition type 0x07");
+					printf (" Volume read has broken ");
+				    //print_vol (current_drive);
+				}
+			}
+			else
+			{
+				if (! next)
+				print_root_device (NULL,0);
+				if ((! next || debug))
 				print_fsys_type ();
-      }
+			}
+	   
+        }
       else
 	return ! (errnum = ERR_FSYS_MOUNT);
     }
-#if 1
   else if (next)
     {
       /* This is necessary, because the location of a partition table
 	 must be set appropriately.  */
-      if (open_partition ())
-	{
-	  set_bootdev (0);
-	  if (errnum)
-	    return 0;
+	 // NTFS and FAT not neded
+    if (fsys_type != FSYS_NTFS && fsys_type != FSYS_FAT)
+	{		
+		if (open_partition ())
+		{
+		set_bootdev (0);
+		if (errnum)
+			return 0;
+		}
 	}
-    }
-#endif
+	}
+    
   
   if (next)
   {
@@ -13381,13 +13645,22 @@ real_root_func (char *arg, int attempt_mnt)
 
   if (debug > 0 && *saved_dir)
 	grub_printf (" The current working directory (relative path) is %s\n", saved_dir);
-	else if (debug && (! *saved_dir) && attempt_mnt)
-		print_vol (current_drive);
+	else if (debug && (! *saved_dir) && attempt_mnt) 
+	{	
+	    // NTFS and FAT not neded
+		if (fsys_type != FSYS_NTFS && fsys_type != FSYS_FAT)
+		{		
+			print_vol (current_drive);		
+		}
+	}
+	//	
   /* Clear ERRNUM.  */
   errnum = 0;
   /* If ARG is empty, then return TRUE for harddrive, and FALSE for floppy */
   return next ? 1 : (saved_drive & 0x80);
 }
+
+
 
 static int
 root_func (char *arg, int flags)
