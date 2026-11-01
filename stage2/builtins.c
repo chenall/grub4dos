@@ -13144,7 +13144,7 @@ print_vol (unsigned long drive)
 	char uuid_found[256] = {0};
 		get_vol (uuid_found,0);
 		if (*uuid_found)
-			grub_printf (" Volume Name is \"%s\".", uuid_found);
+			grub_printf (" Volume Name is \"%s\".\n", uuid_found);
 }
 
 static int
