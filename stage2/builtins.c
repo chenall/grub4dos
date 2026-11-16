@@ -370,9 +370,6 @@ blocklist_func (char *arg, int flags)
 
   if (fsys_table[fsys_type].mount_func == pxe_mount)
   {
-    map_start_sector[0] = (unsigned long long)(grub_size_t)(char*)efi_pxe_buf;
-    printf("0x%lx+0x%lx", (unsigned long long)(grub_size_t)(char*)efi_pxe_buf >> 9, (filemax + 0x1ff) >> 9);
-    query_block_entries = blklst_num_entries = 1;
     goto fail_read;
   }
 
@@ -922,6 +919,7 @@ complete:
       errnum = ERR_NO_DISK;
       goto fail_free_cache;
     }
+#if 0
     if (flags)
     {
       if (!map_pd)
@@ -929,6 +927,8 @@ complete:
         goto fail_free_cache;
     }
     else
+#endif
+    if (!flags)    
     {
       grub_sprintf (chainloader_file, "(0x%X)+0x%lX\0", drive, (unsigned long long)tmp_geom.total_sectors);
       if (! grub_open (chainloader_file))
@@ -7300,7 +7300,6 @@ unload_fragment_slot (unsigned int from)  //卸载碎片插槽
   }
 }
 
-#if VHD_DIFFERENCE
 int GetSectorSequence (char* Utf8Name, struct fragment_map_slot** SectorSeq, int exist);
 int
 GetSectorSequence (char* Utf8Name, struct fragment_map_slot** SectorSeq, int exist)  //获得父VHD文件的扇区序列
@@ -7363,14 +7362,13 @@ GetParentUtf8Name (char *dest, grub_uint16_t *src)  //获得utf8格式的父VHD�
 
   return count;
 }
-#endif
 
 void add_part_data (int drive);
 void
 add_part_data (int drive)
 {
 	struct grub_part_data *p;	//efi分区数据
-	struct grub_part_data *p_final;	//efi分区数据
+	struct grub_part_data *p_final=0;	//efi分区数据
 	unsigned int back_saved_drive = saved_drive;
 	unsigned int back_current_drive	=	current_drive;
 	unsigned int back_saved_partition	=	saved_partition;
@@ -7380,10 +7378,12 @@ add_part_data (int drive)
     return;
  
   //查找分区数据结束
+  if (partition_info)
+  {
   p_final = partition_info;
   while (p_final->next)
     p_final = p_final->next;
-  
+  } 
   if (drive < 0x90)
   {
     unsigned int part = 0xFFFFFF;
@@ -7473,9 +7473,6 @@ add_part_data (int drive)
 }
 
 unsigned long long tmp;
-#if VHD_DIFFERENCE
-unsigned long long vhd_start_sector;
-#endif
 unsigned int ext_num;
 unsigned int ext_start_lba;
 unsigned int ext_total_sectors;
@@ -7501,10 +7498,6 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
   int no_hook = 0;
   int alloc_only = 0;
   int no_alloc = 0;
-#if VHD_DIFFERENCE
-  int vhd_disk = 0;
-  vhd_start_sector = 0;
-#endif
   map_pd = 0;
 
 #define	BS	((struct master_and_dos_boot_sector *)mbr)
@@ -7514,7 +7507,6 @@ map_func (char *arg, int flags)  //对设备进行映射		返回: 0/1=失败/成
   unsigned char	from_log2_sector = 9;
   unsigned char	partmap_type = 0;
   int add_mbt = 0;
-  char system_indicator;
   char* buffer;
   unsigned long long skip_sectors = 0;
   filesystem_type = -1;
@@ -7900,7 +7892,7 @@ struct drive_map_slot
 //a0,21,21,21;  60,ffff,ffff,21;  map (http)/imgs/ifu352.iso (cd)
 //a0,21,21,21;  60,ffff,ffff,21;  map --mem (http)/imgs/ifu352.iso (cd)
 //81,ffff,ffff.21;  82,7f,7f,81;  ntboot (http)/imgs/boot.wim
-  if (to == 0xffff || to == ram_drive || from == ram_drive || (to == 0x21 && (!cur_pxe_type || !http_feature)))		//如果to=md,或to=rd,或from=rd,或网络驱动器
+  if (to == 0xffff || to == ram_drive || from == ram_drive)		//如果to=md,或to=rd,或from=rd
   {
 		if (mem == -1ULL)		//如果mem=-1ULL=0xffffffffffffffff   不加载到内存
 			mem = 0;					//则为零  修改为加载到内存   to=md,或to=rd,或from=rd,则一定是mem=0,即一定加载到内存
@@ -7910,7 +7902,6 @@ struct drive_map_slot
 	{
     return 0;
 	}
-#if VHD_DIFFERENCE
 	//保存to驱动器的路径文件名
 	if (*(to_drive) == '/' || *(to_drive) == '(')
 	{
@@ -7926,44 +7917,31 @@ struct drive_map_slot
     *(p + 2) = 0;
 
 		grub_memmove (vhd_file_path, chainloader_file, grub_strlen (chainloader_file) + 1);
+		filename = vhd_file_name;
+		skip_to(0x200,filename);
+		char *suffix = &filename[strlen (filename) - 3]; //取尾缀
+		if ((suffix[0] | 0x20) == 'v' && (suffix[1] | 0x20) == 'h' && (suffix[2] | 0x20) == 'd')
+    {
+      if (to == 0x21)
+      {
+        map_pd = 1;
+        mem = 0;
+      }
+    }
 	}
-#endif
 //printf ("from-1,%x,%x,%x,%x\n",from,to,current_drive,saved_drive);
 //a0,21,21,21;  60,ffff,ffff,21;
 //a0,21,21,21;  60,ffff,ffff,21;
 //81,ffff,ffff.21;  82,7f,7f,81;
-  if (to == 0x21 && (!cur_pxe_type || !http_feature))
-  {
-    map_pd = 1;
-    if (! grub_open (to_drive))	//从服务器复制文件到efi_pxe_buf
-      goto  fail_free;
-    rd_base = (unsigned long long)(grub_size_t)efi_pxe_buf;
-    rd_size = (unsigned long long)filemax;
-    to_drive = "(rd)+1";  //将获得的文件映射为rd, 作为to驱动器  
-//    efi_pxe_buf = 0;
-    if (!compressed_file) //如果未压缩
-      no_alloc = 1;       //则使用efi_pxe_buf,不再分配内存
-    grub_close ();
-  }
-
   //2. 获取to驱动器扇区序列(填充碎片信息)
     query_block_entries = -1; /* query block list only   仅请求块列表*/
-		int c = compressed_file;
 		k = no_decompression;
 		no_decompression = 1;
-    putchar_hooked = (unsigned char*)1;  //禁止显示
     //第一次读to驱动器，建立扇区序列
     blocklist_func (to_drive, flags);	//请求块列表   执行成功后,将设置query_block_entries=1,设置errnum=0
-    putchar_hooked = 0;
 		no_decompression = k;
-		compressed_file = c;
     if (errnum)
       return 0;
-#if VHD_DIFFERENCE
-		vhd_start_sector = map_start_sector[0];
-    if (map_pd)
-      vhd_start_sector += rd_base;
-#endif
 	cache = grub_zalloc (0x800);	//分配缓存
   if (!cache)
     return 0;
@@ -7976,15 +7954,9 @@ struct drive_map_slot
       //第二次读获取，建立form驱动器映射
       if (! grub_open (to_drive))	//打开to驱动器
         goto  fail_free;
-
-    if (mem == -1ULL && (compressed_file || (query_block_entries > DRIVE_MAP_FRAGMENT)))		//如果不加载到内存，并且是压缩文件, 或者碎片太多，强制加载到内存
-    {
-      mem = 0;
-      if (compressed_file) //如果是压缩文件
-        printf_warning ("Compressed file needs to be loaded into memory.");
-      else
-        printf_warning ("Too many fragments, needs to be loaded into memory.");
-    }  
+    if (mem == -1ULL && (compressed_file
+            || (query_block_entries > DRIVE_MAP_FRAGMENT)))		//如果不加载到内存，并且是压缩文件, 或者碎片太多，强制加载到内存
+      mem = 0; 
 
     if (skip_sectors > (filemax >> 9))		//如果跳过扇区>文件最大扇区
 		{
@@ -8021,31 +7993,8 @@ struct drive_map_slot
 
     //此处重新设置了 sector_count, 将扇区计数更改为按每扇区0x200字节计的小扇区!!!
     sector_count = (filemax + buf_geom.sector_size - 1) >> buf_geom.log2_sector_size;
-#if VHD_DIFFERENCE
-		if (!start_sector)
-			start_sector = vhd_start_sector;
-#endif
     //此处又修改sector_count
     sector_count -= skip_sectors;  //扇区计数=扇区计数-跳过扇区
-#if 0 //重名from前面已经排除，现在的from还没有建立。
-  if (from != ram_drive)		//如果from不等于rd
-  {
-    df = get_device_by_drive (from,1);
-    if (df && df->fragment == 1)  //有碎片
-    {
-      q = (struct fragment_map_slot *)disk_fragment_map;   //碎片插槽起始
-      grub_size_t size = (grub_size_t)disk_fragment_map + FRAGMENT_MAP_SLOT_SIZE;
-      q = fragment_map_slot_find(q, from);		              //从碎片插槽查找from驱动器
-      if (q)  		//q=0/非0=没有找到/from驱动器在碎片插槽位置
-      {
-        void *start = (char *)size - q->slot_len;
-        int len = q->slot_len;
-        grub_memmove (q, (char *)q + q->slot_len, (char *)size - (char *)q - q->slot_len);
-        grub_memset (start, 0, len);
-      }
-    }
-	}
-#endif
 //检查to是否存在父映射   在 disk_drive_map 查找from，是否等于当前to
   /* check whether TO is being mapped */
 	if (mem == -1ULL)  //如果不加载到内存
@@ -8087,6 +8036,8 @@ struct drive_map_slot
 //a0,21,7f,21;  60,ffff,ffff,21;
 //a0,21,7f,21;  60,ffff,ffff,21;
 //81,ffff,ffff.21;  82,7f,7f,81;
+#if 1
+  char system_indicator;
   //4. 探测及设置from参数
   if (from != ram_drive && from != 0xffff && !alloc_only)
   {
@@ -8206,19 +8157,11 @@ get_gpt_info:
   }
 		
 get_info_ok:
+#endif
 	grub_free (cache);
   cache = 0;
-#if VHD_DIFFERENCE
-	if (compressed_file && decomp_type == DECOMP_TYPE_VHD)	//vhd动态磁盘
-	{
-		if (mem == -1ULL)	//不加载到内存
-			vhd_disk |= 1;
-		else							//加载到内存
-			vhd_disk |= 2;
-	}
-#endif
-	if (mem == -1ULL)		//如果不加载到内存
-		grub_close ();		//关闭to驱动器
+//	if (mem == -1ULL)		//如果不加载到内存
+//		grub_close ();		//关闭to驱动器
 //====================================================================================================================  
 //printf ("from-4,%x,%x,%x,%x,%x\n",from,to,current_drive,saved_drive,no_alloc);
 //a0,21,7f,21;  60,ffff,ffff,21;
@@ -8288,7 +8231,7 @@ get_info_ok:
         errnum = ERR_WONT_FIT;   //2024-09-01
         return 0;
       }
-
+      printf_debug ("map: alloc=%x\n",alloc);
 /////////////////////////////////////////////////////////////////////////////////////////////////////以上插入分配内存
 /*
 VHD测试
@@ -8339,7 +8282,7 @@ mem_ok:
     if (alloc_only)
     {
       from_log2_sector = 9;
-      grub_close ();        //关闭to驱动器
+//      grub_close ();        //关闭to驱动器
       to = 0xFFFF;
       goto no_fragment;
     }
@@ -8349,9 +8292,10 @@ mem_ok:
 //a0,21,7f,21;  60,ffff,ffff,21;
 //a0,21,7f,21;  60,ffff,ffff,21;
 //81,ffff,ffff.21;
-	  if ((to == 0xffff || to == ram_drive/* || (to == 0x21 && type != 260)*/) && !compressed_file) //如果映像在内存中，并且没有压缩，我们可以简单地移动它。
+	  if ((to == 0xffff || to == ram_drive) && !compressed_file) //如果映像在内存中，并且没有压缩，我们可以简单地移动它。
 		{
         printf ("Copying data from memory, please wait......\n");
+        printf_debug ("alloc=%x  start_byte=%x  filemax=%x\n",alloc,start_byte,filemax);
         grub_memmove64 (alloc, start_byte, filemax);
 		}
     else if (!compressed_file && to != 0x21)  //如果映像不在内存，而且没有压缩(img,iso,静态vhd)，使用读碎片块方法  2024-09-01  加快静态vhd的读取速度
@@ -8397,11 +8341,8 @@ mem_ok:
 				read_size = filemax - (skip_sectors << 9);
 			filepos = skip_sectors << 9;
 			unsigned long long asdf = part_start;
-#if VHD_DIFFERENCE
-			if (vhd_disk & 2)
-				part_start = vhd_start_sector;
-#endif
 			printf ("Copying data from compressed file, please wait......\n");
+      printf_debug ("alloc=%x  start_byte=%x\n",alloc,start_byte);
 			read_result = grub_read (alloc, read_size, 0xedde0d90);	//读结果=返回读尺寸
 			part_start = asdf;
 
@@ -8420,7 +8361,7 @@ mem_ok:
       *(int*)((grub_size_t)alloc + 0x1c) = 1;
       add_mbt = 0;
     }
-	  grub_close ();        //关闭to驱动器
+//	  grub_close ();        //关闭to驱动器
 		to = 0xFFFF/*GRUB_INVALID_DRIVE*/;
 //printf ("from-6,%x,%x,%x,%x\n",from,to,current_drive,saved_drive);
 //a0,ffff,7f,21;  60,ffff,ffff,21;
@@ -8453,7 +8394,7 @@ mem_ok:
     {
       start_sector = rd_base >> 9;
     }
-	  grub_close ();        //关闭to驱动器
+//	  grub_close ();        //关闭to驱动器
 		to = 0xFFFF;
   }
 	//加载到内存结束
@@ -8613,14 +8554,11 @@ no_fragment:
 //a0,ffff,7f,21;  60,ffff,ffff,21;
 //a0,ffff,7f,21;  60,ffff,ffff,21;
 //81,ffff,ffff.21;  82,ffff,7f,81;
-#if VHD_DIFFERENCE
-  d->vhd_disk = vhd_disk;
 	if (vhd_file_name)
 	{
 		grub_free (vhd_file_name);
 		vhd_file_name = 0;
 	}
-#endif
   if (de)
     return 1;
 
@@ -8676,22 +8614,14 @@ no_fragment:
 //;  60,ffff,ffff,21;  a0,ffff,a0,21;
 //81,ffff,ffff.21;  82,ffff,82,81;
 //getkey();
-  map_pd = 0;
+  grub_close ();        //关闭to驱动器
   return 1;
 
 fail_close_free:
-  grub_close ();
-
 fail_free:
+  grub_close ();
 	if (cache)
 		grub_free (cache);
-#if VHD_DIFFERENCE
-	if (vhd_file_name)
-	{
-		grub_free (vhd_file_name);
-		vhd_file_name = 0;
-	}
-#endif
   return 0;
 }
 
@@ -12839,6 +12769,20 @@ static int set_func(char *arg, int flags)
   {
     if (!cur_pxe_type && !only_tftp)
       cur_pxe_type = 1;
+    return 1;
+  }
+  else if (grub_memcmp (arg, "200", 4) == 0)
+  {
+    back_feature = http_feature;
+    http_feature = 0;
+    return 1;
+  }
+  else if (grub_memcmp (arg, "206", 4) == 0)
+  {
+    if (back_feature == 1)
+      http_feature = 1;
+    else
+      printf ("Setting 206 is invalid.\n");
     return 1;
   }
   else if (grub_memcmp (arg, "keep=", 5) == 0)

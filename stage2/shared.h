@@ -45,7 +45,6 @@
 //UEFI 编译开关
 #define GDPUP   0         //使用设备路径实用程序协议   低版本UEFI固件不支持
 #define UNMAP   1         //卸载映像
-#define VHD_DIFFERENCE 0  //使用扇区序列读，支持差分
 
 /* Add an underscore to a C symbol in assembler code if needed. */
 #ifdef HAVE_ASM_USCORE
@@ -1628,7 +1627,6 @@ struct geometry
   unsigned int sector_size;
 	/* Power of sector size 2 */
 	unsigned int log2_sector_size;
-	unsigned char vhd_disk;								//vhd磁盘					位0-1,仿真类型：1=不加载到内存    2=加载到内存
 	unsigned char fill1;									//填充
 	unsigned short fill2;									//填充	
 };
@@ -2040,8 +2038,6 @@ unsigned long long dec_lz4_read (unsigned long long buf, unsigned long long len,
 extern int dec_vhd_open(void);
 void dec_vhd_close(void);
 unsigned long long dec_vhd_read(unsigned long long buf, unsigned long long len, unsigned int write);
-extern int vhd_read;
-extern unsigned long long vhd_start_sector;
 #endif /* NO_DECOMPRESSION */
 
 extern int rawread (unsigned int drive, unsigned long long sector, unsigned int byte_offset, unsigned long long byte_len, unsigned long long buf, unsigned int write);
@@ -2257,6 +2253,7 @@ extern unsigned int saved_pxe_ip;
 extern unsigned char saved_pxe_mac[6];
 extern grub_u32_t cur_pxe_type;
 extern grub_u32_t http_feature;
+extern grub_u32_t back_feature;
 extern grub_u32_t pxe_http_type;
 extern grub_u32_t gbk;
 extern grub_u32_t keep_alive;
@@ -2280,6 +2277,8 @@ extern int pxe_init (void);
 extern int only_tftp;
 extern int pxe_func (char *arg, int flags);
 extern unsigned long long pxe_read (unsigned long long buf, unsigned long long len, unsigned int write);
+extern int pxe_open (char* name);
+extern char *pxe_name;
 #ifdef FSYS_IPXE
 extern grub_u32_t has_ipxe;
 int ipxe_func(char* arg,int flags);
@@ -5908,7 +5907,6 @@ struct grub_disk_data  //efi磁盘数据	(软盘,硬盘,光盘)    注意外部�
   unsigned char fragment;                   //碎片
   unsigned char read_only;                  //只读
   unsigned char disk_type;                  //磁盘类型        0/1/2=光盘/硬盘/软盘
-  unsigned char vhd_disk;										//vhd磁盘					位0-1,仿真类型：1=不加载到内存    2=加载到内存
   unsigned char fill;                      	//填充
   grub_efivdisk_t *vdisk;                   //虚拟磁盘指针
 }  __attribute__ ((packed));

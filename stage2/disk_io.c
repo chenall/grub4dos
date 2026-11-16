@@ -262,14 +262,6 @@ rawread (unsigned int drive, unsigned long long sector, unsigned int byte_offset
     if (buf_track == (unsigned long long)-1 || sector < buf_track || sector >= (buf_track + num_sect))
     {
 			buf_track = sector & ~((0x1000 >> buf_geom.log2_sector_size) - 1);  //4k对齐
-#if VHD_DIFFERENCE
-			if (buf_geom.vhd_disk & 1)
-			{
-				filepos = buf_track << 9;
-				dec_vhd_read ((unsigned long long)(grub_size_t)BUFFERADDR,BUFFERLEN,0xedde0d90);
-			}
-      else 
-#endif        
       if (grub_efidisk_readwrite (buf_drive, buf_track, BUFFERLEN, BUFFERADDR, 0xedde0d90))
       {
         buf_track = -1;		/* invalidate the buffer */     
@@ -2239,6 +2231,7 @@ grub_close (void)
   if (compressed_file)
       decomp_table[decomp_type].close_func ();
   compressed_file = 0;
+  decomp_type = 0xff;
 #endif /* NO_DECOMPRESSION */
 
 #ifndef NO_BLOCK_FILES
@@ -2271,12 +2264,8 @@ get_diskinfo (unsigned int drive, struct geometry *geometry, unsigned int partit
 	if (p)
 	{
 		geometry->sector_size = 1 << p->from_log2_sector;
-//		geometry->total_sectors = p->sector_count;
 		geometry->total_sectors = p->total_sectors;
 		geometry->log2_sector_size = p->from_log2_sector;
-#if VHD_DIFFERENCE
-		geometry->vhd_disk = p->vhd_disk;
-#endif
 		return 0; //成功
 	}
 
@@ -3020,9 +3009,7 @@ grub_SectorSequence_readwrite (int drive, struct fragment *data, unsigned char f
   }
   return 1;
 }
-#if VHD_DIFFERENCE
-int vhd_read = 0;
-#endif
+
 //由磁盘读,磁盘写调用
 //efi磁盘读写(驱动器号,扇区号,读字节数,缓存区,读/写)		返回: 0/1=成功/失败
 //1. 磁盘数据对齐
@@ -3129,16 +3116,7 @@ grub_efidisk_readwrite (int drive, grub_disk_addr_t sector,
       return 0;
     }
 	}
-#if VHD_DIFFERENCE
-	//动态vhd处理
-	if (df->vhd_disk & 1 && !vhd_read)	//vhd不加载到内存，并且不是dec_vhd读磁盘
-	{
-//		filepos = sector << 9;
-    filepos = lba_byte;   //2024-09-01
-		dec_vhd_read ((unsigned long long)(grub_size_t)buf, (unsigned long long)size, read_write);
-		return 0;
-	}
-#endif	
+
   //判断是原生磁盘还是映射磁盘
   from_drive = drive;
   dm = get_device_by_drive (from_drive,1);

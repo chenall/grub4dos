@@ -25,6 +25,47 @@ RELEASE=grub4dos-${VER}-${DATE}
 #rm -rf *.zip *.7z *~ || exit $?
 #定义临时编译目录 GRUB4DOS_TEMP
 [ -z "$GRUB4DOS_TEMP" ] && GRUB4DOS_TEMP=/tmp/grub4dos-temp
+
+#--------------------------------------------------------------
+# Skrshadow(M0rt1s0114) 提交
+# 把 PE 文件的 .text 段标记为可写。
+# grub4efi 的运行期变量(asm.S 里的 VARIABLE)都放在 .text 段内，
+# 而 mkimage 生成的 .text 段属性是 CODE|EXECUTE|READ。
+# 部分固件会按该属性把映像的 .text 设为只读，
+# 此时第一次写这些变量就会触发访问异常，表现为背光亮、黑屏、键盘无响应。
+#--------------------------------------------------------------
+make_text_section_writable ()
+{
+	[ -f "$1" ] || return 0
+
+	pe=$(od -An -tu4 -j60 -N4 "$1" | tr -d '[:space:]')
+	[ -z "$pe" ] && return 1
+
+	nums=$(od -An -tu2 -j$((pe + 6)) -N2 "$1" | tr -d '[:space:]')
+	opt=$(od -An -tu2 -j$((pe + 20)) -N2 "$1" | tr -d '[:space:]')
+	sec=$((pe + 24 + opt))
+
+	i=0
+	while [ $i -lt $nums ]; do
+		off=$((sec + i * 40))
+		if [ "$(dd if="$1" bs=1 skip=$off count=5 2>/dev/null)" = ".text" ]; then
+			char=$(od -An -tx4 -j$((off + 36)) -N4 "$1" | tr -d '[:space:]')
+			if [ "$char" = "60000020" ]; then
+				# 0x60000020(CODE|EXECUTE|READ) -> 0xE0000020(加上 WRITE)
+				printf '\040\000\000\340' | dd of="$1" bs=1 seek=$((off + 36)) conv=notrunc 2>/dev/null
+				echo "  .text 段已设为可写: $1"
+			else
+				echo "  $1 的 .text 段属性为 $char，未改动。"
+			fi
+			return 0
+		fi
+		i=$((i + 1))
+	done
+
+	echo "警告: $1 里没有找到 .text 段。"
+	return 1
+}
+
 if svn export . ${GRUB4DOS_TEMP} --force 2>/dev/null ; then
 # check for svn version   检查svn版本
 	export LC_ALL=C
@@ -143,6 +184,7 @@ then
 else
     $SOURCE_DIR/mkimage.i386 -d $GRUB4DOS_TEMP/x86_64-efi -p /efi/grub -o BOOTX64.EFI -O x86_64-efi
 fi
+make_text_section_writable BOOTX64.EFI
 
 #**********************************************
 #	编译 BOOTIA32.EFI
@@ -164,6 +206,7 @@ then
 else
     $SOURCE_DIR/mkimage.i386 -d $GRUB4DOS_TEMP/i386-efi -p /efi/grub -o BOOTIA32.EFI -O i386-efi
 fi
+make_text_section_writable BOOTIA32.EFI
 
 #转到源目录
 cd $SOURCE_DIR

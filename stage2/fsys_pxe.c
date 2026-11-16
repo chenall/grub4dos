@@ -26,6 +26,7 @@
 
 grub_u32_t cur_pxe_type = 0;  //当前传输协议类型  0/1=tftp/http
 grub_u32_t http_feature;  //1=支持断点续传
+grub_u32_t back_feature;
 grub_u32_t detect;
 grub_u32_t keep_alive = 0;    //持久连接  0/1=不支持/支持
 int map_pd;
@@ -40,7 +41,7 @@ MAC_ADDR pxe_mac;
 static void print_ip (grub_u32_t ip);
 static int pxe_opened = 0;
 static char filename[128];
-static char *pxe_name = filename;
+char *pxe_name = 0;
 static int read_status;
 static char *http_range = 0;
 grub_u32_t pxe_http_type = 0; //0/1=http/https
@@ -56,7 +57,7 @@ unsigned long long hex;
 char *g4e_options;
 unsigned int g4e_options_size;
 
-static int pxe_open (char* name);
+int pxe_open (char* name);
 int pxe_mount (void);
 int pxe_dir (char *dirname);
 unsigned long long pxe_read (unsigned long long buf, unsigned long long len, unsigned int write);
@@ -120,8 +121,14 @@ unsigned long long buf_start, buf_len;
 //对于tftp，判断是否首次打开文件名，确定是否必须读
 //配置tftp/http
 //打开tftp/http
-static int pxe_open (char* name)	//pxe打开
+int pxe_open (char* name)	//pxe打开
 {
+  pxe_name = filename;
+  if (grub_strcmp (pxe_name,name) == 0)
+  {
+    filepos = 0;
+    return 1;
+  }   
   grub_strcpy (pxe_name, name);
 
   pxe_need_read = 1;
@@ -359,6 +366,7 @@ int pxe_allocate(void) //分配内存
 
   if (map_pd) //不释放内存
   {
+    //分配页
     bytes_needed = ((filemax+4095)&(-4096ULL));
     status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,   
           GRUB_EFI_RESERVED_MEMORY_TYPE,                        //保留内存类型        0
@@ -369,8 +377,9 @@ int pxe_allocate(void) //分配内存
       errnum = ERR_WONT_FIT;
       return 0;
     }
+    printf_debug ("pxe_allocate_pages: filemax=%x  efi_pxe_buf=%x\n",filemax,efi_pxe_buf);
   }
-  else
+  else  //分配池
   {
     if (efi_pxe_buf)
       efi_call_1 (b->free_pool, efi_pxe_buf);	//调用(释放池,释放数据)
@@ -381,6 +390,7 @@ int pxe_allocate(void) //分配内存
       printf_errinfo ("Couldn't allocate pool.");
       return !(errnum = 0x1234);
     }
+    printf_debug ("pxe_allocate_pool: filemax=%x  efi_pxe_buf=%x\n",filemax,efi_pxe_buf);
   }
 
 	memset(efi_pxe_buf,0,filemax);  //2023-11-24
@@ -441,7 +451,7 @@ tftp_read (char *buf, grub_u64_t len)  //efi读
 				0);
   if (status != GRUB_EFI_SUCCESS)		//失败
 	{
-		printf_errinfo ("Couldn't read file.");
+		printf_errinfo ("Couldn't read file.\n");
 		return 0;
 	}
 
@@ -466,7 +476,7 @@ int tftp_write (const char *name)		//tftp写  2023-11-24
 				0);
   if (status != GRUB_EFI_SUCCESS)		//失败
 	{
-		printf_errinfo ("Couldn't write file.");
+		printf_errinfo ("Couldn't write file.\n");
     return !(errnum = 0x1234);
 	}
 
